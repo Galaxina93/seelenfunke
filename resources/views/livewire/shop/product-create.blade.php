@@ -73,22 +73,54 @@
                             <h3 class="font-serif text-lg font-bold text-gray-900 truncate mb-1">{{ $prod->name }}</h3>
                             <p class="text-sm text-gray-500 font-mono mb-6">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
 
-                            {{-- NEU: Lagerbestand Anzeige --}}
-                            <div class="mb-6 h-6"> {{-- Feste Höhe verhindert Springen wenn leer --}}
+                            {{-- NEU: Lagerbestand Anzeige & Schnellerfassung --}}
+                            <div class="mb-6 h-8 flex items-center"
+                                 x-data="{
+                                     editing: false,
+                                     qty: {{ $prod->quantity }}
+                                 }">
+
                                 @if($prod->track_quantity)
-                                    @if($prod->quantity > 0)
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                                            {{ $prod->quantity }} auf Lager
-                                        </span>
-                                    @else
-                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                            Ausverkauft
-                                        </span>
-                                    @endif
+                                    {{-- ANZEIGE MODUS --}}
+                                    <div x-show="!editing"
+                                         @click="editing = true; $nextTick(() => $refs.qtyInput.focus())"
+                                         class="cursor-pointer group relative transition-all hover:scale-105">
+
+                                        {{-- Tooltip beim Hovern --}}
+                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-gray-900 text-white text-[10px] px-2 py-1 rounded z-10">
+                                            Klicken zum Ändern
+                                        </div>
+
+                                        @if($prod->quantity > 0)
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100 hover:border-green-300 hover:bg-green-100 transition">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                                <span x-text="qty"></span> auf Lager
+                                                <svg class="w-3 h-3 ml-1 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100 hover:border-red-300 hover:bg-red-100 transition">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                                Ausverkauft
+                                                <svg class="w-3 h-3 ml-1 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    {{-- EDITIER MODUS --}}
+                                    <div x-show="editing" style="display: none;" class="flex items-center gap-2" @click.outside="editing = false; qty = {{ $prod->quantity }}">
+                                        <input x-ref="qtyInput"
+                                               type="number"
+                                               x-model="qty"
+                                               class="w-20 px-2 py-1 text-xs font-bold text-center border border-primary rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                                               @keydown.enter="$wire.updateStock('{{ $prod->id }}', qty); editing = false"
+                                               @keydown.escape="editing = false; qty = {{ $prod->quantity }}">
+
+                                        <button @click="$wire.updateStock('{{ $prod->id }}', qty); editing = false" class="bg-primary text-white p-1 rounded-md hover:bg-primary-dark">
+                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    </div>
                                 @else
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 cursor-not-allowed opacity-70" title="Unbegrenzter Bestand aktiviert">
                                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                                         Unbegrenzt
                                     </span>
@@ -567,18 +599,6 @@
                                     <h3 class="font-bold text-lg text-gray-900">Text-Gravur erlauben</h3>
                                     <input type="checkbox" wire:model.live="configSettings.allow_text_pos" class="w-6 h-6 rounded text-primary focus:ring-primary border-gray-300">
                                 </div>
-                                @if($configSettings['allow_text_pos'])
-                                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-100 animate-fade-in-up">
-                                        <label class="text-xs font-bold uppercase text-gray-500 mb-4 block tracking-wider">Erlaubte Positionen</label>
-                                        <div class="grid grid-cols-3 gap-3">
-                                            @foreach($positions as $key => $label)
-                                                <label class="flex items-center gap-2 text-xs bg-white border border-gray-200 p-3 rounded-lg cursor-pointer hover:border-primary hover:text-primary transition">
-                                                    <input type="checkbox" value="{{ $key }}" wire:model.live="configSettings.allowed_pos" class="rounded text-primary focus:ring-primary border-gray-300"> {{ $label }}
-                                                </label>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                @endif
                                 <div class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-primary/30 transition bg-white">
                                     <h3 class="font-bold text-lg text-gray-900">Logo-Upload erlauben</h3>
                                     <input type="checkbox" wire:model.live="configSettings.allow_logo" class="w-6 h-6 rounded text-primary focus:ring-primary border-gray-300">

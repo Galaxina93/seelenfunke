@@ -103,7 +103,6 @@ class ProductCreate extends Component
         'area_left' => 10,
         'area_width' => 80,
         'area_height' => 80,
-        'allowed_pos' => ['top-left', 'top-center', 'top-right', 'center-left', 'center-center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'],
         'allowed_align' => ['left', 'center', 'right']
     ];
 
@@ -445,6 +444,23 @@ class ProductCreate extends Component
         $this->product->save();
 
         if($notify) session()->flash('success', 'Produkt gespeichert.');
+    }
+
+    // --- QUICK ACTIONS (Lagerbestand in Liste ändern) ---
+    public function updateStock($id, $newQty)
+    {
+        $product = Product::find($id);
+
+        if ($product) {
+            // Validierung: Mindestens 0
+            $qty = max(0, (int) $newQty);
+
+            $product->quantity = $qty;
+            $product->save();
+
+            // Optional: Feedback-Nachricht, die schnell wieder verschwindet
+            session()->flash('success', 'Lagerbestand für "' . $product->name . '" aktualisiert.');
+        }
     }
 
     public function render()

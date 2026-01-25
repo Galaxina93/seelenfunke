@@ -123,7 +123,6 @@ class Calculator extends Component
                 'default_text_pos' => $config['default_text_pos'] ?? 'center-center',
                 'default_logo_pos' => $config['default_logo_pos'] ?? 'top-center',
                 'default_text_align' => $config['default_text_align'] ?? 'center_h',
-                'allowed_pos' => $config['allowed_pos'] ?? array_keys($this->positions),
                 'allowed_align' => $config['allowed_align'] ?? array_keys($this->alignmentOptions),
                 'area_top' => $config['area_top'] ?? 10,
                 'area_left' => $config['area_left'] ?? 10,

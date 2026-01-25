@@ -55,8 +55,6 @@
 
                     @if(isset($item['config']['text_x']))
                         <div class="sub-info">Pos: X:{{ round($item['config']['text_x']) }}% Y:{{ round($item['config']['text_y']) }}% ({{ round($item['config']['text_size']*100) }}%)</div>
-                    @elseif(isset($item['config']['text_pos']))
-                        <div class="sub-info">Pos: {{ $item['config']['text_pos'] }}</div>
                     @endif
                 @endif
 
