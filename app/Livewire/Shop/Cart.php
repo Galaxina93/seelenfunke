@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Livewire\Shop;
+
+use App\Services\CartService;
+use Livewire\Component;
+use Livewire\Attributes\On;
+
+class Cart extends Component
+{
+    // Wir injizieren den Service
+    protected CartService $cartService;
+
+    // State für das Bearbeitungs-Modal
+    public $editingItemId = null;
+    public $showEditModal = false;
+
+    public function boot(CartService $cartService)
+    {
+        $this->cartService = $cartService;
+    }
+
+    // --- Actions ---
+
+    public function edit($itemId)
+    {
+        $this->editingItemId = $itemId;
+        $this->showEditModal = true;
+    }
+
+    #[On('close-modal')]
+    public function closeModal()
+    {
+        $this->showEditModal = false;
+        $this->editingItemId = null;
+    }
+
+    public function increment($itemId)
+    {
+        // Hole aktuelle Quantity
+        $item = \App\Models\CartItem::find($itemId);
+        if ($item) {
+            $this->cartService->updateQuantity($itemId, $item->quantity + 1);
+            $this->dispatch('cart-updated'); // Aktualisiert das Icon im Header
+        }
+    }
+
+    public function decrement($itemId)
+    {
+        $item = \App\Models\CartItem::find($itemId);
+        if ($item) {
+            $this->cartService->updateQuantity($itemId, $item->quantity - 1);
+            $this->dispatch('cart-updated');
+        }
+    }
+
+    public function remove($itemId)
+    {
+        $this->cartService->removeItem($itemId);
+        $this->dispatch('cart-updated');
+    }
+
+    // Listener für "In den Warenkorb" Buttons von anderen Komponenten (z.B. Konfigurator)
+    #[On('add-to-cart')]
+    public function addToCartHandler($productId, $qty = 1, $config = null)
+    {
+        $product = \App\Models\Product::find($productId);
+        if($product) {
+            $this->cartService->addItem($product, $qty, $config);
+
+            // Events feuern
+            $this->dispatch('cart-updated');
+            session()->flash('success', 'Produkt hinzugefügt!');
+        }
+    }
+
+    public function render()
+    {
+        $cart = $this->cartService->getCart();
+        $totals = $this->cartService->getTotals();
+
+        // Eager Loading der Relation product, damit wir auf attributes zugreifen können
+        return view('livewire.shop.cart', [
+            'cart' => $cart,
+            'items' => $cart->items()->with('product')->get(),
+            'totals' => $totals
+        ]);
+    }
+}

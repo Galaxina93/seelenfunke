@@ -1,0 +1,64 @@
+.app.panel-with-sidebar{
+
+    .app-header{
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 55px;
+        display: flex;
+    }
+
+
+    .app-body{
+        margin-top: 55px;
+        min-height: calc(100vh - 55px);
+        display: flex;
+    }
+
+    //
+    // Main Navigation
+    //
+    .sidenav {
+        padding: 16px 0 0 0;
+        z-index: 1035;
+        background-color: #fff;
+        overflow: hidden;
+        width: 240px;
+        min-height: 100vh;
+        box-shadow: 0 4px 12px 0 rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.05);
+    }
+
+    .sidenav-subheading {
+        text-transform: uppercase;
+        font-size: .6rem;
+        padding: 1rem 1.5rem;
+        font-weight: 700;
+    }
+
+    .sidenav-link {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: .89rem;
+        padding: 1rem 1.5rem;
+        height: 3rem;
+        color: unset;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border-radius: 5px;
+        transition: all .3s linear;
+
+        &.link-active{
+            color: #fff;
+            background-color: #0a53be;
+        }
+    }
+
+    .sidenav-sm .sidenav-link {
+        padding-top: .4rem;
+        padding-bottom: .4rem;
+        height: auto;
+    }
+}
