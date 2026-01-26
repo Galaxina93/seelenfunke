@@ -314,9 +314,22 @@
                                                         @endif
                                                     </div>
                                                 </div>
-                                                <div class="hidden md:block w-8 h-8 rounded-full bg-white border border-gray-200 text-gray-400 flex items-center justify-center group-hover:border-primary group-hover:text-primary transition shadow-sm">
+                                                <div
+                                                    class="hidden md:flex
+                                                           w-8 h-8 rounded-full
+                                                           bg-white/90 backdrop-blur
+                                                           border border-gray-200
+                                                           text-gray-400
+                                                           items-center justify-center
+                                                           shadow-sm
+                                                           transition-all duration-200
+                                                           group-hover:border-primary/60
+                                                           group-hover:text-primary
+                                                           group-hover:shadow-md
+                                                           group-hover:scale-[1.03]"
+                                                >
                                                     <svg
-                                                        class="w-7 h-7 translate-y-[0.5px]"
+                                                        class="w-5 h-5"
                                                         fill="none"
                                                         viewBox="0 0 24 24"
                                                         stroke="currentColor"
@@ -330,6 +343,7 @@
                                                     </svg>
                                                 </div>
 
+
                                             </div>
                                         </div>
                                     </div>
@@ -339,7 +353,7 @@
                     </div>
                 </div>
 
-                {{-- STEP 2: KONFIGURATION --}}
+            {{-- STEP 2: KONFIGURATION --}}
             @elseif($step === 2)
                 <div class="flex flex-col md:flex-row animate-fade-in"
                      x-data="window.calculatorDragData({
@@ -475,7 +489,7 @@
                         <div class="relative w-full max-w-[400px] aspect-square bg-white rounded-xl shadow-lg overflow-hidden border-4 border-white"
                              x-ref="container">
 
-                            {{-- Hintergrund --}}
+                            {{-- Overlay --}}
                             @if(!empty($currentProduct['preview_image']))
                                 <img src="{{ asset($currentProduct['preview_image']) }}" class="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none">
                             @elseif(!empty($currentProduct['image']))

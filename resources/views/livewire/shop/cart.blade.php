@@ -10,7 +10,7 @@
                 </div>
                 <h2 class="text-xl font-medium text-gray-900 mb-2">Der Warenkorb ist leer</h2>
                 <p class="text-gray-500 mb-6">Finde dein neues Seelenstück in unserer Manufaktur.</p>
-                <a href="{{ route('home') }}" class="inline-block bg-primary text-white px-8 py-3 rounded-full font-bold hover:bg-primary-dark transition shadow-lg shadow-primary/30">
+                <a href="{{ route('shop') }}" class="inline-block bg-primary text-white px-8 py-3 rounded-full font-bold hover:bg-primary-dark transition shadow-lg shadow-primary/30">
                     Zur Kollektion
                 </a>
             </div>
@@ -108,10 +108,30 @@
                         <h3 class="font-serif font-bold text-xl text-gray-900 mb-6">Zusammenfassung</h3>
 
                         <div class="space-y-3 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-100">
+
+                            {{-- Warenwert --}}
                             <div class="flex justify-between">
                                 <span>Warenwert</span>
                                 <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
                             </div>
+
+                            {{-- NEU: Rabatt Anzeige --}}
+                            @if(!empty($totals['discount_amount']) && $totals['discount_amount'] > 0)
+                                <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                        <span>Gutschein ({{ $totals['coupon_code'] }})</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
+                                        <button wire:click="removeCoupon" class="text-red-400 hover:text-red-600" title="Entfernen">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- Steuern Details --}}
                             <div class="pt-2 space-y-1">
                                 @foreach($totals['taxes_breakdown'] as $rate => $amount)
                                     <div class="flex justify-between text-xs text-gray-400">
@@ -120,12 +140,27 @@
                                     </div>
                                 @endforeach
                             </div>
-                            <div class="flex justify-between items-center bg-green-50 p-2 rounded -mx-2">
-                                <span class="text-green-800 font-medium flex items-center gap-2">Versand</span>
+
+                            {{-- Versand --}}
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded -mx-2">
+                                <span class="text-gray-800 font-medium">Versand</span>
                                 <span class="text-green-700 font-bold uppercase text-xs tracking-wider">Kostenlos</span>
                             </div>
                         </div>
 
+                        {{-- NEU: Gutschein Eingabe (wenn kein Code aktiv ist) --}}
+                        @if(empty($totals['coupon_code']))
+                            <div class="mb-6">
+                                <form wire:submit.prevent="applyCoupon" class="flex gap-2">
+                                    <input type="text" wire:model="couponCodeInput" placeholder="Gutscheincode" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary uppercase placeholder-gray-400">
+                                    <button type="submit" class="bg-gray-900 text-white px-3 py-2 rounded text-sm font-bold hover:bg-black transition shadow-md">OK</button>
+                                </form>
+                                @error('couponCodeInput') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                @if(session()->has('success')) <span class="text-green-600 text-xs mt-1 block">{{ session('success') }}</span> @endif
+                            </div>
+                        @endif
+
+                        {{-- Gesamtsumme --}}
                         <div class="flex justify-between items-end mb-8">
                             <span class="font-bold text-gray-900">Gesamtsumme</span>
                             <span class="text-2xl font-serif font-bold text-primary">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>

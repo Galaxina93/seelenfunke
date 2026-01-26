@@ -16,8 +16,8 @@
                     <h3 class="font-bold mt-4">Datenerfassung auf dieser Website</h3>
                     <ul class="list-disc list-inside mt-2 space-y-1">
                         <li><strong>Wer ist verantwortlich?</strong> Die Datenverarbeitung erfolgt durch den Websitebetreiber (Alina Steinhauer). Kontaktdaten finden Sie im Impressum.</li>
-                        <li><strong>Wie erfassen wir Daten?</strong> Automatisch durch IT-Systeme (z.B. Browser, IP-Adresse) oder durch Ihre Eingabe (Kontaktformular, E-Mail).</li>
-                        <li><strong>Wofür nutzen wir Daten?</strong> Zur Bereitstellung der Website, zur Kommunikation mit Ihnen und zur Abwicklung von Anfragen.</li>
+                        <li><strong>Wie erfassen wir Daten?</strong> Automatisch durch IT-Systeme (z.B. Browser, IP-Adresse) oder durch Ihre Eingabe (Kontaktformular, E-Mail, Newsletter-Anmeldung).</li>
+                        <li><strong>Wofür nutzen wir Daten?</strong> Zur Bereitstellung der Website, zur Kommunikation mit Ihnen, für den Newsletter-Versand und zur Abwicklung von Anfragen.</li>
                     </ul>
                 </div>
 
@@ -85,6 +85,25 @@
                         Diese Daten geben wir nicht ohne Ihre Einwilligung weiter.
                         <br>
                         Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung/vorvertragliche Maßnahmen) oder Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an der Bearbeitung von Anfragen).
+                    </p>
+
+                    {{-- NEU: NEWSLETTER ABSCHNITT --}}
+                    <h3 class="font-bold text-lg mt-6">Newsletter</h3>
+                    <p>
+                        Wenn Sie den auf der Website angebotenen Newsletter beziehen möchten, benötigen wir von Ihnen eine E-Mail-Adresse sowie Informationen, welche uns die Überprüfung gestatten, dass Sie der Inhaber der angegebenen E-Mail-Adresse sind und mit dem Empfang des Newsletters einverstanden sind (Double-Opt-In-Verfahren).
+                    </p>
+                    <p class="mt-2">
+                        Zu Nachweiszwecken speichern wir den Zeitpunkt der Anmeldung und der Bestätigung sowie die verwendete IP-Adresse.
+                        Weitere Daten werden nicht bzw. nur auf freiwilliger Basis erhoben. Diese Daten verwenden wir ausschließlich für den Versand der angeforderten Informationen und geben diese nicht an Dritte weiter.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Rechtsgrundlage: Die Verarbeitung der in das Newsletteranmeldeformular eingegebenen Daten erfolgt ausschließlich auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO).
+                    </p>
+                    <p class="mt-2">
+                        <strong>Widerruf & Austragung:</strong> Die erteilte Einwilligung zur Speicherung der Daten, der E-Mail-Adresse sowie deren Nutzung zum Versand des Newsletters können Sie jederzeit widerrufen, etwa über die "Abmelden"-Funktion auf unserer Website oder über einen Link im Newsletter. Die Rechtmäßigkeit der bereits erfolgten Datenverarbeitungsvorgänge bleibt vom Widerruf unberührt.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        <strong>Speicherdauer:</strong> Die von Ihnen zum Zwecke des Newsletter-Bezugs bei uns hinterlegten Daten werden von uns bis zu Ihrer Austragung aus dem Newsletter bei uns gespeichert und nach der Abbestellung des Newsletters aus der Verteilerliste gelöscht. Daten, die zu anderen Zwecken bei uns gespeichert wurden (z.B. E-Mail-Adressen im Rahmen von Bestellungen), bleiben hiervon unberührt.
                     </p>
                 </div>
 

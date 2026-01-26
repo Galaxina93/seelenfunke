@@ -4,6 +4,7 @@ namespace App\Livewire\Shop;
 
 use App\Models\Product;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Str;
@@ -28,17 +29,28 @@ class ProductCreate extends Component
     public $compare_price_input = '';
     public $tax_included = true;
     public $tax_class = 'standard';
-    public $tax_rate = 19.00;
 
-    // SEO
-    public $seo_title = '';
-    public $seo_description = '';
-    public $slug_input = '';
+    // UI-Helper für die Berechnung (wird nicht mehr im Produkt gespeichert!)
+    public $current_tax_rate = 19.00;
 
     // Identifikatoren
     public $sku = '';
     public $barcode = '';
     public $brand = '';
+
+    // Status (Enum)
+    public $status = 'draft';
+
+    // --- NEU: Versanddaten (Schritt 1 oder 3) ---
+    public $weight = 0; // Gramm
+    public $height = 0; // mm
+    public $width = 0;  // mm
+    public $length = 0; // mm
+
+    // SEO
+    public $seo_title = '';
+    public $seo_description = '';
+    public $slug_input = '';
 
     // --- Suche & Medien ---
     public $search = '';
@@ -53,9 +65,9 @@ class ProductCreate extends Component
     public $productAttributes = [
         'Material' => '',
         'Druck' => '',
-        'Technik' => '', // HIER
+        'Technik' => '',
         'Größe' => '',
-        'Gewicht' => '',
+        'Gewicht' => '', // Nur als Attribut für Frontend-Anzeige, logistik-Gewicht ist $weight
         'Verpackung' => '',
         'Lieferzeit' => '3-5 Werktage',
         'Farbe' => ''
@@ -67,29 +79,18 @@ class ProductCreate extends Component
 
     // --- Info Texte ---
     public $infoTexts = [
-        'name' => 'Der offizielle Produktname. Er wird im Shop, auf Rechnungen, Lieferscheinen und Bestellbestätigungen angezeigt.',
-        'price' => 'Der tatsächliche Verkaufspreis, den der Kunde bezahlt.',
-        'compare_price' => 'Ein optionaler Vergleichspreis, z. B. die UVP.',
-        'tax' => 'Legt fest, ob der Preis Brutto oder Netto ist.',
-        'tax_class' => 'Die Steuerklasse bestimmt den anzuwendenden Mehrwertsteuersatz.',
-        'sku' => 'SKU (Stock Keeping Unit) - Interne Artikelnummer.',
-        'barcode' => 'Globale Produktkennzeichnung wie GTIN oder EAN.',
+        'name' => 'Der offizielle Produktname für Shop, Rechnungen und Lieferscheine.',
+        'price' => 'Verkaufspreis. Brutto oder Netto je nach Einstellung.',
+        'tax' => 'Legt fest, ob der eingegebene Preis die Steuer bereits enthält.',
+        'tax_class' => 'Bestimmt den Steuersatz (z.B. Standard 19% oder Ermäßigt 7%).',
+        'sku' => 'SKU (Stock Keeping Unit) - Eindeutige Artikelnummer (Pflichtfeld).',
+        'barcode' => 'EAN / GTIN für Scanner und externe Marktplätze.',
         'brand' => 'Marke oder Hersteller.',
-        'seo' => 'Daten für Suchmaschinen wie Google.',
-        'slug' => 'Der URL-Teil der Adresse.',
-        'Lager' => 'Automatische Bestandsverwaltung aktivieren.',
-
-        // Attribute Hilfetexte
-        'Material' => 'Hauptmaterial des Produkts.',
-        'Größe' => 'Abmessungen oder Konfektionsgröße.',
-        'Gewicht' => 'Gesamtgewicht inkl. Verpackung in Gramm.',
-        'Farbe' => 'Primäre Farbe.',
-
-        // NEU: Technik Hilfetext
-        'Technik' => 'Das verwendete Verfahren zur Herstellung oder Veredelung (z.B. 3D-Druck, Lasergravur, Siebdruck, Handarbeit).',
-        'Druck' => 'Art des Aufdrucks, falls vorhanden (z.B. Digitaldruck, UV-Druck).'
+        'seo' => 'Meta-Daten für Suchmaschinen.',
+        'slug' => 'Der URL-Pfad des Produkts.',
+        'Lager' => 'Bestandsführung aktivieren.',
+        'Technik' => 'Herstellungsverfahren (z.B. Lasergravur, 3D-Druck).',
     ];
-
 
     // --- Konfigurator Settings ---
     public $configSettings = [
@@ -106,15 +107,9 @@ class ProductCreate extends Component
         'allowed_align' => ['left', 'center', 'right']
     ];
 
-    public $positions = [
-        'top-left' => 'Oben Links', 'top-center' => 'Oben Mittig', 'top-right' => 'Oben Rechts',
-        'center-left' => 'Mitte Links', 'center-center' => 'Mitte Zentriert', 'center-right' => 'Mitte Rechts',
-        'bottom-left' => 'Unten Links', 'bottom-center' => 'Unten Mittig', 'bottom-right' => 'Unten Rechts',
-    ];
-
     protected $rules = [
         'name' => 'required|min:3',
-        'sku' => 'required|min:3',
+        'sku' => 'required|min:3', // SKU ist jetzt wichtiger
         'price_input' => 'required|numeric|min:0',
         'slug_input' => 'required|alpha_dash|min:3',
     ];
@@ -126,8 +121,7 @@ class ProductCreate extends Component
             'slug' => 'draft-' . Str::uuid(),
             'status' => 'draft',
             'price' => 0,
-            'tax_rate' => 19.00,
-            'tax_class' => 'standard',
+            'tax_class' => 'standard', // Nur die Klasse speichern
             'tax_included' => true,
             'media_gallery' => [],
             'tier_pricing' => [],
@@ -147,6 +141,7 @@ class ProductCreate extends Component
         $this->name = $this->product->name;
         $this->description = $this->product->description;
         $this->short_description = $this->product->short_description;
+        $this->status = $this->product->status;
 
         // SEO & Slug
         $this->seo_title = $this->product->seo_title;
@@ -156,12 +151,20 @@ class ProductCreate extends Component
         // Steuern
         $this->tax_included = (bool) $this->product->tax_included;
         $this->tax_class = $this->product->tax_class ?? 'standard';
-        $this->tax_rate = (float) $this->product->tax_rate;
+
+        // Live-Rate laden (nicht aus Produkt, sondern aus DB/Logik)
+        $this->updatedTaxClass($this->tax_class);
 
         // Identifikatoren
         $this->sku = $this->product->sku;
         $this->barcode = $this->product->barcode;
         $this->brand = $this->product->brand;
+
+        // Versanddaten laden
+        $this->weight = $this->product->weight;
+        $this->height = $this->product->height;
+        $this->width = $this->product->width;
+        $this->length = $this->product->length;
 
         // Lager
         $this->track_quantity = (bool) $this->product->track_quantity;
@@ -200,11 +203,14 @@ class ProductCreate extends Component
 
     public function updatedTaxClass($value)
     {
-        $this->tax_rate = match($value) {
-            'reduced' => 7.00,
-            'zero' => 0.00,
-            default => 19.00
-        };
+        // Wir holen den aktuellen Satz aus der 'tax_rates' Tabelle
+        // Fallback auf 19, falls Tabelle leer oder Satz nicht gefunden
+        $rate = DB::table('tax_rates')
+            ->where('tax_class', $value)
+            ->where('is_default', true) // Annahme: Es gibt einen Default-Satz pro Klasse
+            ->value('rate');
+
+        $this->current_tax_rate = $rate ? (float)$rate : 19.00;
     }
 
     public function updatedSlugInput($value)
@@ -212,10 +218,15 @@ class ProductCreate extends Component
         $this->slug_input = Str::slug($value);
     }
 
-    // --- NAVIGATION ---
+    // --- NAVIGATION & STATUS ---
 
     public function updateStatus($id, $newStatus)
     {
+        // Validierung gegen Enum-Werte
+        if (!in_array($newStatus, ['draft', 'active', 'archived'])) {
+            return;
+        }
+
         $prod = Product::find($id);
         if($prod) {
             $prod->status = $newStatus;
@@ -230,6 +241,8 @@ class ProductCreate extends Component
         $this->new_media = [];
         $this->search = '';
     }
+
+    // --- WIZARD NAVIGATION ---
 
     public function goToStep($step)
     {
@@ -260,6 +273,7 @@ class ProductCreate extends Component
     {
         if ($this->currentStep === 1) {
             $price = (float) $this->price_input;
+            // SKU ist jetzt wichtiger
             return !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input);
         }
         if ($this->currentStep === 2) {
@@ -270,9 +284,6 @@ class ProductCreate extends Component
                 }
             }
             return $hasImage;
-        }
-        if ($this->currentStep === 3) {
-            return true;
         }
         return true;
     }
@@ -288,6 +299,7 @@ class ProductCreate extends Component
 
     // --- MEDIA ---
 
+    // (Hier bleibt die Logik weitgehend gleich, da JSON für Medien vorerst ok ist für MVP)
     public function updatedNewMedia()
     {
         $this->validate(['new_media.*' => 'image|max:10240']);
@@ -387,14 +399,14 @@ class ProductCreate extends Component
         }
     }
 
-    // --- SAVE ---
+    // --- SAVE (KERNLOGIK) ---
 
     public function save($notify = true)
     {
         // 1. Basisdaten
         $this->product->name = $this->name;
         $this->product->description = $this->description;
-        $this->product->short_description = $this->short_description;
+        $this->product->short_description = $this->product->short_description;
 
         // 2. Slug Logik
         if (!empty($this->slug_input)) {
@@ -405,10 +417,10 @@ class ProductCreate extends Component
             $this->product->slug = $slug;
         }
 
-        // 3. Steuern
+        // 3. Steuern (Nur Klasse und Included-Flag speichern, KEINE Rate!)
         $this->product->tax_included = (bool) $this->tax_included;
         $this->product->tax_class = $this->tax_class;
-        $this->product->tax_rate = $this->tax_rate;
+        // WICHTIG: $this->product->tax_rate wird NICHT mehr gesetzt.
 
         // 4. SEO
         $this->product->seo_title = $this->seo_title;
@@ -424,19 +436,25 @@ class ProductCreate extends Component
         $this->product->quantity = empty($this->quantity) ? 0 : (int) $this->quantity;
         $this->product->continue_selling_when_out_of_stock = (bool) $this->continue_selling;
 
-        // 7. Preis
-        $this->product->price_euro = empty($this->price_input) ? '0' : $this->price_input;
+        // 7. Preis (Cent-Konvertierung)
+        $this->product->price = empty($this->price_input) ? 0 : (int) round((float)$this->price_input * 100);
         if($this->compare_price_input) {
             $this->product->compare_at_price = (int) round((float)$this->compare_price_input * 100);
         } else {
             $this->product->compare_at_price = null;
         }
 
-        // 8. Arrays
+        // 8. Versanddaten (Neu)
+        $this->product->weight = (int) $this->weight;
+        $this->product->height = (int) $this->height;
+        $this->product->width = (int) $this->width;
+        $this->product->length = (int) $this->length;
+
+        // 9. JSON Arrays
         $this->product->attributes = $this->productAttributes;
         $this->product->configurator_settings = $this->configSettings;
 
-        // 9. Fortschritt speichern
+        // 10. Fortschritt
         if($this->currentStep > $this->product->completion_step && $this->canProceed()) {
             $this->product->completion_step = $this->currentStep;
         }
@@ -446,20 +464,16 @@ class ProductCreate extends Component
         if($notify) session()->flash('success', 'Produkt gespeichert.');
     }
 
-    // --- QUICK ACTIONS (Lagerbestand in Liste ändern) ---
+    // --- QUICK ACTIONS ---
     public function updateStock($id, $newQty)
     {
         $product = Product::find($id);
 
         if ($product) {
-            // Validierung: Mindestens 0
             $qty = max(0, (int) $newQty);
-
             $product->quantity = $qty;
             $product->save();
-
-            // Optional: Feedback-Nachricht, die schnell wieder verschwindet
-            session()->flash('success', 'Lagerbestand für "' . $product->name . '" aktualisiert.');
+            session()->flash('success', 'Lagerbestand aktualisiert.');
         }
     }
 
@@ -467,6 +481,9 @@ class ProductCreate extends Component
     {
         $query = Product::query();
         if($this->search) $query->where('name', 'like', '%'.$this->search.'%');
+
+        // Performance: Eager Loading der Felder ist bei Eloquent Standard, aber falls
+        // Tax Rates irgendwann relational geladen werden, hier ->with() einfügen.
         $products = ($this->viewMode === 'list') ? $query->latest()->get() : [];
 
         return view('livewire.shop.product-create', [

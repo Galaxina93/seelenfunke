@@ -28,10 +28,12 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/products', function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');
-
-        // Produkterstellung
-        // Übersicht (musst du noch bauen)
-        Route::get('/products', function() { return 'Hier kommt die Übersicht'; })->name('products.index');
+    Route::get('/admin/voucher', function () {
+        return view('backend.admin.pages.voucher');
+    })->name('admin.voucher');
+    Route::get('/admin/newsletter', function () {
+        return view('backend.admin.pages.newsletter');
+    })->name('admin.newsletter');
 
 });
 

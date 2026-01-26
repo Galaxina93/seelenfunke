@@ -127,7 +127,6 @@
     </div>
 
     {{-- INFO-BOX: Hinweis zur Positionierung --}}
-    {{-- ANPASSUNG: mx-8 (statt mx-4) passt nun exakt zu px-8 des Headers --}}
     <div class="mx-8 my-6 bg-blue-50 border-l-4 border-blue-400 p-4">
         <div class="flex">
             <div class="flex-shrink-0">
@@ -137,8 +136,7 @@
             </div>
             <div class="ml-3">
                 <p class="text-sm text-blue-700">
-                    Die Vorschau dient zur reinen Orientierung. Die exakte Positionierung von Bild und Text erfolgt durch unser Fachteam.
-                    Farben können technisch nicht gelasert werden und werden in der Vorschau lediglich zur besseren Darstellung angezeigt.
+                    Die Vorschau dient zur reinen Orientierung. Unsere Experten übernehmen die exakte Positionierung von Bild und Text.
                 </p>
             </div>
         </div>
@@ -151,69 +149,122 @@
             Drag & Drop Editor
         </h4>
 
+        {{--
+            Vorschau-Container
+            Exakt 400x400px (passend zur Laserfläche 20x20cm bei 1mm=2px)
+        --}}
         <div class="relative w-full max-w-[400px] aspect-square bg-white rounded-2xl shadow-xl overflow-hidden border-4 border-white transition-all duration-300"
              x-ref="container">
 
-            {{-- Bild --}}
-            <div class="relative w-full h-full">
-                @if($this->previewImage)
-                    <img src="{{ $this->previewImage }}" class="w-full h-auto object-contain pointer-events-none block">
-                @else
-                    <div class="aspect-square flex items-center justify-center text-gray-300 bg-gray-50">
-                        <span class="text-xs font-bold">Kein Bild</span>
-                    </div>
-                @endif
-
-                {{-- Arbeitsbereich --}}
-                <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none z-10"
-                     :style="{
-                        top: area.top + '%',
-                        left: area.left + '%',
-                        width: area.width + '%',
-                        height: area.height + '%',
-                        boxShadow: '0 0 0 9999px rgba(239, 68, 68, 0.2)'
-                     }">
-                    <span class="absolute top-0 left-0 bg-green-500 text-white text-[8px] px-1 font-bold">Erlaubt</span>
+            {{--
+                HINTERGRUND / OVERLAY
+                Wichtig: Kein extra Wrapper-Div hier!
+                Die Klasse 'absolute inset-0' positioniert es direkt im 'container'.
+            --}}
+            @if($this->previewImage)
+                <img src="{{ $this->previewImage }}"
+                     class="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none">
+            @else
+                <div class="absolute inset-0 flex items-center justify-center text-gray-300 bg-gray-50 z-0">
+                    <span class="text-xs font-bold">Kein Bild</span>
                 </div>
+            @endif
 
-                {{-- Text Layer --}}
-                <div class="absolute z-20 cursor-move group touch-none"
-                     style="transform: translate(-50%, -50%);"
-                     :style="{ left: textX + '%', top: textY + '%' }"
-                     @mousedown="startDrag($event, 'text')"
-                     @touchstart="startDrag($event, 'text')">
+            {{-- ARBEITSBEREICH (Grüner Rahmen) --}}
+            <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none z-10"
+                 :style="{
+                top: area.top + '%',
+                left: area.left + '%',
+                width: area.width + '%',
+                height: area.height + '%',
+                boxShadow: '0 0 0 9999px rgba(239, 68, 68, 0.2)'
+             }">
+                <span class="absolute top-0 left-0 bg-green-500 text-white text-[8px] px-1 font-bold">Erlaubt</span>
+            </div>
 
-                    <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors w-auto text-center"
-                         :class="{ 'border-primary': currentElement === 'text' }">
-                        {{-- MINIMIERTER HTML CODE IM P-TAG --}}
-                        <p class="leading-tight font-bold whitespace-pre pointer-events-none w-max" :class="alignMap[textAlign]" :style="`font-size: ${16 * textSize}px; font-family: ${fontMap[selectedFont] || 'Arial'}; background: linear-gradient(to bottom, #cfc09f 22%, #634f2c 24%, #cfc09f 26%, #cfc09f 27%, #ffecb3 40%, #3a2c0f 78%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: #C5A059; text-shadow: 1px 1px 2px rgba(255,255,255,0.5);`"><span x-text="engravingText ? engravingText : 'Ihr Text'"></span></p>
-                    </div>
+            {{-- TEXT LAYER --}}
+            <div class="absolute z-20 cursor-move group touch-none"
+                 style="transform: translate(-50%, -50%);"
+                 :style="{ left: textX + '%', top: textY + '%' }"
+                 @mousedown="startDrag($event, 'text')"
+                 @touchstart="startDrag($event, 'text')">
+
+                <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors w-auto text-center"
+                     :class="{ 'border-primary': currentElement === 'text' }">
+                    <p class="leading-tight font-bold whitespace-pre pointer-events-none w-max"
+                       :class="alignMap[textAlign]"
+                       :style="`font-size: ${16 * textSize}px; font-family: ${fontMap[selectedFont] || 'Arial'}; background: linear-gradient(to bottom, #cfc09f 22%, #634f2c 24%, #cfc09f 26%, #cfc09f 27%, #ffecb3 40%, #3a2c0f 78%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: #C5A059; text-shadow: 1px 1px 2px rgba(255,255,255,0.5);`">
+                        <span x-text="engravingText ? engravingText : 'Ihr Text'"></span>
+                    </p>
                 </div>
+            </div>
 
-                {{-- Logo Layer --}}
-                @if($config['allow_logo'])
-                    @if($uploaded_logo)
-                        <div class="absolute z-20 cursor-move group touch-none"
-                             style="transform: translate(-50%, -50%);"
-                             :style="{ left: logoX + '%', top: logoY + '%' }"
-                             @mousedown="startDrag($event, 'logo')"
-                             @touchstart="startDrag($event, 'logo')">
+            {{-- LOGO LAYER --}}
+            @if($config['allow_logo'])
+                @if($uploaded_logo)
+                    <div class="absolute z-20 cursor-move group touch-none"
+                         style="transform: translate(-50%, -50%);"
+                         :style="{ left: logoX + '%', top: logoY + '%' }"
+                         @mousedown="startDrag($event, 'logo')"
+                         @touchstart="startDrag($event, 'logo')">
 
-                            <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors"
-                                 :class="{ 'border-primary': currentElement === 'logo' }">
-                                <div :style="{ width: logoSize + 'px' }" class="relative">
-                                    <img src="{{ $uploaded_logo->temporaryUrl() }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
-                                </div>
+                        <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors"
+                             :class="{ 'border-primary': currentElement === 'logo' }">
+                            <div :style="{ width: logoSize + 'px' }" class="relative">
+                                <img src="{{ $uploaded_logo->temporaryUrl() }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
                             </div>
                         </div>
-                    @else
-                        <div class="absolute z-10 pointer-events-none opacity-30 border border-dashed border-gray-400 p-1 rounded"
-                             :style="{ top: logoY + '%', left: logoX + '%', transform: 'translate(-50%, -50%)' }">
-                            <span class="text-[8px] font-bold uppercase tracking-wider">Logo</span>
+                    </div>
+                @else
+                    {{-- Platzhalter für Logo-Position, falls gewünscht --}}
+                    <div class="absolute z-10 pointer-events-none opacity-30 border border-dashed border-gray-400 p-1 rounded"
+                         :style="{ top: logoY + '%', left: logoX + '%', transform: 'translate(-50%, -50%)' }">
+                        <span class="text-[8px] font-bold uppercase tracking-wider">Logo</span>
+                    </div>
+                @endif
+            @endif
+
+        </div>
+
+        {{-- QUICK-CONTROLS (Regler) --}}
+        <div class="w-full max-w-[400px] mt-4 space-y-3">
+            {{-- Wenn Text oder Logo vorhanden ist, zeigen wir die Regler --}}
+            <div x-show="(engravingText && engravingText.length > 0) @if($config['allow_logo'] && $uploaded_logo) || true @endif"
+                 class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 animate-fade-in-up">
+
+                <div class="grid grid-cols-1 gap-4">
+                    {{-- Text Größe --}}
+                    <div x-show="engravingText && engravingText.length > 0" class="flex items-center gap-4">
+                        <div class="flex flex-col w-full">
+                            <div class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                                <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Schriftgröße</span>
+                                <span x-text="Math.round(textSize * 100) + '%'" class="text-primary bg-primary/10 px-1.5 rounded"></span>
+                            </div>
+                            <input type="range" wire:model.live="text_size" min="0.5" max="3.0" step="0.1"
+                                   class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                        </div>
+                    </div>
+
+                    {{-- Logo Größe --}}
+                    @if($config['allow_logo'] && $uploaded_logo)
+                        <div class="flex items-center gap-4 pt-3 border-t border-gray-100">
+                            <div class="flex flex-col w-full">
+                                <div class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> Logogröße</span>
+                                    <span x-text="logoSize + 'px'" class="text-primary bg-primary/10 px-1.5 rounded"></span>
+                                </div>
+                                <input type="range" wire:model.live="logo_size" min="30" max="200" step="5"
+                                       class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-green-500 hover:accent-green-600 focus:outline-none focus:ring-2 focus:ring-green-500/20">
+                            </div>
                         </div>
                     @endif
-                @endif
+                </div>
+            </div>
 
+            {{-- Hinweis wenn leer --}}
+            <div x-show="(!engravingText || engravingText.length === 0) @if($config['allow_logo']) && !{{ $uploaded_logo ? 'true' : 'false' }} @endif"
+                 class="text-center p-3 text-xs text-gray-400 bg-white/50 rounded-xl border border-gray-200/50 border-dashed">
+                Tippe unten Text ein oder lade ein Logo hoch, um hier Größenregler zu sehen.
             </div>
         </div>
 

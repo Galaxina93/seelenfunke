@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\NewsletterController;
+use App\Livewire\Shop\NewsletterPage;
 use App\Livewire\Shop\ProductIndex;
 use App\Livewire\Shop\ProductShow;
 use App\Livewire\Shop\Cart;
@@ -22,6 +24,11 @@ Route::get('/shop', ProductIndex::class)->name('shop');
 // Wichtig: {product:slug} sagt Laravel, es soll in der Spalte 'slug' suchen, nicht 'id'
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
 
+// Die dedizierte Seite
+Route::get('/newsletter', NewsletterPage::class)->name('newsletter.page');
+
+// Der Link aus der E-Mail (Controller Action)
+Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])->name('newsletter.verify');
 
 
 

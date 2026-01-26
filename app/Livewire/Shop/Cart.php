@@ -15,6 +15,9 @@ class Cart extends Component
     public $editingItemId = null;
     public $showEditModal = false;
 
+    // NEU: Input für Gutschein
+    public $couponCodeInput = '';
+
     public function boot(CartService $cartService)
     {
         $this->cartService = $cartService;
@@ -72,6 +75,28 @@ class Cart extends Component
             $this->dispatch('cart-updated');
             session()->flash('success', 'Produkt hinzugefügt!');
         }
+    }
+
+    public function applyCoupon(CartService $cartService)
+    {
+        $this->validate(['couponCodeInput' => 'required|string']);
+
+        $result = $cartService->applyCoupon($this->couponCodeInput);
+
+        if ($result['success']) {
+            $this->couponCodeInput = ''; // Input leeren
+            $this->dispatch('cart-updated'); // UI neu laden
+            session()->flash('success', $result['message']);
+        } else {
+            $this->addError('couponCodeInput', $result['message']);
+        }
+    }
+
+    public function removeCoupon(CartService $cartService)
+    {
+        $cartService->removeCoupon();
+        $this->dispatch('cart-updated');
+        session()->flash('success', 'Gutschein entfernt.');
     }
 
     public function render()

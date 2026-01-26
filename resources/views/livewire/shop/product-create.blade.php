@@ -86,11 +86,6 @@
                                          @click="editing = true; $nextTick(() => $refs.qtyInput.focus())"
                                          class="cursor-pointer group relative transition-all hover:scale-105">
 
-                                        {{-- Tooltip beim Hovern --}}
-                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block whitespace-nowrap bg-gray-900 text-white text-[10px] px-2 py-1 rounded z-10">
-                                            Klicken zum Ändern
-                                        </div>
-
                                         @if($prod->quantity > 0)
                                             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100 hover:border-green-300 hover:bg-green-100 transition">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
@@ -194,10 +189,16 @@
                                  @if($step > $product->completion_step + 1) title="Schritt noch nicht verfügbar" @endif
                             >
                                 {{-- Beschriftung --}}
-                                <span class="text-xs font-bold uppercase tracking-wider transition-colors duration-300
-                                    {{ $currentStep >= $step ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600' }}">
+                                <span
+                                    class="text-xs font-bold uppercase tracking-wider
+                                           h-8 flex items-center
+                                           transition-colors duration-300
+                                           {{ $currentStep >= $step
+                                               ? 'text-primary'
+                                               : 'text-gray-400 group-hover:text-gray-600' }}">
                                     {{ $step }}. {{ $label }}
                                 </span>
+
 
                                 {{-- Balken --}}
                                 <div class="h-1.5 w-full rounded-full transition-all duration-500
@@ -253,7 +254,7 @@
                                                     <option value="reduced">Ermäßigter Satz</option>
                                                     <option value="zero">Steuerfrei / Steuerbefreit</option>
                                                 </select>
-                                                <p class="text-xs text-gray-400 mt-1">Aktuell: {{ number_format($tax_rate, 2) }}%</p>
+                                                <p class="text-xs text-gray-400 mt-1">Aktuell: {{ number_format($current_tax_rate, 2) }}%</p>
                                             </div>
 
                                             <div>

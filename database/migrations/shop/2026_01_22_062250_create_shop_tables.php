@@ -2,67 +2,123 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Produkte
+        // Produkte
         Schema::create('products', function (Blueprint $table) {
+            // 1. Grundstruktur
             $table->uuid('id')->primary();
+            $table->timestamps();
+            $table->softDeletes(); // Wichtig für GoBD & Wiederherstellung
 
-            // Basisdaten
+            // 2. Basisdaten
             $table->string('name');
             $table->string('slug')->unique();
             $table->longText('description')->nullable();
             $table->text('short_description')->nullable();
-            $table->string('status')->default('draft'); // active, draft, archived
 
-            // Preis & Steuer
-            $table->integer('price'); // Cent
-            $table->integer('compare_at_price')->nullable();
-            $table->integer('cost_per_item')->nullable();
-            $table->string('tax_class')->default('standard'); // standard, reduced, zero
-            $table->decimal('tax_rate', 5, 2)->default(19.00);
-            $table->boolean('tax_included')->default(true);
+            // Verbesserung: Status als Enum (Datenbank-Level Validierung)
+            $table->enum('status', ['draft', 'active', 'archived'])->default('draft')->index();
 
-            // Lager
+            // 3. Preis & Steuer (tax_rate entfernt!)
+            $table->integer('price'); // Preis in Cent
+            $table->integer('compare_at_price')->nullable(); // Preis in Cent
+            $table->integer('cost_per_item')->nullable(); // Preis in Cent
+
+            // Referenz auf Steuerlogik statt festem Satz
+            $table->string('tax_class')->default('standard');
+            $table->boolean('tax_included')->default(true); // Brutto vs Netto Eingabe
+
+            // 4. Lager & Identifikation
+            // SKU nullable für Drafts, aber unique wenn gesetzt
             $table->string('sku')->nullable()->unique();
             $table->string('barcode')->nullable();
+            $table->string('brand')->nullable();
             $table->boolean('track_quantity')->default(true);
             $table->integer('quantity')->default(0);
             $table->boolean('continue_selling_when_out_of_stock')->default(false);
-            $table->string('brand')->nullable();
 
-            // Versand
+            // 5. Versanddaten (Erweitert um Maße & Klasse)
             $table->boolean('is_physical_product')->default(true);
-            $table->integer('weight')->nullable();
+            $table->integer('weight')->nullable(); // in Gramm
+            $table->integer('height')->nullable(); // in mm
+            $table->integer('width')->nullable();  // in mm
+            $table->integer('length')->nullable(); // in mm
+            $table->string('shipping_class')->nullable(); // z.B. 'sperrgut', 'brief'
 
-            // Daten & Konfiguration
+            // 6. JSON-Felder (Akzeptabel für MVP/Single-Product Shops)
             $table->json('media_gallery')->nullable();
-            $table->string('preview_image_path')->nullable();
-
             $table->json('attributes')->nullable();
             $table->json('tier_pricing')->nullable();
-            $table->json('configurator_settings')->nullable();
+            $table->json('configurator_settings')->nullable(); // Für deinen Konfigurator
 
-            // SEO
+            // 7. SEO
             $table->string('seo_title')->nullable();
             $table->text('seo_description')->nullable();
-            $table->integer('completion_step')->default(1);
 
+            // Meta
+            $table->integer('completion_step')->default(1);
+            $table->string('preview_image_path')->nullable();
+        });
+        Schema::create('tax_rates', function (Blueprint $table) {
+            $table->id();
+            $table->string('name'); // z.B. "Standard DE"
+            $table->decimal('rate', 5, 2); // z.B. 19.00
+            $table->string('country_code', 2)->default('DE'); // ISO Code
+            $table->string('tax_class')->default('standard'); // Verknüpfung zum Produkt
+            $table->boolean('is_default')->default(false);
+            $table->timestamps();
+        });
+        DB::table('tax_rates')->insert([
+            ['name' => 'Standard DE', 'rate' => 19.00, 'tax_class' => 'standard', 'is_default' => true],
+            ['name' => 'Ermäßigt DE', 'rate' => 7.00, 'tax_class' => 'reduced', 'is_default' => false],
+        ]);
+
+        // Gutscheine
+        Schema::create('coupons', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('code')->unique();
+            $table->enum('type', ['fixed', 'percent']); // Festbetrag oder Prozent
+            $table->integer('value'); // Betrag in Cent oder Prozent (ganzzahlig)
+            $table->integer('min_order_value')->nullable(); // Mindestbestellwert in Cent
+            $table->integer('usage_limit')->nullable(); // Wie oft insgesamt nutzbar
+            $table->integer('used_count')->default(0);
+            $table->dateTime('valid_from')->nullable();
+            $table->dateTime('valid_until')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
             $table->softDeletes();
+        });
+
+        // Newsletter
+        Schema::create('newsletter_subscribers', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('email')->unique();
+            $table->string('ip_address')->nullable(); // Wichtig für Nachweisbarkeit
+            $table->boolean('privacy_accepted')->default(false); // Checkbox Status
+            $table->timestamp('subscribed_at')->useCurrent();
+
+            // Für Double-Opt-In (DOI) Prozess
+            $table->boolean('is_verified')->default(false);
+            $table->string('verification_token')->nullable();
+            $table->timestamp('verified_at')->nullable();
+
             $table->timestamps();
         });
 
-        // 2. Warenkörbe
+        // 4. Warenkörbe
         Schema::create('carts', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('session_id')->nullable()->index();
 
-            // Verweis auf Customers (UUID)
             $table->foreignUuid('customer_id')->nullable()->constrained('customers')->nullOnDelete();
+
+            $table->string('coupon_code')->nullable();
 
             $table->timestamps();
         });
@@ -127,8 +183,11 @@ return new class extends Migration
     {
         Schema::dropIfExists('order_items');
         Schema::dropIfExists('orders');
+        Schema::dropIfExists('newsletter_subscribers');
+        Schema::dropIfExists('coupons');
         Schema::dropIfExists('cart_items');
         Schema::dropIfExists('carts');
+        Schema::dropIfExists('tax_rates');
         Schema::dropIfExists('products');
     }
 };
