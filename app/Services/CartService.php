@@ -252,6 +252,7 @@ class CartService
         $finalTotalTax = array_sum($taxesBreakdown);
 
         return [
+            'subtotal_original' => $originalSubtotal, // NEU: Der "echte" Warenwert vor Rabatten
             'subtotal_gross' => $subtotalGross,
             'volume_discount' => $volumeDiscount,
             'discount_amount' => $discountAmount,

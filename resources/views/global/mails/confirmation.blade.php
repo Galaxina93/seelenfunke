@@ -183,20 +183,55 @@
         </tbody>
     </table>
 
-    {{-- TOTALS --}}
+    {{-- TOTALS BLOCK IN DER MAIL --}}
     <div class="totals">
+        {{-- 1. ECHTER WARENWERT (Originalsumme) --}}
+        @php
+            // Originalsumme zurückrechnen (Subtotal + Mengenrabatt)
+            $originalSum = $order->subtotal_price + ($order->volume_discount ?? 0);
+        @endphp
+
         <div class="totals-row">
-            <span>Zwischensumme</span>
-            <span>{{ number_format($order->subtotal_price / 100, 2, ',', '.') }} €</span>
+            <span>Warenwert</span>
+            <span>{{ number_format($originalSum / 100, 2, ',', '.') }} €</span>
         </div>
+
+        {{-- 2. MENGENRABATT --}}
+        @if(isset($order->volume_discount) && $order->volume_discount > 0)
+            <div class="totals-row" style="color: #16a34a;">
+                <span>Mengenrabatt</span>
+                <span>-{{ number_format($order->volume_discount / 100, 2, ',', '.') }} €</span>
+            </div>
+        @endif
+
+        {{-- 3. ZWISCHENSUMME (Nach Mengenrabatt) --}}
+        {{-- Optional: Wenn Mengenrabatt existiert, macht eine Zwischensumme Sinn, sonst weglassen --}}
+        @if(isset($order->volume_discount) && $order->volume_discount > 0)
+            <div class="totals-row" style="border-top: 1px dashed #eee; margin-top: 5px; padding-top: 5px;">
+                <span>Zwischensumme</span>
+                <span>{{ number_format($order->subtotal_price / 100, 2, ',', '.') }} €</span>
+            </div>
+        @endif
+
+        {{-- 4. GUTSCHEIN --}}
+        @if(isset($order->discount_amount) && $order->discount_amount > 0)
+            <div class="totals-row" style="color: #16a34a;">
+                <span>Gutschein ({{ $order->coupon_code }})</span>
+                <span>-{{ number_format($order->discount_amount / 100, 2, ',', '.') }} €</span>
+            </div>
+        @endif
+
+        {{-- 5. VERSAND & STEUER --}}
         <div class="totals-row" style="color: #888;">
             <span>Versand</span>
             <span>{{ $order->shipping_price > 0 ? number_format($order->shipping_price / 100, 2, ',', '.') . ' €' : 'Kostenlos' }}</span>
         </div>
-        <div class="totals-row" style="color: #888;">
+        <div class="totals-row" style="color: #888; font-size: 11px;">
             <span>Enthaltene MwSt.</span>
             <span>{{ number_format($order->tax_amount / 100, 2, ',', '.') }} €</span>
         </div>
+
+        {{-- 6. ENDSUMME --}}
         <div class="totals-row totals-final">
             <span>Gesamtsumme</span>
             <span>{{ number_format($order->total_price / 100, 2, ',', '.') }} €</span>

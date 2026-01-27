@@ -109,13 +109,13 @@
 
                         <div class="space-y-3 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-100">
 
-                            {{-- Warenwert (Zwischensumme nach Rabatt) --}}
+                            {{-- 1. ECHTER WARENWERT (Original) --}}
                             <div class="flex justify-between">
                                 <span>Warenwert</span>
-                                <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
+                                <span>{{ number_format($totals['subtotal_original'] / 100, 2, ',', '.') }} €</span>
                             </div>
 
-                            {{-- NEU: Mengenrabatt Anzeige --}}
+                            {{-- 2. MENGENRABATT --}}
                             @if(!empty($totals['volume_discount']) && $totals['volume_discount'] > 0)
                                 <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                                     <div class="flex items-center gap-2">
@@ -126,48 +126,65 @@
                                     </div>
                                     <span>-{{ number_format($totals['volume_discount'] / 100, 2, ',', '.') }} €</span>
                                 </div>
+
+                                {{-- Zwischenlinie --}}
+                                <div class="border-b border-gray-100 my-1"></div>
+
+                                {{-- Zwischensumme --}}
+                                <div class="flex justify-between text-gray-500 italic text-xs">
+                                    <span>Zwischensumme</span>
+                                    <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
+                                </div>
                             @endif
 
-                            {{-- Rabatt --}}
+                            {{-- 3. GUTSCHEIN --}}
                             @if(!empty($totals['discount_amount']) && $totals['discount_amount'] > 0)
                                 <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                                     <div class="flex items-center gap-2">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                                         </svg>
                                         <span>Gutschein ({{ $totals['coupon_code'] }})</span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
                                         <button wire:click="removeCoupon" class="text-red-400 hover:text-red-600" title="Entfernen">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                      d="M6 18L18 6M6 6l12 12"/>
-                                            </svg>
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                         </button>
                                     </div>
                                 </div>
                             @endif
 
+                            {{-- 4. VERSAND --}}
+                            @if($totals['shipping'] > 0)
+                                <div class="flex justify-between text-gray-600">
+                                    <span>Versand</span>
+                                    <span>{{ number_format($totals['shipping'] / 100, 2, ',', '.') }} €</span>
+                                </div>
+                            @else
+                                <div class="flex justify-between items-center bg-gray-50 p-2 rounded -mx-2">
+                                    <span class="text-gray-800 font-medium">Versand</span>
+                                    <span class="text-green-700 font-bold uppercase text-xs tracking-wider">Kostenlos</span>
+                                </div>
+                            @endif
+
+                            {{-- 5. ENDSUMME --}}
+                            <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
+                                <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
+                                <span class="text-xl font-bold text-gray-900">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
+                            </div>
+
                             {{-- Steuern --}}
-                            <div class="pt-2 space-y-1">
+                            <div class="pt-1 space-y-1 text-right">
                                 @foreach($totals['taxes_breakdown'] as $rate => $amount)
-                                    <div class="flex justify-between text-xs text-gray-400">
-                                        <span>Enthält {{ floatval($rate) }}% MwSt.</span>
-                                        <span>{{ number_format($amount / 100, 2, ',', '.') }} €</span>
+                                    <div class="text-[10px] text-gray-400">
+                                        inkl. {{ number_format($amount / 100, 2, ',', '.') }} € MwSt. ({{ floatval($rate) }}%)
                                     </div>
                                 @endforeach
                             </div>
-
-                            {{-- Versand --}}
-                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded -mx-2">
-                                <span class="text-gray-800 font-medium">Versand</span>
-                                <span class="text-green-700 font-bold uppercase text-xs tracking-wider">Kostenlos</span>
-                            </div>
                         </div>
 
-                        {{-- Gutschein --}}
+                        {{-- Gutschein Input (nur wenn keiner aktiv ist) --}}
                         @if(empty($totals['coupon_code']))
                             <div class="mb-6">
                                 <form wire:submit.prevent="applyCoupon" class="flex gap-2">
@@ -189,82 +206,26 @@
                             </div>
                         @endif
 
-                        {{-- Gesamtsumme --}}
-                        <div class="flex justify-between items-end mb-8">
-                            <span class="font-bold text-gray-900">Gesamtsumme</span>
-                            <span class="text-2xl font-serif font-bold text-primary">
-                                {{ number_format($totals['total'] / 100, 2, ',', '.') }} €
-                            </span>
-                        </div>
-
-                        <p class="text-[10px] text-gray-400 text-center mb-4">inkl. MwSt. & Versandkosten</p>
-
                         {{-- Checkout Button --}}
                         <a href="{{ route('checkout') }}"
                            class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
                             <span>Zur Kasse</span>
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                             </svg>
                         </a>
 
-                        {{-- Stripe-übliche Zahlungsanbieter --}}
+                        {{-- Zahlungsanbieter --}}
                         <div class="mt-5">
-                            <p class="text-[10px] text-gray-400 text-center mb-2">
-                                Sichere Zahlung mit
-                            </p>
-
+                            <p class="text-[10px] text-gray-400 text-center mb-2">Sichere Zahlung mit</p>
                             <div class="flex flex-wrap justify-center gap-2">
-
-                                {{-- Mastercard --}}
-                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <img
-                                        src="{{ asset('images/projekt/payments/mastercard.svg') }}"
-                                        alt="Mastercard"
-                                        class="h-8"
-                                    >
-                                </div>
-
-                                {{-- Apple Pay --}}
-                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <img
-                                        src="{{ asset('images/projekt/payments/apple-pay.svg') }}"
-                                        alt="Apple Pay"
-                                        class="h-8"
-                                    >
-                                </div>
-
-                                {{-- Google Pay --}}
-                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <img
-                                        src="{{ asset('images/projekt/payments/google-pay.svg') }}"
-                                        alt="Google Pay"
-                                        class="h-8"
-                                    >
-                                </div>
-
-                                {{-- PayPal --}}
-                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <img
-                                        src="{{ asset('images/projekt/payments/paypal.svg') }}"
-                                        alt="PayPal"
-                                        class="h-8"
-                                    >
-                                </div>
-
-                                {{-- Klarna --}}
-                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <img
-                                        src="{{ asset('images/projekt/payments/klarna.svg') }}"
-                                        alt="Klarna"
-                                        class="h-8"
-                                    >
-                                </div>
-
+                                <div class="h-8 w-12 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/mastercard.svg') }}" class="h-6"></div>
+                                <div class="h-8 w-12 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/apple-pay.svg') }}" class="h-6"></div>
+                                <div class="h-8 w-12 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/google-pay.svg') }}" class="h-6"></div>
+                                <div class="h-8 w-12 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/paypal.svg') }}" class="h-6"></div>
+                                <div class="h-8 w-12 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/klarna.svg') }}" class="h-6"></div>
                             </div>
                         </div>
-
 
                     </div>
                 </div>

@@ -94,6 +94,7 @@ class Calculator extends Component
                 'name' => $p->name,
                 'desc' => $p->short_description ?? 'Artikel',
                 'price' => $p->price / 100, // Basispreis
+                'price_cents' => $p->price,
                 'display_price' => $displayNetto,
                 'tax_rate' => $rate,
                 'tax_included' => $isGross,
@@ -202,10 +203,9 @@ class Calculator extends Component
     }
 
     // --- PREISBERECHNUNG ---
-
     public function calculateTotal()
     {
-        // 1. Mengen pro Produkt ermitteln (für Staffelpreise über alle Positionen hinweg)
+        // 1. Gesamtmengen pro Produkt ermitteln (für Staffelpreise)
         $quantitiesPerProduct = [];
         foreach ($this->cartItems as $item) {
             $pid = $item['product_id'];
@@ -220,60 +220,70 @@ class Calculator extends Component
             $product = $this->dbProducts[$item['product_id']] ?? null;
             if(!$product) continue;
 
-            // Staffelpreis ermitteln
+            // Staffelpreis in CENTS ermitteln (und runden!)
             $totalQty = $quantitiesPerProduct[$item['product_id']];
-            $unitPriceDb = $this->getTierPrice($product, $totalQty);
+            $unitPriceCents = $this->getTierPriceCents($product, $totalQty);
 
             $rate = $product['tax_rate'];
             $isGross = $product['tax_included'];
 
-            // Zeilensumme berechnen
-            $lineTotalDb = $unitPriceDb * $item['qty'];
+            // Zeilensumme berechnen (Integer Math)
+            $lineTotalCents = $unitPriceCents * $item['qty'];
 
+            // Steueranteile berechnen
             if ($isGross) {
-                // Wenn Preise Brutto sind, müssen wir Netto berechnen für die interne Logik
-                $lineGross = $lineTotalDb;
-                $lineNet  = $lineGross / (1 + ($rate / 100));
+                // Brutto zu Netto
+                $lineGross = $lineTotalCents;
+                $lineNet  = $lineGross / (1 + ($rate / 100)); // Hier wird es Float
                 $lineTax  = $lineGross - $lineNet;
             } else {
-                // Wenn Preise Netto sind (Standard B2B)
-                $lineNet = $lineTotalDb;
+                // Netto zu Brutto
+                $lineNet = $lineTotalCents;
                 $lineTax = $lineNet * ($rate / 100);
             }
 
-            // Werte speichern für Anzeige im Frontend
-            $this->cartItems[$index]['calculated_single_price'] = $unitPriceDb;
-            $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalDb : $lineNet); // Anzeige je nach Shop-Einstellung
+            // Werte speichern für Anzeige (in Euro Float umrechnen)
+            $this->cartItems[$index]['calculated_single_price'] = $unitPriceCents / 100;
+            // Falls Brutto: Zeige Brutto-Summe, sonst Netto-Summe
+            $displaySumCents = $isGross ? $lineTotalCents : $lineNet; // (Anmerkung: Bei Netto hier leichte Inkonsistenz möglich, da $lineNet Float ist, aber für Anzeige OK)
+            $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalCents : round($lineNet)) / 100;
 
             $sumNetto += $lineNet;
             $sumMwst += $lineTax;
         }
 
-        // Express Zuschlag
+        // Express Zuschlag (25,00 € Netto)
         if ($this->isExpress && ($sumNetto > 0)) {
-            $expressNetto = 25.00;
-            $expressTax = $expressNetto * 0.19; // Annahme 19% auf Service
+            $expressNetto = 2500; // Cents
+            $expressTax = $expressNetto * 0.19; // Annahme 19%
             $sumNetto += $expressNetto;
             $sumMwst += $expressTax;
         }
 
-        $this->totalNetto = $sumNetto;
-        $this->totalMwst = $sumMwst;
-        $this->totalBrutto = $sumNetto + $sumMwst;
-        $this->gesamtKosten = $this->totalNetto; // oder Brutto, je nach Anzeige-Wunsch
+        // Endergebnisse runden und in Euro umwandeln
+        $this->totalNetto = round($sumNetto) / 100;
+        $this->totalMwst = round($sumMwst) / 100;
+        $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
+        $this->gesamtKosten = $this->totalNetto; // Je nach Wunsch Netto oder Brutto
     }
 
-    private function getTierPrice($product, $qty)
+    /**
+     * Berechnet den Einzelpreis in Cents basierend auf Staffelpreisen.
+     * WICHTIG: Rundet den rabattierten Einzelpreis kaufmännisch.
+     */
+    private function getTierPriceCents($product, $qty)
     {
-        $basePrice = $product['price']; // Ist in dbProducts schon / 100 gerechnet? Ja, siehe loadProducts
+        // Wir nehmen den Integer Preis (Cents)
+        $basePrice = $product['price_cents'];
         $tiers = $product['tier_pricing'] ?? [];
 
         if (!empty($tiers) && is_array($tiers)) {
-            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']); // Absteigend sortieren
+            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
             foreach ($tiers as $tier) {
                 if ($qty >= $tier['qty']) {
                     $discount = $basePrice * ($tier['percent'] / 100);
-                    return $basePrice - $discount;
+                    // Hier passiert die Magie: Runden auf ganzen Cent VOR der Multiplikation mit Menge
+                    return (int) round($basePrice - $discount);
                 }
             }
         }

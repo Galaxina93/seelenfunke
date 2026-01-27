@@ -193,6 +193,14 @@ class Checkout extends Component
                 'city' => $this->city,
                 'country' => $this->country,
             ],
+
+            // NEU: Mengenrabatt speichern
+            'volume_discount' => $totals['volume_discount'] ?? 0,
+
+            // NEU: Gutschein Daten speichern
+            'coupon_code' => $totals['coupon_code'] ?? null,
+            'discount_amount' => $totals['discount_amount'] ?? 0,
+
             'subtotal_price' => $totals['subtotal_gross'],
             'tax_amount' => $totals['tax'],
             'total_price' => $totals['total'],

@@ -172,34 +172,64 @@
                         @endforeach
                     </ul>
 
-                    <dl class="space-y-4 border-t border-gray-200 pt-6 text-sm font-medium text-gray-900 mt-6">
-                        <div class="flex items-center justify-between text-gray-500">
-                            <dt>Zwischensumme</dt>
-                            <dd>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</dd>
-                        </div>
-                        <div class="flex items-center justify-between text-gray-500">
-                            <dt>Versand</dt>
-                            <dd class="text-green-600 font-bold uppercase text-xs tracking-wider bg-green-50 px-2 py-0.5 rounded">Kostenlos</dd>
+                    <div class="border-t border-gray-100 pt-6 space-y-3">
+
+                        {{-- 1. ECHTER WARENWERT (Original) --}}
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>Warenwert</span>
+                            <span>{{ number_format($totals['subtotal_original'] / 100, 2, ',', '.') }} €</span>
                         </div>
 
-                        {{-- Rabatt Anzeige --}}
-                        @if(!empty($totals['discount_amount']))
-                            <div class="flex items-center justify-between text-green-600 font-bold">
-                                <dt>Gutschein</dt>
-                                <dd>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</dd>
+                        {{-- 2. MENGENRABATT --}}
+                        @if($totals['volume_discount'] > 0)
+                            <div class="flex items-center justify-between text-sm text-green-600">
+                                <div class="flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    <span>Mengenrabatt</span>
+                                </div>
+                                <span>-{{ number_format($totals['volume_discount'] / 100, 2, ',', '.') }} €</span>
+                            </div>
+
+                            {{-- Zwischenlinie zur Verdeutlichung --}}
+                            <div class="border-b border-gray-100 my-2"></div>
+
+                            {{-- Zwischensumme (Optional, aber hilfreich für Verständnis) --}}
+                            <div class="flex items-center justify-between text-sm text-gray-500 italic">
+                                <span>Zwischensumme</span>
+                                <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
                             </div>
                         @endif
 
-                        <div class="flex items-center justify-between text-gray-400 text-xs pt-2">
-                            <dt>Enthaltene MwSt.</dt>
-                            <dd>{{ number_format($totals['tax'] / 100, 2, ',', '.') }} €</dd>
-                        </div>
+                        {{-- 3. GUTSCHEIN --}}
+                        @if($totals['discount_amount'] > 0)
+                            <div class="flex items-center justify-between text-sm text-green-600 font-medium">
+                                <span>Gutschein ({{ $totals['coupon_code'] }})</span>
+                                <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
+                            </div>
+                        @endif
 
-                        <div class="flex items-center justify-between border-t border-gray-200 pt-6 text-xl font-bold text-primary">
-                            <dt>Gesamtsumme</dt>
-                            <dd>{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</dd>
+                        {{-- 4. VERSAND --}}
+                        @if($totals['shipping'] > 0)
+                            <div class="flex items-center justify-between text-sm text-gray-600">
+                                <span>Versand</span>
+                                <span>{{ number_format($totals['shipping'] / 100, 2, ',', '.') }} €</span>
+                            </div>
+                        @else
+                            <div class="flex items-center justify-between text-sm text-green-600">
+                                <span>Versand</span>
+                                <span>Kostenlos</span>
+                            </div>
+                        @endif
+
+                        {{-- 5. ENDSUMME --}}
+                        <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
+                            <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
+                            <span class="text-xl font-bold text-gray-900">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
                         </div>
-                    </dl>
+                        <div class="text-xs text-gray-400 text-right">
+                            inkl. {{ number_format($totals['tax'] / 100, 2, ',', '.') }} € MwSt.
+                        </div>
+                    </div>
 
                     {{-- Rechtliches (Checkboxen) --}}
                     <div class="mt-8 space-y-4 bg-gray-50 p-4 rounded-xl">

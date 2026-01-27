@@ -162,6 +162,11 @@ return new class extends Migration
             $table->integer('shipping_price')->default(0);
             $table->integer('total_price');
 
+
+            $table->integer('volume_discount')->default(0);
+            $table->string('coupon_code')->nullable(); // Speichert den Code (z.B. "SOMMER20")
+            $table->integer('discount_amount')->default(0); // Speichert den Rabatt in Cent
+
             $table->text('notes')->nullable(); // Für interne Notizen im Backend
 
             $table->softDeletes();

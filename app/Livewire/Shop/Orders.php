@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop;
 
 use App\Models\Order;
+use App\Models\OrderItem;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -10,44 +11,52 @@ class Orders extends Component
 {
     use WithPagination;
 
-    // Filter
+    // Filter & Sortierung
     public $search = '';
     public $statusFilter = '';
     public $paymentFilter = '';
-    public $dateFilter = '';
-
-    // Sortierung
     public $sortField = 'created_at';
     public $sortDirection = 'desc';
 
-    // --- NEU: Modal State ---
-    public $showDetailModal = false;
+    // State für Detail-Ansicht
     public $selectedOrderId = null;
+    public $selectedOrderItemId = null;
 
-    protected $queryString = ['search', 'statusFilter', 'paymentFilter', 'sortField', 'sortDirection'];
+    protected $queryString = ['search', 'statusFilter', 'paymentFilter'];
 
     // --- ACTIONS ---
 
-    // NEU: Bestellung ins Modal laden
     public function openDetail($id)
     {
         $this->selectedOrderId = $id;
-        $this->showDetailModal = true;
+
+        // Automatisch das erste Item für den Configurator auswählen
+        $order = Order::with('items')->find($id);
+        if ($order && $order->items->isNotEmpty()) {
+            $this->selectedOrderItemId = $order->items->first()->id;
+        }
     }
 
     public function closeDetail()
     {
-        $this->showDetailModal = false;
         $this->selectedOrderId = null;
+        $this->selectedOrderItemId = null;
     }
+
+    public function selectItemForPreview($itemId)
+    {
+        $this->selectedOrderItemId = $itemId;
+    }
+
+    // FEHLERBEHEBUNG 3: Die fehlenden Methoden wurden hinzugefügt
 
     public function markAsPaid($orderId)
     {
         $order = Order::find($orderId);
         if ($order) {
             $order->update(['payment_status' => 'paid']);
-            session()->flash('success', "Bestellung {$order->order_number} als BEZAHLT markiert.");
-            // Falls Modal offen ist, aktualisieren wir es indirekt durch re-render
+            // Optional: Rechnungsgenerierung hier triggern oder Event dispatchen
+            session()->flash('success', 'Bestellung als bezahlt markiert.');
         }
     }
 
@@ -56,18 +65,31 @@ class Orders extends Component
         $order = Order::find($orderId);
         if ($order) {
             $order->update(['status' => $newStatus]);
-            session()->flash('success', "Status aktualisiert.");
+            session()->flash('success', "Status auf '$newStatus' geändert.");
         }
     }
 
-    public function delete($id)
+    public function delete($orderId)
     {
-        $order = Order::find($id);
+        $order = Order::find($orderId);
         if ($order) {
-            $order->delete();
-            $this->closeDetail(); // Falls Modal offen war
-            session()->flash('success', 'Bestellung gelöscht.');
+            $order->delete(); // Soft Delete (da Trait im Model)
+            $this->closeDetail(); // Zurück zur Liste
+            session()->flash('success', 'Bestellung wurde in den Papierkorb verschoben.');
         }
+    }
+
+    // --- PROPERTIES ---
+
+    public function getSelectedOrderProperty()
+    {
+        return Order::with('items.product')->find($this->selectedOrderId);
+    }
+
+    public function getPreviewItemProperty()
+    {
+        if (!$this->selectedOrderId || !$this->selectedOrderItemId) return null;
+        return OrderItem::with('product')->find($this->selectedOrderItemId);
     }
 
     public function sortBy($field)
@@ -80,15 +102,19 @@ class Orders extends Component
         }
     }
 
-    // Computed Property für das Modal (lädt Daten nur wenn nötig)
-    public function getSelectedOrderProperty()
-    {
-        if (!$this->selectedOrderId) return null;
-        return Order::with('items')->find($this->selectedOrderId);
-    }
+    // --- RENDER ---
 
     public function render()
     {
+        // Detail View Mode
+        if ($this->selectedOrderId) {
+            return view('livewire.shop.orders', [
+                'orders' => [],
+                'stats' => []
+            ]);
+        }
+
+        // List View Mode
         $query = Order::query();
 
         if ($this->search) {
@@ -101,11 +127,6 @@ class Orders extends Component
 
         if ($this->statusFilter) $query->where('status', $this->statusFilter);
         if ($this->paymentFilter) $query->where('payment_status', $this->paymentFilter);
-        if ($this->dateFilter) {
-            if ($this->dateFilter === 'today') $query->whereDate('created_at', today());
-            if ($this->dateFilter === 'week') $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
-            if ($this->dateFilter === 'month') $query->whereMonth('created_at', now()->month);
-        }
 
         $orders = $query->orderBy($this->sortField, $this->sortDirection)->paginate(10);
 
@@ -113,8 +134,8 @@ class Orders extends Component
             'orders' => $orders,
             'stats' => [
                 'total' => Order::count(),
-                'open' => Order::where('status', 'pending')->orWhere('status', 'processing')->count(),
-                'revenue_today' => Order::whereDate('created_at', today())->where('payment_status', 'paid')->sum('total_price'),
+                'open' => Order::whereIn('status', ['pending', 'processing'])->count(),
+                'revenue_today' => Order::whereDate('created_at', today())->sum('total_price'),
             ]
         ]);
     }

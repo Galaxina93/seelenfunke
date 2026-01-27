@@ -1,4 +1,4 @@
-{{-- SCRIPT: Global definieren für Drag & Drop --}}
+{{-- SCRIPT: Global definieren für Drag & Drop (Unverändert) --}}
 @script
 <script>
     window.universalConfigurator = function(configData) {
@@ -134,14 +134,7 @@
 
                 {{-- Arbeitsbereich --}}
                 <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none z-10"
-                     :style="{
-                        top: area.top + '%',
-                        left: area.left + '%',
-                        width: area.width + '%',
-                        height: area.height + '%',
-                        boxShadow: '0 0 0 9999px rgba(239, 68, 68, 0.2)'
-                     }">
-                    <span class="absolute top-0 left-0 bg-green-500 text-white text-[8px] px-1 font-bold">Bereich</span>
+                     :style="{ top: area.top + '%', left: area.left + '%', width: area.width + '%', height: area.height + '%' }">
                 </div>
 
                 {{-- Text Layer --}}
@@ -157,33 +150,22 @@
                     </div>
                 </div>
 
-                {{-- Logo Layer --}}
-                @if($configSettings['allow_logo'])
-                    @if($uploaded_logo || $existing_logo_path)
-                        <div class="absolute z-20 cursor-move group touch-none"
-                             style="transform: translate(-50%, -50%);"
-                             :style="{ left: logoX + '%', top: logoY + '%' }"
-                             @mousedown="startDrag($event, 'logo')"
-                             @touchstart="startDrag($event, 'logo')">
+                {{-- Logo Layer (Hier war der Fehler: Wir nutzen jetzt die Computed Property) --}}
+                @if($configSettings['allow_logo'] && $this->previewUrl)
+                    <div class="absolute z-20 cursor-move group touch-none"
+                         style="transform: translate(-50%, -50%);"
+                         :style="{ left: logoX + '%', top: logoY + '%' }"
+                         @mousedown="startDrag($event, 'logo')"
+                         @touchstart="startDrag($event, 'logo')">
 
-                            <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors"
-                                 :class="{ 'border-primary': currentElement === 'logo' }">
-                                <div :style="{ width: logoSize + 'px' }" class="relative">
-                                    {{-- Hier liegt der Fix für das Bilder-Problem: Upload hat Vorrang vor gespeichertem Pfad --}}
-                                    @if($uploaded_logo)
-                                        <img src="{{ $uploaded_logo->temporaryUrl() }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
-                                    @elseif($existing_logo_path)
-                                        <img src="{{ asset('storage/'.$existing_logo_path) }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
-                                    @endif
-                                </div>
+                        <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors"
+                             :class="{ 'border-primary': currentElement === 'logo' }">
+                            <div :style="{ width: logoSize + 'px' }" class="relative">
+                                {{-- Hier wird jetzt sicher die korrekte URL (Temp oder Storage) geladen --}}
+                                <img src="{{ $this->previewUrl }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
                             </div>
                         </div>
-                    @else
-                        <div class="absolute z-10 pointer-events-none opacity-30 border border-dashed border-gray-400 p-1 rounded"
-                             :style="{ left: logoX + '%', top: logoY + '%', transform: 'translate(-50%, -50%)' }">
-                            <span class="text-[8px] font-bold uppercase tracking-wider">Logo</span>
-                        </div>
-                    @endif
+                    </div>
                 @endif
             </div>
 
@@ -197,7 +179,8 @@
                     <input type="range" wire:model.live="text_size" min="0.5" max="3.0" step="0.1" class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary">
                 </div>
 
-                @if($configSettings['allow_logo'] && ($uploaded_logo || $existing_logo_path))
+                {{-- Regler nur anzeigen, wenn auch wirklich ein Bild aktiv ist --}}
+                @if($configSettings['allow_logo'] && $this->previewUrl)
                     <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
                         <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
                             <span>Bildgröße</span>
@@ -221,15 +204,12 @@
                         <span class="text-[10px] text-gray-400">Einzelpreis: {{ number_format($currentPrice / 100, 2, ',', '.') }} €</span>
                     </div>
                 </div>
-
                 <div class="relative w-full">
                     <select wire:model.live="qty" wire:change="calculatePrice" class="appearance-none w-full pl-4 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer">
                         @for($i = 1; $i <= 100; $i++) <option value="{{ $i }}">{{ $i }}x</option> @endfor
                     </select>
                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></div>
                 </div>
-
-                {{-- Staffelpreis Tabelle --}}
                 @if(!empty($product->tier_pricing) && is_array($product->tier_pricing))
                     <div class="mt-4 pt-4 border-t border-dashed border-gray-200">
                         <span class="text-[10px] font-bold uppercase text-green-600 block mb-2">Mengenrabatte verfügbar:</span>
@@ -259,9 +239,7 @@
                     <label class="text-sm font-bold text-gray-900 uppercase tracking-wide">Gravur Text</label>
                     <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full" x-text="(engravingText ? engravingText.length : 0) + '/100'"></span>
                 </div>
-
                 <textarea wire:model.live="engraving_text" rows="3" class="w-full p-4 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-base leading-relaxed resize-none shadow-sm" placeholder="Ihr Wunschtext hier eingeben..."></textarea>
-
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-gray-500 mb-1">Schriftart</label>
@@ -278,27 +256,86 @@
                 </div>
             </div>
 
-            {{-- 3. LOGO / BILD --}}
+            {{-- 3. MEDIEN (UPDATE: Jetzt mit korrekter Vorschau-Logik) --}}
             @if($configSettings['allow_logo'])
                 <div class="space-y-3 pt-4 border-t border-gray-100">
                     <label class="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                        <span>Logo / Bild</span>
-                        <span class="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Optional</span>
+                        <span>Medien</span>
+                        <span class="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Bilder & PDFs</span>
                     </label>
 
+                    {{-- Upload Bereich --}}
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                        @if($existing_logo_path && !$uploaded_logo)
-                            <div class="flex items-center gap-3 mb-4 bg-white p-3 rounded-lg border border-green-100 shadow-sm">
-                                <img src="{{ asset('storage/'.$existing_logo_path) }}" class="h-10 w-10 object-cover rounded bg-gray-100">
-                                <div class="leading-tight">
-                                    <p class="text-sm font-bold text-gray-900">Gespeichert</p>
-                                    <p class="text-xs text-green-600">Aktuelles Logo verwenden</p>
-                                </div>
-                            </div>
-                        @endif
+                        <input type="file" wire:model.live="new_files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">
+                        <div wire:loading wire:target="new_files" class="text-xs text-primary mt-2">Dateien werden hochgeladen...</div>
 
-                        <input type="file" wire:model.live="uploaded_logo" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">
-                        <div wire:loading wire:target="uploaded_logo" class="text-xs text-primary mt-2">Bild wird hochgeladen...</div>
+                        @error('new_files.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+
+                        {{-- Liste der Dateien --}}
+                        <div class="mt-4 space-y-2">
+
+                            {{-- 1. Bereits gespeicherte Dateien --}}
+                            @foreach($uploaded_files as $index => $path)
+                                @php
+                                    $ext = pathinfo($path, PATHINFO_EXTENSION);
+                                    $isImage = in_array(strtolower($ext), ['jpg','jpeg','png','webp']);
+                                    $isPreview = ($active_preview === $path);
+                                @endphp
+                                <div class="flex items-center justify-between bg-white p-2 rounded border {{ $isPreview ? 'border-green-500 ring-1 ring-green-500' : 'border-gray-200' }}">
+                                    <div class="flex items-center gap-3">
+                                        @if($isImage)
+                                            <img src="{{ asset('storage/'.$path) }}" class="h-10 w-10 object-cover rounded bg-gray-100">
+                                        @else
+                                            <div class="h-10 w-10 flex items-center justify-center bg-gray-100 rounded text-gray-500 font-bold text-xs">{{ strtoupper($ext) }}</div>
+                                        @endif
+                                        <div class="text-xs truncate max-w-[150px]">{{ basename($path) }}</div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        @if($isImage)
+                                            {{-- Button für gespeicherte Bilder --}}
+                                            <button wire:click="setPreview('saved', '{{ $path }}')" class="text-[10px] px-2 py-1 rounded {{ $isPreview ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                                                {{ $isPreview ? 'Vorschau aktiv' : 'Als Vorschau' }}
+                                            </button>
+                                        @endif
+                                        <button wire:click="removeFile({{ $index }})" class="text-red-500 hover:text-red-700 p-1">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
+
+                            {{-- 2. Neue (temporäre) Dateien --}}
+                            @foreach($new_files as $index => $file)
+                                @php
+                                    $isImage = in_array(strtolower($file->extension()), ['jpg','jpeg','png','webp']);
+                                    $isPreview = ($active_preview === 'new_' . $index);
+                                @endphp
+                                <div class="flex items-center justify-between bg-white p-2 rounded border {{ $isPreview ? 'border-green-500 ring-1 ring-green-500' : 'border-blue-200 border-dashed' }}">
+                                    <div class="flex items-center gap-3">
+                                        @if($isImage)
+                                            <img src="{{ $file->temporaryUrl() }}" class="h-10 w-10 object-cover rounded bg-gray-100">
+                                        @else
+                                            <div class="h-10 w-10 flex items-center justify-center bg-gray-100 rounded text-gray-500 font-bold text-xs">{{ strtoupper($file->extension()) }}</div>
+                                        @endif
+                                        <div>
+                                            <div class="text-xs text-blue-600 font-bold">NEU</div>
+                                            <div class="text-xs truncate max-w-[150px]">{{ $file->getClientOriginalName() }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        @if($isImage)
+                                            {{-- Button für neue Bilder (mit Index) --}}
+                                            <button wire:click="setPreview('new', {{ $index }})" class="text-[10px] px-2 py-1 rounded {{ $isPreview ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                                                {{ $isPreview ? 'Vorschau aktiv' : 'Als Vorschau' }}
+                                            </button>
+                                        @endif
+                                        <button wire:click="removeNewFile({{ $index }})" class="text-gray-400 hover:text-red-500">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
                 </div>
             @endif
@@ -312,16 +349,12 @@
         </div>
     </div>
 
-    {{-- FOOTER / ACTION BUTTON --}}
+    {{-- FOOTER --}}
     <div class="p-4 border-t border-gray-200 bg-white z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
         <button
             wire:click="save"
-            class="w-full bg-gray-900 text-white py-4 rounded-full font-bold text-lg
-           hover:bg-black hover:scale-[1.01] active:scale-[0.99]
-           transition-all duration-200 flex items-center justify-center gap-3 shadow-lg"
+            class="w-full bg-gray-900 text-white py-4 rounded-full font-bold text-lg hover:bg-black hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-3 shadow-lg"
         >
-            <svg wire:loading.class="animate-spin" wire:loading.remove.class="hidden" class="h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-
             <span wire:loading.remove>
                 @if($context === 'add') In den Warenkorb
                 @elseif($context === 'edit') Änderungen speichern
