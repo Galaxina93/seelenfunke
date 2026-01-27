@@ -6,11 +6,13 @@ use App\Mail\OrderConfirmation;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\QuoteRequest;
+use App\Models\QuoteRequestItem;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\Attributes\On;
 
 class QuoteAcceptance extends Component
 {
@@ -18,13 +20,16 @@ class QuoteAcceptance extends Component
     public $quote;
 
     // UI States
-    public $viewState = 'dashboard'; // 'dashboard', 'success_accepted', 'success_rejected', 'error'
+    public $viewState = 'dashboard'; // 'dashboard', 'editor', 'success_rejected', 'error'
     public $errorMessage = '';
+
+    // Editing State
+    public $editingItem = null; // Das QuoteRequestItem Model
 
     public function mount($token)
     {
         $this->token = $token;
-        $this->quote = QuoteRequest::where('token', $token)->with('items.product')->first();
+        $this->refreshQuote();
 
         if (!$this->quote) {
             $this->viewState = 'error';
@@ -32,28 +37,153 @@ class QuoteAcceptance extends Component
             return;
         }
 
-        // Grundlegende Checks (nur Warnungen, Blockade erst bei Aktion)
+        // Warnung bei Ablauf, aber Zugriff erlauben solange Status 'open'
         if ($this->quote->expires_at->isPast() && $this->quote->status === 'open') {
             $this->errorMessage = 'Dieses Angebot ist leider abgelaufen.';
             $this->viewState = 'error';
         }
     }
 
+    public function refreshQuote()
+    {
+        $this->quote = QuoteRequest::where('token', $this->token)
+            ->with(['items.product'])
+            ->first();
+    }
+
     /**
-     * Leitet den Kunden zum Checkout weiter, um direkt zu bezahlen.
+     * Startet den Editor für ein spezifisches Item
+     */
+    public function editItem($itemId)
+    {
+        if (!$this->quote->isValid()) return;
+
+        $this->editingItem = $this->quote->items->find($itemId);
+
+        if ($this->editingItem && $this->editingItem->product) {
+            $this->viewState = 'editor';
+        }
+    }
+
+    /**
+     * Bricht das Bearbeiten ab
+     */
+    public function cancelEdit()
+    {
+        $this->editingItem = null;
+        $this->viewState = 'dashboard';
+    }
+
+    /**
+     * Speichert Änderungen aus dem Configurator
+     * Wird per Event vom Configurator aufgerufen (context="calculator")
+     */
+    #[On('calculator-save')]
+    public function saveItem($data)
+    {
+        if (!$this->editingItem) return;
+
+        // 1. Konfiguration & Menge updaten
+        $this->editingItem->quantity = $data['qty'];
+        $this->editingItem->configuration = $data; // Speichert Text, Pfade, Positionen etc.
+
+        // 2. Einzelpreis neu berechnen (Staffelpreise beachten!)
+        $product = $this->editingItem->product;
+        $unitPriceCents = $this->calculateTierPrice($product, $data['qty']);
+
+        $this->editingItem->unit_price = $unitPriceCents;
+        $this->editingItem->total_price = $unitPriceCents * $data['qty'];
+        $this->editingItem->save();
+
+        // 3. Gesamtangebot neu berechnen
+        $this->recalculateQuoteTotals();
+
+        // 4. Zurück zum Dashboard
+        $this->refreshQuote(); // Daten neu laden
+        $this->viewState = 'dashboard';
+        $this->editingItem = null;
+
+        session()->flash('success', 'Position erfolgreich aktualisiert.');
+    }
+
+    /**
+     * Hilfsfunktion: Staffelpreis berechnen (Kopie der Logik aus Calculator/Product)
+     */
+    private function calculateTierPrice($product, $qty)
+    {
+        $basePrice = $product->price; // Cents
+        $tiers = $product->tier_pricing ?? [];
+
+        if (!empty($tiers) && is_array($tiers)) {
+            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
+            foreach ($tiers as $tier) {
+                if ($qty >= $tier['qty']) {
+                    $discount = $basePrice * ($tier['percent'] / 100);
+                    return (int) round($basePrice - $discount);
+                }
+            }
+        }
+        return $basePrice;
+    }
+
+    /**
+     * Hilfsfunktion: Summen des Angebots neu berechnen
+     */
+    private function recalculateQuoteTotals()
+    {
+        $netTotal = 0;
+        $taxTotal = 0;
+
+        foreach($this->quote->items as $item) {
+            $product = $item->product;
+            if(!$product) continue;
+
+            $lineTotal = $item->total_price; // Ist bereits berechnet (Menge * Einzel)
+
+            // Steuer herausrechnen
+            $rate = $product->tax_rate ?? 19.0;
+
+            if ($product->tax_included) {
+                $lineNet = $lineTotal / (1 + ($rate / 100));
+                $lineTax = $lineTotal - $lineNet;
+            } else {
+                $lineNet = $lineTotal;
+                $lineTax = $lineNet * ($rate / 100);
+            }
+
+            $netTotal += $lineNet;
+            $taxTotal += $lineTax;
+        }
+
+        // Express
+        if ($this->quote->is_express) {
+            $expressNet = 2500;
+            $expressTax = $expressNet * 0.19;
+            $netTotal += $expressNet;
+            $taxTotal += $expressTax;
+        }
+
+        $grossTotal = $netTotal + $taxTotal;
+
+        $this->quote->update([
+            'net_total' => (int) round($netTotal),
+            'tax_total' => (int) round($taxTotal),
+            'gross_total' => (int) round($grossTotal),
+        ]);
+    }
+
+    /**
+     * Checkout Logik (Unverändert)
      */
     public function proceedToCheckout(CartService $cartService)
     {
         if (!$this->isValidAction()) return;
 
-        // 1. Aktuellen Warenkorb holen und leeren
         $cart = $cartService->getCart();
         $cart->items()->delete();
 
-        // 2. Items aus dem Angebot in den Warenkorb übertragen
         foreach($this->quote->items as $qItem) {
             if($qItem->product) {
-                // addItem Methode nutzen, damit Preise/Steuern aktuell berechnet werden
                 $cartService->addItem(
                     $qItem->product,
                     $qItem->quantity,
@@ -62,70 +192,15 @@ class QuoteAcceptance extends Component
             }
         }
 
-        // 3. Merken, dass wir aus einem Angebot kommen
-        // Das ist wichtig für Checkout (Adressen) und Success (Status-Update)
         Session::put('checkout_from_quote_id', $this->quote->id);
-
-        // 4. Weiterleitung zum Checkout
         return redirect()->route('checkout');
     }
 
-    /**
-     * Angebot ablehnen
-     */
     public function rejectQuote()
     {
         if ($this->quote->status !== 'open') return;
-
         $this->quote->update(['status' => 'rejected']);
-        $this->viewState = 'success_rejected';
-    }
-
-    /**
-     * Angebot bearbeiten -> Lädt Daten in den Calculator
-     */
-    public function editQuote()
-    {
-        $cartItems = [];
-
-        foreach($this->quote->items as $item) {
-            $product = $item->product;
-
-            // Falls Produkt gelöscht, überspringen
-            if (!$product) continue;
-
-            // Struktur für den Calculator vorbereiten
-            $cartItems[] = [
-                'row_id' => Str::uuid()->toString(),
-                'product_id' => $item->product_id,
-                'name' => $product->name,
-                'image_ref' => !empty($product->media_gallery[0]['path']) ? 'storage/'.$product->media_gallery[0]['path'] : null,
-                'qty' => $item->quantity,
-                'text' => $item->configuration['text'] ?? '',
-                'configuration' => $item->configuration,
-                'preview_ref' => $product->preview_image_path ? 'storage/'.$product->preview_image_path : null,
-                // Preise werden vom Calculator neu berechnet
-                'calculated_single_price' => 0,
-                'calculated_total' => 0
-            ];
-        }
-
-        // Formulardaten wiederherstellen
-        $formData = [
-            'vorname' => $this->quote->first_name,
-            'nachname' => $this->quote->last_name,
-            'firma' => $this->quote->company,
-            'email' => $this->quote->email,
-            'telefon' => $this->quote->phone,
-            'anmerkung' => $this->quote->admin_notes
-        ];
-
-        // Session füllen
-        session()->put('calc_cart', $cartItems);
-        session()->put('calc_form', $formData);
-
-        // Weiterleitung zum Calculator
-        return redirect()->route('calculator');
+        $this->viewState = 'success_rejected'; // Fehlerstatus nutzen oder neuen ViewState
     }
 
     private function isValidAction()
@@ -150,7 +225,6 @@ class QuoteAcceptance extends Component
 
     public function render()
     {
-        // Layout explizit setzen, um Fehler zu vermeiden
         return view('livewire.shop.quote-acceptance')
             ->layout('components.layouts.frontend_layout');
     }
