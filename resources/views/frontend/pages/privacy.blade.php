@@ -142,6 +142,77 @@
                 </div>
 
                 <div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">Zahlungsabwicklung über Stripe</h2>
+
+                    <p>
+                        Für die Abwicklung von Zahlungen auf dieser Website nutzen wir den Zahlungsdienstleister
+                        <strong>Stripe</strong>. Anbieter für Kunden innerhalb der EU ist die
+                        <strong>Stripe Payments Europe Ltd.</strong>, 1 Grand Canal Street Lower, Grand Canal Dock, Dublin, Irland.
+                    </p>
+
+                    <p class="mt-3">
+                        Wenn Sie eine Zahlung über Stripe durchführen (z.B. per Kreditkarte, Apple Pay, Google Pay, Klarna oder PayPal),
+                        werden die zur Zahlungsabwicklung erforderlichen Daten direkt an Stripe übermittelt.
+                        Wir selbst erhalten keinen Zugriff auf Ihre vollständigen Zahlungsdaten
+                        (z.B. Kreditkartennummern oder Bankverbindungen).
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Verarbeitete Daten</h3>
+                    <p>
+                        Stripe verarbeitet insbesondere folgende personenbezogene Daten:
+                    </p>
+                    <ul class="list-disc list-inside mt-2 space-y-1">
+                        <li>Name</li>
+                        <li>E-Mail-Adresse</li>
+                        <li>Rechnungs- und ggf. Lieferadresse</li>
+                        <li>Zahlungsdaten (z.B. Kreditkarten- oder Kontodaten)</li>
+                        <li>IP-Adresse</li>
+                        <li>Geräte- und Browserinformationen</li>
+                        <li>Transaktionsdaten (Betrag, Datum, Zahlungsmethode)</li>
+                    </ul>
+
+                    <h3 class="font-bold text-lg mt-6">Zweck und Rechtsgrundlage</h3>
+                    <p>
+                        Die Verarbeitung der Daten erfolgt zum Zweck der
+                        <strong>Abwicklung der Zahlung</strong>, der
+                        <strong>Betrugsprävention</strong> sowie der
+                        <strong>Abrechnung und Buchhaltung</strong>.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Rechtsgrundlage:
+                        <br>
+                        Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung)
+                        <br>
+                        sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer sicheren und effizienten Zahlungsabwicklung).
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Datenübermittlung in Drittstaaten</h3>
+                    <p>
+                        Stripe kann personenbezogene Daten auch an Server außerhalb der Europäischen Union
+                        (insbesondere in die USA) übermitteln.
+                        Stripe stützt sich dabei auf von der EU-Kommission genehmigte
+                        <strong>Standardvertragsklauseln (SCC)</strong> sowie zusätzliche technische und organisatorische Maßnahmen,
+                        um ein angemessenes Datenschutzniveau sicherzustellen.
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Auftragsverarbeitung</h3>
+                    <p>
+                        Wir haben mit Stripe einen Vertrag über Auftragsverarbeitung (AVV) gemäß Art. 28 DSGVO abgeschlossen.
+                        Dieser verpflichtet Stripe, personenbezogene Daten ausschließlich nach unseren Weisungen
+                        und unter Einhaltung der DSGVO zu verarbeiten.
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Weitere Informationen</h3>
+                    <p>
+                        Weitere Informationen zur Datenverarbeitung durch Stripe finden Sie in der Datenschutzerklärung von Stripe:
+                        <a href="https://stripe.com/de/privacy" target="_blank" class="text-primary hover:underline">
+                            https://stripe.com/de/privacy
+                        </a>
+                    </p>
+                </div>
+
+
+                <div>
                     <h2 class="text-2xl font-bold text-gray-900 mb-4">6. Soziale Medien</h2>
                     <p>
                         Wir unterhalten öffentlich zugängliche Profile in sozialen Netzwerken. Die Nutzung dieser Netzwerke erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an optimaler Präsentation und Werbung).

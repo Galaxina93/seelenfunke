@@ -109,11 +109,24 @@
 
                         <div class="space-y-3 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-100">
 
-                            {{-- Warenwert --}}
+                            {{-- Warenwert (Zwischensumme nach Rabatt) --}}
                             <div class="flex justify-between">
                                 <span>Warenwert</span>
                                 <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
                             </div>
+
+                            {{-- NEU: Mengenrabatt Anzeige --}}
+                            @if(!empty($totals['volume_discount']) && $totals['volume_discount'] > 0)
+                                <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Mengenrabatt</span>
+                                    </div>
+                                    <span>-{{ number_format($totals['volume_discount'] / 100, 2, ',', '.') }} €</span>
+                                </div>
+                            @endif
 
                             {{-- Rabatt --}}
                             @if(!empty($totals['discount_amount']) && $totals['discount_amount'] > 0)
@@ -203,37 +216,56 @@
                             </p>
 
                             <div class="flex flex-wrap justify-center gap-2">
-                                {{-- Visa --}}
-                                <div class="h-8 w-14 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <span class="text-xs font-bold text-gray-600">VISA</span>
-                                </div>
 
                                 {{-- Mastercard --}}
-                                <div class="h-8 w-14 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <span class="text-xs font-bold text-gray-600">MC</span>
-                                </div>
-
-                                {{-- Maestro --}}
-                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <span class="text-xs font-bold text-gray-600">Maestro</span>
+                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <img
+                                        src="{{ asset('images/projekt/payments/mastercard.svg') }}"
+                                        alt="Mastercard"
+                                        class="h-8"
+                                    >
                                 </div>
 
                                 {{-- Apple Pay --}}
-                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <span class="text-xs font-semibold text-gray-600"> Pay</span>
+                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <img
+                                        src="{{ asset('images/projekt/payments/apple-pay.svg') }}"
+                                        alt="Apple Pay"
+                                        class="h-8"
+                                    >
                                 </div>
 
                                 {{-- Google Pay --}}
-                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <span class="text-xs font-semibold text-gray-600">G Pay</span>
+                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <img
+                                        src="{{ asset('images/projekt/payments/google-pay.svg') }}"
+                                        alt="Google Pay"
+                                        class="h-8"
+                                    >
                                 </div>
 
                                 {{-- PayPal --}}
-                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                                    <span class="text-xs font-bold text-gray-600">PayPal</span>
+                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <img
+                                        src="{{ asset('images/projekt/payments/paypal.svg') }}"
+                                        alt="PayPal"
+                                        class="h-8"
+                                    >
                                 </div>
+
+                                {{-- Klarna --}}
+                                <div class="h-10 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <img
+                                        src="{{ asset('images/projekt/payments/klarna.svg') }}"
+                                        alt="Klarna"
+                                        class="h-8"
+                                    >
+                                </div>
+
                             </div>
                         </div>
+
+
                     </div>
                 </div>
 
@@ -294,9 +326,17 @@
                             </div>
 
                             {{-- Content --}}
-                            <div class="relative flex-1">
+                            <div class="relative flex-1 h-full">
                                 @if($editingItemId)
-                                    <livewire:shop.cart-item-editor :item="\App\Models\CartItem::find($editingItemId)" :key="'editor-'.$editingItemId" />
+                                    @php $editItem = \App\Models\CartItem::find($editingItemId); @endphp
+                                    @if($editItem)
+                                        <livewire:shop.configurator
+                                            :product="$editItem->product"
+                                            :cartItem="$editItem"
+                                            context="edit"
+                                            :key="'conf-edit-'.$editingItemId"
+                                        />
+                                    @endif
                                 @endif
                             </div>
                         </div>

@@ -120,13 +120,13 @@
                     {{-- Preis --}}
                     <div class="flex flex-col">
                         <div class="flex items-baseline gap-3">
-<span class="text-2xl font-bold text-primary">
-    {{ number_format($this->product->price / 100, 2, ',', '.') }} €
-</span>
+                            <span class="text-2xl font-bold text-primary">
+                                {{ number_format($this->product->price / 100, 2, ',', '.') }} €
+                            </span>
                             @if($this->product->compare_at_price > $this->product->price)
                                 <span class="text-lg text-gray-400 line-through decoration-red-400">
-        {{ number_format($this->product->compare_at_price / 100, 2, ',', '.') }} €
-    </span>
+                                    {{ number_format($this->product->compare_at_price / 100, 2, ',', '.') }} €
+                                </span>
                             @endif
                         </div>
 
@@ -195,7 +195,14 @@
                    Wir binden hier den Configurator ein.
                    Dieser übernimmt die Auswahl der Optionen und das "Add to Cart" Event.
                 --}}
-                <livewire:shop.product-configurator :product="$this->product" />
+                {{--<livewire:shop.product-configurator :product="$this->product" />--}}
+
+                <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+                    <livewire:shop.configurator
+                        :product="$product"
+                        context="add"
+                    />
+                </div>
 
                 {{-- USP Icons --}}
                 <div class="grid grid-cols-2 gap-4 mt-10">

@@ -148,6 +148,7 @@ return new class extends Migration
             // Status-Felder (genutzt in den Filtern und Badges)
             $table->string('status')->default('pending');
             $table->string('payment_status')->default('unpaid');
+            $table->string('stripe_payment_intent_id')->nullable();
 
             $table->string('email'); // Wichtig für Kommunikation & Suche
 

@@ -20,6 +20,7 @@ class Cart extends Model
         'session_id',
         'user_id',
         'coupon_code',
+        'customer_id'
     ];
 
     /**

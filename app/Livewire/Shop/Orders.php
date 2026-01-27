@@ -14,23 +14,40 @@ class Orders extends Component
     public $search = '';
     public $statusFilter = '';
     public $paymentFilter = '';
-    public $dateFilter = ''; // 'today', 'week', 'month'
+    public $dateFilter = '';
 
     // Sortierung
     public $sortField = 'created_at';
     public $sortDirection = 'desc';
 
+    // --- NEU: Modal State ---
+    public $showDetailModal = false;
+    public $selectedOrderId = null;
+
     protected $queryString = ['search', 'statusFilter', 'paymentFilter', 'sortField', 'sortDirection'];
 
-    // --- SHORTCUT ACTIONS ---
+    // --- ACTIONS ---
+
+    // NEU: Bestellung ins Modal laden
+    public function openDetail($id)
+    {
+        $this->selectedOrderId = $id;
+        $this->showDetailModal = true;
+    }
+
+    public function closeDetail()
+    {
+        $this->showDetailModal = false;
+        $this->selectedOrderId = null;
+    }
 
     public function markAsPaid($orderId)
     {
         $order = Order::find($orderId);
         if ($order) {
             $order->update(['payment_status' => 'paid']);
-            // Optional: Rechnung generieren & Mail senden Logik hier
             session()->flash('success', "Bestellung {$order->order_number} als BEZAHLT markiert.");
+            // Falls Modal offen ist, aktualisieren wir es indirekt durch re-render
         }
     }
 
@@ -39,21 +56,20 @@ class Orders extends Component
         $order = Order::find($orderId);
         if ($order) {
             $order->update(['status' => $newStatus]);
-            session()->flash('success', "Status von {$order->order_number} auf " . strtoupper($newStatus) . " geändert.");
+            session()->flash('success', "Status aktualisiert.");
         }
     }
 
     public function delete($id)
     {
-        // Soft Delete
         $order = Order::find($id);
         if ($order) {
             $order->delete();
-            session()->flash('success', 'Bestellung in den Papierkorb verschoben.');
+            $this->closeDetail(); // Falls Modal offen war
+            session()->flash('success', 'Bestellung gelöscht.');
         }
     }
 
-    // --- SORTIERUNG ---
     public function sortBy($field)
     {
         if ($this->sortField === $field) {
@@ -64,36 +80,34 @@ class Orders extends Component
         }
     }
 
+    // Computed Property für das Modal (lädt Daten nur wenn nötig)
+    public function getSelectedOrderProperty()
+    {
+        if (!$this->selectedOrderId) return null;
+        return Order::with('items')->find($this->selectedOrderId);
+    }
+
     public function render()
     {
         $query = Order::query();
 
-        // 1. Suche
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('order_number', 'like', '%' . $this->search . '%')
                     ->orWhere('email', 'like', '%' . $this->search . '%')
-                    // JSON Suche (MySQL Syntax) - Optional, falls Performance ok
                     ->orWhere('billing_address->last_name', 'like', '%' . $this->search . '%');
             });
         }
 
-        // 2. Filter
-        if ($this->statusFilter) {
-            $query->where('status', $this->statusFilter);
-        }
-        if ($this->paymentFilter) {
-            $query->where('payment_status', $this->paymentFilter);
-        }
+        if ($this->statusFilter) $query->where('status', $this->statusFilter);
+        if ($this->paymentFilter) $query->where('payment_status', $this->paymentFilter);
         if ($this->dateFilter) {
             if ($this->dateFilter === 'today') $query->whereDate('created_at', today());
             if ($this->dateFilter === 'week') $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
             if ($this->dateFilter === 'month') $query->whereMonth('created_at', now()->month);
         }
 
-        // 3. Sortierung
-        $orders = $query->orderBy($this->sortField, $this->sortDirection)
-            ->paginate(10);
+        $orders = $query->orderBy($this->sortField, $this->sortDirection)->paginate(10);
 
         return view('livewire.shop.orders', [
             'orders' => $orders,

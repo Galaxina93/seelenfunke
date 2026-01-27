@@ -31,7 +31,7 @@ class Cart extends Component
         $this->showEditModal = true;
     }
 
-    #[On('close-modal')]
+    #[On('close-modal')] // Listener für Configurator
     public function closeModal()
     {
         $this->showEditModal = false;

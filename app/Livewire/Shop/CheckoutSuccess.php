@@ -2,47 +2,62 @@
 
 namespace App\Livewire\Shop;
 
-use App\Models\Cart;
 use App\Models\Order;
+use App\Models\Cart;
+use App\Mail\OrderConfirmation;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
 
 class CheckoutSuccess extends Component
 {
-    public $order;
-
     public function mount()
     {
-        // Parameter von Stripe URL
-        $paymentIntentId = request()->query('payment_intent');
+        $intentId = request()->query('payment_intent');
 
-        if (!$paymentIntentId) {
-            return redirect()->route('home');
-        }
+        if ($intentId) {
+            // Bestellung anhand der Stripe-ID suchen (die wir vorher gespeichert haben müssen!)
+            // Falls du die ID im Checkout.php noch nicht speicherst, mach es dort oder hier über Session-Order-ID
+            $order = Order::where('stripe_payment_intent_id', $intentId)->first();
 
-        Stripe::setApiKey(env('STRIPE_SECRET'));
-        $intent = PaymentIntent::retrieve($paymentIntentId);
+            // Fallback: Falls Order noch nicht mit Stripe-ID verknüpft ist (Race Condition),
+            // könnte man die letzte Order des Users/Session suchen.
+            // Aber besser: In Checkout.php (JS Teil) sicherstellen, dass die ID gespeichert wird.
 
-        if ($intent->status === 'succeeded') {
-            // Warenkorb leeren
-            // Achtung: Hier suchen wir die Order idealerweise über Metadata oder Session
-            // Da wir im Checkout Controller die Order noch nicht persistiert hatten für den Redirect,
-            // ist der sicherste Weg hier, den Cart zu löschen.
+            if ($order && $order->payment_status !== 'paid') {
 
-            // In einer perfekten Welt würde der Webhook die Order auf "paid" setzen.
-            // Hier simulieren wir den Abschluss für das Frontend.
+                Stripe::setApiKey(env('STRIPE_SECRET'));
+                $intent = PaymentIntent::retrieve($intentId);
 
-            $cartId = $intent->metadata->cart_id ?? null;
-            if ($cartId) {
-                Cart::where('id', $cartId)->delete(); // Oder leeren
-                Session::forget('cart_id'); // Falls in Session
-                Session::regenerate(); // Session ID erneuern für neuen Cart
+                if ($intent->status === 'succeeded') {
+                    // 1. Status updaten
+                    $order->update(['payment_status' => 'paid']);
+
+                    // 2. E-Mail senden
+                    try {
+                        Mail::to($order->email)->send(new OrderConfirmation($order));
+                    } catch (\Exception $e) {
+                        \Log::error('Mail Error: ' . $e->getMessage());
+                    }
+
+                    // 3. Warenkorb leeren
+                    $sessionId = Session::getId();
+
+                    // Lösche Cart basierend auf Session
+                    Cart::where('session_id', $sessionId)->delete();
+
+                    // Lösche Cart basierend auf Customer ID (wenn eingeloggt)
+                    if(Auth::guard('customer')->check()) {
+                        Cart::where('customer_id', Auth::guard('customer')->id())->delete();
+                    }
+
+                    // Event feuern
+                    $this->dispatch('cart-updated');
+                }
             }
-
-            // Optional: Order laden um "Danke Alina!" anzuzeigen.
-            // Das geht am besten, wenn wir die Order ID in den confirmParams als return_url parameter mitgeben würden.
         }
     }
 

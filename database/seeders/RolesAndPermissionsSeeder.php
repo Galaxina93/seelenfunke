@@ -46,30 +46,42 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // 5. Admin-Benutzer erstellen und die Admin-Rolle zuweisen
         $admin = Admin::firstOrCreate(
-            ['email' => 'kontakt@mein-seelenfunke.de'], // Prüfen, ob der Admin schon existiert
-            [ // Daten, falls er neu erstellt wird
+            ['email' => 'kontakt@mein-seelenfunke.de'],
+            [
                 'first_name' => 'Alina',
                 'last_name' => 'Steinhauer',
                 'password' => Hash::make('SeelenPower123+++'),
             ]
         );
-        // Die entscheidende Zeile, die den Benutzer mit der Rolle verknüpft:
         $admin->roles()->sync($adminRole->id);
 
         // 6. Kunden-Benutzer erstellen und die Kunden-Rolle zuweisen
         $customer = Customer::firstOrCreate(
-            ['email' => 'kunde@mein-projekt.com'],
+            ['email' => 'alina.stone@t-online.de'],
             [
-                'first_name' => 'Kunde Vorname',
-                'last_name' => 'Kunde Nachname',
+                'first_name' => 'Melanie',
+                'last_name' => 'Musterfrau',
                 'password' => Hash::make('SeelenPower123+++'),
             ]
         );
         $customer->roles()->sync($customerRole->id);
 
+        // WICHTIG: Profil mit Adresse für den Kunden anlegen
+        // Damit beim Login im Checkout die Daten direkt geladen werden können.
+        $customer->profile()->updateOrCreate(
+            ['customer_id' => $customer->id],
+            [
+                'street' => 'Carl-Goerdeler-Ring',
+                'house_number' => '26',
+                'postal' => '38518',
+                'city' => 'Gifhorn',
+                'phone_number' => '0151 12345678',
+            ]
+        );
+
         // 7. Mitarbeiter-Benutzer erstellen und die Mitarbeiter-Rolle zuweisen
         $employee = Employee::firstOrCreate(
-            ['email' => 'mitarbeiter@mein-projekt.com'],
+            ['email' => 'mitarbeiter@mein-seelenfunke.de'],
             [
                 'first_name' => 'Mitarbeiter Vorname',
                 'last_name' => 'Mitarbeiter Nachname',

@@ -297,53 +297,39 @@
                                                 <h4 class="font-bold text-gray-900 group-hover:text-primary transition truncate">{{ $product['name'] }}</h4>
                                                 <p class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ $product['desc'] }}</p>
                                             </div>
-                                            <div class="mt-3 flex justify-between items-end">
-                                                <div>
-                                                    @php
-                                                        $brutto = $product['tax_included'] ? $product['price'] : $product['price'] * 1.19;
-                                                        $netto  = $product['tax_included'] ? $product['price'] / 1.19 : $product['price'];
-                                                    @endphp
-                                                    <div class="flex flex-wrap items-baseline gap-x-1">
-                                                        <span class="text-sm font-bold text-primary">ab {{ number_format($brutto, 2, ',', '.') }} €</span>
-                                                        <span class="text-[10px] uppercase tracking-wide text-gray-400">{{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.</span>
+                                            <div class="mt-3">
+                                                @php
+                                                    $brutto = $product['tax_included'] ? $product['price'] : $product['price'] * 1.19;
+                                                    $netto  = $product['tax_included'] ? $product['price'] / 1.19 : $product['price'];
+                                                @endphp
+                                                <div class="flex flex-wrap items-baseline gap-x-1 justify-between items-end">
+                                                    <div>
+                                                        <div class="flex flex-wrap items-baseline gap-x-1">
+                                                            <span class="text-sm font-bold text-primary">ab {{ number_format($brutto, 2, ',', '.') }} €</span>
+                                                            <span class="text-[10px] uppercase tracking-wide text-gray-400">{{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.</span>
+                                                        </div>
+                                                        <div class="flex items-center gap-2 mt-0.5">
+                                                            <span class="text-[10px] text-gray-400 tabular-nums">({{ number_format($netto, 2, ',', '.') }} € netto)</span>
+                                                        </div>
                                                     </div>
-                                                    <div class="flex items-center gap-2 mt-0.5">
-                                                        <span class="text-[10px] text-gray-400 tabular-nums">({{ number_format($netto, 2, ',', '.') }} € netto)</span>
-                                                        @if($product['staffel'])
-                                                            <span class="text-[9px] font-bold uppercase bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100">Staffel</span>
-                                                        @endif
+                                                    <div class="hidden md:flex w-8 h-8 rounded-full bg-white/90 backdrop-blur border border-gray-200 text-gray-400 items-center justify-center shadow-sm transition-all duration-200 group-hover:border-primary/60 group-hover:text-primary group-hover:shadow-md group-hover:scale-[1.03]">
+                                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                                                     </div>
                                                 </div>
-                                                <div
-                                                    class="hidden md:flex
-                                                           w-8 h-8 rounded-full
-                                                           bg-white/90 backdrop-blur
-                                                           border border-gray-200
-                                                           text-gray-400
-                                                           items-center justify-center
-                                                           shadow-sm
-                                                           transition-all duration-200
-                                                           group-hover:border-primary/60
-                                                           group-hover:text-primary
-                                                           group-hover:shadow-md
-                                                           group-hover:scale-[1.03]"
-                                                >
-                                                    <svg
-                                                        class="w-5 h-5"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path
-                                                            stroke-linecap="round"
-                                                            stroke-linejoin="round"
-                                                            stroke-width="2"
-                                                            d="M12 4v16m8-8H4"
-                                                        />
-                                                    </svg>
-                                                </div>
 
-
+                                                {{-- Staffelpreis Anzeige Schritt 1 --}}
+                                                @if(!empty($product['tier_pricing']) && is_array($product['tier_pricing']))
+                                                    <div class="mt-2 pt-2 border-t border-gray-50">
+                                                        <span class="text-[10px] font-bold uppercase text-green-600 block mb-1">Staffelpreise verfügbar:</span>
+                                                        <div class="flex flex-wrap gap-2">
+                                                            @foreach(collect($product['tier_pricing'])->sortBy('qty')->take(3) as $tier)
+                                                                <span class="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-100">
+                                                                    ab {{ $tier['qty'] }} Stk: -{{ $tier['percent'] }}%
+                                                                </span>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
                                     </div>
@@ -355,203 +341,28 @@
 
             {{-- STEP 2: KONFIGURATION --}}
             @elseif($step === 2)
-                <div class="flex flex-col md:flex-row animate-fade-in"
-                     x-data="window.calculatorDragData({
-                        wire: {
-                            textX: @entangle('currentConfig.text_x'),
-                            textY: @entangle('currentConfig.text_y'),
-                            logoX: @entangle('currentConfig.logo_x'),
-                            logoY: @entangle('currentConfig.logo_y'),
-                            engravingText: @entangle('currentConfig.engraving_text'),
-                            selectedFont: @entangle('currentConfig.engraving_font'),
-                            textAlign: @entangle('currentConfig.engraving_align'),
-                            textSize: @entangle('currentConfig.text_size'),
-                            logoSize: @entangle('currentConfig.logo_size')
-                        },
-                        config: {
-                            area_top: {{ $currentProduct['area_top'] ?? 10 }},
-                            area_left: {{ $currentProduct['area_left'] ?? 10 }},
-                            area_width: {{ $currentProduct['area_width'] ?? 80 }},
-                            area_height: {{ $currentProduct['area_height'] ?? 80 }}
-                        },
-                        fonts: {{ Js::from($fonts) }}
-                     })">
-
-                    {{-- Linke Spalte: Settings --}}
-                    <div class="w-full md:w-1/2 p-6 border-r border-gray-200 space-y-6">
-                        <div class="flex justify-between items-center border-b border-gray-100 pb-4">
-                            <h3 class="font-bold text-lg text-gray-800">Artikel anpassen</h3>
-                            <span class="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">{{ $currentProduct['name'] }}</span>
-                        </div>
-
-                        {{-- INFO-BOX: Hinweis zur Positionierung --}}
-                        {{-- ANPASSUNG: mx-8 (statt mx-4) passt nun exakt zu px-8 des Headers --}}
-                        <div class="mx-8 my-6 bg-blue-50 border-l-4 border-blue-400 p-4">
-                            <div class="flex">
-                                <div class="flex-shrink-0">
-                                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                    </svg>
-                                </div>
-                                <div class="ml-3">
-                                    <p class="text-sm text-blue-700">
-                                        Die Vorschau dient zur reinen Orientierung. Die exakte Positionierung von Bild und Text erfolgt durch unser Fachteam.
-                                        Farben können technisch nicht gelasert werden und werden in der Vorschau lediglich zur besseren Darstellung angezeigt.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-bold mb-1 text-gray-700">Menge</label>
-                            <input type="number" wire:model="currentConfig.qty" min="1" class="w-full rounded border-gray-400 bg-gray-50 shadow-sm focus:ring-primary focus:border-primary">
-                        </div>
-
-                        <hr class="border-gray-100 my-4">
-
-                        {{-- Logo Option --}}
-                        @if($currentProduct['allow_logo'])
-                            <div class="mb-4">
-                                <label class="block text-sm font-bold mb-2 text-gray-700">Logo/Bild Upload (Optional)</label>
-                                <input type="file" wire:model="currentConfig.temp_image" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer border border-gray-300 rounded bg-gray-50">
-                                <div wire:loading wire:target="currentConfig.temp_image" class="text-xs text-primary mt-1">Lade Datei...</div>
-
-                                @if($currentConfig['temp_image'] || $currentConfig['existing_image_path'])
-                                    <div class="mt-4 pt-4 border-t border-gray-200">
-                                        <label class="flex justify-between text-xs font-bold text-gray-500 mb-2">
-                                            <span>Größe anpassen</span>
-                                            <span x-text="logoSize + 'px'"></span>
-                                        </label>
-                                        <input type="range" wire:model.live="currentConfig.logo_size" min="30" max="400" step="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary">
-                                    </div>
-                                @endif
-                            </div>
-                            <hr class="border-gray-100 my-4">
-                        @endif
-
-                        {{-- Gravur Text --}}
-                        <div>
-                            <label class="block text-sm font-bold mb-2 text-gray-700">Gravurtext</label>
-                            <textarea wire:model.live="currentConfig.engraving_text" class="w-full rounded border-gray-400 bg-gray-50 shadow-sm focus:ring-primary focus:border-primary" rows="3" placeholder="Ihr Text hier..."></textarea>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 mt-3">
-                            <div>
-                                <label class="text-xs font-semibold text-gray-500">Schriftart</label>
-                                <select wire:model.live="currentConfig.engraving_font" class="w-full rounded border-gray-400 bg-gray-50 shadow-sm text-sm focus:ring-primary focus:border-primary">
-                                    @foreach($fonts as $name => $css) <option value="{{ $name }}">{{ $name }}</option> @endforeach
-                                </select>
-                            </div>
-                            <div>
-                                <label class="text-xs font-semibold text-gray-500">Ausrichtung</label>
-                                <select wire:model.live="currentConfig.engraving_align" class="w-full rounded border-gray-400 bg-gray-50 shadow-sm text-sm focus:ring-primary focus:border-primary">
-                                    @foreach($alignmentOptions as $key => $label)
-                                        @if(empty($currentProduct['allowed_align']) || in_array($key, $currentProduct['allowed_align']))
-                                            <option value="{{ $key }}">{{ $label }}</option>
-                                        @endif
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                        {{-- Text Größe Slider --}}
-                        <div class="mt-4">
-                            <label class="flex justify-between text-xs font-bold text-gray-500 mb-2">
-                                <span>Schriftgröße</span>
-                                <span x-text="(textSize * 100).toFixed(0) + '%'"></span>
-                            </label>
-                            <input type="range" wire:model.live="currentConfig.text_size" min="0.5" max="3.0" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary">
-                        </div>
-
-                        <div class="pt-2 mt-4">
-                            <label class="block text-sm font-bold text-gray-800 mb-2">Interne Anmerkungen / Hinweise</label>
-                            <textarea wire:model="currentConfig.notes" rows="2" placeholder="Zusätzliche Wünsche zur Positionierung oder Sonderwünsche..." class="w-full rounded border-gray-400 shadow-sm text-sm focus:border-primary focus:ring-primary bg-yellow-50"></textarea>
-                        </div>
-
-                        {{-- Buttons --}}
-                        <div class="flex justify-between items-center mt-8 pt-4 border-t border-gray-100">
-                            <button wire:click="cancelConfig" class="text-gray-500 text-sm hover:text-gray-800">Abbrechen</button>
-                            <button wire:click="saveItem" class="bg-primary text-white px-6 py-2 rounded font-bold hover:bg-primary-dark transition shadow-md">
-                                {{ $editingIndex >= 0 ? 'Speichern' : 'Hinzufügen' }}
-                            </button>
-                        </div>
+                <div class="h-full min-h-[600px] bg-white rounded-xl overflow-hidden animate-fade-in">
+                    {{-- Header im Calculator Style beibehalten oder in Component integrieren --}}
+                    <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                        <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
+                        <button wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500">Abbrechen</button>
                     </div>
 
-                    {{-- Rechte Spalte: Live-Preview --}}
-                    <div class="w-full md:w-1/2 bg-gray-100 flex items-center justify-center p-8 relative select-none">
-
-                        {{-- Vorschau Label --}}
-                        <div class="bg-white p-2 rounded text-[10px] font-bold text-gray-400 uppercase tracking-widest absolute top-4 left-4 z-10 shadow-sm">
-                            Vorschau
-                        </div>
-
-                        {{-- Vorschau Container --}}
-                        <div class="relative w-full max-w-[400px] aspect-square bg-white rounded-xl shadow-lg overflow-hidden border-4 border-white"
-                             x-ref="container">
-
-                            {{-- Overlay --}}
-                            @if(!empty($currentProduct['preview_image']))
-                                <img src="{{ asset($currentProduct['preview_image']) }}" class="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none">
-                            @elseif(!empty($currentProduct['image']))
-                                <img src="{{ asset($currentProduct['image']) }}" class="absolute inset-0 w-full h-full object-contain z-0 pointer-events-none">
-                            @else
-                                <div class="absolute inset-0 flex items-center justify-center text-gray-300">Kein Bild</div>
-                            @endif
-
-                            {{-- Arbeitsbereich VISUELL --}}
-                            <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none z-10"
-                                 :style="{
-                                    top: area.top + '%',
-                                    left: area.left + '%',
-                                    width: area.width + '%',
-                                    height: area.height + '%',
-                                    boxShadow: '0 0 0 9999px rgba(239, 68, 68, 0.2)'
-                                 }">
-                                <span class="absolute top-0 left-0 bg-green-500 text-white text-[8px] px-1 font-bold">Erlaubt</span>
-                            </div>
-
-                            {{-- Text Layer --}}
-                            <div class="absolute z-20 cursor-move group touch-none"
-                                 style="transform: translate(-50%, -50%);"
-                                 :style="{ left: textX + '%', top: textY + '%' }"
-                                 @mousedown="startDrag($event, 'text')"
-                                 @touchstart="startDrag($event, 'text')">
-
-                                <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors w-auto text-center"
-                                     :class="{ 'border-primary': currentElement === 'text' }">
-                                    {{-- MINIMIERTER HTML CODE IM P-TAG --}}
-                                    <p class="leading-tight font-bold whitespace-pre pointer-events-none w-max" :class="alignMap[textAlign]" :style="`font-size: ${16 * textSize}px; font-family: ${fontMap[selectedFont] || 'Arial'}; background: linear-gradient(to bottom, #cfc09f 22%, #634f2c 24%, #cfc09f 26%, #cfc09f 27%, #ffecb3 40%, #3a2c0f 78%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: #C5A059; text-shadow: 1px 1px 2px rgba(255,255,255,0.5);`"><span x-text="engravingText ? engravingText : 'Ihr Text'"></span></p>
-                                </div>
-                            </div>
-
-                            {{-- Logo Layer --}}
-                            @if($currentProduct['allow_logo'])
-                                @if($currentConfig['temp_image'] || $currentConfig['existing_image_path'])
-                                    <div class="absolute z-20 cursor-move group touch-none"
-                                         style="transform: translate(-50%, -50%);"
-                                         :style="{ left: logoX + '%', top: logoY + '%' }"
-                                         @mousedown="startDrag($event, 'logo')"
-                                         @touchstart="startDrag($event, 'logo')">
-
-                                        <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors"
-                                             :class="{ 'border-primary': currentElement === 'logo' }">
-                                            <div :style="{ width: logoSize + 'px' }" class="relative">
-                                                @if($currentConfig['temp_image'])
-                                                    <img src="{{ $currentConfig['temp_image']->temporaryUrl() }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
-                                                @elseif($currentConfig['existing_image_path'])
-                                                    <img src="{{ asset('storage/'.$currentConfig['existing_image_path']) }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-                            @endif
-
-                        </div>
-                    </div>
+                    {{-- Einbindung der Universal Komponente --}}
+                    {{--
+                        HIER ist der Schlüssel:
+                        1. context="calculator"
+                        2. :key mit timestamp zwingt Livewire zum Neu-Initialisieren
+                    --}}
+                    <livewire:shop.configurator
+                        :product="$currentProduct['id']"
+                        :initialData="$currentConfig"
+                        context="calculator"
+                        :key="'calc-conf-'.$currentProduct['id'].'-'.time()"
+                    />
                 </div>
 
-                {{-- STEP 3: KONTAKTDATEN (Angebot anfordern) --}}
+            {{-- STEP 3: KONTAKTDATEN (Angebot anfordern) --}}
             @elseif($step === 3)
                 <div class="p-8 animate-fade-in max-w-3xl mx-auto">
                     <div class="text-center mb-8">

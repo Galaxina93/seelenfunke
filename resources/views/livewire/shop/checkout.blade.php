@@ -8,16 +8,53 @@
             {{-- LINKE SPALTE: Daten --}}
             <div class="lg:col-span-7 space-y-6">
 
-                {{-- Gast / Login Hinweis --}}
-                @guest
-                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div>
-                            <h3 class="text-sm font-bold text-gray-900">Bereits Kunde?</h3>
-                            <p class="text-sm text-gray-500">Melde dich an für schnelleres Bestellen.</p>
+                {{-- Gast / Login Hinweis (NUR anzeigen, wenn NICHT als Customer eingeloggt) --}}
+                @if(!auth()->guard('customer')->check())
+                    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm" x-data="{ showLogin: false }">
+                        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div>
+                                <h3 class="text-sm font-bold text-gray-900">Bereits Kunde?</h3>
+                                <p class="text-sm text-gray-500">Melde dich an, um deine gespeicherten Adressdaten zu laden.</p>
+                            </div>
+                            <button type="button" @click="showLogin = !showLogin" class="text-sm font-bold text-primary hover:text-primary-dark whitespace-nowrap focus:outline-none">
+                                <span x-text="showLogin ? 'Abbrechen' : 'Jetzt Anmelden'"></span>
+                            </button>
                         </div>
-                        <a href="{{ route('login') }}" class="text-sm font-bold text-primary hover:text-primary-dark whitespace-nowrap">Anmelden</a>
+
+                        {{-- Inline Login Form --}}
+                        <div x-show="showLogin" x-collapse class="mt-4 pt-4 border-t border-gray-100">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
+                                    <input type="email" wire:model="loginEmail" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+                                    @error('loginEmail') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Passwort</label>
+                                    <input type="password" wire:model="loginPassword" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+                                    @error('loginPassword') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                </div>
+                            </div>
+
+                            @if($loginError)
+                                <div class="mt-2 text-red-500 text-sm font-bold">{{ $loginError }}</div>
+                            @endif
+
+                            <div class="mt-4 flex justify-end">
+                                <button type="button" wire:click="loginUser" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
+                                    <span wire:loading.remove wire:target="loginUser">Anmelden & Daten laden</span>
+                                    <span wire:loading wire:target="loginUser">Lade...</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                @endguest
+                @else
+                    {{-- Wenn eingeloggt, zeige Info --}}
+                    <div class="bg-green-50 p-4 rounded-xl border border-green-100 flex items-center gap-3 text-green-800 text-sm">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span>Angemeldet als <strong>{{ auth()->guard('customer')->user()->first_name }}</strong>. Deine Daten wurden übernommen.</span>
+                    </div>
+                @endif
 
                 {{-- Kontakt & Rechnung --}}
                 <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm">
