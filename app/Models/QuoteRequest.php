@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class QuoteRequest extends Model
 {
@@ -15,7 +16,24 @@ class QuoteRequest extends Model
     protected $casts = [
         'is_express' => 'boolean',
         'deadline' => 'date',
+        'expires_at' => 'datetime', // Wichtig für Carbon Funktionen
     ];
+
+    /**
+     * Automatische Generierung von Token und Ablaufdatum
+     */
+    protected static function booted()
+    {
+        static::creating(function ($quote) {
+            if (empty($quote->token)) {
+                $quote->token = Str::random(32);
+            }
+            if (empty($quote->expires_at)) {
+                // 14 Tage Gültigkeit
+                $quote->expires_at = now()->addDays(14);
+            }
+        });
+    }
 
     public function items()
     {
@@ -36,5 +54,11 @@ class QuoteRequest extends Model
     public function getIsGuestAttribute()
     {
         return is_null($this->customer_id);
+    }
+
+    // Helper: Ist das Angebot noch gültig?
+    public function isValid()
+    {
+        return $this->status === 'open' && $this->expires_at->isFuture();
     }
 }

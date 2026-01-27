@@ -319,6 +319,7 @@ class Calculator extends Component
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
 
         // 2. Quote Request erstellen
+        // Token & Ablaufdatum werden automatisch durch das Model (booted Methode) generiert
         $quote = QuoteRequest::create([
             'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
             'email' => $this->form['email'],
@@ -335,6 +336,7 @@ class Calculator extends Component
 
             'is_express' => $this->isExpress,
             'deadline' => $this->isExpress ? $this->deadline : null,
+            'admin_notes' => $this->form['anmerkung'] ?? null,
         ]);
 
         // 3. Items speichern & Dateien verschieben
@@ -393,6 +395,7 @@ class Calculator extends Component
             ];
         }
 
+        // 4. Daten für Mail & PDF zusammenstellen (INKLUSIVE TOKEN)
         $data = [
             'contact' => $this->form,
             'items' => $finalItems,
@@ -401,6 +404,10 @@ class Calculator extends Component
             'total_gross' => number_format($this->totalBrutto, 2, ',', '.'),
             'express' => $this->isExpress,
             'deadline' => $this->deadline,
+            // NEU: Token & Ablaufdatum für die Mail
+            'quote_number' => $quote->quote_number,
+            'quote_token' => $quote->token,
+            'quote_expiry' => $quote->expires_at->format('d.m.Y'),
         ];
 
         // PDF Generierung
@@ -417,6 +424,7 @@ class Calculator extends Component
             Mail::to('kontakt@mein-seelenfunke.de')->send(new CalcInput($data, $path));
         } catch (\Exception $e) {
             // Fehler loggen, aber User nicht verwirren
+            \Log::error('Calculator Mail Error: ' . $e->getMessage());
         }
 
         @unlink($path);

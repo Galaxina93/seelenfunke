@@ -240,6 +240,10 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('quote_number')->unique(); // z.B. AN-2024-001
 
+            // NEU: Für den öffentlichen Link
+            $table->string('token')->unique()->nullable();
+            $table->timestamp('expires_at')->nullable();
+
             // Kontaktdaten (Snapshot)
             $table->string('email');
             $table->string('first_name');

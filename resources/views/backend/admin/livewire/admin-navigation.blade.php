@@ -24,6 +24,8 @@
         <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="ticket" />
         <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoice" icon="document-text" />
         <x-forms.list-item route="/admin/orders" title="Bestellungen" pageName="orders" icon="shopping-bag" />
+        <x-forms.list-item route="/admin/quote-requests" title="Angebotsanfragen" pageName="quote-requests" icon="clipboard-document-list" />
+
 
     @endsection
 

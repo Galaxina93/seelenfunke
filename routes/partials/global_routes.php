@@ -7,6 +7,7 @@ use App\Livewire\Shop\NewsletterPage;
 use App\Livewire\Shop\ProductIndex;
 use App\Livewire\Shop\ProductShow;
 use App\Livewire\Shop\Cart;
+use App\Livewire\Shop\QuoteAcceptance;
 use App\Models\PageVisit;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,10 @@ Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify']
 // Der Checkout
 Route::get('/checkout', Checkout::class)->name('checkout');
 Route::get('/checkout/success', CheckoutSuccess::class)->name('checkout.success');
+
+// Angebot annehmen
+Route::get('/angebot/{token}/annehmen', QuoteAcceptance::class)->name('quote.accept');
+
 
 // --- 1. Hauptseiten ---
 

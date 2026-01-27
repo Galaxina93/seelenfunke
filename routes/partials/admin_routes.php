@@ -47,7 +47,9 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.orders');
     })->name('admin.orders');
 
-
+    Route::get('/admin/quote-requests', function () {
+        return view('backend.admin.pages.quote-requests');
+    })->name('admin.quote-requests');
 
 
 });
