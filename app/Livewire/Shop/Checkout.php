@@ -4,9 +4,11 @@ namespace App\Livewire\Shop;
 
 use App\Models\Order;
 use App\Models\QuoteRequest;
+use App\Models\Customer; // WICHTIG: Importiert
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str; // WICHTIG: Für Passwort-Generierung
 use Livewire\Component;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
@@ -74,7 +76,6 @@ class Checkout extends Component
                 $this->address = $user->profile->street . ' ' . $user->profile->house_number;
                 $this->city = $user->profile->city;
                 $this->postal_code = $user->profile->postal;
-                // $this->country = ... (falls im Profil gespeichert)
             }
         }
         // 2. Daten laden: Aus Angebot (Quote)
@@ -87,7 +88,6 @@ class Checkout extends Component
                 $this->first_name = $quote->first_name;
                 $this->last_name = $quote->last_name;
                 $this->company = $quote->company;
-                // Adresse ist im Quote oft nicht vorhanden, daher leer lassen
             }
         }
 
@@ -97,12 +97,10 @@ class Checkout extends Component
 
     public function createPaymentIntent($cart)
     {
-        // Totals berechnen
         $totals = app(CartService::class)->calculateTotals($cart);
         $amount = $totals['total']; // Betrag in Cent
 
         if ($amount > 0) {
-            // API Key aus Config laden
             $stripeSecret = config('services.stripe.secret');
 
             if($stripeSecret) {
@@ -124,7 +122,6 @@ class Checkout extends Component
         }
     }
 
-    // Login Methode für Modal
     public function login()
     {
         $this->validate([
@@ -139,21 +136,12 @@ class Checkout extends Component
         }
     }
 
-    /**
-     * Frontend ruft diese Methode auf
-     */
     public function validateAndCreateOrder()
     {
-        // 1. Validierung der Eingabefelder
         $this->validate();
-
-        // 2. Order erstellen (Status: pending/unpaid)
         $orderId = $this->createOrder();
 
-        // 3. Stripe Intent updaten mit Order ID
         if ($this->clientSecret) {
-            // Secret sieht so aus: pi_3Mg..._secret_...
-            // Wir brauchen nur den ersten Teil (die ID)
             $parts = explode('_secret_', $this->clientSecret);
             if(count($parts) > 0) {
                 $intentId = $parts[0];
@@ -165,7 +153,6 @@ class Checkout extends Component
             }
         }
 
-        // Wir geben die Order ID zurück, falls das Frontend JS sie braucht
         return $orderId;
     }
 
@@ -175,14 +162,39 @@ class Checkout extends Component
         $cart = $cartService->getCart();
         $totals = $cartService->calculateTotals($cart);
 
-        // Prüfen ob User eingeloggt
+        // --- KUNDEN-LOGIK (Fix für Fehler 1452) ---
         $customerId = Auth::guard('customer')->id();
 
+        // Wenn kein Kunde eingeloggt ist, suchen oder erstellen wir einen
+        if (!$customerId) {
+            $customer = Customer::firstOrCreate(
+                ['email' => $this->email], // Suche nach E-Mail
+                [
+                    'first_name' => $this->first_name,
+                    'last_name' => $this->last_name,
+                    'password' => bcrypt(Str::random(16)), // Zufallspasswort, da Gast
+                    // Optional: Man könnte dem Kunden eine Mail senden, dass ein Account erstellt wurde
+                ]
+            );
+
+            // Falls Kunde neu angelegt wurde oder existiert, Profil updaten falls leer
+            if (!$customer->profile) {
+                $customer->profile()->create([
+                    'street' => $this->address,
+                    'city' => $this->city,
+                    'postal' => $this->postal_code,
+                    'country' => $this->country
+                ]);
+            }
+
+            $customerId = $customer->id;
+        }
+        // ------------------------------------------
+
         $order = Order::create([
-            'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(\Illuminate\Support\Str::random(6)),
-            'customer_id' => $customerId,
+            'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
+            'customer_id' => $customerId, // Jetzt ist hier immer eine ID drin!
             'email' => $this->email,
-            // 'customer_name' WURDE ENTFERNT, da Spalte nicht existiert. Name steht in billing_address.
             'status' => 'pending',
             'payment_status' => 'unpaid',
 
@@ -195,7 +207,6 @@ class Checkout extends Component
                 'city' => $this->city,
                 'country' => $this->country,
             ],
-            // Versandadresse = Rechnungsadresse (vereinfacht)
             'shipping_address' => [
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
