@@ -22,7 +22,6 @@ use Illuminate\Support\Facades\Route;
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
 
-
 Route::get('/shop', ProductIndex::class)->name('shop');
 // Wichtig: {product:slug} sagt Laravel, es soll in der Spalte 'slug' suchen, nicht 'id'
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
@@ -39,7 +38,6 @@ Route::get('/checkout/success', CheckoutSuccess::class)->name('checkout.success'
 
 // Angebot annehmen
 Route::get('/angebot/{token}/annehmen', QuoteAcceptance::class)->name('quote.accept');
-
 
 // --- 1. Hauptseiten ---
 

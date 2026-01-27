@@ -14,29 +14,35 @@ class QuoteAcceptance extends Component
 {
     public $token;
     public $quote;
-    public $success = false;
-    public $error = '';
+
+    // UI States
+    public $viewState = 'dashboard'; // 'dashboard', 'success_accepted', 'success_rejected', 'error'
+    public $errorMessage = '';
 
     public function mount($token)
     {
         $this->token = $token;
-        $this->quote = QuoteRequest::where('token', $token)->with('items')->firstOrFail();
+        $this->quote = QuoteRequest::where('token', $token)->with('items.product')->first();
 
-        // Checks
-        if ($this->quote->status === 'converted') {
-            $this->error = 'Dieses Angebot wurde bereits angenommen.';
-        } elseif ($this->quote->status === 'rejected') {
-            $this->error = 'Dieses Angebot ist nicht mehr gültig.';
-        } elseif ($this->quote->expires_at->isPast()) {
-            $this->error = 'Dieses Angebot ist abgelaufen (Gültigkeit: 14 Tage). Bitte kontaktieren Sie uns für ein neues Angebot.';
+        if (!$this->quote) {
+            $this->viewState = 'error';
+            $this->errorMessage = 'Angebot nicht gefunden.';
+            return;
+        }
+
+        // Grundlegende Checks (nur Warnungen, Blockade erst bei Aktion)
+        if ($this->quote->expires_at->isPast() && $this->quote->status === 'open') {
+            $this->errorMessage = 'Dieses Angebot ist leider abgelaufen.';
+            $this->viewState = 'error';
         }
     }
 
+    /**
+     * Angebot annehmen -> Bestellung erstellen
+     */
     public function acceptQuote()
     {
-        if ($this->error) return;
-
-        // Logik analog zum Admin-Backend, aber automatisiert
+        if (!$this->isValidAction()) return;
 
         // 1. Kunde finden oder erstellen
         $customer = Customer::firstOrCreate(
@@ -44,7 +50,7 @@ class QuoteAcceptance extends Component
             [
                 'first_name' => $this->quote->first_name,
                 'last_name' => $this->quote->last_name,
-                'password' => bcrypt(Str::random(16)), // Kunde muss Passwort resetten wenn er sich einloggen will
+                'password' => bcrypt(Str::random(16)),
             ]
         );
 
@@ -59,12 +65,12 @@ class QuoteAcceptance extends Component
             'customer_id' => $customer->id,
             'email' => $this->quote->email,
             'status' => 'processing',
-            'payment_status' => 'unpaid', // Wird per Rechnung bezahlt
+            'payment_status' => 'unpaid',
             'billing_address' => [
                 'first_name' => $this->quote->first_name,
                 'last_name' => $this->quote->last_name,
                 'company' => $this->quote->company,
-                'address' => 'Adresse folgt', // Ggf. Formular anzeigen um Adresse abzufragen? Hier vereinfacht.
+                'address' => 'Adresse folgt',
                 'postal_code' => '',
                 'city' => '',
                 'country' => 'DE'
@@ -75,7 +81,7 @@ class QuoteAcceptance extends Component
             'notes' => 'Automatisch erstellt durch Angebotsannahme (' . $this->quote->quote_number . ').',
         ]);
 
-        // 3. Items
+        // 3. Items übertragen
         foreach($this->quote->items as $qItem) {
             $order->items()->create([
                 'product_id' => $qItem->product_id,
@@ -98,11 +104,99 @@ class QuoteAcceptance extends Component
             Mail::to($order->email)->send(new OrderConfirmation($order));
         } catch (\Exception $e) {}
 
-        $this->success = true;
+        $this->viewState = 'success_accepted';
+    }
+
+    /**
+     * Angebot ablehnen
+     */
+    public function rejectQuote()
+    {
+        if ($this->quote->status !== 'open') return;
+
+        $this->quote->update(['status' => 'rejected']);
+        $this->viewState = 'success_rejected';
+    }
+
+    /**
+     * Angebot bearbeiten -> Lädt Daten in den Calculator
+     */
+    public function editQuote()
+    {
+        // Wir dürfen auch abgelaufene oder abgelehnte Angebote als Vorlage zum Bearbeiten nutzen!
+
+        $cartItems = [];
+
+        foreach($this->quote->items as $item) {
+            // Wir müssen die Struktur exakt so nachbauen, wie der Calculator sie erwartet
+            $product = $item->product; // Relation
+
+            // Wenn Produkt gelöscht wurde, überspringen wir es sicherheitshalber
+            if (!$product) continue;
+
+            // Preis-Rekonstruktion
+            // Wir nehmen hier die aktuellen Preise aus der DB oder die alten aus dem Angebot?
+            // Besser: Wir nehmen das Produkt neu aus der DB, damit Preise aktuell sind.
+            // ABER: Die Konfiguration wird übernommen.
+
+            $cartItems[] = [
+                'row_id' => Str::uuid()->toString(),
+                'product_id' => $item->product_id,
+                'name' => $product->name, // Name frisch aus DB
+                'image_ref' => !empty($product->media_gallery[0]['path']) ? 'storage/'.$product->media_gallery[0]['path'] : null,
+                'qty' => $item->quantity,
+                'text' => $item->configuration['text'] ?? '',
+                'configuration' => $item->configuration, // Das ist der wichtige Teil!
+                'preview_ref' => $product->preview_image_path ? 'storage/'.$product->preview_image_path : null,
+
+                // Preise werden vom Calculator beim Mounten eh neu berechnet anhand der Quantity
+                'calculated_single_price' => 0,
+                'calculated_total' => 0
+            ];
+        }
+
+        // Formulardaten wiederherstellen
+        $formData = [
+            'vorname' => $this->quote->first_name,
+            'nachname' => $this->quote->last_name,
+            'firma' => $this->quote->company,
+            'email' => $this->quote->email,
+            'telefon' => $this->quote->phone,
+            'anmerkung' => $this->quote->admin_notes // Oder leer lassen, je nach Wunsch
+        ];
+
+        // Session füllen
+        session()->put('calc_cart', $cartItems);
+        session()->put('calc_form', $formData);
+
+        // Weiterleitung zum Calculator
+        return redirect()->route('calculator');
+    }
+
+    private function isValidAction()
+    {
+        if ($this->quote->status === 'converted') {
+            $this->errorMessage = 'Dieses Angebot wurde bereits angenommen.';
+            $this->viewState = 'error';
+            return false;
+        }
+        if ($this->quote->status === 'rejected') {
+            $this->errorMessage = 'Dieses Angebot wurde abgelehnt.';
+            $this->viewState = 'error';
+            return false;
+        }
+        if ($this->quote->expires_at->isPast()) {
+            $this->errorMessage = 'Das Angebot ist abgelaufen.';
+            $this->viewState = 'error';
+            return false;
+        }
+        return true;
     }
 
     public function render()
     {
-        return view('livewire.shop.quote-acceptance')->layout('components.layouts.app'); // Nutzt das normale Frontend Layout
+        // Layout explizit setzen, um Fehler zu vermeiden
+        return view('livewire.shop.quote-acceptance')
+            ->layout('components.layouts.frontend_layout');
     }
 }

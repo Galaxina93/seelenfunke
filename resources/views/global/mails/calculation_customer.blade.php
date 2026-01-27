@@ -151,16 +151,18 @@
     {{-- ACTION BUTTON --}}
     @if(isset($data['quote_token']))
         <div class="btn-container">
-            <p style="margin-bottom: 15px; font-size: 13px;">Dieses Angebot ist gültig bis zum {{ $data['quote_expiry'] }}.</p>
+            <p style="margin-bottom: 15px; font-size: 13px;">
+                Über den folgenden Link gelangst du zu deiner persönlichen Angebots-Verwaltung.<br>
+                Dort kannst du das <strong>Angebot annehmen</strong> oder <strong>nachträglich bearbeiten</strong>.
+            </p>
             <a href="{{ route('quote.accept', ['token' => $data['quote_token']]) }}" class="btn">
-                Jetzt Angebot verbindlich annehmen
+                Zum Angebot & Bearbeitung
             </a>
+            <p style="margin-top: 10px; font-size: 11px; color: #999;">
+                Gültig bis zum {{ $data['quote_expiry'] }}
+            </p>
         </div>
     @endif
-
-    <p style="font-size: 13px;">
-        Solltest du noch Fragen oder Änderungswünsche haben, antworte einfach auf diese E-Mail.
-    </p>
 
     <div class="footer">
         <p>
