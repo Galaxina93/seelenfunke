@@ -264,6 +264,21 @@
                         <span class="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Bilder & PDFs</span>
                     </label>
 
+                    {{-- INFO BOX: PROFESSIONELLES DESIGN-TEAM --}}
+                    <div class="bg-blue-50/80 border border-blue-100 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+                        <div class="shrink-0 text-blue-500 mt-0.5">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-blue-900 text-sm mb-1">Professioneller Design-Check inklusive</h4>
+                            <p class="text-sm text-blue-800/80 leading-relaxed">
+                                Machen Sie sich keine Sorgen um die exakte Positionierung in der Vorschau. Unser erfahrenes Grafikteam prüft jede Datei manuell und optimiert die Platzierung und Größe Ihrer Medien für ein perfektes, harmonisches Endergebnis.
+                            </p>
+                        </div>
+                    </div>
+
                     {{-- Upload Bereich --}}
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
                         <input type="file" wire:model.live="new_files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">

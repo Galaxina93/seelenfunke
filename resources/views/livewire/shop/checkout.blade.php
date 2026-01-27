@@ -3,7 +3,8 @@
 
         <h1 class="text-3xl font-serif font-bold text-gray-900 mb-8 sr-only">Checkout</h1>
 
-        <form id="payment-form" class="lg:grid lg:grid-cols-12 lg:gap-x-12 lg:items-start xl:gap-x-16">
+        {{-- WICHTIG: 'lg:items-start' wurde hier entfernt, damit die Spalten gleich hoch sind (für Sticky) --}}
+        <form id="payment-form" class="lg:grid lg:grid-cols-12 lg:gap-x-12 xl:gap-x-16">
 
             {{-- LINKE SPALTE: Daten --}}
             <div class="lg:col-span-7 space-y-6">
@@ -146,7 +147,8 @@
             </div>
 
             {{-- RECHTE SPALTE: Zusammenfassung --}}
-            <div class="mt-10 lg:mt-0 lg:col-span-5">
+            {{-- h-full hinzugefügt für Sticky --}}
+            <div class="mt-10 lg:mt-0 lg:col-span-5 h-full">
                 <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg sticky top-24">
                     <h2 class="text-lg font-medium text-gray-900 mb-6">Bestellübersicht</h2>
 
