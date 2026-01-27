@@ -4,11 +4,11 @@ namespace App\Livewire\Shop;
 
 use App\Models\Order;
 use App\Models\QuoteRequest;
-use App\Models\Customer; // WICHTIG: Importiert
+use App\Models\Customer; // WICHTIG
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Str; // WICHTIG: Für Passwort-Generierung
+use Illuminate\Support\Str; // WICHTIG
 use Livewire\Component;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
@@ -162,38 +162,50 @@ class Checkout extends Component
         $cart = $cartService->getCart();
         $totals = $cartService->calculateTotals($cart);
 
-        // --- KUNDEN-LOGIK (Fix für Fehler 1452) ---
-        $customerId = Auth::guard('customer')->id();
+        // --- ROBUSTE KUNDEN-LOGIK ---
+        $customer = null;
 
-        // Wenn kein Kunde eingeloggt ist, suchen oder erstellen wir einen
-        if (!$customerId) {
-            $customer = Customer::firstOrCreate(
-                ['email' => $this->email], // Suche nach E-Mail
-                [
-                    'first_name' => $this->first_name,
-                    'last_name' => $this->last_name,
-                    'password' => bcrypt(Str::random(16)), // Zufallspasswort, da Gast
-                    // Optional: Man könnte dem Kunden eine Mail senden, dass ein Account erstellt wurde
-                ]
-            );
+        // 1. Versuch: Eingeloggter User
+        if (Auth::guard('customer')->check()) {
+            $customer = Auth::guard('customer')->user();
 
-            // Falls Kunde neu angelegt wurde oder existiert, Profil updaten falls leer
-            if (!$customer->profile) {
-                $customer->profile()->create([
-                    'street' => $this->address,
-                    'city' => $this->city,
-                    'postal' => $this->postal_code,
-                    'country' => $this->country
-                ]);
+            // Sicherheitscheck: Existiert der User wirklich noch in der DB? (Verhindert Fehler 1452)
+            if ($customer && !Customer::where('id', $customer->id)->exists()) {
+                $customer = null;
+                Auth::guard('customer')->logout(); // Session bereinigen
             }
-
-            $customerId = $customer->id;
         }
-        // ------------------------------------------
+
+        // 2. Versuch: Wenn nicht eingeloggt, Kunde anhand E-Mail suchen
+        if (!$customer) {
+            $customer = Customer::where('email', $this->email)->first();
+        }
+
+        // 3. Versuch: Neuen Kunden erstellen
+        if (!$customer) {
+            $customer = Customer::create([
+                'email' => $this->email,
+                'first_name' => $this->first_name,
+                'last_name' => $this->last_name,
+                'password' => bcrypt(Str::random(16)), // Dummy Passwort für Gast
+            ]);
+
+            // Profil anlegen
+            $customer->profile()->create([
+                'street' => $this->address,
+                'city' => $this->city,
+                'postal' => $this->postal_code,
+                'country' => $this->country
+            ]);
+        }
+
+        // Jetzt haben wir garantiert eine gültige ID
+        $customerId = $customer->id;
+        // ---------------------------
 
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
-            'customer_id' => $customerId, // Jetzt ist hier immer eine ID drin!
+            'customer_id' => $customerId, // Hier steht jetzt sicher eine ID drin, die existiert
             'email' => $this->email,
             'status' => 'pending',
             'payment_status' => 'unpaid',
