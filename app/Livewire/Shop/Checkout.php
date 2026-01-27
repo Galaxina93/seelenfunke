@@ -140,8 +140,7 @@ class Checkout extends Component
     }
 
     /**
-     * WICHTIG: Diese Methode wurde umbenannt von submitOrder zu validateAndCreateOrder,
-     * da dein Frontend-Code diese Methode aufruft.
+     * Frontend ruft diese Methode auf
      */
     public function validateAndCreateOrder()
     {
@@ -183,7 +182,7 @@ class Checkout extends Component
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(\Illuminate\Support\Str::random(6)),
             'customer_id' => $customerId,
             'email' => $this->email,
-            'customer_name' => $this->first_name . ' ' . $this->last_name,
+            // 'customer_name' WURDE ENTFERNT, da Spalte nicht existiert. Name steht in billing_address.
             'status' => 'pending',
             'payment_status' => 'unpaid',
 
@@ -234,7 +233,7 @@ class Checkout extends Component
     public function render()
     {
         $cartService = app(CartService::class);
-        $cart = $cartService->getCart(); // Cart holen
+        $cart = $cartService->getCart();
 
         return view('livewire.shop.checkout', [
             'cart' => $cart,
