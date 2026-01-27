@@ -111,7 +111,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 4. Warenkörbe
+        // Warenkörbe
         Schema::create('carts', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('session_id')->nullable()->index();
@@ -123,7 +123,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 3. Warenkorb Positionen
+        // Warenkorb Positionen
         Schema::create('cart_items', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
@@ -137,50 +137,102 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 4. Bestellungen
+        // Bestellungen
         Schema::create('orders', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('order_number')->unique();
+            $table->string('order_number')->unique(); // Wichtig für die Anzeige im Backend
 
-            // Verweis auf Customers (UUID)
+            // Verknüpfung zum Kunden (falls eingeloggt), sonst NULL (Gast)
             $table->foreignUuid('customer_id')->nullable()->constrained('customers')->nullOnDelete();
 
+            // Status-Felder (genutzt in den Filtern und Badges)
             $table->string('status')->default('pending');
             $table->string('payment_status')->default('unpaid');
-            $table->string('email');
 
+            $table->string('email'); // Wichtig für Kommunikation & Suche
+
+            // Adressen als JSON (Wichtig: Das Order Model castet diese automatisch zu Arrays)
             $table->json('billing_address');
             $table->json('shipping_address')->nullable();
 
-            // Summen
+            // Summen in Cent (Integer)
             $table->integer('subtotal_price');
             $table->integer('tax_amount');
             $table->integer('shipping_price')->default(0);
             $table->integer('total_price');
 
-            $table->text('notes')->nullable();
+            $table->text('notes')->nullable(); // Für interne Notizen im Backend
+
+            $table->softDeletes();
             $table->timestamps();
         });
 
-        // 5. Bestellpositionen
+        // Bestellpositionen
         Schema::create('order_items', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
+            // Löscht Items, wenn Bestellung gelöscht wird
             $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
+
+            // Falls das Produkt gelöscht wird, bleibt die Position erhalten (product_id wird null)
             $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
 
-            $table->string('product_name');
+            $table->string('product_name'); // Snapshot des Namens zum Kaufzeitpunkt
             $table->integer('quantity');
-            $table->integer('unit_price');
+            $table->integer('unit_price'); // Preis zum Kaufzeitpunkt
             $table->integer('total_price');
+
+            // Konfiguration (Gravur etc.) als JSON
             $table->json('configuration')->nullable();
 
             $table->timestamps();
+        });
+
+        // Rechnung
+        Schema::create('invoices', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+
+            // Referenzen
+            $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
+            $table->foreignUuid('customer_id')->nullable()->constrained('customers')->nullOnDelete();
+
+            // Wenn dies eine Stornorechnung ist, verweisen wir auf das Original
+            $table->foreignUuid('parent_id')->nullable()->constrained('invoices')->nullOnDelete();
+
+            // Belegdaten
+            $table->string('invoice_number')->unique(); // z.B. RE-2024-1001
+            $table->enum('type', ['invoice', 'credit_note', 'cancellation']); // Rechnung, Gutschrift, Storno
+            $table->string('status')->default('draft'); // draft, paid, cancelled, sent
+
+            // Datum
+            $table->date('invoice_date');
+            $table->date('due_date')->nullable();
+            $table->timestamp('paid_at')->nullable();
+
+            // Snapshot der Adressen (JSON), damit Änderungen am User die Rechnung nicht verfälschen
+            $table->json('billing_address');
+            $table->json('shipping_address')->nullable();
+
+            // Beträge (Integer / Cents)
+            $table->integer('subtotal');
+            $table->integer('tax_amount');
+            $table->integer('shipping_cost')->default(0);
+            $table->integer('total');
+
+            // Stripe Referenz (optional für Abgleich)
+            $table->string('stripe_payment_intent_id')->nullable();
+
+            $table->text('notes')->nullable();
+            $table->text('footer_text')->nullable(); // Für individuelle Hinweise auf der PDF
+
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('invoices');
         Schema::dropIfExists('order_items');
         Schema::dropIfExists('orders');
         Schema::dropIfExists('newsletter_subscribers');

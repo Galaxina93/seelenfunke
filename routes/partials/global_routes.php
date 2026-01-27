@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\NewsletterController;
+use App\Livewire\Shop\Checkout;
+use App\Livewire\Shop\CheckoutSuccess;
 use App\Livewire\Shop\NewsletterPage;
 use App\Livewire\Shop\ProductIndex;
 use App\Livewire\Shop\ProductShow;
@@ -30,7 +32,9 @@ Route::get('/newsletter', NewsletterPage::class)->name('newsletter.page');
 // Der Link aus der E-Mail (Controller Action)
 Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])->name('newsletter.verify');
 
-
+// Der Checkout
+Route::get('/checkout', Checkout::class)->name('checkout');
+Route::get('/checkout/success', CheckoutSuccess::class)->name('checkout.success');
 
 // --- 1. Hauptseiten ---
 

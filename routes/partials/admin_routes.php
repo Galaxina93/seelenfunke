@@ -1,5 +1,7 @@
 <?php
 
+use App\Livewire\Shop\OrderDetail;
+use App\Livewire\Shop\Orders;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:admin'])->group(function () {
@@ -28,12 +30,25 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/products', function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');
-    Route::get('/admin/voucher', function () {
-        return view('backend.admin.pages.voucher');
-    })->name('admin.voucher');
+
     Route::get('/admin/newsletter', function () {
         return view('backend.admin.pages.newsletter');
     })->name('admin.newsletter');
+
+    Route::get('/admin/voucher', function () {
+        return view('backend.admin.pages.voucher');
+    })->name('admin.voucher');
+
+    Route::get('/admin/invoices', function () {
+        return view('backend.admin.pages.invoices');
+    })->name('admin.invoices');
+
+    Route::get('/admin/orders', function () {
+        return view('backend.admin.pages.orders');
+    })->name('admin.orders');
+
+
+
 
 });
 

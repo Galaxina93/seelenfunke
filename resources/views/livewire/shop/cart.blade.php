@@ -115,23 +115,29 @@
                                 <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
                             </div>
 
-                            {{-- NEU: Rabatt Anzeige --}}
+                            {{-- Rabatt --}}
                             @if(!empty($totals['discount_amount']) && $totals['discount_amount'] > 0)
                                 <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                                     <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                                        </svg>
                                         <span>Gutschein ({{ $totals['coupon_code'] }})</span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
                                         <button wire:click="removeCoupon" class="text-red-400 hover:text-red-600" title="Entfernen">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
                                         </button>
                                     </div>
                                 </div>
                             @endif
 
-                            {{-- Steuern Details --}}
+                            {{-- Steuern --}}
                             <div class="pt-2 space-y-1">
                                 @foreach($totals['taxes_breakdown'] as $rate => $amount)
                                     <div class="flex justify-between text-xs text-gray-400">
@@ -148,37 +154,89 @@
                             </div>
                         </div>
 
-                        {{-- NEU: Gutschein Eingabe (wenn kein Code aktiv ist) --}}
+                        {{-- Gutschein --}}
                         @if(empty($totals['coupon_code']))
                             <div class="mb-6">
                                 <form wire:submit.prevent="applyCoupon" class="flex gap-2">
-                                    <input type="text" wire:model="couponCodeInput" placeholder="Gutscheincode" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary uppercase placeholder-gray-400">
-                                    <button type="submit" class="bg-gray-900 text-white px-3 py-2 rounded text-sm font-bold hover:bg-black transition shadow-md">OK</button>
+                                    <input type="text"
+                                           wire:model="couponCodeInput"
+                                           placeholder="Gutscheincode"
+                                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary uppercase placeholder-gray-400">
+                                    <button type="submit"
+                                            class="bg-gray-900 text-white px-3 py-2 rounded text-sm font-bold hover:bg-black transition shadow-md">
+                                        OK
+                                    </button>
                                 </form>
-                                @error('couponCodeInput') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
-                                @if(session()->has('success')) <span class="text-green-600 text-xs mt-1 block">{{ session('success') }}</span> @endif
+                                @error('couponCodeInput')
+                                <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span>
+                                @enderror
+                                @if(session()->has('success'))
+                                    <span class="text-green-600 text-xs mt-1 block">{{ session('success') }}</span>
+                                @endif
                             </div>
                         @endif
 
                         {{-- Gesamtsumme --}}
                         <div class="flex justify-between items-end mb-8">
                             <span class="font-bold text-gray-900">Gesamtsumme</span>
-                            <span class="text-2xl font-serif font-bold text-primary">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
+                            <span class="text-2xl font-serif font-bold text-primary">
+                                {{ number_format($totals['total'] / 100, 2, ',', '.') }} €
+                            </span>
                         </div>
 
                         <p class="text-[10px] text-gray-400 text-center mb-4">inkl. MwSt. & Versandkosten</p>
 
-                        <button class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2">
+                        {{-- Checkout Button --}}
+                        <a href="{{ route('checkout') }}"
+                           class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
                             <span>Zur Kasse</span>
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
-                        </button>
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                            </svg>
+                        </a>
 
-                        <div class="mt-4 flex justify-center gap-2 grayscale opacity-60">
-                            <div class="h-6 w-10 bg-gray-200 rounded"></div>
-                            <div class="h-6 w-10 bg-gray-200 rounded"></div>
+                        {{-- Stripe-übliche Zahlungsanbieter --}}
+                        <div class="mt-5">
+                            <p class="text-[10px] text-gray-400 text-center mb-2">
+                                Sichere Zahlung mit
+                            </p>
+
+                            <div class="flex flex-wrap justify-center gap-2">
+                                {{-- Visa --}}
+                                <div class="h-8 w-14 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <span class="text-xs font-bold text-gray-600">VISA</span>
+                                </div>
+
+                                {{-- Mastercard --}}
+                                <div class="h-8 w-14 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <span class="text-xs font-bold text-gray-600">MC</span>
+                                </div>
+
+                                {{-- Maestro --}}
+                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <span class="text-xs font-bold text-gray-600">Maestro</span>
+                                </div>
+
+                                {{-- Apple Pay --}}
+                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <span class="text-xs font-semibold text-gray-600"> Pay</span>
+                                </div>
+
+                                {{-- Google Pay --}}
+                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <span class="text-xs font-semibold text-gray-600">G Pay</span>
+                                </div>
+
+                                {{-- PayPal --}}
+                                <div class="h-8 w-16 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                                    <span class="text-xs font-bold text-gray-600">PayPal</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
 
             </div>
         @endif

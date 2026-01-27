@@ -19,9 +19,11 @@
 
     @section('shop_slots')
 
-        <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="lock-closed" />
-        <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="ticket" />
+        <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
         <x-forms.list-item route="/admin/newsletter" title="Newsletter" pageName="newsletter" icon="envelope" />
+        <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="ticket" />
+        <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoice" icon="document-text" />
+        <x-forms.list-item route="/admin/orders" title="Bestellungen" pageName="orders" icon="shopping-bag" />
 
     @endsection
 
