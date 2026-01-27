@@ -20,8 +20,7 @@ class CartService
         if (Auth::guard('customer')->check()) {
             $user = Auth::guard('customer')->user();
 
-            // Da 'customer_id' jetzt fillable ist, funktioniert das hier sicher:
-            // Wir übergeben session_id im zweiten Array, damit es beim ERSTELLEN gesetzt wird.
+            // Warenkorb für User finden oder erstellen
             $cart = Cart::firstOrCreate(
                 ['customer_id' => $user->id],
                 ['session_id' => Session::getId()]
@@ -48,12 +47,10 @@ class CartService
         $cart = $this->getCart();
 
         // Prüfen, ob Artikel mit exakt dieser Konfiguration schon existiert
-        // Wir laden alle Items dieses Produkts und vergleichen das Array in PHP
         $existingItems = $cart->items()->where('product_id', $product->id)->get();
 
         $existingItem = $existingItems->first(function ($item) use ($configuration) {
             // Array Vergleich: Ist die gespeicherte Config gleich der neuen?
-            // Wir nutzen '==' damit die Reihenfolge der Keys keine Rolle spielt, aber Werte stimmen müssen
             return $item->configuration == $configuration;
         });
 
@@ -84,7 +81,7 @@ class CartService
     }
 
     /**
-     * Aktualisiert ein Item (z.B. aus dem Warenkorb heraus).
+     * Aktualisiert ein Item komplett (Menge & Konfiguration).
      */
     public function updateItem(string $itemId, int $quantity, array $configuration = null): void
     {
@@ -109,6 +106,31 @@ class CartService
     }
 
     /**
+     * Aktualisiert NUR die Menge eines Items (wichtig für +/- Buttons im Warenkorb).
+     */
+    public function updateQuantity(string $itemId, int $quantity): void
+    {
+        $item = CartItem::find($itemId);
+        if (!$item) return;
+
+        if ($quantity <= 0) {
+            $this->removeItem($itemId);
+            return;
+        }
+
+        // Preis neu berechnen (Staffelpreise!)
+        $unitPrice = $this->calculateTierPrice($item->product, $quantity);
+
+        $item->update([
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'total_price' => $unitPrice * $quantity
+        ]);
+
+        $this->refreshTotals($item->cart);
+    }
+
+    /**
      * Entfernt ein Item.
      */
     public function removeItem(string $itemId): void
@@ -122,8 +144,19 @@ class CartService
     }
 
     /**
+     * Leert den gesamten Warenkorb.
+     */
+    public function emptyCart(): void
+    {
+        $cart = $this->getCart();
+        $cart->items()->delete();
+        $cart->update(['coupon_code' => null]);
+        $this->refreshTotals($cart);
+    }
+
+    /**
      * Berechnet den Einzelpreis (Staffel + Steuer).
-     * Gibt IMMER den Brutto-Preis in Cent zurück (da B2C Shop meist Brutto anzeigt).
+     * Gibt IMMER den Brutto-Preis in Cent zurück.
      */
     public function calculateTierPrice(Product $product, int $qty): int
     {
@@ -185,9 +218,17 @@ class CartService
     }
 
     /**
+     * WICHTIG: Wrapper-Methode für CartIcon und alte Komponenten.
+     * Ruft calculateTotals für den aktuellen Warenkorb auf.
+     */
+    public function getTotals(): array
+    {
+        return $this->calculateTotals($this->getCart());
+    }
+
+    /**
      * Die Haupt-Rechenmaschine.
-     * Berechnet alle Summen für Warenkorb, Checkout und Angebote.
-     * * WICHTIG: Umbenannt von getTotals zu calculateTotals, damit Checkout.php funktioniert!
+     * Berechnet alle Summen für einen spezifischen Warenkorb.
      */
     public function calculateTotals(Cart $cart): array
     {
@@ -262,7 +303,7 @@ class CartService
         }
 
         // --- VERSAND ---
-        // Beispiel-Logik: Frei ab 150€ (nach Rabatt), sonst 4,90€
+        // Beispiel: Frei ab 150€ (nach Rabatt), sonst 4,90€
         $valueForShipping = $subtotalGross - $discountAmount;
         $shippingGross = ($valueForShipping >= 15000 || $itemCount === 0) ? 0 : 490;
 
