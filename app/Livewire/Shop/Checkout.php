@@ -229,8 +229,11 @@ class Checkout extends Component
     public function render()
     {
         $cartService = app(CartService::class);
+        $cart = $cartService->getCart(); // Cart holen
+
         return view('livewire.shop.checkout', [
-            'totals' => $cartService->calculateTotals($cartService->getCart())
+            'cart' => $cart, // WICHTIG: Cart an View übergeben!
+            'totals' => $cartService->calculateTotals($cart)
         ]);
     }
 }
