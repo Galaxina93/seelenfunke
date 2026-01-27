@@ -41,21 +41,26 @@ class CartService
 
     /**
      * Fügt ein Produkt hinzu (inkl. Staffelpreis-Berechnung).
+     * Prüft genau, ob die Konfiguration identisch ist.
      */
     public function addItem(Product $product, int $quantity = 1, array $configuration = null): void
     {
         $cart = $this->getCart();
 
         // Prüfen, ob Artikel mit exakt dieser Konfiguration schon existiert
-        $existingItem = $cart->items()
-            ->where('product_id', $product->id)
-            ->get()
-            ->first(function ($item) use ($configuration) {
-                return $item->configuration == $configuration;
-            });
+        // Wir laden alle Items dieses Produkts und vergleichen das Array in PHP
+        $existingItems = $cart->items()->where('product_id', $product->id)->get();
 
-        // Preis berechnen (Staffelpreis Logik)
+        $existingItem = $existingItems->first(function ($item) use ($configuration) {
+            // Array Vergleich: Ist die gespeicherte Config gleich der neuen?
+            // Wir nutzen '==' damit die Reihenfolge der Keys keine Rolle spielt, aber Werte stimmen müssen
+            return $item->configuration == $configuration;
+        });
+
+        // Neue Gesamtmenge ermitteln (für Staffelpreis)
         $newQty = $existingItem ? $existingItem->quantity + $quantity : $quantity;
+
+        // Preis basierend auf NEUER Menge berechnen
         $unitPrice = $this->calculateTierPrice($product, $newQty);
 
         if ($existingItem) {
@@ -79,43 +84,33 @@ class CartService
     }
 
     /**
-     * Aktualisiert Konfiguration und Menge.
+     * Aktualisiert ein Item (z.B. aus dem Warenkorb heraus).
      */
-    public function updateItem(string $itemId, int $quantity, array $configuration): void
+    public function updateItem(string $itemId, int $quantity, array $configuration = null): void
     {
         $item = CartItem::find($itemId);
         if (!$item) return;
 
+        // Preis neu berechnen (könnte sich durch Menge geändert haben)
         $unitPrice = $this->calculateTierPrice($item->product, $quantity);
 
-        $item->update([
+        $data = [
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
-            'total_price' => $unitPrice * $quantity,
-            'configuration' => $configuration
-        ]);
+            'total_price' => $unitPrice * $quantity
+        ];
 
-        $this->refreshTotals($item->cart);
-    }
-
-    public function updateQuantity(string $itemId, int $quantity): void
-    {
-        $item = CartItem::find($itemId);
-        if (!$item) return;
-
-        if ($quantity <= 0) {
-            $item->delete();
-        } else {
-            $unitPrice = $this->calculateTierPrice($item->product, $quantity);
-            $item->update([
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'total_price' => $unitPrice * $quantity
-            ]);
+        if ($configuration !== null) {
+            $data['configuration'] = $configuration;
         }
+
+        $item->update($data);
         $this->refreshTotals($item->cart);
     }
 
+    /**
+     * Entfernt ein Item.
+     */
     public function removeItem(string $itemId): void
     {
         $item = CartItem::find($itemId);
@@ -128,6 +123,7 @@ class CartService
 
     /**
      * Berechnet den Einzelpreis (Staffel + Steuer).
+     * Gibt IMMER den Brutto-Preis in Cent zurück (da B2C Shop meist Brutto anzeigt).
      */
     public function calculateTierPrice(Product $product, int $qty): int
     {
@@ -135,6 +131,7 @@ class CartService
         $tiers = $product->tier_pricing;
 
         if (!empty($tiers) && is_array($tiers)) {
+            // Sortieren: Höchste Menge zuerst
             usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
             foreach ($tiers as $tier) {
                 if ($qty >= $tier['qty']) {
@@ -145,6 +142,7 @@ class CartService
             }
         }
 
+        // Wenn Produkt netto in DB (tax_included = false), Steuer draufschlagen für Brutto-Preis
         if ($product->tax_included === false) {
             $taxRate = (float) ($product->tax_rate ?? 19.0);
             $price = (int) round($price * (1 + ($taxRate / 100)));
@@ -153,6 +151,9 @@ class CartService
         return (int) round($price);
     }
 
+    /**
+     * Gutschein anwenden.
+     */
     public function applyCoupon(string $code): array
     {
         $coupon = Coupon::where('code', $code)->first();
@@ -162,7 +163,10 @@ class CartService
         }
 
         $cart = $this->getCart();
-        $subtotal = $cart->items->sum('total_price');
+
+        // Wir müssen hier kurz vorrechnen, um Mindestbestellwert zu prüfen
+        $totals = $this->calculateTotals($cart);
+        $subtotal = $totals['subtotal_gross'];
 
         if ($coupon->min_order_value && $subtotal < $coupon->min_order_value) {
             return [
@@ -180,57 +184,75 @@ class CartService
         $this->getCart()->update(['coupon_code' => null]);
     }
 
-    public function getTotals(): array
+    /**
+     * Die Haupt-Rechenmaschine.
+     * Berechnet alle Summen für Warenkorb, Checkout und Angebote.
+     * * WICHTIG: Umbenannt von getTotals zu calculateTotals, damit Checkout.php funktioniert!
+     */
+    public function calculateTotals(Cart $cart): array
     {
-        $cart = $this->getCart();
-        $items = $cart->items()->with('product')->get();
+        // Items & Produkte laden
+        $cart->load('items.product');
 
-        $subtotalGross = 0;
-        $originalSubtotal = 0;
-        $taxesBreakdown = [];
+        $subtotalGross = 0;      // Tatsächliche Summe (mit Mengenrabatt)
+        $originalSubtotal = 0;   // Summe ohne Mengenrabatt (Streichpreis)
+        $taxesBreakdown = [];    // Steuer-Aufschlüsselung
         $itemCount = 0;
 
-        foreach ($items as $item) {
+        foreach ($cart->items as $item) {
             $product = $item->product;
             if (!$product) continue;
 
             $qty = $item->quantity;
             $itemCount += $qty;
 
+            // 1. Zeilensumme (Ist bereits inkl. Mengenrabatt durch unit_price Logik)
             $lineGross = $item->unit_price * $qty;
             $subtotalGross += $lineGross;
 
+            // 2. Originalpreis berechnen (für "Sie sparen X Euro")
             $basePrice = $product->price;
             if ($product->tax_included === false) {
                 $basePrice = (int) round($basePrice * (1 + (($product->tax_rate ?? 19.0) / 100)));
             }
             $originalSubtotal += ($basePrice * $qty);
 
+            // 3. Steueranteil der Zeile berechnen
             $taxRate = (float) ($product->tax_rate ?? 19.0);
+
+            // Rückrechnung aus Brutto: Brutto / 1.19 = Netto
             $lineNet = (int) round($lineGross / (1 + ($taxRate / 100)));
             $lineTax = $lineGross - $lineNet;
 
-            $strRate = number_format($taxRate, 0);
+            // Sammeln für Breakdown
+            $strRate = number_format($taxRate, 0); // Key als String "19" oder "7"
             if (!isset($taxesBreakdown[$strRate])) $taxesBreakdown[$strRate] = 0;
             $taxesBreakdown[$strRate] += $lineTax;
         }
 
+        // Mengenrabatt in Euro (Differenz Listenpreis vs. tatsächlicher Preis)
         $volumeDiscount = max(0, $originalSubtotal - $subtotalGross);
 
+        // --- GUTSCHEIN ---
         $discountAmount = 0;
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
             $coupon = Coupon::where('code', $couponCode)->first();
+
+            // Validierung im Kontext der Summe
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
+                    // Falls durch Löschen von Items der Wert unterschritten wurde
                     $couponCode = null;
+                    $cart->update(['coupon_code' => null]);
                 } else {
                     if ($coupon->type === 'fixed') {
                         $discountAmount = $coupon->value;
                     } elseif ($coupon->type === 'percent') {
                         $discountAmount = (int) round($subtotalGross * ($coupon->value / 100));
                     }
+                    // Rabatt darf nicht höher als Warenwert sein
                     $discountAmount = min($discountAmount, $subtotalGross);
                 }
             } else {
@@ -239,11 +261,18 @@ class CartService
             }
         }
 
-        $shippingGross = 0;
+        // --- VERSAND ---
+        // Beispiel-Logik: Frei ab 150€ (nach Rabatt), sonst 4,90€
+        $valueForShipping = $subtotalGross - $discountAmount;
+        $shippingGross = ($valueForShipping >= 15000 || $itemCount === 0) ? 0 : 490;
 
+        // --- ENDSUMME ---
         $totalAfterDiscount = $subtotalGross - $discountAmount;
         $finalTotalGross = $totalAfterDiscount + $shippingGross;
 
+        // --- STEUER KORREKTUR NACH RABATT ---
+        // Wenn ein Gutschein den Gesamtpreis senkt, sinkt auch die enthaltene Steuer.
+        // Wir verteilen den Rabatt proportional auf die Steuersätze.
         $discountRatio = $subtotalGross > 0 ? ($totalAfterDiscount / $subtotalGross) : 1;
 
         foreach($taxesBreakdown as $key => $val) {
@@ -252,7 +281,7 @@ class CartService
         $finalTotalTax = array_sum($taxesBreakdown);
 
         return [
-            'subtotal_original' => $originalSubtotal, // NEU: Der "echte" Warenwert vor Rabatten
+            'subtotal_original' => $originalSubtotal,
             'subtotal_gross' => $subtotalGross,
             'volume_discount' => $volumeDiscount,
             'discount_amount' => $discountAmount,
@@ -260,11 +289,14 @@ class CartService
             'tax' => $finalTotalTax,
             'taxes_breakdown' => $taxesBreakdown,
             'shipping' => $shippingGross,
-            'total' => $finalTotalGross,
+            'total' => max(0, $finalTotalGross), // Darf nicht negativ sein
             'item_count' => $itemCount
         ];
     }
 
+    /**
+     * Aktualisiert den Timestamp des Warenkorbs.
+     */
     private function refreshTotals(Cart $cart) {
         if($cart) $cart->touch();
     }
