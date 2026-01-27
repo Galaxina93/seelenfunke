@@ -3,8 +3,7 @@
 namespace App\Livewire\Shop;
 
 use App\Models\Order;
-use App\Models\Cart as CartModel;
-use App\Models\QuoteRequest; // WICHTIG
+use App\Models\QuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -98,25 +97,30 @@ class Checkout extends Component
 
     public function createPaymentIntent($cart)
     {
+        // Totals berechnen
         $totals = app(CartService::class)->calculateTotals($cart);
         $amount = $totals['total']; // Betrag in Cent
 
         if ($amount > 0) {
-            // API Key aus Config laden (nicht env direkt!)
-            Stripe::setApiKey(config('services.stripe.secret'));
+            // API Key aus Config laden
+            $stripeSecret = config('services.stripe.secret');
 
-            $intent = PaymentIntent::create([
-                'amount' => $amount,
-                'currency' => 'eur',
-                'automatic_payment_methods' => ['enabled' => true],
-                'metadata' => [
-                    'cart_id' => $cart->id,
-                    'session_id' => Session::getId(),
-                    'customer_email' => $this->email // Optional
-                ]
-            ]);
+            if($stripeSecret) {
+                Stripe::setApiKey($stripeSecret);
 
-            $this->clientSecret = $intent->client_secret;
+                $intent = PaymentIntent::create([
+                    'amount' => $amount,
+                    'currency' => 'eur',
+                    'automatic_payment_methods' => ['enabled' => true],
+                    'metadata' => [
+                        'cart_id' => $cart->id,
+                        'session_id' => Session::getId(),
+                        'customer_email' => $this->email
+                    ]
+                ]);
+
+                $this->clientSecret = $intent->client_secret;
+            }
         }
     }
 
@@ -135,33 +139,34 @@ class Checkout extends Component
         }
     }
 
-    public function submitOrder()
+    /**
+     * WICHTIG: Diese Methode wurde umbenannt von submitOrder zu validateAndCreateOrder,
+     * da dein Frontend-Code diese Methode aufruft.
+     */
+    public function validateAndCreateOrder()
     {
+        // 1. Validierung der Eingabefelder
         $this->validate();
 
-        // 1. Order erstellen (Status: pending/unpaid)
+        // 2. Order erstellen (Status: pending/unpaid)
         $orderId = $this->createOrder();
 
-        // 2. Stripe Intent updaten mit Order ID (optional aber gut für Zuordnung)
-        // Client-Side JS übernimmt dann die Zahlung mit dem bereits erstellten Secret.
-
-        // WICHTIG: Die Order ID muss irgendwie an die Success Page kommen oder via Webhook/Metadata verknüpft sein.
-        // In deinem aktuellen Setup updatest du die Order auf der Success Page basierend auf dem Intent.
-        // Daher müssen wir die Order DB speichern und die Payment Intent ID dort hinterlegen.
-
-        // Da wir den Intent im Mount schon erstellt haben, müssen wir die ID holen.
-        // Das ist etwas tricky, da wir serverseitig nur das Secret haben.
-        // BESSERER WEG (wie in deinem Setup üblich):
-        // Wir speichern die Stripe Intent ID in der Order.
-        // Das Client Secret enthält die ID: pi_3Mg..._secret_...
-
+        // 3. Stripe Intent updaten mit Order ID
         if ($this->clientSecret) {
-            $intentId = explode('_secret_', $this->clientSecret)[0];
-            $order = Order::find($orderId);
-            $order->stripe_payment_intent_id = $intentId;
-            $order->save();
+            // Secret sieht so aus: pi_3Mg..._secret_...
+            // Wir brauchen nur den ersten Teil (die ID)
+            $parts = explode('_secret_', $this->clientSecret);
+            if(count($parts) > 0) {
+                $intentId = $parts[0];
+                $order = Order::find($orderId);
+                if($order) {
+                    $order->stripe_payment_intent_id = $intentId;
+                    $order->save();
+                }
+            }
         }
 
+        // Wir geben die Order ID zurück, falls das Frontend JS sie braucht
         return $orderId;
     }
 
@@ -178,7 +183,7 @@ class Checkout extends Component
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(\Illuminate\Support\Str::random(6)),
             'customer_id' => $customerId,
             'email' => $this->email,
-            'customer_name' => $this->first_name . ' ' . $this->last_name, // Fallback Spalte falls vorhanden
+            'customer_name' => $this->first_name . ' ' . $this->last_name,
             'status' => 'pending',
             'payment_status' => 'unpaid',
 
@@ -232,7 +237,7 @@ class Checkout extends Component
         $cart = $cartService->getCart(); // Cart holen
 
         return view('livewire.shop.checkout', [
-            'cart' => $cart, // WICHTIG: Cart an View übergeben!
+            'cart' => $cart,
             'totals' => $cartService->calculateTotals($cart)
         ]);
     }
