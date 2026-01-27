@@ -4,7 +4,10 @@ namespace App\Livewire\Global\Widgets;
 
 use App\Mail\CalcCustomer;
 use App\Mail\CalcInput;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Models\QuoteRequest;
+use App\Models\QuoteRequestItem;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -311,6 +314,47 @@ class Calculator extends Component
     {
         $this->validate();
         $this->calculateTotal();
+
+        // 1. Prüfen, ob Kunde existiert (anhand E-Mail)
+        $existingCustomer = Customer::where('email', $this->form['email'])->first();
+
+        // 2. Quote Request erstellen
+        $quote = QuoteRequest::create([
+            'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
+            'email' => $this->form['email'],
+            'first_name' => $this->form['vorname'],
+            'last_name' => $this->form['nachname'],
+            'company' => $this->form['firma'] ?? null,
+            'phone' => $this->form['telefon'] ?? null,
+            'customer_id' => $existingCustomer ? $existingCustomer->id : null,
+            'status' => 'open',
+
+            'net_total' => (int)($this->totalNetto * 100),
+            'tax_total' => (int)($this->totalMwst * 100),
+            'gross_total' => (int)($this->totalBrutto * 100),
+
+            'is_express' => $this->isExpress,
+            'deadline' => $this->isExpress ? $this->deadline : null,
+        ]);
+
+        // 3. Items speichern & Dateien verschieben
+        foreach($this->cartItems as $item) {
+            $conf = $item['configuration'] ?? [];
+
+            // OPTIONAL: Dateien von temp nach permanent verschieben, damit sie nicht gelöscht werden
+            // Hier vereinfacht: Wir gehen davon aus, dass sie in 'public/cart-uploads' liegen und bleiben.
+
+            QuoteRequestItem::create([
+                'quote_request_id' => $quote->id,
+                'product_id' => $item['product_id'],
+                'product_name' => $item['name'],
+                'quantity' => $item['qty'],
+                // Speichern in Cent
+                'unit_price' => (int)($item['calculated_single_price'] * 100),
+                'total_price' => (int)($item['calculated_total'] * 100),
+                'configuration' => $conf,
+            ]);
+        }
 
         // Daten für PDF aufbereiten
         $finalItems = [];
