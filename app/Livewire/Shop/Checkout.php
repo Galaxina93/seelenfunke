@@ -4,6 +4,7 @@ namespace App\Livewire\Shop;
 
 use App\Models\Order;
 use App\Models\Cart as CartModel;
+use App\Models\QuoteRequest; // WICHTIG
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -50,7 +51,7 @@ class Checkout extends Component
 
     protected $messages = [
         'email.required' => 'Bitte gib deine E-Mail-Adresse an.',
-        'terms_accepted.accepted' => 'Du musst den AGB zustimmen, um fortzufahren.',
+        'terms_accepted.accepted' => 'Du musst den AGB zustimmen.',
         'privacy_accepted.accepted' => 'Bitte akzeptiere die Datenschutzerklärung.',
     ];
 
@@ -63,127 +64,124 @@ class Checkout extends Component
             return redirect()->route('shop');
         }
 
+        // 1. Daten laden: Eingeloggter Kunde
         if (Auth::guard('customer')->check()) {
-            $this->fillUserData();
+            $user = Auth::guard('customer')->user();
+            $this->email = $user->email;
+            $this->first_name = $user->first_name;
+            $this->last_name = $user->last_name;
+
+            if ($user->profile) {
+                $this->address = $user->profile->street . ' ' . $user->profile->house_number;
+                $this->city = $user->profile->city;
+                $this->postal_code = $user->profile->postal;
+                // $this->country = ... (falls im Profil gespeichert)
+            }
+        }
+        // 2. Daten laden: Aus Angebot (Quote)
+        elseif (Session::has('checkout_from_quote_id')) {
+            $quoteId = Session::get('checkout_from_quote_id');
+            $quote = QuoteRequest::find($quoteId);
+
+            if ($quote) {
+                $this->email = $quote->email;
+                $this->first_name = $quote->first_name;
+                $this->last_name = $quote->last_name;
+                $this->company = $quote->company;
+                // Adresse ist im Quote oft nicht vorhanden, daher leer lassen
+            }
         }
 
-        $this->createPaymentIntent($cartService);
+        // Stripe Intent erstellen
+        $this->createPaymentIntent($cart);
     }
 
-    public function loginUser()
+    public function createPaymentIntent($cart)
+    {
+        $totals = app(CartService::class)->calculateTotals($cart);
+        $amount = $totals['total']; // Betrag in Cent
+
+        if ($amount > 0) {
+            // API Key aus Config laden (nicht env direkt!)
+            Stripe::setApiKey(config('services.stripe.secret'));
+
+            $intent = PaymentIntent::create([
+                'amount' => $amount,
+                'currency' => 'eur',
+                'automatic_payment_methods' => ['enabled' => true],
+                'metadata' => [
+                    'cart_id' => $cart->id,
+                    'session_id' => Session::getId(),
+                    'customer_email' => $this->email // Optional
+                ]
+            ]);
+
+            $this->clientSecret = $intent->client_secret;
+        }
+    }
+
+    // Login Methode für Modal
+    public function login()
     {
         $this->validate([
             'loginEmail' => 'required|email',
             'loginPassword' => 'required',
         ]);
 
-        // 1. Session retten
-        $previousSessionId = Session::getId();
-
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
-            $this->loginError = '';
-
-            // 2. Session ID aktualisiert
-            $currentSessionId = Session::getId();
-            $customer = Auth::guard('customer')->user();
-
-            // 3. Warenkorb migrieren
-            $guestCart = CartModel::where('session_id', $previousSessionId)->first();
-
-            if ($guestCart) {
-                $existingCustomerCart = CartModel::where('customer_id', $customer->id)->first();
-
-                if ($existingCustomerCart) {
-                    foreach ($guestCart->items as $item) {
-                        $item->update(['cart_id' => $existingCustomerCart->id]);
-                    }
-                    $guestCart->delete();
-                    $existingCustomerCart->update(['session_id' => $currentSessionId]);
-                } else {
-                    $guestCart->update([
-                        'customer_id' => $customer->id,
-                        'session_id' => $currentSessionId
-                    ]);
-                }
-            }
-
-            $this->fillUserData();
-
-            // FIX: Validierungsfehler entfernen, da Daten jetzt da sind
-            $this->resetValidation();
-
-            $this->createPaymentIntent(app(CartService::class));
-
-            session()->flash('message', 'Erfolgreich angemeldet!');
+            return redirect(request()->header('Referer'));
         } else {
-            $this->loginError = 'Die Zugangsdaten sind nicht korrekt.';
+            $this->loginError = 'Zugangsdaten nicht korrekt.';
         }
     }
 
-    public function fillUserData()
-    {
-        $user = Auth::guard('customer')->user();
-        $profile = $user->profile;
-
-        $this->email = $user->email;
-        $this->first_name = $user->first_name;
-        $this->last_name = $user->last_name;
-
-        if ($profile) {
-            $this->address = $profile->street ?? '';
-            if(!empty($profile->house_number)) {
-                $this->address .= ' ' . $profile->house_number;
-            }
-            $this->postal_code = $profile->postal ?? '';
-            $this->city = $profile->city ?? '';
-        }
-
-        // FIX: Auch hier sicherheitshalber Fehler löschen
-        $this->resetValidation();
-    }
-
-    public function createPaymentIntent(CartService $cartService)
-    {
-        Stripe::setApiKey(env('STRIPE_SECRET'));
-
-        $totals = $cartService->getTotals();
-        $amount = max(50, $totals['total']);
-
-        $paymentIntent = PaymentIntent::create([
-            'amount' => $amount,
-            'currency' => 'eur',
-            'automatic_payment_methods' => ['enabled' => true],
-            'metadata' => [
-                'cart_id' => $cartService->getCart()->id,
-            ],
-        ]);
-
-        $this->clientSecret = $paymentIntent->client_secret;
-    }
-
-    public function validateAndCreateOrder()
+    public function submitOrder()
     {
         $this->validate();
 
-        $cartService = app(CartService::class);
-        $cart = $cartService->getCart();
-        $totals = $cartService->getTotals();
+        // 1. Order erstellen (Status: pending/unpaid)
+        $orderId = $this->createOrder();
 
-        if($cart->items->isEmpty()) return null;
+        // 2. Stripe Intent updaten mit Order ID (optional aber gut für Zuordnung)
+        // Client-Side JS übernimmt dann die Zahlung mit dem bereits erstellten Secret.
 
-        $stripeId = null;
-        if($this->clientSecret) {
-            $parts = explode('_secret_', $this->clientSecret);
-            $stripeId = $parts[0] ?? null;
+        // WICHTIG: Die Order ID muss irgendwie an die Success Page kommen oder via Webhook/Metadata verknüpft sein.
+        // In deinem aktuellen Setup updatest du die Order auf der Success Page basierend auf dem Intent.
+        // Daher müssen wir die Order DB speichern und die Payment Intent ID dort hinterlegen.
+
+        // Da wir den Intent im Mount schon erstellt haben, müssen wir die ID holen.
+        // Das ist etwas tricky, da wir serverseitig nur das Secret haben.
+        // BESSERER WEG (wie in deinem Setup üblich):
+        // Wir speichern die Stripe Intent ID in der Order.
+        // Das Client Secret enthält die ID: pi_3Mg..._secret_...
+
+        if ($this->clientSecret) {
+            $intentId = explode('_secret_', $this->clientSecret)[0];
+            $order = Order::find($orderId);
+            $order->stripe_payment_intent_id = $intentId;
+            $order->save();
         }
 
+        return $orderId;
+    }
+
+    private function createOrder()
+    {
+        $cartService = app(CartService::class);
+        $cart = $cartService->getCart();
+        $totals = $cartService->calculateTotals($cart);
+
+        // Prüfen ob User eingeloggt
+        $customerId = Auth::guard('customer')->id();
+
         $order = Order::create([
-            'order_number' => 'ORD-' . strtoupper(uniqid()),
-            'customer_id' => Auth::guard('customer')->id(),
+            'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(\Illuminate\Support\Str::random(6)),
+            'customer_id' => $customerId,
             'email' => $this->email,
+            'customer_name' => $this->first_name . ' ' . $this->last_name, // Fallback Spalte falls vorhanden
             'status' => 'pending',
             'payment_status' => 'unpaid',
-            'stripe_payment_intent_id' => $stripeId,
+
             'billing_address' => [
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
@@ -193,16 +191,24 @@ class Checkout extends Component
                 'city' => $this->city,
                 'country' => $this->country,
             ],
+            // Versandadresse = Rechnungsadresse (vereinfacht)
+            'shipping_address' => [
+                'first_name' => $this->first_name,
+                'last_name' => $this->last_name,
+                'company' => $this->company,
+                'address' => $this->address,
+                'postal_code' => $this->postal_code,
+                'city' => $this->city,
+                'country' => $this->country,
+            ],
 
-            // NEU: Mengenrabatt speichern
             'volume_discount' => $totals['volume_discount'] ?? 0,
-
-            // NEU: Gutschein Daten speichern
             'coupon_code' => $totals['coupon_code'] ?? null,
             'discount_amount' => $totals['discount_amount'] ?? 0,
 
             'subtotal_price' => $totals['subtotal_gross'],
             'tax_amount' => $totals['tax'],
+            'shipping_price' => $totals['shipping'],
             'total_price' => $totals['total'],
         ]);
 
@@ -224,8 +230,7 @@ class Checkout extends Component
     {
         $cartService = app(CartService::class);
         return view('livewire.shop.checkout', [
-            'totals' => $cartService->getTotals(),
-            'cart' => $cartService->getCart()
+            'totals' => $cartService->calculateTotals($cartService->getCart())
         ]);
     }
 }

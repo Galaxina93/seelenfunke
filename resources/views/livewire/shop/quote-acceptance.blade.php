@@ -1,8 +1,5 @@
 <div class="min-h-screen bg-gray-50 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8">
 
-    {{-- LOGO AREA (optional, falls Layout kein Logo hat) --}}
-    {{-- <div class="mb-8"><img src="..." class="h-12 w-auto"></div> --}}
-
     <div class="w-full max-w-3xl">
 
         {{-- VIEW: ERROR --}}
@@ -14,21 +11,6 @@
                 <h2 class="text-2xl font-bold text-gray-900 mb-2">Hoppla!</h2>
                 <p class="text-gray-600 mb-6">{{ $errorMessage }}</p>
                 <a href="/" class="text-[#C5A059] font-bold hover:underline">Zur Startseite</a>
-            </div>
-
-            {{-- VIEW: SUCCESS ACCEPTED --}}
-        @elseif($viewState === 'success_accepted')
-            <div class="bg-white p-8 rounded-2xl shadow-sm border border-green-100 text-center">
-                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-6">
-                    <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                </div>
-                <h2 class="text-2xl font-bold text-gray-900 mb-2">Vielen Dank!</h2>
-                <p class="text-gray-600 mb-6">
-                    Das Angebot wurde verbindlich angenommen. Sie erhalten in Kürze eine Bestellbestätigung per E-Mail.
-                </p>
-                <a href="/" class="inline-block bg-[#C5A059] text-white px-6 py-3 rounded-full font-bold hover:bg-[#b08d4b] transition">
-                    Zurück zur Website
-                </a>
             </div>
 
             {{-- VIEW: SUCCESS REJECTED --}}
@@ -82,7 +64,7 @@
                             Hallo <strong>{{ $quote->first_name }} {{ $quote->last_name }}</strong>,
                         </p>
                         <p class="text-gray-600">
-                            hier können Sie Ihr Angebot prüfen, anpassen oder direkt annehmen.
+                            hier können Sie Ihr Angebot prüfen, anpassen oder direkt zur Zahlung übergehen.
                         </p>
                     </div>
 
@@ -133,11 +115,11 @@
                                 <span>Angebot bearbeiten</span>
                             </button>
 
-                            {{-- 2. Annehmen --}}
+                            {{-- 2. Zur Kasse --}}
                             @if($quote->isValid())
-                                <button wire:click="acceptQuote" wire:loading.attr="disabled" wire:confirm="Möchten Sie das Angebot jetzt verbindlich annehmen?" class="flex-[1.5] flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#C5A059] to-[#b08d4b] text-white rounded-lg hover:shadow-lg hover:scale-[1.02] transition font-bold text-sm shadow-md">
-                                    <svg class="w-5 h-5 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                    <span>Jetzt verbindlich annehmen</span>
+                                <button wire:click="proceedToCheckout" wire:loading.attr="disabled" class="flex-[1.5] flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-[#C5A059] to-[#b08d4b] text-white rounded-lg hover:shadow-lg hover:scale-[1.02] transition font-bold text-sm shadow-md">
+                                    <svg class="w-5 h-5 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                                    <span>Zur Kasse & Bezahlen</span>
                                 </button>
                             @else
                                 <button disabled class="flex-[1.5] flex items-center justify-center gap-2 px-6 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-bold text-sm">
@@ -147,7 +129,7 @@
 
                         </div>
 
-                        {{-- 3. Ablehnen (Dezent) --}}
+                        {{-- 3. Ablehnen --}}
                         @if($quote->isValid())
                             <div class="mt-6 text-center">
                                 <button wire:click="rejectQuote" wire:confirm="Möchten Sie das Angebot wirklich ablehnen?" class="text-xs text-gray-400 hover:text-red-500 hover:underline transition">

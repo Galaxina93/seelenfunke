@@ -4,6 +4,7 @@ namespace App\Livewire\Shop;
 
 use App\Models\Order;
 use App\Models\Cart;
+use App\Models\QuoteRequest; // WICHTIG
 use App\Mail\OrderConfirmation;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +23,7 @@ class CheckoutSuccess extends Component
         if ($intentId) {
             $order = Order::where('stripe_payment_intent_id', $intentId)->first();
 
-            // API Key sicher laden via config() statt env()
+            // API Key sicher laden
             $stripeSecret = config('services.stripe.secret');
 
             if (!$stripeSecret) {
@@ -40,17 +41,31 @@ class CheckoutSuccess extends Component
                     if ($order && $order->payment_status !== 'paid') {
                         $order->update(['payment_status' => 'paid']);
 
-                        // E-Mail senden
                         try {
                             Mail::to($order->email)->send(new OrderConfirmation($order));
                         } catch (\Exception $e) {
-                            // Log im Fehlerfall
-                            Log::error('Mail Error beim Senden an ' . $order->email . ': ' . $e->getMessage());
+                            Log::error('Mail Error: ' . $e->getMessage());
                         }
-
                     }
 
-                    // --- SCHRITT 2: Warenkorb leeren ---
+                    // --- SCHRITT 2: Angebot als angenommen markieren ---
+                    // Falls der User aus einem Angebot kam
+                    if (Session::has('checkout_from_quote_id')) {
+                        $quoteId = Session::get('checkout_from_quote_id');
+                        $quote = QuoteRequest::find($quoteId);
+
+                        if ($quote) {
+                            $quote->update([
+                                'status' => 'converted',
+                                'converted_order_id' => $order ? $order->id : null
+                            ]);
+                        }
+
+                        // Session bereinigen
+                        Session::forget('checkout_from_quote_id');
+                    }
+
+                    // --- SCHRITT 3: Warenkorb leeren ---
                     // A) Über Metadaten (Priorität)
                     if (isset($intent->metadata->cart_id)) {
                         Cart::where('id', $intent->metadata->cart_id)->delete();
