@@ -1,96 +1,102 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
     <style>
-        body { font-family: sans-serif; color: #333; }
-        .label { font-weight: bold; width: 150px; display: inline-block; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
-        th { background-color: #f2f2f2; }
-        .express-badge { color: white; background-color: #dc2626; padding: 5px 10px; font-weight: bold; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
-        .sub-info { font-size: 0.9em; color: #555; margin-top: 3px; }
-        .totals-container { margin-top: 20px; text-align: right; border-top: 2px solid #ddd; padding-top: 10px; }
-        .total-row { margin-bottom: 5px; }
-        .total-gross { font-size: 1.2em; font-weight: bold; color: #000; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; display: inline-block;}
+        body { font-family: sans-serif; color: #333; line-height: 1.4; background-color: #eee; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 5px; max-width: 600px; margin: 0 auto; border-top: 5px solid #333; }
+        h2 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .label { font-weight: bold; width: 120px; display: inline-block; color: #666; }
+        .section { margin-bottom: 20px; }
+        .badge { background: #333; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; text-transform: uppercase; }
+        .badge-express { background: #dc2626; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th { background: #f2f2f2; text-align: left; padding: 8px; }
+        td { border-bottom: 1px solid #eee; padding: 8px; vertical-align: top; }
+
+        .file-info { font-size: 11px; color: #0066cc; background: #e6f3ff; padding: 4px; display: block; margin-top: 4px; border-radius: 3px; }
     </style>
 </head>
 <body>
+<div class="card">
+    <h2>
+        Neue Anfrage #{{ $data['quote_number'] ?? 'NEU' }}
+        @if(!empty($data['express']) && $data['express'])
+            <span class="badge badge-express">EXPRESS</span>
+        @endif
+    </h2>
 
-@if(!empty($data['express']) && $data['express'] == true)
-    <div class="express-badge">⚠ ACHTUNG: EXPRESS-AUFTRAG</div>
-@endif
+    <div class="section">
+        <div style="background: #f9f9f9; padding: 10px; border-radius: 4px;">
+            <div><span class="label">Kunde:</span> {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}</div>
+            @if(!empty($data['contact']['firma']))
+                <div><span class="label">Firma:</span> {{ $data['contact']['firma'] }}</div>
+            @endif
+            <div><span class="label">E-Mail:</span> <a href="mailto:{{ $data['contact']['email'] }}">{{ $data['contact']['email'] }}</a></div>
+            <div><span class="label">Telefon:</span> {{ $data['contact']['telefon'] ?? '-' }}</div>
+        </div>
+    </div>
 
-<h2>Neue Anfrage (Mein Seelenfunke)</h2>
-
-<h3>Kontaktdaten:</h3>
-<div>
-    <span class="label">Firma / Verein:</span> {{ $data['contact']['firma'] ?: '–' }}<br>
-    <span class="label">Name:</span> {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}<br>
-    <span class="label">E-Mail:</span> <a href="mailto:{{ $data['contact']['email'] }}">{{ $data['contact']['email'] }}</a><br>
-    <span class="label">Telefon:</span> {{ $data['contact']['telefon'] ?: '–' }}<br>
-
-    @if(!empty($data['express']) && !empty($data['deadline']))
-        <span class="label" style="color: red;">Wunschtermin:</span> <strong>{{ \Carbon\Carbon::parse($data['deadline'])->format('d.m.Y') }}</strong><br>
+    @if(!empty($data['contact']['anmerkung']))
+        <div class="section">
+            <strong>Kunden-Anmerkung:</strong><br>
+            <em style="background: #ffffcc; display: block; padding: 10px;">"{{ $data['contact']['anmerkung'] }}"</em>
+        </div>
     @endif
-</div>
 
-<h3>Gewählte Produkte & Konfiguration:</h3>
-<table>
-    <thead>
-    <tr>
-        <th>Artikel</th>
-        <th>Konfiguration</th>
-        <th>Menge</th>
-        <th>Preis (Netto)</th>
-    </tr>
-    </thead>
-    <tbody>
-    @foreach($data['items'] as $item)
+    <h3>Positionen</h3>
+    <table>
+        <thead>
         <tr>
-            <td>{{ $item['name'] }}</td>
-            <td>
-                @if(!empty($item['config']['text']))
-                    <div class="sub-info"><strong>Gravur:</strong> "{{ $item['config']['text'] }}"</div>
-                    <div class="sub-info">Schrift: {{ $item['config']['font'] }} | {{ $item['config']['align'] }}</div>
-
-                    @if(isset($item['config']['text_x']))
-                        <div class="sub-info">Pos: X:{{ round($item['config']['text_x']) }}% Y:{{ round($item['config']['text_y']) }}% ({{ round($item['config']['text_size']*100) }}%)</div>
-                    @endif
-                @endif
-
-                @if(!empty($item['config']['logo_storage_path']))
-                    <div class="sub-info" style="margin-top:5px;">
-                        <strong>Logo:</strong>
-                        <span style="color: green; font-weight: bold;">(Siehe E-Mail Anhang)</span>
-                        <br>
-                        <span style="font-size: 0.8em; color: #999;">(Datei ist sicher gespeichert)</span>
-                        <br>
-                        @if(isset($item['config']['logo_x']))
-                            (Pos: X:{{ round($item['config']['logo_x']) }}% Y:{{ round($item['config']['logo_y']) }}% | {{ $item['config']['logo_size'] }}px)
-                        @elseif(isset($item['config']['logo_pos']))
-                            (Position: {{ $item['config']['logo_pos'] }})
-                        @endif
-                    </div>
-                @endif
-
-                @if(!empty($item['config']['notes']))
-                    <div class="sub-info" style="margin-top:5px; background: #ffffdd; padding:3px;">
-                        <strong>Note:</strong> {{ $item['config']['notes'] }}
-                    </div>
-                @endif
-            </td>
-            <td>{{ $item['quantity'] }} Stk.</td>
-            <td>{{ $item['total_price'] }} €</td>
+            <th>Artikel</th>
+            <th>Menge</th>
+            <th style="text-align: right;">Preis (Stk)</th>
         </tr>
-    @endforeach
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+        @foreach($data['items'] as $item)
+            <tr>
+                <td>
+                    <strong>{{ $item['name'] }}</strong>
 
-<div class="totals-container">
-    <div class="total-row">Summe (Netto): <strong>{{ $data['total_netto'] }} €</strong></div>
-    <div class="total-row" style="color: #666;">zzgl. 19% MwSt.: {{ $data['total_vat'] }} €</div>
-    <div class="total-gross">Endsumme (Brutto): {{ $data['total_gross'] }} €</div>
+                    {{-- Config Details --}}
+                    @if(!empty($item['config']))
+                        <div style="font-size: 11px; color: #666; margin-top: 5px;">
+                            @if(!empty($item['config']['text']))
+                                Gravur: "{{ $item['config']['text'] }}"<br>
+                            @endif
+
+                            {{-- DATEIEN --}}
+                            @if(!empty($item['config']['logo_storage_path']))
+                                <span class="file-info">
+                                            📂 Datei: {{ $item['config']['logo_storage_path'] }}<br>
+                                            (Gesichert im Storage Ordner)
+                                        </span>
+                            @endif
+
+                            @if(!empty($item['config']['notes']))
+                                <span style="color: #d35400;">Interne Note: {{ $item['config']['notes'] }}</span>
+                            @endif
+                        </div>
+                    @endif
+                </td>
+                <td>{{ $item['quantity'] }}</td>
+                <td style="text-align: right;">{{ $item['single_price'] }} €</td>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+
+    <div style="text-align: right; margin-top: 20px; font-size: 14px;">
+        <div>Netto: {{ $data['total_netto'] }} €</div>
+        <div>MwSt: {{ $data['total_vat'] }} €</div>
+        <div style="font-weight: bold; font-size: 16px; margin-top: 5px;">Brutto: {{ $data['total_gross'] }} €</div>
+    </div>
+
+    <div style="margin-top: 30px; font-size: 11px; color: #999; text-align: center;">
+        Diese Anfrage wurde automatisch im Backend unter "Angebotsanfragen" gespeichert.<br>
+        Das PDF wurde generiert und dem Kunden gesendet.
+    </div>
 </div>
-
 </body>
 </html>

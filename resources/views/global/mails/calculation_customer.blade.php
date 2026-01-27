@@ -1,69 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ihr persönliches Angebot</title>
     <style>
-        body { font-family: sans-serif; color: #4a4a4a; line-height: 1.6; }
-        h2 { color: #C5A059; }
-        ul { list-style: none; padding: 0; }
-        li { margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .express-note { color: #dc2626; font-weight: bold; }
-        .totals-block { margin-top: 20px; border-top: 2px solid #C5A059; padding-top: 10px; }
-        .total-row { display: flex; justify-content: space-between; max-width: 300px; margin-bottom: 5px; }
-        .gross { font-weight: bold; font-size: 1.1em; color: #333; margin-top: 5px; border-top: 1px solid #eee; padding-top: 5px; }
-        .price-info { font-size: 0.9em; color: #666; }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+            color: #4a4a4a;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        /* HEADER */
+        .header {
+            border-bottom: 2px solid #C5A059;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #C5A059;
+            font-family: serif; /* Optional, falls passend zum Corporate Design */
+            margin: 0;
+            font-size: 24px;
+        }
+
+        /* CONTENT */
+        h2 { color: #333; font-size: 18px; margin-top: 0; }
+        p { margin-bottom: 15px; font-size: 14px; }
+
+        .info-box {
+            background-color: #f8f8f8;
+            border-left: 4px solid #C5A059;
+            padding: 15px;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+
+        /* BUTTON */
+        .btn-container { text-align: center; margin: 30px 0; }
+        .btn {
+            background-color: #C5A059;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 16px;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(197, 160, 89, 0.3);
+        }
+        .btn:hover { background-color: #b08d4b; }
+
+        /* TABLE */
+        .item-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        .item-table th { text-align: left; color: #888; border-bottom: 1px solid #eee; padding-bottom: 10px; font-weight: normal; font-size: 12px; text-transform: uppercase; }
+        .item-table td { padding: 12px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top; }
+        .item-name { font-weight: bold; color: #333; }
+        .item-meta { font-size: 12px; color: #888; margin-top: 4px; }
+
+        /* TOTALS */
+        .totals { margin-top: 20px; text-align: right; }
+        .total-row { margin-bottom: 5px; font-size: 14px; color: #666; }
+        .total-final { font-size: 18px; font-weight: bold; color: #C5A059; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; display: inline-block; }
+
+        /* FOOTER */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+        }
+        .footer a { color: #999; text-decoration: underline; }
     </style>
 </head>
 <body>
-<h2>Vielen Dank für deine Anfrage!</h2>
-
-<p>Hallo {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }},</p>
-
-<p>
-    Wir haben deine Anfrage für <strong>Mein Seelenfunke</strong> erhalten. <br>
-    Gerade bei größeren Mengen oder individuellen Anfertigungen ist es uns sehr wichtig, sicherzustellen, dass wir deine Wünsche perfekt umsetzen können.
-</p>
-
-@if(!empty($data['express']) || !empty($data['logo_url']))
-    <div style="background: #f9f9f9; padding: 15px; border-left: 4px solid #C5A059; margin: 20px 0;">
-        @if(!empty($data['express']))
-            <p class="express-note">⚡ Express-Service gebucht (Wunschtermin: {{ \Carbon\Carbon::parse($data['deadline'])->format('d.m.Y') }})</p>
-        @endif
-        @if(!empty($data['logo_url']))
-            <p>✔ Deine Logo-Datei wurde erfolgreich übertragen.</p>
-        @endif
+<div class="container">
+    <div class="header">
+        <h1>Mein Seelenfunke</h1>
     </div>
-@endif
 
-<p>Im Anhang findest du eine unverbindliche Übersicht deiner Zusammenstellung als PDF.</p>
+    <p>Hallo {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }},</p>
 
-<h3>Deine Zusammenfassung:</h3>
-<ul>
-    @foreach($data['items'] as $item)
-        <li>
-            <strong>{{ $item['quantity'] }}x {{ $item['name'] }}</strong><br>
-            <span class="price-info">
-                Einzelpreis (Brutto): {{ $item['single_price'] }} € | Gesamt (Netto): {{ $item['total_price'] }} €
-            </span>
-        </li>
-    @endforeach
-</ul>
+    <p>vielen Dank für deine Anfrage! Wir haben deine Konfiguration erhalten und geprüft.</p>
 
-{{-- NEU: Detaillierte Summen --}}
-<div class="totals-block">
-    <p>
-        Summe (Netto): {{ $data['total_netto'] }} €<br>
-        <span style="color: #666; font-size: 0.9em;">zzgl. 19% MwSt.: {{ $data['total_vat'] }} €</span><br>
-        <strong style="font-size: 1.1em; color: #000;">Endsumme (Brutto): {{ $data['total_gross'] }} €</strong>
+    <div class="info-box">
+        <strong>Gut zu wissen:</strong><br>
+        Deine hochgeladenen Logos und Bilder wurden sicher auf unserem geschützten Server gespeichert und liegen deiner Bestellung automatisch bei. Du musst sie nicht erneut senden.
+    </div>
+
+    <p>Hier ist eine Zusammenfassung deiner Wunschartikel. Im Anhang findest du zusätzlich das detaillierte PDF-Angebot.</p>
+
+    {{-- ARTIKEL LISTE --}}
+    <table class="item-table">
+        <thead>
+        <tr>
+            <th width="60%">Artikel</th>
+            <th width="15%" style="text-align: center;">Menge</th>
+            <th width="25%" style="text-align: right;">Gesamt</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach($data['items'] as $item)
+            <tr>
+                <td>
+                    <div class="item-name">{{ $item['name'] }}</div>
+                    <div class="item-meta">
+                        Einzelpreis: {{ $item['single_price'] }} €<br>
+                        @if(!empty($item['config']['text']))
+                            Gravur: "<em>{{ $item['config']['text'] }}</em>"<br>
+                        @endif
+                        @if(!empty($item['config']['logo_storage_path']))
+                            <span style="color:#2ecc71;">✔ Logo enthalten</span>
+                        @endif
+                    </div>
+                </td>
+                <td style="text-align: center;">{{ $item['quantity'] }}</td>
+                <td style="text-align: right;">{{ $item['total_price'] }} €</td>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+
+    {{-- PREISAUFSTELLUNG --}}
+    <div class="totals">
+        <div class="total-row">Zwischensumme (Netto): {{ $data['total_netto'] }} €</div>
+        <div class="total-row">zzgl. 19% MwSt.: {{ $data['total_vat'] }} €</div>
+
+        @if(!empty($data['express']) && $data['express'])
+            <div class="total-row" style="color: #dc2626;">Inkl. Express-Zuschlag</div>
+        @endif
+
+        <div class="total-final">
+            Gesamtsumme: {{ $data['total_gross'] }} €
+        </div>
+    </div>
+
+    {{-- ACTION BUTTON --}}
+    @if(isset($data['quote_token']))
+        <div class="btn-container">
+            <p style="margin-bottom: 15px; font-size: 13px;">Dieses Angebot ist gültig bis zum {{ $data['quote_expiry'] }}.</p>
+            <a href="{{ route('quote.accept', ['token' => $data['quote_token']]) }}" class="btn">
+                Jetzt Angebot verbindlich annehmen
+            </a>
+        </div>
+    @endif
+
+    <p style="font-size: 13px;">
+        Solltest du noch Fragen oder Änderungswünsche haben, antworte einfach auf diese E-Mail.
     </p>
+
+    <div class="footer">
+        <p>
+            Mein Seelenfunke | Inh. Alina Steinhauer<br>
+            Carl-Goerdeler-Ring 26, 38518 Gifhorn<br>
+            <a href="mailto:kontakt@mein-seelenfunke.de">kontakt@mein-seelenfunke.de</a> | <a href="{{ url('/') }}">www.mein-seelenfunke.de</a>
+        </p>
+    </div>
 </div>
-
-<p>
-    Wir werden uns schnellstmöglich bei dir melden, um die Details zu besprechen oder dir die offizielle Auftragsbestätigung zu senden.
-</p>
-
-<p>
-    Herzliche Grüße,<br>
-    <strong>Mein Seelenfunke</strong><br>
-</p>
 </body>
 </html>
