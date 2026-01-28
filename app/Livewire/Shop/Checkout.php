@@ -3,12 +3,13 @@
 namespace App\Livewire\Shop;
 
 use App\Models\Order;
+use App\Models\Cart;
 use App\Models\QuoteRequest;
-use App\Models\Customer; // WICHTIG
+use App\Models\Customer;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Str; // WICHTIG
+use Illuminate\Support\Str;
 use Livewire\Component;
 use Stripe\Stripe;
 use Stripe\PaymentIntent;
@@ -122,15 +123,51 @@ class Checkout extends Component
         }
     }
 
-    public function login()
+    /**
+     * WICHTIG: Login mit Warenkorb-Mitnahme (Merge)
+     * Heißt jetzt "loginUser", so wie du es in der Blade genannt hast.
+     */
+    public function loginUser()
     {
         $this->validate([
             'loginEmail' => 'required|email',
             'loginPassword' => 'required',
         ]);
 
+        // 1. GAST-CART SICHERN (Bevor Login die Session ID ändert!)
+        $guestCart = app(CartService::class)->getCart();
+
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
+
+            $user = Auth::guard('customer')->user();
+
+            // 2. USER-CART HOLEN
+            $userCart = Cart::firstOrCreate(
+                ['customer_id' => $user->id],
+                ['session_id' => Session::getId()]
+            );
+
+            // 3. MERGE: Items vom Gast-Cart in den User-Cart schieben
+            if ($guestCart && $guestCart->id !== $userCart->id) {
+                foreach ($guestCart->items as $item) {
+                    $item->cart_id = $userCart->id;
+                    $item->save();
+                }
+
+                if ($guestCart->coupon_code && !$userCart->coupon_code) {
+                    $userCart->coupon_code = $guestCart->coupon_code;
+                    $userCart->save();
+                }
+
+                // Leeren Gast-Cart löschen
+                if ($guestCart->items()->count() == 0) {
+                    $guestCart->delete();
+                }
+            }
+
+            // Seite neu laden
             return redirect(request()->header('Referer'));
+
         } else {
             $this->loginError = 'Zugangsdaten nicht korrekt.';
         }
@@ -162,35 +199,29 @@ class Checkout extends Component
         $cart = $cartService->getCart();
         $totals = $cartService->calculateTotals($cart);
 
-        // --- ROBUSTE KUNDEN-LOGIK ---
+        // --- KUNDEN-LOGIK (Fehler 1452 Fix) ---
         $customer = null;
 
-        // 1. Versuch: Eingeloggter User
         if (Auth::guard('customer')->check()) {
             $customer = Auth::guard('customer')->user();
-
-            // Sicherheitscheck: Existiert der User wirklich noch in der DB? (Verhindert Fehler 1452)
             if ($customer && !Customer::where('id', $customer->id)->exists()) {
                 $customer = null;
-                Auth::guard('customer')->logout(); // Session bereinigen
+                Auth::guard('customer')->logout();
             }
         }
 
-        // 2. Versuch: Wenn nicht eingeloggt, Kunde anhand E-Mail suchen
         if (!$customer) {
             $customer = Customer::where('email', $this->email)->first();
         }
 
-        // 3. Versuch: Neuen Kunden erstellen
         if (!$customer) {
             $customer = Customer::create([
                 'email' => $this->email,
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
-                'password' => bcrypt(Str::random(16)), // Dummy Passwort für Gast
+                'password' => bcrypt(Str::random(16)),
             ]);
 
-            // Profil anlegen
             $customer->profile()->create([
                 'street' => $this->address,
                 'city' => $this->city,
@@ -199,13 +230,12 @@ class Checkout extends Component
             ]);
         }
 
-        // Jetzt haben wir garantiert eine gültige ID
         $customerId = $customer->id;
         // ---------------------------
 
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
-            'customer_id' => $customerId, // Hier steht jetzt sicher eine ID drin, die existiert
+            'customer_id' => $customerId,
             'email' => $this->email,
             'status' => 'pending',
             'payment_status' => 'unpaid',

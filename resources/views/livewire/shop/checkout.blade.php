@@ -42,9 +42,9 @@
                             @endif
 
                             <div class="mt-4 flex justify-end">
-                                <button type="button" wire:click="login" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
-                                    <span wire:loading.remove wire:target="login">Anmelden & Daten laden</span>
-                                    <span wire:loading wire:target="login">Lade...</span>
+                                <button type="button" wire:click="loginUser" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
+                                    <span wire:loading.remove wire:target="loginUser">Anmelden & Daten laden</span>
+                                    <span wire:loading wire:target="loginUser">Lade...</span>
                                 </button>
                             </div>
                         </div>
