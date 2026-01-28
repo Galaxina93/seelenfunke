@@ -33,6 +33,12 @@ class Calculator extends Component
     public $totalNetto = 0;
     public $totalMwst = 0;
     public $totalBrutto = 0;
+    public $shippingCost = 0; // Neu: Versandkosten
+
+    // --- KONFIGURATION VERSAND ---
+    // Diese Werte könnten auch aus einer Config-Datei kommen
+    const SHIPPING_COST_STANDARD = 4.90; // 4,90 € Standardversand
+    const SHIPPING_FREE_THRESHOLD = 100.00; // Versandkostenfrei ab 100 €
 
     // --- FORMULAR ---
     public $isExpress = false;
@@ -68,7 +74,7 @@ class Calculator extends Component
 
     public function loadProducts()
     {
-        // FIX: Relation 'tierPrices' mitladen
+        // Relation 'tierPrices' mitladen
         $products = Product::with('tierPrices')->where('status', 'active')->get();
 
         $this->dbProducts = $products->map(function($p) {
@@ -83,11 +89,21 @@ class Calculator extends Component
                 }
             }
 
-            $rawPrice = $p->price / 100;
+            $rawPrice = $p->price / 100; // Preis in Euro (Float)
             $rate = $p->tax_rate ? (float)$p->tax_rate : 19.00;
             $isGross = (bool)$p->tax_included;
 
-            $displayNetto = $isGross ? $rawPrice / (1 + ($rate / 100)) : $rawPrice;
+            // KORREKTUR: Anzeige-Preis Logik gefixt.
+            // Wenn Steuer inkludiert ist, ist der RawPrice der Bruttopreis (39.90).
+            // Wenn Steuer exkludiert ist, ist RawPrice der Nettopreis.
+            // Wir wollen im Katalog meist den Bruttopreis "ab X €" anzeigen oder den Basispreis.
+            if ($isGross) {
+                $displayPrice = $rawPrice; // 39.90
+            } else {
+                // Wenn Netto gespeichert, rechnen wir für die Anzeige ggf. Brutto hoch oder zeigen Netto
+                // Hier zeigen wir den Preis so an, wie er gespeichert ist (Basis)
+                $displayPrice = $rawPrice;
+            }
 
             return [
                 'id' => $p->id,
@@ -95,11 +111,11 @@ class Calculator extends Component
                 'desc' => $p->short_description ?? 'Artikel',
                 'price' => $p->price / 100,
                 'price_cents' => $p->price,
-                'display_price' => $displayNetto,
+                'display_price' => $displayPrice, // Korrigierter Wert
                 'tax_rate' => $rate,
                 'tax_included' => $isGross,
 
-                // FIX: Staffelpreise aus Relation holen und als Array speichern
+                // Staffelpreise aus Relation holen und als Array speichern
                 'tier_pricing' => $p->tierPrices->map(fn($t) => [
                     'qty' => $t->qty,
                     'percent' => $t->percent
@@ -143,7 +159,7 @@ class Calculator extends Component
         // Wir übergeben die gespeicherte Konfiguration (Blob) zurück an den Configurator
         $this->currentConfig = $item['configuration'] ?? [];
 
-        // Sicherstellen, dass die Menge korrekt übernommen wird, falls sie im Root liegt
+        // Sicherstellen, dass die Menge korrekt übernommen wird
         $this->currentConfig['qty'] = $item['qty'];
 
         $this->step = 2;
@@ -168,8 +184,6 @@ class Calculator extends Component
             ? $this->cartItems[$this->editingIndex]['row_id']
             : Str::uuid()->toString();
 
-        // Wir speichern das komplette $data Array vom Configurator im Key 'configuration'.
-        // So ist der Calculator unabhängig von Feldern wie text_x, logo_y usw.
         $itemData = [
             'row_id' => $rowId,
             'product_id' => $product['id'],
@@ -178,9 +192,9 @@ class Calculator extends Component
 
             // Wichtige Felder für die Berechnung/Anzeige extrahieren
             'qty' => $data['qty'],
-            'text' => $data['text'] ?? '', // Für Vorschau im Warenkorb
+            'text' => $data['text'] ?? '',
 
-            // Das Herzstück: Die gesamte Konfiguration speichern wir als Blob
+            // Konfiguration speichern
             'configuration' => $data,
 
             // Hilfsdaten für Vorschau
@@ -219,6 +233,7 @@ class Calculator extends Component
 
         $sumNetto = 0;
         $sumMwst = 0;
+        $cartSubtotalGross = 0; // Zwischensumme Brutto für Versandfreigrenze
 
         foreach ($this->cartItems as $index => $item) {
             $product = $this->dbProducts[$item['product_id']] ?? null;
@@ -240,24 +255,44 @@ class Calculator extends Component
                 $lineGross = $lineTotalCents;
                 $lineNet  = $lineGross / (1 + ($rate / 100)); // Hier wird es Float
                 $lineTax  = $lineGross - $lineNet;
+                $cartSubtotalGross += ($lineGross / 100);
             } else {
                 // Netto zu Brutto
                 $lineNet = $lineTotalCents;
                 $lineTax = $lineNet * ($rate / 100);
+                $cartSubtotalGross += (($lineNet + $lineTax) / 100);
             }
 
             // Werte speichern für Anzeige (in Euro Float umrechnen)
             $this->cartItems[$index]['calculated_single_price'] = $unitPriceCents / 100;
             // Falls Brutto: Zeige Brutto-Summe, sonst Netto-Summe
-            $displaySumCents = $isGross ? $lineTotalCents : $lineNet; // (Anmerkung: Bei Netto hier leichte Inkonsistenz möglich, da $lineNet Float ist, aber für Anzeige OK)
             $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalCents : round($lineNet)) / 100;
 
             $sumNetto += $lineNet;
             $sumMwst += $lineTax;
         }
 
+        // --- VERSANDKOSTEN BERECHNUNG ---
+        // Prüfen ob Schwellwert erreicht (basierend auf Bruttowarenwert)
+        if ($cartSubtotalGross >= self::SHIPPING_FREE_THRESHOLD || count($this->cartItems) === 0) {
+            $this->shippingCost = 0;
+        } else {
+            $this->shippingCost = self::SHIPPING_COST_STANDARD;
+        }
+
+        // Versandkosten zur Summe hinzufügen
+        if ($this->shippingCost > 0) {
+            $shippingCents = $this->shippingCost * 100;
+            // Versand hat i.d.R. 19% MwSt
+            $shippingNet = $shippingCents / 1.19;
+            $shippingTax = $shippingCents - $shippingNet;
+
+            $sumNetto += $shippingNet;
+            $sumMwst += $shippingTax;
+        }
+
         // Express Zuschlag (25,00 € Netto)
-        if ($this->isExpress && ($sumNetto > 0)) {
+        if ($this->isExpress && count($this->cartItems) > 0) {
             $expressNetto = 2500; // Cents
             $expressTax = $expressNetto * 0.19; // Annahme 19%
             $sumNetto += $expressNetto;
@@ -268,7 +303,7 @@ class Calculator extends Component
         $this->totalNetto = round($sumNetto) / 100;
         $this->totalMwst = round($sumMwst) / 100;
         $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
-        $this->gesamtKosten = $this->totalNetto; // Je nach Wunsch Netto oder Brutto
+        $this->gesamtKosten = $this->totalBrutto; // Wir zeigen dem Kunden die Bruttosumme als Gesamtkosten
     }
 
     /**
@@ -319,8 +354,10 @@ class Calculator extends Component
         // 1. Prüfen, ob Kunde existiert (anhand E-Mail)
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
 
+        // FIX für SQL Error: Deadline muss NULL sein, wenn leer oder nicht Express
+        $cleanDeadline = ($this->isExpress && !empty($this->deadline)) ? $this->deadline : null;
+
         // 2. Quote Request erstellen
-        // Token & Ablaufdatum werden automatisch durch das Model (booted Methode) generiert
         $quote = QuoteRequest::create([
             'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
             'email' => $this->form['email'],
@@ -331,30 +368,27 @@ class Calculator extends Component
             'customer_id' => $existingCustomer ? $existingCustomer->id : null,
             'status' => 'open',
 
-            'net_total' => (int)($this->totalNetto * 100),
-            'tax_total' => (int)($this->totalMwst * 100),
-            'gross_total' => (int)($this->totalBrutto * 100),
+            // FIX: Explizites Runden vor dem Casten zu Int, um "Truncated integer" Fehler zu vermeiden
+            'net_total' => (int) round($this->totalNetto * 100),
+            'tax_total' => (int) round($this->totalMwst * 100),
+            'gross_total' => (int) round($this->totalBrutto * 100),
 
             'is_express' => $this->isExpress,
-            'deadline' => $this->isExpress ? $this->deadline : null,
+            'deadline' => $cleanDeadline,
             'admin_notes' => $this->form['anmerkung'] ?? null,
         ]);
 
-        // 3. Items speichern & Dateien verschieben
+        // 3. Items speichern
         foreach($this->cartItems as $item) {
             $conf = $item['configuration'] ?? [];
-
-            // OPTIONAL: Dateien von temp nach permanent verschieben, damit sie nicht gelöscht werden
-            // Hier vereinfacht: Wir gehen davon aus, dass sie in 'public/cart-uploads' liegen und bleiben.
 
             QuoteRequestItem::create([
                 'quote_request_id' => $quote->id,
                 'product_id' => $item['product_id'],
                 'product_name' => $item['name'],
                 'quantity' => $item['qty'],
-                // Speichern in Cent
-                'unit_price' => (int)($item['calculated_single_price'] * 100),
-                'total_price' => (int)($item['calculated_total'] * 100),
+                'unit_price' => (int) round($item['calculated_single_price'] * 100),
+                'total_price' => (int) round($item['calculated_total'] * 100),
                 'configuration' => $conf,
             ]);
         }
@@ -362,7 +396,6 @@ class Calculator extends Component
         // Daten für PDF aufbereiten
         $finalItems = [];
         foreach($this->cartItems as $item) {
-            // Konfiguration extrahieren (Fallback falls leer)
             $conf = $item['configuration'] ?? [];
 
             $finalItems[] = [
@@ -375,17 +408,26 @@ class Calculator extends Component
                     'notes' => $conf['notes'] ?? '',
                     'font' => $conf['font'] ?? '',
                     'align' => $conf['align'] ?? '',
-
-                    // Wir nutzen nur noch die Labels, keine Koordinaten im PDF
                     'text_pos_label' => $this->getPositionLabel($conf['text_x'] ?? 50, $conf['text_y'] ?? 50),
                     'logo_pos_label' => $this->getPositionLabel($conf['logo_x'] ?? 50, $conf['logo_y'] ?? 30),
-
                     'logo_storage_path' => $conf['logo_path'] ?? null,
                     'product_image_path' => $item['preview_ref'] ?? null
                 ]
             ];
         }
 
+        // Versandkosten Zeile
+        if ($this->shippingCost > 0) {
+            $finalItems[] = [
+                'name' => 'Versand & Verpackung',
+                'quantity' => 1,
+                'single_price' => number_format($this->shippingCost, 2, ',', '.'),
+                'total_price' => number_format($this->shippingCost, 2, ',', '.'),
+                'config' => []
+            ];
+        }
+
+        // Express Zeile
         if ($this->isExpress) {
             $finalItems[] = [
                 'name' => 'Express-Service',
@@ -396,7 +438,6 @@ class Calculator extends Component
             ];
         }
 
-        // 4. Daten für Mail & PDF zusammenstellen (INKLUSIVE TOKEN)
         $data = [
             'contact' => $this->form,
             'items' => $finalItems,
@@ -404,8 +445,7 @@ class Calculator extends Component
             'total_vat' => number_format($this->totalMwst, 2, ',', '.'),
             'total_gross' => number_format($this->totalBrutto, 2, ',', '.'),
             'express' => $this->isExpress,
-            'deadline' => $this->deadline,
-            // NEU: Token & Ablaufdatum für die Mail
+            'deadline' => $cleanDeadline,
             'quote_number' => $quote->quote_number,
             'quote_token' => $quote->token,
             'quote_expiry' => $quote->expires_at->format('d.m.Y'),
@@ -424,7 +464,6 @@ class Calculator extends Component
             Mail::to($this->form['email'])->send(new CalcCustomer($data, $path));
             Mail::to('kontakt@mein-seelenfunke.de')->send(new CalcInput($data, $path));
         } catch (\Exception $e) {
-            // Fehler loggen, aber User nicht verwirren
             \Log::error('Calculator Mail Error: ' . $e->getMessage());
         }
 
@@ -439,7 +478,7 @@ class Calculator extends Component
 
     public function restartCalculator()
     {
-        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten']);
+        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten', 'shippingCost']);
         session()->forget(['calc_cart', 'calc_form']);
         $this->step = 1;
     }
@@ -450,7 +489,6 @@ class Calculator extends Component
         session()->put('calc_form', $this->form);
     }
 
-    // Helper für PDF-Ausgabe (Mitte Links, Oben Rechts etc.)
     private function getPositionLabel($x, $y) {
         $x = (float)$x; $y = (float)$y;
         $h = ($x < 35) ? 'Links' : (($x > 65) ? 'Rechts' : 'Mitte');

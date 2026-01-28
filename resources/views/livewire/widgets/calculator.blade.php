@@ -209,8 +209,8 @@
                                             <div class="flex justify-between items-start">
                                                 <span class="font-bold text-gray-900 text-base">{{ $item['name'] }}</span>
                                                 <span class="font-bold text-gray-900 font-mono">
-                        {{ number_format($item['calculated_total'], 2, ',', '.') }} €
-                    </span>
+                                                    {{ number_format($item['calculated_total'], 2, ',', '.') }} €
+                                                </span>
                                             </div>
                                             <div class="flex justify-between items-center text-sm">
                                                 <div class="text-gray-500 text-xs">
@@ -249,6 +249,11 @@
                                 {{-- Summe & Weiter --}}
                                 <div class="text-right w-full md:w-auto">
                                     <div class="text-sm text-gray-500">Netto: {{ number_format($totalNetto, 2, ',', '.') }} €</div>
+                                    @if($shippingCost > 0)
+                                        <div class="text-sm text-gray-500">Versand: {{ number_format($shippingCost, 2, ',', '.') }} €</div>
+                                    @else
+                                        <div class="text-sm text-green-600 font-bold">Versand: Kostenlos</div>
+                                    @endif
                                     <div class="text-sm text-gray-500">MwSt: {{ number_format($totalMwst, 2, ',', '.') }} €</div>
                                     <div class="text-2xl font-bold text-primary mb-4">Brutto: {{ number_format($totalBrutto, 2, ',', '.') }} €</div>
 
@@ -298,18 +303,17 @@
                                                 <p class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ $product['desc'] }}</p>
                                             </div>
                                             <div class="mt-3">
-                                                @php
-                                                    $brutto = $product['tax_included'] ? $product['price'] : $product['price'] * 1.19;
-                                                    $netto  = $product['tax_included'] ? $product['price'] / 1.19 : $product['price'];
-                                                @endphp
+                                                {{--
+                                                   PREIS ANZEIGE KORRIGIERT:
+                                                   Zeigt den Preis so an, wie er im Produkt definiert ist.
+                                                   Ist tax_included true, ist display_price Brutto (z.B. 39.90).
+                                                   Ist tax_included false, ist display_price Netto.
+                                                --}}
                                                 <div class="flex flex-wrap items-baseline gap-x-1 justify-between items-end">
                                                     <div>
                                                         <div class="flex flex-wrap items-baseline gap-x-1">
-                                                            <span class="text-sm font-bold text-primary">ab {{ number_format($brutto, 2, ',', '.') }} €</span>
+                                                            <span class="text-sm font-bold text-primary">ab {{ number_format($product['display_price'], 2, ',', '.') }} €</span>
                                                             <span class="text-[10px] uppercase tracking-wide text-gray-400">{{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.</span>
-                                                        </div>
-                                                        <div class="flex items-center gap-2 mt-0.5">
-                                                            <span class="text-[10px] text-gray-400 tabular-nums">({{ number_format($netto, 2, ',', '.') }} € netto)</span>
                                                         </div>
                                                     </div>
                                                     <div class="hidden md:flex w-8 h-8 rounded-full bg-white/90 backdrop-blur border border-gray-200 text-gray-400 items-center justify-center shadow-sm transition-all duration-200 group-hover:border-primary/60 group-hover:text-primary group-hover:shadow-md group-hover:scale-[1.03]">
@@ -317,7 +321,7 @@
                                                     </div>
                                                 </div>
 
-                                                {{-- FIX: Staffelpreise als Array abrufen --}}
+                                                {{-- Staffelpreise als Array abrufen --}}
                                                 @if(!empty($product['tier_pricing']))
                                                     <div class="mt-2 pt-2 border-t border-gray-50">
                                                         <span class="text-[10px] font-bold uppercase text-green-600 block mb-1">Staffelpreise verfügbar:</span>
@@ -339,21 +343,16 @@
                     </div>
                 </div>
 
-            {{-- STEP 2: KONFIGURATION --}}
+                {{-- STEP 2: KONFIGURATION --}}
             @elseif($step === 2)
                 <div class="h-full min-h-[600px] bg-white rounded-xl overflow-hidden animate-fade-in">
-                    {{-- Header im Calculator Style beibehalten oder in Component integrieren --}}
+                    {{-- Header im Calculator Style --}}
                     <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
                         <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
                         <button wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500">Abbrechen</button>
                     </div>
 
                     {{-- Einbindung der Universal Komponente --}}
-                    {{--
-                        HIER ist der Schlüssel:
-                        1. context="calculator"
-                        2. :key mit timestamp zwingt Livewire zum Neu-Initialisieren
-                    --}}
                     <livewire:shop.configurator
                         :product="$currentProduct['id']"
                         :initialData="$currentConfig"
@@ -362,7 +361,7 @@
                     />
                 </div>
 
-            {{-- STEP 3: KONTAKTDATEN (Angebot anfordern) --}}
+                {{-- STEP 3: KONTAKTDATEN (Angebot anfordern) --}}
             @elseif($step === 3)
                 <div class="p-8 animate-fade-in max-w-3xl mx-auto">
                     <div class="text-center mb-8">
@@ -370,23 +369,31 @@
                         <p class="text-gray-500">Geben Sie Ihre Kontaktdaten ein, damit wir Ihnen das Angebot als PDF zusenden können.</p>
                     </div>
 
-                    <form wire:submit.prevent="submit" class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
-                        <div><label class="block text-sm font-bold text-gray-700">Vorname *</label><input wire:model.live="form.vorname" type="text" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary"></div>
-                        <div><label class="block text-sm font-bold text-gray-700">Nachname *</label><input wire:model.live="form.nachname" type="text" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary"></div>
-                        <div class="col-span-2"><label class="block text-sm font-bold text-gray-700">Firma / Verein (Optional)</label><input wire:model.live="form.firma" type="text" class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary"></div>
-                        <div class="col-span-2"><label class="block text-sm font-bold text-gray-700">E-Mail für Angebot *</label><input wire:model.live="form.email" type="email" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary"></div>
+                    <form wire:submit.prevent="submit" class="grid grid-cols-1 gap-4 sm:grid-cols-2 bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-100">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Vorname *</label>
+                            <input wire:model.live="form.vorname" type="text" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Nachname *</label>
+                            <input wire:model.live="form.nachname" type="text" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
+                        </div>
+                        <div class="col-span-1 sm:col-span-2">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Firma / Verein (Optional)</label>
+                            <input wire:model.live="form.firma" type="text" class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
+                        </div>
+                        <div class="col-span-1 sm:col-span-2">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">E-Mail für Angebot *</label>
+                            <input wire:model.live="form.email" type="email" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
+                        </div>
 
-                        <div class="col-span-2 pt-4 flex justify-between items-center">
-                            <button type="button" wire:click="goBack" class="text-gray-500 underline text-sm">Zurück</button>
-                            <button type="submit"
-                                    class="bg-green-600 text-white px-8 py-3 rounded font-bold hover:bg-green-700 shadow-lg
-                                            flex items-center justify-center gap-2 transition transform hover:-translate-y-0.5">
-
+                        <div class="col-span-1 sm:col-span-2 pt-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                            <button type="button" wire:click="goBack" class="text-gray-500 underline text-sm text-center sm:text-left w-full sm:w-auto">Zurück</button>
+                            <button type="submit" class="bg-green-600 text-white px-6 py-3 rounded font-bold hover:bg-green-700 shadow-lg flex items-center justify-center gap-2 w-full sm:w-auto transition transform hover:-translate-y-0.5">
                                 <svg wire:loading class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                                 </svg>
-
                                 <span>
                                     <span wire:loading.remove>Angebot jetzt anfordern</span>
                                     <span wire:loading>Sende Anfrage…</span>
@@ -394,6 +401,7 @@
                             </button>
                         </div>
                     </form>
+
                 </div>
 
                 {{-- STEP 4: SUCCESS --}}
