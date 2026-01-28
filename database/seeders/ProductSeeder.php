@@ -29,7 +29,7 @@ class ProductSeeder extends Seeder
 
             // Lager & Identifikation
             'sku' => 'CRYSTAL-001-CLR',
-            'barcode' => '426000000001',
+            'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 150, // Guter Lagerbestand
@@ -37,10 +37,10 @@ class ProductSeeder extends Seeder
 
             // Versand (Kompaktes Paket)
             'is_physical_product' => true,
-            'weight' => 250, // Gramm (inkl. Verpackung)
-            'height' => 100, // mm
-            'width' => 100,  // mm
-            'length' => 100, // mm
+            'weight' => 1250, // Gramm (inkl. Verpackung)
+            'height' => 70, // mm
+            'width' => 244,  // mm
+            'length' => 284, // mm
             'shipping_class' => 'paket_s',
 
             // Medien & Konfigurator
@@ -70,29 +70,27 @@ class ProductSeeder extends Seeder
             // JSON Daten
             'attributes' => [
                 'Material' => 'Hochwertiges K9 Kristallglas',
-                'Größe' => '10x10x10 cm',
+                'Größe' => '160*180*40 mm',
                 'Farbe' => 'Transparent',
-                'Verpackung' => 'Schwarze Geschenkbox mit Seidenfutter',
+                'Verpackung' => 'Geschenkbox mit Seidenfutter',
                 'Druck' => 'UV-Direktdruck (optional)',
-                'Technik' => '3D-Laser-Innengravur',
-                'Gewicht' => '200 g (Netto)'
+                'Technik' => 'Oberflächengravur',
+                'Gewicht' => '920g (Netto)'
             ],
             'tier_pricing' => [
-                ['qty' => 5, 'percent' => 5],   // 5% Rabatt ab 5 Stk.
-                ['qty' => 10, 'percent' => 10], // 10% Rabatt ab 10 Stk.
-                ['qty' => 25, 'percent' => 15]  // 15% Rabatt ab 25 Stk.
+
             ],
 
             // SEO
             'seo_title' => 'Der Seelen Kristall | Personalisierbares Glasgeschenk | Mein-Seelenfunke',
-            'seo_description' => 'Verschenken Sie Ewigkeit: Unser Seelen Kristall aus hochwertigem Glas mit individueller 3D-Gravur. Perfekt für Hochzeiten und Jubiläen. Jetzt gestalten!',
+            'seo_description' => 'Verschenken Sie Ewigkeit: Unser Seelen Kristall aus hochwertigem Glas mit individueller Gravur. Perfekt für Hochzeiten und Jubiläen. Jetzt gestalten!',
             'completion_step' => 5 // Vollständig ausgefüllt
         ]);
 
         // ---------------------------------------------------------
         // 2. Personalisiertes Holzherz (Naturprodukt)
         // ---------------------------------------------------------
-        Product::create([
+        /*Product::create([
             'name' => 'Herz aus Eiche',
             'slug' => 'herz-eiche',
             'description' => 'Natürliches, massives Eichenholz, liebevoll in Herzform geschliffen. Jedes Stück ist durch die individuelle Maserung ein Unikat. Die dunkle Lasergravur bildet einen wunderschönen Kontrast zum hellen Holz.',
@@ -147,12 +145,12 @@ class ProductSeeder extends Seeder
             'seo_title' => 'Personalisiertes Holzherz aus Eiche | Gravur Geschenk',
             'seo_description' => 'Massives Eichenholz-Herz mit individueller Lasergravur. Handgefertigt und natürlich geölt. Ein Unikat für die Ewigkeit von Mein-Seelenfunke.',
             'completion_step' => 4 // Bilder fehlen noch
-        ]);
+        ]);*/
 
         // ---------------------------------------------------------
         // 3. Limitierte Edition (High Ticket)
         // ---------------------------------------------------------
-        Product::create([
+        /*Product::create([
             'name' => 'Goldene Erinnerung',
             'slug' => 'goldene-erinnerung',
             'description' => 'Limitierte Edition: Dieser exklusive Rahmen ist mit 24 Karat Blattgold veredelt. Der Einleger wird in einem speziellen Druckverfahren hergestellt, das Farben besonders brillant leuchten lässt.',
@@ -205,6 +203,6 @@ class ProductSeeder extends Seeder
             'seo_title' => 'Limitierte Edition: Goldene Erinnerung | 24K Vergoldet',
             'seo_description' => 'Exklusiver, vergoldeter Rahmen für Ihre wertvollsten Erinnerungen. Streng limitierte Auflage. Sichern Sie sich Ihr Exemplar bei Mein-Seelenfunke.',
             'completion_step' => 5
-        ]);
+        ]);*/
     }
 }

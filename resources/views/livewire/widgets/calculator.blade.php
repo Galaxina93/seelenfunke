@@ -317,14 +317,14 @@
                                                     </div>
                                                 </div>
 
-                                                {{-- Staffelpreis Anzeige Schritt 1 --}}
-                                                @if(!empty($product['tier_pricing']) && is_array($product['tier_pricing']))
+                                                {{-- FIX: Staffelpreise als Array abrufen --}}
+                                                @if(!empty($product['tier_pricing']))
                                                     <div class="mt-2 pt-2 border-t border-gray-50">
                                                         <span class="text-[10px] font-bold uppercase text-green-600 block mb-1">Staffelpreise verfügbar:</span>
                                                         <div class="flex flex-wrap gap-2">
-                                                            @foreach(collect($product['tier_pricing'])->sortBy('qty')->take(3) as $tier)
+                                                            @foreach(collect($product['tier_pricing'])->sortBy('qty')->take(4) as $tier)
                                                                 <span class="text-[10px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-100">
-                                                                    ab {{ $tier['qty'] }} Stk: -{{ $tier['percent'] }}%
+                                                                    ab {{ $tier['qty'] }} Stk: -{{ 0 + $tier['percent'] }}%
                                                                 </span>
                                                             @endforeach
                                                         </div>

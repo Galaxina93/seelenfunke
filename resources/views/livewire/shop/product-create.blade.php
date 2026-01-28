@@ -239,6 +239,14 @@
                                         </div>
                                     </div>
 
+                                    {{-- Staffelpreise --}}
+                                    <div class="mt-6">
+                                        <livewire:shop.product-tier-pricing
+                                            :product="$product"
+                                            :currentPrice="$price_input"
+                                        />
+                                    </div>
+
                                     {{-- NEU: Steuer Einstellungen --}}
                                     <div class="p-5 bg-gray-50 rounded-xl border border-gray-100">
                                         <h4 class="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">

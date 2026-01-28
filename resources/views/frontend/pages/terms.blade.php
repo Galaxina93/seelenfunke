@@ -3,200 +3,239 @@
     <x-sections.page-container>
 
         <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
-            <h1 class="text-3xl md:text-4xl font-serif font-bold mb-8 text-gray-900">AGB & Widerrufsrecht</h1>
+            <header class="mb-12 text-center md:text-left">
+                <h1 class="text-3xl md:text-4xl font-serif font-bold mb-4 text-gray-900">AGB & Widerrufsrecht</h1>
+                <p class="text-gray-500 text-sm">Stand: {{ now()->format('d.m.Y') }}</p>
+            </header>
 
-            <div class="space-y-12 text-base leading-relaxed text-gray-700">
+            <div class="space-y-16 text-base leading-relaxed text-gray-700">
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-6 border-b pb-2">Allgemeine Geschäftsbedingungen</h2>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-3">
+                        <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">I</span>
+                        Allgemeine Geschäftsbedingungen
+                    </h2>
 
-                    <div class="space-y-8">
+                    <div class="space-y-10">
 
-                        {{-- §1 --}}
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">1. Geltungsbereich</h3>
+                        {{-- §1 Geltungsbereich --}}
+                        <div id="geltungsbereich" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">1. Geltungsbereich und Anbieter</h3>
+                            <p>
+                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>Mein Seelenfunke</strong> (nachfolgend „Anbieter“) tätigen.
+                            </p>
+                            <p class="mt-2 text-sm bg-gray-50 p-3 rounded border border-gray-200">
+                                <strong>Anbieterkennzeichnung:</strong><br>
+                                Mein Seelenfunke<br>
+                                Inhaberin: Alina Steinhauer<br>
+                                Carl-Goerdeler-Ring 26, 38518 Gifhorn<br>
+                                E-Mail: kontakt@mein-seelenfunke.de
+                            </p>
                             <p class="mt-2">
-                                Für die Geschäftsbeziehungen zwischen <strong>Mein Seelenfunke</strong> (Inhaberin: Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn) und dem Kunden gelten ausschließlich die nachfolgenden Allgemeinen Geschäftsbedingungen in ihrer zum Zeitpunkt der Bestellung gültigen Fassung.
+                                (2) Das Warenangebot in unserem Online-Shop richtet sich ausschließlich an Verbraucher, die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
                             </p>
                         </div>
 
-                        {{-- §2 --}}
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">2. Vertragsschluss</h3>
+                        {{-- §2 Vertragsschluss --}}
+                        <div id="vertragsschluss" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Vertragsschluss</h3>
+                            <p>
+                                (1) Die Präsentation der Waren im Online-Shop stellt kein rechtlich bindendes Angebot, sondern einen unverbindlichen Online-Katalog dar.
+                            </p>
                             <p class="mt-2">
-                                Die Darstellung der Produkte auf dieser Website dient zur Präsentation unseres Portfolios. Der eigentliche Verkauf und Vertragsschluss erfolgt in der Regel über unseren Shop auf der Plattform <strong>Etsy</strong> (www.etsy.com) oder über unser Anfrageformular.
-                                <br>
-                                Soweit Sie über Etsy bestellen, gelten zusätzlich die AGB und Nutzungsbedingungen von Etsy.
-                                <br>
-                                Bei individuellen Aufträgen, die per E-Mail, Telefon oder über das Anfrage-Tool dieser Website geschlossen werden, kommt der Kaufvertrag durch unsere explizite Auftragsbestätigung (nicht die automatische Eingangsbestätigung) zustande.
+                                (2) <strong>Bestellungen über Etsy:</strong> Soweit Sie Waren über unseren Shop auf der Plattform Etsy bestellen, gelten vorrangig die dortigen technischen Schritte zum Vertragsschluss sowie die AGB und Nutzungsbedingungen von Etsy.
+                            </p>
+                            <p class="mt-2">
+                                (3) <strong>Individuelle Aufträge:</strong> Bei Bestellungen, die individuell per E-Mail, Telefon oder über das Anfrageformular dieser Website vereinbart werden, erhalten Sie von uns zunächst ein verbindliches Angebot. Der Vertrag kommt zustande, wenn Sie dieses Angebot durch eine Bestätigung (z.B. per E-Mail) oder durch Zahlung des Rechnungsbetrages annehmen.
                             </p>
                         </div>
 
-                        {{-- §3 - ANGEPASST: Preise inkl. Versand --}}
                         <div>
                             <h3 class="font-bold text-lg text-gray-900">3. Preise und Zahlung</h3>
                             <p class="mt-2">
-                                Die angegebenen Preise sind Endpreise. <strong>Die Preise enthalten die gesetzliche Umsatzsteuer sowie die Versandkosten innerhalb Deutschlands.</strong>
+                                (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer.
                                 <br>
-                                Die Zahlung erfolgt per Überweisung (Vorkasse) nach Rechnungserhalt oder über die im Checkout angebotenen Zahlungsdienstleister.
+                                (2) Ihnen stehen folgende Zahlungsarten zur Verfügung:
+                            </p>
+                            <ul class="list-disc list-inside ml-4 mt-2 mb-2">
+                                <li>Vorkasse (Überweisung)</li>
+                                <li>Kreditkarte (Visa, Mastercard, American Express)</li>
+                                <li>Apple Pay / Google Pay</li>
+                                {{-- Falls du Klarna/Sofort über Stripe anbietest: --}}
+                                <li>Sofortüberweisung / Klarna</li>
+                            </ul>
+                            <p>
+                                Die Abwicklung der Kartenzahlungen und digitalen Wallets erfolgt über den Zahlungsdienstleister <strong>Stripe Payments Europe, Ltd.</strong> Die Belastung Ihres Kontos erfolgt unmittelbar nach Abschluss der Bestellung.
                             </p>
                         </div>
 
-                        {{-- §4 VERSAND - ANGEPASST: Kostenlos --}}
-                        <div id="versand" class="bg-gray-50 p-6 rounded-lg border border-gray-100 scroll-mt-24">
+                        {{-- §4 Lieferung (Optimiert für personalisierte Ware) --}}
+                        <div id="lieferung" class="bg-gray-50 p-6 rounded-xl border border-gray-100 scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-4 flex items-center gap-2">
-                                4. Versand- und Lieferbedingungen
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                                4. Lieferung, Warenverfügbarkeit & Fertigungszeiten
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </h3>
 
                             <div class="space-y-4">
-                                <div>
-                                    <strong class="block text-gray-900 mb-1">4.1 Kostenloser Versand (Deutschland)</strong>
-                                    <p>
-                                        Wir liefern innerhalb Deutschlands <strong>versandkostenfrei</strong>. Es fallen für Sie keine zusätzlichen Versandgebühren an, da diese bereits in unseren Produktpreisen einkalkuliert sind.
-                                        <br>
-                                        <em class="text-sm text-gray-500">Hinweis: Für Lieferungen ins Ausland bitten wir um vorherige Anfrage, da hierfür gesonderte Gebühren anfallen können.</em>
-                                    </p>
-                                </div>
+                                <p>
+                                    (1) <strong>Versandkostenfrei in DE:</strong> Wir liefern innerhalb Deutschlands versandkostenfrei.
+                                </p>
 
                                 <div>
-                                    <strong class="block text-gray-900 mb-1">4.2 Lieferzeiten & Fertigung</strong>
+                                    <strong class="block text-gray-900 mb-1">4.2 Berechnung der Lieferzeit</strong>
                                     <p>
-                                        Da es sich bei unseren Artikeln oft um personalisierte Anfertigungen handelt, setzt sich die Lieferzeit aus zwei Komponenten zusammen:
+                                        Da wir viele Artikel speziell nach Ihren Wünschen anfertigen (Personalisierung), setzt sich die gesamte Lieferzeit aus der Fertigungszeit und der Paketlaufzeit zusammen:
                                     </p>
-                                    <ul class="list-disc list-inside ml-2 mt-2 space-y-1 text-sm bg-white p-3 rounded border border-gray-200">
-                                        <li><strong>Fertigungszeit:</strong> In der Regel 1-3 Werktage nach Zahlungseingang (bei Vorkasse) bzw. Vertragsschluss.</li>
-                                        <li><strong>Paketlaufzeit:</strong> In der Regel 1-3 Werktage durch unseren Versanddienstleister (DHL).</li>
+                                    <ul class="mt-3 grid gap-3 md:grid-cols-2">
+                                        <li class="bg-white p-3 rounded border border-gray-200 shadow-sm">
+                                            <span class="block text-xs text-gray-500 uppercase font-bold tracking-wider">Schritt 1</span>
+                                            <strong class="text-primary">Fertigungszeit</strong>
+                                            <span class="block text-sm text-gray-600">ca. 1-3 Werktage nach Zahlungseingang (bei Vorkasse) bzw. Vertragsschluss.</span>
+                                        </li>
+                                        <li class="bg-white p-3 rounded border border-gray-200 shadow-sm">
+                                            <span class="block text-xs text-gray-500 uppercase font-bold tracking-wider">Schritt 2</span>
+                                            <strong class="text-primary">Paketlaufzeit</strong>
+                                            <span class="block text-sm text-gray-600">ca. 1-3 Werktage durch den Versanddienstleister (DHL).</span>
+                                        </li>
                                     </ul>
-                                    <p class="mt-2">
-                                        Feste Liefertermine (z.B. für Jubiläen) bedürfen unserer ausdrücklichen schriftlichen Bestätigung.
-                                    </p>
                                 </div>
 
-                                <div>
-                                    <strong class="block text-gray-900 mb-1">4.3 Versanddienstleister & Packstationen</strong>
-                                    <p>
-                                        Wir versenden standardmäßig als versichertes Paket mit <strong>DHL</strong>. Sie erhalten nach dem Versand eine E-Mail mit der Sendungsnummer zur Nachverfolgung.
-                                        Die Lieferung an DHL Packstationen ist möglich. Bitte geben Sie hierfür Ihre Postnummer in der Adresse an.
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <strong class="block text-gray-900 mb-1">4.4 Teillieferungen</strong>
-                                    <p>
-                                        Wir sind zu Teillieferungen berechtigt, soweit dies für Sie zumutbar ist. Zusätzliche Kosten entstehen Ihnen hierdurch nicht.
-                                    </p>
-                                </div>
+                                <p class="text-sm text-gray-600 italic mt-2">
+                                    (3) Sollten nicht alle bestellten Produkte vorrätig sein, sind wir zu Teillieferungen auf unsere Kosten berechtigt, soweit dies für Sie zumutbar ist.
+                                </p>
+                                <p class="text-sm text-gray-600 italic">
+                                    (4) Sollte die Zustellung der Ware durch Ihr Verschulden scheitern, können wir vom Vertrag zurücktreten. Ggf. geleistete Zahlungen werden Ihnen unverzüglich erstattet.
+                                </p>
                             </div>
                         </div>
 
-                        {{-- §5 --}}
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">5. Eigentumsvorbehalt</h3>
+                        {{-- §5 Eigentumsvorbehalt --}}
+                        <div id="eigentum" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">5. Eigentumsvorbehalt</h3>
+                            <p>Bis zur vollständigen Bezahlung bleibt die Ware unser Eigentum.</p>
+                        </div>
+
+                        {{-- §6 Transportschäden --}}
+                        <div id="transportschaeden" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">6. Transportschäden</h3>
+                            <p>
+                                (1) Werden Waren mit offensichtlichen Transportschäden angeliefert, so reklamieren Sie solche Fehler bitte möglichst sofort beim Zusteller und nehmen Sie bitte unverzüglich Kontakt zu uns auf.
+                            </p>
                             <p class="mt-2">
-                                Die Ware bleibt bis zur vollständigen Bezahlung aller Forderungen aus dem Kaufvertrag unser Eigentum.
+                                (2) Die Versäumung einer Reklamation oder Kontaktaufnahme hat für Ihre gesetzlichen Ansprüche und deren Durchsetzung, insbesondere Ihre Gewährleistungsrechte, keinerlei Konsequenzen. Sie helfen uns aber, unsere eigenen Ansprüche gegenüber dem Frachtführer bzw. der Transportversicherung geltend machen zu können.
                             </p>
                         </div>
 
-                        {{-- §6 --}}
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">6. Transportschäden</h3>
+                        {{-- §7 Gewährleistung --}}
+                        <div id="gewaehrleistung" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Gewährleistung und Mängelhaftung</h3>
+                            <p>
+                                (1) Es besteht ein gesetzliches Mängelhaftungsrecht.
+                            </p>
                             <p class="mt-2">
-                                Werden Waren mit offensichtlichen Transportschäden angeliefert, so reklamieren Sie solche Fehler bitte sofort beim Zusteller und nehmen Sie bitte schnellstmöglich Kontakt zu uns auf.
+                                (2) <strong>Hinweis zu Naturprodukten:</strong> Holz, Schiefer und ähnliche Naturmaterialien unterliegen Schwankungen in Farbe, Maserung und Beschaffenheit. Solche naturbedingten Abweichungen sowie materialtypische Merkmale (z.B. Asteinschlüsse bei Holz) stellen keinen Mangel dar, solange die Tauglichkeit zum vertraglich vorausgesetzten Gebrauch nicht beeinträchtigt ist.
+                            </p>
+                            <p class="mt-2">
+                                (3) Bei personalisierten Produkten stellt eine subjektiv nicht gefallende Gestaltung (z.B. Schriftart, Platzierung), die jedoch den Vorgaben der Bestellung entspricht, keinen Mangel dar.
+                            </p>
+                        </div>
+
+                        {{-- §8 Streitbeilegung --}}
+                        <div id="streitbeilegung" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">8. Streitbeilegung</h3>
+                            <p>
+                                Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit, die Sie hier finden: <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline decoration-primary underline-offset-2">https://ec.europa.eu/consumers/odr/</a>.
                                 <br>
-                                Die Versäumung einer Reklamation oder Kontaktaufnahme hat für Ihre gesetzlichen Ansprüche und deren Durchsetzung, insbesondere Ihre Gewährleistungsrechte, keinerlei Konsequenzen. Sie helfen uns aber, unsere eigenen Ansprüche gegenüber dem Frachtführer bzw. der Transportversicherung geltend machen zu können.
-                            </p>
-                        </div>
-
-                        {{-- §7 --}}
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">7. Gewährleistung und Haftung</h3>
-                            <p class="mt-2">
-                                Es gilt das gesetzliche Mängelhaftungsrecht. Bei personalisierten Produkten stellt eine subjektiv nicht gefallende Gestaltung (z.B. Schriftart, Positionierung), die aber der Bestellung entspricht, keinen Mangel dar. Geringfügige Abweichungen in Farbe und Materialbeschaffenheit (z.B. bei Naturprodukten wie Holz oder Schiefer) sind fertigungsbedingt und stellen keinen Reklamationsgrund dar.
-                            </p>
-                        </div>
-
-                        {{-- §8 --}}
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">8. Streitbeilegung</h3>
-                            <p class="mt-2">
-                                Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit, die Sie hier finden: <a href="https://ec.europa.eu/consumers/odr/" target="_blank" class="text-primary hover:underline">https://ec.europa.eu/consumers/odr/</a>.
-                                Wir sind nicht bereit und nicht verpflichtet, an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
+                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
                             </p>
                         </div>
 
                     </div>
                 </div>
 
-                <div class="bg-gray-50 p-6 rounded-xl border border-gray-100">
-                    <h2 class="text-2xl font-bold text-gray-900 mb-6 border-b pb-2">Widerrufsbelehrung</h2>
+                <div id="widerruf" class="scroll-mt-28">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-3">
+                        <span class="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-normal">II</span>
+                        Widerrufsbelehrung
+                    </h2>
 
-                    <div class="bg-red-50 border-l-4 border-red-500 p-6 mb-8 rounded-r-md shadow-sm">
-                        <div class="flex items-start gap-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600 flex-shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
+                    {{-- Warnbox: Ausschluss --}}
+                    <div class="bg-red-50 border-l-4 border-red-500 p-6 mb-10 rounded-r-xl shadow-sm">
+                        <div class="flex items-start gap-4">
+                            <div class="flex-shrink-0 mt-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
                             <div>
-                                <h3 class="font-bold text-red-700 text-lg">Ausschluss des Widerrufsrechts bei personalisierter Ware</h3>
-                                <p class="text-red-900 mt-2 font-medium">
-                                    Das Widerrufsrecht besteht <u>nicht</u> bei Verträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind.
+                                <h3 class="font-bold text-red-800 text-lg">Wichtiger Hinweis zum Ausschluss des Widerrufsrechts</h3>
+                                <p class="text-red-800 mt-2 text-sm leading-relaxed">
+                                    Das Widerrufsrecht besteht, soweit die Parteien nichts anderes vereinbart haben, <strong>nicht</strong> bei folgenden Verträgen:
                                 </p>
-                                <p class="text-red-900 mt-2">
-                                    <strong>Das bedeutet: Da wir unsere Produkte (Glas, Schiefer, Metall etc.) speziell nach Ihren Wünschen mit individuellen Gravuren (Namen, Daten, Fotos) anfertigen, ist eine Rückgabe oder ein Widerruf für diese Artikel ausgeschlossen.</strong>
+                                <ul class="list-disc list-outside ml-4 mt-2 text-red-800 text-sm font-medium">
+                                    <li>Verträge zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (§ 312g Abs. 2 Nr. 1 BGB).</li>
+                                </ul>
+                                <p class="text-red-900 mt-3 font-bold text-sm bg-white/50 p-2 rounded inline-block border border-red-100">
+                                    Dies gilt für alle unsere Produkte, die wir speziell für Sie gravieren, bedrucken oder anderweitig personalisieren.
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    <p class="font-bold mb-2">Widerrufsrecht (nur für NICHT personalisierte Standardware)</p>
-                    <p class="mb-4">
-                        Soweit Sie Artikel bestellen, die <strong>nicht</strong> personalisiert sind (z.B. Standard-Zubehör ohne Gravur), haben Sie das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
-                        Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.
-                    </p>
+                    <div class="prose prose-gray max-w-none text-gray-700">
+                        <p class="font-medium bg-gray-100 p-2 inline-block rounded text-sm mb-4">
+                            Für alle anderen Waren (z.B. Standard-Zubehör ohne Personalisierung) gilt folgendes Widerrufsrecht:
+                        </p>
 
-                    <p class="mb-4">
-                        Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (Mein Seelenfunke, Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn, E-Mail: kontakt@mein-seelenfunke.de, Tel: +49 159 019 668 64) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren.
-                    </p>
+                        <h3 class="font-bold text-lg text-gray-900">Widerrufsrecht</h3>
+                        <p>
+                            Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.
+                            Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.
+                        </p>
+                        <p>
+                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>Mein Seelenfunke, Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn, E-Mail: kontakt@mein-seelenfunke.de, Tel: +49 159 019 668 64</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
+                        </p>
+                        <p>
+                            Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
+                        </p>
 
-                    <p class="mb-4">
-                        Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
-                    </p>
-
-                    <h3 class="font-bold text-lg mt-6">Folgen des Widerrufs</h3>
-                    <p class="mb-4">
-                        Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist.
-                    </p>
-                    <p>
-                        Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben.
-                        Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben.
-                        Sie tragen die unmittelbaren Kosten der Rücksendung der Waren.
-                    </p>
+                        <h3 class="font-bold text-lg text-gray-900 mt-6">Folgen des Widerrufs</h3>
+                        <p>
+                            Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.
+                        </p>
+                        <p>
+                            Wir können die Rückzahlung verweigern, bis wir die Waren wieder zurückerhalten haben oder bis Sie den Nachweis erbracht haben, dass Sie die Waren zurückgesandt haben, je nachdem, welches der frühere Zeitpunkt ist.
+                        </p>
+                        <p>
+                            Sie haben die Waren unverzüglich und in jedem Fall spätestens binnen vierzehn Tagen ab dem Tag, an dem Sie uns über den Widerruf dieses Vertrags unterrichten, an uns zurückzusenden oder zu übergeben. Die Frist ist gewahrt, wenn Sie die Waren vor Ablauf der Frist von vierzehn Tagen absenden.
+                        </p>
+                        <p class="font-semibold">
+                            Sie tragen die unmittelbaren Kosten der Rücksendung der Waren.
+                        </p>
+                        <p>
+                            Sie müssen für einen etwaigen Wertverlust der Waren nur aufkommen, wenn dieser Wertverlust auf einen zur Prüfung der Beschaffenheit, Eigenschaften und Funktionsweise der Waren nicht notwendigen Umgang mit ihnen zurückzuführen ist.
+                        </p>
+                    </div>
                 </div>
 
-                <div>
+                <div id="widerrufsformular" class="scroll-mt-28">
                     <h2 class="text-2xl font-bold text-gray-900 mb-6 border-b pb-2">Muster-Widerrufsformular</h2>
 
-                    {{-- DOWNLOAD BUTTON --}}
                     <div class="mb-8">
-                        <p class="text-gray-600 mb-3 text-sm">Sie können das Formular bequem als PDF herunterladen oder den Text unten kopieren:</p>
+                        <p class="text-gray-600 mb-4">Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.</p>
 
                         <a href="{{ asset('images/projekt/downloads/Widerrufsformular.pdf') }}" target="_blank" download="Widerrufsformular_MeinSeelenfunke.pdf"
-                           class="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-md font-bold hover:bg-primary-dark transition-colors shadow-sm group">
-
-                            {{-- Icon: Download --}}
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:translate-y-1 transition-transform">
+                           class="inline-flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-lg font-bold hover:bg-gray-800 transition-all shadow-md group hover:-translate-y-0.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:scale-110 transition-transform">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3.75" />
                             </svg>
-                            Formular als PDF herunterladen
+                            <span>Formular als PDF herunterladen</span>
                         </a>
                     </div>
 
-                    {{-- TEXT VERSION --}}
-                    <div class="border-2 border-dashed border-gray-300 p-6 rounded-lg bg-white">
-                        <p class="text-sm italic mb-4">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</p>
-
-                        <p class="mb-4">
-                            <strong>An:</strong><br>
+                    <div class="border border-gray-200 p-8 rounded-xl bg-white shadow-sm text-gray-800 font-mono text-sm leading-relaxed">
+                        <p class="mb-6 font-bold">
+                            An:<br>
                             Mein Seelenfunke<br>
                             Alina Steinhauer<br>
                             Carl-Goerdeler-Ring 26<br>
@@ -204,22 +243,26 @@
                             E-Mail: kontakt@mein-seelenfunke.de
                         </p>
 
-                        <p class="mb-4">
+                        <p class="mb-6">
                             Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*):
                         </p>
-                        <hr class="border-gray-300 my-4">
 
-                        <p class="mb-2">Bestellt am (*) / erhalten am (*): __________________________</p>
-                        <p class="mb-2">Name des/der Verbraucher(s): __________________________</p>
-                        <p class="mb-4">Anschrift des/der Verbraucher(s): __________________________</p>
+                        <div class="h-px bg-gray-200 w-full my-6"></div>
 
-                        <br><br>
-                        <p>_______________________________________________________</p>
-                        <p class="text-sm">Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
-                        <br>
-                        <p>Datum: __________________</p>
+                        <div class="space-y-4">
+                            <p>Bestellt am (*) / erhalten am (*): <span class="inline-block border-b border-gray-300 w-48">&nbsp;</span></p>
+                            <p>Name des/der Verbraucher(s): <span class="inline-block border-b border-gray-300 w-48">&nbsp;</span></p>
+                            <p>Anschrift des/der Verbraucher(s): <span class="inline-block border-b border-gray-300 w-64">&nbsp;</span></p>
+                        </div>
 
-                        <p class="text-xs mt-4">(*) Unzutreffendes streichen.</p>
+                        <div class="mt-12 mb-4">
+                            <span class="inline-block border-b border-gray-300 w-2/3">&nbsp;</span>
+                            <p class="text-xs text-gray-500 mt-1">Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</p>
+                        </div>
+
+                        <p class="mb-4">Datum: <span class="inline-block border-b border-gray-300 w-32">&nbsp;</span></p>
+
+                        <p class="text-xs text-gray-400 mt-8">(*) Unzutreffendes streichen.</p>
                     </div>
                 </div>
 

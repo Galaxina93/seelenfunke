@@ -130,33 +130,44 @@
                             @endif
                         </div>
 
-                        {{-- HIER IST DIE ÄNDERUNG --}}
                         <div class="flex flex-col gap-1 mt-1">
-                    <span class="text-xs text-gray-500">
-                        @if($this->product->tax_included)
-                            inkl. MwSt.
-                        @else
-                            zzgl. MwSt.
-                        @endif
-                    </span>
-                            <span class="text-xs font-bold text-green-700 flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
-                        </svg>
-                        Kostenloser Versand
+                            {{-- 1. Steuerhinweis (Bestehend) --}}
+                            <span class="text-xs text-gray-500">
+                                @if($this->product->tax_included)
+                                    inkl. MwSt.
+                                @else
+                                    zzgl. MwSt.
+                                @endif
+                            </span>
 
-                        {{-- Der Link zu den Details bleibt, ist aber dezenter --}}
-                        <a href="{{ route('terms') }}#versand" target="_blank" class="font-normal text-gray-400 underline hover:text-primary ml-1">
-                            (Details)
-                        </a>
-                    </span>
+                            {{-- 2. Dynamischer Versandhinweis (NEU) --}}
+                            @php
+                                $freeThreshold = config('shop.shipping.free_threshold', 5000); // z.B. 5000 Cents
+                                $shippingCost = config('shop.shipping.cost', 490); // z.B. 490 Cents
+                                $isFree = $this->product->price >= $freeThreshold;
+                            @endphp
+
+                            @if($isFree)
+                                {{-- Fall A: Artikel ist teurer als die Grenze -> Kostenlos --}}
+                                <span class="text-xs font-bold text-green-700 flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                                    </svg>
+                                    Kostenloser Versand
+                                </span>
+                            @else
+                                {{-- Fall B: Artikel kostet Versand -> Hinweis auf Grenze --}}
+                                <span class="text-xs text-gray-500">
+                                    zzgl. {{ number_format($shippingCost / 100, 2, ',', '.') }} € Versand
+                                    <span class="text-gray-400">(frei ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} €)</span>
+                                    <a href="{{ route('terms') }}#versand" target="_blank" class="underline hover:text-primary ml-1">Details</a>
+                                </span>
+                            @endif
                         </div>
-                    </div>
-                </div>
 
                 {{-- Lagerbestand & SKU --}}
-                <div class="flex items-center gap-4 mb-8 text-sm">
+                <div class="flex items-center gap-4 mb-8 mt-4 text-sm">
                     @if($this->product->track_quantity)
                         @if($this->product->quantity > 0)
                             <span class="inline-flex items-center gap-1.5 text-green-700 font-medium">

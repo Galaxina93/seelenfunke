@@ -41,7 +41,7 @@ class ProductCreate extends Component
     // Status (Enum)
     public $status = 'draft';
 
-    // --- NEU: Versanddaten (Schritt 1 oder 3) ---
+    // --- Versanddaten
     public $weight = 0; // Gramm
     public $height = 0; // mm
     public $width = 0;  // mm
@@ -57,9 +57,6 @@ class ProductCreate extends Component
     public $new_media = [];
     public $new_video;
     public $new_preview_image;
-
-    // --- Pricing Tiers ---
-    public $tiers = [];
 
     // --- SCHRITT 3: Attribute & Lager ---
     public $productAttributes = [
@@ -180,7 +177,15 @@ class ProductCreate extends Component
             ? number_format($this->product->compare_at_price / 100, 2, '.', '')
             : '';
 
-        $this->tiers = $this->product->tier_pricing ?? [];
+        // --- NEU: Staffelpreise laden (aus der neuen Relation) ---
+        // Wir mappen es in ein Array, damit Livewire es bearbeiten kann
+        $this->tiers = $this->product->tierPrices->map(function($tier) {
+            return [
+                'id' => Str::uuid()->toString(), // <--- NEU: Eindeutige ID
+                'qty' => $tier->qty,
+                'percent' => $tier->percent
+            ];
+        })->toArray();
 
         // Arrays Mergen
         $this->productAttributes = array_merge($this->productAttributes, $this->product->attributes ?? []);
@@ -193,14 +198,12 @@ class ProductCreate extends Component
     }
 
     // --- UPDATE LOGIC ---
-
     public function updatedName($value)
     {
         if (empty($this->slug_input)) {
             $this->slug_input = Str::slug($value);
         }
     }
-
     public function updatedTaxClass($value)
     {
         // Wir holen den aktuellen Satz aus der 'tax_rates' Tabelle
@@ -212,14 +215,12 @@ class ProductCreate extends Component
 
         $this->current_tax_rate = $rate ? (float)$rate : 19.00;
     }
-
     public function updatedSlugInput($value)
     {
         $this->slug_input = Str::slug($value);
     }
 
     // --- NAVIGATION & STATUS ---
-
     public function updateStatus($id, $newStatus)
     {
         // Validierung gegen Enum-Werte
@@ -233,7 +234,6 @@ class ProductCreate extends Component
             $prod->save();
         }
     }
-
     public function backToList()
     {
         $this->viewMode = 'list';
@@ -243,7 +243,6 @@ class ProductCreate extends Component
     }
 
     // --- WIZARD NAVIGATION ---
-
     public function goToStep($step)
     {
         if ($step > $this->product->completion_step + 1 && $this->product->completion_step < 4) return;
@@ -253,7 +252,6 @@ class ProductCreate extends Component
         }
         $this->currentStep = $step;
     }
-
     public function nextStep()
     {
         if(!$this->canProceed()) return;
@@ -263,12 +261,10 @@ class ProductCreate extends Component
         $this->save(false);
         if($this->currentStep < $this->totalSteps) $this->currentStep++;
     }
-
     public function prevStep()
     {
         if($this->currentStep > 1) $this->currentStep--;
     }
-
     public function canProceed()
     {
         if ($this->currentStep === 1) {
@@ -287,7 +283,6 @@ class ProductCreate extends Component
         }
         return true;
     }
-
     public function finish()
     {
         if(!$this->canProceed()) return;
@@ -322,7 +317,6 @@ class ProductCreate extends Component
         $this->new_media = [];
         session()->flash('success', 'Bilder hochgeladen!');
     }
-
     public function updatedNewVideo()
     {
         $this->validate(['new_video' => 'mimetypes:video/mp4,video/quicktime|max:51200']);
@@ -334,7 +328,6 @@ class ProductCreate extends Component
         $this->product->save();
         $this->new_video = null;
     }
-
     public function setMainImage($index)
     {
         $gallery = $this->product->media_gallery;
@@ -346,7 +339,6 @@ class ProductCreate extends Component
             $this->product->save();
         }
     }
-
     private function resizeAndSaveImage($sourcePath, $destinationPath)
     {
         list($width, $height, $type) = getimagesize($sourcePath);
@@ -371,7 +363,6 @@ class ProductCreate extends Component
         Storage::disk('public')->put($destinationPath, $imageData);
         imagedestroy($src); imagedestroy($dst);
     }
-
     public function removeMedia($index)
     {
         $gallery = $this->product->media_gallery;
@@ -380,7 +371,6 @@ class ProductCreate extends Component
         $this->product->media_gallery = array_values($gallery);
         $this->product->save();
     }
-
     public function updatedNewPreviewImage()
     {
         $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
@@ -389,7 +379,6 @@ class ProductCreate extends Component
         $this->product->save();
         $this->new_preview_image = null;
     }
-
     public function removePreviewImage()
     {
         if($this->product->preview_image_path) {
@@ -406,7 +395,7 @@ class ProductCreate extends Component
         // 1. Basisdaten
         $this->product->name = $this->name;
         $this->product->description = $this->description;
-        $this->product->short_description = $this->product->short_description;
+        $this->product->short_description = $this->short_description; // $this->product->short_description = $this->product->short_description;
 
         // 2. Slug Logik
         if (!empty($this->slug_input)) {
@@ -444,7 +433,7 @@ class ProductCreate extends Component
             $this->product->compare_at_price = null;
         }
 
-        // 8. Versanddaten (Neu)
+        // 8. Versanddaten
         $this->product->weight = (int) $this->weight;
         $this->product->height = (int) $this->height;
         $this->product->width = (int) $this->width;

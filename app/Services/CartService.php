@@ -220,9 +220,10 @@ class CartService
 
         $subtotalGross = 0;
         $originalSubtotal = 0;
-        $taxesBreakdown = [];
+        $taxesBreakdown = []; // Sammelt Produktsteuern (19%, 7%, 0% aus DB)
         $itemCount = 0;
 
+        // 1. ARTIKEL DURCHLAUFEN & STEUERN SAMMELN
         foreach ($cart->items as $item) {
             $product = $item->product;
             if (!$product) continue;
@@ -230,19 +231,22 @@ class CartService
             $qty = $item->quantity;
             $itemCount += $qty;
 
-            // 1. Zeilensumme
+            // Zeilensumme
             $lineGross = $item->unit_price * $qty;
             $subtotalGross += $lineGross;
 
-            // 2. Originalpreis
+            // Originalpreis (für Streichpreis-Berechnung)
             $basePrice = $product->price;
+            // Falls Netto-Preise gepflegt werden, hier Brutto errechnen
             if ($product->tax_included === false) {
                 $basePrice = (int) round($basePrice * (1 + (($product->tax_rate ?? 19.0) / 100)));
             }
             $originalSubtotal += ($basePrice * $qty);
 
-            // 3. Steueranteil
+            // Steueranteil pro Zeile berechnen (Respektiert Produkt-Einstellung: 19, 7 oder 0)
             $taxRate = (float) ($product->tax_rate ?? 19.0);
+
+            // Rückwärtsrechnung aus Brutto: Betrag / 1.19
             $lineNet = (int) round($lineGross / (1 + ($taxRate / 100)));
             $lineTax = $lineGross - $lineNet;
 
@@ -253,12 +257,12 @@ class CartService
 
         $volumeDiscount = max(0, $originalSubtotal - $subtotalGross);
 
-        // --- GUTSCHEIN ---
+        // 2. GUTSCHEIN BERECHNUNG
         $discountAmount = 0;
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
-            $coupon = Coupon::where('code', $couponCode)->first();
+            $coupon = \App\Models\Coupon::where('code', $couponCode)->first(); // Model Pfad ggf. anpassen
 
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
@@ -270,6 +274,7 @@ class CartService
                     } elseif ($coupon->type === 'percent') {
                         $discountAmount = (int) round($subtotalGross * ($coupon->value / 100));
                     }
+                    // Rabatt darf nicht höher als Warenwert sein
                     $discountAmount = min($discountAmount, $subtotalGross);
                 }
             } else {
@@ -278,30 +283,71 @@ class CartService
             }
         }
 
-        // --- VERSAND (KORRIGIERT: Immer kostenlos) ---
-        $shippingGross = 0;
+        // Zwischensumme nach Rabatt (Basis für Versandfrei-Grenze)
+        $totalAfterDiscount = max(0, $subtotalGross - $discountAmount);
 
-        // --- ENDSUMME ---
-        $totalAfterDiscount = $subtotalGross - $discountAmount;
-        $finalTotalGross = $totalAfterDiscount + $shippingGross;
+        // 3. VERSANDKOSTEN (NEU)
+        // Werte aus Config holen oder Default setzen
+        $shippingConfigCost = config('shop.shipping.cost', 490);
+        $shippingThreshold = config('shop.shipping.free_threshold', 5000);
+        $shippingTaxRate = config('shop.shipping.tax_rate', 19);
 
-        // --- STEUER KORREKTUR ---
+        $shippingGross = $shippingConfigCost;
+        $isFreeShipping = false;
+        $missingForFreeShipping = 0;
+
+        // Prüfen ob Schwellwert erreicht
+        if ($totalAfterDiscount >= $shippingThreshold) {
+            $shippingGross = 0;
+            $isFreeShipping = true;
+        } else {
+            $missingForFreeShipping = $shippingThreshold - $totalAfterDiscount;
+        }
+
+        // 4. STEUER KORREKTUR (Rabatt auf Produktsteuern verteilen)
+        // Wir reduzieren die gesammelten Produktsteuern anteilig um den Rabatt
         $discountRatio = $subtotalGross > 0 ? ($totalAfterDiscount / $subtotalGross) : 1;
 
         foreach($taxesBreakdown as $key => $val) {
             $taxesBreakdown[$key] = (int) round($val * $discountRatio);
         }
+
+        // 5. VERSANDSTEUER HINZUFÜGEN
+        // Versand ist eine Dienstleistung und muss versteuert werden (meist 19%)
+        // Diese kommt NACH dem Rabatt dazu (Rabatte gelten meist nicht auf Versand)
+        $shippingTaxAmount = 0;
+        if ($shippingGross > 0) {
+            $shippingNet = (int) round($shippingGross / (1 + ($shippingTaxRate / 100)));
+            $shippingTaxAmount = $shippingGross - $shippingNet;
+
+            // Zur Breakdown hinzufügen
+            $strShipRate = number_format($shippingTaxRate, 0);
+            if (!isset($taxesBreakdown[$strShipRate])) $taxesBreakdown[$strShipRate] = 0;
+            $taxesBreakdown[$strShipRate] += $shippingTaxAmount;
+        }
+
+        // Gesamtsummen finalisieren
+        $finalTotalGross = $totalAfterDiscount + $shippingGross;
         $finalTotalTax = array_sum($taxesBreakdown);
 
         return [
-            'subtotal_original' => $originalSubtotal,
-            'subtotal_gross' => $subtotalGross,
+            'subtotal_original' => $originalSubtotal, // Vor Rabatten (Streichpreis Summe)
+            'subtotal_gross' => $subtotalGross,       // Aktueller Warenwert
             'volume_discount' => $volumeDiscount,
             'discount_amount' => $discountAmount,
             'coupon_code' => $couponCode,
+
+            // Steuer Infos
             'tax' => $finalTotalTax,
-            'taxes_breakdown' => $taxesBreakdown,
+            'taxes_breakdown' => $taxesBreakdown, // Enthält jetzt Produktsteuern (anteilig rabattiert) + Versandsteuer
+
+            // Versand Infos
             'shipping' => $shippingGross,
+            'shipping_tax' => $shippingTaxAmount,
+            'is_free_shipping' => $isFreeShipping,
+            'missing_for_free_shipping' => $missingForFreeShipping,
+
+            // Endsumme
             'total' => max(0, $finalTotalGross),
             'item_count' => $itemCount
         ];

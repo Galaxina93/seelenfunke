@@ -289,11 +289,23 @@ return new class extends Migration
 
             $table->timestamps();
         });
+
+        // Staffelpreise
+        Schema::create('product_tier_prices', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
+
+            $table->integer('qty'); // Ab Menge X (z.B. 5)
+            $table->decimal('percent', 5, 2); // Rabatt in Prozent (z.B. 5.00)
+
+            $table->timestamps();
+        });
     }
 
     public function down(): void
     {
 
+        Schema::dropIfExists('product_tier_prices');
         Schema::dropIfExists('quote_request_items');
         Schema::dropIfExists('quote_requests');
         Schema::dropIfExists('invoices');

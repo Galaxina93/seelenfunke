@@ -133,4 +133,9 @@ class Product extends Model
         // Sonst: Nur verfügbar, wenn Menge > 0
         return $this->quantity > 0;
     }
+
+    public function tierPrices()
+    {
+        return $this->hasMany(ProductTierPrice::class)->orderBy('qty', 'asc');
+    }
 }

@@ -68,13 +68,12 @@ class Calculator extends Component
 
     public function loadProducts()
     {
-        // Wir laden nur die Basis-Daten. Die Details holt sich der Configurator selbst.
-        $products = Product::where('status', 'active')->get();
+        // FIX: Relation 'tierPrices' mitladen
+        $products = Product::with('tierPrices')->where('status', 'active')->get();
 
         $this->dbProducts = $products->map(function($p) {
             $previewPath = $p->preview_image_path;
 
-            // Fallback auf Galeriebild
             if (empty($previewPath) && !empty($p->media_gallery)) {
                 foreach($p->media_gallery as $media) {
                     if (($media['type'] ?? '') === 'image') {
@@ -84,28 +83,30 @@ class Calculator extends Component
                 }
             }
 
-            // Preise vorbereiten
             $rawPrice = $p->price / 100;
             $rate = $p->tax_rate ? (float)$p->tax_rate : 19.00;
             $isGross = (bool)$p->tax_included;
 
-            // Anzeigepreis immer Netto für B2B (oder je nach Logik)
             $displayNetto = $isGross ? $rawPrice / (1 + ($rate / 100)) : $rawPrice;
 
             return [
                 'id' => $p->id,
                 'name' => $p->name,
                 'desc' => $p->short_description ?? 'Artikel',
-                'price' => $p->price / 100, // Basispreis
+                'price' => $p->price / 100,
                 'price_cents' => $p->price,
                 'display_price' => $displayNetto,
                 'tax_rate' => $rate,
                 'tax_included' => $isGross,
-                'tier_pricing' => $p->tier_pricing,
+
+                // FIX: Staffelpreise aus Relation holen und als Array speichern
+                'tier_pricing' => $p->tierPrices->map(fn($t) => [
+                    'qty' => $t->qty,
+                    'percent' => $t->percent
+                ])->toArray(),
+
                 'image' => !empty($p->media_gallery[0]['path']) ? 'storage/'.$p->media_gallery[0]['path'] : null,
                 'preview_image' => $previewPath ? 'storage/'.$previewPath : null,
-
-                // Configurator Settings (Logo erlaubt?) für die Anzeige im Katalog (Step 1)
                 'allow_logo' => $p->configurator_settings['allow_logo'] ?? true,
             ];
         })->keyBy('id')->toArray();

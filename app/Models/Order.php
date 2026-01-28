@@ -92,6 +92,40 @@ class Order extends Model
     }
 
     /**
+     * Berechnet den enthaltenen Steueranteil der Versandkosten.
+     * Wichtig für die korrekte Ausweisung auf Rechnungen.
+     */
+    public function getShippingTaxAmountAttribute()
+    {
+        if ($this->shipping_price <= 0) {
+            return 0;
+        }
+
+        // Steuersatz aus Config holen (Standard 19%, falls nicht konfiguriert)
+        // Dies entspricht der Logik im CartService
+        $taxRate = config('shop.shipping.tax_rate', 19);
+
+        // Rückwärtsrechnung: Brutto - (Brutto / 1.19)
+        return (int) round($this->shipping_price - ($this->shipping_price / (1 + ($taxRate / 100))));
+    }
+
+    /**
+     * Gibt den Netto-Versandpreis zurück.
+     */
+    public function getShippingNetPriceAttribute()
+    {
+        return $this->shipping_price - $this->shipping_tax_amount;
+    }
+
+    /**
+     * Prüft, ob der Versand für diese Bestellung kostenlos war.
+     */
+    public function getIsFreeShippingAttribute()
+    {
+        return $this->shipping_price === 0;
+    }
+
+    /**
      * Führt eine saubere Stornierung durch.
      */
     public function cancel(string $reason): void

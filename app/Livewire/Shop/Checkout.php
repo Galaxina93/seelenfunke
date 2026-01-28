@@ -261,14 +261,16 @@ class Checkout extends Component
                 'country' => $this->country,
             ],
 
+            // RABATTE
             'volume_discount' => $totals['volume_discount'] ?? 0,
             'coupon_code' => $totals['coupon_code'] ?? null,
             'discount_amount' => $totals['discount_amount'] ?? 0,
 
-            'subtotal_price' => $totals['subtotal_gross'],
-            'tax_amount' => $totals['tax'],
-            'shipping_price' => $totals['shipping'],
-            'total_price' => $totals['total'],
+            // KOSTENAUFSTELLUNG (PAngV konform getrennt)
+            'subtotal_price' => $totals['subtotal_gross'], // Warenwert nach Rabatt
+            'tax_amount' => $totals['tax'], // Enthaltene Steuer Gesamt
+            'shipping_price' => $totals['shipping'], // Hier landen die 4,90€ oder 0€
+            'total_price' => $totals['total'], // Endbetrag
         ]);
 
         foreach($cart->items as $item) {
