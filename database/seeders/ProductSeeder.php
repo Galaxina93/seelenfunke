@@ -4,15 +4,42 @@ namespace Database\Seeders;
 
 use App\Models\Product;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class ProductSeeder extends Seeder
 {
     public function run(): void
     {
         // ---------------------------------------------------------
+        // 0. Steuersätze initialisieren (Falls Tabelle leer)
+        // ---------------------------------------------------------
+        if (DB::table('tax_rates')->count() === 0) {
+            DB::table('tax_rates')->insert([
+                [
+                    'name' => 'Standard DE',
+                    'rate' => 19.00,
+                    'country_code' => 'DE',
+                    'tax_class' => 'standard',
+                    'is_default' => true,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ],
+                [
+                    'name' => 'Ermäßigt DE',
+                    'rate' => 7.00,
+                    'country_code' => 'DE',
+                    'tax_class' => 'reduced',
+                    'is_default' => false,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ],
+            ]);
+        }
+
+        // ---------------------------------------------------------
         // 1. Standard-Produkt (Der Bestseller)
         // ---------------------------------------------------------
-        Product::create([
+        $p1 = Product::create([
             // Basisdaten
             'name' => 'Der Seelen Kristall',
             'slug' => 'seelen-kristall',
@@ -20,11 +47,11 @@ class ProductSeeder extends Seeder
             'short_description' => 'Personalisiertes 3D-Glasgeschenk inkl. Geschenkbox.',
             'status' => 'active',
 
-            // Preis & Steuer
+            // Preis & Steuer (NEU: tax_class statt tax_rate)
             'price' => 3990, // 39,90 €
-            'compare_at_price' => 4990, // UVP 49,90 € (Zeigt "Angebot" an)
-            'cost_per_item' => 1250, // Einkauf: 12,50 € (für Margenberechnung)
-            'tax_class' => 'standard', // 19%
+            'compare_at_price' => 4990, // UVP 49,90 €
+            'cost_per_item' => 1250, // Einkauf
+            'tax_class' => 'standard', // Verknüpfung zu tax_rates
             'tax_included' => true,
 
             // Lager & Identifikation
@@ -32,19 +59,19 @@ class ProductSeeder extends Seeder
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
-            'quantity' => 150, // Guter Lagerbestand
-            'continue_selling_when_out_of_stock' => true, // Nachbestellung möglich
+            'quantity' => 150,
+            'continue_selling_when_out_of_stock' => true,
 
-            // Versand (Kompaktes Paket)
+            // Versand
             'is_physical_product' => true,
-            'weight' => 1250, // Gramm (inkl. Verpackung)
+            'weight' => 1250, // Gramm
             'height' => 70, // mm
             'width' => 244,  // mm
             'length' => 284, // mm
             'shipping_class' => 'paket_s',
 
             // Medien & Konfigurator
-            'preview_image_path' => 'Testdata/overlay.png', // Relativ zu storage/app/public/
+            'preview_image_path' => 'Testdata/overlay.png',
             'media_gallery' => [
                 [
                     'type' => 'image',
@@ -77,28 +104,36 @@ class ProductSeeder extends Seeder
                 'Technik' => 'Oberflächengravur',
                 'Gewicht' => '920g (Netto)'
             ],
-            'tier_pricing' => [
 
-            ],
+            // WICHTIG: Das JSON Feld bleibt leer, da wir die Tabelle 'product_tier_prices' nutzen
+            'tier_pricing' => [],
 
             // SEO
             'seo_title' => 'Der Seelen Kristall | Personalisierbares Glasgeschenk | Mein-Seelenfunke',
-            'seo_description' => 'Verschenken Sie Ewigkeit: Unser Seelen Kristall aus hochwertigem Glas mit individueller Gravur. Perfekt für Hochzeiten und Jubiläen. Jetzt gestalten!',
-            'completion_step' => 5 // Vollständig ausgefüllt
+            'seo_description' => 'Verschenken Sie Ewigkeit: Unser Seelen Kristall aus hochwertigem Glas mit individueller Gravur.',
+            'completion_step' => 4
         ]);
 
+        // Staffelpreise über die Relation anlegen
+        $p1->tierPrices()->createMany([
+            ['qty' => 5, 'percent' => 5.00],   // Ab 5 Stk: 5% Rabatt
+            ['qty' => 10, 'percent' => 10.00], // Ab 10 Stk: 10% Rabatt
+            ['qty' => 25, 'percent' => 15.00], // Ab 25 Stk: 15% Rabatt
+        ]);
+
+
         // ---------------------------------------------------------
-        // 2. Personalisiertes Holzherz (Naturprodukt)
+        // 2. Personalisiertes Holzherz
         // ---------------------------------------------------------
-        /*Product::create([
+        $p2 = Product::create([
             'name' => 'Herz aus Eiche',
             'slug' => 'herz-eiche',
-            'description' => 'Natürliches, massives Eichenholz, liebevoll in Herzform geschliffen. Jedes Stück ist durch die individuelle Maserung ein Unikat. Die dunkle Lasergravur bildet einen wunderschönen Kontrast zum hellen Holz.',
+            'description' => 'Natürliches, massives Eichenholz, liebevoll in Herzform geschliffen. Jedes Stück ist durch die individuelle Maserung ein Unikat.',
             'short_description' => 'Massives Eichenholz-Herz mit Wunschgravur.',
             'status' => 'active',
 
             'price' => 2490,
-            'compare_at_price' => null, // Kein Angebot
+            'compare_at_price' => null,
             'cost_per_item' => 800,
             'tax_class' => 'standard',
             'tax_included' => true,
@@ -108,9 +143,8 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 45,
-            'continue_selling_when_out_of_stock' => false, // Wenn weg, dann weg (bis Nachproduktion)
+            'continue_selling_when_out_of_stock' => false,
 
-            // Versand (Briefversand möglich da flach)
             'is_physical_product' => true,
             'weight' => 180,
             'height' => 20,
@@ -137,28 +171,33 @@ class ProductSeeder extends Seeder
                 'Druck' => '-',
                 'Gewicht' => '150 g'
             ],
-            'tier_pricing' => [
-                ['qty' => 10, 'percent' => 8],
-                ['qty' => 50, 'percent' => 15] // Für Gastgeschenke Hochzeit
-            ],
+
+            'tier_pricing' => [],
 
             'seo_title' => 'Personalisiertes Holzherz aus Eiche | Gravur Geschenk',
-            'seo_description' => 'Massives Eichenholz-Herz mit individueller Lasergravur. Handgefertigt und natürlich geölt. Ein Unikat für die Ewigkeit von Mein-Seelenfunke.',
-            'completion_step' => 4 // Bilder fehlen noch
-        ]);*/
+            'seo_description' => 'Massives Eichenholz-Herz mit individueller Lasergravur.',
+            'completion_step' => 4
+        ]);
+
+        // Staffelpreise für Holzherz
+        $p2->tierPrices()->createMany([
+            ['qty' => 10, 'percent' => 8.00],
+            ['qty' => 50, 'percent' => 15.00]
+        ]);
+
 
         // ---------------------------------------------------------
-        // 3. Limitierte Edition (High Ticket)
+        // 3. Limitierte Edition (Keine Staffelpreise)
         // ---------------------------------------------------------
-        /*Product::create([
+        Product::create([
             'name' => 'Goldene Erinnerung',
             'slug' => 'goldene-erinnerung',
-            'description' => 'Limitierte Edition: Dieser exklusive Rahmen ist mit 24 Karat Blattgold veredelt. Der Einleger wird in einem speziellen Druckverfahren hergestellt, das Farben besonders brillant leuchten lässt.',
+            'description' => 'Limitierte Edition: Dieser exklusive Rahmen ist mit 24 Karat Blattgold veredelt.',
             'short_description' => 'Vergoldeter Rahmen, limitiert auf 100 Stück.',
             'status' => 'active',
 
             'price' => 8900,
-            'compare_at_price' => 12900, // Starker Preisanker
+            'compare_at_price' => 12900,
             'cost_per_item' => 4500,
             'tax_class' => 'standard',
             'tax_included' => true,
@@ -167,10 +206,9 @@ class ProductSeeder extends Seeder
             'barcode' => '426000000099',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
-            'quantity' => 3, // Verknappung!
+            'quantity' => 3,
             'continue_selling_when_out_of_stock' => false,
 
-            // Versand (Versichertes Paket)
             'is_physical_product' => true,
             'weight' => 800,
             'height' => 50,
@@ -198,11 +236,12 @@ class ProductSeeder extends Seeder
                 'Farbe' => 'Gold / Weiß',
                 'Verpackung' => 'Samt-Etui mit Echtheitszertifikat'
             ],
-            'tier_pricing' => null, // Keine Mengenrabatte bei Limitierung
+
+            'tier_pricing' => [],
 
             'seo_title' => 'Limitierte Edition: Goldene Erinnerung | 24K Vergoldet',
-            'seo_description' => 'Exklusiver, vergoldeter Rahmen für Ihre wertvollsten Erinnerungen. Streng limitierte Auflage. Sichern Sie sich Ihr Exemplar bei Mein-Seelenfunke.',
+            'seo_description' => 'Exklusiver, vergoldeter Rahmen für Ihre wertvollsten Erinnerungen.',
             'completion_step' => 5
-        ]);*/
+        ]);
     }
 }
