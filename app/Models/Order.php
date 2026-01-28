@@ -13,6 +13,28 @@ class Order extends Model
 
     protected $guarded = [];
 
+    // FIX: 'cancellation_reason' MUSS hier stehen, sonst wird es nicht gespeichert!
+    protected $fillable = [
+        'order_number',
+        'customer_id',
+        'email',
+        'status',
+        'payment_status',
+        'payment_method',
+        'stripe_payment_intent_id',
+        'billing_address',
+        'shipping_address',
+        'volume_discount',
+        'coupon_code',
+        'discount_amount',
+        'subtotal_price',
+        'tax_amount',
+        'shipping_price',
+        'total_price',
+        'notes',
+        'cancellation_reason', // <--- WICHTIG
+    ];
+
     protected $casts = [
         'billing_address' => 'array',
         'shipping_address' => 'array',
@@ -21,6 +43,7 @@ class Order extends Model
         'shipping_price' => 'integer',
         'total_price' => 'integer',
         'created_at' => 'datetime',
+        'cancellation_reason',
     ];
 
     // Relationen
@@ -66,6 +89,22 @@ class Order extends Model
             return $this->billing_address['first_name'] . ' ' . $this->billing_address['last_name'];
         }
         return 'Gast';
+    }
+
+    /**
+     * Führt eine saubere Stornierung durch.
+     */
+    public function cancel(string $reason): void
+    {
+        $this->update([
+            'status' => 'cancelled',
+            // Optional: payment_status auf 'refunded' setzen, falls gewünscht?
+            // 'payment_status' => 'refunded',
+            'cancellation_reason' => $reason
+        ]);
+
+        // Hier könnte man später Events feuern, z.B.:
+        // OrderCancelled::dispatch($this);
     }
 
     public function invoices() {

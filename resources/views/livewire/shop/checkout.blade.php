@@ -292,8 +292,16 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>
         document.addEventListener('livewire:initialized', () => {
-            const stripe = Stripe("{{ env('STRIPE_KEY') }}");
+            // FIX: Verwende die Livewire Property statt env(), damit es nie leer ist
+            const stripeKey = "{{ $stripeKey }}";
             const clientSecret = "{{ $clientSecret }}";
+
+            if (!stripeKey) {
+                console.error("Stripe Key fehlt. Bitte Config prüfen.");
+                return;
+            }
+
+            const stripe = Stripe(stripeKey);
 
             // Design an "Mein Seelenfunke" CI anpassen
             const appearance = {
@@ -309,7 +317,6 @@
                 },
             };
 
-            // Payment Element (Erkennt automatisch PayPal, Apple Pay, etc. basierend auf Dashboard Einstellungen)
             const elements = stripe.elements({ appearance, clientSecret });
             const paymentElement = elements.create("payment", {
                 layout: "tabs",
@@ -324,31 +331,23 @@
 
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-
-                // 1. Prüfen ob Button disabled ist (falls User via Konsole trickst)
                 if(submitButton.disabled) return;
 
                 setLoading(true);
                 messageContainer.classList.add("hidden");
 
                 try {
-                    // 2. Livewire Validierung & Order Erstellung triggern (PHP)
                     const orderId = await @this.validateAndCreateOrder();
 
                     if(!orderId) {
                         setLoading(false);
-                        // Livewire zeigt Validierungsfehler automatisch an den Feldern an
-                        // Scrollen zum ersten Fehler wäre hier nett:
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                         return;
                     }
 
-                    // 3. Zahlung bei Stripe bestätigen
-                    // Stripe sammelt die Daten aus dem Payment Element selbst
                     const { error } = await stripe.confirmPayment({
                         elements,
                         confirmParams: {
-                            // Nach Erfolg hierhin leiten
                             return_url: "{{ route('checkout.success') }}",
                             payment_method_data: {
                                 billing_details: {
@@ -365,8 +364,6 @@
                         },
                     });
 
-                    // Dieser Code wird nur ausgeführt, wenn ein Fehler auftrat (z.B. Karte abgelehnt)
-                    // Bei Erfolg leitet Stripe automatisch weiter.
                     if (error) {
                         if (error.type === "card_error" || error.type === "validation_error") {
                             showMessage(error.message);
@@ -398,8 +395,6 @@
             function showMessage(messageText) {
                 messageContainer.classList.remove("hidden");
                 messageContainer.textContent = messageText;
-
-                // Scroll zum Fehler
                 messageContainer.scrollIntoView({ behavior: "smooth", block: "center" });
             }
         });

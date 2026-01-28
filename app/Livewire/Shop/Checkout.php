@@ -35,8 +35,9 @@ class Checkout extends Component
     public $loginPassword = '';
     public $loginError = '';
 
-    // --- STRIPE ---
+    // --- STRIPE & CONFIG ---
     public $clientSecret;
+    public $stripeKey; // NEU: Public Property für Stabilität
 
     // --- REGELN ---
     protected $rules = [
@@ -59,6 +60,9 @@ class Checkout extends Component
 
     public function mount()
     {
+        // KEY SICHER LADEN (Verhindert "Empty String" Fehler)
+        $this->stripeKey = config('services.stripe.key');
+
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
@@ -124,8 +128,7 @@ class Checkout extends Component
     }
 
     /**
-     * WICHTIG: Login mit Warenkorb-Mitnahme (Merge)
-     * Heißt jetzt "loginUser", so wie du es in der Blade genannt hast.
+     * Login Logic vom Stage-Server
      */
     public function loginUser()
     {
@@ -134,7 +137,7 @@ class Checkout extends Component
             'loginPassword' => 'required',
         ]);
 
-        // 1. GAST-CART SICHERN (Bevor Login die Session ID ändert!)
+        // 1. GAST-CART SICHERN
         $guestCart = app(CartService::class)->getCart();
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
@@ -159,13 +162,13 @@ class Checkout extends Component
                     $userCart->save();
                 }
 
-                // Leeren Gast-Cart löschen
                 if ($guestCart->items()->count() == 0) {
                     $guestCart->delete();
                 }
             }
 
-            // Seite neu laden
+            // REDIRECT (Wichtig vom Stage Server!):
+            // Lädt die Seite neu, damit Stripe sauber neu initialisiert wird.
             return redirect(request()->header('Referer'));
 
         } else {
@@ -199,7 +202,7 @@ class Checkout extends Component
         $cart = $cartService->getCart();
         $totals = $cartService->calculateTotals($cart);
 
-        // --- KUNDEN-LOGIK (Fehler 1452 Fix) ---
+        // --- KUNDEN-LOGIK ---
         $customer = null;
 
         if (Auth::guard('customer')->check()) {
@@ -231,7 +234,6 @@ class Checkout extends Component
         }
 
         $customerId = $customer->id;
-        // ---------------------------
 
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),

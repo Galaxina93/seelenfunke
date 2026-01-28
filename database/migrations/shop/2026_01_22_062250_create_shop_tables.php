@@ -169,6 +169,8 @@ return new class extends Migration
 
             $table->text('notes')->nullable(); // Für interne Notizen im Backend
 
+            $table->text('cancellation_reason')->nullable();
+
             $table->softDeletes();
             $table->timestamps();
         });
@@ -291,6 +293,7 @@ return new class extends Migration
 
     public function down(): void
     {
+
         Schema::dropIfExists('quote_request_items');
         Schema::dropIfExists('quote_requests');
         Schema::dropIfExists('invoices');

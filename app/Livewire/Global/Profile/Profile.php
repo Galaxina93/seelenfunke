@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Global\Profile;
 
+use App\Models\NewsletterSubscriber;
 use App\Traits\handleProfilesTrait;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -94,7 +95,7 @@ class Profile extends Component
 
 
     // Account löschen
-    public function  deleteAccount(): void
+    public function deleteAccount(): void
     {
         $this->deleteUserAccount();
     }

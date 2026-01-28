@@ -2,6 +2,7 @@
 
 namespace App\Traits;
 
+use App\Models\NewsletterSubscriber;
 use App\Models\Session;
 use Illuminate\Support\Facades\Auth;
 use Livewire\WithFileUploads;
@@ -165,18 +166,27 @@ trait handleProfilesTrait
     // Account löschen - Section 5
     public function deleteUserAccount()
     {
-        // Logout vor dem Löschen
-        Auth::guard((new \App\Models\User)->getGuard())->logout();
+        // 1. User holen
+        $user = Auth::guard($this->guard)->user();
 
-        // Session invalidieren
-        session()->invalidate();
-        session()->regenerateToken();
+        if (!$user) return;
 
-        // Profil und Benutzer löschen
-        $this->user->profile->delete();
-        $this->user->delete();
+        // 2. Newsletter Subscription hard-deleten (DSGVO: Zweckbindung entfällt)
+        if ($user->email) {
+            NewsletterSubscriber::where('email', $user->email)->delete();
+        }
 
-        return redirect('/');
+        // 3. User Soft-Deleten (Account sperren, aber Relationen behalten)
+        // Das Trait 'SoftDeletes' muss im Customer Model aktiv sein!
+        // Bestellungen und Rechnungen bleiben via customer_id verknüpft.
+        $user->delete();
+
+        // 4. Logout und Redirect
+        Auth::guard($this->guard)->logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
+
+        $this->redirect('/', navigate: true);
     }
 
 }

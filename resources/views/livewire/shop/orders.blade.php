@@ -208,6 +208,73 @@
                             </div>
                         </div>
 
+                        {{-- Dynamischer Storno-Bereich --}}
+                        @if($status === 'cancelled')
+                            <div class="mt-6 animate-fade-in-up">
+
+                                {{-- FALL A: BEREITS GESPEICHERT (GRÜN) --}}
+                                @if($selectedOrder->status === 'cancelled' && !empty($selectedOrder->cancellation_reason))
+                                    <div class="bg-green-50 border border-green-200 rounded-xl p-5 transition-all">
+                                        <div class="flex items-start gap-3 mb-3">
+                                            <div class="mt-0.5 bg-green-100 rounded-full p-1">
+                                                <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 class="font-bold text-green-800 text-sm">Stornierungsgrund gespeichert</h4>
+                                                <p class="text-xs text-green-700">Dieser Grund ist hinterlegt und für den Kunden sichtbar.</p>
+                                            </div>
+                                        </div>
+
+                                        <textarea
+                                            wire:model="cancellationReason"
+                                            rows="2"
+                                            class="w-full rounded-lg border-green-300 bg-white focus:border-green-500 focus:ring-green-500 text-sm placeholder-gray-400"
+                                            placeholder="Grund bearbeiten..."
+                                        ></textarea>
+                                        {{-- Optional: Kleiner Speicher-Button auch hier --}}
+                                        <div class="mt-2 text-right">
+                                            <button wire:click="saveStatus" class="text-xs font-bold text-green-700 hover:text-green-900 underline">Änderung speichern</button>
+                                        </div>
+                                    </div>
+
+                                    {{-- FALL B: NEU / PFLICHTFELD (ROT) --}}
+                                @else
+                                    <div class="bg-red-50 border border-red-200 rounded-xl p-5 transition-all">
+                                        <div class="flex items-start gap-3 mb-3">
+                                            <svg class="w-5 h-5 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                            <div>
+                                                <h4 class="font-bold text-red-700 text-sm">Stornierungsgrund erforderlich</h4>
+                                                <p class="text-xs text-red-600">Bitte geben Sie einen Grund an, um die Stornierung abzuschließen.</p>
+                                            </div>
+                                        </div>
+
+                                        <textarea
+                                            wire:model="cancellationReason"
+                                            rows="3"
+                                            class="w-full rounded-lg border-red-300 focus:border-red-500 focus:ring-red-500 text-sm placeholder-red-300"
+                                            placeholder="z.B. Artikel nicht lieferbar oder Kundenwunsch..."
+                                        ></textarea>
+                                        @error('cancellationReason')
+                                        <p class="text-red-600 text-xs mt-1 font-bold flex items-center gap-1">
+                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            {{ $message }}
+                                        </p>
+                                        @enderror
+
+                                        {{-- BUTTON HINZUGEFÜGT --}}
+                                        <div class="mt-4 flex justify-end">
+                                            <button wire:click="saveStatus" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700 transition shadow-sm flex items-center gap-2">
+                                                <span>Stornierung bestätigen</span>
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
                         {{-- Artikelliste MIT DATEIEN UND INFOS --}}
                         <div>
                             <h3 class="font-bold text-gray-900 mb-4 px-1 flex items-center justify-between">

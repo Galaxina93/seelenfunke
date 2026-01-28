@@ -21,6 +21,7 @@ class Invoice extends Model
         'shipping_address' => 'array',
         'subtotal' => 'integer',
         'tax_amount' => 'integer',
+        'shipping_cost' => 'integer',
         'total' => 'integer',
     ];
 
@@ -29,19 +30,31 @@ class Invoice extends Model
         return $this->belongsTo(Order::class);
     }
 
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class); // Oder User::class je nach Setup
+    }
+
+    // Für Stornos: Referenz auf Original
     public function parent()
     {
         return $this->belongsTo(Invoice::class, 'parent_id');
     }
 
-    public function items()
+    // Für Original: Referenz auf Storno
+    public function child()
     {
-        // Wir holen die Items über die Order, da wir keine separaten InvoiceItems speichern (vereinfacht)
-        // Für Teilrechnungen bräuchte man eine invoice_items Tabelle.
-        return $this->order->items();
+        return $this->hasOne(Invoice::class, 'parent_id');
     }
 
-    // Helper: Ist es eine Stornorechnung?
+    // FIX: Accessor statt Relation, damit $invoice->items niemals null ist
+    // Wir greifen auf die geladene Order Relation zu.
+    public function getItemsAttribute()
+    {
+        // Wenn Order geladen ist, nimm deren Items. Sonst leere Collection.
+        return $this->order ? $this->order->items : collect([]);
+    }
+
     public function isCreditNote()
     {
         return in_array($this->type, ['credit_note', 'cancellation']);

@@ -17,11 +17,7 @@
 
                 <div class="lg:col-span-1 space-y-8">
 
-                    {{--Show User Files--}}
-                    @livewire("global.widgets.show-files")
-
-                    {{--Show Shared directories--}}
-                    @livewire("global.widgets.show-directories")
+                    @livewire('customer.orders')
 
                 </div>
 

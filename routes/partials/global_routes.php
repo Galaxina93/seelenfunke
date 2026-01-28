@@ -127,4 +127,23 @@ Route::get('/forgot-password', function () {
 })->name('forgot-password');
 
 
+// Rechnungsdownload Route
+Route::get('/invoice/{invoice}/download', function (App\Models\Invoice $invoice) {
+
+    // Security Gate: Darf der User das sehen?
+    // Admin darf alles, Customer nur seine eigenen
+    if (auth()->guard('admin')->check()) {
+        // ok
+    } elseif (auth()->guard('customer')->check() && auth()->guard('customer')->id() === $invoice->customer_id) {
+        // ok
+    } else {
+        abort(403);
+    }
+
+    $service = new App\Services\InvoiceService();
+    $pdf = $service->generatePdf($invoice);
+
+    return $pdf->download('Rechnung_' . $invoice->invoice_number . '.pdf');
+
+})->name('invoice.download');
 

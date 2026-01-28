@@ -4,7 +4,8 @@ namespace App\Livewire\Shop;
 
 use App\Models\Order;
 use App\Models\Cart;
-use App\Models\QuoteRequest; // WICHTIG
+use App\Models\QuoteRequest;
+use App\Services\InvoiceService; // NEU
 use App\Mail\OrderConfirmation;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -22,8 +23,6 @@ class CheckoutSuccess extends Component
 
         if ($intentId) {
             $order = Order::where('stripe_payment_intent_id', $intentId)->first();
-
-            // API Key sicher laden
             $stripeSecret = config('services.stripe.secret');
 
             if (!$stripeSecret) {
@@ -37,10 +36,19 @@ class CheckoutSuccess extends Component
 
                 if ($intent->status === 'succeeded') {
 
-                    // --- SCHRITT 1: Bestellung verarbeiten ---
+                    // --- SCHRITT 1: Bestellung verarbeiten ---\
                     if ($order && $order->payment_status !== 'paid') {
                         $order->update(['payment_status' => 'paid']);
 
+                        // 1.1: RECHNUNG SOFORT ERSTELLEN (NEU)
+                        try {
+                            $invoiceService = new InvoiceService();
+                            $invoiceService->createFromOrder($order);
+                        } catch (\Exception $e) {
+                            Log::error('Auto-Invoice Error: ' . $e->getMessage());
+                        }
+
+                        // 1.2 Mail senden
                         try {
                             Mail::to($order->email)->send(new OrderConfirmation($order));
                         } catch (\Exception $e) {
@@ -48,8 +56,7 @@ class CheckoutSuccess extends Component
                         }
                     }
 
-                    // --- SCHRITT 2: Angebot als angenommen markieren ---
-                    // Falls der User aus einem Angebot kam
+                    // --- SCHRITT 2: Quote Status update (Falls aus Angebot) ---
                     if (Session::has('checkout_from_quote_id')) {
                         $quoteId = Session::get('checkout_from_quote_id');
                         $quote = QuoteRequest::find($quoteId);
@@ -60,18 +67,14 @@ class CheckoutSuccess extends Component
                                 'converted_order_id' => $order ? $order->id : null
                             ]);
                         }
-
-                        // Session bereinigen
                         Session::forget('checkout_from_quote_id');
                     }
 
                     // --- SCHRITT 3: Warenkorb leeren ---
-                    // A) Über Metadaten (Priorität)
                     if (isset($intent->metadata->cart_id)) {
                         Cart::where('id', $intent->metadata->cart_id)->delete();
                     }
 
-                    // B) Fallback: Session/User Clean-up
                     if (Auth::guard('customer')->check()) {
                         Cart::where('customer_id', Auth::guard('customer')->id())->delete();
                     } else {

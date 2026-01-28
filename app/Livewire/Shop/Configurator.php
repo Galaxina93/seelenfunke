@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Services\CartService;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Illuminate\Support\Str;
 
 class Configurator extends Component
 {
@@ -16,23 +17,18 @@ class Configurator extends Component
     public $cartItem = null;
     public $context = 'add';
 
-    // State
+    // State: Menge (FIX: Wurde hinzugefügt)
     public $qty = 1;
-    public $engraving_text = '';
-    public $engraving_font = 'Arial';
-    public $engraving_align = 'center';
+    // State Texte
 
-    public $text_x = 50.0;
-    public $text_y = 50.0;
-    public $text_size = 1.0;
+    public $texts = [];
 
-    public $logo_x = 50.0;
-    public $logo_y = 30.0;
-    public $logo_size = 130;
+    // State Logos
+    public $logos = [];
 
+    // Files Management
     public $new_files = [];
     public $uploaded_files = [];
-    public $active_preview = null;
 
     public $notes = '';
 
@@ -51,7 +47,6 @@ class Configurator extends Component
 
     public $alignmentOptions = ['left' => 'Links', 'center' => 'Zentriert', 'right' => 'Rechts'];
 
-    // FEHLERBEHEBUNG 1: $qty Parameter hinzugefügt
     public function mount($product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
     {
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
@@ -71,39 +66,52 @@ class Configurator extends Component
 
         $source = !empty($initialData) ? $initialData : ($this->cartItem ? $this->cartItem->configuration : []);
 
-        // FEHLERBEHEBUNG 1: Priorisierung der Mengenangabe
+        // Menge initialisieren
         if ($qty !== null) {
-            // Wenn explizit übergeben (z.B. aus Order View), nimm diesen Wert
             $this->qty = $qty;
         } elseif ($this->cartItem && empty($initialData)) {
-            // Wenn CartItem existiert
             $this->qty = $this->cartItem->quantity;
         } else {
-            // Fallback auf gespeicherte Daten oder Standard 1
             $this->qty = $source['qty'] ?? 1;
         }
-
-        $this->engraving_text = $source['text'] ?? '';
-        $this->engraving_font = $source['font'] ?? 'Arial';
-        $this->engraving_align = $source['align'] ?? 'center';
-
-        $this->text_x = isset($source['text_x']) ? (float)$source['text_x'] : $centerX;
-        $this->text_y = isset($source['text_y']) ? (float)$source['text_y'] : $centerY;
-        $this->text_size = isset($source['text_size']) ? (float)$source['text_size'] : 1.0;
-
-        $this->logo_x = isset($source['logo_x']) ? (float)$source['logo_x'] : $centerX;
-        $this->logo_y = isset($source['logo_y']) ? (float)$source['logo_y'] : max($this->configSettings['area_top'], $centerY - 20);
-        $this->logo_size = isset($source['logo_size']) ? (int)$source['logo_size'] : 130;
 
         $this->notes = $source['notes'] ?? '';
         $this->uploaded_files = $source['files'] ?? [];
 
-        if (!empty($source['logo_path']) && !in_array($source['logo_path'], $this->uploaded_files)) {
-            $this->uploaded_files[] = $source['logo_path'];
+        // 1. TEXTE LADEN (Migration von alt zu neu)
+        if (isset($source['texts']) && is_array($source['texts'])) {
+            $this->texts = $source['texts'];
+        } elseif (!empty($source['text'])) {
+            // Fallback: Alten Einzeltext in Array umwandeln
+            $this->texts[] = [
+                'id' => Str::uuid()->toString(),
+                'text' => $source['text'],
+                'font' => $source['font'] ?? 'Arial',
+                'align' => $source['align'] ?? 'center',
+                'x' => $source['text_x'] ?? $centerX,
+                'y' => $source['text_y'] ?? $centerY,
+                'size' => $source['text_size'] ?? 1.0,
+            ];
+        } else {
+            // Standard: Ein leeres Textfeld
+            $this->addText($centerX, $centerY);
         }
 
-        if (!empty($source['logo_path'])) {
-            $this->active_preview = $source['logo_path'];
+        // 2. LOGOS LADEN
+        if (isset($source['logos']) && is_array($source['logos'])) {
+            $this->logos = $source['logos'];
+        } elseif (!empty($source['logo_path'])) {
+            if (!in_array($source['logo_path'], $this->uploaded_files)) {
+                $this->uploaded_files[] = $source['logo_path'];
+            }
+            $this->logos[] = [
+                'id' => Str::uuid()->toString(),
+                'type' => 'saved',
+                'value' => $source['logo_path'],
+                'x' => $source['logo_x'] ?? $centerX,
+                'y' => $source['logo_y'] ?? $centerY,
+                'size' => $source['logo_size'] ?? 130
+            ];
         }
 
         $this->calculatePrice();
@@ -117,6 +125,37 @@ class Configurator extends Component
         }
     }
 
+    // --- TEXT MANAGEMENT ---
+
+    public function addText($x = null, $y = null)
+    {
+        $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
+        $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
+
+        $this->texts[] = [
+            'id' => Str::uuid()->toString(),
+            'text' => '',
+            'font' => 'Arial',
+            'align' => 'center',
+            'x' => $x ?? $centerX,
+            'y' => $y ?? $centerY,
+            'size' => 1.0
+        ];
+    }
+
+    public function removeText($index)
+    {
+        unset($this->texts[$index]);
+        $this->texts = array_values($this->texts);
+
+        // Wenn alle gelöscht, zumindest einen leeren hinzufügen (UX Entscheidung)
+        if(count($this->texts) === 0) {
+            $this->addText();
+        }
+    }
+
+    // --- LOGO MANAGEMENT ---
+
     public function updatedNewFiles()
     {
         $this->validate([
@@ -125,50 +164,70 @@ class Configurator extends Component
 
         foreach(array_reverse($this->new_files, true) as $index => $file) {
             if (in_array(strtolower($file->extension()), ['jpg','jpeg','png','webp'])) {
-                $this->setPreview('new', $index);
+                $this->toggleLogo('new', $index);
                 break;
             }
         }
     }
 
-    public function setPreview($type, $value)
+    public function toggleLogo($type, $value)
     {
-        if ($type === 'new') {
-            $this->active_preview = 'new_' . $value;
-        } else {
-            $this->active_preview = $value;
-        }
-    }
-
-    public function getPreviewUrlProperty()
-    {
-        if (!$this->active_preview) return null;
-
-        if (str_starts_with($this->active_preview, 'new_')) {
-            $index = (int) str_replace('new_', '', $this->active_preview);
-            if (isset($this->new_files[$index])) {
-                try {
-                    return $this->new_files[$index]->temporaryUrl();
-                } catch (\Exception $e) {
-                    return null;
-                }
+        foreach ($this->logos as $key => $logo) {
+            if ($logo['type'] === $type && $logo['value'] == $value) {
+                unset($this->logos[$key]);
+                $this->logos = array_values($this->logos);
+                return;
             }
         }
 
-        if (is_string($this->active_preview) && !str_starts_with($this->active_preview, 'new_')) {
-            return asset('storage/' . $this->active_preview);
-        }
+        $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
+        $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
-        return null;
+        $this->logos[] = [
+            'id' => Str::uuid()->toString(),
+            'type' => $type,
+            'value' => $value,
+            'x' => $centerX,
+            'y' => $centerY,
+            'size' => 130
+        ];
+    }
+
+    public function isLogoActive($type, $value)
+    {
+        foreach ($this->logos as $logo) {
+            if ($logo['type'] === $type && $logo['value'] == $value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public function getRenderedLogosProperty()
+    {
+        $rendered = [];
+        foreach ($this->logos as $logo) {
+            $url = null;
+            if ($logo['type'] === 'new' && isset($this->new_files[$logo['value']])) {
+                try {
+                    $url = $this->new_files[$logo['value']]->temporaryUrl();
+                } catch (\Exception $e) { continue; }
+            } elseif ($logo['type'] === 'saved') {
+                $url = asset('storage/' . $logo['value']);
+            }
+
+            if ($url) {
+                $rendered[] = array_merge($logo, ['url' => $url]);
+            }
+        }
+        return $rendered;
     }
 
     public function removeFile($index)
     {
         if (isset($this->uploaded_files[$index])) {
             $path = $this->uploaded_files[$index];
-            if ($this->active_preview === $path) {
-                $this->active_preview = null;
-            }
+            $this->toggleLogo('saved', $path);
             unset($this->uploaded_files[$index]);
             $this->uploaded_files = array_values($this->uploaded_files);
         }
@@ -176,15 +235,15 @@ class Configurator extends Component
 
     public function removeNewFile($index) {
         if(isset($this->new_files[$index])) {
-            if ($this->active_preview === 'new_' . $index) {
-                $this->active_preview = null;
+            foreach ($this->logos as $key => $logo) {
+                if ($logo['type'] === 'new' && $logo['value'] == $index) {
+                    unset($this->logos[$key]);
+                }
             }
+            $this->logos = array_values($this->logos);
             unset($this->new_files[$index]);
             $this->new_files = array_values($this->new_files);
-
-            if (str_starts_with($this->active_preview ?? '', 'new_')) {
-                $this->active_preview = null;
-            }
+            $this->logos = array_filter($this->logos, fn($l) => $l['type'] !== 'new');
         }
     }
 
@@ -215,56 +274,88 @@ class Configurator extends Component
 
     public function save(CartService $cartService)
     {
-        if ($this->context === 'preview') {
-            return;
-        }
+        if ($this->context === 'preview') return;
 
         $this->validate([
             'qty' => 'required|integer|min:1',
-            'engraving_text' => 'nullable|string|max:100',
+            'texts.*.text' => 'nullable|string|max:100', // Validierung für Array
             'new_files.*' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,webp,pdf,svg',
         ]);
 
-        $activeNewIndex = null;
-        if (str_starts_with($this->active_preview ?? '', 'new_')) {
-            $activeNewIndex = (int) str_replace('new_', '', $this->active_preview);
-        }
-
-        $finalPreviewPath = ($activeNewIndex === null) ? $this->active_preview : null;
-
+        // 1. Files speichern
+        $tempIndexToPermanentPath = [];
         if (!empty($this->new_files)) {
             foreach ($this->new_files as $index => $file) {
                 $path = $file->store('cart-uploads', 'public');
                 $this->uploaded_files[] = $path;
-
-                if ($index === $activeNewIndex) {
-                    $finalPreviewPath = $path;
-                }
+                $tempIndexToPermanentPath[$index] = $path;
             }
         }
 
-        if (!$finalPreviewPath && !empty($this->uploaded_files)) {
+        // 2. Logos aktualisieren
+        $finalLogos = [];
+        foreach ($this->logos as $logo) {
+            if ($logo['type'] === 'new') {
+                if (isset($tempIndexToPermanentPath[$logo['value']])) {
+                    $logo['type'] = 'saved';
+                    $logo['value'] = $tempIndexToPermanentPath[$logo['value']];
+                    $finalLogos[] = $logo;
+                }
+            } else {
+                $finalLogos[] = $logo;
+            }
+        }
+
+        // 3. Fallback Preview Image
+        $mainLogoPath = null;
+        if (!empty($finalLogos)) {
+            $mainLogoPath = $finalLogos[0]['value'];
+        } elseif (!empty($this->uploaded_files)) {
             foreach($this->uploaded_files as $f) {
                 if(preg_match('/\.(jpg|jpeg|png|webp)$/i', $f)) {
-                    $finalPreviewPath = $f;
+                    $mainLogoPath = $f;
                     break;
                 }
             }
         }
 
+        // 4. Legacy Text Support (für Backend Anzeige)
+        // Wir nehmen den ersten nicht-leeren Text als "Haupttext"
+        $mainText = '';
+        $mainFont = 'Arial';
+        $mainAlign = 'center';
+        $mainTextX = 50;
+        $mainTextY = 50;
+        $mainTextSize = 1.0;
+
+        foreach($this->texts as $t) {
+            if(!empty($t['text'])) {
+                $mainText = $t['text'];
+                $mainFont = $t['font'];
+                $mainAlign = $t['align'];
+                $mainTextX = $t['x'];
+                $mainTextY = $t['y'];
+                $mainTextSize = $t['size'];
+                break;
+            }
+        }
+
         $configData = [
-            'text' => $this->engraving_text,
-            'font' => $this->engraving_font,
-            'align' => $this->engraving_align,
-            'text_x' => $this->text_x,
-            'text_y' => $this->text_y,
-            'text_size' => $this->text_size,
+            // Neu: Alle Texte
+            'texts' => $this->texts,
+            'logos' => $finalLogos,
+
+            // Legacy / Fallback Keys (damit bestehende Views nicht crashen)
+            'text' => $mainText,
+            'font' => $mainFont,
+            'align' => $mainAlign,
+            'text_x' => $mainTextX,
+            'text_y' => $mainTextY,
+            'text_size' => $mainTextSize,
+            'logo_path' => $mainLogoPath,
+            'logo_storage_path' => $mainLogoPath,
+
             'files' => $this->uploaded_files,
-            'logo_path' => $finalPreviewPath,
-            'logo_storage_path' => $finalPreviewPath,
-            'logo_x' => $this->logo_x,
-            'logo_y' => $this->logo_y,
-            'logo_size' => $this->logo_size,
             'notes' => $this->notes,
             'qty' => $this->qty
         ];
@@ -278,7 +369,11 @@ class Configurator extends Component
 
             $this->dispatch('cart-updated');
             $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
-            $this->reset(['engraving_text', 'new_files', 'uploaded_files', 'active_preview', 'notes']);
+            // Reset
+            $this->reset(['new_files', 'uploaded_files', 'logos', 'notes']);
+            // Text Reset: Wieder einen leeren Text herstellen
+            $this->texts = [];
+            $this->addText();
 
         } elseif ($this->context === 'edit' && $this->cartItem) {
             $cartService->updateItem($this->cartItem->id, $this->qty, $configData);

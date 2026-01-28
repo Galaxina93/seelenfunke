@@ -11,29 +11,48 @@ class Orders extends Component
 {
     use WithPagination;
 
-    // Filter & Sortierung
+    // --- FILTER & SORTIERUNG ---
     public $search = '';
     public $statusFilter = '';
     public $paymentFilter = '';
     public $sortField = 'created_at';
     public $sortDirection = 'desc';
 
-    // State für Detail-Ansicht
+    // --- STATE FÜR DETAIL-ANSICHT ---
     public $selectedOrderId = null;
     public $selectedOrderItemId = null;
 
+    // --- STATE FÜR BEARBEITUNG ---
+    public ?Order $selectedOrder = null;
+
+    // Formular-Felder
+    public $status;
+    public $payment_status;
+    public $notes;
+    public $cancellationReason = '';
+
     protected $queryString = ['search', 'statusFilter', 'paymentFilter'];
 
-    // --- ACTIONS ---
+    // --- ACTIONS: DETAIL ANSICHT ---
 
     public function openDetail($id)
     {
         $this->selectedOrderId = $id;
 
-        // Automatisch das erste Item für den Configurator auswählen
-        $order = Order::with('items')->find($id);
-        if ($order && $order->items->isNotEmpty()) {
-            $this->selectedOrderItemId = $order->items->first()->id;
+        // 1. Order laden
+        $this->selectedOrder = Order::with(['items.product', 'invoices'])->find($id);
+
+        // 2. Daten laden
+        if ($this->selectedOrder) {
+            $this->status = $this->selectedOrder->status;
+            $this->payment_status = $this->selectedOrder->payment_status;
+            $this->notes = $this->selectedOrder->notes;
+            // Sicherstellen, dass es ein String ist
+            $this->cancellationReason = $this->selectedOrder->cancellation_reason ?? '';
+
+            if ($this->selectedOrder->items->isNotEmpty()) {
+                $this->selectedOrderItemId = $this->selectedOrder->items->first()->id;
+            }
         }
     }
 
@@ -41,6 +60,8 @@ class Orders extends Component
     {
         $this->selectedOrderId = null;
         $this->selectedOrderItemId = null;
+        $this->selectedOrder = null;
+        $this->reset(['status', 'payment_status', 'notes', 'cancellationReason']);
     }
 
     public function selectItemForPreview($itemId)
@@ -48,24 +69,82 @@ class Orders extends Component
         $this->selectedOrderItemId = $itemId;
     }
 
-    // FEHLERBEHEBUNG 3: Die fehlenden Methoden wurden hinzugefügt
+    // --- ACTIONS: SPEICHERN (FIXED) ---
 
-    public function markAsPaid($orderId)
+    public function saveStatus()
     {
-        $order = Order::find($orderId);
-        if ($order) {
-            $order->update(['payment_status' => 'paid']);
-            // Optional: Rechnungsgenerierung hier triggern oder Event dispatchen
-            session()->flash('success', 'Bestellung als bezahlt markiert.');
+        if (!$this->selectedOrder) return;
+
+        // Fall: Stornierung
+        if ($this->status === 'cancelled') {
+
+            $this->validate([
+                'cancellationReason' => 'required|string|min:5|max:500',
+            ], [
+                'cancellationReason.required' => 'Bitte gib einen Grund für die Stornierung an.',
+                'cancellationReason.min' => 'Der Grund ist zu kurz (min. 5 Zeichen).',
+            ]);
+
+            // Model Methode aufrufen (Stellt Status auf cancelled & speichert Grund)
+            // Falls du cancel() im Model noch nicht hast, geht auch:
+            // $this->selectedOrder->update(['status' => 'cancelled', 'cancellation_reason' => $this->cancellationReason]);
+            $this->selectedOrder->cancel($this->cancellationReason);
+
+            // Payment Status & Notizen auch aktualisieren
+            $this->selectedOrder->update([
+                'payment_status' => $this->payment_status,
+                'notes' => $this->notes
+            ]);
+
+            // WICHTIG: Das Model neu laden, damit die View merkt, dass es gespeichert wurde!
+            $this->selectedOrder->refresh();
+
+            session()->flash('success', 'Bestellung erfolgreich storniert.');
+
+        } else {
+            // Fall: Normales Update
+            $this->selectedOrder->update([
+                'status' => $this->status,
+                'payment_status' => $this->payment_status,
+                'notes' => $this->notes,
+                'cancellation_reason' => null // Grund entfernen, falls Status geändert wurde
+            ]);
+
+            // Auch hier neu laden
+            $this->selectedOrder->refresh();
+
+            session()->flash('success', 'Bestelldetails aktualisiert.');
         }
     }
+
+    // --- ACTIONS: LIST VIEW / SCHNELL-AKTIONEN ---
 
     public function updateStatus($orderId, $newStatus)
     {
         $order = Order::find($orderId);
         if ($order) {
             $order->update(['status' => $newStatus]);
+
+            // Falls Detailansicht offen ist -> Sync
+            if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
+                $this->status = $newStatus;
+                $this->selectedOrder->refresh();
+            }
             session()->flash('success', "Status auf '$newStatus' geändert.");
+        }
+    }
+
+    public function markAsPaid($orderId)
+    {
+        $order = Order::find($orderId);
+        if ($order) {
+            $order->update(['payment_status' => 'paid']);
+
+            if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
+                $this->payment_status = 'paid';
+                $this->selectedOrder->refresh();
+            }
+            session()->flash('success', 'Bestellung als bezahlt markiert.');
         }
     }
 
@@ -73,18 +152,13 @@ class Orders extends Component
     {
         $order = Order::find($orderId);
         if ($order) {
-            $order->delete(); // Soft Delete (da Trait im Model)
-            $this->closeDetail(); // Zurück zur Liste
-            session()->flash('success', 'Bestellung wurde in den Papierkorb verschoben.');
+            $order->delete();
+            $this->closeDetail();
+            session()->flash('success', 'Bestellung in den Papierkorb verschoben.');
         }
     }
 
-    // --- PROPERTIES ---
-
-    public function getSelectedOrderProperty()
-    {
-        return Order::with('items.product')->find($this->selectedOrderId);
-    }
+    // --- PROPERTIES & HELPER ---
 
     public function getPreviewItemProperty()
     {
@@ -106,22 +180,23 @@ class Orders extends Component
 
     public function render()
     {
-        // Detail View Mode
-        if ($this->selectedOrderId) {
+        // 1. DETAIL ANSICHT
+        if ($this->selectedOrderId && $this->selectedOrder) {
             return view('livewire.shop.orders', [
+                'order' => $this->selectedOrder,
                 'orders' => [],
                 'stats' => []
             ]);
         }
 
-        // List View Mode
+        // 2. LISTEN ANSICHT
         $query = Order::query();
 
         if ($this->search) {
             $query->where(function ($q) {
                 $q->where('order_number', 'like', '%' . $this->search . '%')
                     ->orWhere('email', 'like', '%' . $this->search . '%')
-                    ->orWhere('billing_address->last_name', 'like', '%' . $this->search . '%');
+                    ->orWhereJsonContains('billing_address->last_name', $this->search);
             });
         }
 
