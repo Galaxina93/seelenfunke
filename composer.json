@@ -11,7 +11,6 @@
         "blade-ui-kit/blade-heroicons": "^2.1",
         "danharrin/livewire-rate-limiting": "^1.1",
         "doctrine/dbal": "^3.6",
-        "google-gemini-php/laravel": "^2.0",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^2.7",
         "laravel/framework": "^11.0",
