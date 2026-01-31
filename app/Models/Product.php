@@ -102,15 +102,18 @@ class Product extends Model
      * Berechnet den aktuellen Steuersatz basierend auf der Steuerklasse.
      * Dies ersetzt das statische Feld tax_rate.
      */
+    // app/Models/Product.php
+
     public function getTaxRateAttribute()
     {
-        // Versuchen, den Satz aus der DB zu laden
+        // Wir suchen den Steuersatz passend zur Steuerklasse des Produkts (z.B. 'reduced').
+        // Wir filtern hier hart auf 'DE', da dies der Basis-Steuersatz für die Preisanzeige ist.
         $rate = DB::table('tax_rates')
             ->where('tax_class', $this->tax_class)
-            ->where('is_default', true) // Oder Logik für Ländererkennung hier
+            ->where('country_code', 'DE') // WICHTIG: Statt 'is_default' nehmen wir den Ländercode
             ->value('rate');
 
-        // Fallback, falls DB leer oder Klasse nicht gefunden
+        // Wenn nichts gefunden wird (z.B. Tabelle leer), Fallback auf 19%
         return $rate !== null ? (float)$rate : 19.00;
     }
 

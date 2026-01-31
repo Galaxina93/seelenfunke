@@ -1,10 +1,10 @@
-<div class="min-h-screen bg-gray-50 p-6">
+<div class="min-h-screen bg-gray-50 p-4 md:p-6">
 
     {{-- VIEW 1: BESTELLÜBERSICHT (LISTE) --}}
     @if(!$selectedOrderId)
 
         {{-- STATS HEADER --}}
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-8">
             <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm flex items-center gap-4">
                 <div class="p-3 bg-blue-50 rounded-full text-blue-600">
                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
@@ -40,7 +40,7 @@
                 <input type="text" wire:model.live.debounce.300ms="search" placeholder="Suche (Nr, Name)..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-primary focus:border-primary">
                 <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
-            <div class="flex gap-2 w-full md:w-auto overflow-x-auto">
+            <div class="flex gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
                 <select wire:model.live="statusFilter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-primary">
                     <option value="">Alle Status</option>
                     <option value="pending">Wartend</option>
@@ -59,16 +59,17 @@
 
         {{-- TABELLE --}}
         <div class="bg-white border-x border-b border-gray-200 shadow-sm overflow-x-auto rounded-b-xl">
-            <table class="w-full text-left border-collapse">
+            {{-- min-w gesetzt damit Tabelle auf Mobile scrollbar bleibt und nicht zerquetscht wird --}}
+            <table class="w-full text-left border-collapse min-w-[800px]">
                 <thead>
                 <tr class="bg-gray-50/50 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                    <th class="px-6 py-4 cursor-pointer hover:bg-gray-100" wire:click="sortBy('order_number')">Nr.</th>
-                    <th class="px-6 py-4 cursor-pointer hover:bg-gray-100" wire:click="sortBy('created_at')">Datum</th>
-                    <th class="px-6 py-4">Kunde</th>
-                    <th class="px-6 py-4 text-right">Summe</th>
-                    <th class="px-6 py-4 text-center">Zahlung</th>
-                    <th class="px-6 py-4 text-center">Status</th>
-                    <th class="px-6 py-4 text-right">Aktionen</th>
+                    <th class="px-4 md:px-6 py-4 cursor-pointer hover:bg-gray-100" wire:click="sortBy('order_number')">Nr.</th>
+                    <th class="px-4 md:px-6 py-4 cursor-pointer hover:bg-gray-100" wire:click="sortBy('created_at')">Datum</th>
+                    <th class="px-4 md:px-6 py-4">Kunde</th>
+                    <th class="px-4 md:px-6 py-4 text-right">Summe</th>
+                    <th class="px-4 md:px-6 py-4 text-center">Zahlung</th>
+                    <th class="px-4 md:px-6 py-4 text-center">Status</th>
+                    <th class="px-4 md:px-6 py-4 text-right">Aktionen</th>
                 </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -95,30 +96,30 @@
                 @endphp
                 @forelse($orders as $order)
                     <tr class="hover:bg-gray-50/50 transition-colors group text-sm cursor-pointer" wire:click="openDetail('{{ $order->id }}')">
-                        <td class="px-6 py-4 font-mono font-bold text-gray-900 text-primary hover:underline">
+                        <td class="px-4 md:px-6 py-4 font-mono font-bold text-gray-900 text-primary hover:underline whitespace-nowrap">
                             {{ $order->order_number }}
                         </td>
-                        <td class="px-6 py-4 text-gray-500">
+                        <td class="px-4 md:px-6 py-4 text-gray-500 whitespace-nowrap">
                             {{ $order->created_at->format('d.m.Y H:i') }}
                         </td>
-                        <td class="px-6 py-4">
+                        <td class="px-4 md:px-6 py-4 whitespace-nowrap">
                             <div class="font-medium text-gray-900">{{ $order->customer_name }}</div>
                             <div class="text-xs text-gray-400">{{ $order->email }}</div>
                         </td>
-                        <td class="px-6 py-4 text-right font-bold text-gray-900">
+                        <td class="px-4 md:px-6 py-4 text-right font-bold text-gray-900 whitespace-nowrap">
                             {{ number_format($order->total_price / 100, 2, ',', '.') }} €
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-4 md:px-6 py-4 text-center whitespace-nowrap">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $paymentColors[$order->payment_status] ?? 'bg-gray-100' }}">
                                 {{ $paymentMap[$order->payment_status] ?? ucfirst($order->payment_status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-center">
+                        <td class="px-4 md:px-6 py-4 text-center whitespace-nowrap">
                             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$order->status] ?? 'bg-gray-100' }}">
                                 {{ $statusMap[$order->status] ?? ucfirst($order->status) }}
                             </span>
                         </td>
-                        <td class="px-6 py-4 text-right">
+                        <td class="px-4 md:px-6 py-4 text-right whitespace-nowrap">
                             <span class="text-blue-600 hover:underline text-xs font-bold">Öffnen</span>
                         </td>
                     </tr>
@@ -132,20 +133,21 @@
 
         {{-- VIEW 2: DETAIL ANSICHT (SPLIT SCREEN) --}}
     @else
-        {{-- FIX: Main Container needs hidden overflow to prevent double scrollbars, children handle scroll --}}
+        {{-- FIX: Main Container handles split. Mobile: Vertical Stack (col), Desktop: Horizontal (row) --}}
         <div class="h-[calc(100vh-3rem)] flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
 
             {{-- Detail Header --}}
-            <div class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0 z-20 relative">
+            <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 z-20 relative">
                 <div class="flex items-center gap-4">
                     <button wire:click="closeDetail" class="text-gray-500 hover:text-gray-900 flex items-center gap-1 text-sm font-bold transition">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                        Zurück zur Liste
+                        <span class="hidden sm:inline">Zurück zur Liste</span>
+                        <span class="sm:hidden">Zurück</span>
                     </button>
                     <div class="h-6 w-px bg-gray-300"></div>
                     <div>
-                        <h1 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
-                            Bestellung #{{ $this->selectedOrder->order_number }}
+                        <h1 class="text-lg md:text-xl font-serif font-bold text-gray-900 flex flex-wrap items-center gap-2">
+                            #{{ $this->selectedOrder->order_number }}
                             <span class="text-xs font-sans font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                                 {{ $this->selectedOrder->created_at->format('d.m.Y H:i') }}
                             </span>
@@ -154,8 +156,8 @@
                 </div>
 
                 {{-- Status Actions --}}
-                <div class="flex gap-2">
-                    <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)" class="text-sm border-gray-300 rounded-lg py-1.5 pl-3 pr-8 shadow-sm focus:ring-primary focus:border-primary">
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)" class="w-full sm:w-auto text-sm border-gray-300 rounded-lg py-1.5 pl-3 pr-8 shadow-sm focus:ring-primary focus:border-primary">
                         <option value="pending" @selected($this->selectedOrder->status == 'pending')>Wartend</option>
                         <option value="processing" @selected($this->selectedOrder->status == 'processing')>In Bearbeitung</option>
                         <option value="shipped" @selected($this->selectedOrder->status == 'shipped')>Versendet</option>
@@ -165,14 +167,14 @@
                 </div>
             </div>
 
-            {{-- SPLIT CONTENT --}}
-            <div class="flex flex-1 overflow-hidden">
+            {{-- SPLIT CONTENT: Mobile = Column (Stacked), Desktop = Row (Side by Side) --}}
+            <div class="flex flex-col lg:flex-row flex-1 overflow-hidden">
 
                 {{-- LINKS: Order Details & Liste (Scrollbar) --}}
-                <div class="w-1/2 overflow-y-auto border-r border-gray-200 bg-white custom-scrollbar z-10">
-                    <div class="p-6 space-y-8">
+                <div class="w-full lg:w-1/2 h-1/2 lg:h-full overflow-y-auto border-b lg:border-b-0 border-r-0 lg:border-r border-gray-200 bg-white custom-scrollbar z-10">
+                    <div class="p-4 md:p-6 space-y-6 md:space-y-8">
                         {{-- Kundendaten --}}
-                        <div class="grid grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
                             <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                 <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
                                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -323,7 +325,7 @@
 
                                         {{-- NEU: Details & Dateien Anzeige --}}
                                         @if(!empty($conf))
-                                            <div class="mt-3 pt-3 border-t border-gray-200/60 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                            <div class="mt-3 pt-3 border-t border-gray-200/60 grid grid-cols-1 xl:grid-cols-2 gap-4 text-xs">
 
                                                 {{-- 1. Gravurtext --}}
                                                 @if(!empty($conf['text']))
@@ -355,7 +357,7 @@
                                                 @endphp
 
                                                 @if(count($files) > 0)
-                                                    <div class="col-span-1 md:col-span-2">
+                                                    <div class="col-span-1 xl:col-span-2">
                                                         <span class="block text-gray-400 uppercase font-bold text-[10px] mb-1">Hochgeladene Dateien ({{ count($files) }})</span>
                                                         <div class="flex flex-wrap gap-2">
                                                             @foreach($files as $file)
@@ -399,13 +401,13 @@
                 </div>
 
                 {{-- RECHTS: Configurator (FIX: Scrollbar auf den Parent Container) --}}
-                <div class="w-1/2 bg-gray-50 flex flex-col border-l border-gray-200 h-full overflow-hidden">
-                    <div class="flex-1 p-6 bg-gray-100 h-full overflow-y-auto custom-scrollbar">
+                <div class="w-full lg:w-1/2 h-1/2 lg:h-full bg-gray-50 flex flex-col border-l-0 lg:border-l border-gray-200 overflow-hidden">
+                    <div class="flex-1 p-4 md:p-6 bg-gray-100 h-full overflow-y-auto custom-scrollbar">
                         @if($this->previewItem)
                             {{-- Karte muss wachsen können, kein overflow-hidden hier! --}}
                             <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col min-h-0">
                                 {{-- Header Configurator --}}
-                                <div class="bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center shrink-0">
+                                <div class="bg-white border-b border-gray-100 px-4 md:px-6 py-4 flex justify-between items-center shrink-0">
                                     <div>
                                         <h3 class="font-bold text-gray-800">{{ $this->previewItem->product_name }}</h3>
                                         <p class="text-xs text-gray-400">Artikel-ID: {{ $this->previewItem->product_id }}</p>

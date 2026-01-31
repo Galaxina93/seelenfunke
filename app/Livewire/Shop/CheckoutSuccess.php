@@ -5,10 +5,10 @@ namespace App\Livewire\Shop;
 use App\Models\Order;
 use App\Models\Cart;
 use App\Models\QuoteRequest;
-use App\Services\InvoiceService; // NEU
+use App\Services\InvoiceService;
 use App\Mail\OrderConfirmation;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Log; // Logging
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Component;
@@ -22,11 +22,23 @@ class CheckoutSuccess extends Component
         $intentId = request()->query('payment_intent');
 
         if ($intentId) {
+            Log::info("CheckoutSuccess: Processing Intent ID: $intentId");
+
+            // Bestellung suchen
             $order = Order::where('stripe_payment_intent_id', $intentId)->first();
+
+            if (!$order) {
+                Log::error("CheckoutSuccess: CRITICAL - Order NOT FOUND for Intent ID: $intentId");
+                // Hier könnten wir versuchen, über die Session oder E-Mail zu matchen, aber das ist riskant.
+                return;
+            }
+
+            Log::info("CheckoutSuccess: Order found: " . $order->order_number);
+
             $stripeSecret = config('services.stripe.secret');
 
             if (!$stripeSecret) {
-                Log::error('CRITICAL: Stripe Secret Key is missing in config!');
+                Log::error('CRITICAL: Stripe Secret Key missing!');
                 return;
             }
 
@@ -34,45 +46,39 @@ class CheckoutSuccess extends Component
                 Stripe::setApiKey($stripeSecret);
                 $intent = PaymentIntent::retrieve($intentId);
 
-                if ($intent->status === 'succeeded') {
+                // Check auf status
+                if ($intent->status === 'succeeded' || $intent->status === 'processing') {
 
-                    // --- SCHRITT 1: Bestellung verarbeiten ---\
-                    if ($order && $order->payment_status !== 'paid') {
+                    if ($order->payment_status !== 'paid') {
                         $order->update(['payment_status' => 'paid']);
+                        Log::info("Order updated to PAID.");
 
-                        // 1.1: RECHNUNG SOFORT ERSTELLEN (NEU)
+                        // 1. Rechnung
                         try {
                             $invoiceService = new InvoiceService();
                             $invoiceService->createFromOrder($order);
+                            Log::info("Invoice created.");
                         } catch (\Exception $e) {
-                            Log::error('Auto-Invoice Error: ' . $e->getMessage());
+                            Log::error('Invoice Error: ' . $e->getMessage());
                         }
 
-                        // 1.2 Mail senden
+                        // 2. Mail
                         try {
                             Mail::to($order->email)->send(new OrderConfirmation($order));
+                            Log::info("Mail sent to " . $order->email);
                         } catch (\Exception $e) {
                             Log::error('Mail Error: ' . $e->getMessage());
                         }
                     }
 
-                    // --- SCHRITT 2: Quote Status update (Falls aus Angebot) ---
+                    // --- Clean Up ---
                     if (Session::has('checkout_from_quote_id')) {
                         $quoteId = Session::get('checkout_from_quote_id');
                         $quote = QuoteRequest::find($quoteId);
-
                         if ($quote) {
-                            $quote->update([
-                                'status' => 'converted',
-                                'converted_order_id' => $order ? $order->id : null
-                            ]);
+                            $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
                         }
                         Session::forget('checkout_from_quote_id');
-                    }
-
-                    // --- SCHRITT 3: Warenkorb leeren ---
-                    if (isset($intent->metadata->cart_id)) {
-                        Cart::where('id', $intent->metadata->cart_id)->delete();
                     }
 
                     if (Auth::guard('customer')->check()) {
@@ -82,10 +88,14 @@ class CheckoutSuccess extends Component
                     }
 
                     $this->dispatch('cart-updated');
+                } else {
+                    Log::warning("Stripe Intent status is: " . $intent->status);
                 }
             } catch (\Exception $e) {
                 Log::error('Stripe Success Page Error: ' . $e->getMessage());
             }
+        } else {
+            Log::warning("CheckoutSuccess: No payment_intent in URL.");
         }
     }
 

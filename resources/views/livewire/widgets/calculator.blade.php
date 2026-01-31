@@ -217,23 +217,23 @@
                                 <div class="text-right w-full md:w-auto">
                                     <div class="text-sm text-gray-500">Netto: {{ number_format($totalNetto, 2, ',', '.') }} €</div>
 
-                                    {{-- NEU: Detaillierte Versandanzeige --}}
+                                    {{-- Detaillierte Versandanzeige --}}
                                     @if($shippingCost > 0)
                                         <div class="text-sm text-gray-500">
                                             Versand ({{ $form['country'] }}): {{ number_format($shippingCost, 2, ',', '.') }} €
                                         </div>
 
-                                        {{-- NEU: Upselling Hinweis für Deutschland --}}
+                                        {{-- Upselling Hinweis für Deutschland --}}
                                         @if($form['country'] === 'DE')
                                             @php
                                                 // Wir rechnen zurück: Gesamtsumme - Versand = Warenwert Brutto
                                                 $warenwert = $totalBrutto - $shippingCost;
                                                 $missing = 50.00 - $warenwert;
                                             @endphp
-                                            @if($missing > 0.01) {{-- Toleranz für Floating Point --}}
-                                            <div class="text-xs text-amber-600 font-medium mt-1">
-                                                Noch <strong>{{ number_format($missing, 2, ',', '.') }} €</strong> bis zum kostenlosen Versand!
-                                            </div>
+                                            @if($missing > 0.01)
+                                                <div class="text-xs text-amber-600 font-medium mt-1">
+                                                    Noch <strong>{{ number_format($missing, 2, ',', '.') }} €</strong> bis zum kostenlosen Versand!
+                                                </div>
                                             @endif
                                         @endif
                                     @else
@@ -289,9 +289,6 @@
                                                 <p class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ $product['desc'] }}</p>
                                             </div>
                                             <div class="mt-3">
-                                                @php
-                                                    $brutto = $product['tax_included'] ? $product['price'] : $product['price'] * 1.19;
-                                                @endphp
                                                 <div class="flex flex-wrap items-baseline gap-x-1 justify-between items-end">
                                                     <div>
                                                         <div class="flex flex-wrap items-baseline gap-x-1">
@@ -367,24 +364,20 @@
                             <input wire:model.live="form.email" type="email" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
                         </div>
 
-                        {{-- NEU: LAND AUSWAHL MIT HINWEIS --}}
+                        {{-- LAND AUSWAHL (DYNAMISCH) --}}
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block text-sm font-bold text-gray-700 mb-1">Land für Versand *</label>
                             <select wire:model.live="form.country" class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
-                                <option value="DE">Deutschland</option>
-                                <option value="AT">Österreich</option>
-                                <option value="CH">Schweiz</option>
-                                <option value="NL">Niederlande</option>
-                                <option value="BE">Belgien</option>
-                                <option value="FR">Frankreich</option>
-                                <option value="IT">Italien</option>
-                                <option value="ES">Spanien</option>
-                                <option value="GB">Großbritannien</option>
-                                <option value="US">USA</option>
+                                @foreach(config('shop.countries', ['DE' => 'Deutschland']) as $code => $name)
+                                    {{-- Sicherheitshalber Konfigurations-Keys ausschließen, falls vorhanden --}}
+                                    @if($code !== 'default_tax_rate')
+                                        <option value="{{ $code }}">{{ $name }}</option>
+                                    @endif
+                                @endforeach
                             </select>
 
                             {{-- Dynamischer Hinweis unter dem Dropdown --}}
-                            <div class="mt-1.5 text-xs text-gray-500">
+                            <div class="mt-1.5 text-xs text-gray-500 animate-fade-in">
                                 @if($form['country'] === 'DE')
                                     <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab 50,00 € Warenwert (DE). Sonst pauschal 4,90 €.
                                 @else

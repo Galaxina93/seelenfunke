@@ -30,8 +30,14 @@ class CartIcon extends Component
 
         // Mapping auf die Properties der Komponente
         $this->totals = [
-            'subtotal' => $totals['subtotal_gross'], // Für Anzeige im Tooltip
+            'subtotal' => $totals['subtotal_gross'],
             'tax' => $totals['tax'],
+
+            // --- NEU HINZUFÜGEN: ---
+            'taxes_breakdown' => $totals['taxes_breakdown'] ?? [],
+            'discount_amount' => $totals['discount_amount'] ?? 0,
+            // -----------------------
+
             'shipping' => $totals['shipping'],
             'total' => $totals['total'],
             'item_count' => $totals['item_count']

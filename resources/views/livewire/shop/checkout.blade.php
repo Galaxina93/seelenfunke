@@ -22,7 +22,7 @@
                         </div>
 
                         {{-- Inline Login Form --}}
-                        <div x-show="showLogin" x-collapse class="mt-4 pt-4 border-t border-gray-100">
+                        <div x-show="showLogin" x-collapse class="mt-4 pt-4 border-t border-gray-100" style="display: none;">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
@@ -151,7 +151,11 @@
                         </p>
                     </div>
 
-                    <div id="payment-element" wire:ignore></div>
+                    {{-- wire:ignore verhindert, dass Livewire das Stripe Element beim Rerender zerstört --}}
+                    <div wire:ignore>
+                        <div id="payment-element"></div>
+                    </div>
+
                     <div id="payment-message" class="hidden mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg"></div>
                 </div>
             </div>
@@ -168,7 +172,7 @@
                     @php
                         $threshold = 5000; // 50,00 Euro
                         $currentValue = $totals['subtotal_gross'];
-                        $percent = min(100, ($currentValue / $threshold) * 100);
+                        $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
                         $missing = $totals['missing_for_free_shipping'];
                         $isFree = $totals['is_free_shipping'];
                     @endphp
@@ -201,8 +205,10 @@
                     <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
                         @foreach($cart->items as $item)
                             <li class="flex items-start py-6 space-x-4">
-                                @if(isset($item->product->media_gallery[0]))
-                                    <img src="{{ asset('storage/'.$item->product->media_gallery[0]['path']) }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200">
+                                @if(isset($item->product->preview_image_path))
+                                    <img src="{{ Storage::url($item->product->preview_image_path) }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200">
+                                @elseif(isset($item->product->media_gallery[0]))
+                                    <img src="{{ Storage::url($item->product->media_gallery[0]['path']) }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200">
                                 @else
                                     <div class="flex-none w-20 h-20 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300">
                                         <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -211,8 +217,18 @@
                                 <div class="flex-auto space-y-1">
                                     <h3 class="text-gray-900 font-bold">{{ $item->product->name }}</h3>
                                     <p class="text-gray-500">{{ $item->quantity }}x</p>
-                                    @if(isset($item->configuration['text']))
-                                        <p class="text-xs text-gray-400 bg-gray-50 inline-block px-2 py-1 rounded">Gravur: {{ Str::limit($item->configuration['text'], 15) }}</p>
+
+                                    {{-- Konfigurations-Details --}}
+                                    @if(!empty($item->configuration) && is_array($item->configuration))
+                                        <div class="text-xs text-gray-500 space-y-1">
+                                            @if(isset($item->configuration['texts']))
+                                                @foreach($item->configuration['texts'] as $t)
+                                                    <div class="bg-gray-50 inline-block px-1.5 py-0.5 rounded border border-gray-100">
+                                                        "{{ Str::limit($t['text'], 20) }}"
+                                                    </div>
+                                                @endforeach
+                                            @endif
+                                        </div>
                                     @endif
                                 </div>
                                 <div class="text-right">
@@ -226,7 +242,7 @@
                     <div class="border-t border-gray-100 pt-6 space-y-3">
                         <div class="flex items-center justify-between text-sm text-gray-600">
                             <span>Zwischensumme</span>
-                            <span>{{ number_format($totals['subtotal_original'] / 100, 2, ',', '.') }} €</span>
+                            <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
                         </div>
 
                         {{-- Rabatte --}}
@@ -254,16 +270,26 @@
                             @endif
                         </div>
 
-                        {{-- Gewicht (Optional, hier ausgeblendet wie besprochen, aber Variable ist verfügbar) --}}
-
                         <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
                             <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
-                            <span class="text-xl font-bold text-gray-900">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
+                            <span class="text-xl font-bold text-primary">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
                         </div>
 
-                        {{-- Steuerhinweis --}}
-                        <div class="text-xs text-gray-400 text-right">
-                            inkl. {{ number_format($totals['tax'] / 100, 2, ',', '.') }} € MwSt. ({{ floatval($rate) }}%)
+                        {{-- STEUERANZEIGE (FIX: Dynamische Schleife) --}}
+                        <div class="space-y-1 pt-2 border-t border-dashed border-gray-200 mt-2">
+                            @if(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
+                                @foreach($totals['taxes_breakdown'] as $taxRate => $taxAmount)
+                                    <div class="flex justify-between text-xs text-gray-400">
+                                        <span>Enthaltene MwSt. ({{ $taxRate }}%)</span>
+                                        <span>{{ number_format($taxAmount / 100, 2, ',', '.') }} €</span>
+                                    </div>
+                                @endforeach
+                            @else
+                                {{-- Fallback --}}
+                                <div class="text-xs text-gray-400 text-right">
+                                    inkl. {{ number_format($totals['tax'] / 100, 2, ',', '.') }} € MwSt.
+                                </div>
+                            @endif
                         </div>
                     </div>
 
@@ -309,22 +335,60 @@
         </form>
     </div>
 
+    {{-- STRIPE JS --}}
     <script src="https://js.stripe.com/v3/"></script>
     <script>
         document.addEventListener('livewire:initialized', () => {
+            let stripe, elements, paymentElement;
             const stripeKey = "{{ $stripeKey }}";
-            const clientSecret = "{{ $clientSecret }}";
 
-            if (!stripeKey) {
-                console.error("Stripe Key fehlt.");
-                return;
+            // Funktion zum Initialisieren (oder neu laden bei Preisänderung)
+            async function initializeStripe() {
+                // Wir holen das neueste ClientSecret direkt aus der Komponente
+                // Das ist wichtig, weil sich der Betrag (Versand) und damit das Secret bei Länderwechsel ändert.
+                const clientSecret = await @this.get('clientSecret');
+
+                if (!stripeKey || !clientSecret) {
+                    console.error("Stripe Konfiguration fehlt.");
+                    return;
+                }
+
+                // Initialisierung
+                stripe = Stripe(stripeKey);
+                const appearance = { theme: 'stripe', variables: { colorPrimary: '#C5A059', borderRadius: '8px' } };
+
+                // Bestehendes Element entfernen falls vorhanden (Cleanup)
+                const container = document.getElementById("payment-element");
+                container.innerHTML = '';
+
+                elements = stripe.elements({ appearance, clientSecret });
+                paymentElement = elements.create("payment", { layout: "tabs" });
+                paymentElement.mount("#payment-element");
             }
 
-            const stripe = Stripe(stripeKey);
-            const appearance = { theme: 'stripe', variables: { colorPrimary: '#C5A059', borderRadius: '8px' } };
-            const elements = stripe.elements({ appearance, clientSecret });
-            const paymentElement = elements.create("payment", { layout: "tabs" });
-            paymentElement.mount("#payment-element");
+            // Start Initialisierung
+            initializeStripe();
+
+            // Listener für Änderungen im Backend (z.B. Land geändert -> neuer Preis -> neues Secret)
+            // Wir nutzen den Hook 'commit', um nach jedem Livewire Update zu prüfen
+            Livewire.hook('commit', ({ component, succeed }) => {
+                succeed(() => {
+                    // Hier könnte man optimieren und nur neu laden wenn sich clientSecret geändert hat.
+                    // Da createPaymentIntent im Backend bei jedem Country-Change läuft, ist ein Re-Mount sicher.
+                    // Optional: Prüfen ob wir im Checkout Component sind
+                    if(component.name === 'shop.checkout') {
+                        // initializeStripe(); // Falls Stripe bei Updates zickt, hier einkommentieren.
+                        // Normalerweise reicht einmaliges Laden, solange der Intent ID gleich bleibt.
+                        // Bei neuer Intent ID muss neu geladen werden.
+                    }
+                })
+            });
+
+            // Alternativ: Expliziter Event Listener vom Backend (sauberer)
+            Livewire.on('checkout-updated', () => {
+                initializeStripe();
+            });
+
 
             const form = document.getElementById('payment-form');
             const submitButton = document.getElementById('submit-button');
@@ -339,9 +403,16 @@
                 messageContainer.classList.add("hidden");
 
                 try {
+                    // 1. Validierung und Order-Erstellung im Backend
                     const orderId = await @this.validateAndCreateOrder();
-                    if(!orderId) { setLoading(false); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
 
+                    if(!orderId) {
+                        setLoading(false);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        return;
+                    }
+
+                    // 2. Stripe Bestätigung
                     const { error } = await stripe.confirmPayment({
                         elements,
                         confirmParams: {
@@ -350,7 +421,12 @@
                                 billing_details: {
                                     name: @this.get('first_name') + ' ' + @this.get('last_name'),
                                     email: @this.get('email'),
-                                    address: { city: @this.get('city'), country: @this.get('country'), line1: @this.get('address'), postal_code: @this.get('postal_code') }
+                                    address: {
+                                        city: @this.get('city'),
+                                        country: @this.get('country'),
+                                        line1: @this.get('address'),
+                                        postal_code: @this.get('postal_code')
+                                    }
                                 }
                             }
                         },

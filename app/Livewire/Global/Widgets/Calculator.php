@@ -8,7 +8,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\QuoteRequest;
 use App\Models\QuoteRequestItem;
-use App\Models\ShippingZone; // Wichtig: Model importieren
+use App\Models\ShippingZone; // Wichtig für die DB-Versandlogik
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -29,12 +29,13 @@ class Calculator extends Component
     public $currentConfig = [];
     public $currentProduct = null;
 
-    // --- PREISE ---
+    // --- PREISE & GEWICHT ---
     public $gesamtKosten = 0;
     public $totalNetto = 0;
     public $totalMwst = 0;
     public $totalBrutto = 0;
     public $shippingCost = 0;
+    public $totalWeight = 0; // Neu: Für gewichtsbasierte Berechnung
 
     // --- FORMULAR ---
     public $isExpress = false;
@@ -46,7 +47,7 @@ class Calculator extends Component
         'email' => '',
         'telefon' => '',
         'anmerkung' => '',
-        'country' => 'DE' // Default Deutschland
+        'country' => 'DE' // Standard: Deutschland
     ];
 
     public $dbProducts = [];
@@ -66,12 +67,14 @@ class Calculator extends Component
         if (session()->has('calc_cart')) {
             $this->cartItems = session('calc_cart');
             $this->validateCartItems();
+
+            // Session Form laden
+            if (session()->has('calc_form')) {
+                $this->form = array_merge($this->form, session('calc_form'));
+            }
+
             $this->calculateTotal();
             if(count($this->cartItems) > 0) $this->step = 1;
-        }
-        if (session()->has('calc_form')) {
-            $this->form = session('calc_form');
-            if(!isset($this->form['country'])) $this->form['country'] = 'DE';
         }
     }
 
@@ -202,7 +205,7 @@ class Calculator extends Component
     public function calculateTotal()
     {
         $quantitiesPerProduct = [];
-        $totalWeight = 0; // Gesamtgewicht in Gramm
+        $this->totalWeight = 0;
 
         // 1. Mengen und Gewicht summieren
         foreach ($this->cartItems as $item) {
@@ -213,13 +216,13 @@ class Calculator extends Component
             $product = $this->dbProducts[$pid] ?? null;
             if ($product) {
                 // Gewicht addieren (Menge * Einzelgewicht)
-                $totalWeight += ($product['weight'] * $item['qty']);
+                $this->totalWeight += ($product['weight'] * $item['qty']);
             }
         }
 
         $sumNetto = 0;
         $sumMwst = 0;
-        $cartSubtotalGross = 0; // Wichtig für 50€ Grenze
+        $cartSubtotalGross = 0; // Wichtig für 50€ Grenze (DE)
 
         // 2. Artikelpreise berechnen
         foreach ($this->cartItems as $index => $item) {
@@ -254,18 +257,19 @@ class Calculator extends Component
                 $cartSubtotalGross += (($lineNet + $lineTax) / 100);
             }
 
+            // Speichern für View (Anzeige in Euro)
             $this->cartItems[$index]['calculated_single_price'] = $unitPriceCents / 100;
-            $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalCents : round($lineNet)) / 100;
+            $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalCents : round($lineNet + $lineTax)) / 100;
 
             $sumNetto += $lineNet;
             $sumMwst += $lineTax;
         }
 
-        // --- 3. VERSANDKOSTEN (Deine neue Logik) ---
+        // --- 3. VERSANDKOSTEN ---
         $this->shippingCost = 0;
         $countryCode = $this->form['country'];
 
-        // FALL A: DEUTSCHLAND
+        // FALL A: DEUTSCHLAND (Pauschal-Regel)
         if ($countryCode === 'DE') {
             // Regel: Kostenfrei ab 50,00 €, sonst 4,90 €
             if ($cartSubtotalGross >= 50.00 || count($this->cartItems) === 0) {
@@ -289,9 +293,12 @@ class Calculator extends Component
             if ($zone && count($this->cartItems) > 0) {
                 // Rate finden (Gewicht oder Preis)
                 $shippingRate = $zone->rates()
-                    ->where(function($q) use ($totalWeight) {
-                        $q->where('max_weight', '>=', $totalWeight)
-                            ->orWhereNull('max_weight');
+                    ->where(function($q) {
+                        $q->where('min_weight', '<=', $this->totalWeight)
+                            ->where(function($sub) {
+                                $sub->where('max_weight', '>=', $this->totalWeight)
+                                    ->orWhereNull('max_weight');
+                            });
                     })
                     ->orderBy('price', 'asc') // Günstigste Rate
                     ->first();
@@ -302,25 +309,26 @@ class Calculator extends Component
                     // Fallback, wenn zu schwer oder nicht konfiguriert
                     $this->shippingCost = 29.90; // Standard Auslandspreis Fallback
                 }
-            } else {
+            } elseif(count($this->cartItems) > 0) {
                 // Kein Versand möglich oder konfiguriert -> Fallback
                 $this->shippingCost = 29.90;
             }
         }
 
-        // 4. Versandkosten aufaddieren
+        // 4. Versandkosten aufaddieren (Steuerlogik)
         if ($this->shippingCost > 0) {
             $shippingCents = $this->shippingCost * 100;
 
-            // Steuerlogik: EU = MwSt, Drittland = 0%
-            // Liste der EU-Länder (vereinfacht)
-            $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE'];
+            // Liste der EU-Länder
+            $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
             if (in_array($countryCode, $euCountries)) {
+                // EU: 19% MwSt auf Versand (Standard)
+                // Wir rechnen aus Brutto zurück
                 $shippingNet = $shippingCents / 1.19;
                 $shippingTax = $shippingCents - $shippingNet;
             } else {
-                // Export steuerfrei
+                // Drittland (Export): Steuerfrei (Netto = Brutto)
                 $shippingNet = $shippingCents;
                 $shippingTax = 0;
             }
@@ -331,15 +339,23 @@ class Calculator extends Component
 
         // 5. Express-Option
         if ($this->isExpress && count($this->cartItems) > 0) {
-            $expressNetto = 2500; // 25 € Netto
-            $expressTax = $expressNetto * 0.19;
-            $sumNetto += $expressNetto;
+            $expressGross = 2500; // 25 € Brutto
+            // Express wird steuerlich wie Versand behandelt
+            if (in_array($countryCode, $euCountries)) {
+                $expressNet = $expressGross / 1.19;
+                $expressTax = $expressGross - $expressNet;
+            } else {
+                $expressNet = $expressGross;
+                $expressTax = 0;
+            }
+
+            $sumNetto += $expressNet;
             $sumMwst += $expressTax;
         }
 
         $this->totalNetto = round($sumNetto) / 100;
         $this->totalMwst = round($sumMwst) / 100;
-        $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
+        $this->totalBrutto = round($sumNetto + $sumMwst) / 100; // Gesamtsumme inkl. allem
         $this->gesamtKosten = $this->totalBrutto;
     }
 
@@ -349,7 +365,7 @@ class Calculator extends Component
         $tiers = $product['tier_pricing'] ?? [];
 
         if (!empty($tiers) && is_array($tiers)) {
-            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
+            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']); // Absteigend sortieren
             foreach ($tiers as $tier) {
                 if ($qty >= $tier['qty']) {
                     $discount = $basePrice * ($tier['percent'] / 100);
@@ -362,7 +378,8 @@ class Calculator extends Component
 
     // Wenn Land geändert wird -> Neu berechnen
     public function updatedForm($value, $key) {
-        if($key === 'country') {
+        // Bei Änderung des Landes oder nested Keys
+        if($key === 'country' || $key === 'form.country') {
             $this->calculateTotal();
         }
         $this->persist();
@@ -447,10 +464,10 @@ class Calculator extends Component
             ];
         }
 
-        // Versandzeile
+        // Versandzeile für PDF
         if ($this->shippingCost > 0) {
             $finalItems[] = [
-                'name' => 'Versand & Verpackung (' . $this->form['country'] . ')',
+                'name' => 'Versand & Verpackung (' . ($this->form['country'] === 'DE' ? 'Deutschland' : $this->form['country']) . ')',
                 'quantity' => 1,
                 'single_price' => number_format($this->shippingCost, 2, ',', '.'),
                 'total_price' => number_format($this->shippingCost, 2, ',', '.'),
@@ -458,7 +475,7 @@ class Calculator extends Component
             ];
         }
 
-        // Express Zeile
+        // Express Zeile für PDF
         if ($this->isExpress) {
             $finalItems[] = [
                 'name' => 'Express-Service',
@@ -507,7 +524,7 @@ class Calculator extends Component
 
     public function restartCalculator()
     {
-        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten', 'shippingCost']);
+        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight']);
         session()->forget(['calc_cart', 'calc_form']);
         $this->step = 1;
     }

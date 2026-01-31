@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log; // [NEU] Wichtig für Debugging
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Stripe\Stripe;
@@ -30,7 +31,7 @@ class Checkout extends Component
     public $terms_accepted = false;
     public $privacy_accepted = false;
 
-    // --- LOGIN ---
+    // --- LOGIN (für Gäste die sich im Checkout einloggen wollen) ---
     public $loginEmail = '';
     public $loginPassword = '';
     public $loginError = '';
@@ -39,23 +40,32 @@ class Checkout extends Component
     public $clientSecret;
     public $stripeKey;
 
+    // [FIX] Neue Variable, um die ID (pi_...) explizit zu speichern
+    public $currentPaymentIntentId;
+
     // --- REGELN ---
-    protected $rules = [
-        'email' => 'required|email',
-        'first_name' => 'required|string|min:2',
-        'last_name' => 'required|string|min:2',
-        'address' => 'required|string|min:5',
-        'city' => 'required|string|min:2',
-        'postal_code' => 'required|string|min:4',
-        // Erweiterte Länderliste
-        'country' => 'required|in:DE,AT,CH,NL,BE,FR,IT,ES,GB,US',
-        'terms_accepted' => 'accepted',
-        'privacy_accepted' => 'accepted',
-    ];
+    protected function rules()
+    {
+        // Wir holen die erlaubten Länder dynamisch aus der Config, falls vorhanden
+        $allowedCountries = implode(',', array_keys(config('shop.countries', ['DE' => 'Deutschland'])));
+
+        return [
+            'email' => 'required|email',
+            'first_name' => 'required|string|min:2',
+            'last_name' => 'required|string|min:2',
+            'address' => 'required|string|min:5',
+            'city' => 'required|string|min:2',
+            'postal_code' => 'required|string|min:4',
+            'country' => 'required|in:' . $allowedCountries,
+            'terms_accepted' => 'accepted',
+            'privacy_accepted' => 'accepted',
+        ];
+    }
 
     protected $messages = [
         'email.required' => 'Bitte gib deine E-Mail-Adresse an.',
-        'country.in' => 'Bitte wähle ein gültiges Lieferland aus.',
+        'email.email' => 'Bitte gib eine gültige E-Mail-Adresse an.',
+        'country.in' => 'Wir liefern leider nicht in das ausgewählte Land.',
         'terms_accepted.accepted' => 'Du musst den AGB zustimmen.',
         'privacy_accepted.accepted' => 'Bitte akzeptiere die Datenschutzerklärung.',
     ];
@@ -67,6 +77,7 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
+        // Leeren Warenkorb abfangen
         if ($cart->items->isEmpty()) {
             return redirect()->route('shop');
         }
@@ -78,32 +89,38 @@ class Checkout extends Component
             $this->first_name = $user->first_name;
             $this->last_name = $user->last_name;
 
+            // Profil laden falls vorhanden
             if ($user->profile) {
                 $this->address = $user->profile->street . ' ' . $user->profile->house_number;
                 $this->city = $user->profile->city;
                 $this->postal_code = $user->profile->postal;
-                // Wichtig: Land vom Profil laden, falls vorhanden
-                if($user->profile->country) {
+
+                // Wichtig: Land vom Profil laden, falls vorhanden und gültig
+                if($user->profile->country && array_key_exists($user->profile->country, config('shop.countries'))) {
                     $this->country = $user->profile->country;
                 }
             }
         }
-        // 2. Daten laden: Aus Angebot (Quote)
+        // 2. Daten laden: Aus Angebot (Quote) falls vorhanden
         elseif (Session::has('checkout_from_quote_id')) {
             $quoteId = Session::get('checkout_from_quote_id');
             $quote = QuoteRequest::find($quoteId);
 
             if ($quote) {
                 $this->email = $quote->email;
-                $this->first_name = $quote->first_name;
-                $this->last_name = $quote->last_name;
+                // Namen trennen falls nötig oder direkt übernehmen
+                if($quote->customer) {
+                    $this->first_name = $quote->customer->first_name;
+                    $this->last_name = $quote->customer->last_name;
+                } else {
+                    // Fallback falls Name im Quote Objekt anders gespeichert ist
+                }
                 $this->company = $quote->company;
-                // Quote hat kein Land-Feld, daher bleibt Default DE
             }
         }
 
-        // Stripe Intent erstellen (mit aktuellem Land)
-        $this->createPaymentIntent($cart);
+        // Stripe Intent sofort erstellen, damit das Payment Element laden kann
+        $this->createPaymentIntent();
     }
 
     /**
@@ -112,21 +129,20 @@ class Checkout extends Component
      */
     public function updatedCountry()
     {
-        $cart = app(CartService::class)->getCart();
-
-        // 1. Totals neu berechnen mit neuem Land
-        $totals = app(CartService::class)->calculateTotals($cart, $this->country);
-
-        // 2. Stripe Intent aktualisieren (wegen neuem Gesamtbetrag)
-        $this->createPaymentIntent($cart, $totals);
+        // 1. Stripe Intent aktualisieren (wegen neuem Gesamtbetrag durch Versand)
+        $this->createPaymentIntent();
     }
 
-    public function createPaymentIntent($cart, $totals = null)
+    /**
+     * Erstellt oder aktualisiert den PaymentIntent bei Stripe
+     */
+    public function createPaymentIntent()
     {
-        // Falls Totals nicht übergeben, neu berechnen (mit Land!)
-        if (!$totals) {
-            $totals = app(CartService::class)->calculateTotals($cart, $this->country);
-        }
+        $cartService = app(CartService::class);
+        $cart = $cartService->getCart();
+
+        // Totals berechnen mit dem AKTUELLEN Land
+        $totals = $cartService->calculateTotals($cart, $this->country);
 
         $amount = $totals['total']; // Betrag in Cent
 
@@ -136,23 +152,39 @@ class Checkout extends Component
             if($stripeSecret) {
                 Stripe::setApiKey($stripeSecret);
 
-                $intent = PaymentIntent::create([
+                // Metadaten vorbereiten
+                $metadata = [
+                    'cart_id' => $cart->id,
+                    'session_id' => Session::getId(),
+                    'customer_email' => $this->email,
+                    'shipping_country' => $this->country
+                ];
+
+                $intentData = [
                     'amount' => $amount,
                     'currency' => 'eur',
                     'automatic_payment_methods' => ['enabled' => true],
-                    'metadata' => [
-                        'cart_id' => $cart->id,
-                        'session_id' => Session::getId(),
-                        'customer_email' => $this->email,
-                        'shipping_country' => $this->country // Hilfreich im Stripe Dashboard
-                    ]
-                ]);
+                    'metadata' => $metadata
+                ];
+
+                // OPTIONAL: Wenn wir schon einen Intent haben, könnten wir ihn updaten.
+                // Der Einfachheit halber erstellen wir hier einen neuen.
+                $intent = PaymentIntent::create($intentData);
 
                 $this->clientSecret = $intent->client_secret;
+
+                // [FIX] Hier speichern wir die ID sofort in die Variable
+                $this->currentPaymentIntentId = $intent->id;
+
+                return $this->clientSecret;
             }
         }
+        return null;
     }
 
+    /**
+     * Login direkt im Checkout
+     */
     public function loginUser()
     {
         $this->validate([
@@ -166,16 +198,17 @@ class Checkout extends Component
 
             $user = Auth::guard('customer')->user();
 
+            // User Warenkorb laden oder erstellen
             $userCart = Cart::firstOrCreate(
                 ['customer_id' => $user->id],
                 ['session_id' => Session::getId()]
             );
 
-            // MERGE Logic
+            // MERGE Logic: Gast-Items in User-Cart schieben
             if ($guestCart && $guestCart->id !== $userCart->id) {
                 foreach ($guestCart->items as $item) {
-                    $item->cart_id = $userCart->id;
-                    $item->save();
+                    // Prüfen ob Item schon existiert im User Cart (ähnlich CartService logic)
+                    $item->update(['cart_id' => $userCart->id]);
                 }
 
                 if ($guestCart->coupon_code && !$userCart->coupon_code) {
@@ -183,87 +216,117 @@ class Checkout extends Component
                     $userCart->save();
                 }
 
+                // Leeren Gast-Cart löschen
                 if ($guestCart->items()->count() == 0) {
                     $guestCart->delete();
                 }
             }
 
-            return redirect(request()->header('Referer'));
+            // Felder neu befüllen
+            $this->mount();
+            $this->loginError = '';
 
         } else {
             $this->loginError = 'Zugangsdaten nicht korrekt.';
         }
     }
 
+    /**
+     * Wird vom Frontend aufgerufen, BEVOR Stripe bestätigt wird.
+     * Erstellt die Order und den User (falls nötig) in der DB.
+     */
     public function validateAndCreateOrder()
     {
         $this->validate();
 
-        // Nochmal neu berechnen vor dem Speichern um sicherzugehen
-        $orderId = $this->createOrder();
-
-        if ($this->clientSecret) {
-            $parts = explode('_secret_', $this->clientSecret);
-            if(count($parts) > 0) {
-                $intentId = $parts[0];
-                $order = Order::find($orderId);
-                if($order) {
-                    $order->stripe_payment_intent_id = $intentId;
-                    $order->save();
-                }
-            }
-        }
+        // Order erstellen (Status: pending)
+        // [FIX] ID-Logik passiert jetzt INNERHALB von createOrderInDb
+        $orderId = $this->createOrderInDb();
 
         return $orderId;
     }
 
-    private function createOrder()
+    /**
+     * Private Helper: Die eigentliche Order-Erstellung inkl. User-Logik
+     */
+    private function createOrderInDb()
     {
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
-        // WICHTIG: Land übergeben für finale Berechnung
+        // WICHTIG: Land übergeben für finale Berechnung, damit DB Werte stimmen
         $totals = $cartService->calculateTotals($cart, $this->country);
+
+        // --- [FIX] ID EXTRAKTION UND FALLBACK ---
+        // 1. Versuche die gespeicherte ID zu nehmen
+        $finalIntentId = $this->currentPaymentIntentId;
+
+        // 2. Fallback: Wenn Variable leer ist (z.B. durch Re-Render verloren), extrahiere aus Secret
+        if (empty($finalIntentId) && !empty($this->clientSecret)) {
+            // client_secret Format: pi_3Mg..._secret_...
+            $parts = explode('_secret_', $this->clientSecret);
+            $finalIntentId = $parts[0] ?? null;
+        }
+
+        // LOGGING: Schreibt in storage/logs/laravel.log - so sehen wir, ob die ID da ist
+        Log::info('Bestellerstellung gestartet', [
+            'email' => $this->email,
+            'intent_id_variable' => $this->currentPaymentIntentId,
+            'intent_id_extracted' => $finalIntentId
+        ]);
 
         // --- KUNDEN-LOGIK ---
         $customer = null;
 
+        // 1. Prüfen ob eingeloggt
         if (Auth::guard('customer')->check()) {
             $customer = Auth::guard('customer')->user();
+            // Falls der eingeloggte User aus irgendeinem Grund keinen Eintrag in der Customers Tabelle hat
             if ($customer && !Customer::where('id', $customer->id)->exists()) {
                 $customer = null;
                 Auth::guard('customer')->logout();
             }
         }
 
+        // 2. Falls nicht, prüfen ob E-Mail schon existiert
         if (!$customer) {
             $customer = Customer::where('email', $this->email)->first();
         }
 
+        // 3. Falls immer noch nicht, neuen Customer anlegen
         if (!$customer) {
             $customer = Customer::create([
                 'email' => $this->email,
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
-                'password' => bcrypt(Str::random(16)),
+                'password' => bcrypt(Str::random(16)), // Zufallspasswort
             ]);
 
+            // Profil anlegen
             $customer->profile()->create([
                 'street' => $this->address,
                 'city' => $this->city,
                 'postal' => $this->postal_code,
-                'country' => $this->country
+                'country' => $this->country,
+                // House number ist im Address String enthalten oder separat, hier vereinfacht
             ]);
+
+            // Optional: Dem User eine Mail senden, dass Account erstellt wurde?
         }
 
         $customerId = $customer->id;
 
+        // Order erstellen
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
             'customer_id' => $customerId,
             'email' => $this->email,
             'status' => 'pending',
             'payment_status' => 'unpaid',
+            'payment_method' => 'stripe', // Default
+
+            // [FIX] Hier nutzen wir die ermittelte ID direkt beim Erstellen
+            'stripe_payment_intent_id' => $finalIntentId,
 
             'billing_address' => [
                 'first_name' => $this->first_name,
@@ -274,6 +337,7 @@ class Checkout extends Component
                 'city' => $this->city,
                 'country' => $this->country,
             ],
+            // Annahme: Shipping = Billing im einfachen Checkout
             'shipping_address' => [
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
@@ -296,6 +360,7 @@ class Checkout extends Component
             'total_price' => $totals['total'],
         ]);
 
+        // Items übertragen
         foreach($cart->items as $item) {
             $order->items()->create([
                 'product_id' => $item->product_id,
@@ -315,10 +380,13 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
+        // Totals an die View übergeben (Wichtig für taxes_breakdown Anzeige!)
+        $totals = $cartService->calculateTotals($cart, $this->country);
+
         return view('livewire.shop.checkout', [
             'cart' => $cart,
-            // WICHTIG: Land übergeben für die View
-            'totals' => $cartService->calculateTotals($cart, $this->country)
+            'totals' => $totals,
+            'countries' => config('shop.countries', ['DE' => 'Deutschland'])
         ]);
     }
 }

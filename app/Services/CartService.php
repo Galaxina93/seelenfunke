@@ -25,6 +25,7 @@ class CartService
                 ['session_id' => Session::getId()]
             );
 
+            // Session ID aktuell halten
             if ($cart->session_id !== Session::getId()) {
                 $cart->update(['session_id' => Session::getId()]);
             }
@@ -42,14 +43,15 @@ class CartService
         $cart = $this->getCart();
 
         // Suche nach existierendem Item mit gleicher Konfiguration
+        // Wir nutzen json_encode zum Vergleich der Arrays
         $existingItems = $cart->items()->where('product_id', $product->id)->get();
         $existingItem = $existingItems->first(function ($item) use ($configuration) {
-            return $item->configuration == $configuration;
+            return json_encode($item->configuration) === json_encode($configuration);
         });
 
         $newQty = $existingItem ? $existingItem->quantity + $quantity : $quantity;
 
-        // Preis berechnen
+        // Preis berechnen (inkl. Staffelung)
         $unitPrice = $this->calculateTierPrice($product, $newQty);
 
         if ($existingItem) {
@@ -133,29 +135,24 @@ class CartService
     }
 
     /**
-     * Berechnet den Einzelpreis (Staffel + Steuer).
-     * Gibt immer den Brutto-Preis in Cent zurück.
+     * Berechnet den Einzelpreis (Staffel).
      */
     public function calculateTierPrice(Product $product, int $qty): int
     {
         $price = $product->price;
-        $tiers = $product->tier_pricing;
+        // Wir nutzen die Relation tierPrices (Eloquent) statt tier_pricing (JSON),
+        // da deine Seeder die Relation füllen.
+        $tiers = $product->tierPrices;
 
-        // Staffelpreise prüfen
-        if (!empty($tiers) && is_array($tiers)) {
-            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
-            foreach ($tiers as $tier) {
-                if ($qty >= $tier['qty']) {
-                    $discount = $price * ($tier['percent'] / 100);
-                    $price -= $discount;
-                    break;
-                }
+        if ($tiers && $tiers->count() > 0) {
+            // Sortieren nach Menge absteigend
+            $tier = $tiers->where('qty', '<=', $qty)->sortByDesc('qty')->first();
+
+            if ($tier) {
+                $discount = $price * ($tier->percent / 100);
+                $price -= $discount;
             }
         }
-
-        // Da wir prices_entered_gross global nutzen, ist der Preis hier schon Brutto.
-        // Falls du Netto-Preise nutzt (via Config switch), müsste hier die Steuer drauf.
-        // Der Accessor im Product Model regelt das aber meist schon.
 
         return (int) round($price);
     }
@@ -169,7 +166,10 @@ class CartService
         }
 
         $cart = $this->getCart();
-        $totals = $this->calculateTotals($cart);
+        $totals = $this->getTotals(); // Rekursion vermeiden: Wir rufen Totals ohne Coupon ab
+
+        // Wir müssen hier aufpassen: getTotals ruft calculateTotals auf.
+        // Wenn wir den Coupon noch nicht gesetzt haben, ist das OK.
         $subtotal = $totals['subtotal_gross'];
 
         if ($coupon->min_order_value && $subtotal < $coupon->min_order_value) {
@@ -188,18 +188,17 @@ class CartService
         $this->getCart()->update(['coupon_code' => null]);
     }
 
-    public function getTotals(): array
+    public function getTotals(string $countryCode = 'DE'): array
     {
-        return $this->calculateTotals($this->getCart());
+        return $this->calculateTotals($this->getCart(), $countryCode);
     }
 
     /**
      * Die Haupt-Rechenmaschine.
-     * Aktualisiert jetzt auch veraltete Preise in der DB!
      */
     public function calculateTotals(Cart $cart, string $countryCode = 'DE'): array
     {
-        $cart->load('items.product');
+        $cart->load(['items.product.tierPrices']);
 
         $subtotalGross = 0;
         $originalSubtotal = 0;
@@ -219,27 +218,25 @@ class CartService
             $weight = (int)($product->weight ?? 0);
             $totalWeight += ($weight * $qty);
 
-            // --- FIX: Frischen Preis berechnen! ---
-            // Wenn sich im Backend die Steuer/Preis geändert hat, ist $item->unit_price veraltet.
+            // Frischen Preis berechnen (Selbstheilung)
             $freshUnitPrice = $this->calculateTierPrice($product, $qty);
 
-            // Wenn der berechnete Preis abweicht, aktualisieren wir das Item in der DB
             if ($freshUnitPrice !== $item->unit_price) {
-                $item->update([
-                    'unit_price' => $freshUnitPrice,
-                    'total_price' => $freshUnitPrice * $qty
-                ]);
+                $item->unit_price = $freshUnitPrice;
+                $item->saveQuietly(); // Events vermeiden
             }
-            // Wir rechnen mit dem frischen Preis weiter
+
             $lineGross = $freshUnitPrice * $qty;
             $subtotalGross += $lineGross;
 
-            // Originalpreis (für Streichpreis-Logik, falls gewünscht)
+            // Originalpreis (für Streichpreise)
             $basePrice = $product->price;
             $originalSubtotal += ($basePrice * $qty);
 
-            // Steueranteil herausrechnen (vom Brutto-Preis)
+            // Steueranteil herausrechnen
+            // Nutzt den Accessor im Product Model, der die tax_rates Tabelle abfragt
             $taxRate = (float) ($product->tax_rate ?? 19.0);
+
             $lineNet = (int) round($lineGross / (1 + ($taxRate / 100)));
             $lineTax = $lineGross - $lineNet;
 
@@ -255,12 +252,11 @@ class CartService
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
-            $coupon = \App\Models\Coupon::where('code', $couponCode)->first();
+            $coupon = Coupon::where('code', $couponCode)->first();
 
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
-                    $cart->update(['coupon_code' => null]);
-                    $couponCode = null;
+                    // Ignorieren, aber Code behalten (User könnte noch was kaufen)
                 } else {
                     if ($coupon->type === 'fixed') {
                         $discountAmount = $coupon->value;
@@ -278,25 +274,26 @@ class CartService
         // Zwischensumme nach Rabatten
         $totalAfterDiscount = max(0, $subtotalGross - $discountAmount);
 
-        // 3. VERSANDKOSTEN
+        // 3. VERSANDKOSTEN (NEU: Rein Datenbank-basiert!)
         $shippingResult = $this->determineShippingCost($totalAfterDiscount, $totalWeight, $countryCode);
         $shippingGross = $shippingResult['cost'];
         $isFreeShipping = $shippingResult['is_free'];
         $missingForFreeShipping = $shippingResult['missing'];
 
-        // 4. STEUER KORREKTUR (Rabatte auf Steuer umlegen)
+        // 4. STEUER KORREKTUR (Rabatte proportional auf Steuer umlegen)
         $discountRatio = $subtotalGross > 0 ? ($totalAfterDiscount / $subtotalGross) : 1;
         foreach($taxesBreakdown as $key => $val) {
             $taxesBreakdown[$key] = (int) round($val * $discountRatio);
         }
 
-        // 5. VERSANDSTEUER (Nur EU)
+        // 5. VERSANDSTEUER (EU-Logik)
         $shippingTaxAmount = 0;
         if ($shippingGross > 0) {
+            // Liste der EU-Länder (Standard ISO Codes)
             $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
             $isEU = in_array($countryCode, $euCountries);
 
-            // Standardmäßig 19% auf Versand in DE, oder 0% Export
+            // 19% in EU, 0% Export
             $shippingTaxRate = $isEU ? 19.0 : 0.0;
 
             $shippingNet = (int) round($shippingGross / (1 + ($shippingTaxRate / 100)));
@@ -319,7 +316,7 @@ class CartService
             'discount_amount' => $discountAmount,
             'coupon_code' => $couponCode,
             'tax' => $finalTotalTax,
-            'taxes_breakdown' => $taxesBreakdown,
+            'taxes_breakdown' => $taxesBreakdown, // Wichtig für die View!
             'shipping' => $shippingGross,
             'shipping_tax' => $shippingTaxAmount,
             'is_free_shipping' => $isFreeShipping,
@@ -332,26 +329,11 @@ class CartService
     }
 
     /**
-     * Ermittelt die Versandkosten.
+     * Ermittelt die Versandkosten (Datenbank statt Hardcoded!)
      */
     private function determineShippingCost(int $cartValueCents, float $totalWeight, string $countryCode): array
     {
-        $result = ['cost' => 0, 'is_free' => false, 'missing' => 0];
-
-        // 1. DEUTSCHLAND
-        if ($countryCode === 'DE') {
-            $threshold = 5000; // 50,00 Euro
-            if ($cartValueCents >= $threshold) {
-                $result['is_free'] = true;
-                $result['cost'] = 0;
-            } else {
-                $result['cost'] = 490; // 4,90 Euro
-                $result['missing'] = $threshold - $cartValueCents;
-            }
-            return $result;
-        }
-
-        // 2. INTERNATIONAL (Datenbank)
+        // 1. Zone finden (Auch DE wird jetzt hier gefunden!)
         $zone = ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
@@ -361,28 +343,48 @@ class CartService
             $zone = ShippingZone::where('name', 'Weltweit')->with('rates')->first();
         }
 
+        // Absoluter Fallback
         if (!$zone) {
-            $result['cost'] = 2990; // Absoluter Fallback
-            return $result;
+            return ['cost' => 490, 'is_free' => false, 'missing' => 0];
         }
 
-        // Rate nach Gewicht
-        $rate = $zone->rates()
+        // 2. Passende Rate finden (Gewicht & Mindestbestellwert)
+        // Wir suchen ALLE Rates, die vom Gewicht her passen.
+        $validRates = $zone->rates()
             ->where(function($q) use ($totalWeight) {
-                $q->where('max_weight', '>=', $totalWeight)
-                    ->orWhereNull('max_weight');
+                $q->where('min_weight', '<=', $totalWeight)
+                    ->where(fn($sub) => $sub->where('max_weight', '>=', $totalWeight)->orWhereNull('max_weight'));
             })
+            // UND: Der Warenkorb muss den Mindestwert für diesen Tarif haben (z.B. min_price 5000 für Kostenlos)
+            ->where('min_price', '<=', $cartValueCents)
+            ->orderBy('price', 'asc') // Wir nehmen den günstigsten (z.B. 0€ wenn verfügbar)
+            ->get();
+
+        $bestRate = $validRates->first();
+
+        // 3. "Noch X Euro bis versandkostenfrei" berechnen
+        $freeShippingRate = $zone->rates()
+            ->where('price', 0)
+            ->where('min_price', '>', $cartValueCents)
             ->where('min_weight', '<=', $totalWeight)
-            ->orderBy('price', 'asc')
+            ->orderBy('min_price', 'asc')
             ->first();
 
-        if ($rate) {
-            $result['cost'] = $rate->price;
-        } else {
-            $result['cost'] = 5000; // Fallback wenn zu schwer
+        $missing = 0;
+        if ($freeShippingRate) {
+            $missing = $freeShippingRate->min_price - $cartValueCents;
         }
 
-        return $result;
+        if ($bestRate) {
+            return [
+                'cost' => $bestRate->price,
+                'is_free' => $bestRate->price === 0,
+                'missing' => $missing
+            ];
+        }
+
+        // Fallback wenn zu schwer oder kein Tarif passt
+        return ['cost' => 2990, 'is_free' => false, 'missing' => 0];
     }
 
     private function refreshTotals(Cart $cart) {
