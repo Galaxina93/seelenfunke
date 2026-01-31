@@ -13,6 +13,8 @@ class QuoteRequestItem extends Model
 
     protected $casts = [
         'configuration' => 'array',
+        'unit_price' => 'integer', // Cents
+        'total_price' => 'integer', // Cents
     ];
 
     public function quoteRequest()

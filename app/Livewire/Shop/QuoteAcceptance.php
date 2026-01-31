@@ -2,15 +2,11 @@
 
 namespace App\Livewire\Shop;
 
-use App\Mail\OrderConfirmation;
-use App\Models\Customer;
-use App\Models\Order;
 use App\Models\QuoteRequest;
 use App\Models\QuoteRequestItem;
+use App\Models\ShippingZone;
 use App\Services\CartService;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\Attributes\On;
 
@@ -37,10 +33,12 @@ class QuoteAcceptance extends Component
             return;
         }
 
-        // Warnung bei Ablauf, aber Zugriff erlauben solange Status 'open'
+        // FIX: Berechnung beim Laden ausführen, damit Versandkosten (transient) verfügbar sind
+        $this->recalculateQuoteTotals();
+
+        // Warnung bei Ablauf prüfen
         if ($this->quote->expires_at->isPast() && $this->quote->status === 'open') {
-            $this->errorMessage = 'Dieses Angebot ist leider abgelaufen.';
-            $this->viewState = 'error';
+            // Wir lassen den User drauf, aber sperren Buttons (handled in isValidAction)
         }
     }
 
@@ -76,7 +74,6 @@ class QuoteAcceptance extends Component
 
     /**
      * Speichert Änderungen aus dem Configurator
-     * Wird per Event vom Configurator aufgerufen (context="calculator")
      */
     #[On('calculator-save')]
     public function saveItem($data)
@@ -85,7 +82,7 @@ class QuoteAcceptance extends Component
 
         // 1. Konfiguration & Menge updaten
         $this->editingItem->quantity = $data['qty'];
-        $this->editingItem->configuration = $data; // Speichert Text, Pfade, Positionen etc.
+        $this->editingItem->configuration = $data;
 
         // 2. Einzelpreis neu berechnen (Staffelpreise beachten!)
         $product = $this->editingItem->product;
@@ -95,11 +92,13 @@ class QuoteAcceptance extends Component
         $this->editingItem->total_price = $unitPriceCents * $data['qty'];
         $this->editingItem->save();
 
-        // 3. Gesamtangebot neu berechnen
+        // FIX: Zuerst neu laden, DAMIT die neuen Items geladen sind...
+        $this->refreshQuote();
+
+        // ...UND DANN berechnen. So landet 'shipping_cost_calculated' im Objekt für die View.
         $this->recalculateQuoteTotals();
 
-        // 4. Zurück zum Dashboard
-        $this->refreshQuote(); // Daten neu laden
+        // Zurück zum Dashboard
         $this->viewState = 'dashboard';
         $this->editingItem = null;
 
@@ -107,7 +106,7 @@ class QuoteAcceptance extends Component
     }
 
     /**
-     * Hilfsfunktion: Staffelpreis berechnen (Kopie der Logik aus Calculator/Product)
+     * Hilfsfunktion: Staffelpreis berechnen
      */
     private function calculateTierPrice($product, $qty)
     {
@@ -127,53 +126,142 @@ class QuoteAcceptance extends Component
     }
 
     /**
-     * Hilfsfunktion: Summen des Angebots neu berechnen
+     * HAUPTLOGIK: Summen des Angebots inkl. Versand berechnen
      */
     private function recalculateQuoteTotals()
     {
-        $netTotal = 0;
-        $taxTotal = 0;
+        if(!$this->quote) return;
 
+        $netTotalProducts = 0;
+        $taxTotalProducts = 0;
+        $grossTotalProducts = 0; // Für Versandfreigrenze
+
+        $totalWeight = 0;
+
+        // 1. Produkte durchgehen
         foreach($this->quote->items as $item) {
             $product = $item->product;
             if(!$product) continue;
 
-            $lineTotal = $item->total_price; // Ist bereits berechnet (Menge * Einzel)
+            // Gewicht summieren
+            $weight = $product->weight ?? 0;
+            $totalWeight += ($weight * $item->quantity);
 
-            // Steuer herausrechnen
+            $lineTotal = $item->total_price;
             $rate = $product->tax_rate ?? 19.0;
 
             if ($product->tax_included) {
+                // Brutto -> Netto
+                $lineGross = $lineTotal;
                 $lineNet = $lineTotal / (1 + ($rate / 100));
                 $lineTax = $lineTotal - $lineNet;
             } else {
+                // Netto -> Brutto
                 $lineNet = $lineTotal;
                 $lineTax = $lineNet * ($rate / 100);
+                $lineGross = $lineNet + $lineTax;
             }
 
-            $netTotal += $lineNet;
-            $taxTotal += $lineTax;
+            $netTotalProducts += $lineNet;
+            $taxTotalProducts += $lineTax;
+            $grossTotalProducts += $lineGross;
         }
 
-        // Express
+        // 2. Versandberechnung
+        // Wir versuchen das Land aus der Quote zu lesen, Fallback auf DE
+        $countryCode = $this->quote->shipping_address['country'] ?? ($this->quote->billing_address['country'] ?? 'DE');
+
+        $shippingCostCents = 0;
+
+        if ($countryCode === 'DE') {
+            // Regel: Kostenfrei ab 50,00 € (Brutto-Warenwert), sonst 4,90 €
+            if (($grossTotalProducts / 100) >= 50.00 || $this->quote->items->isEmpty()) {
+                $shippingCostCents = 0;
+            } else {
+                $shippingCostCents = 490;
+            }
+        } else {
+            // Ausland: Zone suchen
+            $zone = ShippingZone::whereHas('countries', function($q) use ($countryCode) {
+                $q->where('country_code', $countryCode);
+            })->with('rates')->first();
+
+            if (!$zone) {
+                $zone = ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            }
+
+            if ($zone && !$this->quote->items->isEmpty()) {
+                $shippingRate = $zone->rates()
+                    ->where(function($q) use ($totalWeight) {
+                        $q->where('min_weight', '<=', $totalWeight)
+                            ->where(function($sub) use ($totalWeight) {
+                                $sub->where('max_weight', '>=', $totalWeight)
+                                    ->orWhereNull('max_weight');
+                            });
+                    })
+                    ->orderBy('price', 'asc')
+                    ->first();
+
+                if ($shippingRate) {
+                    $shippingCostCents = $shippingRate->price;
+                } else {
+                    $shippingCostCents = 2990; // Fallback
+                }
+            } else {
+                $shippingCostCents = 2990; // Fallback
+            }
+        }
+
+        // Steuer auf Versand berechnen
+        $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
+
+        $shippingNet = 0;
+        $shippingTax = 0;
+
+        if ($shippingCostCents > 0) {
+            if (in_array($countryCode, $euCountries)) {
+                $shippingNet = $shippingCostCents / 1.19;
+                $shippingTax = $shippingCostCents - $shippingNet;
+            } else {
+                $shippingNet = $shippingCostCents;
+                $shippingTax = 0;
+            }
+        }
+
+        // 3. Express
+        $expressNet = 0;
+        $expressTax = 0;
+
         if ($this->quote->is_express) {
-            $expressNet = 2500;
-            $expressTax = $expressNet * 0.19;
-            $netTotal += $expressNet;
-            $taxTotal += $expressTax;
+            $expressGross = 2500;
+            if (in_array($countryCode, $euCountries)) {
+                $expressNet = $expressGross / 1.19;
+                $expressTax = $expressGross - $expressNet;
+            } else {
+                $expressNet = $expressGross;
+                $expressTax = 0;
+            }
         }
 
-        $grossTotal = $netTotal + $taxTotal;
+        // 4. Alles Zusammenrechnen
+        $finalNet = $netTotalProducts + $shippingNet + $expressNet;
+        $finalTax = $taxTotalProducts + $shippingTax + $expressTax;
+        $finalGross = $finalNet + $finalTax;
 
+        // 5. Update Database
         $this->quote->update([
-            'net_total' => (int) round($netTotal),
-            'tax_total' => (int) round($taxTotal),
-            'gross_total' => (int) round($grossTotal),
+            'net_total' => (int) round($finalNet),
+            'tax_total' => (int) round($finalTax),
+            'gross_total' => (int) round($finalGross),
         ]);
+
+        // WICHTIG: Speichern der Versandkosten im Model-Objekt für die aktuelle View-Instanz
+        // Da 'shipping_cost_calculated' keine DB-Spalte ist, geht es sonst beim Refresh verloren.
+        $this->quote->shipping_cost_calculated = $shippingCostCents;
     }
 
     /**
-     * Checkout Logik (Unverändert)
+     * Checkout Logik
      */
     public function proceedToCheckout(CartService $cartService)
     {
@@ -200,7 +288,7 @@ class QuoteAcceptance extends Component
     {
         if ($this->quote->status !== 'open') return;
         $this->quote->update(['status' => 'rejected']);
-        $this->viewState = 'success_rejected'; // Fehlerstatus nutzen oder neuen ViewState
+        $this->viewState = 'success_rejected';
     }
 
     private function isValidAction()

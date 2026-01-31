@@ -339,13 +339,25 @@ class Calculator extends Component
 
         // 5. Express-Option
         if ($this->isExpress && count($this->cartItems) > 0) {
-            $expressGross = 2500; // 25 € Brutto
-            // Express wird steuerlich wie Versand behandelt
+            // Liste der EU-Länder definieren (falls nicht oben in der Methode schon passiert)
+            $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
+
+            // Basis ist 25,00 € Brutto (inkl. 19% MwSt)
+            $expressGross = 2500;
+
+            // Wir errechnen den Netto-Wert aus dem Brutto-Preis (Basis 19%)
+            // 25,00 € / 1,19 = ca. 21,01 € Netto
+            $expressBaseNet = $expressGross / 1.19;
+
             if (in_array($countryCode, $euCountries)) {
-                $expressNet = $expressGross / 1.19;
+                // EU: Netto + 19% Steuer = 25,00 €
+                $expressNet = $expressBaseNet;
                 $expressTax = $expressGross - $expressNet;
             } else {
-                $expressNet = $expressGross;
+                // Drittland (z.B. Schweiz, USA): Nur Netto zahlen = 21,01 €
+                // Wenn du willst, dass sie trotzdem 25€ zahlen, nutze deinen alten Code.
+                // Standard ist aber: Steuer abziehen.
+                $expressNet = $expressBaseNet;
                 $expressTax = 0;
             }
 

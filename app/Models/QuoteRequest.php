@@ -16,12 +16,13 @@ class QuoteRequest extends Model
     protected $casts = [
         'is_express' => 'boolean',
         'deadline' => 'date',
-        'expires_at' => 'datetime', // Wichtig für Carbon Funktionen
+        'expires_at' => 'datetime',
+        'configuration' => 'array',
+        // WICHTIG: Adressen müssen als Array gecastet werden
+        'billing_address' => 'array',
+        'shipping_address' => 'array',
     ];
 
-    /**
-     * Automatische Generierung von Token und Ablaufdatum
-     */
     protected static function booted()
     {
         static::creating(function ($quote) {
@@ -29,8 +30,10 @@ class QuoteRequest extends Model
                 $quote->token = Str::random(32);
             }
             if (empty($quote->expires_at)) {
-                // 14 Tage Gültigkeit
                 $quote->expires_at = now()->addDays(14);
+            }
+            if (empty($quote->status)) {
+                $quote->status = 'open';
             }
         });
     }
@@ -50,13 +53,11 @@ class QuoteRequest extends Model
         return $this->belongsTo(Order::class, 'converted_order_id');
     }
 
-    // Helper: Ist es ein Gast?
     public function getIsGuestAttribute()
     {
         return is_null($this->customer_id);
     }
 
-    // Helper: Ist das Angebot noch gültig?
     public function isValid()
     {
         return $this->status === 'open' && $this->expires_at->isFuture();
