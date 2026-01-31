@@ -69,55 +69,15 @@
                             </p>
                         </div>
 
-                        {{-- §4 Lieferung (Optimiert für personalisierte Ware) --}}
-                        <div id="lieferung" class="bg-gray-50 p-6 rounded-xl border border-gray-100 scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-4 flex items-center gap-2">
-                                4. Lieferung, Warenverfügbarkeit & Fertigungszeiten
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </h3>
-
-                            <div class="space-y-4">
-                                <p>
-                                    (1) <strong>Versandkostenfrei in DE:</strong> Wir liefern innerhalb Deutschlands versandkostenfrei.
-                                </p>
-
-                                <div>
-                                    <strong class="block text-gray-900 mb-1">4.2 Berechnung der Lieferzeit</strong>
-                                    <p>
-                                        Da wir viele Artikel speziell nach Ihren Wünschen anfertigen (Personalisierung), setzt sich die gesamte Lieferzeit aus der Fertigungszeit und der Paketlaufzeit zusammen:
-                                    </p>
-                                    <ul class="mt-3 grid gap-3 md:grid-cols-2">
-                                        <li class="bg-white p-3 rounded border border-gray-200 shadow-sm">
-                                            <span class="block text-xs text-gray-500 uppercase font-bold tracking-wider">Schritt 1</span>
-                                            <strong class="text-primary">Fertigungszeit</strong>
-                                            <span class="block text-sm text-gray-600">ca. 1-3 Werktage nach Zahlungseingang (bei Vorkasse) bzw. Vertragsschluss.</span>
-                                        </li>
-                                        <li class="bg-white p-3 rounded border border-gray-200 shadow-sm">
-                                            <span class="block text-xs text-gray-500 uppercase font-bold tracking-wider">Schritt 2</span>
-                                            <strong class="text-primary">Paketlaufzeit</strong>
-                                            <span class="block text-sm text-gray-600">ca. 1-3 Werktage durch den Versanddienstleister (DHL).</span>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <p class="text-sm text-gray-600 italic mt-2">
-                                    (3) Sollten nicht alle bestellten Produkte vorrätig sein, sind wir zu Teillieferungen auf unsere Kosten berechtigt, soweit dies für Sie zumutbar ist.
-                                </p>
-                                <p class="text-sm text-gray-600 italic">
-                                    (4) Sollte die Zustellung der Ware durch Ihr Verschulden scheitern, können wir vom Vertrag zurücktreten. Ggf. geleistete Zahlungen werden Ihnen unverzüglich erstattet.
-                                </p>
-                            </div>
-                        </div>
-
-                        {{-- §5 Eigentumsvorbehalt --}}
+                        {{-- §4 Eigentumsvorbehalt --}}
                         <div id="eigentum" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">5. Eigentumsvorbehalt</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">4. Eigentumsvorbehalt</h3>
                             <p>Bis zur vollständigen Bezahlung bleibt die Ware unser Eigentum.</p>
                         </div>
 
-                        {{-- §6 Transportschäden --}}
+                        {{-- §5 Transportschäden --}}
                         <div id="transportschaeden" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">6. Transportschäden</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">5. Transportschäden</h3>
                             <p>
                                 (1) Werden Waren mit offensichtlichen Transportschäden angeliefert, so reklamieren Sie solche Fehler bitte möglichst sofort beim Zusteller und nehmen Sie bitte unverzüglich Kontakt zu uns auf.
                             </p>
@@ -126,9 +86,9 @@
                             </p>
                         </div>
 
-                        {{-- §7 Gewährleistung --}}
+                        {{-- §6 Gewährleistung --}}
                         <div id="gewaehrleistung" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Gewährleistung und Mängelhaftung</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">6. Gewährleistung und Mängelhaftung</h3>
                             <p>
                                 (1) Es besteht ein gesetzliches Mängelhaftungsrecht.
                             </p>
@@ -140,9 +100,9 @@
                             </p>
                         </div>
 
-                        {{-- §8 Streitbeilegung --}}
+                        {{-- §7 Streitbeilegung --}}
                         <div id="streitbeilegung" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">8. Streitbeilegung</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Streitbeilegung</h3>
                             <p>
                                 Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit, die Sie hier finden: <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline decoration-primary underline-offset-2">https://ec.europa.eu/consumers/odr/</a>.
                                 <br>

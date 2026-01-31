@@ -161,7 +161,7 @@
                                 <span class="text-xs text-gray-500">
                                     zzgl. {{ number_format($shippingCost / 100, 2, ',', '.') }} € Versand
                                     <span class="text-gray-400">(frei ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} €)</span>
-                                    <a href="{{ route('terms') }}#versand" target="_blank" class="underline hover:text-primary ml-1">Details</a>
+                                    <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-primary ml-1">Details</a>
                                 </span>
                             @endif
                         </div>

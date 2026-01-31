@@ -3,22 +3,15 @@
 <script>
     window.calculatorDragData = function(data) {
         return {
-            // Livewire Bindings (nested in currentConfig)
             ...data.wire,
-
-            // Statische Konfiguration
             fontMap: data.fonts,
             alignMap: { 'left': 'text-left', 'center': 'text-center', 'center_h': 'text-center', 'right': 'text-right' },
-
-            // Arbeitsbereich
             area: {
                 top: parseFloat(data.config.area_top || 10),
                 left: parseFloat(data.config.area_left || 10),
                 width: parseFloat(data.config.area_width || 80),
                 height: parseFloat(data.config.area_height || 80)
             },
-
-            // Interne States
             isDragging: false,
             currentElement: null,
             dragOffsetX: 0,
@@ -32,28 +25,20 @@
             startDrag(event, type) {
                 this.isDragging = true;
                 this.currentElement = type;
-
                 if(event.cancelable) event.preventDefault();
-
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const container = this.$refs.container.getBoundingClientRect();
-
                 let currentPercentX = (type === 'text') ? this.textX : this.logoX;
                 let currentPercentY = (type === 'text') ? this.textY : this.logoY;
-
                 currentPercentX = parseFloat(currentPercentX);
                 currentPercentY = parseFloat(currentPercentY);
-
                 let currentPixelX = (currentPercentX / 100) * container.width;
                 let currentPixelY = (currentPercentY / 100) * container.height;
-
                 let mousePixelX = clientX - container.left;
                 let mousePixelY = clientY - container.top;
-
                 this.dragOffsetX = mousePixelX - currentPixelX;
                 this.dragOffsetY = mousePixelY - currentPixelY;
-
                 window.addEventListener('mousemove', this.onDrag);
                 window.addEventListener('touchmove', this.onDrag, { passive: false });
                 window.addEventListener('mouseup', this.stopDrag);
@@ -63,28 +48,21 @@
             handleDrag(event) {
                 if (!this.isDragging) return;
                 if(event.cancelable) event.preventDefault();
-
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const container = this.$refs.container.getBoundingClientRect();
-
                 let mouseX = clientX - container.left;
                 let mouseY = clientY - container.top;
-
                 let newCenterX = mouseX - this.dragOffsetX;
                 let newCenterY = mouseY - this.dragOffsetY;
-
                 let percentX = (newCenterX / container.width) * 100;
                 let percentY = (newCenterY / container.height) * 100;
-
                 let minX = this.area.left;
                 let maxX = this.area.left + this.area.width;
                 let minY = this.area.top;
                 let maxY = this.area.top + this.area.height;
-
                 percentX = Math.max(minX, Math.min(maxX, percentX));
                 percentY = Math.max(minY, Math.min(maxY, percentY));
-
                 if (this.currentElement === 'text') {
                     this.textX = percentX;
                     this.textY = percentY;
@@ -152,7 +130,7 @@
             @if($step === 1)
                 <div class="p-6 md:p-8 animate-fade-in">
 
-                    {{-- Liste der ausgewählten Produkte (Anfrage-Korb) --}}
+                    {{-- Liste der ausgewählten Produkte --}}
                     @if(count($cartItems) > 0)
                         <div class="mb-12 bg-yellow-50/50 p-6 rounded-xl border border-yellow-100">
                             <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -160,10 +138,7 @@
                                 Ihre aktuelle Kalkulation
                             </h3>
 
-                            {{-- Tabelle --}}
                             <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm mb-6">
-
-                                {{-- DESKTOP ANSICHT --}}
                                 <table class="hidden md:table w-full text-sm text-left">
                                     <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
                                     <tr>
@@ -188,11 +163,9 @@
                                             <td class="px-4 py-3 text-right align-middle">
                                                 <div class="flex justify-end gap-2">
                                                     <button wire:click="editItem({{ $index }})" class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 rounded text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-primary hover:border-primary transition shadow-sm">
-                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                         Bearbeiten
                                                     </button>
                                                     <button wire:click="removeItem({{ $index }})" class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 rounded text-xs font-bold text-red-600 hover:bg-red-50 hover:border-red-300 transition shadow-sm">
-                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                         Löschen
                                                     </button>
                                                 </div>
@@ -201,8 +174,6 @@
                                     @endforeach
                                     </tbody>
                                 </table>
-
-                                {{-- MOBILE ANSICHT --}}
                                 <div class="md:hidden divide-y divide-gray-100">
                                     @foreach($cartItems as $index => $item)
                                         <div class="p-4 flex flex-col gap-3">
@@ -231,11 +202,9 @@
                                         </div>
                                     @endforeach
                                 </div>
-
                             </div>
 
                             <div class="flex flex-col md:flex-row justify-between items-end gap-6">
-                                {{-- Express Option --}}
                                 <div class="bg-white border border-gray-200 rounded-lg p-4 w-full md:w-auto">
                                     <div class="flex items-center">
                                         <input wire:model.live="isExpress" id="express" type="checkbox" class="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary">
@@ -245,18 +214,36 @@
                                         <input wire:model="deadline" type="date" class="mt-2 block w-full rounded border-gray-300 text-sm">
                                     @endif
                                 </div>
-
-                                {{-- Summe & Weiter --}}
                                 <div class="text-right w-full md:w-auto">
                                     <div class="text-sm text-gray-500">Netto: {{ number_format($totalNetto, 2, ',', '.') }} €</div>
-                                    @if($shippingCost > 0)
-                                        <div class="text-sm text-gray-500">Versand: {{ number_format($shippingCost, 2, ',', '.') }} €</div>
-                                    @else
-                                        <div class="text-sm text-green-600 font-bold">Versand: Kostenlos</div>
-                                    @endif
-                                    <div class="text-sm text-gray-500">MwSt: {{ number_format($totalMwst, 2, ',', '.') }} €</div>
-                                    <div class="text-2xl font-bold text-primary mb-4">Brutto: {{ number_format($totalBrutto, 2, ',', '.') }} €</div>
 
+                                    {{-- NEU: Detaillierte Versandanzeige --}}
+                                    @if($shippingCost > 0)
+                                        <div class="text-sm text-gray-500">
+                                            Versand ({{ $form['country'] }}): {{ number_format($shippingCost, 2, ',', '.') }} €
+                                        </div>
+
+                                        {{-- NEU: Upselling Hinweis für Deutschland --}}
+                                        @if($form['country'] === 'DE')
+                                            @php
+                                                // Wir rechnen zurück: Gesamtsumme - Versand = Warenwert Brutto
+                                                $warenwert = $totalBrutto - $shippingCost;
+                                                $missing = 50.00 - $warenwert;
+                                            @endphp
+                                            @if($missing > 0.01) {{-- Toleranz für Floating Point --}}
+                                            <div class="text-xs text-amber-600 font-medium mt-1">
+                                                Noch <strong>{{ number_format($missing, 2, ',', '.') }} €</strong> bis zum kostenlosen Versand!
+                                            </div>
+                                            @endif
+                                        @endif
+                                    @else
+                                        <div class="text-sm text-green-600 font-bold">
+                                            Versand ({{ $form['country'] }}): Kostenlos
+                                        </div>
+                                    @endif
+
+                                    <div class="text-sm text-gray-500 mt-1">MwSt: {{ number_format($totalMwst, 2, ',', '.') }} €</div>
+                                    <div class="text-2xl font-bold text-primary mb-4">Brutto: {{ number_format($totalBrutto, 2, ',', '.') }} €</div>
                                     <button wire:click="goNext" class="w-full md:w-auto bg-gray-900 text-white px-6 py-3 rounded hover:bg-black transition font-bold shadow-lg">
                                         Angebot anfordern
                                     </button>
@@ -274,7 +261,6 @@
 
                         @if(empty($dbProducts))
                             <div class="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                                <svg class="w-12 h-12 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
                                 <span class="text-sm font-medium">Aktuell keine Produkte verfügbar.</span>
                             </div>
                         @else
@@ -303,12 +289,9 @@
                                                 <p class="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{{ $product['desc'] }}</p>
                                             </div>
                                             <div class="mt-3">
-                                                {{--
-                                                   PREIS ANZEIGE KORRIGIERT:
-                                                   Zeigt den Preis so an, wie er im Produkt definiert ist.
-                                                   Ist tax_included true, ist display_price Brutto (z.B. 39.90).
-                                                   Ist tax_included false, ist display_price Netto.
-                                                --}}
+                                                @php
+                                                    $brutto = $product['tax_included'] ? $product['price'] : $product['price'] * 1.19;
+                                                @endphp
                                                 <div class="flex flex-wrap items-baseline gap-x-1 justify-between items-end">
                                                     <div>
                                                         <div class="flex flex-wrap items-baseline gap-x-1">
@@ -321,7 +304,7 @@
                                                     </div>
                                                 </div>
 
-                                                {{-- Staffelpreise als Array abrufen --}}
+                                                {{-- Staffelpreise --}}
                                                 @if(!empty($product['tier_pricing']))
                                                     <div class="mt-2 pt-2 border-t border-gray-50">
                                                         <span class="text-[10px] font-bold uppercase text-green-600 block mb-1">Staffelpreise verfügbar:</span>
@@ -346,13 +329,10 @@
                 {{-- STEP 2: KONFIGURATION --}}
             @elseif($step === 2)
                 <div class="h-full min-h-[600px] bg-white rounded-xl overflow-hidden animate-fade-in">
-                    {{-- Header im Calculator Style --}}
                     <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
                         <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
                         <button wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500">Abbrechen</button>
                     </div>
-
-                    {{-- Einbindung der Universal Komponente --}}
                     <livewire:shop.configurator
                         :product="$currentProduct['id']"
                         :initialData="$currentConfig"
@@ -385,6 +365,32 @@
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block text-sm font-bold text-gray-700 mb-1">E-Mail für Angebot *</label>
                             <input wire:model.live="form.email" type="email" required class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
+                        </div>
+
+                        {{-- NEU: LAND AUSWAHL MIT HINWEIS --}}
+                        <div class="col-span-1 sm:col-span-2">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Land für Versand *</label>
+                            <select wire:model.live="form.country" class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
+                                <option value="DE">Deutschland</option>
+                                <option value="AT">Österreich</option>
+                                <option value="CH">Schweiz</option>
+                                <option value="NL">Niederlande</option>
+                                <option value="BE">Belgien</option>
+                                <option value="FR">Frankreich</option>
+                                <option value="IT">Italien</option>
+                                <option value="ES">Spanien</option>
+                                <option value="GB">Großbritannien</option>
+                                <option value="US">USA</option>
+                            </select>
+
+                            {{-- Dynamischer Hinweis unter dem Dropdown --}}
+                            <div class="mt-1.5 text-xs text-gray-500">
+                                @if($form['country'] === 'DE')
+                                    <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab 50,00 € Warenwert (DE). Sonst pauschal 4,90 €.
+                                @else
+                                    <span class="text-blue-600 font-bold">Hinweis:</span> Internationale Versandkosten werden nach Gewicht & Zone berechnet.
+                                @endif
+                            </div>
                         </div>
 
                         <div class="col-span-1 sm:col-span-2 pt-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">

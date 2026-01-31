@@ -30,10 +30,6 @@ return new class extends Migration
             $table->integer('compare_at_price')->nullable(); // Preis in Cent
             $table->integer('cost_per_item')->nullable(); // Preis in Cent
 
-            // Referenz auf Steuerlogik statt festem Satz
-            $table->string('tax_class')->default('standard');
-            $table->boolean('tax_included')->default(true); // Brutto vs Netto Eingabe
-
             // 4. Lager & Identifikation
             // SKU nullable für Drafts, aber unique wenn gesetzt
             $table->string('sku')->nullable()->unique();
@@ -43,7 +39,10 @@ return new class extends Migration
             $table->integer('quantity')->default(0);
             $table->boolean('continue_selling_when_out_of_stock')->default(false);
 
-            // 5. Versanddaten (Erweitert um Maße & Klasse)
+            // 5. Steuer
+            $table->string('tax_class')->default('standard');
+
+            // 6. Versanddaten (Erweitert um Maße & Klasse)
             $table->boolean('is_physical_product')->default(true);
             $table->integer('weight')->nullable(); // in Gramm
             $table->integer('height')->nullable(); // in mm
@@ -51,13 +50,13 @@ return new class extends Migration
             $table->integer('length')->nullable(); // in mm
             $table->string('shipping_class')->nullable(); // z.B. 'sperrgut', 'brief'
 
-            // 6. JSON-Felder (Akzeptabel für MVP/Single-Product Shops)
+            // 7. JSON-Felder (Akzeptabel für MVP/Single-Product Shops)
             $table->json('media_gallery')->nullable();
             $table->json('attributes')->nullable();
             $table->json('tier_pricing')->nullable();
             $table->json('configurator_settings')->nullable(); // Für deinen Konfigurator
 
-            // 7. SEO
+            // 8. SEO
             $table->string('seo_title')->nullable();
             $table->text('seo_description')->nullable();
 
@@ -65,6 +64,8 @@ return new class extends Migration
             $table->integer('completion_step')->default(1);
             $table->string('preview_image_path')->nullable();
         });
+
+        // Steuer und Mwst
         Schema::create('tax_rates', function (Blueprint $table) {
             $table->id();
             $table->string('name'); // z.B. "Standard DE"
@@ -300,11 +301,48 @@ return new class extends Migration
 
             $table->timestamps();
         });
+
+        // Versand (Weltweit)
+        // 1. Versandzonen (z.B. "Deutschland", "EU", "Rest der Welt")
+        Schema::create('shipping_zones', function (Blueprint $table) {
+            $table->id();
+            $table->string('name'); // Name der Zone
+            $table->timestamps();
+        });
+
+        // 2. Zuordnung Länder -> Zonen
+        Schema::create('shipping_zone_countries', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shipping_zone_id')->constrained()->cascadeOnDelete();
+            $table->string('country_code', 2); // ISO Code (DE, AT, CH, US...)
+            $table->unique('country_code'); // Ein Land kann nur in einer Zone sein
+        });
+
+        // 3. Versandtarife pro Zone
+        Schema::create('shipping_rates', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('shipping_zone_id')->constrained()->cascadeOnDelete();
+
+            $table->string('name'); // z.B. "Standard", "Express"
+
+            // Bedingungen (z.B. "ab 0kg bis 5kg" oder "ab 0€ bis 50€")
+            // Wir machen hier eine gewichtsbasierte Berechnung + Preisgrenze
+            $table->decimal('min_weight', 8, 2)->default(0); // in Gramm oder KG
+            $table->decimal('max_weight', 8, 2)->nullable(); // Null = Unendlich
+
+            $table->integer('min_price')->default(0); // in Cent (für "Versandkostenfrei ab X")
+
+            $table->integer('price'); // Kosten in Cent
+
+            $table->timestamps();
+        });
     }
 
     public function down(): void
     {
-
+        Schema::dropIfExists('shipping_rates');
+        Schema::dropIfExists('shipping_zone_countries');
+        Schema::dropIfExists('shipping_zones');
         Schema::dropIfExists('product_tier_prices');
         Schema::dropIfExists('quote_request_items');
         Schema::dropIfExists('quote_requests');

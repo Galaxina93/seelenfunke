@@ -51,8 +51,6 @@ class ProductSeeder extends Seeder
             'price' => 3990, // 39,90 €
             'compare_at_price' => 4990, // UVP 49,90 €
             'cost_per_item' => 1250, // Einkauf
-            'tax_class' => 'standard', // Verknüpfung zu tax_rates
-            'tax_included' => true,
 
             // Lager & Identifikation
             'sku' => 'CRYSTAL-001-CLR',
@@ -102,7 +100,7 @@ class ProductSeeder extends Seeder
                 'Verpackung' => 'Geschenkbox mit Seidenfutter',
                 'Druck' => 'UV-Direktdruck (optional)',
                 'Technik' => 'Oberflächengravur',
-                'Gewicht' => '920g (Netto)'
+                'Gewicht' => '1250'
             ],
 
             // WICHTIG: Das JSON Feld bleibt leer, da wir die Tabelle 'product_tier_prices' nutzen
@@ -122,126 +120,6 @@ class ProductSeeder extends Seeder
         ]);
 
 
-        // ---------------------------------------------------------
-        // 2. Personalisiertes Holzherz
-        // ---------------------------------------------------------
-        $p2 = Product::create([
-            'name' => 'Herz aus Eiche',
-            'slug' => 'herz-eiche',
-            'description' => 'Natürliches, massives Eichenholz, liebevoll in Herzform geschliffen. Jedes Stück ist durch die individuelle Maserung ein Unikat.',
-            'short_description' => 'Massives Eichenholz-Herz mit Wunschgravur.',
-            'status' => 'active',
 
-            'price' => 2490,
-            'compare_at_price' => null,
-            'cost_per_item' => 800,
-            'tax_class' => 'standard',
-            'tax_included' => true,
-
-            'sku' => 'WOOD-HEART-05',
-            'barcode' => '426000000002',
-            'brand' => 'Mein-Seelenfunke',
-            'track_quantity' => true,
-            'quantity' => 45,
-            'continue_selling_when_out_of_stock' => false,
-
-            'is_physical_product' => true,
-            'weight' => 180,
-            'height' => 20,
-            'width' => 150,
-            'length' => 150,
-            'shipping_class' => 'grossbrief',
-
-            'preview_image_path' => null,
-            'media_gallery' => [],
-            'configurator_settings' => [
-                'allow_text_pos' => true,
-                'allow_logo' => false,
-                'area_width' => 60,
-                'area_height' => 40,
-                'area_top' => 30,
-                'area_left' => 20,
-            ],
-
-            'attributes' => [
-                'Material' => 'Eiche massiv (FSC-zertifiziert)',
-                'Größe' => '15x15x2 cm',
-                'Technik' => 'Präzisions-Lasergravur',
-                'Farbe' => 'Natur geölt',
-                'Druck' => '-',
-                'Gewicht' => '150 g'
-            ],
-
-            'tier_pricing' => [],
-
-            'seo_title' => 'Personalisiertes Holzherz aus Eiche | Gravur Geschenk',
-            'seo_description' => 'Massives Eichenholz-Herz mit individueller Lasergravur.',
-            'completion_step' => 4
-        ]);
-
-        // Staffelpreise für Holzherz
-        $p2->tierPrices()->createMany([
-            ['qty' => 10, 'percent' => 8.00],
-            ['qty' => 50, 'percent' => 15.00]
-        ]);
-
-
-        // ---------------------------------------------------------
-        // 3. Limitierte Edition (Keine Staffelpreise)
-        // ---------------------------------------------------------
-        Product::create([
-            'name' => 'Goldene Erinnerung',
-            'slug' => 'goldene-erinnerung',
-            'description' => 'Limitierte Edition: Dieser exklusive Rahmen ist mit 24 Karat Blattgold veredelt.',
-            'short_description' => 'Vergoldeter Rahmen, limitiert auf 100 Stück.',
-            'status' => 'active',
-
-            'price' => 8900,
-            'compare_at_price' => 12900,
-            'cost_per_item' => 4500,
-            'tax_class' => 'standard',
-            'tax_included' => true,
-
-            'sku' => 'GOLD-LTD-99',
-            'barcode' => '426000000099',
-            'brand' => 'Mein-Seelenfunke',
-            'track_quantity' => true,
-            'quantity' => 3,
-            'continue_selling_when_out_of_stock' => false,
-
-            'is_physical_product' => true,
-            'weight' => 800,
-            'height' => 50,
-            'width' => 250,
-            'length' => 250,
-            'shipping_class' => 'paket_m',
-
-            'preview_image_path' => null,
-            'media_gallery' => [],
-            'configurator_settings' => [
-                'allow_text_pos' => true,
-                'allow_logo' => true,
-                'area_width' => 50,
-                'area_height' => 50,
-                'area_top' => 25,
-                'area_left' => 25,
-            ],
-
-            'attributes' => [
-                'Material' => 'Messing, 24K vergoldet',
-                'Limitierung' => 'Ja, Nr. zertifiziert',
-                'Technik' => 'Handpoliert',
-                'Druck' => 'Premium Golddruck',
-                'Gewicht' => '500 g',
-                'Farbe' => 'Gold / Weiß',
-                'Verpackung' => 'Samt-Etui mit Echtheitszertifikat'
-            ],
-
-            'tier_pricing' => [],
-
-            'seo_title' => 'Limitierte Edition: Goldene Erinnerung | 24K Vergoldet',
-            'seo_description' => 'Exklusiver, vergoldeter Rahmen für Ihre wertvollsten Erinnerungen.',
-            'completion_step' => 5
-        ]);
     }
 }

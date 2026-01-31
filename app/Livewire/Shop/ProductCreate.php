@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Shop;
 
+use Livewire\Attributes\On;
 use App\Models\Product;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -27,11 +28,6 @@ class ProductCreate extends Component
     // Preis & Steuer
     public $price_input = '';
     public $compare_price_input = '';
-    public $tax_included = true;
-    public $tax_class = 'standard';
-
-    // UI-Helper für die Berechnung (wird nicht mehr im Produkt gespeichert!)
-    public $current_tax_rate = 19.00;
 
     // Identifikatoren
     public $sku = '';
@@ -78,8 +74,6 @@ class ProductCreate extends Component
     public $infoTexts = [
         'name' => 'Der offizielle Produktname für Shop, Rechnungen und Lieferscheine.',
         'price' => 'Verkaufspreis. Brutto oder Netto je nach Einstellung.',
-        'tax' => 'Legt fest, ob der eingegebene Preis die Steuer bereits enthält.',
-        'tax_class' => 'Bestimmt den Steuersatz (z.B. Standard 19% oder Ermäßigt 7%).',
         'sku' => 'SKU (Stock Keeping Unit) - Eindeutige Artikelnummer (Pflichtfeld).',
         'barcode' => 'EAN / GTIN für Scanner und externe Marktplätze.',
         'brand' => 'Marke oder Hersteller.',
@@ -111,6 +105,13 @@ class ProductCreate extends Component
         'slug_input' => 'required|alpha_dash|min:3',
     ];
 
+    #[On('product-updated')]
+    public function refreshProduct()
+    {
+        // Lädt das Model neu aus der DB, damit die Vorschau die neuen Steuerdaten hat
+        $this->product->refresh();
+    }
+
     public function createDraft()
     {
         $draft = Product::create([
@@ -118,8 +119,6 @@ class ProductCreate extends Component
             'slug' => 'draft-' . Str::uuid(),
             'status' => 'draft',
             'price' => 0,
-            'tax_class' => 'standard', // Nur die Klasse speichern
-            'tax_included' => true,
             'media_gallery' => [],
             'tier_pricing' => [],
             'attributes' => $this->productAttributes,
@@ -144,13 +143,6 @@ class ProductCreate extends Component
         $this->seo_title = $this->product->seo_title;
         $this->seo_description = $this->product->seo_description;
         $this->slug_input = str_starts_with($this->product->slug, 'draft-') ? '' : $this->product->slug;
-
-        // Steuern
-        $this->tax_included = (bool) $this->product->tax_included;
-        $this->tax_class = $this->product->tax_class ?? 'standard';
-
-        // Live-Rate laden (nicht aus Produkt, sondern aus DB/Logik)
-        $this->updatedTaxClass($this->tax_class);
 
         // Identifikatoren
         $this->sku = $this->product->sku;
@@ -203,17 +195,6 @@ class ProductCreate extends Component
         if (empty($this->slug_input)) {
             $this->slug_input = Str::slug($value);
         }
-    }
-    public function updatedTaxClass($value)
-    {
-        // Wir holen den aktuellen Satz aus der 'tax_rates' Tabelle
-        // Fallback auf 19, falls Tabelle leer oder Satz nicht gefunden
-        $rate = DB::table('tax_rates')
-            ->where('tax_class', $value)
-            ->where('is_default', true) // Annahme: Es gibt einen Default-Satz pro Klasse
-            ->value('rate');
-
-        $this->current_tax_rate = $rate ? (float)$rate : 19.00;
     }
     public function updatedSlugInput($value)
     {
@@ -406,26 +387,21 @@ class ProductCreate extends Component
             $this->product->slug = $slug;
         }
 
-        // 3. Steuern (Nur Klasse und Included-Flag speichern, KEINE Rate!)
-        $this->product->tax_included = (bool) $this->tax_included;
-        $this->product->tax_class = $this->tax_class;
-        // WICHTIG: $this->product->tax_rate wird NICHT mehr gesetzt.
-
-        // 4. SEO
+        // 3. SEO
         $this->product->seo_title = $this->seo_title;
         $this->product->seo_description = $this->seo_description;
 
-        // 5. Identifikatoren
+        // 4. Identifikatoren
         $this->product->sku = $this->sku;
         $this->product->barcode = $this->barcode;
         $this->product->brand = $this->brand;
 
-        // 6. Lager
+        // 5. Lager
         $this->product->track_quantity = (bool) $this->track_quantity;
         $this->product->quantity = empty($this->quantity) ? 0 : (int) $this->quantity;
         $this->product->continue_selling_when_out_of_stock = (bool) $this->continue_selling;
 
-        // 7. Preis (Cent-Konvertierung)
+        // 6. Preis (Cent-Konvertierung)
         $this->product->price = empty($this->price_input) ? 0 : (int) round((float)$this->price_input * 100);
         if($this->compare_price_input) {
             $this->product->compare_at_price = (int) round((float)$this->compare_price_input * 100);
@@ -433,17 +409,17 @@ class ProductCreate extends Component
             $this->product->compare_at_price = null;
         }
 
-        // 8. Versanddaten
+        // 7. Versanddaten
         $this->product->weight = (int) $this->weight;
         $this->product->height = (int) $this->height;
         $this->product->width = (int) $this->width;
         $this->product->length = (int) $this->length;
 
-        // 9. JSON Arrays
+        // 8. JSON Arrays
         $this->product->attributes = $this->productAttributes;
         $this->product->configurator_settings = $this->configSettings;
 
-        // 10. Fortschritt
+        // 9. Fortschritt
         if($this->currentStep > $this->product->completion_step && $this->canProceed()) {
             $this->product->completion_step = $this->currentStep;
         }

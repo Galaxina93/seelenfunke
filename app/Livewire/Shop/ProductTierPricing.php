@@ -16,6 +16,11 @@ class ProductTierPricing extends Component
 
     public $tiers = [];
 
+    // NEU: Hilfetexte für das UI
+    public $infoTexts = [
+        'tier_pricing' => 'Definieren Sie Mengenrabatte für dieses Produkt. Der Preis reduziert sich automatisch im Warenkorb, sobald die angegebene Stückzahl erreicht wird.',
+    ];
+
     public function mount(Product $product)
     {
         $this->product = $product;
@@ -24,9 +29,6 @@ class ProductTierPricing extends Component
 
     public function refreshTiers()
     {
-        // 1. Laden
-        // 2. Sortieren (created_at ist am stabilsten beim Tippen)
-        // 3. keyBy('id') -> Das ist der entscheidende Fix!
         $this->tiers = $this->product->tierPrices()
             ->orderBy('created_at', 'asc')
             ->get()
@@ -50,10 +52,8 @@ class ProductTierPricing extends Component
         $this->refreshTiers();
     }
 
-    // Update empfängt jetzt die ID (String), nicht mehr den Index (Int)
     public function updateTier($tierId)
     {
-        // Sicherheitscheck, falls ID nicht im Array (sollte nicht passieren)
         if (!isset($this->tiers[$tierId])) {
             return;
         }

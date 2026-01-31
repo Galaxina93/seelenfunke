@@ -93,25 +93,30 @@ Route::get('/application', function () {
 })->name('application');
 
 
-// --- 3. Rechtliches ---
+// --- 3. Rechtliches & Weiteres ---
 
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');
 })->name('impressum');
 
 Route::get('/datenschutz', function () {
-    return view('frontend.pages.privacy');
-})->name('privacy');
+    return view('frontend.pages.datenschutz');
+})->name('datenschutz');
 
 Route::get('/agb', function () {
-    return view('frontend.pages.terms');
-})->name('terms');
+    return view('frontend.pages.agb');
+})->name('agb');
+
+Route::get('/verhaltenskodex', function () {
+    return view('frontend.pages.verhaltenskodex');
+})->name('verhaltenskodex');
+
+Route::get('/versand', function () {
+    return view('frontend.pages.versand');
+})->name('versand');
 
 // Redirects für alte/falsche Links
 Route::redirect('/datenschutzerklaerung', '/datenschutz');
-Route::redirect('/terms', '/agb');
-
-
 
 
 

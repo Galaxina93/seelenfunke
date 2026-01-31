@@ -23,14 +23,18 @@ class Product extends Model
         'attributes' => 'array',
         'tier_pricing' => 'array',
         'configurator_settings' => 'array',
-        'tax_included' => 'boolean',
         'track_quantity' => 'boolean',
         'continue_selling_when_out_of_stock' => 'boolean',
         'is_physical_product' => 'boolean',
-        // Price casts (optional, falls du Money Pattern nutzt)
+
+        // WICHTIG: Zahlen explizit casten
         'price' => 'integer',
         'compare_at_price' => 'integer',
         'cost_per_item' => 'integer',
+        'weight' => 'integer', // Gramm
+        'height' => 'integer',
+        'width' => 'integer',
+        'length' => 'integer',
     ];
 
     protected function priceEuro(): Attribute
@@ -137,5 +141,10 @@ class Product extends Model
     public function tierPrices()
     {
         return $this->hasMany(ProductTierPrice::class)->orderBy('qty', 'asc');
+    }
+
+    public function getTaxIncludedAttribute(): bool
+    {
+        return config('shop.prices_entered_gross', true);
     }
 }

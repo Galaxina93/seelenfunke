@@ -23,7 +23,7 @@ class Checkout extends Component
     public $company;
     public $address;
     public $city;
-    public $country = 'DE';
+    public $country = 'DE'; // Standardland
     public $postal_code;
 
     // --- RECHTLICHES ---
@@ -37,7 +37,7 @@ class Checkout extends Component
 
     // --- STRIPE & CONFIG ---
     public $clientSecret;
-    public $stripeKey; // NEU: Public Property für Stabilität
+    public $stripeKey;
 
     // --- REGELN ---
     protected $rules = [
@@ -47,20 +47,21 @@ class Checkout extends Component
         'address' => 'required|string|min:5',
         'city' => 'required|string|min:2',
         'postal_code' => 'required|string|min:4',
-        'country' => 'required|in:DE,AT,CH',
+        // Erweiterte Länderliste
+        'country' => 'required|in:DE,AT,CH,NL,BE,FR,IT,ES,GB,US',
         'terms_accepted' => 'accepted',
         'privacy_accepted' => 'accepted',
     ];
 
     protected $messages = [
         'email.required' => 'Bitte gib deine E-Mail-Adresse an.',
+        'country.in' => 'Bitte wähle ein gültiges Lieferland aus.',
         'terms_accepted.accepted' => 'Du musst den AGB zustimmen.',
         'privacy_accepted.accepted' => 'Bitte akzeptiere die Datenschutzerklärung.',
     ];
 
     public function mount()
     {
-        // KEY SICHER LADEN (Verhindert "Empty String" Fehler)
         $this->stripeKey = config('services.stripe.key');
 
         $cartService = app(CartService::class);
@@ -81,6 +82,10 @@ class Checkout extends Component
                 $this->address = $user->profile->street . ' ' . $user->profile->house_number;
                 $this->city = $user->profile->city;
                 $this->postal_code = $user->profile->postal;
+                // Wichtig: Land vom Profil laden, falls vorhanden
+                if($user->profile->country) {
+                    $this->country = $user->profile->country;
+                }
             }
         }
         // 2. Daten laden: Aus Angebot (Quote)
@@ -93,16 +98,36 @@ class Checkout extends Component
                 $this->first_name = $quote->first_name;
                 $this->last_name = $quote->last_name;
                 $this->company = $quote->company;
+                // Quote hat kein Land-Feld, daher bleibt Default DE
             }
         }
 
-        // Stripe Intent erstellen
+        // Stripe Intent erstellen (mit aktuellem Land)
         $this->createPaymentIntent($cart);
     }
 
-    public function createPaymentIntent($cart)
+    /**
+     * WIRD AUFGERUFEN, WENN SICH DAS LAND ÄNDERT (wire:model.live="country")
+     * Aktualisiert die Versandkosten und den Stripe Intent.
+     */
+    public function updatedCountry()
     {
-        $totals = app(CartService::class)->calculateTotals($cart);
+        $cart = app(CartService::class)->getCart();
+
+        // 1. Totals neu berechnen mit neuem Land
+        $totals = app(CartService::class)->calculateTotals($cart, $this->country);
+
+        // 2. Stripe Intent aktualisieren (wegen neuem Gesamtbetrag)
+        $this->createPaymentIntent($cart, $totals);
+    }
+
+    public function createPaymentIntent($cart, $totals = null)
+    {
+        // Falls Totals nicht übergeben, neu berechnen (mit Land!)
+        if (!$totals) {
+            $totals = app(CartService::class)->calculateTotals($cart, $this->country);
+        }
+
         $amount = $totals['total']; // Betrag in Cent
 
         if ($amount > 0) {
@@ -118,7 +143,8 @@ class Checkout extends Component
                     'metadata' => [
                         'cart_id' => $cart->id,
                         'session_id' => Session::getId(),
-                        'customer_email' => $this->email
+                        'customer_email' => $this->email,
+                        'shipping_country' => $this->country // Hilfreich im Stripe Dashboard
                     ]
                 ]);
 
@@ -127,9 +153,6 @@ class Checkout extends Component
         }
     }
 
-    /**
-     * Login Logic vom Stage-Server
-     */
     public function loginUser()
     {
         $this->validate([
@@ -137,20 +160,18 @@ class Checkout extends Component
             'loginPassword' => 'required',
         ]);
 
-        // 1. GAST-CART SICHERN
         $guestCart = app(CartService::class)->getCart();
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
 
             $user = Auth::guard('customer')->user();
 
-            // 2. USER-CART HOLEN
             $userCart = Cart::firstOrCreate(
                 ['customer_id' => $user->id],
                 ['session_id' => Session::getId()]
             );
 
-            // 3. MERGE: Items vom Gast-Cart in den User-Cart schieben
+            // MERGE Logic
             if ($guestCart && $guestCart->id !== $userCart->id) {
                 foreach ($guestCart->items as $item) {
                     $item->cart_id = $userCart->id;
@@ -167,8 +188,6 @@ class Checkout extends Component
                 }
             }
 
-            // REDIRECT (Wichtig vom Stage Server!):
-            // Lädt die Seite neu, damit Stripe sauber neu initialisiert wird.
             return redirect(request()->header('Referer'));
 
         } else {
@@ -179,6 +198,8 @@ class Checkout extends Component
     public function validateAndCreateOrder()
     {
         $this->validate();
+
+        // Nochmal neu berechnen vor dem Speichern um sicherzugehen
         $orderId = $this->createOrder();
 
         if ($this->clientSecret) {
@@ -200,7 +221,9 @@ class Checkout extends Component
     {
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
-        $totals = $cartService->calculateTotals($cart);
+
+        // WICHTIG: Land übergeben für finale Berechnung
+        $totals = $cartService->calculateTotals($cart, $this->country);
 
         // --- KUNDEN-LOGIK ---
         $customer = null;
@@ -267,10 +290,10 @@ class Checkout extends Component
             'discount_amount' => $totals['discount_amount'] ?? 0,
 
             // KOSTENAUFSTELLUNG (PAngV konform getrennt)
-            'subtotal_price' => $totals['subtotal_gross'], // Warenwert nach Rabatt
-            'tax_amount' => $totals['tax'], // Enthaltene Steuer Gesamt
-            'shipping_price' => $totals['shipping'], // Hier landen die 4,90€ oder 0€
-            'total_price' => $totals['total'], // Endbetrag
+            'subtotal_price' => $totals['subtotal_gross'],
+            'tax_amount' => $totals['tax'],
+            'shipping_price' => $totals['shipping'],
+            'total_price' => $totals['total'],
         ]);
 
         foreach($cart->items as $item) {
@@ -294,7 +317,8 @@ class Checkout extends Component
 
         return view('livewire.shop.checkout', [
             'cart' => $cart,
-            'totals' => $cartService->calculateTotals($cart)
+            // WICHTIG: Land übergeben für die View
+            'totals' => $cartService->calculateTotals($cart, $this->country)
         ]);
     }
 }

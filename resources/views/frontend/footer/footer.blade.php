@@ -57,7 +57,9 @@
                     <li class="h-px bg-gray-800 w-full my-2"></li>
                     <li><a href="/impressum" class="hover:text-white transition opacity-80 hover:opacity-100">Impressum</a></li>
                     <li><a href="/datenschutz" class="hover:text-white transition opacity-80 hover:opacity-100">Datenschutzerklärung</a></li>
-                    <li><a href="/terms" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerruf</a></li>
+                    <li><a href="/agb" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerruf</a></li>
+                    <li><a href="/verhaltenskodex" class="hover:text-white transition opacity-80 hover:opacity-100">Verhaltenskodex</a></li>
+                    <li><a href="/versand" class="hover:text-white transition opacity-80 hover:opacity-100">Versand</a></li>
                 </ul>
             </div>
 
