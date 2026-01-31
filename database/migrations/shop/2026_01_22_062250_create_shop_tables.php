@@ -202,8 +202,8 @@ return new class extends Migration
         Schema::create('invoices', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            // Referenzen
-            $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
+            // Referenzen - order_id muss nullable sein für manuelle Rechnungen
+            $table->foreignUuid('order_id')->nullable()->constrained('orders')->cascadeOnDelete();
             $table->foreignUuid('customer_id')->nullable()->constrained('customers')->nullOnDelete();
 
             // Wenn dies eine Stornorechnung ist, verweisen wir auf das Original
@@ -211,15 +211,15 @@ return new class extends Migration
 
             // Belegdaten
             $table->string('invoice_number')->unique(); // z.B. RE-2024-1001
-            $table->enum('type', ['invoice', 'credit_note', 'cancellation']); // Rechnung, Gutschrift, Storno
-            $table->string('status')->default('draft'); // draft, paid, cancelled, sent
+            $table->enum('type', ['invoice', 'credit_note', 'cancellation'])->default('invoice');
+            $table->string('status')->default('paid'); // draft, paid, cancelled, sent
 
             // Datum
             $table->date('invoice_date');
             $table->date('due_date')->nullable();
             $table->timestamp('paid_at')->nullable();
 
-            // Snapshot der Adressen (JSON), damit Änderungen am User die Rechnung nicht verfälschen
+            // Snapshot der Adressen (JSON)
             $table->json('billing_address');
             $table->json('shipping_address')->nullable();
 
@@ -227,13 +227,21 @@ return new class extends Migration
             $table->integer('subtotal');
             $table->integer('tax_amount');
             $table->integer('shipping_cost')->default(0);
+
+            // Rabatt-Spalten für Gutscheine und Mengenrabatte
+            $table->integer('discount_amount')->default(0);
+            $table->integer('volume_discount')->default(0);
+
             $table->integer('total');
 
-            // Stripe Referenz (optional für Abgleich)
+            // Flexible Posten für manuelle Rechnungen (ohne Order-Bezug)
+            $table->json('custom_items')->nullable();
+
+            // Stripe Referenz
             $table->string('stripe_payment_intent_id')->nullable();
 
             $table->text('notes')->nullable();
-            $table->text('footer_text')->nullable(); // Für individuelle Hinweise auf der PDF
+            $table->text('footer_text')->nullable();
 
             $table->timestamps();
             $table->softDeletes();

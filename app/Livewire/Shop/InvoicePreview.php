@@ -28,14 +28,13 @@ class InvoicePreview extends Component
     public function cancelInvoice(InvoiceService $service)
     {
         $invoice = Invoice::find($this->invoiceId);
-
         if(!$invoice || $invoice->status === 'cancelled') return;
 
         try {
             $service->cancelInvoice($invoice);
-            session()->flash('success', 'Rechnung erfolgreich storniert. Stornobeleg wurde erstellt.');
+            session()->flash('success', 'Stornierung erfolgt.');
             $this->closeModal();
-            $this->dispatch('refreshComponent'); // Müsste im Parent gehört werden
+            $this->dispatch('refreshComponent');
         } catch (\Exception $e) {
             session()->flash('error', $e->getMessage());
         }

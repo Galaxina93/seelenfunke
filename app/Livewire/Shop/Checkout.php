@@ -131,6 +131,7 @@ class Checkout extends Component
     {
         // 1. Stripe Intent aktualisieren (wegen neuem Gesamtbetrag durch Versand)
         $this->createPaymentIntent();
+        $this->dispatch('checkout-updated');
     }
 
     /**
@@ -192,39 +193,44 @@ class Checkout extends Component
             'loginPassword' => 'required',
         ]);
 
-        $guestCart = app(CartService::class)->getCart();
+        $cartService = app(CartService::class);
+        $guestCart = $cartService->getCart();
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
 
+            // [FIX] KEIN session()->regenerate() hier!
+            // Das Regenerieren der Session in einem Livewire-Request macht das CSRF-Token im Browser ungültig
+            // und führt zur "Page Expired" Meldung.
+
             $user = Auth::guard('customer')->user();
 
-            // User Warenkorb laden oder erstellen
+            // User Warenkorb laden oder erstellen (an aktuelle Session binden)
             $userCart = Cart::firstOrCreate(
-                ['customer_id' => $user->id],
-                ['session_id' => Session::getId()]
+                ['customer_id' => $user->id]
             );
+
+            // Bestehende Session-ID dem User-Cart zuweisen
+            $userCart->update(['session_id' => Session::getId()]);
 
             // MERGE Logic: Gast-Items in User-Cart schieben
             if ($guestCart && $guestCart->id !== $userCart->id) {
                 foreach ($guestCart->items as $item) {
-                    // Prüfen ob Item schon existiert im User Cart (ähnlich CartService logic)
                     $item->update(['cart_id' => $userCart->id]);
                 }
 
                 if ($guestCart->coupon_code && !$userCart->coupon_code) {
-                    $userCart->coupon_code = $guestCart->coupon_code;
-                    $userCart->save();
+                    $userCart->update(['coupon_code' => $guestCart->coupon_code]);
                 }
 
-                // Leeren Gast-Cart löschen
-                if ($guestCart->items()->count() == 0) {
-                    $guestCart->delete();
-                }
+                $guestCart->delete();
             }
 
             // Felder neu befüllen
             $this->mount();
             $this->loginError = '';
+
+            // Frontend über Login informieren
+            $this->dispatch('checkout-updated');
 
         } else {
             $this->loginError = 'Zugangsdaten nicht korrekt.';
@@ -308,10 +314,7 @@ class Checkout extends Component
                 'city' => $this->city,
                 'postal' => $this->postal_code,
                 'country' => $this->country,
-                // House number ist im Address String enthalten oder separat, hier vereinfacht
             ]);
-
-            // Optional: Dem User eine Mail senden, dass Account erstellt wurde?
         }
 
         $customerId = $customer->id;
@@ -337,7 +340,6 @@ class Checkout extends Component
                 'city' => $this->city,
                 'country' => $this->country,
             ],
-            // Annahme: Shipping = Billing im einfachen Checkout
             'shipping_address' => [
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
@@ -348,12 +350,10 @@ class Checkout extends Component
                 'country' => $this->country,
             ],
 
-            // RABATTE
             'volume_discount' => $totals['volume_discount'] ?? 0,
             'coupon_code' => $totals['coupon_code'] ?? null,
             'discount_amount' => $totals['discount_amount'] ?? 0,
 
-            // KOSTENAUFSTELLUNG (PAngV konform getrennt)
             'subtotal_price' => $totals['subtotal_gross'],
             'tax_amount' => $totals['tax'],
             'shipping_price' => $totals['shipping'],
@@ -371,6 +371,10 @@ class Checkout extends Component
                 'configuration' => $item->configuration
             ]);
         }
+
+        // [WICHTIG] Warenkorb leeren, damit er bei Erfolg nicht mehr voll ist
+        $cart->items()->delete();
+        $cart->delete();
 
         return $order->id;
     }

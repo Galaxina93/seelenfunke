@@ -113,17 +113,14 @@
                         {{-- Land --}}
                         <div class="sm:col-span-2">
                             <label for="country" class="block text-sm font-medium text-gray-700">Land <span class="text-red-500">*</span></label>
-                            {{-- wire:model.live sorgt für sofortige Aktualisierung bei Änderung --}}
                             <select wire:model.live="country" id="country" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm py-3">
                                 @foreach(config('shop.countries', ['DE' => 'Deutschland']) as $code => $name)
-                                    {{-- 'default_tax_rate' ist kein Land, daher rausfiltern --}}
                                     @if($code !== 'default_tax_rate')
                                         <option value="{{ $code }}">{{ $name }}</option>
                                     @endif
                                 @endforeach
                             </select>
 
-                            {{-- Dynamischer Hinweis --}}
                             <div class="mt-2 text-xs text-gray-500 animate-fade-in">
                                 @if($country === 'DE')
                                     <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab 50,00 € Warenwert. Sonst 4,90 €.
@@ -151,7 +148,6 @@
                         </p>
                     </div>
 
-                    {{-- wire:ignore verhindert, dass Livewire das Stripe Element beim Rerender zerstört --}}
                     <div wire:ignore>
                         <div id="payment-element"></div>
                     </div>
@@ -165,12 +161,8 @@
                 <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg sticky top-24">
                     <h2 class="text-lg font-medium text-gray-900 mb-6">Bestellübersicht</h2>
 
-                    {{--
-                        LOGIK: Progressbar NUR für Deutschland (50€ Regel).
-                        Fürs Ausland nur einen Hinweis.
-                    --}}
                     @php
-                        $threshold = 5000; // 50,00 Euro
+                        $threshold = 5000;
                         $currentValue = $totals['subtotal_gross'];
                         $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
                         $missing = $totals['missing_for_free_shipping'];
@@ -194,14 +186,12 @@
                             @endif
                         </div>
                     @else
-                        {{-- Hinweis für Ausland --}}
                         <div class="mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm flex gap-3">
                             <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             <span>Für Lieferungen nach <strong>{{ config('shop.countries.'.$country, $country) }}</strong> gelten gesonderte Versandkosten.</span>
                         </div>
                     @endif
 
-                    {{-- Warenkorb Items --}}
                     <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
                         @foreach($cart->items as $item)
                             <li class="flex items-start py-6 space-x-4">
@@ -217,8 +207,6 @@
                                 <div class="flex-auto space-y-1">
                                     <h3 class="text-gray-900 font-bold">{{ $item->product->name }}</h3>
                                     <p class="text-gray-500">{{ $item->quantity }}x</p>
-
-                                    {{-- Konfigurations-Details --}}
                                     @if(!empty($item->configuration) && is_array($item->configuration))
                                         <div class="text-xs text-gray-500 space-y-1">
                                             @if(isset($item->configuration['texts']))
@@ -238,14 +226,12 @@
                         @endforeach
                     </ul>
 
-                    {{-- Summenblock --}}
                     <div class="border-t border-gray-100 pt-6 space-y-3">
                         <div class="flex items-center justify-between text-sm text-gray-600">
                             <span>Zwischensumme</span>
                             <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
                         </div>
 
-                        {{-- Rabatte --}}
                         @if($totals['volume_discount'] > 0)
                             <div class="flex items-center justify-between text-sm text-green-600">
                                 <span>Mengenrabatt</span>
@@ -260,7 +246,6 @@
                             </div>
                         @endif
 
-                        {{-- Versandkosten --}}
                         <div class="flex items-center justify-between text-sm">
                             <span class="text-gray-600">Versand ({{ $country }})</span>
                             @if($totals['shipping'] > 0)
@@ -275,7 +260,6 @@
                             <span class="text-xl font-bold text-primary">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
                         </div>
 
-                        {{-- STEUERANZEIGE (FIX: Dynamische Schleife) --}}
                         <div class="space-y-1 pt-2 border-t border-dashed border-gray-200 mt-2">
                             @if(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
                                 @foreach($totals['taxes_breakdown'] as $taxRate => $taxAmount)
@@ -285,7 +269,6 @@
                                     </div>
                                 @endforeach
                             @else
-                                {{-- Fallback --}}
                                 <div class="text-xs text-gray-400 text-right">
                                     inkl. {{ number_format($totals['tax'] / 100, 2, ',', '.') }} € MwSt.
                                 </div>
@@ -293,7 +276,6 @@
                         </div>
                     </div>
 
-                    {{-- Rechtliches (Checkboxen) --}}
                     <div class="mt-8 space-y-4 bg-gray-50 p-4 rounded-xl">
                         <div class="flex items-start">
                             <div class="flex h-5 items-center">
@@ -342,10 +324,7 @@
             let stripe, elements, paymentElement;
             const stripeKey = "{{ $stripeKey }}";
 
-            // Funktion zum Initialisieren (oder neu laden bei Preisänderung)
             async function initializeStripe() {
-                // Wir holen das neueste ClientSecret direkt aus der Komponente
-                // Das ist wichtig, weil sich der Betrag (Versand) und damit das Secret bei Länderwechsel ändert.
                 const clientSecret = await @this.get('clientSecret');
 
                 if (!stripeKey || !clientSecret) {
@@ -353,11 +332,9 @@
                     return;
                 }
 
-                // Initialisierung
                 stripe = Stripe(stripeKey);
                 const appearance = { theme: 'stripe', variables: { colorPrimary: '#C5A059', borderRadius: '8px' } };
 
-                // Bestehendes Element entfernen falls vorhanden (Cleanup)
                 const container = document.getElementById("payment-element");
                 container.innerHTML = '';
 
@@ -366,25 +343,8 @@
                 paymentElement.mount("#payment-element");
             }
 
-            // Start Initialisierung
             initializeStripe();
 
-            // Listener für Änderungen im Backend (z.B. Land geändert -> neuer Preis -> neues Secret)
-            // Wir nutzen den Hook 'commit', um nach jedem Livewire Update zu prüfen
-            Livewire.hook('commit', ({ component, succeed }) => {
-                succeed(() => {
-                    // Hier könnte man optimieren und nur neu laden wenn sich clientSecret geändert hat.
-                    // Da createPaymentIntent im Backend bei jedem Country-Change läuft, ist ein Re-Mount sicher.
-                    // Optional: Prüfen ob wir im Checkout Component sind
-                    if(component.name === 'shop.checkout') {
-                        // initializeStripe(); // Falls Stripe bei Updates zickt, hier einkommentieren.
-                        // Normalerweise reicht einmaliges Laden, solange der Intent ID gleich bleibt.
-                        // Bei neuer Intent ID muss neu geladen werden.
-                    }
-                })
-            });
-
-            // Alternativ: Expliziter Event Listener vom Backend (sauberer)
             Livewire.on('checkout-updated', () => {
                 initializeStripe();
             });
@@ -403,7 +363,6 @@
                 messageContainer.classList.add("hidden");
 
                 try {
-                    // 1. Validierung und Order-Erstellung im Backend
                     const orderId = await @this.validateAndCreateOrder();
 
                     if(!orderId) {
@@ -412,7 +371,6 @@
                         return;
                     }
 
-                    // 2. Stripe Bestätigung
                     const { error } = await stripe.confirmPayment({
                         elements,
                         confirmParams: {
