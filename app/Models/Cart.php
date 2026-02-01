@@ -20,7 +20,12 @@ class Cart extends Model
         'session_id',
         'user_id',
         'coupon_code',
-        'customer_id'
+        'customer_id',
+        'is_express'
+    ];
+
+    protected $casts = [
+        'is_express' => 'boolean'
     ];
 
     /**
