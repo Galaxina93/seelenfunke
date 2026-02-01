@@ -260,7 +260,7 @@
                                             @endif
                                         </div>
                                         <div class="text-right">
-                                            <p class="font-bold text-gray-900">{{ number_format($item->unit_price / 100, 2, ',', '.') }} €</p>
+                                            <p class="font-bold text-gray-900">{{ number_format($item->unit_price / 100, 2, ',', '.') }}&nbsp;€</p>
                                         </div>
                                     </li>
                                 @endforeach
