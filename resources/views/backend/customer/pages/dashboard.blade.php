@@ -13,13 +13,9 @@
                 </p>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-12 mt-8">
+            <div class="lg:col-span-1 space-y-8">
 
-                <div class="lg:col-span-1 space-y-8">
-
-                    @livewire('customer.orders')
-
-                </div>
+                @livewire('customer.orders')
 
             </div>
 

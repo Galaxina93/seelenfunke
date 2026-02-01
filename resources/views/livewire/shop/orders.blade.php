@@ -412,10 +412,29 @@
                                         <h3 class="font-bold text-gray-800">{{ $this->previewItem->product_name }}</h3>
                                         <p class="text-xs text-gray-400">Artikel-ID: {{ $this->previewItem->product_id }}</p>
                                     </div>
+
                                     <div class="text-right text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
                                         Konfiguration anzeigen
                                     </div>
                                 </div>
+
+                                {{-- In der orders.blade.php unter der Konfigurations-Vorschau --}}
+                                @if($item->config_fingerprint)
+                                    <div class="mt-4 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100">
+                                        <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                        <div class="text-[10px] text-green-800 leading-tight">
+                                            <p class="font-bold uppercase">Produktkonfiguration – Digitales Echtheits-Siegel</p>
+                                            <p class="font-mono text-green-600">{{ substr($item->config_fingerprint, 0, 16) }}</p>
+                                            <p class="mt-1 text-green-700">
+                                                Hinweis: Diese Produktkonfiguration wurde bei der Bestellung eindeutig versiegelt.
+                                                Nachträgliche Änderungen am Konfigurationszustand sind nicht möglich.
+                                            </p>
+                                        </div>
+                                    </div>
+                                @endif
 
                                 {{-- CONFIGURATOR COMPONENT --}}
                                 {{-- Wir entfernen h-full, damit es scrollen kann wenn nötig, oder lassen den Browser entscheiden --}}

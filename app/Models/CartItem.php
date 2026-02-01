@@ -17,6 +17,7 @@ class CartItem extends Model
         'quantity',
         'unit_price',
         'configuration', // JSON Cast passiert hier automatisch in Laravel 10/11 oft, aber besser explizit casten
+        'config_fingerprint'
     ];
 
     protected $casts = [

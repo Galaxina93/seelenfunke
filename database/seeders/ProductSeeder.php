@@ -86,10 +86,11 @@ class ProductSeeder extends Seeder
             'configurator_settings' => [
                 'allow_text_pos' => true,
                 'allow_logo' => true,
+                'area_top' => 3,
+                'area_left' => 10.5,
                 'area_width' => 80,
                 'area_height' => 80,
-                'area_top' => 4,
-                'area_left' => 10,
+                'area_shape' => 'circle'
             ],
 
             // JSON Daten

@@ -95,6 +95,7 @@ class ProductCreate extends Component
         'area_left' => 10,
         'area_width' => 80,
         'area_height' => 80,
+        'area_shape' => 'rect',
         'allowed_align' => ['left', 'center', 'right']
     ];
 

@@ -363,6 +363,8 @@
                 messageContainer.classList.add("hidden");
 
                 try {
+                    // 1. Validierung und Order in DB erstellen (Status pending)
+                    // Dies stellt sicher, dass die OrderItems in der Datenbank existieren.
                     const orderId = await @this.validateAndCreateOrder();
 
                     if(!orderId) {
@@ -371,7 +373,8 @@
                         return;
                     }
 
-                    const { error } = await stripe.confirmPayment({
+                    // 2. Stripe Zahlung bestätigen
+                    const { error, paymentIntent } = await stripe.confirmPayment({
                         elements,
                         confirmParams: {
                             return_url: "{{ route('checkout.success') }}",
@@ -388,12 +391,28 @@
                                 }
                             }
                         },
+                        // Verhindert den Redirect, falls die Zahlung sofort bestätigt wird
+                        redirect: 'if_required'
                     });
 
+                    // 3. Ergebnis verarbeiten
                     if (error) {
+                        // Fehler von Stripe (Karte abgelehnt etc.)
                         showMessage(error.type === "card_error" || error.type === "validation_error" ? error.message : "Ein unerwarteter Fehler ist aufgetreten.");
                         setLoading(false);
                     }
+                    // Wenn kein Fehler vorliegt ODER der Status 'succeeded' ist
+                    else if (paymentIntent && paymentIntent.status === 'succeeded') {
+                        // ZAHLUNG ERFOLGREICH (Ohne Redirect)
+                        // Wir triggern jetzt die Livewire-Methode und übergeben die orderId,
+                        // damit Livewire exakt weiß, welche Bestellung finalisiert werden soll.
+                        await @this.handlePaymentSuccess(orderId);
+                    }
+                    else if (!error) {
+                        // Fallback für den Fall, dass ein Redirect eingeleitet wurde (stripe übernimmt dann)
+                        // (Z.B. bei 3D Secure, wo das Fenster oben wegnavigiert)
+                    }
+
                 } catch (error) {
                     console.error("System Error:", error);
                     showMessage("Verbindungsfehler. Bitte versuche es erneut.");

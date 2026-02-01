@@ -58,7 +58,7 @@ class Configurator extends Component
 
         $this->configSettings = array_merge([
             'allow_logo' => true,
-            'area_top' => 10, 'area_left' => 10, 'area_width' => 80, 'area_height' => 80
+            'area_top' => 10, 'area_left' => 10, 'area_width' => 80, 'area_height' => 80, 'area_shape' => 'rect'
         ], $dbSettings ?? []);
 
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
@@ -119,6 +119,7 @@ class Configurator extends Component
 
     public function updated($propertyName)
     {
+        if ($this->context === 'preview') return; // Sperre für Preview
         if ($propertyName === 'qty') {
             if ($this->qty < 1) $this->qty = 1;
             $this->calculatePrice();
@@ -129,6 +130,7 @@ class Configurator extends Component
 
     public function addText($x = null, $y = null)
     {
+        if ($this->context === 'preview') return; // Sperre für Preview
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
@@ -145,6 +147,7 @@ class Configurator extends Component
 
     public function removeText($index)
     {
+        if ($this->context === 'preview') return; // Sperre für Preview
         unset($this->texts[$index]);
         $this->texts = array_values($this->texts);
 
@@ -158,6 +161,7 @@ class Configurator extends Component
 
     public function updatedNewFiles()
     {
+        if ($this->context === 'preview') return; // Sperre für Preview
         $this->validate([
             'new_files.*' => 'file|max:10240|mimes:jpg,jpeg,png,webp,pdf,svg',
         ]);
@@ -172,6 +176,7 @@ class Configurator extends Component
 
     public function toggleLogo($type, $value)
     {
+        if ($this->context === 'preview') return; // Sperre für Preview
         foreach ($this->logos as $key => $logo) {
             if ($logo['type'] === $type && $logo['value'] == $value) {
                 unset($this->logos[$key]);
@@ -225,6 +230,7 @@ class Configurator extends Component
 
     public function removeFile($index)
     {
+        if ($this->context === 'preview') return; // Sperre für Preview
         if (isset($this->uploaded_files[$index])) {
             $path = $this->uploaded_files[$index];
             $this->toggleLogo('saved', $path);
@@ -234,6 +240,7 @@ class Configurator extends Component
     }
 
     public function removeNewFile($index) {
+        if ($this->context === 'preview') return; // Sperre für Preview
         if(isset($this->new_files[$index])) {
             foreach ($this->logos as $key => $logo) {
                 if ($logo['type'] === 'new' && $logo['value'] == $index) {

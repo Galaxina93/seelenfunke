@@ -10,8 +10,10 @@
                 top: parseFloat(configData.config.area_top || 10),
                 left: parseFloat(configData.config.area_left || 10),
                 width: parseFloat(configData.config.area_width || 80),
-                height: parseFloat(configData.config.area_height || 80)
+                height: parseFloat(configData.config.area_height || 80),
+                shape: configData.config.area_shape || 'rect'
             },
+            context: configData.context,
             isDragging: false,
             // currentElement Struktur: { type: 'text'|'logo', index: 0 }
             currentElement: null,
@@ -48,11 +50,13 @@
             },
 
             selectItem(type, index) {
+                if(this.context === 'preview') return; // Sperre für Preview
                 this.selectedType = type;
                 this.selectedIndex = index;
             },
 
             startDrag(event, type, index) {
+                if(this.context === 'preview') return; // Sperre für Preview
                 this.isDragging = true;
                 this.currentElement = { type: type, index: index };
                 this.selectItem(type, index);
@@ -87,7 +91,7 @@
             },
 
             handleDrag(event) {
-                if (!this.isDragging || !this.currentElement) return;
+                if (!this.isDragging || !this.currentElement || this.context === 'preview') return;
                 if(event.cancelable) event.preventDefault();
 
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
@@ -100,19 +104,38 @@
                 let newCenterX = mouseX - this.dragOffsetX;
                 let newCenterY = mouseY - this.dragOffsetY;
 
+                // Umrechnung in Prozent
                 let percentX = (newCenterX / container.width) * 100;
                 let percentY = (newCenterY / container.height) * 100;
 
-                // Grenzen
-                let minX = this.area.left;
-                let maxX = this.area.left + this.area.width;
-                let minY = this.area.top;
-                let maxY = this.area.top + this.area.height;
+                if (this.area.shape === 'circle') {
+                    // --- KREIS LOGIK ---
+                    const centerX = this.area.left + (this.area.width / 2);
+                    const centerY = this.area.top + (this.area.height / 2);
+                    const radiusX = this.area.width / 2;
+                    const radiusY = this.area.height / 2;
 
-                percentX = Math.max(minX, Math.min(maxX, percentX));
-                percentY = Math.max(minY, Math.min(maxY, percentY));
+                    let dx = percentX - centerX;
+                    let dy = percentY - centerY;
+                    let distance = (dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY);
 
-                // Update Variable via Alpine Direct Manipulation (synced via entangle)
+                    if (distance > 1) {
+                        let angle = Math.atan2(dy, dx);
+                        percentX = centerX + radiusX * Math.cos(angle);
+                        percentY = centerY + radiusY * Math.sin(angle);
+                    }
+                } else {
+                    // --- RECHTECK LOGIK (Standard) ---
+                    let minX = this.area.left;
+                    let maxX = this.area.left + this.area.width;
+                    let minY = this.area.top;
+                    let maxY = this.area.top + this.area.height;
+
+                    percentX = Math.max(minX, Math.min(maxX, percentX));
+                    percentY = Math.max(minY, Math.min(maxY, percentY));
+                }
+
+                // Update der Livewire-Daten
                 if (this.currentElement.type === 'text') {
                     this.texts[this.currentElement.index].x = percentX;
                     this.texts[this.currentElement.index].y = percentY;
@@ -133,6 +156,7 @@
 
             // Slider Change Handler
             updateSize(size) {
+                if(this.context === 'preview') return; // Sperre für Preview
                 if (this.selectedType === 'text' && this.texts[this.selectedIndex]) {
                     this.texts[this.selectedIndex].size = parseFloat(size);
                 } else if (this.selectedType === 'logo' && this.logos[this.selectedIndex]) {
@@ -151,7 +175,8 @@
             logos: @entangle('logos').live
         },
         config: {{ Js::from($configSettings) }},
-        fonts: {{ Js::from($fonts) }}
+        fonts: {{ Js::from($fonts) }},
+        context: '{{ $context }}'
      })">
 
     {{-- SCROLLABLE CONTENT --}}
@@ -172,23 +197,31 @@
 
                 {{-- Arbeitsbereich --}}
                 <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none z-10"
-                     :style="{ top: area.top + '%', left: area.left + '%', width: area.width + '%', height: area.height + '%' }">
+                     :style="{
+                        top: area.top + '%',
+                        left: area.left + '%',
+                        width: area.width + '%',
+                        height: area.height + '%',
+                        borderRadius: (area.shape === 'circle' ? '50%' : '0'),
+                        boxShadow: '0 0 0 9999px rgba(239, 68, 68, 0.15)'
+                     }">
                 </div>
 
                 {{-- TEXT LAYERS (Loop) --}}
                 <template x-for="(textItem, index) in texts" :key="textItem.id">
-                    <div class="absolute z-20 cursor-move group touch-none"
+                    <div class="absolute z-20 touch-none"
+                         :class="context !== 'preview' ? 'cursor-move group' : ''"
                          style="transform: translate(-50%, -50%);"
                          :style="{ left: textItem.x + '%', top: textItem.y + '%' }"
                          @mousedown="startDrag($event, 'text', index)"
                          @touchstart="startDrag($event, 'text', index)">
 
-                        <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors w-auto text-center"
-                             :class="{ 'border-primary': (selectedType === 'text' && selectedIndex === index) }">
+                        <div class="p-1 rounded transition-colors w-auto text-center"
+                             :class="{ 'border border-primary': (selectedType === 'text' && selectedIndex === index && context !== 'preview'), 'border border-transparent': context === 'preview' }">
                             {{-- WICHTIG: Alles in einer Zeile lassen wegen whitespace-pre --}}
                             <p class="leading-tight font-bold whitespace-pre pointer-events-none w-max"
                                :class="alignMap[textItem.align]"
-                               :style="`font-size: ${16 * textItem.size}px; font-family: ${fontMap[textItem.font] || 'Arial'}; background: linear-gradient(to bottom, #cfc09f 22%, #634f2c 24%, #cfc09f 26%, #cfc09f 27%, #ffecb3 40%, #3a2c0f 78%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: #C5A059; text-shadow: 1px 1px 2px rgba(255,255,255,0.5);`"><span x-text="textItem.text ? textItem.text : 'Ihr Text'"></span></p>
+                               :style="`font-size: ${16 * textItem.size}px; font-family: ${fontMap[textItem.font] || 'Arial'}; background: linear-gradient(to bottom, #cfc09f 22%, #634f2c 24%, #cfc09f 26%, #cfc09f 27%, #ffecb3 40%, #3a2c0f 78%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: #C5A059; text-shadow: 1px 1px 2px rgba(255,255,255,0.5);`"><span x-text="textItem.text ? textItem.text : (context !== 'preview' ? 'Ihr Text' : '')"></span></p>
                         </div>
                     </div>
                 </template>
@@ -197,14 +230,15 @@
                 @if($configSettings['allow_logo'])
                     @foreach($this->renderedLogos as $index => $logoData)
                         {{-- Alpine Loop nicht möglich wegen Blade URL rendering, daher hier Mapping via Index --}}
-                        <div class="absolute z-20 cursor-move group touch-none"
+                        <div class="absolute z-20 touch-none"
+                             :class="context !== 'preview' ? 'cursor-move group' : ''"
                              style="transform: translate(-50%, -50%);"
                              :style="{ left: logos[{{ $index }}].x + '%', top: logos[{{ $index }}].y + '%' }"
                              @mousedown="startDrag($event, 'logo', {{ $index }})"
                              @touchstart="startDrag($event, 'logo', {{ $index }})">
 
-                            <div class="border border-transparent group-hover:border-primary/50 p-1 rounded transition-colors"
-                                 :class="{ 'border-primary': (selectedType === 'logo' && selectedIndex === {{ $index }}) }">
+                            <div class="p-1 rounded transition-colors"
+                                 :class="{ 'border border-primary': (selectedType === 'logo' && selectedIndex === {{ $index }} && context !== 'preview'), 'border border-transparent': context === 'preview' }">
                                 <div :style="{ width: logos[{{ $index }}].size + 'px' }" class="relative">
                                     <img src="{{ $logoData['url'] }}" class="w-full h-auto object-contain drop-shadow-md pointer-events-none">
                                 </div>
@@ -215,42 +249,44 @@
             </div>
 
             {{-- MOBILE REGLER (Dynamisch je nach Auswahl) --}}
-            <div class="w-full max-w-[350px] md:max-w-[400px] mt-4 space-y-3 px-4 h-16">
+            @if($context !== 'preview')
+                <div class="w-full max-w-[350px] md:max-w-[400px] mt-4 space-y-3 px-4 h-16">
 
-                {{-- Regler für TEXT --}}
-                <div x-show="selectedType === 'text' && texts[selectedIndex]" class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm transition-all">
-                    <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-                        <span>Schriftgröße (Text <span x-text="selectedIndex + 1"></span>)</span>
-                        <span x-text="texts[selectedIndex] ? Math.round(texts[selectedIndex].size * 100) + '%' : ''" class="text-primary"></span>
-                    </label>
-                    <input type="range"
-                           :value="texts[selectedIndex] ? texts[selectedIndex].size : 1.0"
-                           @input="updateSize($event.target.value)"
-                           min="0.5" max="3.0" step="0.1"
-                           class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary">
-                </div>
+                    {{-- Regler für TEXT --}}
+                    <div x-show="selectedType === 'text' && texts[selectedIndex]" class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm transition-all">
+                        <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+                            <span>Schriftgröße (Text <span x-text="selectedIndex + 1"></span>)</span>
+                            <span x-text="texts[selectedIndex] ? Math.round(texts[selectedIndex].size * 100) + '%' : ''" class="text-primary"></span>
+                        </label>
+                        <input type="range"
+                               :value="texts[selectedIndex] ? texts[selectedIndex].size : 1.0"
+                               @input="updateSize($event.target.value)"
+                               min="0.5" max="3.0" step="0.1"
+                               class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary">
+                    </div>
 
-                {{-- Regler für LOGO --}}
-                <div x-show="selectedType === 'logo' && logos[selectedIndex]" class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm transition-all">
-                    <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
-                        <span>Bildgröße (Bild <span x-text="selectedIndex + 1"></span>)</span>
-                        <span x-text="logos[selectedIndex] ? logos[selectedIndex].size + 'px' : ''" class="text-primary"></span>
-                    </label>
-                    <input type="range"
-                           :value="logos[selectedIndex] ? logos[selectedIndex].size : 130"
-                           @input="updateSize($event.target.value)"
-                           min="30" max="250" step="5"
-                           class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-green-600">
-                </div>
+                    {{-- Regler für LOGO --}}
+                    <div x-show="selectedType === 'logo' && logos[selectedIndex]" class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm transition-all">
+                        <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">
+                            <span>Bildgröße (Bild <span x-text="selectedIndex + 1"></span>)</span>
+                            <span x-text="logos[selectedIndex] ? logos[selectedIndex].size + 'px' : ''" class="text-primary"></span>
+                        </label>
+                        <input type="range"
+                               :value="logos[selectedIndex] ? logos[selectedIndex].size : 130"
+                               @input="updateSize($event.target.value)"
+                               min="30" max="250" step="5"
+                               class="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-green-600">
+                    </div>
 
-                <div x-show="!selectedType" class="flex items-center justify-center h-full text-xs text-gray-400">
-                    Klicken Sie auf ein Element in der Vorschau zum Bearbeiten
+                    <div x-show="!selectedType" class="flex items-center justify-center h-full text-xs text-gray-400">
+                        Klicken Sie auf ein Element in der Vorschau zum Bearbeiten
+                    </div>
                 </div>
-            </div>
+            @endif
         </div>
 
         {{-- FORMULAR --}}
-        <div class="p-6 space-y-6 text-sm max-w-2xl mx-auto">
+        <div class="p-6 space-y-6 text-sm max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
             {{-- 1. MENGE --}}
             <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
@@ -262,7 +298,7 @@
                     </div>
                 </div>
                 <div class="relative w-full">
-                    <select wire:model.live="qty" wire:change="calculatePrice" class="appearance-none w-full pl-4 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer">
+                    <select wire:model.live="qty" wire:change="calculatePrice" class="appearance-none w-full pl-4 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
                         @for($i = 1; $i <= 100; $i++) <option value="{{ $i }}">{{ $i }}x</option> @endfor
                     </select>
                     <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></div>
@@ -273,10 +309,12 @@
             <div class="space-y-4 pt-2 border-t border-gray-100">
                 <div class="flex items-center justify-between">
                     <label class="text-sm font-bold text-gray-900 uppercase tracking-wide">Gravuren</label>
-                    <button wire:click="addText" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full font-bold transition flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                        Weitere Gravur
-                    </button>
+                    @if($context !== 'preview')
+                        <button wire:click="addText" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full font-bold transition flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Weitere Gravur
+                        </button>
+                    @endif
                 </div>
 
                 <div class="space-y-4">
@@ -286,7 +324,7 @@
                             {{-- Header mit Löschen Button --}}
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-[10px] font-bold text-gray-400 uppercase">Gravur #{{ $index + 1 }}</span>
-                                @if(count($texts) > 1)
+                                @if(count($texts) > 1 && $context !== 'preview')
                                     <button wire:click="removeText({{ $index }})" class="text-red-400 hover:text-red-600 text-xs p-1">Löschen</button>
                                 @endif
                             </div>
@@ -298,17 +336,18 @@
                                 class="w-full p-3 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary text-sm resize-none mb-3"
                                 placeholder="Ihr Wunschtext..."
                                 x-on:focus="selectItem('text', {{ $index }})"
+                                {{ $context === 'preview' ? 'readonly' : '' }}
                             ></textarea>
 
                             {{-- Controls --}}
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <select wire:model.live="texts.{{ $index }}.font" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                                    <select wire:model.live="texts.{{ $index }}.font" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
                                         @foreach($fonts as $fontName => $css) <option value="{{ $fontName }}">{{ $fontName }}</option> @endforeach
                                     </select>
                                 </div>
                                 <div>
-                                    <select wire:model.live="texts.{{ $index }}.align" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                                    <select wire:model.live="texts.{{ $index }}.align" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
                                         @foreach($alignmentOptions as $k => $l) <option value="{{ $k }}">{{ $l }}</option> @endforeach
                                     </select>
                                 </div>
@@ -326,27 +365,31 @@
                         <span class="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Bilder & PDFs</span>
                     </label>
 
-                    {{-- INFO BOX --}}
-                    <div class="bg-blue-50/80 border border-blue-100 rounded-xl p-4 flex gap-4 items-start shadow-sm">
-                        <div class="shrink-0 text-blue-500 mt-0.5">
-                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
+                    {{-- INFO BOX (nur wenn kein Preview) --}}
+                    @if($context !== 'preview')
+                        <div class="bg-blue-50/80 border border-blue-100 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+                            <div class="shrink-0 text-blue-500 mt-0.5">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-blue-900 text-sm mb-1">Professioneller Design-Check inklusive</h4>
+                                <p class="text-sm text-blue-800/80 leading-relaxed">
+                                    Sie können mehrere Bilder hochladen und positionieren. Wir prüfen jede Datei manuell.
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-blue-900 text-sm mb-1">Professioneller Design-Check inklusive</h4>
-                            <p class="text-sm text-blue-800/80 leading-relaxed">
-                                Sie können mehrere Bilder hochladen und positionieren. Wir prüfen jede Datei manuell.
-                            </p>
-                        </div>
-                    </div>
+                    @endif
 
                     {{-- Upload Bereich --}}
                     <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                        <input type="file" wire:model.live="new_files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">
-                        <div wire:loading wire:target="new_files" class="text-xs text-primary mt-2">Dateien werden hochgeladen...</div>
+                        @if($context !== 'preview')
+                            <input type="file" wire:model.live="new_files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">
+                            <div wire:loading wire:target="new_files" class="text-xs text-primary mt-2">Dateien werden hochgeladen...</div>
 
-                        @error('new_files.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            @error('new_files.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        @endif
 
                         {{-- Liste der Dateien --}}
                         <div class="mt-4 space-y-2">
@@ -367,16 +410,20 @@
                                         @endif
                                         <div class="text-xs truncate max-w-[150px]">{{ basename($path) }}</div>
                                     </div>
-                                    <div class="flex gap-2">
-                                        @if($isImage)
-                                            <button wire:click="toggleLogo('saved', '{{ $path }}')" class="text-[10px] px-2 py-1 rounded {{ $isActive ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
-                                                {{ $isActive ? 'Vorschau an' : 'Als Vorschau' }}
+                                    @if($context !== 'preview')
+                                        <div class="flex gap-2">
+                                            @if($isImage)
+                                                <button wire:click="toggleLogo('saved', '{{ $path }}')" class="text-[10px] px-2 py-1 rounded {{ $isActive ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                                                    {{ $isActive ? 'Vorschau an' : 'Als Vorschau' }}
+                                                </button>
+                                            @endif
+                                            <button wire:click="removeFile({{ $index }})" class="text-red-500 hover:text-red-700 p-1">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
-                                        @endif
-                                        <button wire:click="removeFile({{ $index }})" class="text-red-500 hover:text-red-700 p-1">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                        </button>
-                                    </div>
+                                        </div>
+                                    @else
+                                        <span class="text-[10px] bg-green-50 text-green-700 px-2 py-1 rounded">Vorschau aktiv</span>
+                                    @endif
                                 </div>
                             @endforeach
 
@@ -418,25 +465,27 @@
             {{-- 4. ANMERKUNGEN --}}
             <div class="pt-4 border-t border-gray-100">
                 <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Interne Anmerkungen</label>
-                <textarea wire:model="notes" rows="2" class="w-full p-4 rounded-xl border border-yellow-200 bg-yellow-50/50 text-gray-900 placeholder-gray-400 focus:bg-yellow-50 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/50 transition-all text-sm leading-relaxed resize-none" placeholder="Haben Sie Sonderwünsche?"></textarea>
+                <textarea wire:model="notes" rows="2" class="w-full p-4 rounded-xl border border-yellow-200 bg-yellow-50/50 text-gray-900 placeholder-gray-400 focus:bg-yellow-50 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/50 transition-all text-sm leading-relaxed resize-none" placeholder="Haben Sie Sonderwünsche?" {{ $context === 'preview' ? 'readonly' : '' }}></textarea>
             </div>
 
         </div>
     </div>
 
     {{-- FOOTER --}}
-    <div class="p-4 border-t border-gray-200 bg-white z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
-        <button
-            wire:click="save"
-            class="w-full bg-gray-900 text-white py-4 rounded-full font-bold text-lg hover:bg-black hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-3 shadow-lg"
-        >
+    @if($context !== 'preview')
+        <div class="p-4 border-t border-gray-200 bg-white z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
+            <button
+                wire:click="save"
+                class="w-full bg-gray-900 text-white py-4 rounded-full font-bold text-lg hover:bg-black hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-3 shadow-lg"
+            >
             <span wire:loading.remove>
                 @if($context === 'add') In den Warenkorb
                 @elseif($context === 'edit') Änderungen speichern
                 @elseif($context === 'calculator') Übernehmen
                 @endif
             </span>
-            <span wire:loading>Verarbeite...</span>
-        </button>
-    </div>
+                <span wire:loading>Verarbeite...</span>
+            </button>
+        </div>
+    @endif
 </div>

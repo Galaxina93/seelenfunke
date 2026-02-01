@@ -43,6 +43,10 @@ class Checkout extends Component
     // [FIX] Neue Variable, um die ID (pi_...) explizit zu speichern
     public $currentPaymentIntentId;
 
+    // [NEU] State für die Erfolgsmeldung
+    public $isFinished = false;
+    public $finalOrderNumber = '';
+
     // --- REGELN ---
     protected function rules()
     {
@@ -181,6 +185,46 @@ class Checkout extends Component
             }
         }
         return null;
+    }
+
+    /**
+     * Wird vom Frontend aufgerufen, wenn Stripe die Zahlung bestätigt hat.
+     */
+    public function handlePaymentSuccess()
+    {
+        // Wir suchen die bereits erstellte "pending" Order dieses Benutzers/dieser Session
+        // anstatt eine komplett neue zu erstellen.
+        $order = Order::where('stripe_payment_intent_id', $this->currentPaymentIntentId)
+            ->orWhere('email', $this->email)
+            ->where('status', 'pending')
+            ->latest()
+            ->first();
+
+        if ($order) {
+            // Falls die Order schon da ist, nur Status aktualisieren
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => 'processing' // Oder dein Start-Status
+            ]);
+            $this->finalOrderNumber = $order->order_number;
+        } else {
+            // Fallback: Falls noch keine Order existiert, jetzt erstellen
+            $orderId = $this->createOrderInDb();
+            $order = Order::find($orderId);
+            $order->update(['payment_status' => 'paid']);
+            $this->finalOrderNumber = $order->order_number;
+        }
+
+        // UI umschalten
+        $this->isFinished = true;
+
+        // Erst JETZT den Warenkorb leeren
+        $cartService = app(CartService::class);
+        $cart = $cartService->getCart();
+        $cart->items()->delete();
+        $cart->delete();
+
+        $this->dispatch('payment-processed');
     }
 
     /**
@@ -370,13 +414,23 @@ class Checkout extends Component
 
         // Items übertragen
         foreach($cart->items as $item) {
+
+            // [NEU] KRYPTOGRAFISCHER FINGERABDRUCK (Seal)
+            // Wir erzeugen einen Hash aus der gesamten Konfiguration.
+            // Sollte sich später nur ein Pixel-Wert oder ein Buchstabe ändern,
+            // würde der Hash nicht mehr übereinstimmen.
+            $configFingerprint = !empty($item->configuration)
+                ? hash('sha256', json_encode($item->configuration))
+                : null;
+
             $order->items()->create([
                 'product_id' => $item->product_id,
                 'product_name' => $item->product->name,
                 'quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
                 'total_price' => $item->unit_price * $item->quantity,
-                'configuration' => $item->configuration
+                'configuration' => $item->configuration,
+                'config_fingerprint' => $configFingerprint // Fingerabdruck mitspeichern
             ]);
         }
 
@@ -389,6 +443,10 @@ class Checkout extends Component
 
     public function render()
     {
+        if ($this->isFinished) {
+            return view('livewire.shop.checkout-success');
+        }
+
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 

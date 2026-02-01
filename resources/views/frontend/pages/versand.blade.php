@@ -5,6 +5,7 @@
         <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
             <header class="mb-12 text-center md:text-left">
                 <h1 class="text-3xl md:text-4xl font-serif font-bold mb-4 text-gray-900">Lieferung</h1>
+                <p class="text-gray-600">Informationen zu Versandkosten, Liefergebieten und Versandlaufzeiten.</p>
             </header>
 
             <div id="lieferung" class="scroll-mt-28">
@@ -24,47 +25,64 @@
                     <div>
                         <h3 class="font-bold text-lg text-gray-900 mb-2">1. Versandgebiet und Versandkosten</h3>
                         <p>
-                            Wir liefern innerhalb Deutschlands sowie weltweit.
+                            Wir liefern innerhalb <strong>Deutschlands</strong> sowie in alle Länder der <strong>Europäischen Union (Zone 1)</strong>.
+                            Ein Versand in Nicht-EU-Staaten (z.B. Schweiz, UK) oder weltweit wird aktuell nicht angeboten.
                         </p>
-                        <p class="mt-2">
-                            Innerhalb Deutschlands erfolgt der Versand
-                            <strong>kostenfrei ab einem Bestellwert von 50,00 €</strong>.
-                            Bei einem Bestellwert unter 50,00 € berechnen wir
-                            <strong>4,99 € Versandkosten</strong>.
-                        </p>
-                        <p class="mt-2 text-sm text-gray-600">
-                            Für Lieferungen ins Ausland gelten gesonderte Versandkosten, die im Bestellprozess transparent ausgewiesen werden.
+                        <p class="mt-4">
+                            <strong>Versand innerhalb Deutschlands:</strong><br>
+                            Erfolgt <strong>kostenfrei ab einem Bestellwert von 50,00 €</strong>.
+                            Bei einem Bestellwert unter 50,00 € berechnen wir eine Versandpauschale von <strong>4,90 €</strong>.
                         </p>
 
-                        <!-- Versandkosten Tabelle -->
-                        <div class="overflow-x-auto mt-4">
+                        <div class="overflow-x-auto mt-6">
+                            <h4 class="font-bold text-gray-900 mb-2">Versandkosten EU (Zone 1 - DHL Paket)</h4>
+                            <p class="text-sm text-gray-600 mb-4">Die Versandkosten in die EU berechnen sich nach dem Gesamtgewicht der Bestellung:</p>
                             <table class="min-w-full border border-gray-200 rounded-lg overflow-hidden text-sm">
                                 <thead class="bg-gray-100 text-gray-900">
                                 <tr>
                                     <th class="px-4 py-3 text-left font-semibold border-b">Region</th>
-                                    <th class="px-4 py-3 text-left font-semibold border-b">Versandkosten</th>
+                                    <th class="px-4 py-3 text-left font-semibold border-b">Gewichtsklasse</th>
+                                    <th class="px-4 py-3 text-right font-semibold border-b">Versandkosten (Online-Tarif)</th>
                                 </tr>
                                 </thead>
-                                <tbody class="divide-y">
+                                <tbody class="divide-y bg-white">
                                 <tr>
-                                    <td class="px-4 py-3">Deutschland, Österreich</td>
-                                    <td class="px-4 py-3">4,99 € (ab 50 € Bestellwert kostenlos)</td>
+                                    <td class="px-4 py-3 font-medium">Deutschland</td>
+                                    <td class="px-4 py-3">Pauschal (bis 31,5 kg)</td>
+                                    <td class="px-4 py-3 text-right">4,90 € <span class="text-xs text-green-600 font-bold ml-1">(Ab 50€ Kostenlos)</span></td>
                                 </tr>
                                 <tr>
-                                    <td class="px-4 py-3">Niederlande</td>
-                                    <td class="px-4 py-3">6,99 €</td>
+                                    <td class="px-4 py-3" rowspan="5">
+                                        <strong>EU - Zone 1</strong><br>
+                                        <span class="text-[10px] text-gray-500 leading-tight block mt-1">
+                                            Belgien, Bulgarien, Dänemark, Estland, Finnland, Frankreich, Griechenland, Irland, Italien, Kroatien, Lettland, Litauen, Luxemburg, Malta, Monaco, Niederlande, Österreich, Polen, Portugal, Rumänien, Schweden, Slowakei, Slowenien, Spanien, Tschechien, Ungarn, Zypern.
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3">Paket bis 2 kg</td>
+                                    <td class="px-4 py-3 text-right">14,49 €</td>
                                 </tr>
                                 <tr>
-                                    <td class="px-4 py-3">Belgien, Dänemark, Frankreich, Polen, Tschechien</td>
-                                    <td class="px-4 py-3">9,99 €</td>
+                                    <td class="px-4 py-3">Paket bis 5 kg</td>
+                                    <td class="px-4 py-3 text-right">17,49 €</td>
                                 </tr>
                                 <tr>
-                                    <td class="px-4 py-3">Restliches Europa</td>
-                                    <td class="px-4 py-3">14,99 €</td>
+                                    <td class="px-4 py-3">Paket bis 10 kg</td>
+                                    <td class="px-4 py-3 text-right">22,49 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3">Paket bis 20 kg</td>
+                                    <td class="px-4 py-3 text-right">28,49 €</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-4 py-3">Paket bis 31,5 kg</td>
+                                    <td class="px-4 py-3 text-right">45,49 €</td>
                                 </tr>
                                 </tbody>
                             </table>
                         </div>
+                        <p class="mt-4 text-xs text-gray-500 italic">
+                            Hinweis: Für den Versand in Länder der EU fallen keine Zollgebühren an. Inselzuschläge sind in diesen Pauschalen nicht enthalten und können ggf. nachgefordert werden.
+                        </p>
                     </div>
 
                     <div>
@@ -88,7 +106,7 @@
                                 <p class="text-sm text-gray-600">
                                     Der Versand erfolgt über den Versanddienstleister <strong>DHL</strong>.
                                     Die reguläre Paketlaufzeit beträgt ca. <strong>1–3 Werktage</strong>
-                                    innerhalb Deutschlands. Internationale Lieferzeiten können abweichen.
+                                    innerhalb Deutschlands. Die Laufzeit in andere EU-Länder beträgt in der Regel <strong>3-7 Werktage</strong>.
                                 </p>
                             </li>
                         </ul>

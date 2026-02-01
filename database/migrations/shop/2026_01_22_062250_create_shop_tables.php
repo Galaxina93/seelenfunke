@@ -196,6 +196,8 @@ return new class extends Migration
             // Konfiguration (Gravur etc.) als JSON
             $table->json('configuration')->nullable();
 
+            $table->string('config_fingerprint')->nullable();
+
             $table->timestamps();
         });
 
