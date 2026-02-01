@@ -7,6 +7,7 @@ use App\Models\QuoteRequest;
 use App\Models\QuoteRequestItem;
 use App\Models\ShippingZone; // Wichtig für Versandberechnung
 use App\Services\CartService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Livewire\Component;
 use Livewire\Attributes\On;
@@ -267,6 +268,10 @@ class QuoteAcceptance extends Component
 
         $cart = $cartService->getCart();
         $cart->items()->delete();
+
+        Log::info('Cart Inhalt:', [
+            'cart' => $cart
+        ]);
 
         // FIX: Express-Status explizit in das Cart-Model übernehmen
         $cart->update(['is_express' => $this->quote->is_express]);
