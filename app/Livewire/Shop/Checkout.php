@@ -204,13 +204,33 @@ class Checkout extends Component
         }
 
         if ($order) {
-            // 2. Status & Zahlung aktualisieren
+            // 2. Status & Zahlung der Bestellung aktualisieren
             $order->update([
                 'payment_status' => 'paid',
                 'status' => 'processing'
             ]);
 
             $this->finalOrderNumber = $order->order_number;
+
+            // --- [NEU] VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
+            // Falls der Checkout aus einem Angebot heraus gestartet wurde, markieren wir dieses als umgewandelt.
+            if (Session::has('checkout_from_quote_id')) {
+                $quoteId = Session::get('checkout_from_quote_id');
+                $quote = QuoteRequest::find($quoteId);
+
+                if ($quote) {
+                    $quote->update([
+                        'status' => 'converted',             // Status auf "Umgewandelt" setzen
+                        'converted_order_id' => $order->id   // Die neue Order-ID im Angebot hinterlegen
+                    ]);
+
+                    // Session-Key löschen, damit bei einer weiteren Bestellung nicht versehentlich das gleiche Quote genutzt wird
+                    Session::forget('checkout_from_quote_id');
+
+                    \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
+                }
+            }
+            // --- ENDE NEU ---
 
             // 3. Rechnung & PDF zentral erstellen
             $pdfPath = null;
@@ -220,7 +240,7 @@ class Checkout extends Component
                 // Absoluter Pfad zum PDF für den Mail-Anhang
                 $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
             }
 
             // 4. Mails versenden mit zentralisierten Daten
@@ -230,7 +250,7 @@ class Checkout extends Component
                     ->send(new \App\Mail\OrderConfirmation($order));
 
                 // B) Arbeits-Anfrage an Admin (Dich)
-                // Wir nutzen die neue toFormattedArray() Methode vom Model!
+                // Wir nutzen die neue toFormattedArray() Methode vom Model für ein einheitliches Format!
                 $mailData = $order->toFormattedArray();
 
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
@@ -238,13 +258,14 @@ class Checkout extends Component
 
                 \Illuminate\Support\Facades\Log::info("Checkout: Alle Mails versendet für " . $order->order_number);
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());
             }
         }
 
         // 5. UI umschalten & Cleanup
         $this->isFinished = true;
 
+        // Warenkorb endgültig löschen (Session & DB)
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
         if ($cart) {
@@ -252,8 +273,9 @@ class Checkout extends Component
             $cart->delete();
         }
 
-        // Header aktualisieren (rotes Icon weg)
+        // Header aktualisieren (Warenkorb-Zähler auf 0)
         $this->dispatch('cart-updated');
+        // Stripe-Elemente im Frontend informieren
         $this->dispatch('payment-processed');
     }
 
