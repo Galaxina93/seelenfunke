@@ -130,7 +130,7 @@ class CartService
     {
         $cart = $this->getCart();
         $cart->items()->delete();
-        $cart->update(['coupon_code' => null]);
+        $cart->update(['coupon_code' => null, 'is_express' => false]);
         $this->refreshTotals($cart);
     }
 
@@ -229,7 +229,7 @@ class CartService
             $lineGross = $freshUnitPrice * $qty;
             $subtotalGross += $lineGross;
 
-            // Originalpreis (für Staffelpreise)
+            // Originalpreis (für Streichpreise)
             $basePrice = $product->price;
             $originalSubtotal += ($basePrice * $qty);
 
