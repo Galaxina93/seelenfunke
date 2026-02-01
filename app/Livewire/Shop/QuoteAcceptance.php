@@ -259,7 +259,7 @@ class QuoteAcceptance extends Component
     }
 
     /**
-     * Checkout Logik
+     * Checkout Logik: Überträgt Items und Express-Status in den Warenkorb
      */
     public function proceedToCheckout(CartService $cartService)
     {
@@ -268,7 +268,7 @@ class QuoteAcceptance extends Component
         $cart = $cartService->getCart();
         $cart->items()->delete();
 
-        // Update: Express-Status in den Warenkorb übernehmen
+        // FIX: Express-Status explizit in das Cart-Model übernehmen
         $cart->update(['is_express' => $this->quote->is_express]);
 
         foreach($this->quote->items as $qItem) {
