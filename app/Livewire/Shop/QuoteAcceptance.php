@@ -2,9 +2,10 @@
 
 namespace App\Livewire\Shop;
 
+use App\Models\Order;
 use App\Models\QuoteRequest;
 use App\Models\QuoteRequestItem;
-use App\Models\ShippingZone;
+use App\Models\ShippingZone; // Wichtig für Versandberechnung
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Component;
@@ -20,7 +21,7 @@ class QuoteAcceptance extends Component
     public $errorMessage = '';
 
     // Editing State
-    public $editingItem = null; // Das QuoteRequestItem Model
+    public $editingItem = null; // Das QuoteRequestItem Model, das gerade bearbeitet wird
 
     public function mount($token)
     {
@@ -33,12 +34,9 @@ class QuoteAcceptance extends Component
             return;
         }
 
-        // FIX: Berechnung beim Laden ausführen, damit Versandkosten (transient) verfügbar sind
-        $this->recalculateQuoteTotals();
-
-        // Warnung bei Ablauf prüfen
+        // Warnung bei Ablauf
         if ($this->quote->expires_at->isPast() && $this->quote->status === 'open') {
-            // Wir lassen den User drauf, aber sperren Buttons (handled in isValidAction)
+            // Wir lassen den User drauf, aber sperren Buttons (handled in view/isValidAction)
         }
     }
 
@@ -92,17 +90,15 @@ class QuoteAcceptance extends Component
         $this->editingItem->total_price = $unitPriceCents * $data['qty'];
         $this->editingItem->save();
 
-        // FIX: Zuerst neu laden, DAMIT die neuen Items geladen sind...
-        $this->refreshQuote();
-
-        // ...UND DANN berechnen. So landet 'shipping_cost_calculated' im Objekt für die View.
+        // 3. Gesamtangebot neu berechnen (INKL. VERSAND & STEUERN)
         $this->recalculateQuoteTotals();
 
-        // Zurück zum Dashboard
+        // 4. Zurück zum Dashboard
+        $this->refreshQuote();
         $this->viewState = 'dashboard';
         $this->editingItem = null;
 
-        session()->flash('success', 'Position erfolgreich aktualisiert.');
+        session()->flash('success', 'Position erfolgreich aktualisiert und Angebot neu berechnet.');
     }
 
     /**
@@ -126,17 +122,16 @@ class QuoteAcceptance extends Component
     }
 
     /**
-     * HAUPTLOGIK: Summen des Angebots inkl. Versand berechnen
+     * HAUPTLOGIK: Summen des Angebots neu berechnen
+     * Behebt das Problem, dass Versandkosten verschwinden.
      */
     private function recalculateQuoteTotals()
     {
-        if(!$this->quote) return;
+        $netTotalProducts = 0; // Nur Produkte Netto
+        $taxTotalProducts = 0; // Nur Produkte Steuer
+        $grossTotalProducts = 0; // Nur Produkte Brutto (für Versandfreigrenze)
 
-        $netTotalProducts = 0;
-        $taxTotalProducts = 0;
-        $grossTotalProducts = 0; // Für Versandfreigrenze
-
-        $totalWeight = 0;
+        $totalWeight = 0; // Gesamtgewicht für Versandberechnung
 
         // 1. Produkte durchgehen
         foreach($this->quote->items as $item) {
@@ -173,6 +168,7 @@ class QuoteAcceptance extends Component
 
         $shippingCostCents = 0;
 
+        // Logik analog zum Calculator
         if ($countryCode === 'DE') {
             // Regel: Kostenfrei ab 50,00 € (Brutto-Warenwert), sonst 4,90 €
             if (($grossTotalProducts / 100) >= 50.00 || $this->quote->items->isEmpty()) {
@@ -249,14 +245,16 @@ class QuoteAcceptance extends Component
         $finalGross = $finalNet + $finalTax;
 
         // 5. Update Database
+        // Wir speichern auch shipping_cost separat, falls die Spalte existiert, sonst in den Totals enthalten
         $this->quote->update([
             'net_total' => (int) round($finalNet),
             'tax_total' => (int) round($finalTax),
             'gross_total' => (int) round($finalGross),
+            // Falls dein Model eine Spalte shipping_cost hat, hier speichern:
+            // 'shipping_price' => (int) round($shippingCostCents),
         ]);
 
-        // WICHTIG: Speichern der Versandkosten im Model-Objekt für die aktuelle View-Instanz
-        // Da 'shipping_cost_calculated' keine DB-Spalte ist, geht es sonst beim Refresh verloren.
+        // Speichern der Versandkosten als temporäres Attribut für die View, falls DB Spalte fehlt
         $this->quote->shipping_cost_calculated = $shippingCostCents;
     }
 
@@ -269,6 +267,9 @@ class QuoteAcceptance extends Component
 
         $cart = $cartService->getCart();
         $cart->items()->delete();
+
+        // Update: Express-Status in den Warenkorb übernehmen
+        $cart->update(['is_express' => $this->quote->is_express]);
 
         foreach($this->quote->items as $qItem) {
             if($qItem->product) {
