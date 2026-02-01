@@ -14,7 +14,7 @@
         }
         .container {
             max-width: 600px;
-            margin: 0 auto;
+            margin: 20px auto;
             background-color: #ffffff;
             padding: 40px;
             border-radius: 8px;
@@ -43,7 +43,7 @@
         .table td { padding: 15px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top; }
         .text-right { text-align: right; }
 
-        /* PRODUKT VORSCHAU (CSS aus PDF adaptiert) */
+        /* PRODUKT VORSCHAU */
         .preview-wrapper {
             margin-top: 10px;
             display: block;
@@ -80,9 +80,13 @@
         .detail-label { font-weight: bold; color: #444; margin-right: 4px; }
         .note-box { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 8px; margin-top: 8px; font-size: 11px; border-radius: 4px; }
 
+        /* SEAL / FINGERPRINT */
+        .seal-box { margin-top: 10px; padding: 6px 10px; background-color: #f0fdf4; border: 1px solid #dcfce7; border-radius: 4px; display: inline-block; }
+        .seal-text { font-size: 9px; color: #166534; font-family: monospace; }
+
         /* TOTALS */
         .totals { margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px; }
-        .totals-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; }
+        .totals-row { margin-bottom: 5px; font-size: 13px; }
         .totals-final { font-size: 18px; font-weight: bold; color: #C5A059; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
 
         /* FOOTER */
@@ -99,16 +103,21 @@
 </head>
 <body>
 
+@php
+    // Nutzung der zentralen Formatierungs-Methode aus dem Order-Model
+    $data = $order->toFormattedArray();
+@endphp
+
 <div class="container">
+
     {{-- HEADER --}}
     <div class="header">
-        {{-- Logo muss absolute URL sein für E-Mails --}}
         <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
     </div>
 
     {{-- ANSPRACHE --}}
-    <h1>Vielen Dank, {{ $order->billing_address['first_name'] }}!</h1>
-    <p>Wir haben deine Bestellung <strong>#{{ $order->order_number }}</strong> erhalten und bereiten diese nun mit viel Liebe für dich vor.</p>
+    <h1>Vielen Dank, {{ $data['contact']['vorname'] }}!</h1>
+    <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten und bereiten diese nun mit viel Liebe für dich vor.</p>
 
     {{-- ARTIKEL LISTE --}}
     <table class="table">
@@ -120,28 +129,24 @@
         </tr>
         </thead>
         <tbody>
-        @foreach($order->items as $item)
+        @foreach($data['items'] as $item)
             @php
-                // Konfiguration sicher abrufen
-                $conf = $item->configuration ?? [];
-                // Bildpfad prüfen (muss public sein)
+                $conf = $item['config'] ?? [];
                 $imgPath = $conf['product_image_path'] ?? null;
-                $hasImage = $imgPath && file_exists(public_path($imgPath));
+                $hasImage = !empty($imgPath);
             @endphp
             <tr>
                 <td>
-                    <strong style="font-size: 14px; color: #222;">{{ $item->product_name }}</strong>
+                    <strong style="font-size: 14px; color: #222;">{{ $item['name'] }}</strong>
 
                     {{-- VISUELLE VORSCHAU --}}
                     @if($hasImage)
                         <div class="preview-wrapper">
-                            {{-- Hintergrundbild mit asset() laden für URL --}}
                             <div class="preview-container" style="background-image: url('{{ asset($imgPath) }}');">
-                                {{-- Blauer Punkt für Text --}}
                                 @if(isset($conf['text_x']))
                                     <div class="marker marker-text" style="left: {{ $conf['text_x'] }}%; top: {{ $conf['text_y'] }}%;"></div>
                                 @endif
-                                {{-- Grüner Punkt für Logo --}}
+
                                 @if(isset($conf['logo_x']) && !empty($conf['logo_storage_path']))
                                     <div class="marker marker-logo" style="left: {{ $conf['logo_x'] }}%; top: {{ $conf['logo_y'] }}%;"></div>
                                 @endif
@@ -166,6 +171,14 @@
                                 <a href="{{ asset('storage/'.$conf['logo_storage_path']) }}" style="color:#C5A059; text-decoration:underline;">Datei ansehen</a>
                             </div>
                         @endif
+
+                        {{-- ECHTHEITS-SIEGEL (Hash aus dem Datenbank-Feld des Models) --}}
+                        @if(!empty($order->items->firstWhere('product_name', $item['name'])->config_fingerprint))
+                            <div class="seal-box">
+                                <span style="font-size: 8px; font-weight: bold; color: #166534; display: block; text-transform: uppercase;">Digitales Siegel</span>
+                                <span class="seal-text">{{ substr($order->items->firstWhere('product_name', $item['name'])->config_fingerprint, 0, 16) }}...</span>
+                            </div>
+                        @endif
                     </div>
 
                     {{-- HINWEIS --}}
@@ -176,66 +189,57 @@
                         </div>
                     @endif
                 </td>
-                <td class="text-right">{{ $item->quantity }}x</td>
-                <td class="text-right">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</td>
+                <td class="text-right">{{ $item['quantity'] }}x</td>
+                <td class="text-right">{{ $item['total_price'] }} €</td>
             </tr>
         @endforeach
         </tbody>
     </table>
 
-    {{-- TOTALS BLOCK IN DER MAIL --}}
+    {{-- TOTALS BLOCK --}}
     <div class="totals">
-        {{-- 1. ECHTER WARENWERT (Originalsumme) --}}
-        @php
-            // Originalsumme zurückrechnen (Subtotal + Mengenrabatt)
-            $originalSum = $order->subtotal_price + ($order->volume_discount ?? 0);
-        @endphp
+        <table width="100%">
+            <tr>
+                <td class="text-right" style="padding-bottom: 5px; color: #666;">Warenwert (Netto):</td>
+                <td width="100" class="text-right" style="padding-bottom: 5px; color: #666;">{{ $data['total_netto'] }} €</td>
+            </tr>
 
-        <div class="totals-row">
-            <span>Warenwert</span>
-            <span>{{ number_format($originalSum / 100, 2, ',', '.') }} €</span>
-        </div>
+            @if($order->volume_discount > 0)
+                <tr>
+                    <td class="text-right" style="padding-bottom: 5px; color: #16a34a;">Mengenrabatt:</td>
+                    <td class="text-right" style="padding-bottom: 5px; color: #16a34a;">-{{ number_format($order->volume_discount / 100, 2, ',', '.') }} €</td>
+                </tr>
+            @endif
 
-        {{-- 2. MENGENRABATT --}}
-        @if(isset($order->volume_discount) && $order->volume_discount > 0)
-            <div class="totals-row" style="color: #16a34a;">
-                <span>Mengenrabatt</span>
-                <span>-{{ number_format($order->volume_discount / 100, 2, ',', '.') }} €</span>
-            </div>
-        @endif
+            @if($order->discount_amount > 0)
+                <tr>
+                    <td class="text-right" style="padding-bottom: 5px; color: #16a34a;">Gutschein ({{ $order->coupon_code }}):</td>
+                    <td class="text-right" style="padding-bottom: 5px; color: #16a34a;">-{{ number_format($order->discount_amount / 100, 2, ',', '.') }} €</td>
+                </tr>
+            @endif
 
-        {{-- 3. ZWISCHENSUMME (Nach Mengenrabatt) --}}
-        {{-- Optional: Wenn Mengenrabatt existiert, macht eine Zwischensumme Sinn, sonst weglassen --}}
-        @if(isset($order->volume_discount) && $order->volume_discount > 0)
-            <div class="totals-row" style="border-top: 1px dashed #eee; margin-top: 5px; padding-top: 5px;">
-                <span>Zwischensumme</span>
-                <span>{{ number_format($order->subtotal_price / 100, 2, ',', '.') }} €</span>
-            </div>
-        @endif
+            <tr>
+                <td class="text-right" style="padding-bottom: 5px; color: #666;">Versand:</td>
+                <td class="text-right" style="padding-bottom: 5px; color: #666;">{{ $data['shipping_price'] }} €</td>
+            </tr>
 
-        {{-- 4. GUTSCHEIN --}}
-        @if(isset($order->discount_amount) && $order->discount_amount > 0)
-            <div class="totals-row" style="color: #16a34a;">
-                <span>Gutschein ({{ $order->coupon_code }})</span>
-                <span>-{{ number_format($order->discount_amount / 100, 2, ',', '.') }} €</span>
-            </div>
-        @endif
+            @if($data['express'])
+                <tr>
+                    <td class="text-right" style="padding-bottom: 5px; color: #dc2626;">Express-Service:</td>
+                    <td class="text-right" style="padding-bottom: 5px; color: #dc2626;">25,00 €</td>
+                </tr>
+            @endif
 
-        {{-- 5. VERSAND & STEUER --}}
-        <div class="totals-row" style="color: #888;">
-            <span>Versand</span>
-            <span>{{ $order->shipping_price > 0 ? number_format($order->shipping_price / 100, 2, ',', '.') . ' €' : 'Kostenlos' }}</span>
-        </div>
-        <div class="totals-row" style="color: #888; font-size: 11px;">
-            <span>Enthaltene MwSt.</span>
-            <span>{{ number_format($order->tax_amount / 100, 2, ',', '.') }} €</span>
-        </div>
+            <tr>
+                <td class="text-right" style="padding-bottom: 10px; color: #888; font-size: 11px; font-style: italic;">Enthaltene MwSt. (19%):</td>
+                <td class="text-right" style="padding-bottom: 10px; color: #888; font-size: 11px; font-style: italic;">{{ $data['total_vat'] }} €</td>
+            </tr>
 
-        {{-- 6. ENDSUMME --}}
-        <div class="totals-row totals-final">
-            <span>Gesamtsumme</span>
-            <span>{{ number_format($order->total_price / 100, 2, ',', '.') }} €</span>
-        </div>
+            <tr class="totals-final">
+                <td class="text-right" style="padding-top: 15px; border-top: 1px solid #eee; font-size: 18px; font-weight: bold; color: #C5A059;">Gesamtsumme (Brutto):</td>
+                <td class="text-right" style="padding-top: 15px; border-top: 1px solid #eee; font-size: 18px; font-weight: bold; color: #C5A059;">{{ $data['total_gross'] }} €</td>
+            </tr>
+        </table>
     </div>
 
     {{-- ADRESSEN --}}
@@ -244,19 +248,18 @@
             <td width="50%" valign="top">
                 <h4 style="margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; color: #888;">Rechnungsadresse</h4>
                 <p style="margin: 0; font-size: 13px; color: #444;">
-                    {{ $order->billing_address['first_name'] }} {{ $order->billing_address['last_name'] }}<br>
-                    @if(!empty($order->billing_address['company'])) {{ $order->billing_address['company'] }}<br> @endif
+                    {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}<br>
+                    @if(!empty($data['contact']['firma'])) {{ $data['contact']['firma'] }}<br> @endif
                     {{ $order->billing_address['address'] }}<br>
                     {{ $order->billing_address['postal_code'] }} {{ $order->billing_address['city'] }}<br>
-                    {{ $order->billing_address['country'] }}
+                    {{ $data['contact']['country'] }}
                 </p>
             </td>
             <td width="50%" valign="top">
-                {{-- Falls Lieferadresse abweichend implementiert ist, hier anzeigen, sonst Billing --}}
                 <h4 style="margin: 0 0 10px 0; font-size: 12px; text-transform: uppercase; color: #888;">Lieferadresse</h4>
                 <p style="margin: 0; font-size: 13px; color: #444;">
                     @php $ship = $order->shipping_address ?? $order->billing_address; @endphp
-                    {{ $ship['first_name'] ?? $ship['first_name'] }} {{ $ship['last_name'] ?? $ship['last_name'] }}<br>
+                    {{ $ship['first_name'] }} {{ $ship['last_name'] }}<br>
                     @if(!empty($ship['company'])) {{ $ship['company'] }}<br> @endif
                     {{ $ship['address'] }}<br>
                     {{ $ship['postal_code'] }} {{ $ship['city'] }}<br>

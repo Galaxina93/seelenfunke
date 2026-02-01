@@ -144,4 +144,41 @@ class Order extends Model
     public function invoices() {
         return $this->hasMany(Invoice::class);
     }
+
+    // Formatiert die Daten die an sämtliche Mail Vorlagen gehen. Zentralisierung der Umwandlung der Maildaten
+    public function toFormattedArray()
+    {
+        $items = [];
+        foreach ($this->items as $item) {
+            $items[] = [
+                'name' => $item->product_name,
+                'quantity' => $item->quantity,
+                'single_price' => number_format($item->unit_price / 100, 2, ',', '.'),
+                'total_price' => number_format($item->total_price / 100, 2, ',', '.'),
+                'config' => $item->configuration // Hier liegt alles: Gravur, Logo-Pfad etc.
+            ];
+        }
+
+        return [
+            'quote_number' => $this->order_number,
+            'quote_token'  => $this->token ?? '', // Falls vorhanden
+            'quote_expiry' => $this->expires_at ? $this->expires_at->format('d.m.Y') : now()->addDays(14)->format('d.m.Y'),
+            'express'      => (bool)$this->is_express,
+            'deadline'     => $this->deadline,
+            'total_netto'  => number_format(($this->total_price - $this->tax_amount) / 100, 2, ',', '.'),
+            'total_vat'    => number_format($this->tax_amount / 100, 2, ',', '.'),
+            'total_gross'  => number_format($this->total_price / 100, 2, ',', '.'),
+            'shipping_price' => number_format($this->shipping_price / 100, 2, ',', '.'),
+            'contact' => [
+                'vorname'  => $this->billing_address['first_name'] ?? '',
+                'nachname' => $this->billing_address['last_name'] ?? '',
+                'firma'    => $this->billing_address['company'] ?? '',
+                'email'    => $this->email,
+                'telefon'  => $this->billing_address['phone'] ?? $this->phone ?? '',
+                'anmerkung'=> $this->notes ?? '',
+                'country'  => $this->billing_address['country'] ?? 'DE'
+            ],
+            'items' => $items
+        ];
+    }
 }

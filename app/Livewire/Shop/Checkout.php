@@ -190,40 +190,70 @@ class Checkout extends Component
     /**
      * Wird vom Frontend aufgerufen, wenn Stripe die Zahlung bestätigt hat.
      */
-    public function handlePaymentSuccess()
+    public function handlePaymentSuccess($orderId = null)
     {
-        // Wir suchen die bereits erstellte "pending" Order dieses Benutzers/dieser Session
-        // anstatt eine komplett neue zu erstellen.
-        $order = Order::where('stripe_payment_intent_id', $this->currentPaymentIntentId)
-            ->orWhere('email', $this->email)
-            ->where('status', 'pending')
-            ->latest()
-            ->first();
+        // 1. Die richtige Order finden
+        $order = $orderId ? Order::with('items.product')->find($orderId) : null;
 
-        if ($order) {
-            // Falls die Order schon da ist, nur Status aktualisieren
-            $order->update([
-                'payment_status' => 'paid',
-                'status' => 'processing' // Oder dein Start-Status
-            ]);
-            $this->finalOrderNumber = $order->order_number;
-        } else {
-            // Fallback: Falls noch keine Order existiert, jetzt erstellen
-            $orderId = $this->createOrderInDb();
-            $order = Order::find($orderId);
-            $order->update(['payment_status' => 'paid']);
-            $this->finalOrderNumber = $order->order_number;
+        if (!$order) {
+            $order = Order::with('items.product')
+                ->where('stripe_payment_intent_id', $this->currentPaymentIntentId)
+                ->where('status', 'pending')
+                ->latest()
+                ->first();
         }
 
-        // UI umschalten
+        if ($order) {
+            // 2. Status & Zahlung aktualisieren
+            $order->update([
+                'payment_status' => 'paid',
+                'status' => 'processing'
+            ]);
+
+            $this->finalOrderNumber = $order->order_number;
+
+            // 3. Rechnung & PDF zentral erstellen
+            $pdfPath = null;
+            try {
+                $invoiceService = app(\App\Services\InvoiceService::class);
+                $invoice = $invoiceService->createFromOrder($order);
+                // Absoluter Pfad zum PDF für den Mail-Anhang
+                $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen: " . $e->getMessage());
+            }
+
+            // 4. Mails versenden mit zentralisierten Daten
+            try {
+                // A) Schicke HTML-Bestätigung an Kunden
+                \Illuminate\Support\Facades\Mail::to($order->email)
+                    ->send(new \App\Mail\OrderConfirmation($order));
+
+                // B) Arbeits-Anfrage an Admin (Dich)
+                // Wir nutzen die neue toFormattedArray() Methode vom Model!
+                $mailData = $order->toFormattedArray();
+
+                \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
+                    ->send(new \App\Mail\CalcInput($mailData, $pdfPath));
+
+                \Illuminate\Support\Facades\Log::info("Checkout: Alle Mails versendet für " . $order->order_number);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler: " . $e->getMessage());
+            }
+        }
+
+        // 5. UI umschalten & Cleanup
         $this->isFinished = true;
 
-        // Erst JETZT den Warenkorb leeren
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
-        $cart->items()->delete();
-        $cart->delete();
+        if ($cart) {
+            $cart->items()->delete();
+            $cart->delete();
+        }
 
+        // Header aktualisieren (rotes Icon weg)
+        $this->dispatch('cart-updated');
         $this->dispatch('payment-processed');
     }
 

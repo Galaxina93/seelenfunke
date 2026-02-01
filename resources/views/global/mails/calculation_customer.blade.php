@@ -30,7 +30,7 @@
         }
         .header h1 {
             color: #C5A059;
-            font-family: serif; /* Optional, falls passend zum Corporate Design */
+            font-family: serif;
             margin: 0;
             font-size: 24px;
         }
@@ -114,37 +114,82 @@
         </thead>
         <tbody>
         @foreach($data['items'] as $item)
-            <tr>
-                <td>
-                    <div class="item-name">{{ $item['name'] }}</div>
-                    <div class="item-meta">
-                        Einzelpreis: {{ $item['single_price'] }} €<br>
-                        @if(!empty($item['config']['text']))
-                            Gravur: "<em>{{ $item['config']['text'] }}</em>"<br>
-                        @endif
-                        @if(!empty($item['config']['logo_storage_path']))
-                            <span style="color:#2ecc71;">✔ Logo enthalten</span>
-                        @endif
-                    </div>
-                </td>
-                <td style="text-align: center;">{{ $item['quantity'] }}</td>
-                <td style="text-align: right;">{{ $item['total_price'] }} €</td>
-            </tr>
+            @if($item['name'] !== 'Versand & Verpackung' && $item['name'] !== 'Express-Service')
+                <tr>
+                    <td>
+                        <div class="item-name">{{ $item['name'] }}</div>
+                        <div class="item-meta">
+                            Einzelpreis: {{ $item['single_price'] }} €<br>
+                            @if(!empty($item['config']['text']))
+                                Gravur: "<em>{{ $item['config']['text'] }}</em>"<br>
+                            @endif
+                            @if(!empty($item['config']['logo_storage_path']))
+                                <span style="color:#2ecc71;">✔ Logo enthalten</span>
+                            @endif
+                        </div>
+                    </td>
+                    <td style="text-align: center;">{{ $item['quantity'] }}</td>
+                    <td style="text-align: right;">{{ $item['total_price'] }} €</td>
+                </tr>
+            @endif
         @endforeach
         </tbody>
     </table>
 
     {{-- PREISAUFSTELLUNG --}}
     <div class="totals">
-        <div class="total-row">Zwischensumme (Netto): {{ $data['total_netto'] }} €</div>
-        <div class="total-row">zzgl. 19% MwSt.: {{ $data['total_vat'] }} €</div>
+        @php
+            // MwSt-Satz
+            $vatRate = 0.19;
 
-        @if(!empty($data['express']) && $data['express'])
-            <div class="total-row" style="color: #dc2626;">Inkl. Express-Zuschlag</div>
+            // 1. Warenwert berechnen (Nur echte Artikel, keine Versand/Express-Zeilen aus dem Array)
+            $goodsGross = 0;
+            foreach($data['items'] as $item) {
+                if($item['name'] !== 'Versand & Verpackung' && $item['name'] !== 'Express-Service') {
+                    $price = (float)str_replace(',', '.', str_replace('.', '', $item['total_price']));
+                    $goodsGross += $price;
+                }
+            }
+            $goodsNetto = $goodsGross / (1 + $vatRate);
+
+            // 2. Express Kosten
+            $expressGross = (!empty($data['express']) && $data['express']) ? 25.00 : 0;
+            $expressNetto = $expressGross / (1 + $vatRate);
+
+            // 3. Versandkosten (Suchen der Zeile im items Array oder Fallback)
+            $shippingGross = 0;
+            foreach($data['items'] as $item) {
+                if($item['name'] === 'Versand & Verpackung' || str_contains($item['name'], 'Versand')) {
+                    $shippingGross = (float)str_replace(',', '.', str_replace('.', '', $item['total_price']));
+                    break;
+                }
+            }
+            $shippingNetto = $shippingGross / (1 + $vatRate);
+
+            // 4. Gesamtsummen Netto & MwSt (für die Anzeige)
+            // Hinweis: Wir nutzen hier für das Total Netto die Summe aus dem Controller $data['total_netto']
+            // um konsistent mit dem PDF zu bleiben.
+        @endphp
+
+        <div class="total-row">Warenwert (Netto): {{ number_format($goodsNetto, 2, ',', '.') }} €</div>
+
+        @if($expressGross > 0)
+            <div class="total-row" style="color: #2563eb;">+ Express-Service (Netto): {{ number_format($expressNetto, 2, ',', '.') }} €</div>
         @endif
 
+        @if($shippingGross > 0)
+            <div class="total-row">+ Versandkosten (Netto): {{ number_format($shippingNetto, 2, ',', '.') }} €</div>
+        @else
+            <div class="total-row" style="color: #2ecc71;">Versandkosten: Kostenlos</div>
+        @endif
+
+        <div class="total-row" style="margin-top: 10px; border-top: 1px dashed #eee; padding-top: 5px;">
+            Zwischensumme (Netto): {{ $data['total_netto'] }} €
+        </div>
+        <div class="total-row">zzgl. 19% MwSt.: {{ $data['total_vat'] }} €</div>
+
         <div class="total-final">
-            Gesamtsumme: {{ $data['total_gross'] }} €
+            Gesamtsumme (Brutto): {{ $data['total_gross'] }} €
         </div>
     </div>
 

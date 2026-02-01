@@ -339,14 +339,13 @@ class Calculator extends Component
 
         // 5. Express-Option
         if ($this->isExpress && count($this->cartItems) > 0) {
-            // Liste der EU-Länder definieren (falls nicht oben in der Methode schon passiert)
+            // Liste der EU-Länder definieren
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
             // Basis ist 25,00 € Brutto (inkl. 19% MwSt)
             $expressGross = 2500;
 
             // Wir errechnen den Netto-Wert aus dem Brutto-Preis (Basis 19%)
-            // 25,00 € / 1,19 = ca. 21,01 € Netto
             $expressBaseNet = $expressGross / 1.19;
 
             if (in_array($countryCode, $euCountries)) {
@@ -354,9 +353,7 @@ class Calculator extends Component
                 $expressNet = $expressBaseNet;
                 $expressTax = $expressGross - $expressNet;
             } else {
-                // Drittland (z.B. Schweiz, USA): Nur Netto zahlen = 21,01 €
-                // Wenn du willst, dass sie trotzdem 25€ zahlen, nutze deinen alten Code.
-                // Standard ist aber: Steuer abziehen.
+                // Drittland: Nur Netto zahlen
                 $expressNet = $expressBaseNet;
                 $expressTax = 0;
             }
@@ -418,13 +415,14 @@ class Calculator extends Component
         $this->calculateTotal();
 
         if (count($this->cartItems) == 0) {
-            $this->addError('cart', 'Der Warenkorb ist leer.');
+            $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
             return;
         }
 
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
         $cleanDeadline = ($this->isExpress && !empty($this->deadline)) ? $this->deadline : null;
 
+        // 1. Das QuoteRequest in der Datenbank erstellen
         $quote = QuoteRequest::create([
             'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
             'email' => $this->form['email'],
@@ -437,11 +435,13 @@ class Calculator extends Component
             'net_total' => (int) round($this->totalNetto * 100),
             'tax_total' => (int) round($this->totalMwst * 100),
             'gross_total' => (int) round($this->totalBrutto * 100),
+            'shipping_price' => (int) round($this->shippingCost * 100), // Feld für Zentralisierung
             'is_express' => $this->isExpress,
             'deadline' => $cleanDeadline,
             'admin_notes' => $this->form['anmerkung'] ?? null,
         ]);
 
+        // 2. Die einzelnen Items in der Datenbank speichern
         foreach($this->cartItems as $item) {
             $conf = $item['configuration'] ?? [];
             QuoteRequestItem::create([
@@ -455,77 +455,37 @@ class Calculator extends Component
             ]);
         }
 
-        $finalItems = [];
-        foreach($this->cartItems as $item) {
-            $conf = $item['configuration'] ?? [];
-            $finalItems[] = [
-                'name' => $item['name'],
-                'quantity' => $item['qty'],
-                'single_price' => number_format($item['calculated_single_price'], 2, ',', '.'),
-                'total_price' => number_format($item['calculated_total'], 2, ',', '.'),
-                'config' => [
-                    'text' => $conf['text'] ?? '',
-                    'notes' => $conf['notes'] ?? '',
-                    'font' => $conf['font'] ?? '',
-                    'align' => $conf['align'] ?? '',
-                    'text_pos_label' => $this->getPositionLabel($conf['text_x'] ?? 50, $conf['text_y'] ?? 50),
-                    'logo_pos_label' => $this->getPositionLabel($conf['logo_x'] ?? 50, $conf['logo_y'] ?? 30),
-                    'logo_storage_path' => $conf['logo_path'] ?? null,
-                    'product_image_path' => $item['preview_ref'] ?? null
-                ]
-            ];
-        }
+        // --- ZENTRALISIERUNG: Wir nutzen ab hier das neue Model-Array ---
+        // Wichtig: Die Methode toFormattedArray() muss im QuoteRequest Model existieren!
+        $data = $quote->toFormattedArray();
 
-        // Versandzeile für PDF
-        if ($this->shippingCost > 0) {
-            $finalItems[] = [
-                'name' => 'Versand & Verpackung (' . ($this->form['country'] === 'DE' ? 'Deutschland' : $this->form['country']) . ')',
-                'quantity' => 1,
-                'single_price' => number_format($this->shippingCost, 2, ',', '.'),
-                'total_price' => number_format($this->shippingCost, 2, ',', '.'),
-                'config' => []
-            ];
-        }
-
-        // Express Zeile für PDF
-        if ($this->isExpress) {
-            $finalItems[] = [
-                'name' => 'Express-Service',
-                'quantity' => 1,
-                'single_price' => '25,00',
-                'total_price' => '25,00',
-                'config' => []
-            ];
-        }
-
-        $data = [
-            'contact' => $this->form,
-            'items' => $finalItems,
-            'total_netto' => number_format($this->totalNetto, 2, ',', '.'),
-            'total_vat' => number_format($this->totalMwst, 2, ',', '.'),
-            'total_gross' => number_format($this->totalBrutto, 2, ',', '.'),
-            'express' => $this->isExpress,
-            'deadline' => $cleanDeadline,
-            'quote_number' => $quote->quote_number,
-            'quote_token' => $quote->token,
-            'quote_expiry' => $quote->expires_at->format('d.m.Y'),
-        ];
-
+        // 3. PDF Generierung mit den zentralisierten Daten
         $pdf = Pdf::loadView('global.mails.calculation_pdf', ['data' => $data]);
         $filename = 'Angebot_' . Str::slug($this->form['firma'] ?: $this->form['nachname']) . '_' . time() . '.pdf';
         $path = storage_path('app/public/tmp/' . $filename);
 
-        if (!file_exists(dirname($path))) mkdir(dirname($path), 0755, true);
+        if (!file_exists(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
         file_put_contents($path, $pdf->output());
 
+        // 4. Mail-Versand
         try {
+            // Kundenmail (Angebot)
             Mail::to($this->form['email'])->send(new CalcCustomer($data, $path));
+
+            // Adminmail (Interne Anfrage)
             Mail::to('kontakt@mein-seelenfunke.de')->send(new CalcInput($data, $path));
+
+            \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
         } catch (\Exception $e) {
-            \Log::error('Calculator Mail Error: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
         }
 
-        @unlink($path);
+        // 5. Aufräumen
+        if (file_exists($path)) {
+            @unlink($path);
+        }
 
         session()->forget(['calc_cart', 'calc_form']);
         $this->cartItems = [];

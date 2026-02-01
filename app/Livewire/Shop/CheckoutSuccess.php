@@ -6,9 +6,7 @@ use App\Models\Order;
 use App\Models\Cart;
 use App\Models\QuoteRequest;
 use App\Services\InvoiceService;
-use App\Mail\OrderConfirmation;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log; // Logging
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Component;
@@ -21,81 +19,66 @@ class CheckoutSuccess extends Component
     {
         $intentId = request()->query('payment_intent');
 
-        if ($intentId) {
-            Log::info("CheckoutSuccess: Processing Intent ID: $intentId");
+        // Falls kein Intent in der URL ist, wurde der Erfolg wahrscheinlich
+        // schon via JavaScript/handlePaymentSuccess verarbeitet.
+        if (!$intentId) {
+            return;
+        }
 
-            // Bestellung suchen
-            $order = Order::where('stripe_payment_intent_id', $intentId)->first();
+        Log::info("CheckoutSuccess: Verarbeite Redirect-Erfolg für Intent: $intentId");
 
-            if (!$order) {
-                Log::error("CheckoutSuccess: CRITICAL - Order NOT FOUND for Intent ID: $intentId");
-                // Hier könnten wir versuchen, über die Session oder E-Mail zu matchen, aber das ist riskant.
-                return;
-            }
+        $order = Order::where('stripe_payment_intent_id', $intentId)->first();
 
-            Log::info("CheckoutSuccess: Order found: " . $order->order_number);
+        if (!$order) {
+            Log::error("CheckoutSuccess: Order nicht gefunden für $intentId");
+            return;
+        }
 
-            $stripeSecret = config('services.stripe.secret');
+        $stripeSecret = config('services.stripe.secret');
+        if (!$stripeSecret) return;
 
-            if (!$stripeSecret) {
-                Log::error('CRITICAL: Stripe Secret Key missing!');
-                return;
-            }
+        try {
+            Stripe::setApiKey($stripeSecret);
+            $intent = PaymentIntent::retrieve($intentId);
 
-            try {
-                Stripe::setApiKey($stripeSecret);
-                $intent = PaymentIntent::retrieve($intentId);
+            if ($intent->status === 'succeeded') {
 
-                // Check auf status
-                if ($intent->status === 'succeeded' || $intent->status === 'processing') {
+                // Falls die Order noch nicht als bezahlt markiert wurde (Redirect-Fall)
+                if ($order->payment_status !== 'paid') {
+                    $order->update(['payment_status' => 'paid', 'status' => 'processing']);
 
-                    if ($order->payment_status !== 'paid') {
-                        $order->update(['payment_status' => 'paid']);
-                        Log::info("Order updated to PAID.");
-
-                        // 1. Rechnung
-                        try {
-                            $invoiceService = new InvoiceService();
+                    // Rechnung erstellen (Falls noch nicht geschehen)
+                    try {
+                        $invoiceService = new InvoiceService();
+                        if ($order->invoices()->count() === 0) {
                             $invoiceService->createFromOrder($order);
-                            Log::info("Invoice created.");
-                        } catch (\Exception $e) {
-                            Log::error('Invoice Error: ' . $e->getMessage());
                         }
-
-                        // 2. Mail
-                        try {
-                            Mail::to($order->email)->send(new OrderConfirmation($order));
-                            Log::info("Mail sent to " . $order->email);
-                        } catch (\Exception $e) {
-                            Log::error('Mail Error: ' . $e->getMessage());
-                        }
+                    } catch (\Exception $e) {
+                        Log::error('Invoice Error: ' . $e->getMessage());
                     }
 
-                    // --- Clean Up ---
-                    if (Session::has('checkout_from_quote_id')) {
-                        $quoteId = Session::get('checkout_from_quote_id');
-                        $quote = QuoteRequest::find($quoteId);
-                        if ($quote) {
-                            $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
-                        }
-                        Session::forget('checkout_from_quote_id');
-                    }
-
-                    if (Auth::guard('customer')->check()) {
-                        Cart::where('customer_id', Auth::guard('customer')->id())->delete();
-                    } else {
-                        Cart::where('session_id', Session::getId())->delete();
-                    }
-
-                    $this->dispatch('cart-updated');
-                } else {
-                    Log::warning("Stripe Intent status is: " . $intent->status);
+                    // HINWEIS: Mail-Versand hier entfernen wir bewusst,
+                    // da handlePaymentSuccess in Checkout.php das bereits erledigt hat
+                    // oder wir es dort zentral steuern.
                 }
-            } catch (\Exception $e) {
-                Log::error('Stripe Success Page Error: ' . $e->getMessage());
+
+                // Clean Up (Falls via Redirect zurückgekommen)
+                if (Session::has('checkout_from_quote_id')) {
+                    $quote = QuoteRequest::find(Session::get('checkout_from_quote_id'));
+                    if ($quote) $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
+                    Session::forget('checkout_from_quote_id');
+                }
+
+                if (Auth::guard('customer')->check()) {
+                    Cart::where('customer_id', Auth::guard('customer')->id())->delete();
+                } else {
+                    Cart::where('session_id', Session::getId())->delete();
+                }
+
+                $this->dispatch('cart-updated');
             }
-        } else {
-            Log::warning("CheckoutSuccess: No payment_intent in URL.");
+        } catch (\Exception $e) {
+            Log::error('Stripe Success Page Error: ' . $e->getMessage());
         }
     }
 

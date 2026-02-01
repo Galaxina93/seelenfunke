@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -11,7 +12,7 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 
-class CalcInput extends Mailable
+class CalcInput extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -56,34 +57,21 @@ class CalcInput extends Mailable
     {
         $attachments = [];
 
-        // 1. PDF anhängen (Standard)
+        // 1. Das Haupt-PDF (Angebot oder Rechnung) anhängen
         if ($this->pdfPath && file_exists($this->pdfPath)) {
-            $name = $this->data['contact']['nachname'] ?? 'anfrage';
-            $cleanName = preg_replace('/[^a-zA-Z0-9_-]/', '', Str::slug($name));
-
-            $attachments[] = Attachment::fromPath($this->pdfPath)
-                ->as("Kalkulation-{$cleanName}.pdf")
-                ->withMime('application/pdf');
+            $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromPath($this->pdfPath);
         }
 
-        // 2. Logos/Bilder anhängen (ANGESPASST FÜR PRIVATE STORAGE)
-        if (!empty($this->data['items'])) {
-            foreach ($this->data['items'] as $index => $item) {
+        // 2. NEU: Logos der einzelnen Artikel automatisch mitsenden
+        // Da wir jetzt das zentrale $data['items'] nutzen:
+        if (isset($this->data['items'])) {
+            foreach ($this->data['items'] as $item) {
                 if (!empty($item['config']['logo_storage_path'])) {
+                    $logoPath = storage_path('app/public/' . $item['config']['logo_storage_path']);
 
-                    // NEU: Wir greifen auf den 'local' Storage Pfad zu
-                    // storage_path('app/...') greift auf storage/app/... zu
-                    $fullPath = storage_path('app/' . $item['config']['logo_storage_path']);
-
-                    if (file_exists($fullPath)) {
-                        $extension = pathinfo($fullPath, PATHINFO_EXTENSION);
-                        $fileName = sprintf('Pos%d_Logo_%s.%s',
-                            $index + 1,
-                            Str::slug($item['name']),
-                            $extension
-                        );
-
-                        $attachments[] = Attachment::fromPath($fullPath)->as($fileName);
+                    if (file_exists($logoPath)) {
+                        $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromPath($logoPath)
+                            ->as('Logo_' . \Illuminate\Support\Str::slug($item['name']) . '.' . pathinfo($logoPath, PATHINFO_EXTENSION));
                     }
                 }
             }

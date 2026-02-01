@@ -280,6 +280,8 @@ return new class extends Migration
             $table->integer('tax_total');
             $table->integer('gross_total');
 
+            $table->integer('shipping_price')->default(0);
+
             // Flags
             $table->boolean('is_express')->default(false);
             $table->date('deadline')->nullable();
@@ -348,10 +350,22 @@ return new class extends Migration
 
             $table->timestamps();
         });
+
+        // Mailing Liste (Automatische Abarbeitung des Mailversands
+        Schema::create('jobs', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('queue')->index();
+            $table->longText('payload');
+            $table->unsignedTinyInteger('attempts');
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at');
+            $table->unsignedInteger('created_at');
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('jobs');
         Schema::dropIfExists('shipping_rates');
         Schema::dropIfExists('shipping_zone_countries');
         Schema::dropIfExists('shipping_zones');

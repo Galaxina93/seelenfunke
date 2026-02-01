@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -11,7 +12,7 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 
-class CalcCustomer extends Mailable
+class CalcCustomer extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -49,12 +50,14 @@ class CalcCustomer extends Mailable
     public function attachments(): array
     {
         if ($this->pdfPath && file_exists($this->pdfPath)) {
-            // Zugriff auf ['contact']['nachname'] statt ['nachname']
-            $name = $this->data['contact']['nachname'] ?? 'Angebot';
-            $cleanName = preg_replace('/[^a-zA-Z0-9_-]/', '', Str::slug($name));
+            // Wir holen den Nachnamen aus unserem neuen zentralen Array
+            $lastName = $this->data['contact']['nachname'] ?? 'Kunde';
+
+            // Dateiname säubern (z.B. "Angebot-MeinSeelenfunke-Mustermann.pdf")
+            $cleanName = \Illuminate\Support\Str::slug($lastName);
 
             return [
-                Attachment::fromPath($this->pdfPath)
+                \Illuminate\Mail\Mailables\Attachment::fromPath($this->pdfPath)
                     ->as("Angebot-MeinSeelenfunke-{$cleanName}.pdf")
                     ->withMime('application/pdf'),
             ];
