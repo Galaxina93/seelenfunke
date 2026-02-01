@@ -196,6 +196,9 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $guestCart = $cartService->getCart();
 
+        // [FIX] Express-Status des Gast-Warenkorbs vor dem Login merken
+        $wasExpress = $guestCart->is_express;
+
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
 
             // [FIX] KEIN session()->regenerate() hier!
@@ -223,6 +226,11 @@ class Checkout extends Component
                 }
 
                 $guestCart->delete();
+            }
+
+            // [FIX] Express-Status auf den (neuen) User-Warenkorb übertragen
+            if ($wasExpress) {
+                $userCart->update(['is_express' => true]);
             }
 
             // Felder neu befüllen
