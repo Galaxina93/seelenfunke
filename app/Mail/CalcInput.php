@@ -62,7 +62,7 @@ class CalcInput extends Mailable implements ShouldQueue
             $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromPath($this->pdfPath);
         }
 
-        // 2. NEU: Logos der einzelnen Artikel automatisch mitsenden
+        /*// 2. NEU: Logos der einzelnen Artikel automatisch mitsenden
         // Da wir jetzt das zentrale $data['items'] nutzen:
         if (isset($this->data['items'])) {
             foreach ($this->data['items'] as $item) {
@@ -75,7 +75,7 @@ class CalcInput extends Mailable implements ShouldQueue
                     }
                 }
             }
-        }
+        }*/
 
         return $attachments;
     }
