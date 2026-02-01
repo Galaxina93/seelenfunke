@@ -10,21 +10,21 @@ return [
 
     // Nur für die Anzeige in Dropdowns!
     'countries' => [
-        // Europa
+        // Europa (EU-Mitgliedstaaten)
         'DE' => 'Deutschland',
         'AT' => 'Österreich',
-        'CH' => 'Schweiz',
+        // 'CH' => 'Schweiz', // Nicht EU
         'NL' => 'Niederlande',
         'BE' => 'Belgien',
         'FR' => 'Frankreich',
         'IT' => 'Italien',
         'ES' => 'Spanien',
-        'GB' => 'Großbritannien',
+        // 'GB' => 'Großbritannien', // Nicht EU
         'PL' => 'Polen',
         'CZ' => 'Tschechien',
         'DK' => 'Dänemark',
         'SE' => 'Schweden',
-        'NO' => 'Norwegen',
+        // 'NO' => 'Norwegen', // Nicht EU
         'FI' => 'Finnland',
         'IE' => 'Irland',
         'PT' => 'Portugal',
@@ -39,33 +39,33 @@ return [
         'LV' => 'Lettland',
         'LT' => 'Litauen',
         'LU' => 'Luxemburg',
-        'IS' => 'Island',
+        // 'IS' => 'Island', // Nicht EU
 
         // Nordamerika
-        'US' => 'USA',
-        'CA' => 'Kanada',
-        'MX' => 'Mexiko',
+        // 'US' => 'USA',
+        // 'CA' => 'Kanada',
+        // 'MX' => 'Mexiko',
 
         // Südamerika
-        'BR' => 'Brasilien',
-        'AR' => 'Argentinien',
-        'CL' => 'Chile',
-        'CO' => 'Kolumbien',
+        // 'BR' => 'Brasilien',
+        // 'AR' => 'Argentinien',
+        // 'CL' => 'Chile',
+        // 'CO' => 'Kolumbien',
 
         // Asien
-        'CN' => 'China',
-        'JP' => 'Japan',
-        'KR' => 'Südkorea',
-        'IN' => 'Indien',
-        'SG' => 'Singapur',
-        'AE' => 'Vereinigte Arabische Emirate',
+        // 'CN' => 'China',
+        // 'JP' => 'Japan',
+        // 'KR' => 'Südkorea',
+        // 'IN' => 'Indien',
+        // 'SG' => 'Singapur',
+        // 'AE' => 'Vereinigte Arabische Emirate',
 
         // Ozeanien
-        'AU' => 'Australien',
-        'NZ' => 'Neuseeland',
+        // 'AU' => 'Australien',
+        // 'NZ' => 'Neuseeland',
 
         // Afrika (optional)
-        'ZA' => 'Südafrika',
+        // 'ZA' => 'Südafrika',
 
         // Fallback Steuern (falls Produkt keine hat)
         'default_tax_rate' => 19,

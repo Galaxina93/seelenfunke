@@ -12,55 +12,93 @@
             </div>
         </div>
 
-        {{-- LISTE --}}
-        <div class="overflow-x-auto bg-white rounded-xl border border-gray-100 shadow-sm">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                <tr class="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 bg-gray-50/50">
-                    <th class="px-6 py-4">E-Mail</th>
-                    <th class="px-6 py-4">Status</th>
-                    <th class="px-6 py-4">Angemeldet am</th>
-                    <th class="px-6 py-4">Datenschutz</th>
-                    <th class="px-6 py-4 text-right">Aktionen</th>
-                </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+            {{-- DESKTOP TABELLE (ab md) --}}
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                    <tr class="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 bg-gray-50/50">
+                        <th class="px-6 py-4">E-Mail</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Angemeldet am</th>
+                        <th class="px-6 py-4">Datenschutz</th>
+                        <th class="px-6 py-4 text-right">Aktionen</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                    @forelse($subscribers as $sub)
+                        <tr wire:key="sub-{{ $sub->id }}" class="hover:bg-gray-50/50 transition-colors">
+                            <td class="px-6 py-4 font-bold text-gray-900">{{ $sub->email }}</td>
+                            <td class="px-6 py-4">
+                                @if($sub->is_verified)
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Verifiziert</span>
+                                @else
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800">Ausstehend</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                {{ $sub->created_at->format('d.m.Y H:i') }}
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                @if($sub->privacy_accepted)
+                                    <span class="text-green-600 font-medium">✓ Akzeptiert</span>
+                                @else
+                                    <span class="text-red-500 font-medium">Fehlt</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <button wire:click="delete('{{ $sub->id }}')"
+                                        wire:confirm="Abonnent wirklich löschen?"
+                                        class="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                        title="Löschen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="px-6 py-12 text-center text-gray-500 italic">Keine Abonnenten gefunden.</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            {{-- MOBILE KACHELN (bis md) --}}
+            <div class="md:hidden divide-y divide-gray-100">
                 @forelse($subscribers as $sub)
-                    <tr wire:key="sub-{{ $sub->id }}" class="hover:bg-gray-50/50 transition-colors">
-                        <td class="px-6 py-4 font-bold text-gray-900">{{ $sub->email }}</td>
-                        <td class="px-6 py-4">
+                    <div wire:key="sub-mobile-{{ $sub->id }}" class="p-4 bg-white active:bg-gray-50 transition-colors">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="truncate pr-4">
+                                <p class="text-sm font-bold text-gray-900 truncate">{{ $sub->email }}</p>
+                                <p class="text-[10px] text-gray-400 mt-0.5">Angemeldet: {{ $sub->created_at->format('d.m.Y H:i') }}</p>
+                            </div>
                             @if($sub->is_verified)
-                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">Verifiziert</span>
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-green-100 text-green-700 uppercase">Verifiziert</span>
                             @else
-                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800">Ausstehend</span>
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-yellow-100 text-yellow-800 uppercase">Ausstehend</span>
                             @endif
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
-                            {{ $sub->created_at->format('d.m.Y H:i') }}
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">
-                            @if($sub->privacy_accepted)
-                                <span class="text-green-600">✓ Akzeptiert</span>
-                            @else
-                                <span class="text-red-500">Fehlt</span>
-                            @endif
-                        </td>
-                        <td class="px-6 py-4 text-right">
+                        </div>
+
+                        <div class="flex justify-between items-center mt-4 pt-3 border-t border-gray-50">
+                            <div class="text-[10px] text-gray-500">
+                                @if($sub->privacy_accepted)
+                                    <span class="text-green-600 font-bold">✓ Datenschutz akzeptiert</span>
+                                @else
+                                    <span class="text-red-500 font-bold">! Datenschutz fehlt</span>
+                                @endif
+                            </div>
+
                             <button wire:click="delete('{{ $sub->id }}')"
                                     wire:confirm="Abonnent wirklich löschen?"
-                                    class="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                                    title="Löschen">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    class="p-2 bg-red-50 text-red-600 rounded-lg border border-red-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             </button>
-                        </td>
-                    </tr>
+                        </div>
+                    </div>
                 @empty
-                    <tr>
-                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">Keine Abonnenten gefunden.</td>
-                    </tr>
+                    <div class="p-12 text-center text-gray-400 italic text-sm">Keine Abonnenten gefunden.</div>
                 @endforelse
-                </tbody>
-            </table>
+            </div>
         </div>
 
         <div class="mt-6">

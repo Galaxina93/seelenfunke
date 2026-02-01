@@ -141,37 +141,85 @@
         </div>
 
         <div class="bg-white border border-gray-200 shadow-sm rounded-xl overflow-hidden">
+
+            {{-- DESKTOP ANSICHT (ab md) --}}
             <div class="hidden md:block">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-[10px]">
                     <tr>
-                        <th class="px-6 py-4">Nummer</th>
-                        <th class="px-6 py-4">Kunde</th>
-                        <th class="px-6 py-4 text-right">Betrag</th>
-                        <th class="px-6 py-4 text-center">Status</th>
-                        <th class="px-6 py-4 text-right">Aktionen</th>
+                        <th class="px-6 py-4 tracking-wider">Nummer</th>
+                        <th class="px-6 py-4 tracking-wider">Kunde</th>
+                        <th class="px-6 py-4 text-right tracking-wider">Betrag</th>
+                        <th class="px-6 py-4 text-center tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-right tracking-wider">Aktionen</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                     @forelse($invoices as $inv)
-                        <tr class="hover:bg-gray-50">
+                        <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 font-mono font-bold text-gray-900">{{ $inv->invoice_number }}</td>
-                            <td class="px-6 py-4 text-gray-900">{{ $inv->billing_address['first_name'] }} {{ $inv->billing_address['last_name'] }}</td>
+                            <td class="px-6 py-4">
+                                <div class="text-gray-900 font-medium">{{ $inv->billing_address['first_name'] }} {{ $inv->billing_address['last_name'] }}</div>
+                                <div class="text-[10px] text-gray-400">{{ $inv->created_at->format('d.m.Y') }}</div>
+                            </td>
                             <td class="px-6 py-4 text-right font-bold text-gray-900">{{ number_format($inv->total / 100, 2, ',', '.') }} €</td>
                             <td class="px-6 py-4 text-center">
-                                <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase {{ $inv->status == 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500' }}">{{ $inv->status }}</span>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase {{ $inv->status == 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500' }}">
+                                {{ $inv->status == 'paid' ? 'Bezahlt' : 'Offen' }}
+                            </span>
                             </td>
-                            <td class="px-6 py-4 text-right flex justify-end gap-3">
-                                <button wire:click="downloadPdf('{{ $inv->id }}')" class="text-gray-400 hover:text-primary transition" title="PDF Kopie"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-width="2"/></svg></button>
-                                <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="text-primary font-bold text-xs uppercase transition">Vorschau</button>
+                            <td class="px-6 py-4 text-right">
+                                <div class="flex justify-end gap-3">
+                                    <button wire:click="downloadPdf('{{ $inv->id }}')" class="p-1 text-gray-400 hover:text-primary transition" title="PDF Kopie">
+                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    </button>
+                                    <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="text-primary font-bold text-xs uppercase hover:underline transition">Vorschau</button>
+                                </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="p-10 text-center text-gray-400">Keine Belege gefunden.</td></tr>
+                        <tr><td colspan="5" class="p-10 text-center text-gray-400 italic">Keine Belege gefunden.</td></tr>
                     @endforelse
                     </tbody>
                 </table>
             </div>
+
+            {{-- MOBILE ANSICHT (bis md) --}}
+            <div class="md:hidden divide-y divide-gray-100">
+                @forelse($invoices as $inv)
+                    <div class="p-4 bg-white active:bg-gray-50 transition-colors">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex flex-col">
+                                <span class="font-mono font-bold text-gray-900 text-sm">{{ $inv->invoice_number }}</span>
+                                <span class="text-[10px] text-gray-400">{{ $inv->created_at->format('d.m.Y H:i') }}</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase {{ $inv->status == 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500' }}">
+                        {{ $inv->status }}
+                    </span>
+                        </div>
+
+                        <div class="flex justify-between items-end">
+                            <div>
+                                <div class="text-sm font-bold text-gray-900">{{ $inv->billing_address['first_name'] }} {{ $inv->billing_address['last_name'] }}</div>
+                                <div class="text-base font-black text-primary mt-1">{{ number_format($inv->total / 100, 2, ',', '.') }} €</div>
+                            </div>
+
+                            {{-- Mobile Aktionen: Größere Klickflächen --}}
+                            <div class="flex gap-4">
+                                <button wire:click="downloadPdf('{{ $inv->id }}')" class="p-2 bg-gray-50 rounded-lg text-gray-500 active:text-primary border border-gray-100">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                </button>
+                                <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="px-3 py-2 bg-primary/10 text-primary rounded-lg text-xs font-bold uppercase tracking-tight">
+                                    Vorschau
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="p-8 text-center text-gray-400 italic text-sm">Keine Belege gefunden.</div>
+                @endforelse
+            </div>
+
             <div class="p-4 border-t bg-gray-50">{{ $invoices->links() }}</div>
         </div>
     @endif

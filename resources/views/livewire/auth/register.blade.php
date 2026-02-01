@@ -169,7 +169,7 @@
                         </div>
                         <div class="ml-3 text-sm">
                             <label for="terms" class="font-medium text-gray-700 cursor-pointer select-none">
-                                Ich akzeptiere die <a href="{{ route('terms') }}" target="_blank" class="text-primary hover:underline">AGB</a> und <a href="{{ route('privacy') }}" target="_blank" class="text-primary hover:underline">Datenschutzbestimmungen</a>.
+                                Ich akzeptiere die <a href="{{ route('agb') }}" target="_blank" class="text-primary hover:underline">AGB</a> und <a href="{{ route('datenschutz') }}" target="_blank" class="text-primary hover:underline">Datenschutzbestimmungen</a>.
                             </label>
                         </div>
                     </div>

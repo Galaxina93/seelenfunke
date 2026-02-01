@@ -60,7 +60,7 @@
                     </div>
                     <div class="ml-3 text-sm">
                         <label for="privacy" class="font-medium text-gray-700 cursor-pointer select-none">Datenschutz</label>
-                        <p class="text-gray-500 text-xs">Ich stimme zu, dass meine Angaben für den Versand des Newsletters verarbeitet werden. Details in der <a href="{{ route('privacy') }}" class="text-primary hover:underline">Datenschutzerklärung</a>.</p>
+                        <p class="text-gray-500 text-xs">Ich stimme zu, dass meine Angaben für den Versand des Newsletters verarbeitet werden. Details in der <a href="{{ route('datenschutz') }}" class="text-primary hover:underline">Datenschutzerklärung</a>.</p>
                     </div>
                 </div>
                 @error('privacy_accepted') <span class="text-red-500 text-xs block">{{ $message }}</span> @enderror

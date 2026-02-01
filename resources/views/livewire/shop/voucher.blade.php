@@ -125,121 +125,161 @@
         </div>
     @endif
 
-    {{-- LISTE --}}
-    <div class="overflow-x-auto bg-white rounded-xl border border-gray-100 shadow-sm">
-        <table class="w-full text-left border-collapse">
-            <thead>
-            <tr class="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 bg-gray-50/50">
-                <th class="px-6 py-4">Code</th>
-                <th class="px-6 py-4">Wert</th>
-                <th class="px-6 py-4">Mindestwert</th>
-                <th class="px-6 py-4">Gültigkeit</th>
-                <th class="px-6 py-4">Nutzung</th>
-                <th class="px-6 py-4">Status</th>
-                <th class="px-6 py-4 text-right">Aktionen</th>
-            </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-            @forelse($coupons as $c)
-                <tr wire:key="coupon-row-{{ $c->id }}" class="hover:bg-gray-50/50 transition-colors">
-                    <td class="px-6 py-4">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                            <span class="font-mono font-bold text-primary text-base tracking-wider">{{ $c->code }}</span>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 font-bold text-gray-900">
-                        @if($c->type == 'fixed')
-                            {{ number_format($c->value / 100, 2, ',', '.') }} €
-                        @else
-                            {{ $c->value }} %
-                        @endif
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-500">
-                        {{ $c->min_order_value ? number_format($c->min_order_value / 100, 2, ',', '.') . ' €' : '-' }}
-                    </td>
-                    <td class="px-6 py-4 text-sm">
-                        @if($c->valid_until)
-                            <div class="flex flex-col">
+    {{-- TABLE --}}
+    <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+        {{-- DESKTOP TABELLE (ab md) --}}
+        <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                <tr class="text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-200 bg-gray-50/50">
+                    <th class="px-6 py-4">Code</th>
+                    <th class="px-6 py-4">Wert</th>
+                    <th class="px-6 py-4">Mindestwert</th>
+                    <th class="px-6 py-4">Gültigkeit</th>
+                    <th class="px-6 py-4">Nutzung</th>
+                    <th class="px-6 py-4">Status</th>
+                    <th class="px-6 py-4 text-right">Aktionen</th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                @forelse($coupons as $c)
+                    <tr wire:key="coupon-row-{{ $c->id }}" class="hover:bg-gray-50/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                <span class="font-mono font-bold text-primary text-base tracking-wider">{{ $c->code }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 font-bold text-gray-900">
+                            @if($c->type == 'fixed')
+                                {{ number_format($c->value / 100, 2, ',', '.') }} €
+                            @else
+                                {{ $c->value }} %
+                            @endif
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ $c->min_order_value ? number_format($c->min_order_value / 100, 2, ',', '.') . ' €' : '-' }}
+                        </td>
+                        <td class="px-6 py-4 text-sm">
+                            @if($c->valid_until)
+                                <div class="flex flex-col">
                                     <span class="{{ $c->valid_until->isPast() ? 'text-red-600 font-bold' : 'text-gray-900' }}">
                                         {{ $c->valid_until->format('d.m.Y') }}
                                     </span>
-                                @if($c->valid_until->isPast())
-                                    <span class="text-[10px] text-red-500 uppercase font-bold">Abgelaufen</span>
-                                @else
-                                    <span class="text-xs text-gray-400">in {{ $c->valid_until->diffForHumans(null, true) }}</span>
-                                @endif
-                            </div>
-                        @else
-                            <span class="text-gray-500 flex items-center gap-1">
+                                    @if($c->valid_until->isPast())
+                                        <span class="text-[10px] text-red-500 uppercase font-bold">Abgelaufen</span>
+                                    @else
+                                        <span class="text-xs text-gray-400">in {{ $c->valid_until->diffForHumans(null, true) }}</span>
+                                    @endif
+                                </div>
+                            @else
+                                <span class="text-gray-500 flex items-center gap-1">
                                     <svg class="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 3.214L13 21l-2.286-6.857L5 12l5.714-3.214L13 3z" /></svg>
                                     Unbegrenzt
                                 </span>
-                        @endif
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-700">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold">{{ $c->used_count }}</span>
-                            @if($c->usage_limit)
-                                <span class="text-gray-400">von {{ $c->usage_limit }}</span>
-                                @if($c->used_count >= $c->usage_limit)
-                                    <span class="text-[10px] text-red-500 uppercase font-bold bg-red-50 px-1.5 rounded">Aufgebraucht</span>
-                                @endif
                             @endif
-                        </div>
-                    </td>
-                    <td class="px-6 py-4">
-                        @if($c->isValid())
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-700">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold">{{ $c->used_count }}</span>
+                                @if($c->usage_limit)
+                                    <span class="text-gray-400">von {{ $c->usage_limit }}</span>
+                                    @if($c->used_count >= $c->usage_limit)
+                                        <span class="text-[10px] text-red-500 uppercase font-bold bg-red-50 px-1.5 rounded">Aufgebraucht</span>
+                                    @endif
+                                @endif
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            @if($c->isValid())
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
                                     <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
                                     Aktiv
                                 </span>
-                        @else
-                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500">
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500">
                                     <span class="h-2 w-2 rounded-full bg-gray-400"></span>
                                     Inaktiv
                                 </span>
+                            @endif
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button wire:click="edit('{{ $c->id }}')" class="p-2 rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Bearbeiten">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                </button>
+                                <button wire:click="delete('{{ $c->id }}')" wire:confirm="Möchten Sie den Gutschein '{{ $c->code }}' wirklich löschen?" class="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors" title="Löschen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    {{-- Hier deine Empty-State Logik --}}
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        {{-- MOBILE KACHELN (bis md) --}}
+        <div class="md:hidden divide-y divide-gray-100">
+            @forelse($coupons as $c)
+                <div wire:key="coupon-mobile-{{ $c->id }}" class="p-4 bg-white active:bg-gray-50 transition-colors">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                            <span class="font-mono font-bold text-primary tracking-wider">{{ $c->code }}</span>
+                        </div>
+                        @if($c->isValid())
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase">Aktiv</span>
+                        @else
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500 uppercase">Inaktiv</span>
                         @endif
-                    </td>
+                    </div>
 
-                    {{-- HIER DIE KORREKTUR: Einfache Anführungszeichen um die ID --}}
-                    <td class="px-6 py-4 text-right">
-                        <div class="flex items-center justify-end gap-2">
-                            {{-- Bearbeiten Button --}}
-                            <button wire:click="edit('{{ $c->id }}')"
-                                    class="p-2 rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors focus:ring-2 focus:ring-blue-500/50 outline-none"
-                                    title="Bearbeiten">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                            </button>
-
-                            {{-- Löschen Button --}}
-                            <button wire:click="delete('{{ $c->id }}')"
-                                    wire:confirm="Möchten Sie den Gutschein '{{ $c->code }}' wirklich löschen?"
-                                    class="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors focus:ring-2 focus:ring-red-500/50 outline-none"
-                                    title="Löschen">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Rabattwert</p>
+                            <p class="text-sm font-black text-gray-900">
+                                @if($c->type == 'fixed')
+                                    {{ number_format($c->value / 100, 2, ',', '.') }} €
+                                @else
+                                    {{ $c->value }} %
+                                @endif
+                            </p>
                         </div>
-                    </td>
-                </tr>
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Gültig bis</p>
+                            <p class="text-sm text-gray-900">
+                                {{ $c->valid_until ? $c->valid_until->format('d.m.Y') : 'Unbegrenzt' }}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Mindestwert</p>
+                            <p class="text-sm text-gray-900">{{ $c->min_order_value ? number_format($c->min_order_value / 100, 2, ',', '.') . ' €' : '-' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Nutzung</p>
+                            <p class="text-sm text-gray-900 font-medium">
+                                {{ $c->used_count }} @if($c->usage_limit)<span class="text-gray-400 text-xs">/ {{ $c->usage_limit }}</span>@endif
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button wire:click="edit('{{ $c->id }}')" class="flex-1 flex justify-center items-center py-2 bg-gray-50 rounded-lg text-gray-600 font-bold text-xs border border-gray-100">
+                            Bearbeiten
+                        </button>
+                        <button wire:click="delete('{{ $c->id }}')" wire:confirm="Gutschein löschen?" class="p-2 bg-red-50 rounded-lg text-red-600 border border-red-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                </div>
             @empty
-                <tr>
-                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">
-                        <div class="flex flex-col items-center justify-center">
-                            <svg class="h-12 w-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" /></svg>
-                            <p class="text-lg font-medium text-gray-900 mb-1">Keine Gutscheine gefunden</p>
-                            <p class="text-sm mb-4">Erstellen Sie Ihren ersten Gutschein-Code.</p>
-                            <button wire:click="create" class="text-primary hover:underline font-bold text-sm">Jetzt erstellen</button>
-                        </div>
-                    </td>
-                </tr>
+                {{-- Gleiche Empty-State Logik wie oben --}}
             @endforelse
-            </tbody>
-        </table>
+        </div>
     </div>
 
     {{-- PAGINATION --}}
