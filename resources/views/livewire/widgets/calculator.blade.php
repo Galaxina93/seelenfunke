@@ -20,6 +20,14 @@
             init() {
                 this.onDrag = this.handleDrag.bind(this);
                 this.stopDrag = this.handleStop.bind(this);
+
+                // FIX: Hochscrollen wenn der Event 'scroll-top' empfangen wird
+                Livewire.on('scroll-top', () => {
+                    const anchor = document.getElementById('calculator-anchor');
+                    if (anchor) {
+                        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
             },
 
             startDrag(event, type) {
@@ -151,12 +159,55 @@
                                     </thead>
                                     <tbody class="divide-y divide-gray-100">
                                     @foreach($cartItems as $index => $item)
+                                        @php
+                                            $prod = $dbProducts[$item['product_id']] ?? null;
+                                            $tiers = $prod['tier_pricing'] ?? [];
+                                            usort($tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+
+                                            $currentTier = null;
+                                            $nextTier = null;
+                                            foreach($tiers as $t) {
+                                                if($item['qty'] >= $t['qty']) {
+                                                    $currentTier = $t;
+                                                } else {
+                                                    $nextTier = $t;
+                                                    break;
+                                                }
+                                            }
+                                        @endphp
                                         <tr class="hover:bg-gray-50/50 transition">
-                                            <td class="px-4 py-3 font-bold align-middle">{{ $item['name'] }}</td>
+                                            <td class="px-4 py-3 align-middle">
+                                                <div class="font-bold">{{ $item['name'] }}</div>
+                                                @if($currentTier)
+                                                    <div class="text-[10px] text-green-600 font-bold uppercase flex items-center gap-1">
+                                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.64.304 1.24.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
+                                                        {{ $currentTier['percent'] }}% Mengenrabatt aktiv
+                                                    </div>
+                                                @endif
+                                            </td>
                                             <td class="px-4 py-3 align-middle text-gray-500 text-xs">
                                                 {{ Str::limit($item['text'], 25) ?: 'Keine Gravur' }}
                                             </td>
-                                            <td class="px-4 py-3 text-center align-middle font-bold">{{ $item['qty'] }}</td>
+                                            <td class="px-4 py-3 text-center align-middle">
+                                                <div class="font-bold">{{ $item['qty'] }}</div>
+                                                @if($nextTier)
+                                                    @php
+                                                        $prevQty = $currentTier ? $currentTier['qty'] : 0;
+                                                        $range = $nextTier['qty'] - $prevQty;
+                                                        $progress = (($item['qty'] - $prevQty) / $range) * 100;
+                                                        $needed = $nextTier['qty'] - $item['qty'];
+                                                    @endphp
+                                                    <div class="mt-1 w-24 mx-auto">
+                                                        <div class="flex justify-between text-[8px] text-gray-400 mb-0.5">
+                                                            <span>noch {{ $needed }}</span>
+                                                            <span>-{{ $nextTier['percent'] }}%</span>
+                                                        </div>
+                                                        <div class="w-full bg-gray-100 rounded-full h-1 overflow-hidden border border-gray-200">
+                                                            <div class="bg-green-500 h-full transition-all duration-500" style="width: {{ $progress }}%"></div>
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </td>
                                             <td class="px-4 py-3 text-right align-middle font-mono">
                                                 {{ number_format($item['calculated_total'], 2, ',', '.') }} €
                                             </td>
@@ -176,16 +227,47 @@
                                 </table>
                                 <div class="md:hidden divide-y divide-gray-100">
                                     @foreach($cartItems as $index => $item)
+                                        @php
+                                            $prod = $dbProducts[$item['product_id']] ?? null;
+                                            $tiers = $prod['tier_pricing'] ?? [];
+                                            usort($tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+                                            $currentTier = null;
+                                            $nextTier = null;
+                                            foreach($tiers as $t) {
+                                                if($item['qty'] >= $t['qty']) $currentTier = $t;
+                                                else { $nextTier = $t; break; }
+                                            }
+                                        @endphp
                                         <div class="p-4 flex flex-col gap-3">
                                             <div class="flex justify-between items-start">
-                                                <span class="font-bold text-gray-900 text-base">{{ $item['name'] }}</span>
+                                                <div class="flex flex-col">
+                                                    <span class="font-bold text-gray-900 text-base">{{ $item['name'] }}</span>
+                                                    @if($currentTier)
+                                                        <span class="text-[10px] text-green-600 font-bold uppercase">{{ $currentTier['percent'] }}% Rabatt aktiv</span>
+                                                    @endif
+                                                </div>
                                                 <span class="font-bold text-gray-900 font-mono">
                                                     {{ number_format($item['calculated_total'], 2, ',', '.') }} €
                                                 </span>
                                             </div>
                                             <div class="flex justify-between items-center text-sm">
-                                                <div class="text-gray-500 text-xs">
-                                                    {{ Str::limit($item['text'], 30) ?: 'Keine Gravur' }}
+                                                <div class="flex flex-col gap-1">
+                                                    <div class="text-gray-500 text-xs">
+                                                        {{ Str::limit($item['text'], 30) ?: 'Keine Gravur' }}
+                                                    </div>
+                                                    @if($nextTier)
+                                                        @php
+                                                            $prevQty = $currentTier ? $currentTier['qty'] : 0;
+                                                            $range = $nextTier['qty'] - $prevQty;
+                                                            $progress = (($item['qty'] - $prevQty) / $range) * 100;
+                                                        @endphp
+                                                        <div class="w-32">
+                                                            <div class="w-full bg-gray-100 rounded-full h-1 border border-gray-200">
+                                                                <div class="bg-green-500 h-full" style="width: {{ $progress }}%"></div>
+                                                            </div>
+                                                            <div class="text-[8px] text-gray-400 mt-0.5">Noch {{ $nextTier['qty'] - $item['qty'] }} bis {{ $nextTier['percent'] }}%</div>
+                                                        </div>
+                                                    @endif
                                                 </div>
                                                 <div class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold whitespace-nowrap">
                                                     {{ $item['qty'] }} Stk.

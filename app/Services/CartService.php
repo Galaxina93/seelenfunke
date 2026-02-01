@@ -229,7 +229,7 @@ class CartService
             $lineGross = $freshUnitPrice * $qty;
             $subtotalGross += $lineGross;
 
-            // Originalpreis (für Streichpreise)
+            // Originalpreis (für Staffelpreise)
             $basePrice = $product->price;
             $originalSubtotal += ($basePrice * $qty);
 
@@ -288,11 +288,11 @@ class CartService
 
         // 5. VERSANDSTEUER (EU-Logik)
         $shippingTaxAmount = 0;
-        if ($shippingGross > 0) {
-            // Liste der EU-Länder (Standard ISO Codes)
-            $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
-            $isEU = in_array($countryCode, $euCountries);
+        // Liste der EU-Länder (Standard ISO Codes)
+        $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
+        $isEU = in_array($countryCode, $euCountries);
 
+        if ($shippingGross > 0) {
             // 19% in EU, 0% Export
             $shippingTaxRate = $isEU ? 19.0 : 0.0;
 
@@ -306,7 +306,25 @@ class CartService
             }
         }
 
-        $finalTotalGross = $totalAfterDiscount + $shippingGross;
+        // 6. EXPRESS-LOGIK (WICHTIG: Aus dem Cart-Model lesen)
+        $expressGross = 0;
+        $expressTaxAmount = 0;
+
+        if ($cart->is_express) {
+            $expressGross = 2500; // 25,00 € Pauschal
+            $expressTaxRate = $isEU ? 19.0 : 0.0;
+
+            $expressNet = (int) round($expressGross / (1 + ($expressTaxRate / 100)));
+            $expressTaxAmount = $expressGross - $expressNet;
+
+            if ($expressTaxRate > 0) {
+                $strExpRate = number_format($expressTaxRate, 0);
+                if (!isset($taxesBreakdown[$strExpRate])) $taxesBreakdown[$strExpRate] = 0;
+                $taxesBreakdown[$strExpRate] += $expressTaxAmount;
+            }
+        }
+
+        $finalTotalGross = $totalAfterDiscount + $shippingGross + $expressGross;
         $finalTotalTax = array_sum($taxesBreakdown);
 
         return [
@@ -319,6 +337,9 @@ class CartService
             'taxes_breakdown' => $taxesBreakdown, // Wichtig für die View!
             'shipping' => $shippingGross,
             'shipping_tax' => $shippingTaxAmount,
+            'express' => $expressGross,
+            'express_tax' => $expressTaxAmount,
+            'is_express' => $cart->is_express,
             'is_free_shipping' => $isFreeShipping,
             'missing_for_free_shipping' => $missingForFreeShipping,
             'total' => max(0, $finalTotalGross),
