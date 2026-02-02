@@ -9,23 +9,30 @@
     </div>
 
     {{-- ANSPRACHE --}}
-    <h1>Neue Bestellung eingegangen! 🥂
+    <h1>Neue Angebotsanfrage! ✉️
         @if(!empty($data['express']))
             <span class="badge-express">EXPRESS</span>
         @endif
     </h1>
-    <p>Hallo Alina, herzlichen Glückwunsch! Ein Kunde hat gerade eine neue Bestellung aufgegeben. Hier findest du alle Details zur Abwicklung:</p>
+    <p>Hallo Alina, es ist eine neue Anfrage über den <strong>Calculator</strong> eingegangen. Der Kunde hat ein automatisches Angebot erhalten, aber du solltest die Details kurz prüfen:</p>
+
+    <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+        <p style="margin: 0; color: #92400e; font-size: 13px;">
+            <strong>Info:</strong> Dies ist noch keine feste Bestellung, sondern eine Preiskalkulation/Anfrage (#{{ $data['quote_number'] }}).
+        </p>
+    </div>
 
     {{-- ARTIKEL LISTE --}}
+    <h3 style="font-size: 14px; color: #888; text-transform: uppercase; margin-bottom: 10px;">Angefragte Produkte</h3>
     @include('global.mails.partials.mail_bought_products_list')
 
-    {{--PREISAUFSTELLUNG--}}
+    {{-- PREISAUFSTELLUNG --}}
     @include('global.mails.partials.mail_price_list')
 
     {{-- DETAILS / ADRESSEN & KUNDENDATEN --}}
     @include('global.mails.partials.mail_customer_info', ['showContactCard' => true])
 
-    {{--FOOTER--}}
+    {{-- FOOTER --}}
     @include('global.mails.partials.mail_footer')
 
 </div>

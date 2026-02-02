@@ -3,7 +3,7 @@
 namespace App\Livewire\Global\Widgets;
 
 use App\Mail\CalcCustomer;
-use App\Mail\CalcInput;
+use App\Mail\NewCalcRequest;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\QuoteRequest;
@@ -492,7 +492,7 @@ class Calculator extends Component
             Mail::to($this->form['email'])->send(new CalcCustomer($data, $path));
 
             // Adminmail (Interne Anfrage)
-            Mail::to('kontakt@mein-seelenfunke.de')->send(new CalcInput($data, $path));
+            Mail::to('kontakt@mein-seelenfunke.de')->send(new NewCalcRequest($data, $path));
 
             \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
         } catch (\Exception $e) {

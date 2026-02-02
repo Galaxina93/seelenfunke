@@ -12,7 +12,7 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 
-class CalcInput extends Mailable implements ShouldQueue
+class NewCalcRequest extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -45,7 +45,7 @@ class CalcInput extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.calculation',
+            view: 'global.mails.new_calc_request',
             with: ['data' => $this->data],
         );
     }
