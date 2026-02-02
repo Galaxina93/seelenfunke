@@ -322,13 +322,20 @@ class Calculator extends Component
             // Liste der EU-Länder
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
-            if (in_array($countryCode, $euCountries)) {
-                // EU: 19% MwSt auf Versand (Standard)
-                // Wir rechnen aus Brutto zurück
-                $shippingNet = $shippingCents / 1.19;
+            // 1. Werte dynamisch aus der Datenbank (shop-settings) laden
+            $taxRate = (float)shop_setting('default_tax_rate', 19);
+            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+
+            // 2. Berechne den Divisor (bei 19% -> 1.19, bei 20% -> 1.20)
+            // Falls Kleinunternehmer, ist der Satz 0, also Divisor 1.0
+            $divisor = $isSmallBusiness ? 1.0 : (1 + ($taxRate / 100));
+
+            if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
+                // EU & kein Kleinunternehmer: Steuer dynamisch basierend auf Datenbank-Wert berechnen
+                $shippingNet = $shippingCents / $divisor;
                 $shippingTax = $shippingCents - $shippingNet;
             } else {
-                // Drittland (Export): Steuerfrei (Netto = Brutto)
+                // Drittland oder Kleinunternehmer: Keine MwSt (Netto = Brutto)
                 $shippingNet = $shippingCents;
                 $shippingTax = 0;
             }
@@ -339,21 +346,31 @@ class Calculator extends Component
 
         // 5. Express-Option
         if ($this->isExpress && count($this->cartItems) > 0) {
+            // 1. Steuerdaten dynamisch aus der Tabelle 'shop-settings' laden
+            $defaultTaxRate = (float)shop_setting('default_tax_rate', 19);
+            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+
+            // 2. Divisor dynamisch berechnen (z.B. 1.19 bei 19%)
+            // Der Divisor sorgt dafür, dass die Rückwärtsrechnung vom Brutto zum Netto immer stimmt.
+            $divisor = $isSmallBusiness ? 1.0 : (1 + ($defaultTaxRate / 100));
+
             // Liste der EU-Länder definieren
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
-            // Basis ist 25,00 € Brutto (inkl. 19% MwSt)
-            $expressGross = 2500;
+            // Basis ist 25,00 € Brutto (ausgedrückt in Cent)
+            // Optional: Auch diesen Wert könntest du über shop_setting('express_surcharge', 2500) laden!
+            $expressGross = (int)shop_setting('express_surcharge', 2500);
 
-            // Wir errechnen den Netto-Wert aus dem Brutto-Preis (Basis 19%)
-            $expressBaseNet = $expressGross / 1.19;
+            // 3. Netto-Wert berechnen
+            // Durch den dynamischen Divisor wird hier bei Kleinunternehmern automatisch durch 1.0 geteilt.
+            $expressBaseNet = $expressGross / $divisor;
 
-            if (in_array($countryCode, $euCountries)) {
-                // EU: Netto + 19% Steuer = 25,00 €
+            if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
+                // EU & kein Kleinunternehmer: MwSt-Anteil basierend auf aktuellem Steuersatz berechnen
                 $expressNet = $expressBaseNet;
                 $expressTax = $expressGross - $expressNet;
             } else {
-                // Drittland: Nur Netto zahlen
+                // Drittland ODER Kleinunternehmer: Keine MwSt ausweisen (Netto entspricht dem Zahlbetrag)
                 $expressNet = $expressBaseNet;
                 $expressTax = 0;
             }
@@ -435,7 +452,7 @@ class Calculator extends Component
             'net_total' => (int) round($this->totalNetto * 100),
             'tax_total' => (int) round($this->totalMwst * 100),
             'gross_total' => (int) round($this->totalBrutto * 100),
-            'shipping_price' => (int) round($this->shippingCost * 100), // Feld für Zentralisierung
+            'shipping_price' => (int) round($this->shippingCost * 100),
             'is_express' => $this->isExpress,
             'deadline' => $cleanDeadline,
             'admin_notes' => $this->form['anmerkung'] ?? null,
@@ -455,8 +472,8 @@ class Calculator extends Component
             ]);
         }
 
-        // --- ZENTRALISIERUNG: Wir nutzen ab hier das neue Model-Array ---
-        // Wichtig: Die Methode toFormattedArray() muss im QuoteRequest Model existieren!
+        // --- ZENTRALISIERUNG: Wir nutzen die neue Model-Methode ---
+        // Hier stecken jetzt alle display_netto_goods etc. drin!
         $data = $quote->toFormattedArray();
 
         // 3. PDF Generierung mit den zentralisierten Daten
@@ -471,7 +488,7 @@ class Calculator extends Component
 
         // 4. Mail-Versand
         try {
-            // Kundenmail (Angebot)
+            // Kundenmail (Angebot) - nutzt jetzt die sauberen Partials
             Mail::to($this->form['email'])->send(new CalcCustomer($data, $path));
 
             // Adminmail (Interne Anfrage)

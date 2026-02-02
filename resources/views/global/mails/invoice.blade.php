@@ -32,7 +32,7 @@
 
         /* TOTALS */
         .totals-container { width: 100%; margin-top: 20px; }
-        .totals-table { width: 45%; float: right; border-collapse: collapse; }
+        .totals-table { width: 55%; float: right; border-collapse: collapse; }
         .totals-table td { padding: 5px 8px; }
         .totals-label { text-align: right; color: #666; }
         .totals-value { text-align: right; width: 100px; }
@@ -48,6 +48,19 @@
     </style>
 </head>
 <body>
+
+@php
+    /** * NEUE LOGIK: Wir ziehen die Werte nun aus der Tabelle 'shop-settings'
+     * über unseren globalen Helper shop_setting().
+     */
+    $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+    $taxRate = (float)shop_setting('default_tax_rate', 19.0);
+
+    // Stammdaten für den Footer laden
+    $ownerName = shop_setting('owner_proprietor', 'Alina Steinhauer');
+    $taxId = shop_setting('owner_tax_id', '19/143/11624');
+    $ustId = shop_setting('owner_ust_id', 'folgt');
+@endphp
 
 <div class="header">
     <table width="100%">
@@ -83,7 +96,7 @@
         </td>
         <td width="45%" class="text-right address-box">
             <strong>Mein Seelenfunke</strong><br>
-            Inh. Alina Steinhauer<br>
+            Inh. {{ $ownerName }}<br>
             Carl-Goerdeler-Ring 26<br>
             38518 Gifhorn<br>
             Deutschland<br><br>
@@ -157,10 +170,18 @@
             </tr>
         @endif
 
-        <tr>
-            <td class="totals-label">zzgl. MwSt. (19%):</td>
-            <td class="totals-value">{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</td>
-        </tr>
+        @if(!$isSmallBusiness)
+            <tr>
+                <td class="totals-label">zzgl. MwSt. ({{ $taxRate }}%):</td>
+                <td class="totals-value">{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</td>
+            </tr>
+        @else
+            <tr>
+                <td colspan="2" class="text-right" style="font-size: 10px; color: #666; padding-top: 10px;">
+                    Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
+                </td>
+            </tr>
+        @endif
 
         <tr class="total-row">
             <td class="totals-label">Gesamtbetrag:</td>
@@ -184,8 +205,8 @@
 </div>
 
 <footer>
-    Mein Seelenfunke | Alina Steinhauer | Carl-Goerdeler-Ring 26 | 38518 Gifhorn<br>
-    Steuernummer: 19/143/11624 | USt-IdNr.: folgt | Gerichtsstand: Gifhorn<br>
+    Mein Seelenfunke | {{ $ownerName }} | Carl-Goerdeler-Ring 26 | 38518 Gifhorn<br>
+    Steuernummer: {{ $taxId }} | USt-IdNr.: {{ $ustId }} | Gerichtsstand: Gifhorn<br>
     E-Mail: kontakt@mein-seelenfunke.de | Web: www.mein-seelenfunke.de
 </footer>
 

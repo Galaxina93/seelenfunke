@@ -93,18 +93,26 @@ class Checkout extends Component
             $this->first_name = $user->first_name;
             $this->last_name = $user->last_name;
 
-            // Profil laden falls vorhanden
             if ($user->profile) {
                 $this->address = $user->profile->street . ' ' . $user->profile->house_number;
                 $this->city = $user->profile->city;
                 $this->postal_code = $user->profile->postal;
 
-                // Wichtig: Land vom Profil laden, falls vorhanden und gültig
-                if($user->profile->country && array_key_exists($user->profile->country, config('shop.countries'))) {
+                $activeCountries = shop_setting('active_countries', ['DE' => 'Deutschland']);
+
+                // Sicherer Zugriff: Wir prüfen, ob 'country' im Profil existiert UND in den Shop-Settings aktiv ist
+                if (!empty($user->profile->country) && array_key_exists($user->profile->country, $activeCountries)) {
                     $this->country = $user->profile->country;
+                } else {
+                    /** * Fallback-Strategie:
+                     * 1. Deutschland, falls du es belieferst (da Seelenfunke in DE sitzt)
+                     * 2. Sonst einfach das erste Land deiner aktiven Liste
+                     */
+                    $this->country = array_key_exists('DE', $activeCountries) ? 'DE' : array_key_first($activeCountries);
                 }
             }
         }
+
         // 2. Daten laden: Aus Angebot (Quote) falls vorhanden
         elseif (Session::has('checkout_from_quote_id')) {
             $quoteId = Session::get('checkout_from_quote_id');
@@ -256,7 +264,6 @@ class Checkout extends Component
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
                     ->send(new \App\Mail\CalcInput($mailData, $pdfPath));
 
-                \Illuminate\Support\Facades\Log::info("Checkout: Alle Mails versendet für " . $order->order_number);
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());
             }
@@ -377,13 +384,6 @@ class Checkout extends Component
             $parts = explode('_secret_', $this->clientSecret);
             $finalIntentId = $parts[0] ?? null;
         }
-
-        // LOGGING: Schreibt in storage/logs/laravel.log - so sehen wir, ob die ID da ist
-        Log::info('Bestellerstellung gestartet', [
-            'email' => $this->email,
-            'intent_id_variable' => $this->currentPaymentIntentId,
-            'intent_id_extracted' => $finalIntentId
-        ]);
 
         // --- KUNDEN-LOGIK ---
         $customer = null;
@@ -508,7 +508,7 @@ class Checkout extends Component
         return view('livewire.shop.checkout', [
             'cart' => $cart,
             'totals' => $totals,
-            'countries' => config('shop.countries', ['DE' => 'Deutschland'])
+            'countries' => shop_setting('active_countries', ['DE' => 'Deutschland'])
         ]);
     }
 }

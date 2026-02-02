@@ -161,6 +161,22 @@ class EmployeeConfig
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-4'
                 ],
+
+                // NEU: Land-Feld für das Mitarbeiterprofil
+                'country' => [
+                    'hide_on_index'     => false,
+                    'hide_on_update'    => false,
+                    'hide_on_create'    => true,
+                    'required'          => true,
+                    'type'              => 'select',
+                    'translation'       => 'Land',
+                    'placeholder'       => 'Land wählen',
+                    'rules'             => 'required|string|max:2',
+                    'relation'          => 'profile',
+                    'options'           => shop_setting('active_countries', ['DE' => 'Deutschland']),
+                    'class'             => 'col-span-full md:col-span-2'
+                ],
+
                 'about' => [
                     'hide_on_index'     => true,
                     'hide_on_update'    => false,

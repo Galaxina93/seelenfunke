@@ -1,10 +1,24 @@
 <?php
-
+/*
 return [
+
+    'is_small_business' => false,
+    'default_tax_rate'  => 19,
+
+    'owner' => [
+        'name'        => 'Mein Seelenfunke',
+        'proprietor'  => 'Alina Steinhauer',
+        'street'      => 'Carl-Goerdeler-Ring 26',
+        'city'        => '38518 Gifhorn',
+        'email'       => 'kontakt@mein-seelenfunke.de',
+        'phone'       => '+49 (0) 159 019 668 64',
+        'tax_id'      => '19/143/11624',
+        'ust_id'      => 'DE123456789', // Sobald vorhanden
+    ],
+
     'shipping' => [
         'cost' => 490, // Standardversand in Cent (4,90 €)
         'free_threshold' => 5000, // Kostenlos ab 50,00 €
-        'tax_rate' => 19, // 19% MwSt auf Versand
         'prices_entered_gross' => true, // true = Du tippst Brutto ein, false = Netto
     ],
 
@@ -68,7 +82,6 @@ return [
         // 'ZA' => 'Südafrika',
 
         // Fallback Steuern (falls Produkt keine hat)
-        'default_tax_rate' => 19,
     ],
 
-];
+];*/

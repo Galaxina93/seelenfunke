@@ -28,6 +28,7 @@ class Profile extends Component
     public string $houseNumber;
     public string $postal;
     public string $city;
+    public string $country; // NEU: Feld für das Land
 
     public string $newPassword;
     public string $currentPassword;
@@ -35,29 +36,36 @@ class Profile extends Component
 
     public function mount(): void
     {
-        // handleProfilesTrait
         $this->user = Auth::user();
 
-        // Mount User Data
+        // Mount User Data (füllt firstName, lastName, email, street, etc.)
         $this->mountUserProfileData();
+
+        /** * NEU: Land aus dem Profil laden.
+         * Falls kein Profil oder kein Land existiert, nehmen wir DE als Default.
+         */
+        $this->country = $this->user->profile->country ?? 'DE';
 
         // Setzt den User Guard
         $this->guard = (new \App\Models\User)->getGuard();
     }
+
     public function render()
     {
-        return view('livewire.profile.profile');
+        return view('livewire.profile.profile', [
+            // Wir übergeben die aktiven Lieferländer an die View für das Dropdown
+            'activeCountries' => shop_setting('active_countries', ['DE' => 'Deutschland'])
+        ]);
     }
 
     // Profilfoto
     public function updatedPhoto(): void
     {
-        // handleProfilesTrait
         $this->updateUserProfilePhoto();
     }
-    public function deletePhoto (): void
+
+    public function deletePhoto(): void
     {
-        // handleProfilesTrait
         $this->deleteUserProfilePhoto();
     }
 
@@ -65,18 +73,23 @@ class Profile extends Component
     public function saveProfile(): void
     {
         $data = [
-            'first_name' => $this->firstName,
-            'last_name' => $this->lastName,
-            'email' => $this->email,
+            'first_name'   => $this->firstName,
+            'last_name'    => $this->lastName,
+            'email'        => $this->email,
             'phone_number' => $this->phoneNumber,
-            'about' => $this->about,
-            'url' => $this->url,
-            'street' => $this->street,
+            'about'        => $this->about,
+            'url'          => $this->url,
+            'street'       => $this->street,
             'house_number' => $this->houseNumber,
-            'postal' => $this->postal,
-            'city' => $this->city,
+            'postal'       => $this->postal,
+            'city'         => $this->city,
+            'country'      => $this->country, // NEU: Land wird mitgespeichert
         ];
 
+        /**
+         * Hinweis: Stelle sicher, dass dein handleProfilesTrait
+         * das Feld 'country' auch in der Validierung und im Update-Prozess erlaubt.
+         */
         $this->saveUserProfileData($data);
     }
 
@@ -89,10 +102,8 @@ class Profile extends Component
     // Session
     public function deleteOtherSessions(): void
     {
-        // handleProfilesTrait
         $this->removeOtherSessions();
     }
-
 
     // Account löschen
     public function deleteAccount(): void

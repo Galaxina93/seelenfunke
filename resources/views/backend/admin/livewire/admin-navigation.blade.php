@@ -45,6 +45,9 @@
             {{-- Versand --}}
             <x-forms.list-item route="/admin/shipping" title="Versand & Logistik" pageName="shipping" icon="truck" />
 
+            {{-- Shop Einstellungen --}}
+            <x-forms.list-item route="/admin/configuration" title="Einstellungen" pageName="configuration" icon="cog" />
+
         </ul>
     </li>
 

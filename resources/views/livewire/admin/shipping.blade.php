@@ -211,27 +211,46 @@
 
                     @if($view === 'edit')
                         <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                            <h3 class="font-bold text-gray-900 mb-4 border-b pb-2">2. Länder zuweisen</h3>
+                            <h3 class="font-bold text-gray-900 mb-4 border-b pb-2 italic font-serif text-primary">2. Länder zuweisen</h3>
+
                             <div class="flex gap-2 mb-4">
-                                <select wire:model="selectedCountryToAdd" class="flex-1 rounded-lg border-gray-300 text-sm">
+                                <select wire:model="selectedCountryToAdd" class="flex-1 rounded-xl border-gray-200 text-sm focus:border-primary focus:ring-primary">
                                     <option value="">Land wählen...</option>
                                     @foreach($availableCountries as $code => $name)
                                         <option value="{{ $code }}">{{ $name }} ({{ $code }})</option>
                                     @endforeach
                                 </select>
-                                <button wire:click="addCountry" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 rounded-lg font-bold text-xl">+</button>
+                                <button wire:click="addCountry" class="bg-primary hover:bg-black text-white px-4 rounded-xl font-bold text-xl transition-all shadow-sm">+</button>
                             </div>
+
                             @error('selectedCountryToAdd') <span class="text-red-500 text-xs block mb-2">{{ $message }}</span> @enderror
 
                             <div class="flex flex-wrap gap-2">
+                                @php
+                                    // Wir laden die aktive Länderliste einmalig, um die Namen für die Badges zu mappen
+                                    $activeCountries = shop_setting('active_countries', []);
+                                @endphp
+
                                 @foreach($activeZoneModel->countries as $country)
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                                    <img src="https://flagcdn.com/16x12/{{ strtolower($country->country_code) }}.png" class="mr-1.5 h-3 w-4 object-cover rounded-sm">
-                                    {{ config('shop.countries.'.$country->country_code, $country->country_code) }}
-                                    <button wire:click="removeCountry({{ $country->id }})" class="ml-1.5 text-gray-400 hover:text-red-500 font-bold focus:outline-none">×</button>
-                                </span>
+                                    <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-gray-700 border border-gray-100 shadow-sm hover:border-primary/30 transition-all">
+                                        <img src="https://flagcdn.com/16x12/{{ strtolower($country->country_code) }}.png"
+                                             class="mr-2 h-3 w-4 object-cover rounded-sm shadow-xs"
+                                             alt="{{ $country->country_code }}">
+
+                                            {{-- Dynamischer Namens-Lookup aus deinen Settings --}}
+                                            {{ $activeCountries[$country->country_code] ?? $country->country_code }}
+
+                                        <button wire:click="removeCountry({{ $country->id }})"
+                                                class="ml-2 text-gray-300 hover:text-red-500 transition-colors focus:outline-none text-lg leading-none">
+                                            &times;
+                                        </button>
+                                    </span>
                                 @endforeach
                             </div>
+
+                            @if($activeZoneModel->countries->isEmpty())
+                                <p class="text-xs text-gray-400 italic mt-2">Noch keine Länder zugewiesen.</p>
+                            @endif
                         </div>
                     @endif
                 </div>

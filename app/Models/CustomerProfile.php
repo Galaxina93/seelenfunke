@@ -23,6 +23,7 @@ class CustomerProfile extends Model
         'house_number',
         'postal',
         'city',
+        'country',
         'two_factor_is_active',
         'two_factor_secret',
         'two_factor_recovery_codes',

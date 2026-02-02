@@ -55,6 +55,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.shipping');
     })->name('admin.shipping');
 
+    Route::get('/admin/configuration', function () {
+        return view('backend.admin.pages.configuration');
+    })->name('admin.configuration');
+
 });
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {

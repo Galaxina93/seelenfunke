@@ -9,12 +9,26 @@
 
         <x-forms.input      title="E-Mail"          variable="email"        type="email" class="col-span-full md:col-span-4"    required/>
         <x-forms.input      title="Telefon"         variable="phoneNumber"  type="text" class="col-span-full md:col-span-2"/>
-        <x-forms.input      title="Straße"          variable="street"       type="text" class="col-span-full md:col-span-3"     required/>
+
+        <x-forms.input      title="Straße"          variable="street"       type="text" class="col-span-full md:col-span-4"     required/>
         <x-forms.input      title="Haus Nummer"     variable="houseNumber"  type="text" class="col-span-full md:col-span-2"     required/>
 
         <x-forms.input      title="Postleitzahl"    variable="postal"       type="text" class="col-span-full md:col-span-2"     required/>
         <x-forms.input      title="Ort"             variable="city"         type="text" class="col-span-full md:col-span-4"     required/>
+
+        {{-- NEU: Land Auswahl --}}
+        <div class="col-span-full md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Land *</label>
+            <select wire:model="country" class="w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm">
+                @foreach($activeCountries as $code => $name)
+                    <option value="{{ $code }}">{{ $name }}</option>
+                @endforeach
+            </select>
+            @error('country') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+        </div>
+
         <x-forms.input      title="Webseite"        variable="url"          type="text" class="col-span-full md:col-span-4"/>
+
         <x-forms.textarea   title="Über mich"       variable="about"        class="col-span-full"/>
 
         <x-forms.button     title="Speichern" category="primary"            type="submit" class="col-span-full md:col-span-1"/>

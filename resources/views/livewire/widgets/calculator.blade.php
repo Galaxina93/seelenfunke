@@ -451,10 +451,7 @@
                             <label class="block text-sm font-bold text-gray-700 mb-1">Land für Versand *</label>
                             <select wire:model.live="form.country" class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
                                 @foreach(config('shop.countries', ['DE' => 'Deutschland']) as $code => $name)
-                                    {{-- Sicherheitshalber Konfigurations-Keys ausschließen, falls vorhanden --}}
-                                    @if($code !== 'default_tax_rate')
-                                        <option value="{{ $code }}">{{ $name }}</option>
-                                    @endif
+                                    <option value="{{ $code }}">{{ $name }}</option>
                                 @endforeach
                             </select>
 

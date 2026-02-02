@@ -36,15 +36,15 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // 4. Berechtigungen den Rollen zuweisen
         $adminRole->permissions()->sync(Permission::all());
-        $customerRole->permissions()->sync(Permission::where('name', 'delete_account')->first());
-        $employeeRole->permissions()->sync(Permission::where('name', 'delete_account')->first());
+        $customerRole->permissions()->sync(Permission::where('name', 'delete_account')->get());
+        $employeeRole->permissions()->sync(Permission::where('name', 'delete_account')->get());
 
 
         // ===================================================================
         // TEIL 2: BENUTZER ERSTELLEN UND IHNEN ROLLEN ZUWEISEN
         // ===================================================================
 
-        // 5. Admin-Benutzer erstellen und die Admin-Rolle zuweisen
+        // 5. Admin-Benutzer (Alina) erstellen und Profil anlegen
         $admin = Admin::firstOrCreate(
             ['email' => 'kontakt@mein-seelenfunke.de'],
             [
@@ -55,39 +55,61 @@ class RolesAndPermissionsSeeder extends Seeder
         );
         $admin->roles()->sync($adminRole->id);
 
-        // 6. Kunden-Benutzer erstellen und die Kunden-Rolle zuweisen
-        $customer = Customer::firstOrCreate(
-            ['email' => 'alina.stone@t-online.de'],
-            [
-                'first_name' => 'Melanie',
-                'last_name' => 'Musterfrau',
-                'password' => Hash::make('SeelenPower123+++'),
-            ]
-        );
-        $customer->roles()->sync($customerRole->id);
-
-        // WICHTIG: Profil mit Adresse für den Kunden anlegen
-        // Damit beim Login im Checkout die Daten direkt geladen werden können.
-        $customer->profile()->updateOrCreate(
-            ['customer_id' => $customer->id],
+        // Profil für Admin (Alina) - Gleiche Adresse wie im Kunden-Wunsch
+        $admin->profile()->updateOrCreate(
+            ['admin_id' => $admin->id],
             [
                 'street' => 'Carl-Goerdeler-Ring',
                 'house_number' => '26',
                 'postal' => '38518',
                 'city' => 'Gifhorn',
-                'phone_number' => '0151 12345678',
+                'country' => 'DE',
+                'phone_number' => '+49 1590 1966864',
             ]
         );
 
-        // 7. Mitarbeiter-Benutzer erstellen und die Mitarbeiter-Rolle zuweisen
+        // 6. Kunden-Benutzer (Neues Profil: Sarah)
+        $customer = Customer::firstOrCreate(
+            ['email' => 'alina.stone@t-online.de'],
+            [
+                'first_name' => 'Sarah',
+                'last_name' => 'Sonnenschein',
+                'password' => Hash::make('SeelenPower123+++'),
+            ]
+        );
+        $customer->roles()->sync($customerRole->id);
+
+        // Profil für den Kunden (Sarah)
+        $customer->profile()->updateOrCreate(
+            ['customer_id' => $customer->id],
+            [
+                'street' => 'Lindenstraße',
+                'house_number' => '12a',
+                'postal' => '10115',
+                'city' => 'Berlin',
+                'country' => 'DE',
+                'phone_number' => '+49 176 99887766',
+            ]
+        );
+
+        // 7. Mitarbeiter-Benutzer
         $employee = Employee::firstOrCreate(
             ['email' => 'mitarbeiter@mein-seelenfunke.de'],
             [
-                'first_name' => 'Mitarbeiter Vorname',
-                'last_name' => 'Mitarbeiter Nachname',
+                'first_name' => 'Marc',
+                'last_name' => 'Mitarbeiter',
                 'password' => Hash::make('SeelenPower123+++'),
             ]
         );
         $employee->roles()->sync($employeeRole->id);
+
+        // Optional: Profil für Mitarbeiter
+        $employee->profile()->updateOrCreate(
+            ['employee_id' => $employee->id],
+            [
+                'city' => 'Wolfsburg',
+                'country' => 'DE',
+            ]
+        );
     }
 }

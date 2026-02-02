@@ -206,6 +206,10 @@ class CartService
         $itemCount = 0;
         $totalWeight = 0;
 
+        // Globale Einstellungen aus der 'shop-settings' Tabelle laden
+        $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+        $defaultTaxRate = (float)shop_setting('default_tax_rate', 19.0);
+
         // 1. ARTIKEL DURCHLAUFEN
         foreach ($cart->items as $item) {
             $product = $item->product;
@@ -234,8 +238,8 @@ class CartService
             $originalSubtotal += ($basePrice * $qty);
 
             // Steueranteil herausrechnen
-            // Nutzt den Accessor im Product Model, der die tax_rates Tabelle abfragt
-            $taxRate = (float) ($product->tax_rate ?? 19.0);
+            // Nutzt jetzt shop_setting statt config
+            $taxRate = $isSmallBusiness ? 0.0 : (float) ($product->tax_rate ?? $defaultTaxRate);
 
             $lineNet = (int) round($lineGross / (1 + ($taxRate / 100)));
             $lineTax = $lineGross - $lineNet;
@@ -274,7 +278,7 @@ class CartService
         // Zwischensumme nach Rabatten
         $totalAfterDiscount = max(0, $subtotalGross - $discountAmount);
 
-        // 3. VERSANDKOSTEN (NEU: Rein Datenbank-basiert!)
+        // 3. VERSANDKOSTEN (Rein Datenbank-basiert)
         $shippingResult = $this->determineShippingCost($totalAfterDiscount, $totalWeight, $countryCode);
         $shippingGross = $shippingResult['cost'];
         $isFreeShipping = $shippingResult['is_free'];
@@ -288,31 +292,34 @@ class CartService
 
         // 5. VERSANDSTEUER (EU-Logik)
         $shippingTaxAmount = 0;
-        // Liste der EU-Länder (Standard ISO Codes)
         $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
         $isEU = in_array($countryCode, $euCountries);
 
         if ($shippingGross > 0) {
-            // 19% in EU, 0% Export
-            $shippingTaxRate = $isEU ? 19.0 : 0.0;
+            // Steuersatz bestimmen: In EU den Standard-Satz aus shop-settings, sonst 0% (Export).
+            $shippingTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
 
+            // Berechnung mit dynamischem Divisor aus Datenbank-Einstellung
             $shippingNet = (int) round($shippingGross / (1 + ($shippingTaxRate / 100)));
             $shippingTaxAmount = $shippingGross - $shippingNet;
 
             if ($shippingTaxRate > 0) {
                 $strShipRate = number_format($shippingTaxRate, 0);
-                if (!isset($taxesBreakdown[$strShipRate])) $taxesBreakdown[$strShipRate] = 0;
+                if (!isset($taxesBreakdown[$strShipRate])) {
+                    $taxesBreakdown[$strShipRate] = 0;
+                }
                 $taxesBreakdown[$strShipRate] += $shippingTaxAmount;
             }
         }
 
-        // 6. EXPRESS-LOGIK (WICHTIG: Aus dem Cart-Model lesen)
+        // 6. EXPRESS-LOGIK (WICHTIG: Aus dem Cart-Model lesen & Settings nutzen)
         $expressGross = 0;
         $expressTaxAmount = 0;
 
         if ($cart->is_express) {
-            $expressGross = 2500; // 25,00 € Pauschal
-            $expressTaxRate = $isEU ? 19.0 : 0.0;
+            // Express-Zuschlag aus shop-settings laden (Fallback 2500 Cent)
+            $expressGross = (int) shop_setting('express_surcharge', 2500);
+            $expressTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
 
             $expressNet = (int) round($expressGross / (1 + ($expressTaxRate / 100)));
             $expressTaxAmount = $expressGross - $expressNet;
@@ -334,7 +341,7 @@ class CartService
             'discount_amount' => $discountAmount,
             'coupon_code' => $couponCode,
             'tax' => $finalTotalTax,
-            'taxes_breakdown' => $taxesBreakdown, // Wichtig für die View!
+            'taxes_breakdown' => $taxesBreakdown,
             'shipping' => $shippingGross,
             'shipping_tax' => $shippingTaxAmount,
             'express' => $expressGross,

@@ -37,6 +37,7 @@ return new class extends Migration
             $table->string('house_number')->nullable();
             $table->string('postal')->nullable();
             $table->string('city')->nullable();
+            $table->string('country', 2)->default('DE');
 
             $table->boolean('two_factor_is_active')->default(false);
             $table->text('two_factor_secret')->nullable();
@@ -76,6 +77,7 @@ return new class extends Migration
             $table->string('house_number')->nullable();
             $table->string('postal')->nullable();
             $table->string('city')->nullable();
+            $table->string('country', 2)->default('DE');
 
             $table->boolean('two_factor_is_active')->default(false);
             $table->text('two_factor_secret')->nullable();
@@ -115,6 +117,7 @@ return new class extends Migration
             $table->string('house_number')->nullable();
             $table->string('postal')->nullable();
             $table->string('city')->nullable();
+            $table->string('country', 2)->default('DE');
 
             $table->boolean('two_factor_is_active')->default(false);
             $table->text('two_factor_secret')->nullable();

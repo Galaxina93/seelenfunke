@@ -154,14 +154,20 @@ class Shipping extends Component
      */
     public function refreshAvailableCountries()
     {
-        $allCountries = config('shop.countries', []);
+        /**
+         * NEUE LOGIK: Wir laden die Liste der aktiven Lieferländer
+         * direkt aus deinen neuen Shop-Settings.
+         */
+        $allCountries = shop_setting('active_countries', []);
 
-        // Alle Länder Codes holen, die bereits in DB sind
+        // Alle Länder-Codes holen, die bereits einer Versandzone zugewiesen wurden
         $assignedCodes = ShippingZoneCountry::pluck('country_code')->toArray();
 
-        // Wenn wir editieren, dürfen die Länder DIESER Zone natürlich angezeigt werden (optional)
-        // Aber hier wollen wir nur die Liste der "Hinzufügbaren" füllen.
-
+        /**
+         * Wir filtern die Liste: Nur Länder, die du im Shop-Config-Backend
+         * als "aktiv" markiert hast UND die noch keiner Zone zugewiesen wurden,
+         * sollen zur Auswahl stehen.
+         */
         $this->availableCountries = array_filter($allCountries, function($code) use ($assignedCodes) {
             return !in_array($code, $assignedCodes);
         }, ARRAY_FILTER_USE_KEY);

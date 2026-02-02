@@ -113,19 +113,24 @@
                                 <p class="text-xs text-gray-600 mb-2">
                                     Noch <span class="font-bold text-primary">{{ number_format($totals['missing_for_free_shipping'] / 100, 2, ',', '.') }} €</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
                                 </p>
-                                <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                     @php
-                                        $threshold = config('shop.shipping.free_threshold', 5000);
+                                        // Wert live aus der 'shop-settings' Tabelle beziehen
+                                        $threshold = (int) shop_setting('shipping_free_threshold', 5000);
+
                                         // Berechnung des Prozentsatzes basierend auf dem aktuellen Brutto-Warenwert
-                                        $percent = min(100, ($totals['subtotal_gross'] / $threshold) * 100);
+                                        $percent = $threshold > 0 ? min(100, ($totals['subtotal_gross'] / $threshold) * 100) : 100;
                                     @endphp
-                                    <div class="bg-green-500 h-1.5 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
+                                    <div class="bg-green-500 h-1.5 rounded-full transition-all duration-700 ease-out"
+                                         style="width: {{ $percent }}%"></div>
                                 </div>
                             </div>
                         @elseif($totals['is_free_shipping'])
-                            <div class="mb-6 flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-xl border border-green-100">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                <span class="text-xs font-bold">Kostenloser Versand aktiviert!</span>
+                            <div class="mb-6 flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-xl border border-green-100 shadow-sm animate-fade-in">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                <span class="text-xs font-bold uppercase tracking-wider">Kostenloser Versand aktiviert!</span>
                             </div>
                         @endif
 
@@ -250,6 +255,7 @@
                                 <div class="h-8 w-12 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/klarna.svg') }}" class="h-6"></div>
                             </div>
                         </div>
+
                     </div>
                 </div>
 

@@ -473,19 +473,65 @@
 
     {{-- FOOTER --}}
     @if($context !== 'preview')
-        <div class="p-4 border-t border-gray-200 bg-white z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0">
-            <button
-                wire:click="save"
-                class="w-full bg-gray-900 text-white py-4 rounded-full font-bold text-lg hover:bg-black hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-3 shadow-lg"
-            >
-            <span wire:loading.remove>
-                @if($context === 'add') In den Warenkorb
-                @elseif($context === 'edit') Änderungen speichern
-                @elseif($context === 'calculator') Übernehmen
-                @endif
-            </span>
-                <span wire:loading>Verarbeite...</span>
-            </button>
+        <div class="p-4 border-t border-gray-200 bg-white z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0"
+             x-data="{ saved: false }"
+             x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 6000)">
+
+            <div class="max-w-2xl mx-auto flex flex-col gap-4"> {{-- Gap-4 für mehr Abstand zwischen den Buttons --}}
+
+                {{-- HAUPT-BUTTON --}}
+                <button
+                    wire:click="save"
+                    wire:loading.attr="disabled"
+                    :class="saved ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-900 hover:bg-black'"
+                    class="w-full text-white py-4 rounded-full font-bold text-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 flex items-center justify-center gap-3 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                    {{-- Zustand: Laden --}}
+                    <svg wire:loading class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+
+                    {{-- Zustand: Erfolg --}}
+                    <template x-if="saved">
+                        <div class="flex items-center gap-2 animate-fade-in">
+                            <svg class="w-6 h-6 text-white animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Erfolgreich hinzugefügt!</span>
+                        </div>
+                    </template>
+
+                    {{-- Zustand: Normal --}}
+                    <template x-if="!saved">
+                    <span wire:loading.remove>
+                        @if($context === 'add') In den Warenkorb
+                        @elseif($context === 'edit') Änderungen speichern
+                        @elseif($context === 'calculator') Übernehmen
+                        @endif
+                    </span>
+                    </template>
+
+                    <span wire:loading>Verarbeite...</span>
+                </button>
+
+                {{-- SEKUNDÄR-BUTTON: Warenkorb (Erscheint nur bei Erfolg) --}}
+                <div x-show="saved"
+                     x-transition:enter="transition ease-out duration-500"
+                     x-transition:enter-start="opacity-0 translate-y-4"
+                     x-transition:enter-end="opacity-100 translate-y-0"
+                     class="w-full"
+                     style="display: none;">
+
+                    <a href="{{ route('cart') }}"
+                       class="w-full border-2 border-gray-900 text-gray-900 py-3.5 rounded-full font-bold text-base flex items-center justify-center gap-2 hover:bg-gray-900 transition-all duration-300 group">
+                        <span>Jetzt zum Warenkorb</span>
+                        <svg class="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
         </div>
     @endif
 </div>

@@ -33,6 +33,10 @@ class Order extends Model
         'total_price',
         'notes',
         'cancellation_reason', // <--- WICHTIG
+        'is_express',          // Ergänzt für toFormattedArray
+        'deadline',            // Ergänzt für toFormattedArray
+        'expires_at',          // Ergänzt für toFormattedArray
+        'token'                // Ergänzt für toFormattedArray
     ];
 
     protected $casts = [
@@ -43,7 +47,9 @@ class Order extends Model
         'shipping_price' => 'integer',
         'total_price' => 'integer',
         'created_at' => 'datetime',
-        'cancellation_reason',
+        'expires_at' => 'datetime',
+        'is_express' => 'boolean',
+        'cancellation_reason' => 'string',
     ];
 
     // Relationen
@@ -101,12 +107,18 @@ class Order extends Model
             return 0;
         }
 
-        // Steuersatz aus Config holen (Standard 19%, falls nicht konfiguriert)
-        // Dies entspricht der Logik im CartService
-        $taxRate = config('shop.shipping.tax_rate', 19);
+        // 1. Check: Kleinunternehmer-Status dynamisch aus der DB laden
+        if (shop_setting('is_small_business', false)) {
+            return 0;
+        }
 
-        // Rückwärtsrechnung: Brutto - (Brutto / 1.19)
-        return (int) round($this->shipping_price - ($this->shipping_price / (1 + ($taxRate / 100))));
+        // 2. Steuersatz holen
+        $taxRate = (float) shop_setting('default_tax_rate', 19.00);
+
+        // 3. Dynamische Rückwärtsrechnung
+        $divisor = 1 + ($taxRate / 100);
+
+        return (int) round($this->shipping_price - ($this->shipping_price / $divisor));
     }
 
     /**
@@ -132,43 +144,55 @@ class Order extends Model
     {
         $this->update([
             'status' => 'cancelled',
-            // Optional: payment_status auf 'refunded' setzen, falls gewünscht?
-            // 'payment_status' => 'refunded',
             'cancellation_reason' => $reason
         ]);
-
-        // Hier könnte man später Events feuern, z.B.:
-        // OrderCancelled::dispatch($this);
     }
 
     public function invoices() {
         return $this->hasMany(Invoice::class);
     }
 
-    // Formatiert die Daten die an sämtliche Mail Vorlagen gehen. Zentralisierung der Umwandlung der Maildaten
+    // Formatiert die Daten die an sämtliche Mail Vorlagen gehen.
     public function toFormattedArray()
     {
         $items = [];
+
+        // Werte dynamisch aus der Tabelle 'shop-settings' über den Helper laden
+        $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+        $defaultTaxRate  = (float)shop_setting('default_tax_rate', 19);
+        $validityDays    = (int)shop_setting('order_quote_validity_days', 14);
+
         foreach ($this->items as $item) {
             $items[] = [
                 'name' => $item->product_name,
                 'quantity' => $item->quantity,
                 'single_price' => number_format($item->unit_price / 100, 2, ',', '.'),
                 'total_price' => number_format($item->total_price / 100, 2, ',', '.'),
-                'config' => $item->configuration // Hier liegt alles: Gravur, Logo-Pfad etc.
+                'config' => $item->configuration
             ];
         }
 
         return [
             'quote_number' => $this->order_number,
-            'quote_token'  => $this->token ?? '', // Falls vorhanden
-            'quote_expiry' => $this->expires_at ? $this->expires_at->format('d.m.Y') : now()->addDays(14)->format('d.m.Y'),
+            'quote_token'  => $this->token ?? '',
+            // Nutzt jetzt die dynamische Einstellung aus dem Backend
+            'quote_expiry' => $this->expires_at
+                ? $this->expires_at->format('d.m.Y')
+                : now()->addDays($validityDays)->format('d.m.Y'),
             'express'      => (bool)$this->is_express,
             'deadline'     => $this->deadline,
             'total_netto'  => number_format(($this->total_price - $this->tax_amount) / 100, 2, ',', '.'),
             'total_vat'    => number_format($this->tax_amount / 100, 2, ',', '.'),
             'total_gross'  => number_format($this->total_price / 100, 2, ',', '.'),
             'shipping_price' => number_format($this->shipping_price / 100, 2, ',', '.'),
+
+            // DYNAMISCH: Kleinunternehmer-Logik & Steuer-Satz aus den DB-Settings
+            'is_small_business' => $isSmallBusiness,
+            'tax_rate' => $defaultTaxRate,
+            'tax_note' => $isSmallBusiness
+                ? 'Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.'
+                : "Enthaltene MwSt. ({$defaultTaxRate}%):",
+
             'contact' => [
                 'vorname'  => $this->billing_address['first_name'] ?? '',
                 'nachname' => $this->billing_address['last_name'] ?? '',

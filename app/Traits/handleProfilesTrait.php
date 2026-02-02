@@ -64,7 +64,9 @@ trait handleProfilesTrait
         $this->houseNumber = $this->user->profile->house_number ?? '';
         $this->postal = $this->user->profile->postal ?? '';
         $this->city = $this->user->profile->city ?? '';
+        $this->country = $this->user->profile->country ?? 'DE'; // NEU: Land laden
     }
+
     public function saveUserProfileData($data): void
     {
         try {
@@ -73,17 +75,18 @@ trait handleProfilesTrait
                 'firstName' => 'required|string',
                 'lastName' => 'required|string',
                 'email' => 'required|email',
-                'phoneNumber' => 'string',
+                'phoneNumber' => 'nullable|string',
 
-                'about' => 'string',
-                'url' => 'string',
-                'street' => 'string',
-                'houseNumber' => 'string',
-                'postal' => 'string',
-                'city' => 'string',
+                'about' => 'nullable|string',
+                'url' => 'nullable|string',
+                'street' => 'nullable|string',
+                'houseNumber' => 'nullable|string',
+                'postal' => 'nullable|string',
+                'city' => 'nullable|string',
+                'country' => 'nullable|string|max:2', // NEU: Validierung für Land
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
-            dd($e->errors()); // Fügen Sie dies hier ein, um die Fehlermeldungen auszugeben
+            dd($e->errors());
         }
 
         // Update the user data
@@ -100,6 +103,7 @@ trait handleProfilesTrait
         $this->user->profile->house_number = $validatedData['houseNumber'];
         $this->user->profile->postal = $validatedData['postal'];
         $this->user->profile->city = $validatedData['city'];
+        $this->user->profile->country = $validatedData['country']; // NEU: Speicherung des Landes
         $this->user->profile->save();
 
         session()->flash('message', 'Profil erfolgreich aktualisiert.');

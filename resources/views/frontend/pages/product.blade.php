@@ -58,7 +58,6 @@
                             <div class="absolute top-6 right-6 bg-white/95 backdrop-blur shadow-lg rounded-xl p-4 text-center border border-gray-100">
                                 <span class="block text-gray-500 text-xs uppercase font-bold">Ab</span>
                                 <span class="block text-2xl font-bold text-gray-900">39,90 €</span>
-                                <span class="block text-gray-400 text-xs mt-1">inkl. MwSt.</span>
                             </div>
                         </div>
                     </div>

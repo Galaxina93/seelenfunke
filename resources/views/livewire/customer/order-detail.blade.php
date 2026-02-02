@@ -3,7 +3,15 @@
 
         {{-- Helper für Ländernamen --}}
         @php
-            $countries = config('shop.countries', []);
+            /** * Wir laden die Länderliste dynamisch aus der 'shop-settings' Tabelle.
+             * Der Helper dekodiert das JSON automatisch in ein PHP-Array.
+             */
+            $countries = shop_setting('active_countries', []);
+
+            /**
+             * Die Logik bleibt identisch: Suche den Namen zum Code,
+             * gib ansonsten den Code als Fallback zurück.
+             */
             $getCountryName = fn($code) => $countries[$code] ?? $code;
         @endphp
 

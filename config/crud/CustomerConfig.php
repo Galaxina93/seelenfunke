@@ -91,7 +91,7 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-3'
-                ],           // relation
+                ],
                 'phone_number' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -103,7 +103,7 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-3'
-                ],  // relation
+                ],
 
                 'divider_1' => [
                     'hide_on_index'     => true,
@@ -124,7 +124,7 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-4'
-                ],      // relation
+                ],
                 'house_number' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -136,7 +136,7 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-2'
-                ],// relation
+                ],
                 'postal' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -148,7 +148,7 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-2'
-                ],      // relation
+                ],
                 'city' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -160,7 +160,22 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-4'
-                ],        // relation
+                ],
+
+                // NEU: Land-Feld für das Kundenprofil
+                'country' => [
+                    'hide_on_index'     => false,
+                    'hide_on_update'    => false,
+                    'hide_on_create'    => true,
+                    'required'          => true,
+                    'type'              => 'select',
+                    'translation'       => 'Land',
+                    'placeholder'       => 'Land wählen',
+                    'rules'             => 'required|string|max:2',
+                    'relation'          => 'profile',
+                    'options'           => shop_setting('active_countries', ['DE' => 'Deutschland']),
+                    'class'             => 'col-span-full md:col-span-2'
+                ],
 
                 'about' => [
                     'hide_on_index'     => true,
@@ -173,7 +188,7 @@ class CustomerConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full'
-                ],         // relation
+                ],
                 'password' => [
                     'hide_on_index'     => true,
                     'hide_on_update'    => false,

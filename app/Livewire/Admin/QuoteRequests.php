@@ -6,8 +6,9 @@ use App\Mail\OrderConfirmation;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\QuoteRequest;
-use App\Models\QuoteRequestItem; // Import hinzufügen
+use App\Models\QuoteRequestItem;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -26,8 +27,8 @@ class QuoteRequests extends Component
     public function render()
     {
         if ($this->selectedQuoteId) {
-            return view('livewire.admin.quote-requests-detail', [ // Achtung: Dateiname Plural s.u.
-                'quote' => QuoteRequest::with('items.product')->find($this->selectedQuoteId)
+            return view('livewire.admin.quote-requests-detail', [
+                'quote' => QuoteRequest::with(['items.product', 'customer'])->find($this->selectedQuoteId)
             ]);
         }
 
@@ -88,22 +89,33 @@ class QuoteRequests extends Component
         $quote = QuoteRequest::with('items')->find($quoteId);
         if (!$quote || $quote->status === 'converted') return;
 
-        // 1. Kunde
+        // Shop-Konfiguration prüfen
+        $isSmallBusiness = (bool) shop_setting('is_small_business', false);
+
+        // 1. Kunde erstellen oder finden
         $customer = Customer::firstOrCreate(
             ['email' => $quote->email],
             [
                 'first_name' => $quote->first_name,
                 'last_name' => $quote->last_name,
-                'password' => bcrypt(Str::random(16)),
+                'password' => Hash::make(Str::random(16)),
             ]
         );
 
-        $customer->profile()->firstOrCreate(
+        // Kundendaten im Profil vervollständigen (inkl. dem neuen Country Feld)
+        $customer->profile()->updateOrCreate(
             ['customer_id' => $customer->id],
-            ['phone_number' => $quote->phone]
+            [
+                'phone_number' => $quote->phone,
+                'street' => $quote->street,
+                'house_number' => $quote->house_number,
+                'postal' => $quote->postal,
+                'city' => $quote->city,
+                'country' => $quote->country ?? 'DE',
+            ]
         );
 
-        // 2. Order
+        // 2. Order erstellen
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
             'customer_id' => $customer->id,
@@ -114,18 +126,18 @@ class QuoteRequests extends Component
                 'first_name' => $quote->first_name,
                 'last_name' => $quote->last_name,
                 'company' => $quote->company,
-                'address' => 'Adresse aus Anfrage',
-                'postal_code' => '',
-                'city' => '',
-                'country' => 'DE'
+                'address' => $quote->street . ' ' . $quote->house_number,
+                'postal_code' => $quote->postal,
+                'city' => $quote->city,
+                'country' => $quote->country ?? 'DE'
             ],
             'subtotal_price' => $quote->net_total,
-            'tax_amount' => $quote->tax_total,
+            'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
             'total_price' => $quote->gross_total,
             'notes' => 'Aus Angebot ' . $quote->quote_number . ' generiert. ' . $quote->admin_notes,
         ]);
 
-        // 3. Items
+        // 3. Items übertragen
         foreach($quote->items as $qItem) {
             $order->items()->create([
                 'product_id' => $qItem->product_id,
@@ -137,18 +149,18 @@ class QuoteRequests extends Component
             ]);
         }
 
-        // 4. Update
+        // 4. Status der Anfrage aktualisieren
         $quote->update([
             'status' => 'converted',
             'converted_order_id' => $order->id
         ]);
 
-        // 5. Mail
+        // 5. Bestätigungsmail an den Kunden senden
         try {
             Mail::to($order->email)->send(new OrderConfirmation($order));
-            session()->flash('success', 'Angebot angenommen!');
+            session()->flash('success', 'Angebot erfolgreich in Bestellung umgewandelt! ✨');
         } catch (\Exception $e) {
-            session()->flash('warning', 'Bestellung erstellt, Mail-Fehler: ' . $e->getMessage());
+            session()->flash('warning', 'Bestellung erstellt, aber Mail-Versand fehlgeschlagen: ' . $e->getMessage());
         }
 
         $this->closeDetail();
@@ -156,7 +168,6 @@ class QuoteRequests extends Component
 
     public function markAsRejected($id) {
         QuoteRequest::where('id', $id)->update(['status' => 'rejected']);
-        // Wir schließen das Detail nicht zwingend, damit man Feedback sieht, aber hier OK
         $this->closeDetail();
     }
 

@@ -75,11 +75,8 @@
                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm @error('house_number') border-red-500 @enderror">
                         </div>
                     </div>
-                    @if($errors->has('street') || $errors->has('house_number'))
-                        <span class="text-red-500 text-xs block -mt-3 mb-3">Bitte Straße und Hausnummer angeben.</span>
-                    @endif
 
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-3 gap-4 mb-4">
                         <div class="col-span-1">
                             <label for="postal" class="block text-sm font-medium text-gray-700">PLZ *</label>
                             <input wire:model.blur="postal" id="postal" type="text" required
@@ -91,9 +88,18 @@
                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm @error('city') border-red-500 @enderror">
                         </div>
                     </div>
-                    @if($errors->has('postal') || $errors->has('city'))
-                        <span class="text-red-500 text-xs block mt-1">PLZ und Stadt sind erforderlich.</span>
-                    @endif
+
+                    {{-- LAND AUSWAHL --}}
+                    <div>
+                        <label for="country" class="block text-sm font-medium text-gray-700">Land *</label>
+                        <select wire:model.live="country" id="country"
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm">
+                            @foreach($activeCountries as $code => $name)
+                                <option value="{{ $code }}">{{ $name }}</option>
+                            @endforeach
+                        </select>
+                        @error('country') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    </div>
                 </div>
 
                 <hr class="border-gray-100">
@@ -175,23 +181,20 @@
                     </div>
                     @error('terms') <span class="text-red-500 text-xs block mb-4 mt-[-1rem]">{{ $message }}</span> @enderror
 
-                    {{-- Button: Deaktiviert wenn Validation failed --}}
                     <button type="submit"
                             @if(!$this->canRegister) disabled @endif
                             wire:loading.attr="disabled"
                             class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-bold text-white transition-all transform duration-200
                                    {{ $this->canRegister ? 'bg-primary hover:bg-primary-dark hover:-translate-y-0.5 cursor-pointer shadow-primary/30' : 'bg-gray-300 cursor-not-allowed opacity-70' }}">
 
-                        {{-- State: Normal (Loading aus) --}}
                         <span wire:loading.remove>
                             @if($this->canRegister)
-                                Kostenpflichtig registrieren
+                                Kundenkonto erstellen
                             @else
                                 Bitte alle Felder korrekt ausfüllen
                             @endif
                         </span>
 
-                        {{-- State: Loading (An) --}}
                         <span wire:loading class="flex items-center gap-2">
                             <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                             <span>Verarbeite...</span>

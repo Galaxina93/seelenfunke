@@ -351,7 +351,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Mailing Liste (Automatische Abarbeitung des Mailversands
+        // Mailing Liste (Automatische Abarbeitung des Mailversands) wird aber aktuell nicht genutzt
         Schema::create('jobs', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('queue')->index();
@@ -360,6 +360,14 @@ return new class extends Migration
             $table->unsignedInteger('reserved_at')->nullable();
             $table->unsignedInteger('available_at');
             $table->unsignedInteger('created_at');
+        });
+
+        // Shop Einstellungen
+        Schema::create('shop-settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('key')->unique();
+            $table->text('value')->nullable();
+            $table->timestamps();
         });
     }
 

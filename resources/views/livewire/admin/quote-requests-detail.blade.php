@@ -150,6 +150,12 @@
 
                 {{-- Summenblock --}}
                 <div class="bg-gray-900 text-white p-5 lg:p-6 rounded-2xl shadow-inner">
+                    @php
+                        // Neue Logik: Daten direkt aus der 'shop-settings' Tabelle beziehen
+                        $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+                        $taxRate = (float)shop_setting('default_tax_rate', 19.0);
+                    @endphp
+
                     <div class="space-y-3">
                         <div class="flex justify-between text-xs lg:text-sm text-gray-400">
                             <span>Netto-Summe</span>
@@ -159,16 +165,26 @@
                             <span>Versandkosten</span>
                             <span>{{ number_format(($quote->shipping_price ?? 0) / 100, 2, ',', '.') }} €</span>
                         </div>
-                        <div class="flex justify-between text-xs lg:text-sm text-gray-400">
-                            <span>MwSt. (19%)</span>
-                            <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
-                        </div>
+
+                        @if(!$isSmallBusiness)
+                            <div class="flex justify-between text-xs lg:text-sm text-gray-400">
+                                <span>MwSt. ({{ number_format($taxRate, 0) }}%)</span>
+                                <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
+                            </div>
+                        @else
+                            <div class="flex justify-between text-[10px] lg:text-xs text-gray-500 italic border-b border-gray-800 pb-2">
+                                <span>Steuerfrei gemäß § 19 UStG</span>
+                                <span>0,00 €</span>
+                            </div>
+                        @endif
+
                         <div class="pt-3 mt-1 border-t border-gray-700 flex justify-between items-center">
                             <span class="font-bold text-sm lg:text-base">Brutto-Gesamt</span>
                             <span class="text-xl lg:text-2xl font-bold text-primary">{{ number_format($quote->gross_total / 100, 2, ',', '.') }} €</span>
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
 

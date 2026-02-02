@@ -24,10 +24,10 @@ class AdminProfileConfig
 
             // Definiere die Felder, die sortiert werden können und lege die Richtung fest.
             'sort_direction' => 'asc',
-            'sortable' => ['id', 'admin_id', 'phone_number', 'city', 'postal', 'street', 'house_number'],
+            'sortable' => ['id', 'admin_id', 'phone_number', 'city', 'postal', 'street', 'house_number', 'country'],
 
             // Definiere die Felder, die gesucht werden können
-            'searchable' => ['id', 'admin_id', 'phone_number', 'city', 'postal', 'street', 'house_number'],
+            'searchable' => ['id', 'admin_id', 'phone_number', 'city', 'postal', 'street', 'house_number', 'country'],
 
             // Lege die Berechtigungen fest
             'permissions' => [
@@ -66,7 +66,7 @@ class AdminProfileConfig
                     'placeholder'       => 'Admin ID',
                     'rules'             => '',
                     'class'             => 'col-span-full md:col-span-3',
-                    'closure_function'  => 'Crud\AdminProfileConfig@getNameByAdminId'
+                    'closure_function'  => 'crud\AdminProfileConfig@getNameByAdminId'
                 ],
                 'photo_path' => [
                     'hide_on_index'     => true,
@@ -156,6 +156,21 @@ class AdminProfileConfig
                     'rules'             => '',
                     'class'             => 'col-span-full md:col-span-4'
                 ],
+
+                // NEU: Land-Feld integriert
+                'country' => [
+                    'hide_on_index'     => false,
+                    'hide_on_update'    => false,
+                    'hide_on_create'    => false,
+                    'required'          => true,
+                    'type'              => 'select',
+                    'translation'       => 'Land',
+                    'placeholder'       => 'Land wählen',
+                    'rules'             => 'required|string|max:2',
+                    'options'           => shop_setting('active_countries', ['DE' => 'Deutschland']),
+                    'class'             => 'col-span-full md:col-span-2'
+                ],
+
                 'two_factor_is_active' => [
                     'hide_on_index'     => true,
                     'hide_on_update'    => false,
@@ -253,6 +268,6 @@ class AdminProfileConfig
     /* Closure Functions */
     public static function getNameByAdminId($row)
     {
-        return $row->admin->first_name;
+        return $row->admin->first_name ?? 'N/A';
     }
 }

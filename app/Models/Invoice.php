@@ -72,7 +72,24 @@ class Invoice extends Model
 
     public static function calculateTax($amount, $countryCode = 'DE')
     {
-        $rate = config("shop.countries.$countryCode.tax_rate", 19);
-        return (int) round($amount - ($amount / (1 + ($rate / 100))));
+        // 1. Check: Kleinunternehmer-Status aus der 'shop-settings' Tabelle
+        // Wenn aktiv, ist die Steuer immer 0.
+        if ((bool)shop_setting('is_small_business', false)) {
+            return 0;
+        }
+
+        // 2. Steuersatz bestimmen
+        // Wir priorisieren den globalen Standard aus der Datenbank.
+        $rate = (float)shop_setting('default_tax_rate', 19.0);
+
+        // Optional: Falls du weiterhin länderspezifische Abweichungen in der Config hast,
+        // kann man diese hier als Override behalten:
+        // $rate = config("shop.countries.$countryCode.tax_rate", $rate);
+
+        // 3. Dynamische Rückwärtsrechnung
+        // Nutzt den Divisor basierend auf dem aktuell eingestellten Satz (z.B. 1.19)
+        $divisor = 1 + ($rate / 100);
+
+        return (int) round($amount - ($amount / $divisor));
     }
 }

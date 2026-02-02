@@ -104,17 +104,33 @@ class Product extends Model
      */
     // app/Models/Product.php
 
-    public function getTaxRateAttribute()
+    /**
+     * Berechnet den aktuellen Steuersatz.
+     * PRIORITY: 1. Kleinunternehmer (0%) | 2. Globaler Standard | 3. Spezial-Ausnahme
+     */
+    public function getTaxRateAttribute(): float
     {
-        // Wir suchen den Steuersatz passend zur Steuerklasse des Produkts (z.B. 'reduced').
-        // Wir filtern hier hart auf 'DE', da dies der Basis-Steuersatz für die Preisanzeige ist.
-        $rate = DB::table('tax_rates')
+        // 1. Höchste Priorität: Kleinunternehmerregelung
+        if (shop_setting('is_small_business', false)) {
+            return 0.00;
+        }
+
+        // 2. Zweite Priorität: Globaler Standard aus den Shop-Settings
+        // Wenn das Produkt auf 'standard' steht, nehmen wir IMMER den Wert aus den Settings.
+        $globalDefault = (float)shop_setting('default_tax_rate', 19.00);
+
+        if ($this->tax_class === 'standard' || empty($this->tax_class)) {
+            return $globalDefault;
+        }
+
+        // 3. Dritte Priorität: Spezial-Sätze aus der tax_rates Tabelle (z.B. 'reduced' für 7%)
+        $specialRate = DB::table('tax_rates')
             ->where('tax_class', $this->tax_class)
-            ->where('country_code', 'DE') // WICHTIG: Statt 'is_default' nehmen wir den Ländercode
+            ->where('country_code', 'DE') // Hier könntest du später $this->billing_address['country'] nutzen
             ->value('rate');
 
-        // Wenn nichts gefunden wird (z.B. Tabelle leer), Fallback auf 19%
-        return $rate !== null ? (float)$rate : 19.00;
+        // Falls in tax_rates nichts gefunden wurde, sicherheitshalber globaler Fallback
+        return $specialRate !== null ? (float)$specialRate : $globalDefault;
     }
 
     /**
@@ -148,6 +164,8 @@ class Product extends Model
 
     public function getTaxIncludedAttribute(): bool
     {
-        return config('shop.prices_entered_gross', true);
+        // Wir fragen unseren Helper, ob Preise im Backend als Brutto eingegeben werden.
+        // Der Fallback ist 'true', falls in der DB noch nichts hinterlegt wurde.
+        return (bool) shop_setting('prices_entered_gross', true);
     }
 }

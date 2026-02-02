@@ -256,6 +256,12 @@
 
                         {{-- RECHTE SPALTE: Detaillierte Kostenaufstellung --}}
                         <div class="bg-white rounded-xl border border-gray-200 p-6 shadow-sm ring-4 ring-gray-50">
+                            @php
+                                // Neue dynamische Logik über den Shop-Helper
+                                $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+                                $taxRate = (float)shop_setting('default_tax_rate', 19.0);
+                            @endphp
+
                             <h4 class="font-bold text-gray-900 text-sm mb-4 uppercase tracking-widest">Kostenübersicht</h4>
 
                             <dl class="space-y-3 text-sm">
@@ -295,8 +301,13 @@
                                 </div>
 
                                 <div class="flex justify-between text-gray-400 text-[10px] italic">
-                                    <dt>Enthaltene MwSt. (19%)</dt>
-                                    <dd>{{ number_format($order->tax_amount / 100, 2, ',', '.') }} €</dd>
+                                    @if(!$isSmallBusiness)
+                                        <dt>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%)</dt>
+                                        <dd>{{ number_format($order->tax_amount / 100, 2, ',', '.') }} €</dd>
+                                    @else
+                                        <dt>Steuerfrei gemäß § 19 UStG</dt>
+                                        <dd>0,00 €</dd>
+                                    @endif
                                 </div>
 
                                 <div class="border-t-2 border-gray-900 pt-4 flex justify-between items-center mt-4">

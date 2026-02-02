@@ -118,7 +118,6 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 text-center align-middle font-bold">{{ $item->quantity }}</td>
-                                    {{-- Anzeige hier ist Brutto oder Netto je nach Shop-Einstellung, wir nehmen den Item-Total --}}
                                     <td class="px-4 py-3 text-right whitespace-nowrap align-middle font-mono">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</td>
                                     <td class="px-4 py-3 text-right align-middle">
                                         @if($quote->isValid())
@@ -136,27 +135,32 @@
                         <div class="bg-gray-50 p-6 border-t border-gray-200">
                             <div class="flex flex-col gap-2 max-w-xs ml-auto">
 
-                                {{-- Berechnen von Hilfswerten für die Anzeige --}}
                                 @php
-                                    // Wir rechnen rückwärts, da wir nur die Totals im Model haben
+                                    // NEUE LOGIK: Werte direkt aus der Datenbank-Tabelle 'shop-settings' beziehen
+                                    $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+                                    $taxRate = (float)shop_setting('default_tax_rate', 19.0);
+
+                                    // Divisor dynamisch bestimmen (z.B. 1.19 oder 1.0 bei Kleinunternehmern)
+                                    $taxDivisor = $isSmallBusiness ? 1.0 : (1 + ($taxRate / 100));
+
                                     $hasExpress = $quote->is_express;
-                                    $expressCost = $hasExpress ? 2500 : 0;
 
-                                    // Wenn shipping_cost_calculated im Model gesetzt wurde (durch recalculate), nutzen wir das
-                                    $shippingCost = $quote->shipping_cost_calculated ?? 0;
+                                    // Express-Kosten ebenfalls dynamisch aus den Settings laden
+                                    $expressCost = $hasExpress ? (int)shop_setting('express_surcharge', 2500) : 0;
 
-                                    // Reiner Warenwert Netto = Total Netto - Express Netto - Versand Netto
-                                    $shippingNet = ($shippingCost > 0) ? ($shippingCost/1.19) : 0;
-                                    // Express Netto (auch hier 19% angenommen)
-                                    $expressNet = ($expressCost > 0) ? ($expressCost/1.19) : 0;
+                                    $shippingCost = $quote->shipping_cost_calculated ?? ($quote->shipping_price ?? 0);
 
-                                    // Bereinigter Warenwert Netto
+                                    // Dynamische Rückrechnung des Netto-Anteils für die Anzeige
+                                    $shippingNet = ($shippingCost > 0) ? ($shippingCost / $taxDivisor) : 0;
+                                    $expressNet = ($expressCost > 0) ? ($expressCost / $taxDivisor) : 0;
+
+                                    // Bereinigter Warenwert Netto basierend auf den Model-Gesamtwerten
                                     $goodsNet = $quote->net_total - round($shippingNet) - round($expressNet);
                                 @endphp
 
                                 {{-- Zwischensumme (Netto) --}}
                                 <div class="flex justify-between text-sm text-gray-600">
-                                    <span>Zwischensumme (Netto)</span>
+                                    <span>Warenwert (Netto)</span>
                                     <span>{{ number_format($goodsNet / 100, 2, ',', '.') }} €</span>
                                 </div>
 
@@ -167,7 +171,7 @@
                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                                             <span>Express-Service</span>
                                         </div>
-                                        <span>25,00 €</span>
+                                        <span>{{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
                                     </div>
                                 @endif
 
@@ -177,14 +181,19 @@
                                     @if($shippingCost > 0)
                                         <span>{{ number_format($shippingCost / 100, 2, ',', '.') }} €</span>
                                     @else
-                                        <span class="text-green-600 font-bold">Kostenlos</span>
+                                        <span class="text-green-600 font-bold uppercase text-[10px]">Kostenlos</span>
                                     @endif
                                 </div>
 
                                 {{-- MwSt --}}
-                                <div class="flex justify-between text-sm text-gray-600">
-                                    <span>Enthaltene MwSt. (19%)</span>
-                                    <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
+                                <div class="flex justify-between text-sm text-gray-500 italic">
+                                    @if(!$isSmallBusiness)
+                                        <span>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%)</span>
+                                        <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
+                                    @else
+                                        <span>Steuerfrei gemäß § 19 UStG</span>
+                                        <span>0,00 €</span>
+                                    @endif
                                 </div>
 
                                 {{-- Divider --}}
@@ -192,7 +201,7 @@
 
                                 {{-- Gesamtsumme --}}
                                 <div class="flex justify-between items-end">
-                                    <span class="font-bold text-gray-900">Gesamtsumme</span>
+                                    <span class="font-bold text-gray-900">Gesamtsumme (Brutto)</span>
                                     <span class="font-bold text-xl text-primary">{{ number_format($quote->gross_total / 100, 2, ',', '.') }} €</span>
                                 </div>
                             </div>

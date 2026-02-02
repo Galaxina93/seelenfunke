@@ -46,19 +46,6 @@ class AdminConfig
             // Definiere die Felder die genutzt werden sollen
             'fields' => [
 
-                /*'profile' => [
-                    'hide_on_index'     => true,
-                    'hide_on_update'    => false,
-                    'hide_on_create'    => false,
-                    'required'          => false,
-                    'type'              => 'select',
-                    'translation'       => 'Profile',
-                    'placeholder'       => 'Profile',
-                    'rules'             => '',
-                    'options'           => [],
-                    'class'             => 'col-span-full'
-                ],*/
-
                 'first_name' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -104,7 +91,7 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-3'
-                ],           // relation
+                ],
                 'phone_number' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -116,7 +103,7 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-3'
-                ],  // relation
+                ],
 
                 'divider_1' => [
                     'hide_on_index'     => true,
@@ -137,7 +124,7 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-4'
-                ],      // relation
+                ],
                 'house_number' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -149,7 +136,7 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-2'
-                ],// relation
+                ],
                 'postal' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -161,7 +148,7 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-2'
-                ],      // relation
+                ],
                 'city' => [
                     'hide_on_index'     => false,
                     'hide_on_update'    => false,
@@ -173,7 +160,22 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full md:col-span-4'
-                ],        // relation
+                ],
+
+                // NEU: Land-Feld für das Profil
+                'country' => [
+                    'hide_on_index'     => false,
+                    'hide_on_update'    => false,
+                    'hide_on_create'    => true,
+                    'required'          => true,
+                    'type'              => 'select',
+                    'translation'       => 'Land',
+                    'placeholder'       => 'Land wählen',
+                    'rules'             => 'required|string|max:2',
+                    'relation'          => 'profile',
+                    'options'           => shop_setting('active_countries', ['DE' => 'Deutschland']),
+                    'class'             => 'col-span-full md:col-span-2'
+                ],
 
                 'about' => [
                     'hide_on_index'     => true,
@@ -186,10 +188,10 @@ class AdminConfig
                     'rules'             => '',
                     'relation'          => 'profile',
                     'class'             => 'col-span-full'
-                ],         // relation
+                ],
                 'password' => [
                     'hide_on_index'     => true,
-                    'hide_on_update'    => false,
+                    'hide_on_update'    => false, // Passwörter sollten bei Updates oft separat oder optional behandelt werden
                     'hide_on_create'    => false,
                     'required'          => true,
                     'type'              => 'password',

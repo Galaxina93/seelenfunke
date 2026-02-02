@@ -200,7 +200,7 @@
                             <div class="detail-block">
                                 @if(!empty($item['config']['text']))
                                     <div class="detail-row"><span class="meta-label">Gravur:</span> "{{ $item['config']['text'] }}"</div>
-                                    <div class="detail-row"><span class="meta-label">Schrift:</span> {{ $item['config']['font'] }}</div>
+                                    <div class="detail-row"><span class="meta-label">Schrift:</span> {{ $item['config']['font'] ?? 'Standard' }}</div>
                                     <div class="detail-row"><span class="meta-label">Pos:</span> {{ $item['config']['text_pos_label'] ?? 'Zentriert' }}</div>
                                 @endif
 
@@ -221,9 +221,15 @@
         </tbody>
     </table>
 
-    {{-- BERECHNUNG DER ZWISCHENSUMMEN --}}
+    {{-- BERECHNUNG DER ZWISCHENSUMMEN (DYNAMISIERT) --}}
     @php
-        $vatRate = 0.19;
+        // Dynamischer Steuersatz aus den übergebenen Model-Daten
+        $isSmallBusiness = $data['is_small_business'] ?? false;
+        $currentTaxRate = $data['tax_rate'] ?? 19;
+
+        // Divisor berechnen (z.B. 1.19 bei 19%)
+        $taxDivisor = $isSmallBusiness ? 1.0 : (1 + ($currentTaxRate / 100));
+
         $goodsGross = 0;
         $shippingGross = 0;
         $expressGross = (!empty($data['express']) && $data['express']) ? 25.00 : 0;
@@ -232,14 +238,15 @@
             $price = (float)str_replace(',', '.', str_replace('.', '', $item['total_price']));
             if($item['name'] === 'Versand & Verpackung' || str_contains($item['name'], 'Versand')) {
                 $shippingGross = $price;
-            } elseif($item['name'] !== 'Express-Service') {
+            } elseif(!str_contains(strtolower($item['name']), 'express')) {
                 $goodsGross += $price;
             }
         }
 
-        $goodsNetto = $goodsGross / (1 + $vatRate);
-        $shippingNetto = $shippingGross / (1 + $vatRate);
-        $expressNetto = $expressGross / (1 + $vatRate);
+        // Netto-Werte basierend auf dem dynamischen Divisor berechnen
+        $goodsNetto = $goodsGross / $taxDivisor;
+        $shippingNetto = $shippingGross / $taxDivisor;
+        $expressNetto = $expressGross / $taxDivisor;
     @endphp
 
     <table class="totals-table">
@@ -272,8 +279,14 @@
         </tr>
         <tr class="vat-row">
             <td></td>
-            <td class="totals-label">zzgl. 19% MwSt.:</td>
-            <td class="totals-value">{{ $data['total_vat'] }} €</td>
+            <td class="totals-label" style="font-style: italic; font-weight: normal;">
+                {{ $data['tax_note'] }}
+            </td>
+            <td class="totals-value" style="font-style: italic;">
+                @if(!$isSmallBusiness)
+                    {{ $data['total_vat'] }} €
+                @endif
+            </td>
         </tr>
         <tr class="gross-row">
             <td></td>

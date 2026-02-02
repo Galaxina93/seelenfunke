@@ -19,7 +19,6 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 items-start">
 
             {{-- LINKE SEITE: Medien Galerie (AlpineJS) --}}
-            {{-- UPDATE: 'sticky top-24 self-start' hinzugefügt --}}
             <div class="space-y-6 lg:sticky lg:top-24 lg:self-start"
                  x-data="{
             activeMedia: '{{ !empty($product->media_gallery[0]) ? asset('storage/'.$product->media_gallery[0]['path']) : '' }}',
@@ -55,7 +54,6 @@
                         Sale
                     </span>
                         @endif
-                        {{-- Beispiel für 'Neu' Logik (z.B. jünger als 30 Tage) --}}
                         @if($this->product->created_at->diffInDays() < 30)
                             <span class="bg-primary text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
                         Neu
@@ -89,7 +87,6 @@
                     <h3 class="font-serif text-xl text-gray-900 mb-4">Produktdetails</h3>
                     <p class="whitespace-pre-line leading-relaxed">{{ $this->product->description }}</p>
 
-                    {{-- Attribute Tabelle --}}
                     @if(!empty($this->product->attributes))
                         <div class="mt-6 bg-gray-50 rounded-xl p-6">
                             <h4 class="text-sm font-bold uppercase text-gray-900 mb-4 tracking-wider">Eigenschaften</h4>
@@ -109,7 +106,6 @@
             </div>
 
             {{-- RECHTE SEITE: Info & Konfigurator --}}
-            {{-- Hinweis: Da du jetzt beide Seiten sticky hast, scrollen sie unabhängig voneinander mit, solange der Container hoch genug ist --}}
             <div class="sticky top-24">
 
                 <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-2 leading-tight">
@@ -131,24 +127,33 @@
                         </div>
 
                         <div class="flex flex-col gap-1 mt-1">
-                            {{-- 1. Steuerhinweis (Bestehend) --}}
-                            <span class="text-xs text-gray-500">
-                                @if($this->product->tax_included)
-                                    inkl. MwSt.
-                                @else
-                                    zzgl. MwSt.
-                                @endif
-                            </span>
-
-                            {{-- 2. Dynamischer Versandhinweis (NEU) --}}
                             @php
-                                $freeThreshold = config('shop.shipping.free_threshold', 5000); // z.B. 5000 Cents
-                                $shippingCost = config('shop.shipping.cost', 490); // z.B. 490 Cents
-                                $isFree = $this->product->price >= $freeThreshold;
+                                $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
+                                $freeThreshold   = (int) shop_setting('shipping_free_threshold', 5000);
+                                $shippingCost    = (int) shop_setting('shipping_cost', 490);
+                                $isFree          = $this->product->price >= $freeThreshold;
+
+                                // Bestimme den finalen Lagerstatus für die Anzeige und Logik
+                                $isTrulyOutOfStock = $this->product->track_quantity &&
+                                                     $this->product->quantity <= 0 &&
+                                                     !$this->product->continue_selling_when_out_of_stock;
                             @endphp
 
+                            {{-- 1. Steuerhinweis --}}
+                            <span class="text-xs text-gray-500">
+                                @if($isSmallBusiness)
+                                    inkl. MwSt. <span class="italic">(Steuerbefreit gem. § 19 UStG)</span>
+                                @else
+                                    @if($this->product->tax_included)
+                                        inkl. MwSt.
+                                    @else
+                                        zzgl. MwSt.
+                                    @endif
+                                @endif
+                             </span>
+
+                            {{-- 2. Dynamischer Versandhinweis --}}
                             @if($isFree)
-                                {{-- Fall A: Artikel ist teurer als die Grenze -> Kostenlos --}}
                                 <span class="text-xs font-bold text-green-700 flex items-center gap-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                         <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
@@ -157,37 +162,43 @@
                                     Kostenloser Versand
                                 </span>
                             @else
-                                {{-- Fall B: Artikel kostet Versand -> Hinweis auf Grenze --}}
                                 <span class="text-xs text-gray-500">
                                     zzgl. {{ number_format($shippingCost / 100, 2, ',', '.') }} € Versand
-                                    <span class="text-gray-400">(frei ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} €)</span>
-                                    <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-primary ml-1">Details</a>
+                                    <span class="text-gray-400 font-medium">(frei ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} €)</span>
+                                    <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-primary ml-1 transition-colors">Details</a>
                                 </span>
                             @endif
                         </div>
+                    </div>
+                </div>
 
                 {{-- Lagerbestand & SKU --}}
                 <div class="flex items-center gap-4 mb-8 mt-4 text-sm">
                     @if($this->product->track_quantity)
                         @if($this->product->quantity > 0)
                             <span class="inline-flex items-center gap-1.5 text-green-700 font-medium">
-                        <span class="relative flex h-2.5 w-2.5">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                        </span>
-                        Auf Lager, sofort lieferbar
-                    </span>
+                                <span class="relative flex h-2.5 w-2.5">
+                                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                </span>
+                                Auf Lager, sofort lieferbar
+                            </span>
+                        @elseif($this->product->continue_selling_when_out_of_stock)
+                            <span class="inline-flex items-center gap-1.5 text-amber-600 font-medium">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                Verfügbar auf Nachbestellung
+                            </span>
                         @else
-                            <span class="inline-flex items-center gap-1.5 text-red-600 font-medium">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                        Derzeit ausverkauft
-                    </span>
+                            <span class="inline-flex items-center gap-1.5 text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100 animate-pulse">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                Derzeit leider vergriffen
+                            </span>
                         @endif
                     @endif
 
                     @if($this->product->sku)
                         <span class="text-gray-400 border-l border-gray-200 pl-4 ml-2">
-                    Art.-Nr.: {{ $this->product->sku }}
+                        Art.-Nr.: {{ $this->product->sku }}
                 </span>
                     @endif
                 </div>
@@ -201,19 +212,31 @@
 
                 <hr class="border-gray-100 mb-8">
 
-                {{-- KONFIGURATOR / WARENKORB BUTTON --}}
-                {{--
-                   Wir binden hier den Configurator ein.
-                   Dieser übernimmt die Auswahl der Optionen und das "Add to Cart" Event.
-                --}}
-                {{--<livewire:shop.product-configurator :product="$this->product" />--}}
-
-                <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-                    <livewire:shop.configurator
-                        :product="$product"
-                        context="add"
-                    />
-                </div>
+                {{-- KONFIGURATOR / WARENKORB BUTTON ODER AUSVERKAUFT HINWEIS --}}
+                @if($isTrulyOutOfStock)
+                    <div class="bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center shadow-inner">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm mb-4">
+                            <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-serif font-bold text-gray-900 mb-2">Dieses Seelenstück macht gerade Pause</h3>
+                        <p class="text-gray-600 text-sm leading-relaxed mb-6">
+                            Es tut uns leid, aber dieses Produkt ist momentan vergriffen. Wir sorgen bereits für Nachschub.
+                            Schau doch bald wieder vorbei oder entdecke andere Schätze im Shop.
+                        </p>
+                        <a href="{{ route('shop') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-gray-900 text-white font-bold text-sm hover:bg-black transition-all">
+                            Zurück zur Kollektion
+                        </a>
+                    </div>
+                @else
+                    <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all hover:shadow-2xl">
+                        <livewire:shop.configurator
+                            :product="$product"
+                            context="add"
+                        />
+                    </div>
+                @endif
 
                 {{-- USP Icons --}}
                 <div class="grid grid-cols-2 gap-4 mt-10">
