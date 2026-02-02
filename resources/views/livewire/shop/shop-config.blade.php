@@ -45,6 +45,7 @@
             <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Allgemein & Steuern</button>
             <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Versand & Länder</button>
             <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Stammdaten (Impressum)</button>
+            <button @click="activeTab = 'scheduler'" :class="activeTab === 'scheduler' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Automatisierung & Cronjobs</button>
         </div>
 
         <div class="grid grid-cols-1 gap-8">
@@ -236,6 +237,19 @@
                             <p class="text-[10px] text-primary/60 mt-2 italic">Hinweis: Diese IBAN wird auf Rechnungen für Vorkasse-Zahlungen angezeigt.</p>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {{-- NEU: TAB: AUTOMATISIERUNG --}}
+            <div x-show="activeTab === 'scheduler'" class="space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+                    <h3 class="text-xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-2">
+                        <svg class="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Automatisierung & System-Aufgaben
+                    </h3>
+
+                    {{-- Einbinden der neuen Scheduler-Komponente --}}
+                    <livewire:shop.scheduler-manager />
                 </div>
             </div>
         </div>

@@ -369,10 +369,23 @@ return new class extends Migration
             $table->text('value')->nullable();
             $table->timestamps();
         });
+
+        // Automatisierung & Cronjob Verlauf
+        Schema::create('scheduler_logs', function (Blueprint $table) {
+            $table->id();
+            $table->string('task_id');
+            $table->string('task_name');
+            $table->timestamp('started_at');
+            $table->timestamp('finished_at')->nullable();
+            $table->string('status'); // 'success', 'error', 'running'
+            $table->text('output')->nullable(); // Konsolen-Ausgabe oder Fehlermeldung
+            $table->timestamps();
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('scheduler_logs');
         Schema::dropIfExists('jobs');
         Schema::dropIfExists('shipping_rates');
         Schema::dropIfExists('shipping_zone_countries');
