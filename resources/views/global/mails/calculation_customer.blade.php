@@ -4,10 +4,8 @@
 <div class="container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border: 1px solid #eeeeee;">
 
     {{-- HEADER --}}
-    <div class="header" style="text-align: center; margin-bottom: 40px; border-bottom: 1px solid #f5f5f5; padding-bottom: 20px;">
-        <h1 style="font-family: serif; color: #C5A059; margin: 0; font-size: 24px; letter-spacing: 1px;">
-            {{ shop_setting('owner_name', 'Mein Seelenfunke') }}
-        </h1>
+    <div class="header">
+        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
     </div>
 
     {{-- EINLEITUNG --}}
