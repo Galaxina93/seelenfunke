@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Global\Widgets;
+namespace App\Livewire\Shop;
 
 use App\Mail\CalcCustomer;
 use App\Mail\NewCalcRequest;
@@ -8,13 +8,15 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\QuoteRequest;
 use App\Models\QuoteRequestItem;
-use App\Models\ShippingZone; // Wichtig für die DB-Versandlogik
+use App\Models\ShippingZone;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Livewire\Attributes\On;
+
+// Wichtig für die DB-Versandlogik
 
 class Calculator extends Component
 {
@@ -536,6 +538,6 @@ class Calculator extends Component
 
     public function render()
     {
-        return view('livewire.widgets.calculator', ['dbProducts' => $this->dbProducts]);
+        return view('livewire.shop.calculator', ['dbProducts' => $this->dbProducts]);
     }
 }

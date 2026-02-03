@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Shop;
 
 use App\Models\ShippingRate;
 use App\Models\ShippingZone;
 use App\Models\ShippingZoneCountry;
 use Livewire\Component;
-use Illuminate\Validation\Rule;
 
 class Shipping extends Component
 {
@@ -263,7 +262,7 @@ class Shipping extends Component
             }])->find($this->activeZoneId);
         }
 
-        return view('livewire.admin.shipping', [
+        return view('livewire.shop.shipping', [
             'zones' => $zones,
             'stats' => $stats,
             'activeZoneModel' => $activeZoneData,

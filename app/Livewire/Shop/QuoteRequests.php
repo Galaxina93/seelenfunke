@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Livewire\Admin;
+namespace App\Livewire\Shop;
 
 use App\Mail\OrderConfirmation;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\QuoteRequest;
 use App\Models\QuoteRequestItem;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -27,7 +27,7 @@ class QuoteRequests extends Component
     public function render()
     {
         if ($this->selectedQuoteId) {
-            return view('livewire.admin.quote-requests-detail', [
+            return view('livewire.shop.quote-requests-detail', [
                 'quote' => QuoteRequest::with(['items.product', 'customer'])->find($this->selectedQuoteId)
             ]);
         }
@@ -47,7 +47,7 @@ class QuoteRequests extends Component
             $query->where('status', $this->filterStatus);
         }
 
-        return view('livewire.admin.quote-requests', [
+        return view('livewire.shop.quote-requests', [
             'quotes' => $query->paginate(10)
         ]);
     }
