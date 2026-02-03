@@ -4,12 +4,14 @@ namespace App\Livewire\Shop;
 
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Models\Customer;
 use App\Services\InvoiceService;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class Invoices extends Component
 {
@@ -17,16 +19,44 @@ class Invoices extends Component
 
     public $search = '';
     public $filterType = '';
-
     public $isCreatingManual = false;
+    public $selectedCustomerId = null;
+
+    // Feedback States
+    public $saveSuccess = false;
+    public $draftSuccess = false;
+
+    public $infoTexts = [
+        'customer' => 'Wählen Sie einen bestehenden Kunden aus, um die Adressdaten automatisch zu befüllen.',
+        'invoice_info' => 'Pflichtangaben für eine rechtssichere Rechnung gemäß GoBD.',
+        'due_date' => 'Das Fälligkeitsdatum wird automatisch berechnet, wenn Sie die Tage anpassen.',
+        'header_text' => 'Dieser Text erscheint oben auf der Rechnung unterhalb der Anschrift.',
+        'footer_text' => 'Hier können Sie Zahlungsinformationen und Grußformeln hinterlegen.',
+        'e_invoice' => 'Aktiviert das strukturierte XML-Format für elektronische Rechnungen.',
+        'status_draft' => 'Ein Entwurf kann später bearbeitet werden und erhält noch keine endgültige Buchung.'
+    ];
+
     public $manualInvoice = [
+        'id' => null,
         'customer_email' => '',
         'first_name' => '',
         'last_name' => '',
+        'company' => '',
         'address' => '',
+        'address_addition' => '',
         'city' => '',
         'postal_code' => '',
         'country' => 'DE',
+        'invoice_date' => '',
+        'delivery_date' => '',
+        'invoice_number' => '',
+        'reference_number' => '',
+        'due_days' => 14,
+        'due_date' => '',
+        'subject' => '',
+        'header_text' => "Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:",
+        'footer_text' => "Bitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist bis zum [%ZAHLUNGSZIEL%] fällig.\n\nMit freundlichen Grüßen\n[%KONTAKTPERSON%]",
+        'is_e_invoice' => false,
         'items' => [],
         'shipping_cost' => 0,
         'discount_amount' => 0,
@@ -35,11 +65,145 @@ class Invoices extends Component
 
     protected $listeners = ['refreshComponent' => '$refresh'];
 
+    public function updatedSelectedCustomerId($value)
+    {
+        if ($value) {
+            $customer = Customer::with('profile')->find($value);
+            if ($customer) {
+                $this->manualInvoice['customer_email'] = $customer->email;
+                $this->manualInvoice['first_name'] = $customer->first_name;
+                $this->manualInvoice['last_name'] = $customer->last_name;
+                $this->manualInvoice['company'] = $customer->company;
+
+                // Laden aus User Profile wie gewünscht
+                if ($customer->profile) {
+                    $this->manualInvoice['address'] = trim(($customer->profile->street ?? '') . ' ' . ($customer->profile->house_number ?? ''));
+                    $this->manualInvoice['city'] = $customer->profile->city ?? '';
+                    $this->manualInvoice['postal_code'] = $customer->profile->postal ?? '';
+                }
+
+                $this->manualInvoice['country'] = $customer->billing_address['country'] ?? 'DE';
+            }
+        }
+    }
+
+    public function editDraft($id)
+    {
+        $invoice = Invoice::findOrFail($id);
+
+        $this->manualInvoice = [
+            'id' => $invoice->id,
+            'customer_email' => $invoice->billing_address['email'] ?? '',
+            'first_name' => $invoice->billing_address['first_name'] ?? '',
+            'last_name' => $invoice->billing_address['last_name'] ?? '',
+            'company' => $invoice->billing_address['company'] ?? '',
+            'address' => $invoice->billing_address['address'] ?? '',
+            'address_addition' => $invoice->billing_address['address_addition'] ?? '',
+            'city' => $invoice->billing_address['city'] ?? '',
+            'postal_code' => $invoice->billing_address['postal_code'] ?? '',
+            'country' => $invoice->billing_address['country'] ?? 'DE',
+            'invoice_date' => $invoice->invoice_date ? $invoice->invoice_date->format('Y-m-d') : '',
+            'delivery_date' => $invoice->delivery_date ? $invoice->delivery_date->format('Y-m-d') : '',
+            'invoice_number' => $invoice->invoice_number,
+            'reference_number' => $invoice->reference_number,
+            'due_days' => $invoice->due_days ?? 14,
+            'due_date' => $invoice->due_date ? $invoice->due_date->format('Y-m-d') : '',
+            'subject' => $invoice->subject,
+            'header_text' => $invoice->header_text,
+            'footer_text' => $invoice->footer_text,
+            'is_e_invoice' => $invoice->is_e_invoice,
+            'items' => collect($invoice->custom_items)->map(fn($item) => [
+                'product_name' => $item['product_name'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'] / 100,
+                'tax_rate' => $item['tax_rate']
+            ])->toArray(),
+            'shipping_cost' => $invoice->shipping_cost / 100,
+            'discount_amount' => $invoice->discount_amount / 100,
+            'volume_discount' => $invoice->volume_discount / 100,
+        ];
+
+        $this->isCreatingManual = true;
+    }
+
+    public function updatedManualInvoiceDueDays($value)
+    {
+        $this->calculateDueDate();
+    }
+
+    public function updatedManualInvoiceInvoiceDate($value)
+    {
+        $this->calculateDueDate();
+        if (empty($this->manualInvoice['subject'])) {
+            $this->manualInvoice['subject'] = 'Rechnung Nr. ' . $this->manualInvoice['invoice_number'];
+        }
+    }
+
+    public function updatedManualInvoiceInvoiceNumber($value)
+    {
+        $this->manualInvoice['subject'] = 'Rechnung Nr. ' . $value;
+    }
+
+    protected function calculateDueDate()
+    {
+        if (!empty($this->manualInvoice['invoice_date'])) {
+            $date = Carbon::parse($this->manualInvoice['invoice_date']);
+            $this->manualInvoice['due_date'] = $date->addDays((int)$this->manualInvoice['due_days'])->format('Y-m-d');
+        }
+    }
+
     public function toggleManualCreate()
     {
+        // Automatische Entwurfsspeicherung beim Verlassen des Edits
+        if ($this->isCreatingManual && !empty($this->manualInvoice['invoice_number'])) {
+            $this->autoSaveDraft();
+        }
+
         $this->isCreatingManual = !$this->isCreatingManual;
-        if($this->isCreatingManual && empty($this->manualInvoice['items'])) {
-            $this->addItem();
+        if($this->isCreatingManual) {
+            $this->resetManualInvoice();
+        }
+    }
+
+    protected function resetManualInvoice()
+    {
+        $this->selectedCustomerId = null;
+        $this->manualInvoice = [
+            'id' => null,
+            'customer_email' => '',
+            'first_name' => '',
+            'last_name' => '',
+            'company' => '',
+            'address' => '',
+            'address_addition' => '',
+            'city' => '',
+            'postal_code' => '',
+            'country' => 'DE',
+            'invoice_date' => now()->format('Y-m-d'),
+            'delivery_date' => now()->format('Y-m-d'),
+            'invoice_number' => 'RE-' . date('Y') . '-' . (Invoice::count() + 1001),
+            'reference_number' => '',
+            'due_days' => 14,
+            'due_date' => '',
+            'subject' => '',
+            'header_text' => "Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\nHiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:",
+            'footer_text' => "Bitte überweisen Sie den Rechnungsbetrag unter Angabe der Rechnungsnummer auf das unten angegebene Konto.\nDer Rechnungsbetrag ist bis zum [%ZAHLUNGSZIEL%] fällig.\n\nMit freundlichen Grüßen\n[%KONTAKTPERSON%]",
+            'is_e_invoice' => false,
+            'items' => [],
+            'shipping_cost' => 0,
+            'discount_amount' => 0,
+            'volume_discount' => 0,
+        ];
+        $this->manualInvoice['subject'] = 'Rechnung Nr. ' . $this->manualInvoice['invoice_number'];
+        $this->calculateDueDate();
+        $this->addItem();
+    }
+
+    protected function autoSaveDraft()
+    {
+        // Prüfen ob bereits existiert oder neu ist, dann im Hintergrund sichern
+        if (!empty($this->manualInvoice['last_name'])) {
+            $this->saveManualInvoice('draft', true);
         }
     }
 
@@ -48,7 +212,8 @@ class Invoices extends Component
         $this->manualInvoice['items'][] = [
             'product_name' => '',
             'quantity' => 1,
-            'unit_price' => 0
+            'unit_price' => 0,
+            'tax_rate' => 19
         ];
     }
 
@@ -62,9 +227,12 @@ class Invoices extends Component
     {
         $invoice = Invoice::findOrFail($id);
 
-        $pdf = Pdf::loadView('pdf.invoice', ['invoice' => $invoice])
-            ->setPaper('a4')
-            ->setWarnings(false);
+        $pdf = Pdf::loadView('global.mails.invoice', [
+            'invoice' => $invoice,
+            'items' => $invoice->order->items, // Wir nutzen die OrderItems, da diese unveränderbar sein sollten
+            'isStorno' => $invoice->type === 'cancellation',
+        ]);
+
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -86,74 +254,132 @@ class Invoices extends Component
         session()->flash('success', "$count Rechnungen wurden generiert.");
     }
 
-    public function saveManualInvoice()
+    public function saveManualInvoice($finalStatus = 'paid', $isAutoSave = false)
     {
-        $this->validate([
-            'manualInvoice.customer_email' => 'required|email',
-            'manualInvoice.first_name' => 'required',
-            'manualInvoice.last_name' => 'required',
-            'manualInvoice.address' => 'required',
-            'manualInvoice.postal_code' => 'required',
-            'manualInvoice.city' => 'required',
-            'manualInvoice.items.*.product_name' => 'required',
-            'manualInvoice.items.*.unit_price' => 'required|numeric',
-        ]);
+        if ($finalStatus === 'draft') {
+            $this->validate([
+                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($this->manualInvoice['id'] ?? 'null') . ',id',
+            ]);
+        } else {
+            // Klare Validierung für Abschluss
+            $this->validate([
+                'manualInvoice.customer_email' => 'required|email',
+                'manualInvoice.first_name' => 'required',
+                'manualInvoice.last_name' => 'required',
+                'manualInvoice.address' => 'required',
+                'manualInvoice.postal_code' => 'required',
+                'manualInvoice.city' => 'required',
+                'manualInvoice.invoice_date' => 'required|date',
+                'manualInvoice.delivery_date' => 'required|date',
+                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($this->manualInvoice['id'] ?? 'null') . ',id',
+                'manualInvoice.items' => 'required|array|min:1',
+                'manualInvoice.items.*.product_name' => 'required',
+                'manualInvoice.items.*.unit_price' => 'required|numeric',
+                'manualInvoice.items.*.quantity' => 'required|numeric|min:1',
+            ], [], [
+                'manualInvoice.customer_email' => 'E-Mail',
+                'manualInvoice.last_name' => 'Nachname',
+                'manualInvoice.items' => 'Positionen',
+            ]);
+        }
 
-        DB::transaction(function () {
+        DB::transaction(function () use ($finalStatus) {
             $subtotal = 0;
+            $taxTotal = 0;
             $items = [];
 
             foreach ($this->manualInvoice['items'] as $item) {
-                $priceInCent = (int)round($item['unit_price'] * 100);
-                $lineTotal = $priceInCent * $item['quantity'];
+                $priceInCent = (int)round(($item['unit_price'] ?? 0) * 100);
+                $lineTotal = $priceInCent * ($item['quantity'] ?? 0);
+
+                $taxDivisor = 1 + (($item['tax_rate'] ?? 19) / 100);
+                $netLine = $lineTotal / $taxDivisor;
+                $taxLine = $lineTotal - $netLine;
+
                 $subtotal += $lineTotal;
+                $taxTotal += (int)round($taxLine);
 
                 $items[] = [
                     'product_name' => $item['product_name'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $priceInCent,
-                    'total_price' => $lineTotal
+                    'total_price' => $lineTotal,
+                    'tax_rate' => $item['tax_rate']
                 ];
             }
 
-            $shippingInCent = (int)round($this->manualInvoice['shipping_cost'] * 100);
-            $discountInCent = (int)round($this->manualInvoice['discount_amount'] * 100);
-            $volumeDiscountInCent = (int)round($this->manualInvoice['volume_discount'] * 100);
+            $shippingInCent = (int)round(($this->manualInvoice['shipping_cost'] ?? 0) * 100);
+            $discountInCent = (int)round(($this->manualInvoice['discount_amount'] ?? 0) * 100);
+            $volumeDiscountInCent = (int)round(($this->manualInvoice['volume_discount'] ?? 0) * 100);
 
             $totalBrutto = ($subtotal + $shippingInCent) - ($discountInCent + $volumeDiscountInCent);
-            $taxAmount = Invoice::calculateTax($totalBrutto, $this->manualInvoice['country']);
 
-            Invoice::create([
-                'invoice_number' => 'MAN-' . date('Y') . '-' . strtoupper(Str::random(4)),
-                'invoice_date' => now(),
-                'type' => 'invoice',
-                'status' => 'paid',
-                'billing_address' => [
-                    'first_name' => $this->manualInvoice['first_name'],
-                    'last_name' => $this->manualInvoice['last_name'],
-                    'address' => $this->manualInvoice['address'],
-                    'postal_code' => $this->manualInvoice['postal_code'],
-                    'city' => $this->manualInvoice['city'],
-                    'country' => $this->manualInvoice['country'],
-                    'email' => $this->manualInvoice['customer_email'],
-                ],
-                'subtotal' => $subtotal,
-                'shipping_cost' => $shippingInCent,
-                'discount_amount' => $discountInCent,
-                'volume_discount' => $volumeDiscountInCent,
-                'tax_amount' => $taxAmount,
-                'total' => $totalBrutto,
-                'custom_items' => $items,
-            ]);
+            $invoice = Invoice::updateOrCreate(
+                ['invoice_number' => $this->manualInvoice['invoice_number']],
+                [
+                    'reference_number' => $this->manualInvoice['reference_number'],
+                    'invoice_date' => $this->manualInvoice['invoice_date'] ?: now(),
+                    'delivery_date' => $this->manualInvoice['delivery_date'] ?: now(),
+                    'due_date' => $this->manualInvoice['due_date'],
+                    'due_days' => $this->manualInvoice['due_days'],
+                    'subject' => $this->manualInvoice['subject'],
+                    'header_text' => $this->manualInvoice['header_text'],
+                    'footer_text' => $this->manualInvoice['footer_text'],
+                    'is_e_invoice' => $this->manualInvoice['is_e_invoice'],
+                    'type' => 'invoice',
+                    'status' => $finalStatus,
+                    'customer_id' => $this->selectedCustomerId,
+                    'billing_address' => [
+                        'first_name' => $this->manualInvoice['first_name'],
+                        'last_name' => $this->manualInvoice['last_name'],
+                        'company' => $this->manualInvoice['company'],
+                        'address' => $this->manualInvoice['address'],
+                        'address_addition' => $this->manualInvoice['address_addition'],
+                        'postal_code' => $this->manualInvoice['postal_code'],
+                        'city' => $this->manualInvoice['city'],
+                        'country' => $this->manualInvoice['country'],
+                        'email' => $this->manualInvoice['customer_email'],
+                    ],
+                    'subtotal' => $subtotal,
+                    'shipping_cost' => $shippingInCent,
+                    'discount_amount' => $discountInCent,
+                    'volume_discount' => $volumeDiscountInCent,
+                    'tax_amount' => $taxTotal,
+                    'total' => $totalBrutto,
+                    'custom_items' => $items,
+                ]
+            );
+
+            // E-Rechnungs Logik: Technischer Export / Trigger
+            if ($this->manualInvoice['is_e_invoice'] && $finalStatus === 'paid') {
+                $this->processEInvoice($invoice);
+            }
         });
 
-        $this->isCreatingManual = false;
-        session()->flash('success', 'Rechnung erfolgreich erstellt.');
+        if (!$isAutoSave) {
+            if ($finalStatus === 'paid') {
+                $this->saveSuccess = true;
+                $this->dispatch('notify', ['type' => 'success', 'message' => 'Rechnung abgeschlossen']);
+                $this->isCreatingManual = false;
+            } else {
+                $this->draftSuccess = true;
+                // Reset success state after few seconds
+                $this->dispatch('resetDraftSuccess');
+                session()->flash('success', 'Entwurf gespeichert.');
+            }
+        }
+    }
+
+    protected function processEInvoice($invoice)
+    {
+        // Hier erfolgt die technische Generierung des XML (ZUGFeRD / XRechnung)
+        // Platzhalter für Service-Aufruf
+        // app(EInvoiceService::class)->generate($invoice);
     }
 
     public function render()
     {
-        $query = Invoice::query()->with('order');
+        $query = Invoice::query()->with(['order', 'customer']);
 
         if ($this->search) {
             $query->where(function($q) {
@@ -163,11 +389,36 @@ class Invoices extends Component
         }
 
         if ($this->filterType) {
-            $query->where('type', $this->filterType);
+            if ($this->filterType === 'draft') {
+                $query->where('status', 'draft');
+            } else {
+                $query->where('type', $this->filterType);
+            }
+        }
+
+        $totalsPreview = [
+            'net' => 0,
+            'tax' => 0,
+            'gross' => 0
+        ];
+
+        if($this->isCreatingManual) {
+            foreach($this->manualInvoice['items'] as $item) {
+                $line = (float)($item['unit_price'] ?: 0) * (float)($item['quantity'] ?: 0);
+                $taxDiv = 1 + (($item['tax_rate'] ?: 19) / 100);
+                $net = $line / $taxDiv;
+                $totalsPreview['net'] += $net;
+                $totalsPreview['tax'] += ($line - $net);
+                $totalsPreview['gross'] += $line;
+            }
+            $totalsPreview['gross'] += (float)$this->manualInvoice['shipping_cost'];
+            $totalsPreview['gross'] -= ((float)$this->manualInvoice['discount_amount'] + (float)$this->manualInvoice['volume_discount']);
         }
 
         return view('livewire.shop.invoices', [
-            'invoices' => $query->latest('invoice_date')->paginate(15)
+            'invoices' => $query->latest('invoice_date')->paginate(15),
+            'totalsPreview' => $totalsPreview,
+            'customers' => Customer::orderBy('last_name')->get()
         ]);
     }
 }

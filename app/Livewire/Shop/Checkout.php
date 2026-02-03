@@ -215,7 +215,7 @@ class Checkout extends Component
             // 2. Status & Zahlung der Bestellung aktualisieren
             $order->update([
                 'payment_status' => 'paid',
-                'status' => 'processing'
+                'status' => 'pending'
             ]);
 
             $this->finalOrderNumber = $order->order_number;
@@ -247,6 +247,15 @@ class Checkout extends Component
                 $invoice = $invoiceService->createFromOrder($order);
                 // Absoluter Pfad zum PDF für den Mail-Anhang
                 $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
+
+                // Falls die Datei physisch noch nicht existiert, PDF generieren
+                if ($invoice && !file_exists($pdfPath)) {
+                    $pdf = $invoiceService->generatePdf($invoice);
+                    if (!file_exists(dirname($pdfPath))) {
+                        mkdir(dirname($pdfPath), 0755, true);
+                    }
+                    file_put_contents($pdfPath, $pdf->output());
+                }
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
             }
@@ -262,7 +271,7 @@ class Checkout extends Component
                 $mailData = $order->toFormattedArray();
 
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
-                    ->send(new \App\Mail\CalcInput($mailData, $pdfPath));
+                    ->send(new \App\Mail\NewOrderRequest($mailData, $pdfPath));
 
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());

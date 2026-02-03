@@ -15,6 +15,7 @@ class Invoice extends Model
 
     protected $casts = [
         'invoice_date' => 'date',
+        'delivery_date' => 'date',
         'due_date' => 'date',
         'paid_at' => 'datetime',
         'billing_address' => 'array',
@@ -26,6 +27,7 @@ class Invoice extends Model
         'volume_discount' => 'integer',
         'total' => 'integer',
         'custom_items' => 'array',
+        'is_e_invoice' => 'boolean',
     ];
 
     public function order()
@@ -56,6 +58,7 @@ class Invoice extends Model
                     'product_name' => $item->product_name,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
+                    'tax_rate' => $item->tax_rate ?? 19,
                     'total_price' => $item->unit_price * $item->quantity,
                     'configuration' => $item->configuration
                 ];
@@ -70,24 +73,36 @@ class Invoice extends Model
         return in_array($this->type, ['credit_note', 'cancellation']);
     }
 
+    public function getParsedHeaderTextAttribute()
+    {
+        return $this->parseVariables($this->header_text);
+    }
+
+    public function getParsedFooterTextAttribute()
+    {
+        return $this->parseVariables($this->footer_text);
+    }
+
+    protected function parseVariables($text)
+    {
+        if (empty($text)) return '';
+
+        $variables = [
+            '[%ZAHLUNGSZIEL%]' => $this->due_date ? $this->due_date->format('d.m.Y') : '',
+            '[%KONTAKTPERSON%]' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
+            '[%RECHNUNGSNUMMER%]' => $this->invoice_number,
+        ];
+
+        return str_replace(array_keys($variables), array_values($variables), $text);
+    }
+
     public static function calculateTax($amount, $countryCode = 'DE')
     {
-        // 1. Check: Kleinunternehmer-Status aus der 'shop-settings' Tabelle
-        // Wenn aktiv, ist die Steuer immer 0.
         if ((bool)shop_setting('is_small_business', false)) {
             return 0;
         }
 
-        // 2. Steuersatz bestimmen
-        // Wir priorisieren den globalen Standard aus der Datenbank.
         $rate = (float)shop_setting('default_tax_rate', 19.0);
-
-        // Optional: Falls du weiterhin länderspezifische Abweichungen in der Config hast,
-        // kann man diese hier als Override behalten:
-        // $rate = config("shop.countries.$countryCode.tax_rate", $rate);
-
-        // 3. Dynamische Rückwärtsrechnung
-        // Nutzt den Divisor basierend auf dem aktuell eingestellten Satz (z.B. 1.19)
         $divisor = 1 + ($rate / 100);
 
         return (int) round($amount - ($amount / $divisor));

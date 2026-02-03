@@ -45,7 +45,7 @@ class CheckoutSuccess extends Component
 
                 // Falls die Order noch nicht als bezahlt markiert wurde (Redirect-Fall)
                 if ($order->payment_status !== 'paid') {
-                    $order->update(['payment_status' => 'paid', 'status' => 'processing']);
+                    $order->update(['payment_status' => 'paid', 'status' => 'pending']);
 
                     // Rechnung erstellen (Falls noch nicht geschehen)
                     try {

@@ -42,7 +42,31 @@ class InvoicePreview extends Component
 
     public function render()
     {
-        $invoice = $this->invoiceId ? Invoice::with('order.items')->find($this->invoiceId) : null;
-        return view('livewire.shop.invoice-preview', compact('invoice'));
+        $invoice = $this->invoiceId ? Invoice::find($this->invoiceId) : null;
+
+        $totalsPreview = [
+            'net' => 0,
+            'tax' => 0,
+            'gross' => 0
+        ];
+
+        if($invoice) {
+            // Fix: Check if item is object (getItemsAttribute map) or array (from database)
+            $items = $invoice->items;
+            foreach($items as $item) {
+                $totalPrice = is_object($item) ? $item->total_price : ($item['total_price'] ?? 0);
+                $taxRate = is_object($item) ? ($item->tax_rate ?? 19) : ($item['tax_rate'] ?? 19);
+
+                $line = (float)$totalPrice;
+                $taxDiv = 1 + ($taxRate / 100);
+                $net = $line / $taxDiv;
+
+                $totalsPreview['net'] += $net;
+                $totalsPreview['tax'] += ($line - $net);
+                $totalsPreview['gross'] += $line;
+            }
+        }
+
+        return view('livewire.shop.invoice-preview', compact('invoice', 'totalsPreview'));
     }
 }

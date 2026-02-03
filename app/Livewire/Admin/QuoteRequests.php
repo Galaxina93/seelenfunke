@@ -120,7 +120,7 @@ class QuoteRequests extends Component
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
             'customer_id' => $customer->id,
             'email' => $quote->email,
-            'status' => 'processing',
+            'status' => 'pending',
             'payment_status' => 'unpaid',
             'billing_address' => [
                 'first_name' => $quote->first_name,

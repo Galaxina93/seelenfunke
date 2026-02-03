@@ -23,13 +23,22 @@ return new class extends Migration
 
             // Belegdaten
             $table->string('invoice_number')->unique(); // z.B. RE-2024-1001
+            $table->string('reference_number')->nullable(); // NEU: Referenznummer
             $table->enum('type', ['invoice', 'credit_note', 'cancellation'])->default('invoice');
             $table->string('status')->default('paid'); // draft, paid, cancelled, sent
+            $table->boolean('is_e_invoice')->default(false); // NEU: E-Rechnung Switch
 
-            // Datum
+            // Datum & Zeitraum
             $table->date('invoice_date');
+            $table->date('delivery_date')->nullable(); // NEU: Lieferdatum/Leistungsdatum
             $table->date('due_date')->nullable();
+            $table->integer('due_days')->default(14); // NEU: Zahlungsziel in Tagen
             $table->timestamp('paid_at')->nullable();
+
+            // Texte
+            $table->string('subject')->nullable(); // NEU: Betreff
+            $table->text('header_text')->nullable(); // NEU: Kopftext
+            $table->text('footer_text')->nullable(); // NEU: Fußtext (vorhanden, jetzt erweitert)
 
             // Snapshot der Adressen (JSON)
             $table->json('billing_address');
@@ -47,13 +56,13 @@ return new class extends Migration
             $table->integer('total');
 
             // Flexible Posten für manuelle Rechnungen (ohne Order-Bezug)
+            // Erweitert um tax_rate pro Position
             $table->json('custom_items')->nullable();
 
             // Stripe Referenz
             $table->string('stripe_payment_intent_id')->nullable();
 
             $table->text('notes')->nullable();
-            $table->text('footer_text')->nullable();
 
             $table->timestamps();
             $table->softDeletes();

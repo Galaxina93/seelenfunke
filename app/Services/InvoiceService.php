@@ -5,17 +5,15 @@ namespace App\Services;
 use App\Models\Invoice;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
-use Barryvdh\DomPDF\Facade\Pdf; // Annahme: DomPDF ist installiert, sonst View rendern
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceService
 {
     /**
      * Erstellt eine rechtssichere Rechnung aus einer bezahlten Bestellung.
-     * Friert die Daten zum Zeitpunkt der Erstellung ein.
      */
     public function createFromOrder(Order $order): ?Invoice
     {
-        // 1. Idempotenz-Check: Gibt es schon eine Rechnung?
         $existing = Invoice::where('order_id', $order->id)
             ->where('type', 'invoice')
             ->where('status', '!=', 'cancelled')
@@ -26,27 +24,33 @@ class InvoiceService
         return DB::transaction(function () use ($order) {
             $invoiceNumber = $this->generateInvoiceNumber();
 
-            // 2. Erstellung & Datensnapshot
+            $header = "Sehr geehrte Damen und Herren,<br><br>vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!<br>Hiermit stelle ich Ihnen folgende Leistungen in Rechnung:";
+            $footer = "Der Rechnungsbetrag ist fällig bis zum [%ZAHLUNGSZIEL%].<br>Vielen Dank für Ihren Einkauf!";
+
             $invoice = Invoice::create([
                 'order_id' => $order->id,
-                'customer_id' => $order->customer_id, // Kann null sein bei Gast
+                'customer_id' => $order->customer_id,
                 'invoice_number' => $invoiceNumber,
                 'type' => 'invoice',
-                'status' => 'paid', // Da wir nur nach Payment erstellen
+                'status' => 'paid',
                 'invoice_date' => now(),
-                'due_date' => now(), // Sofort fällig/bezahlt
+                'delivery_date' => $order->created_at,
+                'due_date' => now(),
+                'due_days' => 0,
                 'paid_at' => now(),
-
-                // SNAPSHOT: Wir kopieren die Adressen hart, damit sie sich bei Profiländerung nicht ändern
+                'subject' => 'Rechnung zu Bestellung #' . $order->order_number,
+                'header_text' => $header,
+                'footer_text' => $footer,
                 'billing_address' => $order->billing_address,
                 'shipping_address' => $order->shipping_address,
-
-                // WICHTIG: Beträge aus der Order übernehmen
                 'subtotal' => $order->subtotal_price,
                 'tax_amount' => $order->tax_amount,
                 'shipping_cost' => $order->shipping_price,
+                'discount_amount' => $order->discount_amount,
+                'volume_discount' => $order->volume_discount,
                 'total' => $order->total_price,
                 'notes' => $order->notes,
+                'is_e_invoice' => false,
             ]);
 
             return $invoice;
@@ -55,44 +59,38 @@ class InvoiceService
 
     /**
      * Erstellt eine Stornorechnung (Gutschrift).
-     * Referenziert die Originalrechnung, verändert sie aber nicht.
      */
     public function cancelInvoice(Invoice $originalInvoice): Invoice
     {
         return DB::transaction(function () use ($originalInvoice) {
-
-            // 1. Original als storniert markieren (aber nicht löschen/ändern!)
             $originalInvoice->update(['status' => 'cancelled']);
-
-            // 2. Neue Stornorechnungsnummer
             $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
 
-            // 3. Storno-Dokument erstellen (Negative Werte)
-            $creditNote = Invoice::create([
-                'parent_id' => $originalInvoice->id, // Referenz
+            return Invoice::create([
+                'parent_id' => $originalInvoice->id,
                 'order_id' => $originalInvoice->order_id,
                 'customer_id' => $originalInvoice->customer_id,
                 'invoice_number' => $stornoNumber,
                 'type' => 'cancellation',
-                'status' => 'paid', // Storno ist "abgeschlossen"
+                'status' => 'paid',
                 'invoice_date' => now(),
+                'delivery_date' => now(),
                 'due_date' => now(),
                 'paid_at' => now(),
-
-                // Gleiche Adressen wie Original
+                'subject' => 'Gutschrift zur Rechnung ' . $originalInvoice->invoice_number,
+                'header_text' => 'Hiermit erhalten Sie eine Gutschrift.',
+                'footer_text' => 'Der Betrag wird Ihnen erstattet.',
                 'billing_address' => $originalInvoice->billing_address,
                 'shipping_address' => $originalInvoice->shipping_address,
-
-                // NEGATIVE BETRÄGE für Buchhaltung
                 'subtotal' => -1 * abs($originalInvoice->subtotal),
                 'tax_amount' => -1 * abs($originalInvoice->tax_amount),
                 'shipping_cost' => -1 * abs($originalInvoice->shipping_cost),
+                'discount_amount' => -1 * abs($originalInvoice->discount_amount),
+                'volume_discount' => -1 * abs($originalInvoice->volume_discount),
                 'total' => -1 * abs($originalInvoice->total),
-
                 'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
+                'is_e_invoice' => $originalInvoice->is_e_invoice,
             ]);
-
-            return $creditNote;
         });
     }
 
@@ -113,26 +111,23 @@ class InvoiceService
         return $pdf;
     }
 
-    /**
-     * Atomare Nummernerzeugung: RE-2026-1001
-     */
     private function generateInvoiceNumber($prefix = 'RE')
     {
         $year = date('Y');
-
-        // Locking um Race Conditions zu vermeiden (vereinfacht)
         return DB::transaction(function() use ($prefix, $year) {
             $latest = Invoice::where('invoice_number', 'like', "$prefix-$year-%")
                 ->lockForUpdate()
-                ->orderByRaw('LENGTH(invoice_number) DESC') // Damit 100 nicht vor 99 kommt (String sortierung)
+                ->orderByRaw('LENGTH(invoice_number) DESC')
                 ->orderBy('invoice_number', 'desc')
                 ->first();
 
             if (!$latest) {
                 $next = 1000;
             } else {
+                // FIX: Explode Ergebnis erst in Variable speichern, da end() eine Referenz erwartet
                 $parts = explode('-', $latest->invoice_number);
-                $next = intval(end($parts)) + 1;
+                $lastPart = end($parts);
+                $next = intval($lastPart) + 1;
             }
 
             return "$prefix-$year-$next";
