@@ -12,15 +12,26 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('cart_items', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->uuid('id')->primary(); //
 
-            $table->foreignUuid('cart_id')->constrained('carts')->cascadeOnDelete();
-            $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
+            // Spalten explizit als UUID anlegen
+            $table->uuid('cart_id');
+            $table->uuid('product_id');
+
+            // Constraints separat setzen
+            $table->foreign('cart_id')
+                ->references('id')
+                ->on('carts')
+                ->onDelete('cascade');
+
+            $table->foreign('product_id')
+                ->references('id')
+                ->on('products')
+                ->onDelete('cascade');
 
             $table->integer('quantity')->default(1);
             $table->integer('unit_price');
             $table->json('configuration')->nullable();
-
             $table->timestamps();
         });
     }
