@@ -179,7 +179,7 @@
                         @endif
 
                         <div class="pt-3 mt-1 border-t border-gray-700 flex justify-between items-center">
-                            <span class="font-bold text-sm lg:text-base">Brutto-Gesamt</span>
+                            <span class="font-bold text-sm lg:text-base text-gray-400">Brutto-Gesamt</span>
                             <span class="text-xl lg:text-2xl font-bold text-primary">{{ number_format($quote->gross_total / 100, 2, ',', '.') }} €</span>
                         </div>
                     </div>
