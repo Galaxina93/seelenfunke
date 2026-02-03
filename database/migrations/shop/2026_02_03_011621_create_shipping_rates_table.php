@@ -12,20 +12,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('shipping_rates', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('shipping_zone_id')->constrained()->cascadeOnDelete();
+            $table->uuid('id')->primary();
 
-            $table->string('name'); // z.B. "Standard", "Express"
+            // WICHTIG: Hier muss uuid stehen, nicht foreignId!
+            $table->uuid('shipping_zone_id');
 
-            // Bedingungen (z.B. "ab 0kg bis 5kg" oder "ab 0€ bis 50€")
-            // Wir machen hier eine gewichtsbasierte Berechnung + Preisgrenze
-            $table->decimal('min_weight', 8, 2)->default(0); // in Gramm oder KG
-            $table->decimal('max_weight', 8, 2)->nullable(); // Null = Unendlich
+            $table->foreign('shipping_zone_id')
+                ->references('id')
+                ->on('shipping_zones')
+                ->onDelete('cascade');
 
-            $table->integer('min_price')->default(0); // in Cent (für "Versandkostenfrei ab X")
-
-            $table->integer('price'); // Kosten in Cent
-
+            $table->string('name');
+            $table->integer('price');
+            $table->integer('min_price')->default(0);
+            $table->integer('min_weight')->default(0);
+            $table->integer('max_weight')->default(31500);
             $table->timestamps();
         });
     }

@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('shipping_zone_countries', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
 
             // FIX: Explizite UUID-Spalte statt foreignId
             $table->uuid('shipping_zone_id');
