@@ -14,20 +14,26 @@ return new class extends Migration
         Schema::create('order_items', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            // Löscht Items, wenn Bestellung gelöscht wird
-            $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
+            // Spalten explizit als UUID definieren
+            $table->uuid('order_id');
+            $table->uuid('product_id');
 
-            // Falls das Produkt gelöscht wird, bleibt die Position erhalten (product_id wird null)
-            $table->foreignUuid('product_id')->nullable()->constrained('products')->nullOnDelete();
+            // Constraints separat definieren
+            $table->foreign('order_id')
+                ->references('id')
+                ->on('orders') // Sicherstellen, dass die Tabelle 'orders' existiert!
+                ->onDelete('cascade');
 
-            $table->string('product_name'); // Snapshot des Namens zum Kaufzeitpunkt
+            $table->foreign('product_id')
+                ->references('id')
+                ->on('products')
+                ->onDelete('cascade');
+
+            $table->string('product_name');
             $table->integer('quantity');
-            $table->integer('unit_price'); // Preis zum Kaufzeitpunkt
+            $table->integer('unit_price');
             $table->integer('total_price');
-
-            // Konfiguration (Gravur etc.) als JSON
             $table->json('configuration')->nullable();
-
             $table->string('config_fingerprint')->nullable();
 
             $table->timestamps();
