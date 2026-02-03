@@ -24,8 +24,8 @@ class InvoiceService
         return DB::transaction(function () use ($order) {
             $invoiceNumber = $this->generateInvoiceNumber();
 
-            $header = "Sehr geehrte Damen und Herren,<br><br>vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!<br>Hiermit stelle ich Ihnen folgende Leistungen in Rechnung:";
-            $footer = "Der Rechnungsbetrag ist fällig bis zum [%ZAHLUNGSZIEL%].<br>Vielen Dank für Ihren Einkauf!";
+            $header = "Sehr geehrte Damen und Herren, vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen! Hiermit stelle ich Ihnen folgende Leistungen in Rechnung:";
+            $footer = "Der Rechnungsbetrag ist fällig bis zum [%ZAHLUNGSZIEL%]. Vielen Dank für Ihren Einkauf!";
 
             $invoice = Invoice::create([
                 'order_id' => $order->id,
