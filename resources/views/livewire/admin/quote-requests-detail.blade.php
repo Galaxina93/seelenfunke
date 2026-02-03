@@ -154,13 +154,34 @@
                         // Neue Logik: Daten direkt aus der 'shop-settings' Tabelle beziehen
                         $isSmallBusiness = (bool)shop_setting('is_small_business', false);
                         $taxRate = (float)shop_setting('default_tax_rate', 19.0);
+
+                        // Express-Zuschlag als fixer Brutto-Wert
+                        $expressGross = $quote->is_express ? (int) shop_setting('express_surcharge', 2500) : 0;
+
+                        // Da die MwSt. im gross_total bereits enthalten ist,
+                        // ziehen wir den Express-Zuschlag für die "Netto-Summe (Basis)" ab
+                        $expressNet = $expressGross / (1 + ($taxRate / 100));
                     @endphp
 
                     <div class="space-y-3">
                         <div class="flex justify-between text-xs lg:text-sm text-gray-400">
-                            <span>Netto-Summe</span>
-                            <span>{{ number_format($quote->net_total / 100, 2, ',', '.') }} €</span>
+                            <span>Netto-Summe (Produkte)</span>
+                            <span>{{ number_format(($quote->net_total - $expressNet) / 100, 2, ',', '.') }} €</span>
                         </div>
+
+                        @if($quote->is_express)
+                            <div class="flex justify-between text-xs lg:text-sm text-red-400 font-bold bg-red-400/5 py-2 px-3 rounded-xl border border-red-400/20">
+                                <div class="flex flex-col">
+                                    <span class="flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                        Express-Service Aufschlag
+                                    </span>
+                                    <span class="text-[9px] font-normal opacity-70 italic">Priorisierte Anfertigung & schnellerer Versand</span>
+                                </div>
+                                <span>+ {{ number_format($expressGross / 100, 2, ',', '.') }} €</span>
+                            </div>
+                        @endif
+
                         <div class="flex justify-between text-xs lg:text-sm text-gray-400">
                             <span>Versandkosten</span>
                             <span>{{ number_format(($quote->shipping_price ?? 0) / 100, 2, ',', '.') }} €</span>
