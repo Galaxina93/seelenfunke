@@ -28,7 +28,18 @@
         .totals-value { text-align: right; width: 100px; }
         .discount-row { color: #dc2626; }
         .total-row { font-weight: bold; font-size: 14px; color: #000; border-top: 2px solid #C5A059; padding-top: 10px !important; }
-        footer { position: fixed; bottom: -60px; left: 0; right: 0; height: 80px; border-top: 1px solid #eee; padding-top: 10px; font-size: 9px; color: #888; text-align: center; }
+
+        /* FOOTER */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 11px;
+            color: #999;
+        }
+        .footer a { color: #C5A059; text-decoration: none; }
+
         .storno-badge { color: #dc2626; border: 2px solid #dc2626; padding: 8px 15px; display: inline-block; transform: rotate(-3deg); font-weight: bold; font-size: 16px; margin-bottom: 20px; }
         .clear { clear: both; }
         .subject { font-size: 14px; font-weight: bold; margin-bottom: 15px; }
@@ -117,7 +128,11 @@
 @endif
 
 <div class="subject">{{ $invoice->subject }}</div>
-<div class="text-block">{{ $invoice->parsed_header_text }}</div>
+<div class="text-block">
+    Sehr geehrte Damen und Herren, vielen Dank für Ihren Auftrag<br>
+    und das damit verbundene Vertrauen! <br><br>
+    Hiermit stelle ich Ihnen folgende Leistungen in Rechnung:
+</div>
 
 <table class="items-table">
     <thead>
@@ -190,7 +205,10 @@
 </div>
 
 <div class="clear" style="margin-top: 40px;">
-    <div class="text-block">{{ $invoice->parsed_footer_text }}</div>
+    <div class="text-block">
+        Der Rechnungsbetrag ist fällig bis zum {{$this->due_date ? $this->due_date->format('d.m.Y') : ''}} . <br>
+        Vielen Dank für Ihren Einkauf!
+    </div>
     <p>
         <strong>Zahlungsinformationen:</strong><br>
         Zahlungsart: {{ ucfirst($invoice->payment_method ?: ($invoice->order->payment_method ?? 'Banküberweisung')) }}<br>
@@ -198,11 +216,8 @@
     </p>
 </div>
 
-<footer>
-    Mein Seelenfunke | {{ $ownerName }} | Carl-Goerdeler-Ring 26 | 38518 Gifhorn<br>
-    Steuernummer: {{ $taxId }} | USt-IdNr.: {{ $ustId }} | Gerichtsstand: Gifhorn<br>
-    E-Mail: kontakt@mein-seelenfunke.de | Web: www.mein-seelenfunke.de
-</footer>
+{{-- FOOTER --}}
+@include('global.mails.partials.mail_footer')
 
 </body>
 </html>

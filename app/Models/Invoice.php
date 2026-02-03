@@ -73,29 +73,6 @@ class Invoice extends Model
         return in_array($this->type, ['credit_note', 'cancellation']);
     }
 
-    public function getParsedHeaderTextAttribute()
-    {
-        return $this->parseVariables($this->header_text);
-    }
-
-    public function getParsedFooterTextAttribute()
-    {
-        return $this->parseVariables($this->footer_text);
-    }
-
-    protected function parseVariables($text)
-    {
-        if (empty($text)) return '';
-
-        $variables = [
-            '[%ZAHLUNGSZIEL%]' => $this->due_date ? $this->due_date->format('d.m.Y') : '',
-            '[%KONTAKTPERSON%]' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
-            '[%RECHNUNGSNUMMER%]' => $this->invoice_number,
-        ];
-
-        return str_replace(array_keys($variables), array_values($variables), $text);
-    }
-
     public static function calculateTax($amount, $countryCode = 'DE')
     {
         if ((bool)shop_setting('is_small_business', false)) {
