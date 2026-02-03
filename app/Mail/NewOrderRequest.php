@@ -51,7 +51,7 @@ class NewOrderRequest extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.new_order_request',
+            view: 'global.mails.new_order_mail_to_admin',
             with: ['data' => $this->data],
         );
     }

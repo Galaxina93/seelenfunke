@@ -42,7 +42,7 @@ class CalcCustomer extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.calculation_customer',
+            view: 'global.mails.new_calc_mail_to_customer',
             with: ['data' => $this->data],
         );
     }

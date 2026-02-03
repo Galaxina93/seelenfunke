@@ -227,7 +227,7 @@ class Invoices extends Component
     {
         $invoice = Invoice::findOrFail($id);
 
-        $pdf = Pdf::loadView('global.mails.invoice', [
+        $pdf = Pdf::loadView('global.mails.invoice_pdf_template', [
             'invoice' => $invoice,
             'items' => $invoice->order->items, // Wir nutzen die OrderItems, da diese unveränderbar sein sollten
             'isStorno' => $invoice->type === 'cancellation',

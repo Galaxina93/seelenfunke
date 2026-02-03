@@ -477,7 +477,7 @@ class Calculator extends Component
         $data = $quote->toFormattedArray();
 
         // 3. PDF Generierung mit den zentralisierten Daten
-        $pdf = Pdf::loadView('global.mails.calculation_pdf', ['data' => $data]);
+        $pdf = Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $data]);
         $filename = 'Angebot_' . Str::slug($this->form['firma'] ?: $this->form['nachname']) . '_' . time() . '.pdf';
         $path = storage_path('app/public/tmp/' . $filename);
 

@@ -31,7 +31,7 @@ class OrderConfirmation extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.order_confirmation',
+            view: 'global.mails.new_order_mail_to_customer',
             with: [
                 'order' => $this->order,
                 // Wir fügen das formatierte Array hinzu, damit das Template darauf zugreifen kann

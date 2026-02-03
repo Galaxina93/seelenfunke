@@ -45,7 +45,7 @@ class NewCalcRequest extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.new_calc_request',
+            view: 'global.mails.new_calc_mail_to_admin',
             with: ['data' => $this->data],
         );
     }
