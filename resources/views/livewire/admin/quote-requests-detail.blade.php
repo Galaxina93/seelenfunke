@@ -149,7 +149,7 @@
                 </div>
 
                 {{-- Summenblock --}}
-                <div class="bg-gray-900 text-white p-5 lg:p-6 rounded-2xl shadow-inner">
+                <div class="bg-gray-50 text-white p-5 lg:p-6 rounded-2xl shadow-inner">
                     @php
                         // Neue Logik: Daten direkt aus der 'shop-settings' Tabelle beziehen
                         $isSmallBusiness = (bool)shop_setting('is_small_business', false);
