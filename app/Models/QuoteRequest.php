@@ -85,17 +85,20 @@ class QuoteRequest extends Model
             ];
         }
 
-        // --- ZENTRALE NETTO-BERECHNUNG FÜR ANZEIGE ---
-        // 1. Warenwert Netto (Summe aller Artikel-Bruttobeträge zurückgerechnet)
-        $goodsGrossCents = $this->items->sum('total_price');
-        $goodsNetto = ($goodsGrossCents / 100) / $divisor;
+        // --- KORREKTUR DER NETTO-BERECHNUNG FÜR ANZEIGE ---
+        // Wir nutzen die präzisen Cent-Werte aus der Datenbank
+        $totalNettoCents = $this->net_total;
 
-        // 2. Express Netto (Falls aktiv, Standard-Zuschlag nutzen)
+        // 1. Express Netto (Zuschlag aus Settings zurückrechnen)
         $expressGross = $this->is_express ? (int)shop_setting('express_surcharge', 2500) : 0;
-        $expressNetto = ($expressGross / 100) / $divisor;
+        $expressNettoCents = (int)round($expressGross / $divisor);
 
-        // 3. Versand Netto
-        $shippingNetto = (($this->shipping_price ?? 0) / 100) / $divisor;
+        // 2. Versand Netto (Versandpreis aus der Order zurückrechnen)
+        $shippingGrossCents = $this->shipping_price ?? 0;
+        $shippingNettoCents = (int)round($shippingGrossCents / $divisor);
+
+        // 3. Reiner Warenwert Netto (Gesamt-Netto minus die oben berechneten Zusatz-Nettos)
+        $goodsNettoCents = $totalNettoCents - $expressNettoCents - $shippingNettoCents;
 
         return [
             'quote_number' => $this->quote_number,
@@ -126,10 +129,10 @@ class QuoteRequest extends Model
             'total_gross'    => number_format($this->gross_total / 100, 2, ',', '.'),
             'shipping_price' => number_format(($this->shipping_price ?? 0) / 100, 2, ',', '.'),
 
-            // NEU: Vorformatierte Netto-Werte für die Partials
-            'display_netto_goods'    => number_format($goodsNetto, 2, ',', '.') . ' €',
-            'display_netto_express'  => number_format($expressNetto, 2, ',', '.') . ' €',
-            'display_netto_shipping' => number_format($shippingNetto, 2, ',', '.') . ' €',
+            // Saubere Netto-Einzelwerte für die Partials
+            'display_netto_goods'    => number_format($goodsNettoCents / 100, 2, ',', '.') . ' €',
+            'display_netto_express'  => number_format($expressNettoCents / 100, 2, ',', '.') . ' €',
+            'display_netto_shipping' => number_format($shippingNettoCents / 100, 2, ',', '.') . ' €',
 
             'is_small_business' => $isSmallBusiness,
             'tax_rate'          => $defaultTaxRate,
