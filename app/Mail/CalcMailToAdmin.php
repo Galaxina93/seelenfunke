@@ -39,7 +39,7 @@ class CalcMailToAdmin extends Mailable implements ShouldQueue
         return new Envelope(
             from: new Address($owner_mail, $owner_name . ' Website'),
             replyTo: [new Address($email, "$vorname $nachname")],
-            subject: $prefix . 'Neue Anfrage: ' . $betreffName,
+            subject: '🧾 ' . $prefix . 'Neue Anfrage: ' . $betreffName,
         );
     }
 

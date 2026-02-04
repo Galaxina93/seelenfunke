@@ -33,7 +33,7 @@ class CalcMailToCustomer extends Mailable implements ShouldQueue
         // Absender ist Mein Seelenfunke
             from: new Address($owner_mail, $owner_name),
             replyTo: [new Address($owner_mail, $owner_name)],
-            subject: 'Ihr persönliches Angebot von' . $owner_name,
+            subject: '🧾 Ihr persönliches Angebot von' . $owner_name,
         );
     }
 
