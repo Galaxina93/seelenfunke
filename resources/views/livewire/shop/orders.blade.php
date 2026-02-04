@@ -105,10 +105,37 @@
                     <tr class="hover:bg-gray-50/50 transition-colors group text-sm cursor-pointer" wire:click="openDetail('{{ $order->id }}')">
                         <td class="px-6 py-4 font-mono font-bold text-primary hover:underline whitespace-nowrap">
                             <div class="flex items-center gap-2">
-                                {{ $order->order_number }}
-                                {{-- Icon Hinweis auf abweichende Lieferadresse in der Liste --}}
-                                @if($order->shipping_address && serialize($order->billing_address) !== serialize($order->shipping_address))
-                                    <svg class="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Abweichende Lieferadresse"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <span class="font-mono font-bold text-primary">{{ $order->order_number }}</span>
+
+                                {{-- Hinweis auf abweichende Lieferadresse mit Tooltip --}}
+                                @php
+                                    $isDifferent = $order->shipping_address && serialize($order->billing_address) !== serialize($order->shipping_address);
+                                @endphp
+
+                                @if($isDifferent)
+                                    <div class="relative group inline-block">
+                                        {{-- Das Ausrufezeichen Icon --}}
+                                        <svg class="w-4 h-4 text-amber-500 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                        </svg>
+
+                                        {{-- Der Tooltip (erscheint bei Hover) --}}
+                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[100] w-64 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-[11px] leading-relaxed">
+                                            <div class="font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                                                Abweichende Lieferadresse:
+                                            </div>
+                                            <div class="border-t border-gray-700 pt-1 mt-1">
+                                                {{ $order->shipping_address['first_name'] }} {{ $order->shipping_address['last_name'] }}<br>
+                                                @if(!empty($order->shipping_address['company'])) {{ $order->shipping_address['company'] }}<br> @endif
+                                                {{ $order->shipping_address['address'] }}<br>
+                                                {{ $order->shipping_address['postal_code'] }} {{ $order->shipping_address['city'] }}<br>
+                                                <span class="font-bold text-gray-400">{{ $order->shipping_address['country'] }}</span>
+                                            </div>
+                                            {{-- Kleiner Pfeil nach unten --}}
+                                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-gray-900"></div>
+                                        </div>
+                                    </div>
                                 @endif
                             </div>
                         </td>
