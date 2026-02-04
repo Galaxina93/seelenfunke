@@ -1,5 +1,8 @@
 {{-- HTML TREE --}}
-@include('global.mails.partials.mail_html_tree')
+{{-- HTML TREE --}}
+@include('global.mails.partials.mail_html_tree', [
+    'title' => 'Ihre Angebotsanfrage')
+])
 
 <div class="container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border: 1px solid #eeeeee;">
 

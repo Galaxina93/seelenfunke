@@ -1,5 +1,7 @@
 {{-- HTML TREE --}}
-@include('global.mails.partials.mail_html_tree')
+@include('global.mails.partials.mail_html_tree', [
+    'title' => 'Neue Kalkulationsanfrage')
+])
 
 <div class="container">
 

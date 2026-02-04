@@ -1,5 +1,7 @@
-{{-- Nutzt deinen zentralen HTML-Kopf für Styles --}}
-@include('global.mails.partials.mail_html_tree')
+{{-- HTML TREE --}}
+@include('global.mails.partials.mail_html_tree', [
+    'title' => 'Neue Bestellung')
+])
 
 <div class="container">
 
