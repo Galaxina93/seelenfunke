@@ -7,7 +7,7 @@
     @include('global.mails.partials.mail_logo')
 
     {{-- ANSPRACHE --}}
-    <h1 style="color: #166534;">Neue Bestellung erhalten! 🥂 💸
+    <h1 style="color: #166534;">Neue Bestellung erhalten! 💸🥂💸
         @if(!empty($data['express']))
             <span class="badge-express" style="background: #dc2626; color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px;">EXPRESS</span>
         @endif

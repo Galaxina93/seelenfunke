@@ -1,11 +1,6 @@
 {{-- HTML TREE --}}
 @include('global.mails.partials.mail_html_tree')
 
-@php
-    // Nutzung der zentralen Formatierungs-Methode aus dem Order-Model
-    $data = $order->toFormattedArray();
-@endphp
-
 <div class="container">
 
     {{-- LOGO --}}
