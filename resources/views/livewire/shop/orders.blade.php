@@ -120,7 +120,7 @@
                                         </svg>
 
                                         {{-- Der Tooltip (erscheint bei Hover) --}}
-                                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[100] w-64 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-[11px] leading-relaxed">
+                                        <div class="absolute bottom-full z-50 left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[100] w-64 bg-gray-900 text-white p-3 rounded-lg shadow-xl text-[11px] leading-relaxed">
                                             <div class="font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
                                                 Abweichende Lieferadresse:
