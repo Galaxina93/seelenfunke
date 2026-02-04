@@ -1,7 +1,5 @@
 {{-- HTML TREE --}}
-@include('global.mails.partials.mail_html_tree', [
-    'title' => 'Bestellbestätigung'
-])
+@include('global.mails.partials.mail_html_tree', ['title' => 'Bestellbestätigung'])
 
 <div class="container">
 

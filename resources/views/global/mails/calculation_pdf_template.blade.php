@@ -1,6 +1,6 @@
 {{-- HTML TREE --}}
 @include('global.mails.partials.mail_html_tree', [
-    'title' => 'Angebot - ' . ($data['quote_number'] ?? '')
+    'title' => 'Angebotsanfrage - ' . ($data['quote_number'] ?? '')
 ])
 
 @php
