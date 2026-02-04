@@ -1,0 +1,184 @@
+{{-- FORMULAR --}}
+<div class="p-6 space-y-6 text-sm max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
+
+    {{-- 1. MENGE --}}
+    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <label class="text-xs font-bold text-gray-900 uppercase tracking-wider">Menge</label>
+            <div class="text-right">
+                <span class="font-serif font-bold text-xl text-primary block leading-none">{{ number_format($totalPrice / 100, 2, ',', '.') }} €</span>
+                <span class="text-[10px] text-gray-400">Einzelpreis: {{ number_format($currentPrice / 100, 2, ',', '.') }} €</span>
+            </div>
+        </div>
+        <div class="relative w-full">
+            <select wire:model.live="qty" wire:change="calculatePrice" class="appearance-none w-full pl-4 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
+                @for($i = 1; $i <= 100; $i++) <option value="{{ $i }}">{{ $i }}x</option> @endfor
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></div>
+        </div>
+    </div>
+
+    {{-- 2. GRAVUR TEXTE (Liste) --}}
+    <div class="space-y-4 pt-2 border-t border-gray-100">
+        <div class="flex items-center justify-between">
+            <label class="text-sm font-bold text-gray-900 uppercase tracking-wide">Gravuren</label>
+            @if($context !== 'preview')
+                <button wire:click="addText" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full font-bold transition flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Weitere Gravur
+                </button>
+            @endif
+        </div>
+
+        <div class="space-y-4">
+            @foreach($texts as $index => $textItem)
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 relative group" wire:key="text-field-{{ $textItem['id'] }}">
+
+                    {{-- Header mit Löschen Button --}}
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Gravur #{{ $index + 1 }}</span>
+                        @if(count($texts) > 1 && $context !== 'preview')
+                            <button wire:click="removeText({{ $index }})" class="text-red-400 hover:text-red-600 text-xs p-1">Löschen</button>
+                        @endif
+                    </div>
+
+                    {{-- Text Input --}}
+                    <textarea
+                        wire:model.live="texts.{{ $index }}.text"
+                        rows="2"
+                        class="w-full p-3 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary text-sm resize-none mb-3"
+                        placeholder="Ihr Wunschtext..."
+                        x-on:focus="selectItem('text', {{ $index }})"
+                                {{ $context === 'preview' ? 'readonly' : '' }}
+                            ></textarea>
+
+                    {{-- Controls --}}
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <select wire:model.live="texts.{{ $index }}.font" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
+                                @foreach($fonts as $fontName => $css) <option value="{{ $fontName }}">{{ $fontName }}</option> @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <select wire:model.live="texts.{{ $index }}.align" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
+                                @foreach($alignmentOptions as $k => $l) <option value="{{ $k }}">{{ $l }}</option> @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
+    {{-- 3. MEDIEN --}}
+    @if($configSettings['allow_logo'])
+        <div class="space-y-3 pt-4 border-t border-gray-100">
+            <label class="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+                <span>Medien</span>
+                <span class="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Bilder & PDFs</span>
+            </label>
+
+            {{-- INFO BOX (nur wenn kein Preview) --}}
+            @if($context !== 'preview')
+                <div class="bg-blue-50/80 border border-blue-100 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+                    <div class="shrink-0 text-blue-500 mt-0.5">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-blue-900 text-sm mb-1">Professioneller Design-Check inklusive</h4>
+                        <p class="text-sm text-blue-800/80 leading-relaxed">
+                            Sie können mehrere Bilder hochladen und positionieren. Wir prüfen jede Datei manuell.
+                        </p>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Upload Bereich --}}
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                @if($context !== 'preview')
+                    <input type="file" wire:model.live="new_files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">
+                    <div wire:loading wire:target="new_files" class="text-xs text-primary mt-2">Dateien werden hochgeladen...</div>
+
+                    @error('new_files.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                @endif
+
+                {{-- Liste der Dateien --}}
+                <div class="mt-4 space-y-2">
+
+                    {{-- 1. Bereits gespeicherte Dateien --}}
+                    @foreach($uploaded_files as $index => $path)
+                        @php
+                            $ext = pathinfo($path, PATHINFO_EXTENSION);
+                            $isImage = in_array(strtolower($ext), ['jpg','jpeg','png','webp']);
+                            $isActive = $this->isLogoActive('saved', $path);
+                        @endphp
+                        <div class="flex items-center justify-between bg-white p-2 rounded border {{ $isActive ? 'border-green-500 ring-1 ring-green-500' : 'border-gray-200' }}">
+                            <div class="flex items-center gap-3">
+                                @if($isImage)
+                                    <img src="{{ asset('storage/'.$path) }}" class="h-10 w-10 object-cover rounded bg-gray-100">
+                                @else
+                                    <div class="h-10 w-10 flex items-center justify-center bg-gray-100 rounded text-gray-500 font-bold text-xs">{{ strtoupper($ext) }}</div>
+                                @endif
+                                <div class="text-xs truncate max-w-[150px]">{{ basename($path) }}</div>
+                            </div>
+                            @if($context !== 'preview')
+                                <div class="flex gap-2">
+                                    @if($isImage)
+                                        <button wire:click="toggleLogo('saved', '{{ $path }}')" class="text-[10px] px-2 py-1 rounded {{ $isActive ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                                            {{ $isActive ? 'Vorschau an' : 'Als Vorschau' }}
+                                        </button>
+                                    @endif
+                                    <button wire:click="removeFile({{ $index }})" class="text-red-500 hover:text-red-700 p-1">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                            @else
+                                <span class="text-[10px] bg-green-50 text-green-700 px-2 py-1 rounded">Vorschau aktiv</span>
+                            @endif
+                        </div>
+                    @endforeach
+
+                    {{-- 2. Neue (temporäre) Dateien --}}
+                    @foreach($new_files as $index => $file)
+                        @php
+                            $isImage = in_array(strtolower($file->extension()), ['jpg','jpeg','png','webp']);
+                            $isActive = $this->isLogoActive('new', $index);
+                        @endphp
+                        <div class="flex items-center justify-between bg-white p-2 rounded border {{ $isActive ? 'border-green-500 ring-1 ring-green-500' : 'border-blue-200 border-dashed' }}">
+                            <div class="flex items-center gap-3">
+                                @if($isImage)
+                                    <img src="{{ $file->temporaryUrl() }}" class="h-10 w-10 object-cover rounded bg-gray-100">
+                                @else
+                                    <div class="h-10 w-10 flex items-center justify-center bg-gray-100 rounded text-gray-500 font-bold text-xs">{{ strtoupper($file->extension()) }}</div>
+                                @endif
+                                <div>
+                                    <div class="text-xs text-blue-600 font-bold">NEU</div>
+                                    <div class="text-xs truncate max-w-[150px]">{{ $file->getClientOriginalName() }}</div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                @if($isImage)
+                                    <button wire:click="toggleLogo('new', {{ $index }})" class="text-[10px] px-2 py-1 rounded {{ $isActive ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
+                                        {{ $isActive ? 'Vorschau an' : 'Als Vorschau' }}
+                                    </button>
+                                @endif
+                                <button wire:click="removeNewFile({{ $index }})" class="text-gray-400 hover:text-red-500">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- 4. ANMERKUNGEN --}}
+    <div class="pt-4 border-t border-gray-100">
+        <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Interne Anmerkungen</label>
+        <textarea wire:model="notes" rows="2" class="w-full p-4 rounded-xl border border-yellow-200 bg-yellow-50/50 text-gray-900 placeholder-gray-400 focus:bg-yellow-50 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/50 transition-all text-sm leading-relaxed resize-none" placeholder="Haben Sie Sonderwünsche?" {{ $context === 'preview' ? 'readonly' : '' }}></textarea>
+    </div>
+
+</div>

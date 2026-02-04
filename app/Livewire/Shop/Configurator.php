@@ -36,6 +36,8 @@ class Configurator extends Component
     public $currentPrice = 0;
     public $totalPrice = 0;
 
+    public $config_confirmed = false;
+
     public $fonts = [
         'Arial' => 'Arial, sans-serif',
         'Times New Roman' => 'Times New Roman, serif',
@@ -283,6 +285,12 @@ class Configurator extends Component
     {
         if ($this->context === 'preview') return;
 
+        // --- RECHTSPRÜFUNG ---
+        if (!$this->config_confirmed) {
+            $this->addError('config_confirmed', 'Bitte bestätigen Sie, dass Sie Ihre Angaben geprüft haben.');
+            return;
+        }
+
         $this->validate([
             'qty' => 'required|integer|min:1',
             'texts.*.text' => 'nullable|string|max:100', // Validierung für Array
@@ -381,6 +389,7 @@ class Configurator extends Component
             // Text Reset: Wieder einen leeren Text herstellen
             $this->texts = [];
             $this->addText();
+            $this->config_confirmed = false; // Nach Erfolg zurücksetzen
 
         } elseif ($this->context === 'edit' && $this->cartItem) {
             $cartService->updateItem($this->cartItem->id, $this->qty, $configData);
