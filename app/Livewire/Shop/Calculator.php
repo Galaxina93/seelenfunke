@@ -52,6 +52,8 @@ class Calculator extends Component
         'country' => 'DE' // Standard: Deutschland
     ];
 
+    public $agb_accepted = false;
+
     public $dbProducts = [];
 
     protected $rules = [
@@ -136,7 +138,14 @@ class Calculator extends Component
     }
 
     // --- NAVIGATION ---
-    public function startCalculator() { $this->step = 1; }
+    public function startCalculator()
+    {
+        if (!$this->agb_accepted) {
+            $this->addError('agb', 'Bitte akzeptieren Sie die Hinweise zur Konfiguration und die AGB, um fortzufahren.');
+            return;
+        }
+        $this->step = 1;
+    }
 
     public function openConfig($productId)
     {

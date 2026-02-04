@@ -56,12 +56,19 @@
         >
             {{-- Desktop Content --}}
             @forelse($invoices as $inv)
-                <tr class="hover:bg-gray-50 transition-colors group">
+                <tr @class(['hover:bg-gray-50 transition-colors group', 'bg-red-50/30' => $inv->status === 'cancelled' || $inv->type === 'cancellation'])>
                     <td class="px-6 py-4 font-mono font-bold text-gray-900">
-                        <div class="flex items-center gap-2">
-                            {{ $inv->invoice_number }}
-                            @if($inv->is_e_invoice)
-                                <span class="bg-blue-100 text-blue-600 text-[8px] px-1 rounded uppercase font-black">E</span>
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-2">
+                                {{ $inv->invoice_number }}
+                                @if($inv->is_e_invoice)
+                                    <span class="bg-blue-100 text-blue-600 text-[8px] px-1 rounded uppercase font-black">E</span>
+                                @endif
+                            </div>
+                            @if($inv->type === 'cancellation' && $inv->parent_id)
+                                <div class="text-[10px] text-red-500 uppercase font-bold mt-1">
+                                    Zu: {{ \App\Models\Invoice::find($inv->parent_id)?->invoice_number ?? 'Unbekannt' }}
+                                </div>
                             @endif
                         </div>
                     </td>
@@ -71,18 +78,19 @@
                         </div>
                         <div class="text-[10px] text-gray-400 uppercase tracking-tighter">{{ $inv->invoice_date->format('d.m.Y') }}</div>
                     </td>
-                    <td class="px-6 py-4 text-right font-bold text-gray-900 text-base tracking-tighter">
+                    <td @class(['px-6 py-4 text-right font-bold text-base tracking-tighter', 'text-red-600' => $inv->total < 0])>
                         {{ number_format($inv->total / 100, 2, ',', '.') }} €
                     </td>
                     <td class="px-6 py-4 text-center">
-                        <span @class([
-                            'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border',
-                            'bg-green-100 text-green-700 border-green-200' => $inv->status == 'paid',
-                            'bg-amber-50 text-amber-700 border-amber-200' => $inv->status == 'draft',
-                            'bg-blue-50 text-blue-700 border-blue-200' => $inv->status != 'paid' && $inv->status != 'draft'
-                        ])>
-                            {{ $inv->status == 'paid' ? 'Final' : ($inv->status == 'draft' ? 'Entwurf' : 'Offen') }}
-                        </span>
+                        @if($inv->status == 'paid' && $inv->type !== 'cancellation')
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 border border-green-200">Final</span>
+                        @elseif($inv->status == 'cancelled' || $inv->type === 'cancellation')
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-700 border border-red-200">Storniert</span>
+                        @elseif($inv->status == 'draft')
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border border-amber-200">Entwurf</span>
+                        @else
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-200">Offen</span>
+                        @endif
                     </td>
                     <td class="px-6 py-4 text-right">
                         <div class="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -91,6 +99,9 @@
                             </button>
                             @if($inv->status === 'draft')
                                 <button wire:click="editDraft('{{ $inv->id }}')" class="text-amber-600 font-black text-xs uppercase hover:underline">Bearbeiten</button>
+                            @endif
+                            @if($inv->status !== 'cancelled' && $inv->status !== 'draft' && $inv->type !== 'cancellation')
+                                <button wire:confirm="Rechnung wirklich stornieren? Dies erstellt eine Gutschrift." wire:click="cancelInvoice('{{ $inv->id }}')" class="text-red-600 font-black text-xs uppercase hover:underline">Stornieren</button>
                             @endif
                             <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="text-primary font-black text-xs uppercase hover:underline">Vorschau</button>
                         </div>
@@ -103,7 +114,7 @@
             {{-- Mobile Slot --}}
             <x-slot name="mobileSlot">
                 @foreach($invoices as $inv)
-                    <div class="p-4 bg-white active:bg-gray-50 transition-colors border-b last:border-b-0">
+                    <div @class(['p-4 active:bg-gray-50 transition-colors border-b last:border-b-0', 'bg-red-50/30' => $inv->status === 'cancelled' || $inv->type === 'cancellation'])>
                         <div class="flex justify-between items-start mb-3">
                             <div class="flex flex-col">
                                 <span class="font-mono font-bold text-gray-900 text-sm flex items-center gap-1">
@@ -111,21 +122,25 @@
                                     @if($inv->is_e_invoice) <span class="text-[8px] bg-blue-100 text-blue-600 px-1 rounded">E</span> @endif
                                 </span>
                                 <span class="text-[10px] text-gray-400 uppercase font-bold">{{ $inv->invoice_date->format('d.m.Y') }}</span>
+                                @if($inv->type === 'cancellation' && $inv->parent_id)
+                                    <span class="text-[8px] text-red-500 font-bold uppercase">Gutschrift zu {{ \App\Models\Invoice::find($inv->parent_id)?->invoice_number }}</span>
+                                @endif
                             </div>
                             <span @class([
                                 'px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border',
-                                'bg-green-100 text-green-800' => $inv->status == 'paid',
+                                'bg-green-100 text-green-800' => $inv->status == 'paid' && $inv->type !== 'cancellation',
+                                'bg-red-100 text-red-800 border-red-200' => $inv->status == 'cancelled' || $inv->type === 'cancellation',
                                 'bg-amber-100 text-amber-800 border-amber-200' => $inv->status == 'draft',
-                                'bg-blue-100 text-blue-800' => $inv->status != 'paid' && $inv->status != 'draft'
+                                'bg-blue-100 text-blue-800' => $inv->status != 'paid' && $inv->status != 'cancelled' && $inv->status != 'draft'
                             ])>
-                                {{ $inv->status }}
+                                {{ $inv->status === 'cancelled' || $inv->type === 'cancellation' ? 'storniert' : $inv->status }}
                             </span>
                         </div>
 
                         <div class="flex justify-between items-end">
                             <div>
                                 <div class="text-sm font-bold text-gray-900">{{ $inv->billing_address['last_name'] }}</div>
-                                <div class="text-base font-black text-primary mt-1">{{ number_format($inv->total / 100, 2, ',', '.') }} €</div>
+                                <div @class(['text-base font-black mt-1', 'text-primary' => $inv->total >= 0, 'text-red-600' => $inv->total < 0])>{{ number_format($inv->total / 100, 2, ',', '.') }} €</div>
                             </div>
                             <div class="flex gap-2">
                                 <button wire:click="downloadPdf('{{ $inv->id }}')" class="p-2 bg-gray-50 rounded-lg text-gray-500 border border-gray-100 shadow-sm">

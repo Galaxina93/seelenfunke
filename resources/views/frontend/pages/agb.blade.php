@@ -78,6 +78,23 @@
                             </p>
                         </div>
 
+                        {{-- §3 Nutzung des Konfigurators --}}
+                        <div id="konfigurator" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">3. Nutzung des Produktkonfigurators</h3>
+                            <p>
+                                (1) Der auf der Website bereitgestellte Produktkonfigurator dient als Visualisierungshilfe zur groben Platzierung von Texten, Bildern und Symbolen auf den angebotenen Waren.
+                            </p>
+                            <p class="mt-2">
+                                (2) Die im Konfigurator dargestellte Vorschau ist **nicht maßstabsgetreu** und stellt keine millimetergenaue Abbildung des Endprodukts dar. Geringfügige Abweichungen in der Platzierung, Ausrichtung und Größe (im Bereich handwerklicher Toleranzen) sind produktionsbedingt möglich und stellen keinen Mangel dar.
+                            </p>
+                            <p class="mt-2">
+                                (3) **Farbliche Abweichungen:** Aufgrund unterschiedlicher Bildschirmeinstellungen, Helligkeiten und technischer Gegebenheiten (RGB-Darstellung am Monitor vs. physische Gravur oder Druck) kann die Farbdarstellung im Konfigurator von der tatsächlichen Farbe der Ware oder der Veredelung abweichen.
+                            </p>
+                            <p class="mt-2">
+                                (4) Der Kunde ist dafür verantwortlich, die im Konfigurator eingegebenen Inhalte (insbesondere Rechtschreibung von Namen oder Daten) vor Abschluss der Bestellung auf Richtigkeit zu prüfen. Nachträgliche Korrekturen nach Produktionsbeginn sind ausgeschlossen.
+                            </p>
+                        </div>
+
                         <div>
                             <h3 class="font-bold text-lg text-gray-900">3. Preise und Zahlung</h3>
                             <p class="mt-2">

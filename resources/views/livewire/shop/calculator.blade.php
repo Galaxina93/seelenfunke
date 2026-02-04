@@ -97,13 +97,35 @@
 
     {{-- Start Button (Step 0) --}}
     @if($step === 0)
-        <div class="text-center py-12 bg-primary/5 rounded-2xl border border-primary/10">
+        <div class="text-center py-12 bg-primary/5 rounded-2xl border border-primary/10 px-6">
             <h2 class="text-2xl font-serif font-bold text-gray-900 mb-4">Individuelles Angebot erstellen</h2>
-            <p class="text-gray-600 mb-8 max-w-xl mx-auto">
+            <p class="text-gray-600 mb-6 max-w-xl mx-auto">
                 Sie planen eine Großbestellung für Ihren Verein, Ihre Firma oder ein Event?
                 Nutzen Sie unseren Konfigurator für eine unverbindliche Preiskalkulation inklusive Staffelpreisen.
             </p>
-            <button wire:click="startCalculator" class="bg-primary text-white px-8 py-3 rounded-md font-semibold hover:bg-primary-dark transition shadow-lg transform hover:-translate-y-1">
+
+            <div class="max-w-md mx-auto mb-8 bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-left">
+                <label class="flex items-start gap-3 cursor-pointer group">
+                    <input type="checkbox" wire:model.live="agb_accepted" class="mt-1 w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary">
+                    <span class="text-sm text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
+                    Ich bestätige, dass der Konfigurator als **Visualisierungshilfe** dient. Abweichungen in Farbe und Platzierung (keine mm-Präzision) sind möglich. Es gelten die
+                    <a href="/agb#konfigurator" target="_blank" class="text-primary underline font-bold">Besonderen Bestimmungen für Konfigurationen</a>.
+                </span>
+                </label>
+                @error('agb')
+                <p class="mt-2 text-xs text-red-600 font-bold flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                    {{ $message }}
+                </p>
+                @enderror
+            </div>
+
+            <button wire:click="startCalculator"
+                @class([
+                    'px-8 py-3 rounded-md font-semibold transition shadow-lg transform hover:-translate-y-1',
+                    'bg-primary text-white hover:bg-primary-dark' => $agb_accepted,
+                    'bg-gray-300 text-gray-500 cursor-not-allowed' => !$agb_accepted
+                ])>
                 Jetzt Kalkulation starten
             </button>
         </div>

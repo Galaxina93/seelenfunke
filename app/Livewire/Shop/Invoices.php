@@ -233,8 +233,8 @@ class Invoices extends Component
 
         $pdf = Pdf::loadView('global.mails.invoice_pdf_template', [
             'invoice' => $invoice,
-            'items' => $invoice->order->items, // Wir nutzen die OrderItems, da diese unveränderbar sein sollten
-            'isStorno' => $invoice->type === 'cancellation',
+            'items' => $invoice->order ? $invoice->order->items : collect($invoice->custom_items),
+            'isStorno' => $invoice->status === 'cancelled' || $invoice->type === 'cancellation',
         ]);
 
 
@@ -392,6 +392,41 @@ class Invoices extends Component
         }
     }
 
+    public function cancelInvoice($id)
+    {
+        $invoice = Invoice::findOrFail($id);
+
+        if ($invoice->status === 'cancelled') {
+            session()->flash('warning', 'Diese Rechnung ist bereits storniert.');
+            return;
+        }
+
+        DB::transaction(function () use ($invoice) {
+            // 1. Ursprüngliche Rechnung als storniert markieren
+            $invoice->update(['status' => 'cancelled']);
+
+            // 2. Stornorechnung (Gutschrift) erstellen
+            $cancellationInvoice = $invoice->replicate();
+            $cancellationInvoice->invoice_number = 'ST-' . $invoice->invoice_number;
+            $cancellationInvoice->type = 'cancellation';
+            $cancellationInvoice->status = 'paid';
+            $cancellationInvoice->invoice_date = now();
+            $cancellationInvoice->parent_id = $invoice->id; // Verknüpfung zur Originalrechnung
+
+            // Beträge ins Negative drehen für eine Gutschrift
+            $cancellationInvoice->subtotal = -$invoice->subtotal;
+            $cancellationInvoice->tax_amount = -$invoice->tax_amount;
+            $cancellationInvoice->shipping_cost = -$invoice->shipping_cost;
+            $cancellationInvoice->discount_amount = -$invoice->discount_amount;
+            $cancellationInvoice->volume_discount = -$invoice->volume_discount;
+            $cancellationInvoice->total = -$invoice->total;
+
+            $cancellationInvoice->save();
+        });
+
+        session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');
+    }
+
     public function render()
     {
         $query = Invoice::query()->with(['order', 'customer']);
@@ -406,6 +441,8 @@ class Invoices extends Component
         if ($this->filterType) {
             if ($this->filterType === 'draft') {
                 $query->where('status', 'draft');
+            } elseif ($this->filterType === 'cancellation') {
+                $query->where('type', 'cancellation');
             } else {
                 $query->where('type', $this->filterType);
             }
@@ -441,7 +478,7 @@ class Invoices extends Component
         }
 
         return view('livewire.shop.invoices', [
-            'invoices' => $query->latest('invoice_date')->paginate(15),
+            'invoices' => $query->paginate(15),
             'totalsPreview' => $totalsPreview,
             'customers' => Customer::orderBy('last_name')->get()
         ]);

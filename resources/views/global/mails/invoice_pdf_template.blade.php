@@ -45,20 +45,36 @@
         .subject { font-size: 14px; font-weight: bold; margin-bottom: 15px; }
         .text-block { margin-bottom: 20px; white-space: pre-line; }
 
-        /* BEZAHLT STEMPEL AUS STAGE */
+        /* BEZAHLT STEMPEL (PDF) */
         .paid-stamp {
             position: absolute;
-            top: 45%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-25deg);
-            border: 8px solid rgba(22, 163, 74, 0.15);
-            color: rgba(22, 163, 74, 0.15);
-            font-size: 90px;
+            top: 30%;
+            left: 15%;
+            transform: rotate(-20deg);
+            border: 10px solid #16a34a; /* Basisgrün */
+            color: #16a34a;
+            opacity: 0.15; /* Hier die Transparenz steuern */
+            font-size: 80px;
             font-weight: 900;
-            padding: 20px 40px;
+            padding: 10px 30px;
             text-transform: uppercase;
             z-index: -1;
-            pointer-events: none;
+        }
+
+        /* STORNIERT STEMPEL (PDF) */
+        .cancelled-stamp {
+            position: absolute;
+            top: 30%;
+            left: 15%;
+            transform: rotate(-15deg);
+            border: 10px solid #dc2626; /* Basisrot */
+            color: #dc2626;
+            opacity: 0.15;
+            font-size: 70px;
+            font-weight: 900;
+            padding: 10px 30px;
+            text-transform: uppercase;
+            z-index: -1;
         }
     </style>
 </head>
@@ -71,9 +87,14 @@
     $ustId = shop_setting('owner_ust_id', 'folgt');
 @endphp
 
-{{-- Bezahlt-Stempel Hintergrund --}}
-@if($invoice->status === 'paid')
+{{-- Bezahlt-Stempel: Nur wenn bezahlt UND keine Stornierung --}}
+@if($invoice->status === 'paid' && $invoice->type !== 'cancellation')
     <div class="paid-stamp">Bezahlt</div>
+@endif
+
+{{-- Storniert-Stempel: Wenn Status storniert ODER Typ Stornierung --}}
+@if($invoice->status === 'cancelled' || $invoice->type === 'cancellation')
+    <div class="cancelled-stamp">Storniert</div>
 @endif
 
 <div class="header">

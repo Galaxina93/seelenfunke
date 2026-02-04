@@ -33,10 +33,18 @@
                     <div class="flex-1 overflow-y-auto p-2 md:p-12 bg-gray-500/10 flex justify-center scrollbar-hide">
                         <div id="printable-invoice" class="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-lg p-4 md:p-[20mm] text-gray-800 text-xs md:text-sm leading-normal relative overflow-x-auto flex flex-col">
 
-                            {{-- BEZAHLT-STEMPEL (Hintergrund-Layer) --}}
-                            @if($invoice->status === 'paid')
-                                <div class="absolute top-1/3 right-10 md:right-20 border-[6px] border-green-600/20 text-green-600/20 font-black text-6xl md:text-8xl p-4 rotate-[-15deg] select-none pointer-events-none uppercase tracking-tighter shadow-sm">
+                            {{-- STEMPEL-LAYER --}}
+                            @if($invoice->status === 'paid' && $invoice->type !== 'cancellation')
+                                {{-- GRÜNER BEZAHLT STEMPEL --}}
+                                <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-green-600/20 text-green-600/20 font-black text-6xl md:text-9xl p-4 rotate-[-20deg] select-none pointer-events-none uppercase tracking-tighter z-0" style="color: rgba(22, 163, 74, 0.2); border-color: rgba(22, 163, 74, 0.2);">
                                     Bezahlt
+                                </div>
+                            @endif
+
+                            @if($invoice->status === 'cancelled' || $invoice->type === 'cancellation')
+                                {{-- ROTER STORNIERT STEMPEL --}}
+                                <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-red-600/20 text-red-600/20 font-black text-6xl md:text-9xl p-4 rotate-[-15deg] select-none pointer-events-none uppercase tracking-tighter z-0" style="color: rgba(220, 38, 38, 0.2); border-color: rgba(220, 38, 38, 0.2);">
+                                    Storniert
                                 </div>
                             @endif
 

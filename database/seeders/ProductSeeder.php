@@ -69,17 +69,17 @@ class ProductSeeder extends Seeder
             'shipping_class' => 'paket_s',
 
             // Medien & Konfigurator
-            'preview_image_path' => 'Testdata/overlay.png',
+            'preview_image_path' => 'Testdata/seelenkristall/overlay.png',
             'media_gallery' => [
                 [
                     'type' => 'image',
-                    'path' => 'Testdata/seelen-kristall_b.jpg',
+                    'path' => 'Testdata/seelenkristall/seelen-kristall_b.jpg',
                     'is_main' => true,
                     'alt' => 'Seelen Kristall Frontansicht'
                 ],
                 [
                     'type' => 'video',
-                    'path' => 'Testdata/video.mp4',
+                    'path' => 'Testdata/seelenkristall/video.mp4',
                     'is_main' => false
                 ]
             ],
