@@ -36,9 +36,9 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                     </svg>
                     <p>
-                        <span class="font-medium text-white">Mein Seelenfunke</span><br>
-                        Carl-Goerdeler-Ring 26<br>
-                        38518 Gifhorn<br>
+                        <span class="font-medium text-white">{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</span><br>
+                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
                         Deutschland
                     </p>
                 </div>
@@ -53,7 +53,11 @@
                             <span>🛍️ Zum Shop</span>
                         </a>
                     </li>
-                    <li><a href="mailto:kontakt@mein-seelenfunke.de" class="hover:text-primary transition">📧 kontakt@mein-seelenfunke.de</a></li>
+                    <li>
+                        <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="hover:text-primary transition">
+                            📧 {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                        </a>
+                    </li>
                     <li class="h-px bg-gray-800 w-full my-2"></li>
                     <li><a href="/impressum" class="hover:text-white transition opacity-80 hover:opacity-100">Impressum</a></li>
                     <li><a href="/datenschutz" class="hover:text-white transition opacity-80 hover:opacity-100">Datenschutzerklärung</a></li>
@@ -63,7 +67,7 @@
                 </ul>
             </div>
 
-            {{-- Spalte 4: Newsletter (NEU) --}}
+            {{-- Spalte 4: Newsletter --}}
             <div>
                 @livewire('shop.newsletter-signup')
             </div>
@@ -72,8 +76,8 @@
 
         <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="text-gray-500 text-sm text-center md:text-left">
-                &copy; {{ date('Y') }} <strong>Mein Seelenfunke</strong>. Alle Rechte vorbehalten.<br>
-                <span class="text-xs">Handmade with ❤️ in Gifhorn.</span>
+                &copy; {{ date('Y') }} <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong>. Alle Rechte vorbehalten.<br>
+                <span class="text-xs">Handmade with ❤️ in {{ shop_setting('owner_court', 'Gifhorn') }}.</span>
             </div>
 
             <div class="flex space-x-4">

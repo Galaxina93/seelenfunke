@@ -11,10 +11,10 @@
                 <div>
                     <h2 class="text-xl font-bold text-gray-900 mb-2">Angaben gemäß § 5 TMG</h2>
                     <p>
-                        <strong>Mein Seelenfunke</strong><br>
-                        Inhaberin: Alina Steinhauer<br>
-                        Carl-Goerdeler-Ring 26<br>
-                        38518 Gifhorn<br>
+                        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
+                        Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
                         Deutschland
                     </p>
                 </div>
@@ -23,17 +23,24 @@
                 <div>
                     <h2 class="text-xl font-bold text-gray-900 mb-2">Kontakt</h2>
                     <p>
-                        Telefon: <a href="tel:+4915901966864" class="text-primary hover:underline font-medium">+49 (0) 159 019 668 64</a><br>
-                        E-Mail: <a href="mailto:kontakt@mein-seelenfunke.de" class="text-primary hover:underline font-medium">kontakt@mein-seelenfunke.de</a>
+                        Telefon: <a href="tel:{{ str_replace([' ', '(', ')', '-'], '', shop_setting('owner_phone', '+4915901966864')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_phone', '+49 (0) 159 019 668 64') }}</a><br>
+                        E-Mail: <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a>
                     </p>
                 </div>
 
-                {{-- 3. UMSATZSTEUER (Optional - falls Kleinunternehmer, sonst USt-ID eintragen) --}}
+                {{-- 3. UMSATZSTEUER --}}
                 <div>
                     <h2 class="text-xl font-bold text-gray-900 mb-2">Umsatzsteuer-ID</h2>
                     <p>
                         Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz:<br>
-                        <em>USt-IdNr. folgt...</em>
+                        @if(shop_setting('owner_ust_id'))
+                            <strong>{{ shop_setting('owner_ust_id') }}</strong>
+                        @else
+                            <em>USt-IdNr. folgt...</em>
+                        @endif
+                    </p>
+                    <p class="text-xs mt-1 text-gray-500">
+                        Steuernummer: {{ shop_setting('owner_tax_id') }}
                     </p>
                 </div>
 
@@ -41,9 +48,9 @@
                 <div>
                     <h2 class="text-xl font-bold text-gray-900 mb-2">Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV</h2>
                     <p>
-                        Alina Steinhauer<br>
-                        Carl-Goerdeler-Ring 26<br>
-                        38518 Gifhorn
+                        {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('owner_city', '38518 Gifhorn') }}
                     </p>
                 </div>
 
@@ -112,6 +119,7 @@
                 </div>
 
                 <p class="text-xs text-gray-500 mt-8">
+                    Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}<br>
                     Quelle: <a href="https://www.e-recht24.de" target="_blank" class="hover:underline">e-recht24.de</a>
                 </p>
 

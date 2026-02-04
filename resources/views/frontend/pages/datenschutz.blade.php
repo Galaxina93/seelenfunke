@@ -15,7 +15,7 @@
 
                     <h3 class="font-bold mt-4">Datenerfassung auf dieser Website</h3>
                     <ul class="list-disc list-inside mt-2 space-y-1">
-                        <li><strong>Wer ist verantwortlich?</strong> Die Datenverarbeitung erfolgt durch den Websitebetreiber (Alina Steinhauer). Kontaktdaten finden Sie im Impressum.</li>
+                        <li><strong>Wer ist verantwortlich?</strong> Die Datenverarbeitung erfolgt durch den Websitebetreiber ({{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}). Kontaktdaten finden Sie im Impressum.</li>
                         <li><strong>Wie erfassen wir Daten?</strong> Automatisch durch IT-Systeme (z.B. Browser, IP-Adresse) oder durch Ihre Eingabe (Kontaktformular, E-Mail, Newsletter-Anmeldung).</li>
                         <li><strong>Wofür nutzen wir Daten?</strong> Zur Bereitstellung der Website, zur Kommunikation mit Ihnen, für den Newsletter-Versand und zur Abwicklung von Anfragen.</li>
                     </ul>
@@ -39,12 +39,12 @@
                     <h3 class="font-bold text-lg mt-4">Verantwortliche Stelle</h3>
                     <p>
                         Die verantwortliche Stelle für die Datenverarbeitung auf dieser Website ist:<br><br>
-                        <strong>Mein Seelenfunke</strong><br>
-                        Inhaberin: Alina Steinhauer<br>
-                        Carl-Goerdeler-Ring 26<br>
-                        38518 Gifhorn<br><br>
-                        Telefon: +49 (0) 159 019 668 64<br>
-                        E-Mail: kontakt@mein-seelenfunke.de
+                        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
+                        Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('owner_city', '38518 Gifhorn') }}<br><br>
+                        Telefon: {{ shop_setting('owner_phone', '+49 (0) 159 019 668 64') }}<br>
+                        E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Speicherdauer</h3>
@@ -87,7 +87,7 @@
                         Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung/vorvertragliche Maßnahmen) oder Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an der Bearbeitung von Anfragen).
                     </p>
 
-                    {{-- NEU: NEWSLETTER ABSCHNITT --}}
+                    {{-- NEWSLETTER ABSCHNITT --}}
                     <h3 class="font-bold text-lg mt-6">Newsletter</h3>
                     <p>
                         Wenn Sie den auf der Website angebotenen Newsletter beziehen möchten, benötigen wir von Ihnen eine E-Mail-Adresse sowie Informationen, welche uns die Überprüfung gestatten, dass Sie der Inhaber der angegebenen E-Mail-Adresse sind und mit dem Empfang des Newsletters einverstanden sind (Double-Opt-In-Verfahren).

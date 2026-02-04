@@ -3,6 +3,34 @@
     <x-sections.page-container>
 
         <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
+
+            {{-- Impressum Section --}}
+            <header class="mb-16 text-center md:text-left border-b pb-8">
+                <h1 class="text-3xl md:text-4xl font-serif font-bold mb-6 text-gray-900">Impressum</h1>
+                <div class="space-y-1 text-base leading-relaxed">
+                    <p>
+                        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
+                        Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                        {{ shop_setting('owner_city', '38518 Gifhorn') }}
+                    </p>
+                    <p class="pt-4">
+                        <strong>Kontakt:</strong><br>
+                        E-Mail: <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a><br>
+                        Telefon: {{ shop_setting('owner_phone', '+49 159 019 668 64') }}<br>
+                        Web: <a href="{{ url('/') }}" class="text-primary hover:underline">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a>
+                    </p>
+                    <p class="pt-4 text-sm text-gray-600">
+                        <strong>Rechtliche Angaben:</strong><br>
+                        Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
+                        @if(shop_setting('owner_ust_id')) USt-IdNr.: {{ shop_setting('owner_ust_id') }}<br> @endif
+                        Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}<br>
+                        IBAN: {{ shop_setting('owner_iban', 'Wird nachgereicht') }}
+                    </p>
+                </div>
+            </header>
+
+            {{-- AGB & Widerruf Header --}}
             <header class="mb-12 text-center md:text-left">
                 <h1 class="text-3xl md:text-4xl font-serif font-bold mb-4 text-gray-900">AGB & Widerrufsrecht</h1>
                 <p class="text-gray-500 text-sm">Stand: {{ now()->format('d.m.Y') }}</p>
@@ -22,14 +50,14 @@
                         <div id="geltungsbereich" class="scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-2">1. Geltungsbereich und Anbieter</h3>
                             <p>
-                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>Mein Seelenfunke</strong> (nachfolgend „Anbieter“) tätigen.
+                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> (nachfolgend „Anbieter“) tätigen.
                             </p>
-                            <p class="mt-2 text-sm bg-gray-50 p-3 rounded border border-gray-200">
+                            <p class="mt-2 text-sm bg-gray-50 p-4 rounded border border-gray-200">
                                 <strong>Anbieterkennzeichnung:</strong><br>
-                                Mein Seelenfunke<br>
-                                Inhaberin: Alina Steinhauer<br>
-                                Carl-Goerdeler-Ring 26, 38518 Gifhorn<br>
-                                E-Mail: kontakt@mein-seelenfunke.de
+                                {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
+                                Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                                {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
+                                E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
                             </p>
                             <p class="mt-2">
                                 (2) Das Warenangebot in unserem Online-Shop richtet sich ausschließlich an Verbraucher, die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
@@ -61,7 +89,6 @@
                                 <li>Vorkasse (Überweisung)</li>
                                 <li>Kreditkarte (Visa, Mastercard, American Express)</li>
                                 <li>Apple Pay / Google Pay</li>
-                                {{-- Falls du Klarna/Sofort über Stripe anbietest: --}}
                                 <li>Sofortüberweisung / Klarna</li>
                             </ul>
                             <p>
@@ -153,7 +180,7 @@
                             Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.
                         </p>
                         <p>
-                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>Mein Seelenfunke, Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn, E-Mail: kontakt@mein-seelenfunke.de, Tel: +49 159 019 668 64</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
+                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}, {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}, E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
                         </p>
                         <p>
                             Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
@@ -196,11 +223,11 @@
                     <div class="border border-gray-200 p-8 rounded-xl bg-white shadow-sm text-gray-800 font-mono text-sm leading-relaxed">
                         <p class="mb-6 font-bold">
                             An:<br>
-                            Mein Seelenfunke<br>
-                            Alina Steinhauer<br>
-                            Carl-Goerdeler-Ring 26<br>
-                            38518 Gifhorn<br>
-                            E-Mail: kontakt@mein-seelenfunke.de
+                            {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
+                            {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                            {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
+                            {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
+                            E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
                         </p>
 
                         <p class="mb-6">
