@@ -15,6 +15,10 @@
     $taxId = shop_setting('owner_tax_id', '19/143/11624');
     $ustId = shop_setting('owner_ust_id');
     $court = shop_setting('owner_court', 'Gifhorn');
+
+        // Abweichende Lieferadresse prüfen
+    $hasDifferentShipping = !empty($invoice->shipping_address) &&
+                            serialize($invoice->billing_address) !== serialize($invoice->shipping_address);
 @endphp
 
 
