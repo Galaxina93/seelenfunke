@@ -6,6 +6,7 @@ use App\Models\Invoice;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceService
 {
@@ -47,6 +48,9 @@ class InvoiceService
                 'notes' => $order->notes,
                 'is_e_invoice' => false,
             ]);
+
+            // PDF sofort nach Erstellung physisch speichern
+            $this->storePdf($invoice);
 
             return $invoice;
         });
@@ -104,6 +108,20 @@ class InvoiceService
         ]);
 
         return $pdf;
+    }
+
+    /**
+     * NEU: Speichert das PDF physisch im Storage ab
+     */
+    public function storePdf(Invoice $invoice): string
+    {
+        $pdf = $this->generatePdf($invoice);
+        $fileName = "invoices/{$invoice->invoice_number}.pdf";
+
+        // Speichert die Datei im 'public' disk (was auf storage/app/public/invoices zeigt)
+        Storage::disk('public')->put($fileName, $pdf->output());
+
+        return $fileName;
     }
 
     private function generateInvoiceNumber($prefix = 'RE')
