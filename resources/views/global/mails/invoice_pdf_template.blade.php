@@ -7,7 +7,7 @@
         @page { margin: 40px 40px 100px 40px; }
         body { font-family: sans-serif; font-size: 12px; color: #333; line-height: 1.4; }
         .header { border-bottom: 2px solid #C5A059; padding-bottom: 20px; margin-bottom: 30px; }
-        .logo { width: 180px; }
+        .logo { width: 240px; }
         .invoice-title { font-size: 24px; font-weight: bold; color: #C5A059; text-transform: uppercase; text-align: right; margin-bottom: 5px; }
         .invoice-meta { text-align: right; font-size: 11px; color: #666; }
         .meta-table { width: 100%; margin-bottom: 40px; }
