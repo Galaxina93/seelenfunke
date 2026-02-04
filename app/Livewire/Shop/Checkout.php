@@ -218,6 +218,13 @@ class Checkout extends Component
                 'status' => 'pending'
             ]);
 
+            // --- LAGERBESTAND REDUZIEREN ---
+            foreach ($order->items as $item) {
+                if ($item->product) {
+                    $item->product->reduceStock($item->quantity);
+                }
+            }
+
             $this->finalOrderNumber = $order->order_number;
 
             // --- [NEU] VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---

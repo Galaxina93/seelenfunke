@@ -206,7 +206,7 @@
 
 <div class="clear" style="margin-top: 40px;">
     <div class="text-block">
-        Der Rechnungsbetrag ist fällig bis zum {{$this->due_date ? $this->due_date->format('d.m.Y') : ''}} . <br>
+        Der Rechnungsbetrag ist fällig bis zum {{$invoice->due_date ? $invoice->due_date->format('d.m.Y') : ''}} . <br>
         Vielen Dank für Ihren Einkauf!
     </div>
     <p>

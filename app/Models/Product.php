@@ -168,4 +168,32 @@ class Product extends Model
         // Der Fallback ist 'true', falls in der DB noch nichts hinterlegt wurde.
         return (bool) shop_setting('prices_entered_gross', true);
     }
+
+    /**
+     * Reduziert den Lagerbestand sicher.
+     */
+    public function reduceStock(int $amount): bool
+    {
+        if (!$this->track_quantity) {
+            return true;
+        }
+
+        // Wir prüfen, ob genug da ist (außer Backorders sind erlaubt)
+        if ($this->quantity < $amount && !$this->continue_selling_when_out_of_stock) {
+            return false;
+        }
+
+        // Atomares Update in der Datenbank
+        return $this->decrement('quantity', $amount);
+    }
+
+    /**
+     * Gibt Bestand zurück (bei Stornierung).
+     */
+    public function restoreStock(int $amount): void
+    {
+        if ($this->track_quantity) {
+            $this->increment('quantity', $amount);
+        }
+    }
 }

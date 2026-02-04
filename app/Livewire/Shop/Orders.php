@@ -78,6 +78,20 @@ class Orders extends Component
         // Fall: Stornierung
         if ($this->status === 'cancelled') {
 
+            // Sicherheitscheck: Nur Bestand zurückgeben, wenn...
+            // 1. Die Bestellung vorher noch nicht storniert war
+            // 2. UND die Bestellung noch NICHT in Bearbeitung war (da sonst schon graviert)
+            if ($this->selectedOrder->status !== 'cancelled' && $this->selectedOrder->status === 'pending') {
+                foreach ($this->selectedOrder->items as $item) {
+                    if ($item->product) {
+                        $item->product->restoreStock($item->quantity);
+                    }
+                }
+                session()->flash('info', 'Bestand wurde zurückgebucht (da noch nicht in Bearbeitung).');
+            } else {
+                session()->flash('warning', 'Storniert ohne Bestandsrückbuchung (da bereits in Bearbeitung oder bereits storniert).');
+            }
+
             $this->validate([
                 'cancellationReason' => 'required|string|min:5|max:500',
             ], [
@@ -196,14 +210,27 @@ class Orders extends Component
             $query->where(function ($q) {
                 $q->where('order_number', 'like', '%' . $this->search . '%')
                     ->orWhere('email', 'like', '%' . $this->search . '%')
-                    ->orWhereJsonContains('billing_address->last_name', $this->search);
+                    ->orWhere('billing_address->last_name', 'like', '%' . $this->search . '%')
+                    ->orWhere('billing_address->first_name', 'like', '%' . $this->search . '%');
             });
         }
 
         if ($this->statusFilter) $query->where('status', $this->statusFilter);
         if ($this->paymentFilter) $query->where('payment_status', $this->paymentFilter);
 
-        $orders = $query->orderBy($this->sortField, $this->sortDirection)->paginate(10);
+        // --- SORTIER-LOGIK ---
+        if ($this->sortField === 'customer') {
+            $query->orderBy('billing_address->last_name', $this->sortDirection)
+                ->orderBy('billing_address->first_name', $this->sortDirection);
+        } elseif ($this->sortField === 'total') {
+            $query->orderBy('total_price', $this->sortDirection);
+        } elseif ($this->sortField === 'payment') {
+            $query->orderBy('payment_status', $this->sortDirection);
+        } else {
+            $query->orderBy($this->sortField, $this->sortDirection);
+        }
+
+        $orders = $query->paginate(10);
 
         return view('livewire.shop.orders', [
             'orders' => $orders,

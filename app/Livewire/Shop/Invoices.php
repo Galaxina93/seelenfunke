@@ -26,6 +26,10 @@ class Invoices extends Component
     public $saveSuccess = false;
     public $draftSuccess = false;
 
+    // Sorting Table
+    public $sortField = 'invoice_date'; // Standard-Sortierung
+    public $sortDirection = 'desc';
+
     public $infoTexts = [
         'customer' => 'Wählen Sie einen bestehenden Kunden aus, um die Adressdaten automatisch zu befüllen.',
         'invoice_info' => 'Pflichtangaben für eine rechtssichere Rechnung gemäß GoBD.',
@@ -377,6 +381,17 @@ class Invoices extends Component
         // app(EInvoiceService::class)->generate($invoice);
     }
 
+    // Methode zum Sortieren hinzufügen:
+    public function sortBy($field)
+    {
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+    }
+
     public function render()
     {
         $query = Invoice::query()->with(['order', 'customer']);
@@ -394,6 +409,16 @@ class Invoices extends Component
             } else {
                 $query->where('type', $this->filterType);
             }
+        }
+
+        // SORTIERUNG ANWENDEN
+        if ($this->sortField === 'recipient') {
+            // Spezialfall für JSON-Feld (Empfänger-Nachname)
+            $query->orderBy('billing_address->last_name', $this->sortDirection);
+        } else {
+            // Standardsortierung für normale Spalten (invoice_number, total, status, invoice_date)
+            $query->orderBy($this->sortField, $this->sortDirection)
+                ->orderBy('created_at', 'desc'); // Zweitrangige Sortierung für absolute Aktualität
         }
 
         $totalsPreview = [
