@@ -11,9 +11,8 @@ class Cart extends Component
     // Wir injizieren den Service
     protected CartService $cartService;
 
-    // State für das Bearbeitungs-Modal
+    // State für das Bearbeiten (Inline in der Kachel)
     public $editingItemId = null;
-    public $showEditModal = false;
 
     // NEU: Input für Gutschein
     public $couponCodeInput = '';
@@ -27,14 +26,17 @@ class Cart extends Component
 
     public function edit($itemId)
     {
-        $this->editingItemId = $itemId;
-        $this->showEditModal = true;
+        // Wenn bereits offen, dann schließen, sonst öffnen (Toggle-Logik)
+        if ($this->editingItemId === $itemId) {
+            $this->closeModal();
+        } else {
+            $this->editingItemId = $itemId;
+        }
     }
 
     #[On('close-modal')] // Listener für Configurator
     public function closeModal()
     {
-        $this->showEditModal = false;
         $this->editingItemId = null;
     }
 
