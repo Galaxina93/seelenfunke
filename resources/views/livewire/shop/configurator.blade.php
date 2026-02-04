@@ -12,7 +12,7 @@
      })">
 
     {{-- SCROLLABLE CONTENT --}}
-    <div class="flex-1 overflow-y-auto custom-scrollbar pb-20">
+    <div class="flex-1 custom-scrollbar pb-20">
 
         @include('livewire.shop.configurator-partials.preview')
         @include('livewire.shop.configurator-partials.formluar')
