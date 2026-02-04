@@ -2,7 +2,9 @@
 <html lang="de">
 <head>
     <meta charset="utf-8">
+
     <title>{{ $title ?? shop_setting('owner_name', 'Mein Seelenfunke') }}</title>
+
     <style>
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
