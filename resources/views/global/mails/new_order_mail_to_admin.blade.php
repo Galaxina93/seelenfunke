@@ -17,7 +17,7 @@
 
     {{-- ARTIKEL LISTE --}}
     <h3 style="font-size: 14px; color: #888; text-transform: uppercase; margin-bottom: 10px;">Bestellte Produkte</h3>
-    @include('global.mails.partials.mail_bought_products_list')
+    @include('global.mails.partials.mail_item_list')
 
     {{-- PREISAUFSTELLUNG --}}
     @include('global.mails.partials.mail_price_list')

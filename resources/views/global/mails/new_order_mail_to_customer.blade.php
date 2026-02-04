@@ -11,7 +11,7 @@
     <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten und bereiten diese nun mit viel Liebe für dich vor.</p>
 
     {{-- ARTIKEL LISTE --}}
-    @include('global.mails.partials.mail_bought_products_list')
+    @include('global.mails.partials.mail_item_list')
 
     {{--PREISAUFSTELLUNG--}}
     @include('global.mails.partials.mail_price_list')
