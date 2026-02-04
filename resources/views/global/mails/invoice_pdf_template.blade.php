@@ -13,7 +13,7 @@
         .meta-table { width: 100%; margin-bottom: 30px; }
         .meta-table td { vertical-align: top; }
         .address-box { line-height: 1.5; }
-        .shipping-address-box { margin-top: 20px; padding: 10px; background-color: #fafafa; border: 1px solid #eee; }
+        .shipping-address-box { margin-top: 20px; padding: 10px; }
         .sender-small { font-size: 8px; color: #888; text-decoration: underline; margin-bottom: 5px; }
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         .items-table th { border-bottom: 2px solid #333; text-align: left; padding: 8px 5px; font-weight: bold; color: #000; text-transform: uppercase; font-size: 9px; }
