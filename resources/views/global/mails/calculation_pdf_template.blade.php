@@ -6,31 +6,26 @@
     <title>{{ 'Angebotsanfrage' . '-' . ($data['quote_number'] ?? 'Anfrage') . ' | ' . shop_setting('owner_name', 'Mein Seelenfunke') }}</title>
 
     <style>
-        /* PDF/E-Mail Reset & Base Styles */
+        /* PDF Reset & Base Styles */
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            background-color: #f4f4f4;
+            background-color: #ffffff; /* Weißer Hintergrund für PDF */
             margin: 0;
             padding: 0;
             color: #333333;
             line-height: 1.4;
-            -webkit-text-size-adjust: none;
         }
 
         .container {
             max-width: 650px;
-            margin: 10px auto;
+            margin: 0 auto;
             background-color: #ffffff;
-            padding: 30px 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            padding: 20px 0; /* Padding reduziert für Einseitigkeit */
         }
 
-        /* HEADER & LOGO */
+        /* HEADER & LOGO - Ganz clean ohne Borders */
         .header {
-            border-bottom: 2px solid #C5A059;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
 
         .header-table {
@@ -38,16 +33,14 @@
             border-collapse: collapse;
         }
 
-        /* Die mail_logo partial sollte .logo-img oder ähnliches stylen,
-           wir stellen hier sicher, dass die Zelle passt */
         .header-table td {
-            vertical-align: middle;
+            vertical-align: top;
         }
 
-        /* ADDRESS SECTION */
+        /* ADDRESS SECTION - Ohne Box-Hintergründe */
         .address-container {
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             border-collapse: collapse;
         }
 
@@ -69,10 +62,7 @@
 
         .shipping-address-box {
             margin-top: 10px;
-            padding: 8px;
-            background-color: #fafafa;
-            border: 1px solid #eeeeee;
-            border-radius: 4px;
+            padding: 0; /* Hintergrund und Border entfernt */
         }
 
         /* TYPOGRAPHY */
@@ -93,10 +83,10 @@
             color: #888;
             text-transform: uppercase;
             font-size: 9px;
-            border-bottom: 2px solid #333;
-            padding: 6px 4px;
+            border-bottom: 1px solid #eee; /* Dezentere Linie */
+            padding: 6px 0;
         }
-        .table td { padding: 8px 4px; border-bottom: 1px solid #f5f5f5; vertical-align: top; }
+        .table td { padding: 8px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
 
@@ -104,12 +94,11 @@
         .preview-wrapper { margin-top: 8px; display: block; }
         .preview-container {
             position: relative;
-            width: 80px;
-            height: 80px;
+            width: 70px; /* Kleiner gemacht für Platzersparnis */
+            height: 70px;
             display: inline-block;
-            border: 1px solid #e5e5e5;
+            border: 1px solid #eee;
             border-radius: 4px;
-            background-color: #f9f9f9;
             background-repeat: no-repeat;
             background-position: center center;
             background-size: contain;
@@ -123,7 +112,6 @@
             margin-left: -3px;
             margin-top: -3px;
             border: 1px solid white;
-            box-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
         .marker-text { background-color: #007bff; }
         .marker-logo { background-color: #28a745; }
@@ -132,44 +120,42 @@
         .detail-info { font-size: 10px; color: #666; margin-top: 3px; line-height: 1.3; }
         .detail-label { font-weight: bold; color: #444; margin-right: 3px; }
         .note-box {
-            background: #fffbeb;
-            border: 1px solid #fde68a;
-            color: #92400e;
-            padding: 8px;
+            border-left: 2px solid #C5A059;
+            color: #555;
+            padding: 4px 10px;
             margin-top: 8px;
             font-size: 11px;
-            border-radius: 4px;
             font-style: italic;
         }
 
         /* TOTALS */
-        .totals { margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px; }
+        .totals { margin-top: 15px; padding-top: 10px; }
         .totals-table { width: 100%; border-collapse: collapse; }
-        .totals-row td { padding: 3px 0; font-size: 12px; color: #555; }
+        .totals-row td { padding: 2px 0; font-size: 12px; color: #555; }
         .totals-final {
             font-size: 16px;
             font-weight: bold;
             color: #000;
-            border-top: 2px solid #C5A059;
-            padding-top: 10px !important;
-            margin-top: 8px;
+            border-top: 1px solid #333; /* Schwarze Linie für Abschluss */
+            padding-top: 8px !important;
+            margin-top: 5px;
         }
 
-        /* FOOTER & MISC */
-        .clear { clear: both; }
-        .footer-info {
-            margin-top: 25px;
-            font-size: 10px;
-            color: #666;
+        /* FOOTER - Exakt nach deinem Designwunsch */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
             border-top: 1px solid #eee;
-            padding-top: 15px;
+            text-align: center;
+            font-size: 11px;
+            color: #999;
         }
+        .footer a { color: #C5A059; text-decoration: none; }
+
+        .clear { clear: both; }
 
         .badge-express {
-            background-color: #dc2626;
-            color: #ffffff;
-            padding: 3px 6px;
-            border-radius: 3px;
+            color: #dc2626;
             font-weight: bold;
             text-transform: uppercase;
             font-size: 9px;
@@ -199,18 +185,18 @@
 @endphp
 
 <div class="container">
-    {{-- HEADER MIT LOGO UND META --}}
+    {{-- CLEAN HEADER --}}
     <div class="header">
         <table class="header-table">
             <tr>
-                <td style="text-align: left; width: 50%;">
+                <td style="text-align: left; width: 40%;">
                     @include('global.mails.partials.mail_logo')
                 </td>
-                <td class="text-right" style="width: 50%;">
-                    <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px;">
-                        Angebot Nr. {{ $data['quote_number'] ?? 'N/A' }}
+                <td class="text-right" style="width: 60%; padding-top: 10px;">
+                    <div style="font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 2px; font-weight: bold;">
+                        A N G E B O T &nbsp; N R . &nbsp; {{ $data['quote_number'] ?? 'N/A' }}
                     </div>
-                    <div style="font-size: 11px; color: #333; font-weight: bold;">
+                    <div style="font-size: 11px; color: #666; margin-top: 5px;">
                         Datum: {{ now()->format('d.m.Y') }}
                     </div>
                 </td>
@@ -237,9 +223,9 @@
 
                 @if($hasDifferentShipping)
                     <div class="shipping-address-box">
-                        <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; color: #C5A059; margin-bottom: 2px;">Abweichende Lieferadresse:</div>
-                        <div style="font-size: 10px; line-height: 1.3; color: #666;">
-                            <strong>{{ $shippingAddr['first_name'] ?? '' }} {{ $shippingAddr['last_name'] ?? '' }}</strong><br>
+                        <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; color: #888; margin-bottom: 2px;">Lieferadresse:</div>
+                        <div style="font-size: 10px; line-height: 1.3;">
+                            {{ $shippingAddr['first_name'] ?? '' }} {{ $shippingAddr['last_name'] ?? '' }}<br>
                             @if(!empty($shippingAddr['company'])) {{ $shippingAddr['company'] }}<br> @endif
                             {{ $shippingAddr['address'] ?? '' }}<br>
                             {{ $shippingAddr['postal_code'] ?? '' }} {{ $shippingAddr['city'] ?? '' }}<br>
@@ -273,10 +259,10 @@
     <div class="clear"></div>
 
     {{-- ADDITIONAL INFO --}}
-    <div class="footer-info">
+    <div style="margin-top: 30px; font-size: 11px; color: #555;">
         @if($isSmallBusiness)
-            <p style="font-size: 11px; color: #666; font-style: italic; margin-bottom: 10px;">
-                <strong>Hinweis:</strong> Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.
+            <p style="font-size: 10px; color: #888; font-style: italic; margin-bottom: 10px;">
+                Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
             </p>
         @endif
 
@@ -287,15 +273,15 @@
                     {{ $ownerEmail }}<br>
                     @if(!empty($data['contact']['telefon'])) Tel: {{ $data['contact']['telefon'] }} @endif
 
-                    <div style="margin-top: 10px; font-style: italic; color: #888; font-size: 10px;">
-                        Gültig bis zum <strong>{{ $data['quote_expiry'] ?? now()->addDays(14)->format('d.m.Y') }}</strong>.
+                    <div style="margin-top: 10px; font-style: italic; color: #999; font-size: 10px;">
+                        Gültig bis zum {{ $data['quote_expiry'] ?? now()->addDays(14)->format('d.m.Y') }}.
                     </div>
                 </td>
                 <td style="vertical-align: top; text-align: right;">
                     @if(!empty($data['express']))
-                        <div class="badge-express">EXPRESS AKTIVIERT</div>
+                        <div class="badge-express">EXPRESS-SERVICE</div>
                         @if(!empty($data['deadline']))
-                            <div style="font-size: 9px; color: #dc2626; margin-top: 3px;">Termin: {{ \Carbon\Carbon::parse($data['deadline'])->format('d.m.Y') }}</div>
+                            <div style="font-size: 9px; color: #dc2626; margin-top: 2px;">Termin: {{ \Carbon\Carbon::parse($data['deadline'])->format('d.m.Y') }}</div>
                         @endif
                     @endif
                 </td>
@@ -303,8 +289,19 @@
         </table>
     </div>
 
-    {{-- FOOTER --}}
-    @include('global.mails.partials.mail_footer')
+    {{-- FOOTER - Exakt nach Vorgabe --}}
+    <div class="footer">
+        <p>
+            <strong>{{ $ownerName }}</strong> | Inh. {{ $proprietor }}<br>
+            {{ $ownerStreet }}, {{ $ownerCity }} | <a href="{{ $ownerWeb }}">{{ str_replace(['http://', 'https://'], '', $ownerWeb) }}</a><br>
+            IBAN: {{ $ownerIban }} | Steuernummer: {{ $taxId }} | Gerichtsstand: {{ $court }}
+        </p>
+        <p style="margin-top: 10px;">
+            <a href="{{ url('/agb') }}">AGB</a> &nbsp; | &nbsp;
+            <a href="{{ url('/datenschutz') }}">Datenschutz</a> &nbsp; | &nbsp;
+            <a href="{{ url('/impressum') }}">Impressum</a>
+        </p>
+    </div>
 </div>
 
 </body>
