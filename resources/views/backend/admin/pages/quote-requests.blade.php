@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('admin.quote-requests')
+        @livewire('shop.quote-requests')
 
     @endsection
 
