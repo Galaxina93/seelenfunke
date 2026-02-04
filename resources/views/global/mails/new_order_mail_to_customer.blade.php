@@ -8,10 +8,8 @@
 
 <div class="container">
 
-    {{-- HEADER --}}
-    <div class="header">
-        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
-    </div>
+    {{-- LOGO --}}
+    @include('global.mails.partials.mail_logo')
 
     {{-- ANSPRACHE --}}
     <h1>Vielen Dank, {{ $data['contact']['vorname'] }}!</h1>

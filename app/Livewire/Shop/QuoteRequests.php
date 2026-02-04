@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop;
 
-use App\Mail\OrderConfirmation;
+use App\Mail\OrderMailToCustomer;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\QuoteRequest;
@@ -167,7 +167,7 @@ class QuoteRequests extends Component
 
         // 5. Bestätigungsmail an den Kunden senden
         try {
-            Mail::to($order->email)->send(new OrderConfirmation($order));
+            Mail::to($order->email)->send(new OrderMailToCustomer($order));
             session()->flash('success', 'Angebot erfolgreich in Bestellung umgewandelt! ✨');
         } catch (\Exception $e) {
             session()->flash('warning', 'Bestellung erstellt, aber Mail-Versand fehlgeschlagen: ' . $e->getMessage());

@@ -3,16 +3,14 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Address;
-use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Str;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class NewCalcRequest extends Mailable implements ShouldQueue
+class CalcMailToAdmin extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -35,8 +33,11 @@ class NewCalcRequest extends Mailable implements ShouldQueue
         $prefix = ($this->data['express'] ?? false) ? '[EXPRESS] ' : '';
         $betreffName = $firma ? "$firma ($nachname)" : "$vorname $nachname";
 
+        $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+        $owner_name = shop_setting('owner_name', 'Mein Seelenfunke');
+
         return new Envelope(
-            from: new Address('kontakt@mein-seelenfunke.de', 'Seelenfunke Website'),
+            from: new Address($owner_mail, $owner_name . ' Website'),
             replyTo: [new Address($email, "$vorname $nachname")],
             subject: $prefix . 'Neue Anfrage: ' . $betreffName,
         );
@@ -61,21 +62,6 @@ class NewCalcRequest extends Mailable implements ShouldQueue
         if ($this->pdfPath && file_exists($this->pdfPath)) {
             $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromPath($this->pdfPath);
         }
-
-        /*// 2. NEU: Logos der einzelnen Artikel automatisch mitsenden
-        // Da wir jetzt das zentrale $data['items'] nutzen:
-        if (isset($this->data['items'])) {
-            foreach ($this->data['items'] as $item) {
-                if (!empty($item['config']['logo_storage_path'])) {
-                    $logoPath = storage_path('app/public/' . $item['config']['logo_storage_path']);
-
-                    if (file_exists($logoPath)) {
-                        $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromPath($logoPath)
-                            ->as('Logo_' . \Illuminate\Support\Str::slug($item['name']) . '.' . pathinfo($logoPath, PATHINFO_EXTENSION));
-                    }
-                }
-            }
-        }*/
 
         return $attachments;
     }

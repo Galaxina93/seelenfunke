@@ -1,12 +1,10 @@
 {{-- Nutzt deinen zentralen HTML-Kopf für Styles --}}
 @include('global.mails.partials.mail_html_tree')
 
-<div class="container" style="border-top: 6px solid #16a34a;"> {{-- Grüner Balken für echte Bestellungen --}}
+<div class="container">
 
-    {{-- HEADER --}}
-    <div class="header">
-        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
-    </div>
+    {{-- LOGO --}}
+    @include('global.mails.partials.mail_logo')
 
     {{-- ANSPRACHE --}}
     <h1 style="color: #166534;">Neue Bestellung erhalten! 🥂 💸
@@ -16,12 +14,6 @@
     </h1>
 
     <p>Hallo Alina, herzlichen Glückwunsch! Ein Kunde hat gerade eine <strong>Bestellung (#{{ $data['quote_number'] }})</strong> über den Checkout abgeschlossen und bezahlt.</p>
-
-    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
-        <p style="margin: 0; color: #166534; font-size: 13px;">
-            <strong>Status:</strong> Die Zahlung wurde erfolgreich verarbeitet. Du kannst nun mit der Produktion beginnen.
-        </p>
-    </div>
 
     {{-- ARTIKEL LISTE --}}
     <h3 style="font-size: 14px; color: #888; text-transform: uppercase; margin-bottom: 10px;">Bestellte Produkte</h3>

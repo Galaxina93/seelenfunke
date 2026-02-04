@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\Order;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -11,20 +10,20 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
 
-class OrderConfirmation extends Mailable implements ShouldQueue
+class OrderMailToCustomer extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public Order $order;
+    public array $data;
     protected ?string $pdfPath;
 
     /**
-     * @param Order $order
+     * @param array $data - Die zentralisierten Daten vom Quote/Order Model
      * @param string|null $pdfPath - Pfad zur generierten Rechnung für den Kunden
      */
-    public function __construct(Order $order, ?string $pdfPath = null)
+    public function __construct(array $data, ?string $pdfPath = null)
     {
-        $this->order = $order;
+        $this->data = $data;
         $this->pdfPath = $pdfPath;
     }
 
@@ -39,10 +38,7 @@ class OrderConfirmation extends Mailable implements ShouldQueue
     {
         return new Content(
             view: 'global.mails.new_order_mail_to_customer',
-            with: [
-                'order' => $this->order,
-                'data'  => $this->order->toFormattedArray(),
-            ],
+            with: ['data' => $this->data],
         );
     }
 
@@ -50,10 +46,10 @@ class OrderConfirmation extends Mailable implements ShouldQueue
     {
         $attachments = [];
 
-        // Die Rechnung als PDF für den Kunden anhängen
+        // Die Rechnung als PDF anhängen
         if ($this->pdfPath && file_exists($this->pdfPath)) {
             $attachments[] = Attachment::fromPath($this->pdfPath)
-                ->as('Rechnung-' . $this->order->order_number . '.pdf')
+                ->as('Rechnung-' . ($this->data['quote_number'] ?? 'Bestellung') . '.pdf')
                 ->withMime('application/pdf');
         }
 

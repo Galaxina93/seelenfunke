@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Shop;
 
-use App\Mail\CalcCustomer;
-use App\Mail\NewCalcRequest;
+use App\Mail\CalcMailToCustomer;
+use App\Mail\CalcMailToAdmin;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\QuoteRequest;
@@ -499,11 +499,13 @@ class Calculator extends Component
 
         // 4. Mail-Versand
         try {
-            // Kundenmail (Angebot) - nutzt jetzt die sauberen Partials
-            Mail::to($this->form['email'])->send(new CalcCustomer($data, $path));
+            // Kundenmail mit Angebot
+            Mail::to($this->form['email'])->send(new CalcMailToCustomer($data, $path));
 
-            // Adminmail (Interne Anfrage)
-            Mail::to('kontakt@mein-seelenfunke.de')->send(new NewCalcRequest($data, $path));
+            $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+
+            // Adminmail (neue Interne Anfrage)
+            Mail::to($owner_mail)->send(new CalcMailToAdmin($data, $path));
 
             \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
         } catch (\Exception $e) {

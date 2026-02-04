@@ -350,15 +350,15 @@ class Checkout extends Component
 
             // 4. Mails versenden mit zentralisierten Daten
             try {
-                // A) Bestätigung an Kunden (JETZT MIT PDF ANHANG)
-                \Illuminate\Support\Facades\Mail::to($order->email)
-                    ->send(new \App\Mail\OrderConfirmation($order, $pdfPath));
-
-                // B) Arbeits-Anfrage an Admin (Dich)
                 $mailData = $order->toFormattedArray();
 
+                // A) Bestätigung an Kunden (JETZT MIT PDF ANHANG)
+                \Illuminate\Support\Facades\Mail::to($order->email)
+                    ->send(new \App\Mail\OrderMailToCustomer($mailData, $pdfPath));
+
+                // B) Arbeits-Anfrage an Admin (Dich)
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
-                    ->send(new \App\Mail\NewOrderRequest($mailData, $pdfPath));
+                    ->send(new \App\Mail\OrderMailToAdmin($mailData, $pdfPath));
 
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());

@@ -3,26 +3,20 @@
 namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Address;
-use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Str;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class CalcCustomer extends Mailable implements ShouldQueue
+class CalcMailToCustomer extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
     public $data;
     protected string $pdfPath;
 
-    /**
-     * @param array $data - Die übermittelten Formulardaten
-     * @param string $pdfPath - Der absolute Pfad zur generierten PDF
-     */
     public function __construct(array $data, string $pdfPath)
     {
         $this->data = $data;
@@ -31,11 +25,15 @@ class CalcCustomer extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+
+        $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+        $owner_name = shop_setting('owner_name', 'Mein Seelenfunke');
+
         return new Envelope(
         // Absender ist Mein Seelenfunke
-            from: new Address('kontakt@mein-seelenfunke.de', 'Mein Seelenfunke'),
-            replyTo: [new Address('kontakt@mein-seelenfunke.de', 'Mein Seelenfunke')],
-            subject: 'Ihr persönliches Angebot von Mein Seelenfunke',
+            from: new Address($owner_mail, $owner_name),
+            replyTo: [new Address($owner_mail, $owner_name)],
+            subject: 'Ihr persönliches Angebot von' . $owner_name,
         );
     }
 
