@@ -190,7 +190,7 @@
         <table class="header-table">
             <tr>
                 <td style="text-align: left; width: 40%;">
-                    @include('global.mails.partials.mail_logo')
+                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
                 </td>
                 <td class="text-right" style="width: 60%; padding-top: 10px;">
                     <div style="font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 2px; font-weight: bold;">
