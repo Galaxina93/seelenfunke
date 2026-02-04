@@ -57,11 +57,33 @@ class Checkout extends Component
     public $isFinished = false;
     public $finalOrderNumber = '';
 
+    /**
+     * Schöne Namen für die Felder definieren
+     */
+    protected function validationAttributes()
+    {
+        return [
+            'email' => 'E-Mail-Adresse',
+            'first_name' => 'Vorname',
+            'last_name' => 'Nachname',
+            'address' => 'Straße und Hausnummer',
+            'city' => 'Stadt',
+            'postal_code' => 'Postleitzahl',
+            'country' => 'Land',
+            'shipping_first_name' => 'Vorname (Lieferadresse)',
+            'shipping_last_name' => 'Nachname (Lieferadresse)',
+            'shipping_address' => 'Straße (Lieferadresse)',
+            'shipping_city' => 'Stadt (Lieferadresse)',
+            'shipping_postal_code' => 'PLZ (Lieferadresse)',
+            'shipping_country' => 'Land (Lieferadresse)',
+        ];
+    }
+
     // --- REGELN ---
     protected function rules()
     {
         // Wir holen die erlaubten Länder dynamisch aus der Config, falls vorhanden
-        $allowedCountries = implode(',', array_keys(config('shop.countries', ['DE' => 'Deutschland'])));
+        $allowedCountries = implode(',', array_keys(shop_setting('active_countries', ['DE' => 'Deutschland'])));
 
         $rules = [
             'email' => 'required|email',
@@ -89,11 +111,28 @@ class Checkout extends Component
     }
 
     protected $messages = [
-        'email.required' => 'Bitte gib deine E-Mail-Adresse an.',
-        'email.email' => 'Bitte gib eine gültige E-Mail-Adresse an.',
+        // Rechnungsadresse
+        'email.required' => 'Bitte gib deine E-Mail-Adresse für die Bestellbestätigung an.',
+        'email.email' => 'Die eingegebene E-Mail-Adresse ist nicht gültig.',
+        'first_name.required' => 'Dein Vorname wird für die Rechnung benötigt.',
+        'last_name.required' => 'Dein Nachname wird für die Rechnung benötigt.',
+        'address.required' => 'Bitte gib deine vollständige Anschrift (Straße/Nr.) an.',
+        'city.required' => 'Die Angabe deiner Stadt fehlt.',
+        'postal_code.required' => 'Bitte gib deine Postleitzahl an.',
+        'country.required' => 'Bitte wähle ein Land aus.',
         'country.in' => 'Wir liefern leider nicht in das ausgewählte Land.',
-        'terms_accepted.accepted' => 'Du musst den AGB zustimmen.',
-        'privacy_accepted.accepted' => 'Bitte akzeptiere die Datenschutzerklärung.',
+
+        // Lieferadresse
+        'shipping_first_name.required' => 'Bitte gib den Vornamen des Empfängers an.',
+        'shipping_last_name.required' => 'Bitte gib den Nachnamen des Empfängers an.',
+        'shipping_address.required' => 'Die Lieferanschrift (Straße/Nr.) wird benötigt.',
+        'shipping_city.required' => 'Die Angabe der Stadt für die Lieferung fehlt.',
+        'shipping_postal_code.required' => 'Bitte gib die Postleitzahl für den Versand an.',
+        'shipping_country.in' => 'Versand in dieses Land ist aktuell nicht möglich.',
+
+        // Rechtliches
+        'terms_accepted.accepted' => 'Bitte bestätige, dass du die AGB gelesen hast.',
+        'privacy_accepted.accepted' => 'Deine Zustimmung zur Datenschutzerklärung ist erforderlich.',
     ];
 
     public function mount()
@@ -275,34 +314,29 @@ class Checkout extends Component
             $this->finalOrderNumber = $order->order_number;
 
             // --- [NEU] VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
-            // Falls der Checkout aus einem Angebot heraus gestartet wurde, markieren wir dieses als umgewandelt.
             if (Session::has('checkout_from_quote_id')) {
                 $quoteId = Session::get('checkout_from_quote_id');
                 $quote = QuoteRequest::find($quoteId);
 
                 if ($quote) {
                     $quote->update([
-                        'status' => 'converted',             // Status auf "Umgewandelt" setzen
-                        'converted_order_id' => $order->id   // Die neue Order-ID im Angebot hinterlegen
+                        'status' => 'converted',
+                        'converted_order_id' => $order->id
                     ]);
 
-                    // Session-Key löschen, damit bei einer weiteren Bestellung nicht versehentlich das gleiche Quote genutzt wird
                     Session::forget('checkout_from_quote_id');
 
                     \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
                 }
             }
-            // --- ENDE NEU ---
 
             // 3. Rechnung & PDF zentral erstellen
             $pdfPath = null;
             try {
                 $invoiceService = app(\App\Services\InvoiceService::class);
                 $invoice = $invoiceService->createFromOrder($order);
-                // Absoluter Pfad zum PDF für den Mail-Anhang
                 $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
 
-                // Falls die Datei physisch noch nicht existiert, PDF generieren
                 if ($invoice && !file_exists($pdfPath)) {
                     $pdf = $invoiceService->generatePdf($invoice);
                     if (!file_exists(dirname($pdfPath))) {
@@ -316,12 +350,9 @@ class Checkout extends Component
 
             // 4. Mails versenden mit zentralisierten Daten
             try {
-                // A) Schicke HTML-Bestätigung an Kunden
                 \Illuminate\Support\Facades\Mail::to($order->email)
                     ->send(new \App\Mail\OrderConfirmation($order));
 
-                // B) Arbeits-Anfrage an Admin (Dich)
-                // Wir nutzen die neue toFormattedArray() Methode vom Model für ein einheitliches Format!
                 $mailData = $order->toFormattedArray();
 
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
@@ -335,7 +366,6 @@ class Checkout extends Component
         // 5. UI umschalten & Cleanup
         $this->isFinished = true;
 
-        // Warenkorb endgültig löschen (Session & DB)
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
         if ($cart) {
@@ -343,9 +373,7 @@ class Checkout extends Component
             $cart->delete();
         }
 
-        // Header aktualisieren (Warenkorb-Zähler auf 0)
         $this->dispatch('cart-updated');
-        // Stripe-Elemente im Frontend informieren
         $this->dispatch('payment-processed');
     }
 
@@ -362,26 +390,18 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $guestCart = $cartService->getCart();
 
-        // [FIX] Express-Status des Gast-Warenkorbs vor dem Login merken
         $wasExpress = $guestCart->is_express;
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
 
-            // [FIX] KEIN session()->regenerate() hier!
-            // Das Regenerieren der Session in einem Livewire-Request macht das CSRF-Token im Browser ungültig
-            // und führt zur "Page Expired" Meldung.
-
             $user = Auth::guard('customer')->user();
 
-            // User Warenkorb laden oder erstellen (an aktuelle Session binden)
             $userCart = Cart::firstOrCreate(
                 ['customer_id' => $user->id]
             );
 
-            // Bestehende Session-ID dem User-Cart zuweisen
             $userCart->update(['session_id' => Session::getId()]);
 
-            // MERGE Logic: Gast-Items in User-Cart schieben
             if ($guestCart && $guestCart->id !== $userCart->id) {
                 foreach ($guestCart->items as $item) {
                     $item->update(['cart_id' => $userCart->id]);
@@ -394,16 +414,13 @@ class Checkout extends Component
                 $guestCart->delete();
             }
 
-            // [FIX] Express-Status auf den (neuen) User-Warenkorb übertragen
             if ($wasExpress) {
                 $userCart->update(['is_express' => true]);
             }
 
-            // Felder neu befüllen
             $this->mount();
             $this->loginError = '';
 
-            // Frontend über Login informieren
             $this->dispatch('checkout-updated');
 
         } else {
@@ -413,16 +430,11 @@ class Checkout extends Component
 
     /**
      * Wird vom Frontend aufgerufen, BEVOR Stripe bestätigt wird.
-     * Erstellt die Order und den User (falls nötig) in der DB.
      */
     public function validateAndCreateOrder()
     {
         $this->validate();
-
-        // Order erstellen (Status: pending)
-        // [FIX] ID-Logik passiert jetzt INNERHALB von createOrderInDb
         $orderId = $this->createOrderInDb();
-
         return $orderId;
     }
 
@@ -434,50 +446,38 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
-        // WICHTIG: Land übergeben für finale Berechnung, damit DB Werte stimmen
-        // Wir nehmen das Ziel-Lieferland für die Berechnung
         $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
         $totals = $cartService->calculateTotals($cart, $targetCountry);
 
-        // --- [FIX] ID EXTRAKTION UND FALLBACK ---
-        // 1. Versuche die gespeicherte ID zu nehmen
         $finalIntentId = $this->currentPaymentIntentId;
 
-        // 2. Fallback: Wenn Variable leer ist (z.B. durch Re-Render verloren), extrahiere aus Secret
         if (empty($finalIntentId) && !empty($this->clientSecret)) {
-            // client_secret Format: pi_3Mg..._secret_...
             $parts = explode('_secret_', $this->clientSecret);
             $finalIntentId = $parts[0] ?? null;
         }
 
-        // --- KUNDEN-LOGIK ---
         $customer = null;
 
-        // 1. Prüfen ob eingeloggt
         if (Auth::guard('customer')->check()) {
             $customer = Auth::guard('customer')->user();
-            // Falls der eingeloggte User aus irgendeinem Grund keinen Eintrag in der Customers Tabelle hat
             if ($customer && !Customer::where('id', $customer->id)->exists()) {
                 $customer = null;
                 Auth::guard('customer')->logout();
             }
         }
 
-        // 2. Falls nicht, prüfen ob E-Mail schon existiert
         if (!$customer) {
             $customer = Customer::where('email', $this->email)->first();
         }
 
-        // 3. Falls immer noch nicht, neuen Customer anlegen
         if (!$customer) {
             $customer = Customer::create([
                 'email' => $this->email,
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
-                'password' => bcrypt(Str::random(16)), // Zufallspasswort
+                'password' => bcrypt(Str::random(16)),
             ]);
 
-            // Profil anlegen
             $customer->profile()->create([
                 'street' => $this->address,
                 'city' => $this->city,
@@ -488,7 +488,6 @@ class Checkout extends Component
 
         $customerId = $customer->id;
 
-        // Lieferadresse bestimmen
         $shipping_data = $this->has_separate_shipping ? [
             'first_name' => $this->shipping_first_name,
             'last_name'  => $this->shipping_last_name,
@@ -507,16 +506,14 @@ class Checkout extends Component
             'country'    => $this->country,
         ];
 
-        // Order erstellen
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
             'customer_id' => $customerId,
             'email' => $this->email,
             'status' => 'pending',
             'payment_status' => 'unpaid',
-            'payment_method' => 'stripe', // Default
+            'payment_method' => 'stripe',
 
-            // [FIX] Hier nutzen wir die ermittelte ID direkt beim Erstellen
             'stripe_payment_intent_id' => $finalIntentId,
 
             'billing_address' => [
@@ -540,13 +537,8 @@ class Checkout extends Component
             'total_price' => $totals['total'],
         ]);
 
-        // Items übertragen
         foreach($cart->items as $item) {
 
-            // [NEU] KRYPTOGRAFISCHER FINGERABDRUCK (Seal)
-            // Wir erzeugen einen Hash aus der gesamten Konfiguration.
-            // Sollte sich später nur ein Pixel-Wert oder ein Buchstabe ändern,
-            // würde der Hash nicht mehr übereinstimmen.
             $configFingerprint = !empty($item->configuration)
                 ? hash('sha256', json_encode($item->configuration))
                 : null;
@@ -558,11 +550,10 @@ class Checkout extends Component
                 'unit_price' => $item->unit_price,
                 'total_price' => $item->unit_price * $item->quantity,
                 'configuration' => $item->configuration,
-                'config_fingerprint' => $configFingerprint // Fingerabdruck mitspeichern
+                'config_fingerprint' => $configFingerprint
             ]);
         }
 
-        // [WICHTIG] Warenkorb leeren, damit er bei Erfolg nicht mehr voll ist
         $cart->items()->delete();
         $cart->delete();
 
@@ -578,8 +569,6 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
-        // Totals an die View übergeben (Wichtig für taxes_breakdown Anzeige!)
-        // Auch hier nutzen wir die Lieferland-Logik
         $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
         $totals = $cartService->calculateTotals($cart, $targetCountry);
 
