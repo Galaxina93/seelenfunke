@@ -350,9 +350,11 @@ class Checkout extends Component
 
             // 4. Mails versenden mit zentralisierten Daten
             try {
+                // A) Bestätigung an Kunden (JETZT MIT PDF ANHANG)
                 \Illuminate\Support\Facades\Mail::to($order->email)
-                    ->send(new \App\Mail\OrderConfirmation($order));
+                    ->send(new \App\Mail\OrderConfirmation($order, $pdfPath));
 
+                // B) Arbeits-Anfrage an Admin (Dich)
                 $mailData = $order->toFormattedArray();
 
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
