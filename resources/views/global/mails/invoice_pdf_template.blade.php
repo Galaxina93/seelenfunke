@@ -43,7 +43,7 @@
         .storno-badge { color: #dc2626; border: 2px solid #dc2626; padding: 8px 15px; display: inline-block; transform: rotate(-3deg); font-weight: bold; font-size: 16px; margin-bottom: 20px; }
         .clear { clear: both; }
         .subject { font-size: 14px; font-weight: bold; margin-bottom: 15px; }
-        .text-block { margin-bottom: 30px; white-space: pre-line; }
+        .text-block { margin-bottom: 20px; white-space: pre-line; }
 
         /* BEZAHLT STEMPEL AUS STAGE */
         .paid-stamp {
@@ -129,9 +129,8 @@
 
 <div class="subject">{{ $invoice->subject }}</div>
 <div class="text-block">
-    Sehr geehrte Damen und Herren, vielen Dank für Ihren Auftrag<br>
-    und das damit verbundene Vertrauen! <br><br>
-    Hiermit stelle ich Ihnen folgende Leistungen in Rechnung:
+    vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!
+    Hiermit stellen wir Ihnen folgende Leistungen in Rechnung:
 </div>
 
 <table class="items-table">
@@ -206,8 +205,7 @@
 
 <div class="clear" style="margin-top: 40px;">
     <div class="text-block">
-        Der Rechnungsbetrag ist fällig bis zum {{$invoice->due_date ? $invoice->due_date->format('d.m.Y') : ''}} . <br>
-        Vielen Dank für Ihren Einkauf!
+        Der Rechnungsbetrag ist fällig bis zum {{$invoice->due_date ? $invoice->due_date->format('d.m.Y') : ''}}
     </div>
     <p>
         <strong>Zahlungsinformationen:</strong><br>
