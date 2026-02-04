@@ -88,10 +88,10 @@
                                 (2) Die im Konfigurator dargestellte Vorschau ist **nicht maßstabsgetreu** und stellt keine millimetergenaue Abbildung des Endprodukts dar. Geringfügige Abweichungen in der Platzierung, Ausrichtung und Größe (im Bereich handwerklicher Toleranzen) sind produktionsbedingt möglich und stellen keinen Mangel dar.
                             </p>
                             <p class="mt-2">
-                                (3) **Farbliche Abweichungen:** Aufgrund unterschiedlicher Bildschirmeinstellungen, Helligkeiten und technischer Gegebenheiten (RGB-Darstellung am Monitor vs. physische Gravur oder Druck) kann die Farbdarstellung im Konfigurator von der tatsächlichen Farbe der Ware oder der Veredelung abweichen.
+                                (3) **Technische Umsetzung & Farbwiedergabe:** Der Kunde nimmt zur Kenntnis, dass farbige Bilddateien im Laserverfahren technisch bedingt nicht farbecht wiedergegeben werden können. Die Veredelung erfolgt als dauerhafte Oberflächenveränderung (Gravur), wobei Farben in materialabhängige Kontraststufen (monochrom/Graustufen) umgewandelt werden. Abweichungen zur digitalen RGB-Farbdarstellung am Monitor sind prozessbedingt und stellen keinen Reklamationsgrund dar.
                             </p>
                             <p class="mt-2">
-                                (4) Der Kunde ist dafür verantwortlich, die im Konfigurator eingegebenen Inhalte (insbesondere Rechtschreibung von Namen oder Daten) vor Abschluss der Bestellung auf Richtigkeit zu prüfen. Nachträgliche Korrekturen nach Produktionsbeginn sind ausgeschlossen.
+                                (4) Der Kunde ist dafür verantwortlich, die im Konfigurator eingegebenen Inhalte (insbesondere Rechtschreibung von Namen oder Daten) vor Abschluss der Bestellung auf Richtigkeit zu prüfen. Da es sich um individuell nach Kundenspezifikation angefertigte Waren handelt, ist das Widerrufsrecht gemäß § 312g Abs. 2 Nr. 1 BGB ausgeschlossen.
                             </p>
                         </div>
 
