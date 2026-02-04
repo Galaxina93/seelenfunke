@@ -29,8 +29,11 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        $orderNum = $this->data['quote_number'] ?? 'Unbekannt';
+        $owner_name = shop_setting('owner_name', 'Mein Seelenfunke');
+
         return new Envelope(
-            subject: 'Deine Bestellung bei Mein Seelenfunke (#' . $this->order->order_number . ')',
+            subject: '📦 Deine Bestellung bei ' .  $owner_name . ' (#' . $orderNum . ')',
         );
     }
 
