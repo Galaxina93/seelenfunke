@@ -472,7 +472,7 @@
                         <div class="col-span-1 sm:col-span-2">
                             <label class="block text-sm font-bold text-gray-700 mb-1">Land für Versand *</label>
                             <select wire:model.live="form.country" class="w-full rounded border-gray-300 focus:ring-primary focus:border-primary p-2">
-                                @foreach(config('shop.countries', ['DE' => 'Deutschland']) as $code => $name)
+                                @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
                                     <option value="{{ $code }}">{{ $name }}</option>
                                 @endforeach
                             </select>
@@ -482,7 +482,7 @@
                                 @if($form['country'] === 'DE')
                                     <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab 50,00 € Warenwert (DE). Sonst pauschal 4,90 €.
                                 @else
-                                    <span class="text-blue-600 font-bold">Hinweis:</span> Internationale Versandkosten werden nach Gewicht & Zone berechnet.
+                                    <span class="text-blue-600 font-bold">Hinweis:</span> Versandkosten werden nach Gewicht & Zone berechnet.
                                 @endif
                             </div>
                         </div>

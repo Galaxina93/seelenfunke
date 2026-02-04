@@ -104,7 +104,13 @@
                 @forelse($orders as $order)
                     <tr class="hover:bg-gray-50/50 transition-colors group text-sm cursor-pointer" wire:click="openDetail('{{ $order->id }}')">
                         <td class="px-6 py-4 font-mono font-bold text-primary hover:underline whitespace-nowrap">
-                            {{ $order->order_number }}
+                            <div class="flex items-center gap-2">
+                                {{ $order->order_number }}
+                                {{-- Icon Hinweis auf abweichende Lieferadresse in der Liste --}}
+                                @if($order->shipping_address && serialize($order->billing_address) !== serialize($order->shipping_address))
+                                    <svg class="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Abweichende Lieferadresse"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                @endif
+                            </div>
                         </td>
                         <td class="px-6 py-4 text-gray-500 whitespace-nowrap">
                             {{ $order->created_at->format('d.m.Y H:i') }}
@@ -143,7 +149,12 @@
                     @foreach($orders as $order)
                         <div wire:click="openDetail('{{ $order->id }}')" class="p-4 active:bg-gray-50 transition-colors cursor-pointer border-b last:border-b-0">
                             <div class="flex justify-between items-start mb-2">
-                                <span class="font-mono font-bold text-primary">{{ $order->order_number }}</span>
+                                <span class="font-mono font-bold text-primary flex items-center gap-2">
+                                    {{ $order->order_number }}
+                                    @if($order->shipping_address && serialize($order->billing_address) !== serialize($order->shipping_address))
+                                        <svg class="w-3 h-3 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                                    @endif
+                                </span>
                                 <span @class(['px-2 py-0.5 rounded-full text-[10px] font-bold uppercase', $statusColors[$order->status] ?? 'bg-gray-100'])>
                             {{ $statusMap[$order->status] ?? $order->status }}
                         </span>
@@ -210,9 +221,10 @@
                     <div class="p-4 md:p-6 space-y-6 md:space-y-8">
                         {{-- Kundendaten --}}
                         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
+                            {{-- Rechnungsadresse --}}
                             <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                 <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
-                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                     Rechnungsadresse
                                 </h3>
                                 <div class="text-sm text-gray-900 leading-snug">
@@ -224,20 +236,47 @@
                                 </div>
                                 <div class="mt-2 text-xs text-blue-600 truncate">{{ $this->selectedOrder->email }}</div>
                             </div>
-                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+
+                            {{-- Lieferadresse (Abweichend Prüfung) --}}
+                            @php
+                                $isDifferent = $this->selectedOrder->shipping_address && serialize($this->selectedOrder->billing_address) !== serialize($this->selectedOrder->shipping_address);
+                            @endphp
+                            <div @class(['p-4 rounded-xl border', $isDifferent ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-gray-50 border-gray-100'])>
+                                <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    Lieferadresse
+                                    @if($isDifferent)
+                                        <span class="ml-auto text-[9px] bg-amber-500 px-1.5 py-0.5 rounded-full font-black tracking-widest uppercase animate-pulse">Abweichend!</span>
+                                    @endif
+                                </h3>
+                                <div class="text-sm text-gray-900 leading-snug">
+                                    @if($this->selectedOrder->shipping_address)
+                                        <span class="font-bold">{{ $this->selectedOrder->shipping_address['first_name'] }} {{ $this->selectedOrder->shipping_address['last_name'] }}</span><br>
+                                        @if(!empty($this->selectedOrder->shipping_address['company'])) {{ $this->selectedOrder->shipping_address['company'] }}<br> @endif
+                                        {{ $this->selectedOrder->shipping_address['address'] }}<br>
+                                        {{ $this->selectedOrder->shipping_address['postal_code'] }} {{ $this->selectedOrder->shipping_address['city'] }}<br>
+                                        {{ $this->selectedOrder->shipping_address['country'] }}
+                                    @else
+                                        <span class="italic text-gray-400">Wie Rechnungsadresse</span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            {{-- Zahlung & Info --}}
+                            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 xl:col-span-2">
                                 <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
                                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                                     Zahlung & Info
                                 </h3>
                                 <div class="space-y-2 text-sm">
                                     <div class="flex justify-between">
-                                        <span class="text-gray-500">Zahlung:</span>
+                                        <span class="text-gray-500">Zahlungsstatus:</span>
                                         <span class="font-bold {{ $this->selectedOrder->payment_status == 'paid' ? 'text-green-600' : 'text-yellow-600' }}">
                                             {{ $this->selectedOrder->payment_status == 'paid' ? 'Bezahlt' : 'Offen' }}
                                         </span>
                                     </div>
                                     @if($this->selectedOrder->payment_status !== 'paid')
-                                        <button wire:click="markAsPaid('{{ $this->selectedOrder->id }}')" class="w-full text-xs bg-white border border-gray-300 rounded px-2 py-1 hover:bg-gray-50">
+                                        <button wire:click="markAsPaid('{{ $this->selectedOrder->id }}')" class="w-full text-xs bg-white border border-gray-300 rounded px-2 py-1 hover:bg-gray-50 font-bold shadow-sm transition">
                                             Als bezahlt markieren
                                         </button>
                                     @endif

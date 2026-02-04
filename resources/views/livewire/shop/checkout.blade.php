@@ -131,7 +131,7 @@
                                 <div class="sm:col-span-2">
                                     <label for="country" class="block text-sm font-medium text-gray-700">Land <span class="text-red-500">*</span></label>
                                     <select wire:model.live="country" id="country" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm py-3">
-                                        @foreach(config('shop.countries', ['DE' => 'Deutschland']) as $code => $name)
+                                        @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
                                             <option value="{{ $code }}">{{ $name }}</option>
                                         @endforeach
                                     </select>
@@ -140,13 +140,70 @@
                                         @if($country === 'DE')
                                             <span class="text-green-600 font-bold">Tipp:</span> Versandkostenfrei ab 50,00 € Warenwert. Sonst 4,90 €.
                                         @else
-                                            <span class="text-blue-600 font-bold">Hinweis:</span> Internationale Versandkosten werden nach Gewicht & Zone berechnet.
+                                            <span class="text-blue-600 font-bold">Hinweis:</span> Versandkosten werden nach Gewicht & Zone berechnet.
                                         @endif
                                     </div>
 
                                     @error('country') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                             </div>
+
+                            {{-- START: ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
+                            <div class="mt-8 pt-6 border-t border-gray-100">
+                                <div class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors" x-on:click="$wire.set('has_separate_shipping', !@js($has_separate_shipping))">
+                                    <input type="checkbox" wire:model.live="has_separate_shipping" class="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer">
+                                    <span class="text-sm font-bold text-gray-700">Lieferadresse weicht von Rechnungsadresse ab</span>
+                                </div>
+
+                                <div x-show="$wire.has_separate_shipping" x-collapse style="display: none;">
+                                    <div class="mt-6 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2 bg-white p-6 rounded-2xl border border-primary/20 shadow-sm">
+                                        <h3 class="sm:col-span-2 text-md font-bold text-primary flex items-center gap-2">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                                            Wohin dürfen wir liefern?
+                                        </h3>
+
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700">Vorname <span class="text-red-500">*</span></label>
+                                            <input type="text" wire:model.live="shipping_first_name" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                            @error('shipping_first_name') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700">Nachname <span class="text-red-500">*</span></label>
+                                            <input type="text" wire:model.live="shipping_last_name" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                            @error('shipping_last_name') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div class="sm:col-span-2">
+                                            <label class="block text-sm font-medium text-gray-700">Firma (Optional)</label>
+                                            <input type="text" wire:model.live="shipping_company" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                        </div>
+                                        <div class="sm:col-span-2">
+                                            <label class="block text-sm font-medium text-gray-700">Straße & Hausnummer <span class="text-red-500">*</span></label>
+                                            <input type="text" wire:model.live="shipping_address" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                            @error('shipping_address') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700">PLZ <span class="text-red-500">*</span></label>
+                                            <input type="text" wire:model.live="shipping_postal_code" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                            @error('shipping_postal_code') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700">Stadt <span class="text-red-500">*</span></label>
+                                            <input type="text" wire:model.live="shipping_city" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary transition-colors">
+                                            @error('shipping_city') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                        <div class="sm:col-span-2">
+                                            <label class="block text-sm font-medium text-gray-700">Land <span class="text-red-500">*</span></label>
+                                            <select wire:model.live="shipping_country" class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 sm:text-sm py-3 focus:bg-white focus:ring-primary focus:border-primary cursor-pointer">
+                                                @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
+                                                    <option value="{{ $code }}">{{ $name }}</option>
+                                                @endforeach
+                                            </select>
+                                            @error('shipping_country') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{-- ENDE: ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
                         </div>
 
                         {{-- Zahlung (Stripe Element) --}}

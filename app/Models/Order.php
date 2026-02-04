@@ -13,7 +13,6 @@ class Order extends Model
 
     protected $guarded = [];
 
-    // FIX: 'cancellation_reason' MUSS hier stehen, sonst wird es nicht gespeichert!
     protected $fillable = [
         'order_number',
         'customer_id',
@@ -32,11 +31,11 @@ class Order extends Model
         'shipping_price',
         'total_price',
         'notes',
-        'cancellation_reason', // <--- WICHTIG
-        'is_express',          // Ergänzt für toFormattedArray
-        'deadline',            // Ergänzt für toFormattedArray
-        'expires_at',          // Ergänzt für toFormattedArray
-        'token'                // Ergänzt für toFormattedArray
+        'cancellation_reason',
+        'is_express',
+        'deadline',
+        'expires_at',
+        'token'
     ];
 
     protected $casts = [
@@ -52,7 +51,6 @@ class Order extends Model
         'cancellation_reason' => 'string',
     ];
 
-    // Relationen
     public function items()
     {
         return $this->hasMany(OrderItem::class);
@@ -60,10 +58,9 @@ class Order extends Model
 
     public function customer()
     {
-        return $this->belongsTo(User::class, 'customer_id'); // Oder Customer Model
+        return $this->belongsTo(User::class, 'customer_id');
     }
 
-    // Helper für Status-Farben (Tailwind Klassen)
     public function getStatusColorAttribute()
     {
         return match($this->status) {
@@ -88,7 +85,6 @@ class Order extends Model
         };
     }
 
-    // Helper für vollen Namen
     public function getCustomerNameAttribute()
     {
         if (isset($this->billing_address['first_name'])) {
@@ -97,49 +93,26 @@ class Order extends Model
         return 'Gast';
     }
 
-    /**
-     * Berechnet den enthaltenen Steueranteil der Versandkosten.
-     * Wichtig für die korrekte Ausweisung auf Rechnungen.
-     */
     public function getShippingTaxAmountAttribute()
     {
-        if ($this->shipping_price <= 0) {
+        if ($this->shipping_price <= 0 || shop_setting('is_small_business', false)) {
             return 0;
         }
-
-        // 1. Check: Kleinunternehmer-Status dynamisch aus der DB laden
-        if (shop_setting('is_small_business', false)) {
-            return 0;
-        }
-
-        // 2. Steuersatz holen
         $taxRate = (float) shop_setting('default_tax_rate', 19.00);
-
-        // 3. Dynamische Rückwärtsrechnung
         $divisor = 1 + ($taxRate / 100);
-
         return (int) round($this->shipping_price - ($this->shipping_price / $divisor));
     }
 
-    /**
-     * Gibt den Netto-Versandpreis zurück.
-     */
     public function getShippingNetPriceAttribute()
     {
         return $this->shipping_price - $this->shipping_tax_amount;
     }
 
-    /**
-     * Prüft, ob der Versand für diese Bestellung kostenlos war.
-     */
     public function getIsFreeShippingAttribute()
     {
         return $this->shipping_price === 0;
     }
 
-    /**
-     * Führt eine saubere Stornierung durch.
-     */
     public function cancel(string $reason): void
     {
         $this->update([
@@ -152,15 +125,13 @@ class Order extends Model
         return $this->hasMany(Invoice::class);
     }
 
-    // Formatiert die Daten die an sämtliche Mail Vorlagen gehen.
     public function toFormattedArray()
     {
         $items = [];
-
-        // Werte dynamisch aus der Tabelle 'shop-settings' über den Helper laden
         $isSmallBusiness = (bool)shop_setting('is_small_business', false);
         $defaultTaxRate  = (float)shop_setting('default_tax_rate', 19);
         $validityDays    = (int)shop_setting('order_quote_validity_days', 14);
+        $divisor = $isSmallBusiness ? 1.0 : (1 + ($defaultTaxRate / 100));
 
         foreach ($this->items as $item) {
             $items[] = [
@@ -172,21 +143,37 @@ class Order extends Model
             ];
         }
 
+        // --- PRÄZISE NETTO-BERECHNUNG FÜR ANZEIGE ---
+        $totalNettoCents = ($this->total_price - $this->tax_amount);
+
+        $expressGross = $this->is_express ? (int)shop_setting('express_surcharge', 2500) : 0;
+        $expressNettoCents = (int)round($expressGross / $divisor);
+
+        $shippingGrossCents = $this->shipping_price ?? 0;
+        $shippingNettoCents = (int)round($shippingGrossCents / $divisor);
+
+        $goodsNettoCents = $totalNettoCents - $expressNettoCents - $shippingNettoCents;
+
         return [
             'quote_number' => $this->order_number,
             'quote_token'  => $this->token ?? '',
-            // Nutzt jetzt die dynamische Einstellung aus dem Backend
             'quote_expiry' => $this->expires_at
                 ? $this->expires_at->format('d.m.Y')
                 : now()->addDays($validityDays)->format('d.m.Y'),
             'express'      => (bool)$this->is_express,
             'deadline'     => $this->deadline,
-            'total_netto'  => number_format(($this->total_price - $this->tax_amount) / 100, 2, ',', '.'),
+
+            // Formatierte Summen
+            'total_netto'  => number_format($totalNettoCents / 100, 2, ',', '.'),
             'total_vat'    => number_format($this->tax_amount / 100, 2, ',', '.'),
             'total_gross'  => number_format($this->total_price / 100, 2, ',', '.'),
             'shipping_price' => number_format($this->shipping_price / 100, 2, ',', '.'),
 
-            // DYNAMISCH: Kleinunternehmer-Logik & Steuer-Satz aus den DB-Settings
+            // Detaillierte Netto-Werte für Mails
+            'display_netto_goods'    => number_format($goodsNettoCents / 100, 2, ',', '.') . ' €',
+            'display_netto_express'  => number_format($expressNettoCents / 100, 2, ',', '.') . ' €',
+            'display_netto_shipping' => number_format($shippingNettoCents / 100, 2, ',', '.') . ' €',
+
             'is_small_business' => $isSmallBusiness,
             'tax_rate' => $defaultTaxRate,
             'tax_note' => $isSmallBusiness
@@ -202,6 +189,11 @@ class Order extends Model
                 'anmerkung'=> $this->notes ?? '',
                 'country'  => $this->billing_address['country'] ?? 'DE'
             ],
+
+            // NEU: Explizite Übergabe beider Adressen für die Mail-Vorlagen
+            'billing_address' => $this->billing_address,
+            'shipping_address' => $this->shipping_address ?? $this->billing_address,
+
             'items' => $items
         ];
     }

@@ -134,6 +134,10 @@ class QuoteAcceptance extends Component
 
         $totalWeight = 0; // Gesamtgewicht für Versandberechnung
 
+        // Shop-Einstellungen laden
+        $isSmallBusiness = (bool) shop_setting('is_small_business', false);
+        $defaultTaxRate = (float) shop_setting('default_tax_rate', 19.0);
+
         // 1. Produkte durchgehen
         foreach($this->quote->items as $item) {
             $product = $item->product;
@@ -144,7 +148,7 @@ class QuoteAcceptance extends Component
             $totalWeight += ($weight * $item->quantity);
 
             $lineTotal = $item->total_price;
-            $rate = $product->tax_rate ?? 19.0;
+            $rate = $product->tax_rate ?? $defaultTaxRate;
 
             if ($product->tax_included) {
                 // Brutto -> Netto
@@ -164,7 +168,7 @@ class QuoteAcceptance extends Component
         }
 
         // 2. Versandberechnung
-        // Wir versuchen das Land aus der Quote zu lesen, Fallback auf DE
+        // Wir nutzen die neue Adress-Struktur (Lieferadresse vor Rechnungsadresse)
         $countryCode = $this->quote->shipping_address['country'] ?? ($this->quote->billing_address['country'] ?? 'DE');
 
         $shippingCostCents = 0;
@@ -216,8 +220,8 @@ class QuoteAcceptance extends Component
         $shippingTax = 0;
 
         if ($shippingCostCents > 0) {
-            if (in_array($countryCode, $euCountries)) {
-                $shippingNet = $shippingCostCents / 1.19;
+            if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
+                $shippingNet = $shippingCostCents / (1 + ($defaultTaxRate / 100));
                 $shippingTax = $shippingCostCents - $shippingNet;
             } else {
                 $shippingNet = $shippingCostCents;
@@ -230,9 +234,9 @@ class QuoteAcceptance extends Component
         $expressTax = 0;
 
         if ($this->quote->is_express) {
-            $expressGross = 2500;
-            if (in_array($countryCode, $euCountries)) {
-                $expressNet = $expressGross / 1.19;
+            $expressGross = (int) shop_setting('express_surcharge', 2500);
+            if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
+                $expressNet = $expressGross / (1 + ($defaultTaxRate / 100));
                 $expressTax = $expressGross - $expressNet;
             } else {
                 $expressNet = $expressGross;
@@ -241,21 +245,25 @@ class QuoteAcceptance extends Component
         }
 
         // 4. Alles Zusammenrechnen
-        $finalNet = $netTotalProducts + $shippingNet + $expressNet;
-        $finalTax = $taxTotalProducts + $shippingTax + $expressTax;
-        $finalGross = $finalNet + $finalTax;
+        if ($isSmallBusiness) {
+            $finalTax = 0;
+            $finalNet = $netTotalProducts + $shippingNet + $expressNet;
+            $finalGross = $finalNet;
+        } else {
+            $finalNet = $netTotalProducts + $shippingNet + $expressNet;
+            $finalTax = $taxTotalProducts + $shippingTax + $expressTax;
+            $finalGross = $finalNet + $finalTax;
+        }
 
         // 5. Update Database
-        // Wir speichern auch shipping_cost separat, falls die Spalte existiert, sonst in den Totals enthalten
         $this->quote->update([
             'net_total' => (int) round($finalNet),
             'tax_total' => (int) round($finalTax),
             'gross_total' => (int) round($finalGross),
-            // Falls dein Model eine Spalte shipping_cost hat, hier speichern:
-            // 'shipping_price' => (int) round($shippingCostCents),
+            'shipping_price' => (int) round($shippingCostCents),
         ]);
 
-        // Speichern der Versandkosten als temporäres Attribut für die View, falls DB Spalte fehlt
+        // Speichern der Versandkosten als temporäres Attribut für die View
         $this->quote->shipping_cost_calculated = $shippingCostCents;
     }
 
@@ -269,12 +277,11 @@ class QuoteAcceptance extends Component
         $cart = $cartService->getCart();
         $cart->items()->delete();
 
-        /*Log::info('Cart Inhalt:', [
-            'cart' => $cart
-        ]);*/
-
-        // FIX: Express-Status explizit in das Cart-Model übernehmen
-        $cart->update(['is_express' => $this->quote->is_express]);
+        // Express-Status und Adress-Vorauswahl in das Cart-Model übernehmen
+        $cart->update([
+            'is_express' => $this->quote->is_express,
+            // Wir können hier auch die Adressdaten für den Checkout vor-reservieren falls gewünscht
+        ]);
 
         foreach($this->quote->items as $qItem) {
             if($qItem->product) {

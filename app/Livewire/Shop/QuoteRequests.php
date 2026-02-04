@@ -131,6 +131,16 @@ class QuoteRequests extends Component
                 'city' => $quote->city,
                 'country' => $quote->country ?? 'DE'
             ],
+            // Lieferadresse explizit setzen (beim Angebot identisch)
+            'shipping_address' => [
+                'first_name' => $quote->first_name,
+                'last_name' => $quote->last_name,
+                'company' => $quote->company,
+                'address' => $quote->street . ' ' . $quote->house_number,
+                'postal_code' => $quote->postal,
+                'city' => $quote->city,
+                'country' => $quote->country ?? 'DE'
+            ],
             'subtotal_price' => $quote->net_total,
             'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
             'total_price' => $quote->gross_total,

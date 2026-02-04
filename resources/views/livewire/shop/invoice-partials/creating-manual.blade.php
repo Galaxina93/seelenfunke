@@ -80,6 +80,14 @@
                     <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Stadt*</label>
                     <input type="text" wire:model.live="manualInvoice.city" class="w-full border-2 rounded-lg text-sm p-3 shadow-sm {{ $errors->has('manualInvoice.city') ? 'border-red-400 bg-red-50' : 'border-gray-300' }}">
                 </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-bold uppercase text-gray-700 mb-1">Land*</label>
+                    <select wire:model.live="manualInvoice.country" class="w-full border-2 border-gray-300 rounded-lg text-sm p-3 shadow-sm">
+                        @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
+                            <option value="{{ $code }}">{{ $name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -179,7 +187,7 @@
                         </td>
                         <td class="py-3 pl-2">
                             <button wire:click="removeItem({{$index}})" class="text-red-500 hover:bg-red-50 p-1 rounded transition-colors">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"/></svg>
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </button>
                         </td>
                     </tr>
@@ -230,7 +238,13 @@
     {{-- Vorschau --}}
     <div class="hidden lg:block">
         <div class="sticky top-6 scale-[0.85] xl:scale-90 origin-top">
-            <div class="bg-white shadow-2xl p-8 xl:p-10 min-h-[297mm] w-[210mm] mx-auto text-sm text-gray-800 border flex flex-col">
+            <div class="bg-white shadow-2xl p-8 xl:p-10 min-h-[297mm] w-[210mm] mx-auto text-sm text-gray-800 border flex flex-col relative">
+
+                {{-- Kleinunternehmer Badge in der Vorschau --}}
+                @if(shop_setting('is_small_business', false))
+                    <div class="absolute top-4 right-1/2 translate-x-1/2 bg-gray-100 text-gray-500 text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-tighter border border-gray-200 opacity-50 select-none">Kleinunternehmer-Modus aktiv</div>
+                @endif
+
                 {{-- Briefkopf --}}
                 <div class="flex justify-between border-b-2 border-primary pb-6 mb-8">
                     <div class="font-serif text-2xl font-bold text-primary italic">Mein Seelenfunke</div>
@@ -298,7 +312,11 @@
                 {{-- Summen --}}
                 <div class="w-[300px] ml-auto space-y-2 bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8">
                     <div class="flex justify-between text-gray-500 text-[10px] uppercase font-bold"><span>Gesamt Netto</span><span>{{ number_format($totalsPreview['net'], 2, ',', '.') }} €</span></div>
-                    <div class="flex justify-between text-gray-500 text-[10px] uppercase font-bold"><span>Umsatzsteuer</span><span>{{ number_format($totalsPreview['tax'], 2, ',', '.') }} €</span></div>
+
+                    @if(!shop_setting('is_small_business', false))
+                        <div class="flex justify-between text-gray-500 text-[10px] uppercase font-bold"><span>Umsatzsteuer</span><span>{{ number_format($totalsPreview['tax'], 2, ',', '.') }} €</span></div>
+                    @endif
+
                     @if($manualInvoice['shipping_cost'] > 0)
                         <div class="flex justify-between text-gray-500 text-[10px] uppercase font-bold"><span>Versandkosten</span><span>{{ number_format((float)$manualInvoice['shipping_cost'], 2, ',', '.') }} €</span></div>
                     @endif
@@ -315,6 +333,10 @@
                         <span>Gesamtbetrag</span>
                         <span class="text-primary">{{ number_format($totalsPreview['gross'], 2, ',', '.') }} €</span>
                     </div>
+
+                    @if(shop_setting('is_small_business', false))
+                        <div class="pt-2 text-[8px] text-gray-400 text-right italic uppercase leading-tight">Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.</div>
+                    @endif
                 </div>
 
                 {{-- Fußtext --}}

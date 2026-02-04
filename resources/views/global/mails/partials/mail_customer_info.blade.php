@@ -37,11 +37,11 @@
             <td width="50%" valign="top" style="padding-right: 20px;">
                 <h4 style="margin: 0 0 10px 0; font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 1px;">Rechnungsadresse</h4>
                 <p style="margin: 0; font-size: 13px; color: #444; line-height: 1.6;">
-                    {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}<br>
-                    @if(!empty($data['contact']['firma'])) {{ $data['contact']['firma'] }}<br> @endif
+                    {{ $order->billing_address['first_name'] }} {{ $order->billing_address['last_name'] }}<br>
+                    @if(!empty($order->billing_address['company'])) {{ $order->billing_address['company'] }}<br> @endif
                     {{ $order->billing_address['address'] }}<br>
                     {{ $order->billing_address['postal_code'] }} {{ $order->billing_address['city'] }}<br>
-                    {{ $data['contact']['country'] }}
+                    {{ $order->billing_address['country'] }}
                 </p>
             </td>
 
@@ -49,12 +49,12 @@
             <td width="50%" valign="top">
                 <h4 style="margin: 0 0 10px 0; font-size: 11px; text-transform: uppercase; color: #888; letter-spacing: 1px;">Lieferadresse</h4>
                 <p style="margin: 0; font-size: 13px; color: #444; line-height: 1.6;">
-                    @php $ship = $order->shipping_address ?? $order->billing_address; @endphp
-                    {{ $ship['first_name'] }} {{ $ship['last_name'] }}<br>
-                    @if(!empty($ship['company'])) {{ $ship['company'] }}<br> @endif
-                    {{ $ship['address'] }}<br>
-                    {{ $ship['postal_code'] }} {{ $ship['city'] }}<br>
-                    {{ $ship['country'] }}
+                    {{-- Greift nun direkt auf das shipping_address Array zu --}}
+                    {{ $order->shipping_address['first_name'] }} {{ $order->shipping_address['last_name'] }}<br>
+                    @if(!empty($order->shipping_address['company'])) {{ $order->shipping_address['company'] }}<br> @endif
+                    {{ $order->shipping_address['address'] }}<br>
+                    {{ $order->shipping_address['postal_code'] }} {{ $order->shipping_address['city'] }}<br>
+                    {{ $order->shipping_address['country'] }}
                 </p>
             </td>
         </tr>

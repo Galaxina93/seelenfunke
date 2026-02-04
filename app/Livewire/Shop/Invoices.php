@@ -84,9 +84,8 @@ class Invoices extends Component
                     $this->manualInvoice['address'] = trim(($customer->profile->street ?? '') . ' ' . ($customer->profile->house_number ?? ''));
                     $this->manualInvoice['city'] = $customer->profile->city ?? '';
                     $this->manualInvoice['postal_code'] = $customer->profile->postal ?? '';
+                    $this->manualInvoice['country'] = $customer->profile->country ?? 'DE';
                 }
-
-                $this->manualInvoice['country'] = $customer->billing_address['country'] ?? 'DE';
             }
         }
     }
@@ -296,19 +295,18 @@ class Invoices extends Component
                 $priceInCent = (int)round(($item['unit_price'] ?? 0) * 100);
                 $lineTotal = $priceInCent * ($item['quantity'] ?? 0);
 
-                $taxDivisor = 1 + (($item['tax_rate'] ?? 19) / 100);
-                $netLine = $lineTotal / $taxDivisor;
-                $taxLine = $lineTotal - $netLine;
+                $taxRate = (float)($item['tax_rate'] ?? 19);
+                $taxLine = (int)round($lineTotal - ($lineTotal / (1 + ($taxRate / 100))));
 
                 $subtotal += $lineTotal;
-                $taxTotal += (int)round($taxLine);
+                $taxTotal += $taxLine;
 
                 $items[] = [
                     'product_name' => $item['product_name'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $priceInCent,
                     'total_price' => $lineTotal,
-                    'tax_rate' => $item['tax_rate']
+                    'tax_rate' => $taxRate
                 ];
             }
 

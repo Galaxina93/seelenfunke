@@ -27,6 +27,16 @@ class Checkout extends Component
     public $country = 'DE'; // Standardland
     public $postal_code;
 
+    // --- LIEFERDATEN (NEU) ---
+    public $has_separate_shipping = false;
+    public $shipping_first_name;
+    public $shipping_last_name;
+    public $shipping_company;
+    public $shipping_address;
+    public $shipping_city;
+    public $shipping_postal_code;
+    public $shipping_country = 'DE';
+
     // --- RECHTLICHES ---
     public $terms_accepted = false;
     public $privacy_accepted = false;
@@ -53,7 +63,7 @@ class Checkout extends Component
         // Wir holen die erlaubten Länder dynamisch aus der Config, falls vorhanden
         $allowedCountries = implode(',', array_keys(config('shop.countries', ['DE' => 'Deutschland'])));
 
-        return [
+        $rules = [
             'email' => 'required|email',
             'first_name' => 'required|string|min:2',
             'last_name' => 'required|string|min:2',
@@ -64,6 +74,18 @@ class Checkout extends Component
             'terms_accepted' => 'accepted',
             'privacy_accepted' => 'accepted',
         ];
+
+        // Falls abweichende Lieferadresse aktiv ist, diese Felder validieren
+        if ($this->has_separate_shipping) {
+            $rules['shipping_first_name'] = 'required|string|min:2';
+            $rules['shipping_last_name'] = 'required|string|min:2';
+            $rules['shipping_address'] = 'required|string|min:5';
+            $rules['shipping_city'] = 'required|string|min:2';
+            $rules['shipping_postal_code'] = 'required|string|min:4';
+            $rules['shipping_country'] = 'required|in:' . $allowedCountries;
+        }
+
+        return $rules;
     }
 
     protected $messages = [
@@ -131,6 +153,9 @@ class Checkout extends Component
             }
         }
 
+        // Standardmäßig Lieferland an Rechnungsland angleichen
+        $this->shipping_country = $this->country;
+
         // Stripe Intent sofort erstellen, damit das Payment Element laden kann
         $this->createPaymentIntent();
     }
@@ -141,9 +166,31 @@ class Checkout extends Component
      */
     public function updatedCountry()
     {
+        // Falls keine separate Lieferadresse, muss das Lieferland dem Rechnungsland folgen (für Versandkosten)
+        if (!$this->has_separate_shipping) {
+            $this->shipping_country = $this->country;
+        }
+
         // 1. Stripe Intent aktualisieren (wegen neuem Gesamtbetrag durch Versand)
         $this->createPaymentIntent();
         $this->dispatch('checkout-updated');
+    }
+
+    public function updatedShippingCountry()
+    {
+        // Wenn sich das Lieferland ändert, müssen die Versandkosten neu berechnet werden
+        $this->createPaymentIntent();
+        $this->dispatch('checkout-updated');
+    }
+
+    public function updatedHasSeparateShipping($value)
+    {
+        // Wenn deaktiviert, Lieferland wieder auf Rechnungsland setzen
+        if (!$value) {
+            $this->shipping_country = $this->country;
+            $this->createPaymentIntent();
+            $this->dispatch('checkout-updated');
+        }
     }
 
     /**
@@ -154,14 +201,14 @@ class Checkout extends Component
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
 
-        // Totals berechnen mit dem AKTUELLEN Land
-        $totals = $cartService->calculateTotals($cart, $this->country);
+        // WICHTIG: Versandkosten basieren IMMER auf dem Lieferland
+        $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
+        $totals = $cartService->calculateTotals($cart, $targetCountry);
 
         $amount = $totals['total']; // Betrag in Cent
 
         if ($amount > 0) {
             $stripeSecret = config('services.stripe.secret');
-
             if($stripeSecret) {
                 Stripe::setApiKey($stripeSecret);
 
@@ -170,7 +217,7 @@ class Checkout extends Component
                     'cart_id' => $cart->id,
                     'session_id' => Session::getId(),
                     'customer_email' => $this->email,
-                    'shipping_country' => $this->country
+                    'shipping_country' => $targetCountry
                 ];
 
                 $intentData = [
@@ -388,7 +435,9 @@ class Checkout extends Component
         $cart = $cartService->getCart();
 
         // WICHTIG: Land übergeben für finale Berechnung, damit DB Werte stimmen
-        $totals = $cartService->calculateTotals($cart, $this->country);
+        // Wir nehmen das Ziel-Lieferland für die Berechnung
+        $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
+        $totals = $cartService->calculateTotals($cart, $targetCountry);
 
         // --- [FIX] ID EXTRAKTION UND FALLBACK ---
         // 1. Versuche die gespeicherte ID zu nehmen
@@ -439,6 +488,25 @@ class Checkout extends Component
 
         $customerId = $customer->id;
 
+        // Lieferadresse bestimmen
+        $shipping_data = $this->has_separate_shipping ? [
+            'first_name' => $this->shipping_first_name,
+            'last_name'  => $this->shipping_last_name,
+            'company'    => $this->shipping_company,
+            'address'    => $this->shipping_address,
+            'postal_code'=> $this->shipping_postal_code,
+            'city'       => $this->shipping_city,
+            'country'    => $this->shipping_country,
+        ] : [
+            'first_name' => $this->first_name,
+            'last_name'  => $this->last_name,
+            'company'    => $this->company,
+            'address'    => $this->address,
+            'postal_code'=> $this->postal_code,
+            'city'       => $this->city,
+            'country'    => $this->country,
+        ];
+
         // Order erstellen
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
@@ -460,15 +528,7 @@ class Checkout extends Component
                 'city' => $this->city,
                 'country' => $this->country,
             ],
-            'shipping_address' => [
-                'first_name' => $this->first_name,
-                'last_name' => $this->last_name,
-                'company' => $this->company,
-                'address' => $this->address,
-                'postal_code' => $this->postal_code,
-                'city' => $this->city,
-                'country' => $this->country,
-            ],
+            'shipping_address' => $shipping_data,
 
             'volume_discount' => $totals['volume_discount'] ?? 0,
             'coupon_code' => $totals['coupon_code'] ?? null,
@@ -519,7 +579,9 @@ class Checkout extends Component
         $cart = $cartService->getCart();
 
         // Totals an die View übergeben (Wichtig für taxes_breakdown Anzeige!)
-        $totals = $cartService->calculateTotals($cart, $this->country);
+        // Auch hier nutzen wir die Lieferland-Logik
+        $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
+        $totals = $cartService->calculateTotals($cart, $targetCountry);
 
         return view('livewire.shop.checkout', [
             'cart' => $cart,

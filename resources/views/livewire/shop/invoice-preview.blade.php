@@ -24,7 +24,7 @@
                             @endif
                             <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-1.5 rounded-lg hover:bg-black text-xs font-bold transition shadow-sm">Drucken / PDF</button>
                             <button wire:click="closeModal" class="bg-gray-100 text-gray-500 p-1.5 rounded-lg hover:bg-gray-200 transition">
-                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2"/></svg>
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </button>
                         </div>
                     </div>
@@ -68,16 +68,34 @@
                                     </div>
                                 </div>
 
-                                <div class="mb-10 md:mb-12">
-                                    <div class="text-[8px] md:text-xs text-gray-400 underline mb-2 italic">Mein Seelenfunke, Carl-Goerdeler-Ring 26, 38518 Gifhorn</div>
-                                    <div class="font-bold text-sm md:text-base leading-snug text-gray-900">
-                                        @if(!empty($invoice->billing_address['company'])) {{ $invoice->billing_address['company'] }}<br> @endif
-                                        {{ $invoice->billing_address['first_name'] }} {{ $invoice->billing_address['last_name'] }}<br>
-                                        {{ $invoice->billing_address['address'] }}<br>
-                                        @if(!empty($invoice->billing_address['address_addition'])) {{ $invoice->billing_address['address_addition'] }}<br> @endif
-                                        {{ $invoice->billing_address['postal_code'] }} {{ $invoice->billing_address['city'] }}<br>
-                                        {{ $invoice->billing_address['country'] }}
+                                <div class="mb-10 md:mb-12 flex flex-col md:flex-row justify-between gap-8">
+                                    {{-- Rechnungsadresse --}}
+                                    <div class="flex-1">
+                                        <div class="text-[8px] md:text-xs text-gray-400 underline mb-2 italic">Mein Seelenfunke, Carl-Goerdeler-Ring 26, 38518 Gifhorn</div>
+                                        <div class="font-bold text-sm md:text-base leading-snug text-gray-900">
+                                            @if(!empty($invoice->billing_address['company'])) {{ $invoice->billing_address['company'] }}<br> @endif
+                                            {{ $invoice->billing_address['first_name'] }} {{ $invoice->billing_address['last_name'] }}<br>
+                                            {{ $invoice->billing_address['address'] }}<br>
+                                            @if(!empty($invoice->billing_address['address_addition'])) {{ $invoice->billing_address['address_addition'] }}<br> @endif
+                                            {{ $invoice->billing_address['postal_code'] }} {{ $invoice->billing_address['city'] }}<br>
+                                            {{ $invoice->billing_address['country'] }}
+                                        </div>
                                     </div>
+
+                                    {{-- Lieferadresse (nur wenn abweichend) --}}
+                                    @if($invoice->order && $invoice->order->shipping_address && serialize($invoice->order->billing_address) !== serialize($invoice->order->shipping_address))
+                                        <div class="flex-1 md:text-right">
+                                            <div class="text-[8px] md:text-[10px] font-bold uppercase text-gray-400 mb-2">Lieferadresse:</div>
+                                            <div class="text-xs leading-snug text-gray-600">
+                                                @php $ship = $invoice->order->shipping_address; @endphp
+                                                {{ $ship['first_name'] }} {{ $ship['last_name'] }}<br>
+                                                @if(!empty($ship['company'])) {{ $ship['company'] }}<br> @endif
+                                                {{ $ship['address'] }}<br>
+                                                {{ $ship['postal_code'] }} {{ $ship['city'] }}<br>
+                                                {{ $ship['country'] }}
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
 
                                 <div class="mb-8 prose prose-sm max-w-none">
@@ -130,8 +148,15 @@
                                         <tr><td colspan="5" class="py-1 text-red-500 text-[10px] uppercase italic">Abzüglich Gutschein</td><td class="py-1 text-red-500 font-bold">-{{ number_format($invoice->discount_amount / 100, 2, ',', '.') }} €</td></tr>
                                     @endif
 
-                                    <tr><td colspan="5" class="py-1 text-gray-400 italic">Umsatzsteuer Betrag</td><td class="py-1 text-xs text-gray-400 font-medium">{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</td></tr>
+                                    @if(!shop_setting('is_small_business', false))
+                                        <tr><td colspan="5" class="py-1 text-gray-400 italic">Umsatzsteuer Betrag</td><td class="py-1 text-xs text-gray-400 font-medium">{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</td></tr>
+                                    @endif
+
                                     <tr class="text-base md:text-lg"><td colspan="5" class="pt-4 font-black text-gray-900 uppercase tracking-tighter">Gesamt Brutto</td><td class="pt-4 font-black text-primary border-t-2 border-primary">{{ number_format($invoice->total / 100, 2, ',', '.') }} €</td></tr>
+
+                                    @if(shop_setting('is_small_business', false))
+                                        <tr><td colspan="6" class="pt-2 text-[9px] text-gray-500 italic text-right uppercase tracking-tighter">Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.</td></tr>
+                                    @endif
                                     </tfoot>
                                 </table>
 
