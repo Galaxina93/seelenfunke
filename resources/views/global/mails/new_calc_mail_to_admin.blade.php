@@ -3,10 +3,8 @@
 
 <div class="container">
 
-    {{-- HEADER --}}
-    <div class="header">
-        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
-    </div>
+    {{-- LOGO --}}
+    @include('global.mails.partials.mail_logo.blade')
 
     {{-- ANSPRACHE --}}
     <h1>Neue Angebotsanfrage! ✉️
@@ -22,9 +20,9 @@
         </p>
     </div>
 
-    {{-- ARTIKEL LISTE --}}
-    <h3 style="font-size: 14px; color: #888; text-transform: uppercase; margin-bottom: 10px;">Angefragte Produkte</h3>
-    @include('global.mails.partials.mail_bought_products_list')
+
+    {{-- KUNDENAUSWAHL --}}
+    @include('global.mails.partials.mail_item_list')
 
     {{-- PREISAUFSTELLUNG --}}
     @include('global.mails.partials.mail_price_list')

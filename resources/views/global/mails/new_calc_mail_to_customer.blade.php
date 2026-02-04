@@ -3,10 +3,8 @@
 
 <div class="container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border: 1px solid #eeeeee;">
 
-    {{-- HEADER --}}
-    <div class="header">
-        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
-    </div>
+    {{-- LOGO --}}
+    @include('global.mails.partials.mail_logo.blade')
 
     {{-- EINLEITUNG --}}
     <div class="content-body" style="font-family: sans-serif; color: #333333; line-height: 1.6; font-size: 15px;">
@@ -24,10 +22,15 @@
         </p>
     </div>
 
-    {{-- ARTIKEL LISTE --}}
+    {{-- ANSPRACHE --}}
     <div style="margin-top: 35px;">
-        <h3 style="font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #eeeeee; padding-bottom: 10px; margin-bottom: 15px;">Deine Auswahl</h3>
+        <h3 style="font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 1.5px; border-bottom: 1px solid #eeeeee; padding-bottom: 10px; margin-bottom: 15px;">
+            Deine Auswahl
+        </h3>
+
+        {{-- KUNDENAUSWAHL --}}
         @include('global.mails.partials.mail_item_list')
+
     </div>
 
     {{-- PREISAUFSTELLUNG --}}
@@ -67,9 +70,7 @@
     @endif
 
     {{-- FOOTER --}}
-    <div style="margin-top: 50px;">
-        @include('global.mails.partials.mail_footer')
-    </div>
+    @include('global.mails.partials.mail_footer')
 
 </div>
 
