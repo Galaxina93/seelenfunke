@@ -92,7 +92,7 @@
                             Wir prüfen jede Datei manuell auf Umsetzbarkeit. Bitte beachten Sie: Im Laserverfahren erfolgt
                             keine farbliche Wiedergabe; Grafiken und Fotos werden materialabhängig in Graustufen oder
                             Konturen umgesetzt. Details finden Sie in unseren
-                            <a href="/agb#konfigurator" class="underline font-bold">Hinweisen zur Konfiguration</a>.
+                            <a href="/agb#konfigurator" target="_blank" class="underline font-bold">Hinweisen zur Konfiguration</a>.
                         </p>
                     </div>
                 </div>
