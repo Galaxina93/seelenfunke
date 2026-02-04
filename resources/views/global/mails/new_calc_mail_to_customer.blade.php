@@ -4,7 +4,7 @@
 <div class="container" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px; border: 1px solid #eeeeee;">
 
     {{-- LOGO --}}
-    @include('global.mails.partials.mail_logo.blade')
+    @include('global.mails.partials.mail_logo')
 
     {{-- EINLEITUNG --}}
     <div class="content-body" style="font-family: sans-serif; color: #333333; line-height: 1.6; font-size: 15px;">

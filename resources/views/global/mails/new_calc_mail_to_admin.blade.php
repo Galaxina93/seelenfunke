@@ -4,7 +4,7 @@
 <div class="container">
 
     {{-- LOGO --}}
-    @include('global.mails.partials.mail_logo.blade')
+    @include('global.mails.partials.mail_logo')
 
     {{-- ANSPRACHE --}}
     <h1>Neue Angebotsanfrage! ✉️
