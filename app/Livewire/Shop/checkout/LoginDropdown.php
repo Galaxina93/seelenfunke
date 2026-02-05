@@ -28,7 +28,7 @@ class LoginDropdown extends Component
         // User basierend auf dem ermittelten Guard laden
         $user = Auth::guard($guard)->user();
 
-        return view('livewire.shop.checkout.login-dropdown', [
+        return view('livewire.auth.login-dropdown', [
             'user' => $user,
             'guard' => $guard, // Guard an die View übergeben für dynamische Routen
         ]);
