@@ -994,29 +994,6 @@
             --}}{{-- Button "Mehr anzeigen" entfernt, da 6 Schritte perfekt in das Grid passen und man den Prozess immer ganz sehen sollte --}}{{--
         </section>--}}
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12">
-            <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                <span class="text-2xl mb-2 block">🇩🇪</span>
-                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Standort Gifhorn</h4>
-                <p class="text-[10px] text-gray-500 mt-1">Echtes Handwerk aus Niedersachsen</p>
-            </div>
-            <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                <span class="text-2xl mb-2 block">🛡️</span>
-                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Geprüfte Qualität</h4>
-                <p class="text-[10px] text-gray-500 mt-1">Zertifizierte Laserschutz-Sicherheit</p>
-            </div>
-            <div class="p-index p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                <span class="text-2xl mb-2 block">✨</span>
-                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">K9 Kristallglas</h4>
-                <p class="text-[10px] text-gray-500 mt-1">Nur die hochwertigsten Rohmaterialien</p>
-            </div>
-            <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                <span class="text-2xl mb-2 block">📦</span>
-                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sicherer Versand</h4>
-                <p class="text-[10px] text-gray-500 mt-1">Bruchsicher & liebevoll verpackt</p>
-            </div>
-        </div>
-
         <!--FAQ Section-->
         <section id="faq" class="bg-gray-50 py-24 scroll-mt-20">
             <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
