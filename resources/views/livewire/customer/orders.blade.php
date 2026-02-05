@@ -188,7 +188,7 @@
                                                 @endif
 
                                                 <div class="p-0 sm:p-6 overflow-hidden">
-                                                    <livewire:shop.configurator
+                                                    <livewire:shop.configurator.configurator
                                                         :product="$this->previewItem->product"
                                                         :initialData="$this->previewItem->configuration"
                                                         :qty="$this->previewItem->quantity"

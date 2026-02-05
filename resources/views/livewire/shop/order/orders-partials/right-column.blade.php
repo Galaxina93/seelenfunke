@@ -44,7 +44,7 @@
                 {{-- CONFIGURATOR COMPONENT --}}
                 {{-- Wir entfernen h-full, damit es scrollen kann wenn nötig, oder lassen den Browser entscheiden --}}
                 <div class="relative">
-                    <livewire:shop.configurator
+                    <livewire:shop.configurator.configurator
                         :product="$this->previewItem->product"
                         :initialData="$this->previewItem->configuration"
                         :qty="$this->previewItem->quantity"

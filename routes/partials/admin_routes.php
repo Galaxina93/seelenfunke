@@ -1,7 +1,6 @@
 <?php
 
 use App\Livewire\Shop\OrderDetail;
-use App\Livewire\Shop\Orders;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:admin'])->group(function () {

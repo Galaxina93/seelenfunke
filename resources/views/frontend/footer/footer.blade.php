@@ -70,7 +70,7 @@
 
             {{-- Spalte 4: Newsletter --}}
             <div>
-                @livewire('shop.newsletter-signup')
+                @livewire('shop.newsletter.newsletter-signup')
             </div>
 
         </div>

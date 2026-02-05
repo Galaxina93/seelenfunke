@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.shipping')
+        @livewire('shop.shipping.shipping')
 
     @endsection
 

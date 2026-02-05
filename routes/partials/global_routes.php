@@ -1,13 +1,13 @@
 <?php
 
 use App\Http\Controllers\NewsletterController;
-use App\Livewire\Shop\Checkout;
-use App\Livewire\Shop\CheckoutSuccess;
-use App\Livewire\Shop\NewsletterPage;
-use App\Livewire\Shop\ProductIndex;
-use App\Livewire\Shop\ProductShow;
-use App\Livewire\Shop\Cart;
-use App\Livewire\Shop\QuoteAcceptance;
+use App\Livewire\Shop\cart\Cart;
+use App\Livewire\Shop\checkout\Checkout;
+use App\Livewire\Shop\checkout\CheckoutSuccess;
+use App\Livewire\Shop\newsletter\NewsletterPage;
+use App\Livewire\Shop\offer\QuoteAcceptance;
+use App\Livewire\Shop\product\ProductIndex;
+use App\Livewire\Shop\product\ProductShow;
 use App\Models\PageVisit;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Route;

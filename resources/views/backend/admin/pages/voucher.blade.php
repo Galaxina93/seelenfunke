@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.voucher')
+        @livewire('shop.voucher.voucher')
 
     @endsection
 

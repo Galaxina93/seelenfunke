@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.shop-config')
+        @livewire('shop.config.shop-config')
 
     @endsection
 

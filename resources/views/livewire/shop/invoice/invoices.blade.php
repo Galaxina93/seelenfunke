@@ -19,10 +19,10 @@
     </div>
 
     @if($isCreatingManual)
-        @include('livewire.shop.invoice.invoice-partials.invoice_create')
+        @include('livewire.shop.invoice.partials.invoice_create')
     @else
-        @include('livewire.shop.invoice.invoice-partials.invoice_main_table')
+        @include('livewire.shop.invoice.partials.invoice_main_table')
     @endif
 
-    <livewire:shop.invoice-preview/>
+    <livewire:shop.invoice.invoice-preview/>
 </div>

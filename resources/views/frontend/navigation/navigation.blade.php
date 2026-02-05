@@ -54,10 +54,10 @@
                         </a>
 
                         {{-- NEU: Login Dropdown (Ersetzt das alte Icon) --}}
-                        <livewire:shop.login-dropdown />
+                        <livewire:shop.checkout.login-dropdown />
 
                         {{-- Warenkorb Icon (Desktop) --}}
-                        <livewire:shop.cart-icon />
+                        <livewire:shop.cart.cart-icon />
 
                     </div>
                 </div>
@@ -66,7 +66,7 @@
                 <div class="md:hidden flex items-center gap-4">
 
                     {{-- Warenkorb Icon (Mobil) - Identisch zur Desktop Komponente für Badge-Sync --}}
-                    <livewire:shop.cart-icon />
+                    <livewire:shop.cart.cart-icon />
 
                     <button @click="open = !open"
                             type="button"

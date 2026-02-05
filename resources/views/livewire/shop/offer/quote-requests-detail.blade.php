@@ -229,7 +229,7 @@
                         <div class="relative flex-1 bg-gray-50/50 flex flex-col">
                             @if($this->previewItem->product)
                                 <div class="flex-1">
-                                    <livewire:shop.configurator
+                                    <livewire:shop.configurator.configurator
                                         :product="$this->previewItem->product->id"
                                         :initialData="$this->previewItem->configuration"
                                         :qty="$this->previewItem->quantity"
