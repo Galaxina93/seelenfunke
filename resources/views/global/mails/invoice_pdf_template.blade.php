@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <title>{{ $invoice->invoice_number }}</title>
     <style>
-        @page { margin: 40px 40px 120px 40px; }
+        @page { margin: 40px 40px 140px 40px; }
         body { font-family: sans-serif; font-size: 11px; color: #333; line-height: 1.4; position: relative; }
         .header { border-bottom: 2px solid #C5A059; padding-bottom: 20px; margin-bottom: 30px; }
         .logo { width: 220px; }
@@ -26,10 +26,10 @@
         .paid-stamp { position: absolute; top: 20%; left: 50%; margin-left: -150px; transform: rotate(-20deg); border: 8px solid #16a34a; color: #16a34a; opacity: 0.12; font-size: 70px; font-weight: 900; padding: 10px 40px; text-transform: uppercase; z-index: -1; }
         .cancelled-stamp { position: absolute; top: 20%; left: 50%; margin-left: -150px; transform: rotate(-15deg); border: 8px solid #dc2626; color: #dc2626; opacity: 0.12; font-size: 60px; font-weight: 900; padding: 10px 40px; text-transform: uppercase; z-index: -1; }
 
-        /* MODERN FOOTER DESIGN */
+        /* MODERN FOOTER DESIGN - MEIN SEELENFUNKE */
         .footer {
             position: fixed;
-            bottom: -80px;
+            bottom: -100px;
             left: 0;
             right: 0;
             border-top: 1px solid #eee;
@@ -51,8 +51,8 @@
             font-weight: bold;
             text-transform: uppercase;
             font-size: 8px;
-            letter-spacing: 0.5px;
-            margin-bottom: 5px;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
             display: block;
         }
         .footer a {
@@ -60,7 +60,7 @@
             text-decoration: none;
         }
         .footer-bottom-links {
-            margin-top: 15px;
+            margin-top: 20px;
             text-align: center;
             font-size: 8px;
             border-top: 1px solid #f9f9f9;
@@ -69,30 +69,33 @@
             letter-spacing: 1px;
         }
         .footer-bottom-links a {
-            margin: 0 10px;
-            color: #bbb;
+            margin: 0 15px;
+            color: #aaa;
         }
     </style>
 </head>
 <body>
 
 @php
-    // Wir generieren die formatierten Daten direkt aus dem Rechnungs-Objekt (via Trait)
+    // Generiere formatierte Daten aus dem Model via Trait
     $data = $invoice->toFormattedArray();
 
-    $ownerName = shop_setting('owner_name', 'Mein Seelenfunke');
-    $proprietor = shop_setting('owner_proprietor', 'Alina Steinhauer');
-    $ownerStreet = shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
-    $ownerCity = shop_setting('owner_city', '38518 Gifhorn');
-    $ownerEmail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
-    $ownerWeb = shop_setting('owner_website', 'www.mein-seelenfunke.de');
-    $ownerIban = shop_setting('owner_iban', 'Wird nachgereicht');
-    $taxId = shop_setting('owner_tax_id', '19/143/11624');
-    $ustId = shop_setting('owner_ust_id');
-    $court = shop_setting('owner_court', 'Gifhorn');
+    // Dynamische Shop-Einstellungen laden
+    $ownerName     = shop_setting('owner_name', 'Mein Seelenfunke');
+    $proprietor    = shop_setting('owner_proprietor', 'Alina Steinhauer');
+    $ownerStreet   = shop_setting('owner_street', 'Carl-Goerdeler-Ring 26');
+    $ownerCity     = shop_setting('owner_city', '38518 Gifhorn');
+    $ownerEmail    = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+    $ownerWeb      = shop_setting('owner_website', 'www.mein-seelenfunke.de');
+    $ownerIban     = shop_setting('owner_iban', 'Wird nachgereicht');
+    $ownerBic      = shop_setting('owner_bic', '');
+    $taxId         = shop_setting('owner_tax_id', '19/143/11624');
+    $ustId         = shop_setting('owner_ust_id');
+    $court         = shop_setting('owner_court', 'Gifhorn');
+    $isSmallBusiness = (bool)shop_setting('is_small_business', false);
 @endphp
 
-{{-- Stempel --}}
+{{-- Stempel-Logik --}}
 @if($invoice->status === 'paid' && $invoice->type !== 'cancellation')
     <div class="paid-stamp">Bezahlt</div>
 @endif
@@ -131,6 +134,7 @@
                     {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}
                 </strong><br>
                 {{ $data['billing_address']['address'] ?? '' }}<br>
+                @if(!empty($data['billing_address']['address_addition'])) {{ $data['billing_address']['address_addition'] }}<br> @endif
                 {{ $data['billing_address']['postal_code'] ?? '' }} {{ $data['billing_address']['city'] ?? '' }}<br>
                 {{ $data['billing_address']['country'] ?? 'DE' }}
             </div>
@@ -149,7 +153,7 @@
 
 <div class="subject">{{ $invoice->subject ?? 'Rechnung' }}</div>
 <div class="text-block">
-    {{ $invoice->header_text ?? "vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!\nHiermit stellen wir Ihnen folgende Leistungen in Rechnung:" }}
+    {{ $invoice->header_text ?? "vielen Dank für deinen Auftrag und dein Vertrauen!\nHiermit stellen wir dir folgende Leistungen in Rechnung:" }}
 </div>
 
 {{-- ZENTRALE PARTIALS NUTZEN --}}
@@ -168,7 +172,7 @@
     </p>
 </div>
 
-{{-- FOOTER --}}
+{{-- FOOTER - MODERN & DYNAMISCH --}}
 <div class="footer">
     <table class="footer-table">
         <tr>
@@ -189,9 +193,10 @@
             <td class="footer-col">
                 <span class="footer-heading">Bankverbindung</span>
                 IBAN: {{ $ownerIban }}<br>
-                Gerichtsstand: {{ $court }}<br><br>
-                @if($isSmallBusiness)
-                    <span style="font-size: 8px; font-style: italic;">Umsatzsteuerfrei gem. § 19 UStG.</span>
+                @if($ownerBic) BIC: {{ $ownerBic }}<br> @endif
+                Gerichtsstand: {{ $court }}<br>
+                @if(isset($isSmallBusiness) && $isSmallBusiness)
+                    <span style="font-size: 8px; font-style: italic; color: #999;">Umsatzsteuerfrei gem. § 19 UStG.</span>
                 @endif
             </td>
         </tr>
