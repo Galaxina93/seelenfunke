@@ -58,7 +58,7 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
                 ->withMime('application/pdf');
         }
 
-        // 2. [NEU] XML anhängen (falls vorhanden)
+        // 2. XML anhängen (falls vorhanden)
         if ($this->xmlPath && file_exists($this->xmlPath)) {
             // Dateiname extrahieren (z.B. RE-2026-1001.xml)
             $filename = basename($this->xmlPath);

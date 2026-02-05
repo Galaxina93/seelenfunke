@@ -395,7 +395,7 @@ class Checkout extends Component
                 // B) Arbeits-Anfrage an Admin (Dich)
                 // Admin braucht XML meist nicht zwingend per Mail, sonst auch hier hinzufügen
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
-                    ->send(new \App\Mail\OrderMailToAdmin($mailData, $pdfPath));
+                    ->send(new \App\Mail\OrderMailToAdmin($mailData, $pdfPath, $xmlPath));
 
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());

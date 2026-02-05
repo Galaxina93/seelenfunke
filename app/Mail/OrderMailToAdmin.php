@@ -18,15 +18,17 @@ class OrderMailToAdmin extends Mailable implements ShouldQueue
 
     public array $data;
     protected ?string $pdfPath;
+    public ?string $xmlPath; //
 
     /**
-     * @param array $data - Die zentralisierten Daten vom Quote/Order Model
-     * @param string|null $pdfPath - Pfad zur generierten Rechnung
+     * Create a new message instance.
+     * Wir machen xmlPath optional (= null), damit alter Code (z.B. QuoteRequests) nicht kaputt geht.
      */
-    public function __construct(array $data, ?string $pdfPath = null)
+    public function __construct(array $data, ?string $pdfPath = null, ?string $xmlPath = null)
     {
         $this->data = $data;
         $this->pdfPath = $pdfPath;
+        $this->xmlPath = $xmlPath;
     }
 
     public function envelope(): Envelope
@@ -65,6 +67,16 @@ class OrderMailToAdmin extends Mailable implements ShouldQueue
             $attachments[] = Attachment::fromPath($this->pdfPath)
                 ->as('Rechnung-' . ($this->data['quote_number'] ?? 'Bestellung') . '.pdf')
                 ->withMime('application/pdf');
+        }
+
+        // 2. XML anhängen (falls vorhanden)
+        if ($this->xmlPath && file_exists($this->xmlPath)) {
+            // Dateiname extrahieren (z.B. RE-2026-1001.xml)
+            $filename = basename($this->xmlPath);
+
+            $attachments[] = Attachment::fromPath($this->xmlPath)
+                ->as($filename)
+                ->withMime('application/xml');
         }
 
         return $attachments;
