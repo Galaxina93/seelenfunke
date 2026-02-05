@@ -203,6 +203,16 @@ class Checkout extends Component
      * WIRD AUFGERUFEN, WENN SICH DAS LAND ÄNDERT (wire:model.live="country")
      * Aktualisiert die Versandkosten und den Stripe Intent.
      */
+    public function updated($propertyName)
+    {
+        // Diese Methode wird bei jeder Änderung gefeuert.
+        // Wir validieren nur das geänderte Feld für Echtzeit-Feedback
+        $this->validateOnly($propertyName);
+
+        // Wir benachrichtigen das Frontend, dass sich Daten geändert haben könnten
+        $this->dispatch('checkout-updated');
+    }
+
     public function updatedCountry()
     {
         // Falls keine separate Lieferadresse, muss das Lieferland dem Rechnungsland folgen (für Versandkosten)
