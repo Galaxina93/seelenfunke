@@ -69,10 +69,22 @@
                  style="display: none;">
 
                 <a href="{{ route('cart') }}"
-                   class="w-full border-2 border-gray-900 text-gray-900 py-3.5 rounded-full font-bold text-base flex items-center justify-center gap-2 hover:bg-gray-900 transition-all duration-300 group">
-                    <span>Jetzt zum Warenkorb</span>
-                    <svg class="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                   class="w-full border-2 border-primary text-gray-900 py-4 rounded-full font-bold text-base flex items-center justify-center gap-3 transition-all duration-500 group relative overflow-hidden bg-white hover:text-white hover:shadow-[0_10px_20px_rgba(201,166,107,0.2)]">
+
+                    {{-- Subtiler Hintergrund-Slide Effekt --}}
+                    <div class="absolute inset-0 bg-primary translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out"></div>
+
+                    {{-- Content: Höherer Z-Index damit Text über dem Slide-Effekt liegt --}}
+                    <span class="relative z-10 tracking-wide uppercase text-sm">Jetzt zum Warenkorb</span>
+
+                    <svg class="relative z-10 w-5 h-5 transition-transform duration-500 group-hover:translate-x-1"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                     </svg>
                 </a>
             </div>
