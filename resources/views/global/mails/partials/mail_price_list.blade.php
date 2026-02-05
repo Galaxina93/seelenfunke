@@ -2,10 +2,19 @@
 <div class="totals" style="margin-top: 20px; border-top: 2px solid #eee; padding-top: 20px;">
     <table width="100%" style="border-collapse: collapse;">
 
-        {{-- Warenwert Netto --}}
+        {{-- Warenwert Brutto (Warenkorb-Summe vor Versand/Rabatt) --}}
         <tr>
-            <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">Warenwert (Netto):</td>
-            <td width="100" class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">{{ $data['display_netto_goods'] }}</td>
+            <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">Warenwert:</td>
+            <td width="100" class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">
+                @php
+                    // Wir berechnen den Brutto-Warenwert der Items für die Anzeige
+                    $itemsGrossCents = 0;
+                    foreach($data['items'] as $item) {
+                        $itemsGrossCents += (float)str_replace(['.', ','], ['', ''], $item['total_price']);
+                    }
+                @endphp
+                {{ number_format($itemsGrossCents / 100, 2, ',', '.') }} €
+            </td>
         </tr>
 
         {{-- Mengenrabatt (falls vorhanden) --}}
@@ -24,33 +33,46 @@
             </tr>
         @endif
 
-        {{-- Express-Zuschlag (dynamisch aus Trait) --}}
-        @if($data['express'])
-            <tr>
-                <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-size: 13px; text-align: right;">Express-Service (Netto):</td>
-                <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-size: 13px; text-align: right;">{{ $data['display_netto_express'] }}</td>
-            </tr>
-        @endif
-
-        {{-- Versandkosten (Netto) --}}
+        {{-- Versandkosten Brutto --}}
         <tr>
-            <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">Versandkosten (Netto):</td>
+            <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">Versandkosten:</td>
             <td class="text-right" style="padding-bottom: 5px; color: #666; font-size: 13px; text-align: right;">
                 @if($data['shipping_price'] == '0,00')
                     <span style="color: #16a34a; font-weight: bold;">Kostenlos</span>
                 @else
-                    {{ $data['display_netto_shipping'] }}
+                    {{ $data['shipping_price'] }} €
                 @endif
             </td>
         </tr>
 
-        {{-- Zwischensumme Netto --}}
-        <tr>
-            <td class="text-right" style="padding-top: 10px; padding-bottom: 5px; color: #222; font-size: 14px; font-weight: bold; text-align: right; border-top: 1px solid #f5f5f5;">Gesamtsumme (Netto):</td>
-            <td class="text-right" style="padding-top: 10px; padding-bottom: 5px; color: #222; font-size: 14px; font-weight: bold; text-align: right; border-top: 1px solid #f5f5f5;">{{ $data['total_netto'] }} €</td>
+        {{-- Express-Zuschlag Brutto (falls vorhanden) --}}
+        @if($data['express'])
+            <tr>
+                <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-size: 13px; text-align: right;">Express-Service:</td>
+                <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-size: 13px; text-align: right;">
+                    @php
+                        $expressGross = shop_setting('express_surcharge', 2500);
+                    @endphp
+                    {{ number_format($expressGross / 100, 2, ',', '.') }} €
+                </td>
+            </tr>
+        @endif
+
+        {{-- Gesamtsumme Brutto (Hervorgehoben) --}}
+        <tr class="totals-final">
+            <td class="text-right" style="padding-top: 15px; border-top: 2px solid #eee; font-size: 18px; font-weight: bold; color: #C5A059; text-align: right;">Gesamtsumme:</td>
+            <td class="text-right" style="padding-top: 15px; border-top: 2px solid #eee; font-size: 18px; font-weight: bold; color: #C5A059; text-align: right;">{{ $data['total_gross'] }} €</td>
         </tr>
 
-        {{-- Steuer-Informationen --}}
+        {{-- Steuerrechtliche Aufschlüsselung (Informativ am Ende) --}}
+        <tr>
+            <td class="text-right" style="padding-top: 10px; color: #888; font-size: 11px; font-style: italic; text-align: right;">
+                Nettobetrag:
+            </td>
+            <td class="text-right" style="padding-top: 10px; color: #888; font-size: 11px; font-style: italic; text-align: right;">
+                {{ $data['total_netto'] }} €
+            </td>
+        </tr>
         <tr>
             <td class="text-right" style="padding-bottom: 10px; color: #888; font-size: 11px; font-style: italic; text-align: right;">
                 {{ $data['tax_note'] }}
@@ -60,12 +82,6 @@
                     {{ $data['total_vat'] }} €
                 @endif
             </td>
-        </tr>
-
-        {{-- Gesamtsumme Brutto --}}
-        <tr class="totals-final">
-            <td class="text-right" style="padding-top: 15px; border-top: 2px solid #eee; font-size: 18px; font-weight: bold; color: #C5A059; text-align: right;">Gesamtsumme (Brutto):</td>
-            <td class="text-right" style="padding-top: 15px; border-top: 2px solid #eee; font-size: 18px; font-weight: bold; color: #C5A059; text-align: right;">{{ $data['total_gross'] }} €</td>
         </tr>
     </table>
 </div>
