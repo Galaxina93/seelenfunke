@@ -3,6 +3,7 @@
 <script>
     document.addEventListener('livewire:initialized', () => {
         let stripe, elements, paymentElement;
+        let lastClientSecret = null;
         const stripeKey = "{{ $stripeKey }}";
 
         async function initializeStripe() {
@@ -13,8 +14,19 @@
                 return;
             }
 
+            // WICHTIG: Wenn das Secret identisch ist, brechen wir ab.
+            // Das verhindert das Resetten des IFrames bei AGB-Checkboxen.
+            if (clientSecret === lastClientSecret) {
+                return;
+            }
+
+            lastClientSecret = clientSecret;
             stripe = Stripe(stripeKey);
-            const appearance = { theme: 'stripe', variables: { colorPrimary: '#C5A059', borderRadius: '8px' } };
+
+            const appearance = {
+                theme: 'stripe',
+                variables: { colorPrimary: '#C5A059', borderRadius: '8px' }
+            };
 
             const container = document.getElementById("payment-element");
             container.innerHTML = '';
@@ -24,12 +36,13 @@
             paymentElement.mount("#payment-element");
         }
 
+        // Erstinitialisierung
         initializeStripe();
 
+        // Re-Initialisierung nur bei echtem Update (z.B. Preisänderung durch Land)
         Livewire.on('checkout-updated', () => {
             initializeStripe();
         });
-
 
         const form = document.getElementById('payment-form');
         const submitButton = document.getElementById('submit-button');
@@ -44,8 +57,7 @@
             messageContainer.classList.add("hidden");
 
             try {
-                // 1. Validierung und Order in DB erstellen (Status pending)
-                // Dies stellt sicher, dass die OrderItems in der Datenbank existieren.
+                // 1. Validierung und Order in DB erstellen
                 const orderId = await @this.validateAndCreateOrder();
 
                 if(!orderId) {
@@ -72,26 +84,15 @@
                             }
                         }
                     },
-                    // Verhindert den Redirect, falls die Zahlung sofort bestätigt wird
                     redirect: 'if_required'
                 });
 
-                // 3. Ergebnis verarbeiten
                 if (error) {
-                    // Fehler von Stripe (Karte abgelehnt etc.)
                     showMessage(error.type === "card_error" || error.type === "validation_error" ? error.message : "Ein unerwarteter Fehler ist aufgetreten.");
                     setLoading(false);
                 }
-                // Wenn kein Fehler vorliegt ODER der Status 'succeeded' ist
                 else if (paymentIntent && paymentIntent.status === 'succeeded') {
-                    // ZAHLUNG ERFOLGREICH (Ohne Redirect)
-                    // Wir triggern jetzt die Livewire-Methode und übergeben die orderId,
-                    // damit Livewire exakt weiß, welche Bestellung finalisiert werden soll.
                     await @this.handlePaymentSuccess(orderId);
-                }
-                else if (!error) {
-                    // Fallback für den Fall, dass ein Redirect eingeleitet wurde (stripe übernimmt dann)
-                    // (Z.B. bei 3D Secure, wo das Fenster oben wegnavigiert)
                 }
 
             } catch (error) {

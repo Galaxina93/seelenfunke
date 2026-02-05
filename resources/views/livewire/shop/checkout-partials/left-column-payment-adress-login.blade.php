@@ -210,7 +210,6 @@
     </div>
 
     {{-- Zahlung (Stripe Element) --}}
-    {{-- wire:ignore verhindert das Neurendern durch Livewire bei AGB-Klicks --}}
     <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm" wire:ignore wire:key="stripe-payment-container">
         <h2 class="text-xl font-serif font-bold text-gray-900 mb-6 flex items-center gap-2">
             <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold">2</span>
@@ -224,7 +223,6 @@
             </p>
         </div>
 
-        {{-- WICHTIG: Die ID muss exakt für das Stripe JS passen --}}
         <div id="payment-element">
             {{-- Stripe injiziert hier das Iframe --}}
         </div>
