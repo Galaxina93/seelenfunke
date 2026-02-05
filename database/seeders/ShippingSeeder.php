@@ -34,15 +34,6 @@ class ShippingSeeder extends Seeder
             'price' => 490
         ]);
 
-        // >= 50 € = Kostenlos
-        $de->rates()->create([
-            'name' => 'Kostenloser Versand (ab 50€)',
-            'min_price' => 5000,
-            'min_weight' => 0,
-            'max_weight' => 31500,
-            'price' => 0
-        ]);
-
         // =================================================================
         // ZONE 2: EUROPÄISCHE UNION (DHL ZONE 1 Preise)
         // =================================================================

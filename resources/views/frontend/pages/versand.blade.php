@@ -16,9 +16,17 @@
 
                 <div class="space-y-6 text-gray-700 leading-relaxed">
 
+                    @php
+                        // Dynamisches Laden der Werte aus der Shop-Konfiguration
+                        $shopName = shop_setting('owner_name', 'Mein-Seelenfunke');
+                        $shippingCost = (int) shop_setting('shipping_cost', 490);
+                        $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
+                        $expressSurcharge = (int) shop_setting('express_surcharge', 2500);
+                    @endphp
+
                     <p>
                         Die Lieferung unserer Produkte erfolgt mit größter Sorgfalt.
-                        Da viele Artikel bei <strong>Mein-Seelenfunke</strong> individuell und nach Kundenwunsch gefertigt werden,
+                        Da viele Artikel bei <strong>{{ $shopName }}</strong> individuell und nach Kundenwunsch gefertigt werden,
                         setzt sich die Lieferzeit aus der Fertigungsdauer und der anschließenden Versandlaufzeit zusammen.
                     </p>
 
@@ -30,8 +38,8 @@
                         </p>
                         <p class="mt-4">
                             <strong>Versand innerhalb Deutschlands:</strong><br>
-                            Erfolgt <strong>kostenfrei ab einem Bestellwert von 50,00 €</strong>.
-                            Bei einem Bestellwert unter 50,00 € berechnen wir eine Versandpauschale von <strong>4,90 €</strong>.
+                            Erfolgt <strong>kostenfrei ab einem Bestellwert von {{ number_format($freeThreshold / 100, 2, ',', '.') }} €</strong>.
+                            Bei einem Bestellwert unter {{ number_format($freeThreshold / 100, 2, ',', '.') }} € berechnen wir eine Versandpauschale von <strong>{{ number_format($shippingCost / 100, 2, ',', '.') }} €</strong>.
                         </p>
 
                         <div class="overflow-x-auto mt-6">
@@ -49,7 +57,7 @@
                                 <tr>
                                     <td class="px-4 py-3 font-medium">Deutschland</td>
                                     <td class="px-4 py-3">Pauschal (bis 31,5 kg)</td>
-                                    <td class="px-4 py-3 text-right">4,90 € <span class="text-xs text-green-600 font-bold ml-1">(Ab 50€ Kostenlos)</span></td>
+                                    <td class="px-4 py-3 text-right">{{ number_format($shippingCost / 100, 2, ',', '.') }} € <span class="text-xs text-green-600 font-bold ml-1">(Ab {{ number_format($freeThreshold / 100, 0, ',', '.') }}€ Kostenlos)</span></td>
                                 </tr>
                                 <tr>
                                     <td class="px-4 py-3" rowspan="5">
@@ -85,8 +93,18 @@
                         </p>
                     </div>
 
+                    {{-- Ergänzung: Express-Option, da in Config vorhanden --}}
+                    @if($expressSurcharge > 0)
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Express-Option</h3>
+                            <p>
+                                Für besonders eilige Bestellungen bieten wir eine Express-Verarbeitung an. Für einen Aufpreis von <strong>{{ number_format($expressSurcharge / 100, 2, ',', '.') }} €</strong> wird Ihr Auftrag bevorzugt gefertigt und versendet.
+                            </p>
+                        </div>
+                    @endif
+
                     <div>
-                        <h3 class="font-bold text-lg text-gray-900 mb-2">2. Berechnung der Lieferzeit</h3>
+                        <h3 class="font-bold text-lg text-gray-900 mb-2">3. Berechnung der Lieferzeit</h3>
                         <p>
                             Die Gesamtlieferzeit ergibt sich aus zwei aufeinanderfolgenden Schritten:
                         </p>
@@ -113,7 +131,7 @@
                     </div>
 
                     <div>
-                        <h3 class="font-bold text-lg text-gray-900 mb-2">3. Versanddienstleister</h3>
+                        <h3 class="font-bold text-lg text-gray-900 mb-2">4. Versanddienstleister</h3>
                         <ul class="list-disc list-inside text-sm text-gray-600 mt-2">
                             <li>Versand mit DHL</li>
                             <li>Sendungsverfolgung zur Nachverfolgung Ihrer Bestellung</li>
@@ -122,7 +140,7 @@
                     </div>
 
                     <div>
-                        <h3 class="font-bold text-lg text-gray-900 mb-2">4. Teillieferungen</h3>
+                        <h3 class="font-bold text-lg text-gray-900 mb-2">5. Teillieferungen</h3>
                         <p>
                             Sollten einzelne Produkte einer Bestellung nicht zeitgleich verfügbar sein,
                             behalten wir uns vor, eine Teillieferung vorzunehmen,
@@ -131,7 +149,7 @@
                     </div>
 
                     <div>
-                        <h3 class="font-bold text-lg text-gray-900 mb-2">5. Fehlgeschlagene Zustellung</h3>
+                        <h3 class="font-bold text-lg text-gray-900 mb-2">6. Fehlgeschlagene Zustellung</h3>
                         <p>
                             Scheitert die Zustellung der Ware aus Gründen, die vom Kunden zu vertreten sind
                             (z. B. falsche Adressangaben oder Nichtannahme),

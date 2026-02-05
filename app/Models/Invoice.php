@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\FormatsECommerceData;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Invoice extends Model
 {
-    use HasFactory, SoftDeletes, HasUuids;
+    use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
     protected $guarded = [];
 
@@ -83,5 +84,19 @@ class Invoice extends Model
         $divisor = 1 + ($rate / 100);
 
         return (int) round($amount - ($amount / $divisor));
+    }
+
+    /**
+     * Da die Rechnung oft auf eine Order verweist, greifen wir
+     * für die Adressen auf die Order-Daten zu.
+     */
+    public function getBillingAddressAttribute()
+    {
+        return $this->order->billing_address ?? [];
+    }
+
+    public function getShippingAddressAttribute()
+    {
+        return $this->order->shipping_address ?? $this->billing_address;
     }
 }

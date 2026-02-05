@@ -222,23 +222,22 @@ class CartService
             $weight = (int)($product->weight ?? 0);
             $totalWeight += ($weight * $qty);
 
-            // Frischen Preis berechnen (Selbstheilung)
+            // Frischen Preis berechnen (Selbstheilung bei Preisänderungen)
             $freshUnitPrice = $this->calculateTierPrice($product, $qty);
 
             if ($freshUnitPrice !== $item->unit_price) {
                 $item->unit_price = $freshUnitPrice;
-                $item->saveQuietly(); // Events vermeiden
+                $item->saveQuietly(); // Events vermeiden um Endlosschleifen zu verhindern
             }
 
             $lineGross = $freshUnitPrice * $qty;
             $subtotalGross += $lineGross;
 
-            // Originalpreis (für Streichpreise)
+            // Originalpreis (für Streichpreise/Mengenrabatt-Anzeige)
             $basePrice = $product->price;
             $originalSubtotal += ($basePrice * $qty);
 
             // Steueranteil herausrechnen
-            // Nutzt jetzt shop_setting statt config
             $taxRate = $isSmallBusiness ? 0.0 : (float) ($product->tax_rate ?? $defaultTaxRate);
 
             $lineNet = (int) round($lineGross / (1 + ($taxRate / 100)));
@@ -256,11 +255,11 @@ class CartService
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
-            $coupon = Coupon::where('code', $couponCode)->first();
+            $coupon = \App\Models\Coupon::where('code', $couponCode)->first();
 
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
-                    // Ignorieren, aber Code behalten (User könnte noch was kaufen)
+                    // Gutschein bleibt im Cart hinterlegt, wird aber nicht vom Preis abgezogen
                 } else {
                     if ($coupon->type === 'fixed') {
                         $discountAmount = $coupon->value;
@@ -275,11 +274,15 @@ class CartService
             }
         }
 
-        // Zwischensumme nach Rabatten
+        // Zwischensumme nach Rabatten (Zahlbetrag für Produkte)
         $totalAfterDiscount = max(0, $subtotalGross - $discountAmount);
 
-        // 3. VERSANDKOSTEN (Rein Datenbank-basiert)
-        $shippingResult = $this->determineShippingCost($totalAfterDiscount, $totalWeight, $countryCode);
+        /**
+         * 3. VERSANDKOSTEN
+         * ERWEITERUNG: Wir übergeben hier $subtotalGross (Warenwert VOR Gutschein).
+         * Dadurch verliert der Kunde seinen Gratis-Versand nicht durch das Einlösen eines Rabattcodes.
+         */
+        $shippingResult = $this->determineShippingCost($subtotalGross, $totalWeight, $countryCode);
         $shippingGross = $shippingResult['cost'];
         $isFreeShipping = $shippingResult['is_free'];
         $missingForFreeShipping = $shippingResult['missing'];
@@ -296,10 +299,7 @@ class CartService
         $isEU = in_array($countryCode, $euCountries);
 
         if ($shippingGross > 0) {
-            // Steuersatz bestimmen: In EU den Standard-Satz aus shop-settings, sonst 0% (Export).
             $shippingTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
-
-            // Berechnung mit dynamischem Divisor aus Datenbank-Einstellung
             $shippingNet = (int) round($shippingGross / (1 + ($shippingTaxRate / 100)));
             $shippingTaxAmount = $shippingGross - $shippingNet;
 
@@ -312,12 +312,11 @@ class CartService
             }
         }
 
-        // 6. EXPRESS-LOGIK (WICHTIG: Aus dem Cart-Model lesen & Settings nutzen)
+        // 6. EXPRESS-LOGIK
         $expressGross = 0;
         $expressTaxAmount = 0;
 
         if ($cart->is_express) {
-            // Express-Zuschlag aus shop-settings laden (Fallback 2500 Cent)
             $expressGross = (int) shop_setting('express_surcharge', 2500);
             $expressTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
 
@@ -361,37 +360,47 @@ class CartService
      */
     private function determineShippingCost(int $cartValueCents, float $totalWeight, string $countryCode): array
     {
-        // 1. Zone finden (Auch DE wird jetzt hier gefunden!)
-        $zone = ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
+        // 0. Globale Einstellungen aus der Shop-Konfiguration laden
+        $globalThreshold = (int) shop_setting('shipping_free_threshold', 5000);
+        $globalDefaultCost = (int) shop_setting('shipping_cost', 490);
+
+        // 1. Zone finden (DE oder Ausland)
+        $zone = \App\Models\ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
 
         // Fallback "Weltweit"
         if (!$zone) {
-            $zone = ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            $zone = \App\Models\ShippingZone::where('name', 'Weltweit')->with('rates')->first();
         }
 
-        // Absoluter Fallback
+        // Initialisierung der Status-Variablen für DE (Prioritäts-Logik)
+        $isFreeByGlobalSettings = ($countryCode === 'DE' && $cartValueCents >= $globalThreshold);
+
+        // Absoluter Fallback (Falls gar keine Zone/Rate existiert)
         if (!$zone) {
-            return ['cost' => 490, 'is_free' => false, 'missing' => 0];
+            $missing = $isFreeByGlobalSettings ? 0 : max(0, $globalThreshold - $cartValueCents);
+            return [
+                'cost' => $isFreeByGlobalSettings ? 0 : $globalDefaultCost,
+                'is_free' => $isFreeByGlobalSettings,
+                'missing' => ($countryCode === 'DE') ? $missing : 0
+            ];
         }
 
-        // 2. Passende Rate finden (Gewicht & Mindestbestellwert)
-        // Wir suchen ALLE Rates, die vom Gewicht her passen.
+        // 2. Passende Rate in der Zone finden (Gewicht & Mindestbestellwert)
         $validRates = $zone->rates()
             ->where(function($q) use ($totalWeight) {
                 $q->where('min_weight', '<=', $totalWeight)
                     ->where(fn($sub) => $sub->where('max_weight', '>=', $totalWeight)->orWhereNull('max_weight'));
             })
-            // UND: Der Warenkorb muss den Mindestwert für diesen Tarif haben (z.B. min_price 5000 für Kostenlos)
             ->where('min_price', '<=', $cartValueCents)
-            ->orderBy('price', 'asc') // Wir nehmen den günstigsten (z.B. 0€ wenn verfügbar)
+            ->orderBy('price', 'asc')
             ->get();
 
         $bestRate = $validRates->first();
 
         // 3. "Noch X Euro bis versandkostenfrei" berechnen
-        $freeShippingRate = $zone->rates()
+        $freeShippingRateFromZone = $zone->rates()
             ->where('price', 0)
             ->where('min_price', '>', $cartValueCents)
             ->where('min_weight', '<=', $totalWeight)
@@ -399,20 +408,59 @@ class CartService
             ->first();
 
         $missing = 0;
-        if ($freeShippingRate) {
-            $missing = $freeShippingRate->min_price - $cartValueCents;
+
+        // A: Logik für Deutschland (Priorität auf Globale Schwelle)
+        if ($countryCode === 'DE') {
+            if (!$isFreeByGlobalSettings) {
+                $missing = max(0, $globalThreshold - $cartValueCents);
+
+                if ($freeShippingRateFromZone) {
+                    $zoneMissing = max(0, $freeShippingRateFromZone->min_price - $cartValueCents);
+                    $missing = min($missing, $zoneMissing);
+                }
+            }
+        }
+        // B: Logik für Ausland
+        else {
+            if ($freeShippingRateFromZone) {
+                $missing = max(0, $freeShippingRateFromZone->min_price - $cartValueCents);
+            }
         }
 
-        if ($bestRate) {
+        // 4. Finales Resultat ermitteln
+
+        // FALL 1: DEUTSCHLAND & Globale Schwelle erreicht
+        if ($isFreeByGlobalSettings) {
             return [
-                'cost' => $bestRate->price,
-                'is_free' => $bestRate->price === 0,
-                'missing' => $missing
+                'cost' => 0,
+                'is_free' => true,
+                'missing' => 0
             ];
         }
 
-        // Fallback wenn zu schwer oder kein Tarif passt
-        return ['cost' => 2990, 'is_free' => false, 'missing' => 0];
+        // FALL 2: Tarif in Zone gefunden
+        if ($bestRate) {
+            $finalCost = $bestRate->price;
+            $isFree = ($finalCost === 0);
+
+            // Sicherheits-Check für DE
+            if ($countryCode === 'DE' && $finalCost > 0) {
+                $finalCost = $globalDefaultCost;
+            }
+
+            return [
+                'cost' => $finalCost,
+                'is_free' => $isFree,
+                'missing' => $isFree ? 0 : $missing
+            ];
+        }
+
+        // FALL 3: Absoluter Fallback
+        return [
+            'cost' => ($countryCode === 'DE') ? $globalDefaultCost : 2990,
+            'is_free' => false,
+            'missing' => $missing
+        ];
     }
 
     private function refreshTotals(Cart $cart) {

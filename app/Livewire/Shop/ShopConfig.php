@@ -42,7 +42,9 @@ class ShopConfig extends Component
         'owner_ust_id' => 'Umsatzsteuer-Identifikationsnummer für den EU-weiten Handel.',
         'owner_court' => 'Der Gerichtsstand ist bei Streitigkeiten mit gewerblichen Kunden relevant.',
         'owner_iban' => 'Wird auf Rechnungen für die Zahlungsart Vorkasse/Überweisung ausgegeben.',
-        'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (in Cent angeben).',
+        'shipping_cost' => 'Standardversandkosten pro Bestellung (Eingabe in Euro).',
+        'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
+        'express_surcharge' => 'Zusätzliche Gebühr, wenn der Kunde die Express-Option im Checkout wählt (Eingabe in Euro).',
         'order_quote_validity_days' => 'Legt fest, wie viele Tage ein generiertes PDF-Angebot rechtlich bindend ist.'
     ];
 
@@ -55,7 +57,14 @@ class ShopConfig extends Component
             ->toArray();
 
         foreach ($this->configKeys as $key) {
-            $this->settings[$key] = $dbSettings[$key] ?? $this->getFallback($key);
+            $value = $dbSettings[$key] ?? $this->getFallback($key);
+
+            // Konvertierung von Cent zu Euro für die Anzeige im Admin
+            if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge'])) {
+                $value = number_format((int)$value / 100, 2, '.', '');
+            }
+
+            $this->settings[$key] = $value;
         }
 
         $this->settings['is_small_business'] = filter_var($this->settings['is_small_business'], FILTER_VALIDATE_BOOLEAN);
@@ -81,6 +90,7 @@ class ShopConfig extends Component
             'owner_iban'        => 'DE...',
             'shipping_cost'     => 490,
             'shipping_free_threshold' => 5000,
+            'express_surcharge' => 2500,
             'prices_entered_gross' => true,
             'order_quote_validity_days' => 14,
         ];
@@ -92,12 +102,22 @@ class ShopConfig extends Component
         $this->validate([
             'settings.default_tax_rate' => 'required|numeric',
             'settings.owner_email' => 'required|email',
+            'settings.shipping_cost' => 'required|numeric',
+            'settings.shipping_free_threshold' => 'required|numeric',
+            'settings.express_surcharge' => 'required|numeric',
         ]);
 
         foreach ($this->settings as $key => $value) {
+            $finalValue = $value;
+
+            // Konvertierung von Euro zurück in Cent für die Datenbank
+            if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge'])) {
+                $finalValue = (int)round((float)$value * 100);
+            }
+
             ShopSetting::updateOrCreate(
                 ['key' => $key],
-                ['value' => is_bool($value) ? ($value ? 'true' : 'false') : $value]
+                ['value' => is_bool($finalValue) ? ($finalValue ? 'true' : 'false') : $finalValue]
             );
         }
 

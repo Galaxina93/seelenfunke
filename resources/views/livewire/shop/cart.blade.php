@@ -131,22 +131,33 @@
                     <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-lg sticky top-24">
                         <h3 class="font-serif font-bold text-xl text-gray-900 mb-6">Zusammenfassung</h3>
 
+                        @php
+                            // Jetzt laden wir den dynamischen Wert aus der Config.
+                            $threshold = (int) shop_setting('shipping_free_threshold', 5000);
+
+                            $currentValue = $totals['subtotal_gross'];
+
+                            // Berechnung des Prozentsatzes basierend auf dem dynamischen Schwellenwert
+                            $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
+
+                            // Diese Werte kommen korrekt berechnet aus deinem CartService
+                            $missing = $totals['missing_for_free_shipping'];
+                            $isFree = $totals['is_free_shipping'];
+                        @endphp
+
                         {{-- Fortschrittsanzeige für kostenlosen Versand --}}
-                        @if($totals['missing_for_free_shipping'] > 0)
+                        {{-- Logik-Erweiterung: Wir prüfen isFree, missing und ob überhaupt ein Schwellenwert gesetzt ist --}}
+                        @if(!$isFree && $missing > 0 && $threshold > 0)
                             <div class="mb-6 bg-gray-50 p-3 rounded-xl border border-gray-200">
                                 <p class="text-xs text-gray-600 mb-2">
-                                    Noch <span class="font-bold text-primary">{{ number_format($totals['missing_for_free_shipping'] / 100, 2, ',', '.') }} €</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
+                                    Noch <span class="font-bold text-primary">{{ number_format($missing / 100, 2, ',', '.') }} €</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
                                 </p>
                                 <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                    @php
-                                        $threshold = (int) shop_setting('shipping_free_threshold', 5000);
-                                        $percent = $threshold > 0 ? min(100, ($totals['subtotal_gross'] / $threshold) * 100) : 100;
-                                    @endphp
                                     <div class="bg-green-500 h-1.5 rounded-full transition-all duration-700 ease-out"
                                          style="width: {{ $percent }}%"></div>
                                 </div>
                             </div>
-                        @elseif($totals['is_free_shipping'])
+                        @elseif($isFree && $threshold > 0)
                             <div class="mb-6 flex items-center gap-2 text-green-600 bg-green-50 p-3 rounded-xl border border-green-100 shadow-sm animate-fade-in">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
@@ -195,17 +206,16 @@
                                 </div>
                             @endif
 
-                            @if($totals['shipping'] > 0)
-                                <div class="flex justify-between text-gray-600">
-                                    <span>Versand</span>
+                            <div class="flex justify-between text-gray-600">
+                                <span>Versand</span>
+                                @if($totals['shipping'] > 0)
                                     <span>{{ number_format($totals['shipping'] / 100, 2, ',', '.') }} €</span>
-                                </div>
-                            @else
-                                <div class="flex justify-between items-center bg-gray-50 p-2 rounded -mx-2">
-                                    <span class="text-gray-800 font-medium">Versand</span>
-                                    <span class="text-green-700 font-bold uppercase text-xs tracking-wider">Kostenlos</span>
-                                </div>
-                            @endif
+                                @else
+                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded -mx-2">
+                                        <span class="text-green-700 font-bold uppercase text-xs tracking-wider">Kostenlos</span>
+                                    </div>
+                                @endif
+                            </div>
 
                             <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
                                 <span class="text-base font-bold text-gray-900">Gesamtsumme</span>

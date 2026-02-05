@@ -4,9 +4,14 @@
         <h2 class="text-lg font-medium text-gray-900 mb-6">Bestellübersicht</h2>
 
         @php
-            $threshold = 5000;
+            // Dynamisches Laden der Schwelle aus den Shop-Settings (Cent-Wert)
+            $threshold = (int) shop_setting('shipping_free_threshold', 5000);
             $currentValue = $totals['subtotal_gross'];
+
+            // Prozentuale Berechnung basierend auf dem dynamischen Schwellenwert
             $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
+
+            // Werte aus dem CartService (welcher bereits die Settings nutzt)
             $missing = $totals['missing_for_free_shipping'];
             $isFree = $totals['is_free_shipping'];
         @endphp
@@ -48,8 +53,8 @@
                 @endphp
 
                 <span>
-                                        Für Lieferungen nach <strong class="text-blue-900">{{ $countryName }}</strong> gelten gesonderte Versandkosten.
-                                    </span>
+                    Für Lieferungen nach <strong class="text-blue-900">{{ $countryName }}</strong> gelten gesonderte Versandkosten.
+                </span>
             </div>
         @endif
 

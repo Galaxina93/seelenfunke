@@ -37,6 +37,10 @@
             vertical-align: top;
         }
 
+        .logo {
+            width: 220px;
+        }
+
         /* ADDRESS SECTION - Ohne Box-Hintergründe */
         .address-container {
             width: 100%;
@@ -179,8 +183,8 @@
     $ustId = shop_setting('owner_ust_id');
     $court = shop_setting('owner_court', 'Gifhorn');
 
-    $billingAddr = $data['billing_address'] ?? ($invoice->billing_address ?? []);
-    $shippingAddr = $data['shipping_address'] ?? ($invoice->shipping_address ?? []);
+    $billingAddr = $data['billing_address'] ?? [];
+    $shippingAddr = $data['shipping_address'] ?? [];
     $hasDifferentShipping = !empty($shippingAddr) && serialize($billingAddr) !== serialize($shippingAddr);
 @endphp
 
@@ -190,7 +194,7 @@
         <table class="header-table">
             <tr>
                 <td style="text-align: left; width: 40%;">
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="logo">
+                    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="{{ $ownerName }}" class="logo">
                 </td>
                 <td class="text-right" style="width: 60%; padding-top: 10px;">
                     <div style="font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 2px; font-weight: bold;">
@@ -215,6 +219,7 @@
                 @endif
                 @if(!empty($billingAddr))
                     {{ $billingAddr['address'] ?? '' }}<br>
+                    @if(!empty($billingAddr['address_addition'])) {{ $billingAddr['address_addition'] }}<br> @endif
                     {{ $billingAddr['postal_code'] ?? '' }} {{ $billingAddr['city'] ?? '' }}<br>
                     {{ $billingAddr['country'] ?? 'DE' }}
                 @elseif(isset($data['contact']['anmerkung_adresse']))
@@ -225,9 +230,10 @@
                     <div class="shipping-address-box">
                         <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; color: #888; margin-bottom: 2px;">Lieferadresse:</div>
                         <div style="font-size: 10px; line-height: 1.3;">
-                            {{ $shippingAddr['first_name'] ?? '' }} {{ $shippingAddr['last_name'] ?? '' }}<br>
+                            <strong>{{ $shippingAddr['first_name'] ?? '' }} {{ $shippingAddr['last_name'] ?? '' }}</strong><br>
                             @if(!empty($shippingAddr['company'])) {{ $shippingAddr['company'] }}<br> @endif
                             {{ $shippingAddr['address'] ?? '' }}<br>
+                            @if(!empty($shippingAddr['address_addition'])) {{ $shippingAddr['address_addition'] }}<br> @endif
                             {{ $shippingAddr['postal_code'] ?? '' }} {{ $shippingAddr['city'] ?? '' }}<br>
                             {{ $shippingAddr['country'] ?? 'DE' }}
                         </div>
@@ -251,10 +257,10 @@
     <p>Hallo {{ $data['contact']['vorname'] }}, vielen Dank für deine Anfrage. Basierend auf deinen Konfigurationen unterbreiten wir dir folgendes Angebot:</p>
 
     {{-- KUNDENAUSWAHL --}}
-    @include('global.mails.partials.mail_item_list')
+    @include('global.mails.partials.mail_item_list', ['data' => $data])
 
     {{-- PREISAUFSTELLUNG --}}
-    @include('global.mails.partials.mail_price_list')
+    @include('global.mails.partials.mail_price_list', ['data' => $data])
 
     <div class="clear"></div>
 
@@ -274,7 +280,6 @@
                     @if(!empty($data['contact']['telefon'])) Tel: {{ $data['contact']['telefon'] }} @endif
 
                     <div style="margin-top: 10px; font-style: italic; color: #999; font-size: 10px;">
-                        {{-- Nutzt den Config-Wert für den Fallback, falls kein expires_at am Objekt hängt --}}
                         Gültig bis zum {{ $data['quote_expiry'] ?? now()->addDays((int)shop_setting('order_quote_validity_days', 14))->format('d.m.Y') }}.
                     </div>
                 </td>
