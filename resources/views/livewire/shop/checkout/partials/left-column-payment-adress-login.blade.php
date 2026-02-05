@@ -48,18 +48,37 @@
         </div>
     @endif
 
-    {{-- Kontakt & Rechnung mit Auto-Collapse Logik --}}
+    {{-- Kontakt & Rechnung mit FIXED Auto-Collapse Logik --}}
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
          wire:key="checkout-address-section"
          x-data="{
             isOpen: true,
-            checkFields() {
-                const isComplete = @entangle('email') && @entangle('first_name') && @entangle('last_name') && @entangle('address') && @entangle('postal_code') && @entangle('city');
-                if(isComplete) { this.isOpen = false; }
+
+            // Hilfsfunktion: Prüft ob ein Wert existiert und nicht leer ist
+            isValid(val) {
+                return val && typeof val === 'string' && val.trim().length > 0;
+            },
+
+            // Hauptprüfung
+            checkCompletion() {
+                // Zugriff auf die Livewire-Properties
+                let e = $wire.email;
+                let f = $wire.first_name;
+                let l = $wire.last_name;
+                let a = $wire.address;
+                let p = $wire.postal_code;
+                let c = $wire.city;
+
+                // Prüfen ob alle Pflichtfelder ausgefüllt sind
+                if (this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c)) {
+                    this.isOpen = false; // Nur dann zuklappen
+                } else {
+                    this.isOpen = true; // Sonst offen lassen
+                }
             }
          }"
-         x-init="checkFields();"
-         @checkout-updated.window="checkFields()">
+         x-init="checkCompletion()"
+         @checkout-updated.window="checkCompletion()">
 
         <div class="p-6 sm:p-8 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors" @click="isOpen = !isOpen">
             <h2 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
@@ -67,10 +86,11 @@
                 Rechnungsdetails
             </h2>
             <div class="flex items-center gap-3">
+                {{-- Anzeige 'Vollständig' nur wenn zugeklappt (was impliziert, dass es valide ist durch die Logik oben) --}}
                 <template x-if="!isOpen">
                     <div class="text-right mr-2 animate-fade-in">
                         <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>
-                        <p class="text-xs text-gray-500 font-medium">{{ $first_name }} {{ $last_name }}</p>
+                        <p class="text-xs text-gray-500 font-medium" x-text="$wire.first_name + ' ' + $wire.last_name"></p>
                     </div>
                 </template>
                 <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" :class="isOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -149,7 +169,7 @@
                     </div>
                 </div>
 
-                {{-- START: ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
+                {{-- ERWEITERUNG ABWEICHENDE LIEFERADRESSE --}}
                 <div class="mt-8 pt-6 border-t border-gray-100">
                     <div class="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors" x-on:click="$wire.set('has_separate_shipping', !@js($has_separate_shipping))">
                         <input type="checkbox" wire:model.live="has_separate_shipping" class="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer">
