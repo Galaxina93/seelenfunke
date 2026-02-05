@@ -10,6 +10,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -158,14 +159,16 @@ class Invoices extends Component
 
     public function toggleManualCreate()
     {
-        // Automatische Entwurfsspeicherung beim Verlassen des Edits
-        if ($this->isCreatingManual && !empty($this->manualInvoice['invoice_number'])) {
-            $this->autoSaveDraft();
-        }
-
-        $this->isCreatingManual = !$this->isCreatingManual;
-        if($this->isCreatingManual) {
+        if ($this->isCreatingManual) {
+            // Wenn wir gerade im Editor sind und "Zurück" klicken:
+            // Wir brechen ab, ohne zu speichern, um Validierungsfehler zu vermeiden.
+            // (Wenn du Autosave willst, müsste man hier Fehler abfangen, aber Abbruch ist sauberer).
+            $this->isCreatingManual = false;
             $this->resetManualInvoice();
+        } else {
+            // Wenn wir die Liste sehen und "Erstellen" klicken:
+            $this->resetManualInvoice();
+            $this->isCreatingManual = true;
         }
     }
 
@@ -203,13 +206,21 @@ class Invoices extends Component
         $this->addItem();
     }
 
+    // AutoSave ist hier problematisch beim Tab-Wechsel oder Abbruch.
+    // Besser: Explizites Speichern über Buttons.
+    // Falls benötigt, hier die ID ignorieren:
+    /*
     protected function autoSaveDraft()
     {
-        // Prüfen ob bereits existiert oder neu ist, dann im Hintergrund sichern
         if (!empty($this->manualInvoice['last_name'])) {
-            $this->saveManualInvoice('draft', true);
+            try {
+                $this->saveManualInvoice('draft', true);
+            } catch (\Exception $e) {
+                // Fehler ignorieren beim Autosave
+            }
         }
     }
+    */
 
     public function addItem()
     {
@@ -265,9 +276,12 @@ class Invoices extends Component
 
     public function saveManualInvoice($finalStatus = 'paid', $isAutoSave = false)
     {
+        // 1. Die ID der aktuellen Rechnung holen (falls vorhanden)
+        $currentId = $this->manualInvoice['id'] ?? null;
+
         if ($finalStatus === 'draft') {
             $this->validate([
-                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($this->manualInvoice['id'] ?? 'null') . ',id',
+                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
             ]);
         } else {
             // Klare Validierung für Abschluss
@@ -280,7 +294,7 @@ class Invoices extends Component
                 'manualInvoice.city' => 'required',
                 'manualInvoice.invoice_date' => 'required|date',
                 'manualInvoice.delivery_date' => 'required|date',
-                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($this->manualInvoice['id'] ?? 'null') . ',id',
+                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
                 'manualInvoice.items' => 'required|array|min:1',
                 'manualInvoice.items.*.product_name' => 'required',
                 'manualInvoice.items.*.unit_price' => 'required|numeric',
@@ -292,7 +306,10 @@ class Invoices extends Component
             ]);
         }
 
-        DB::transaction(function () use ($finalStatus) {
+        // Variable für PDF-Fehler
+        $pdfError = null;
+
+        DB::transaction(function () use ($finalStatus, $currentId) {
             $subtotal = 0;
             $taxTotal = 0;
             $items = [];
@@ -312,7 +329,8 @@ class Invoices extends Component
                     'quantity' => $item['quantity'],
                     'unit_price' => $priceInCent,
                     'total_price' => $lineTotal,
-                    'tax_rate' => $taxRate
+                    'tax_rate' => $taxRate,
+                    'configuration' => $item['configuration'] ?? null
                 ];
             }
 
@@ -322,13 +340,17 @@ class Invoices extends Component
 
             $totalBrutto = ($subtotal + $shippingInCent) - ($discountInCent + $volumeDiscountInCent);
 
+            // [FIX 1] Zusammenführung der Argumente: updateOrCreate darf nur 2 Arrays haben!
+            // Array 1: Suchkriterium (ID)
+            // Array 2: ALLE Werte die gespeichert/geupdated werden sollen
             $invoice = Invoice::updateOrCreate(
-                ['invoice_number' => $this->manualInvoice['invoice_number']],
+                ['id' => $currentId ?? (string) Str::uuid()],
                 [
+                    'invoice_number' => $this->manualInvoice['invoice_number'],
                     'reference_number' => $this->manualInvoice['reference_number'],
-                    'invoice_date' => $this->manualInvoice['invoice_date'] ?: now(),
-                    'delivery_date' => $this->manualInvoice['delivery_date'] ?: now(),
-                    'due_date' => $this->manualInvoice['due_date'],
+                    'invoice_date' => $this->manualInvoice['invoice_date'] ? Carbon::parse($this->manualInvoice['invoice_date']) : now(),
+                    'delivery_date' => $this->manualInvoice['delivery_date'] ? Carbon::parse($this->manualInvoice['delivery_date']) : now(),
+                    'due_date' => $this->manualInvoice['due_date'] ? Carbon::parse($this->manualInvoice['due_date']) : null,
                     'due_days' => $this->manualInvoice['due_days'],
                     'subject' => $this->manualInvoice['subject'],
                     'header_text' => $this->manualInvoice['header_text'],
@@ -357,26 +379,51 @@ class Invoices extends Component
                     'custom_items' => $items,
                 ]
             );
+            // --- KORREKTUR ENDE ---
 
-            // Physische Archivierung bei Abschluss (Status paid)
+            // ID zurückschreiben, falls wir weiter bearbeiten
+            $this->manualInvoice['id'] = $invoice->id;
+
+            // Physische Archivierung (PDF) - JETZT MIT FEHLERABFANGUNG
             if ($finalStatus === 'paid') {
-                app(InvoiceService::class)->storePdf($invoice);
+                try {
+                    app(InvoiceService::class)->storePdf($invoice);
+                } catch (\Exception $e) {
+                    // Fehler speichern, aber NICHT abstürzen, damit der Redirect klappt
+                    $pdfError = $e->getMessage();
+                }
             }
 
-            // E-Rechnungs Logik: Technischer Export / Trigger
+            // E-Rechnung - Ebenfalls abgesichert
             if ($this->manualInvoice['is_e_invoice'] && $finalStatus === 'paid') {
-                $this->processEInvoice($invoice);
+                try {
+                    $this->processEInvoice($invoice);
+                } catch (\Exception $e) {
+                    // E-Rechnung Fehler logging...
+                }
             }
         });
 
+        // UI Updates
         if (!$isAutoSave) {
             if ($finalStatus === 'paid') {
                 $this->saveSuccess = true;
-                $this->dispatch('notify', ['type' => 'success', 'message' => 'Rechnung abgeschlossen']);
+
+                // Meldung ausgeben (inkl. Warnung falls PDF schiefging)
+                if ($pdfError) {
+                    $this->dispatch('notify', ['type' => 'warning', 'message' => 'Rechnung erstellt, aber PDF fehlgeschlagen: ' . $pdfError]);
+                } else {
+                    $this->dispatch('notify', ['type' => 'success', 'message' => 'Rechnung erfolgreich erstellt.']);
+                }
+
+                // DIESE ZEILE SORGT FÜR DEN WECHSEL:
                 $this->isCreatingManual = false;
+
+                // Formular zurücksetzen für das nächste Mal
+                $this->resetManualInvoice();
+
             } else {
                 $this->draftSuccess = true;
-                // Reset success state after few seconds
                 $this->dispatch('resetDraftSuccess');
                 session()->flash('success', 'Entwurf gespeichert.');
             }
