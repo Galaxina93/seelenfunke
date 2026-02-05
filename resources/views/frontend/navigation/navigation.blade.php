@@ -62,7 +62,7 @@
                     </div>
                 </div>
 
-                {{-- Mobile Hamburger Button & Cart --}}
+                {{-- Mobile Hamburger Button & cart --}}
                 <div class="md:hidden flex items-center gap-4">
 
                     {{-- Warenkorb Icon (Mobil) - Identisch zur Desktop Komponente für Badge-Sync --}}

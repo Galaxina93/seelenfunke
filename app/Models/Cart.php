@@ -14,7 +14,7 @@ class Cart extends Model
 
     /**
      * Die Attribute, die per Mass Assignment gesetzt werden dürfen.
-     * Wichtig für Cart::firstOrCreate(['session_id' => ...])
+     * Wichtig für cart::firstOrCreate(['session_id' => ...])
      */
     protected $fillable = [
         'session_id',

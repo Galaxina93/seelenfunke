@@ -259,7 +259,7 @@ class CartService
 
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
-                    // Gutschein bleibt im Cart hinterlegt, wird aber nicht vom Preis abgezogen
+                    // Gutschein bleibt im cart hinterlegt, wird aber nicht vom Preis abgezogen
                 } else {
                     if ($coupon->type === 'fixed') {
                         $discountAmount = $coupon->value;
