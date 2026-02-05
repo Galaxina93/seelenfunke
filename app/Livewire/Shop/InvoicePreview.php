@@ -5,6 +5,7 @@ namespace App\Livewire\Shop;
 use App\Models\Invoice;
 use App\Services\InvoiceService;
 use Livewire\Component;
+use Illuminate\Support\Facades\Storage;
 
 class InvoicePreview extends Component
 {
@@ -38,6 +39,26 @@ class InvoicePreview extends Component
         } catch (\Exception $e) {
             session()->flash('error', $e->getMessage());
         }
+    }
+
+    /**
+     * NEU: Ermöglicht den Download direkt aus der Vorschau
+     * Berücksichtigt die GoBD-konforme Archivierung
+     */
+    public function downloadPdf(InvoiceService $service)
+    {
+        $invoice = Invoice::findOrFail($this->invoiceId);
+
+        // Prüfung auf physisches Archiv ( storage/app/invoices )
+        $fileName = "invoices/{$invoice->invoice_number}.pdf";
+        if (Storage::disk('local')->exists($fileName)) {
+            return Storage::disk('local')->download($fileName);
+        }
+
+        // Fallback: On-the-fly generieren
+        return response()->streamDownload(function () use ($service, $invoice) {
+            echo $service->generatePdf($invoice)->output();
+        }, "Rechnung_{$invoice->invoice_number}.pdf");
     }
 
     public function render()

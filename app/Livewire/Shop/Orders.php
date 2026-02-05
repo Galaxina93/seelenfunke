@@ -196,7 +196,7 @@ class Orders extends Component
     {
         // 1. DETAIL ANSICHT
         if ($this->selectedOrderId && $this->selectedOrder) {
-            return view('livewire.shop.orders', [
+            return view('livewire.shop.order.orders', [
                 'order' => $this->selectedOrder,
                 'orders' => [],
                 'stats' => []
@@ -232,7 +232,7 @@ class Orders extends Component
 
         $orders = $query->paginate(10);
 
-        return view('livewire.shop.orders', [
+        return view('livewire.shop.order.orders', [
             'orders' => $orders,
             'stats' => [
                 'total' => Order::count(),

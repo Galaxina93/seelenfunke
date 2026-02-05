@@ -326,7 +326,7 @@ class QuoteAcceptance extends Component
 
     public function render()
     {
-        return view('livewire.shop.quote-acceptance')
+        return view('livewire.shop.offer.quote-acceptance')
             ->layout('components.layouts.frontend_layout');
     }
 }

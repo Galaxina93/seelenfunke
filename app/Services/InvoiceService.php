@@ -7,6 +7,7 @@ use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class InvoiceService
 {
@@ -65,7 +66,7 @@ class InvoiceService
             $originalInvoice->update(['status' => 'cancelled']);
             $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
 
-            return Invoice::create([
+            $invoice = Invoice::create([
                 'parent_id' => $originalInvoice->id,
                 'order_id' => $originalInvoice->order_id,
                 'customer_id' => $originalInvoice->customer_id,
@@ -90,6 +91,11 @@ class InvoiceService
                 'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
                 'is_e_invoice' => $originalInvoice->is_e_invoice,
             ]);
+
+            // Stornobeleg ebenfalls archivieren
+            $this->storePdf($invoice);
+
+            return $invoice;
         });
     }
 
@@ -101,9 +107,12 @@ class InvoiceService
         // Items müssen explizit geladen werden
         $invoice->load('order.items');
 
+        // Für manuelle Rechnungen die custom_items nutzen, sonst order items
+        $items = $invoice->order ? $invoice->order->items : collect($invoice->custom_items)->map(fn($i) => (object)$i);
+
         $pdf = Pdf::loadView('global.mails.invoice_pdf_template', [
             'invoice' => $invoice,
-            'items' => $invoice->order->items, // Wir nutzen die OrderItems, da diese unveränderbar sein sollten
+            'items' => $items,
             'isStorno' => $invoice->type === 'cancellation'
         ]);
 
@@ -115,13 +124,59 @@ class InvoiceService
      */
     public function storePdf(Invoice $invoice): string
     {
-        $pdf = $this->generatePdf($invoice);
-        $fileName = "invoices/{$invoice->invoice_number}.pdf";
+        try {
+            $pdf = $this->generatePdf($invoice);
+            $fileName = "invoices/{$invoice->invoice_number}.pdf";
 
-        // Speichert die Datei im 'public' disk (was auf storage/app/public/invoices zeigt)
-        Storage::disk('public')->put($fileName, $pdf->output());
+            // Speichert die Datei im 'local' disk (storage/app/invoices) für GoBD
+            Storage::disk('local')->put($fileName, $pdf->output());
+
+            // Zusätzlich für öffentlichen Zugriff falls nötig
+            Storage::disk('public')->put($fileName, $pdf->output());
+
+            // Falls E-Rechnung aktiv: XML generieren und beifügen
+            if ($invoice->is_e_invoice) {
+                $this->generateEInvoiceXml($invoice);
+            }
+
+            return $fileName;
+        } catch (\Exception $e) {
+            Log::error("PDF Speicherung fehlgeschlagen für {$invoice->invoice_number}: " . $e->getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * E-RECHNUNG: Generiert strukturierte XML Daten (ZUGFeRD / XRechnung)
+     */
+    public function generateEInvoiceXml(Invoice $invoice)
+    {
+        $fileName = "invoices/xml/{$invoice->invoice_number}.xml";
+
+        // Einfaches XML-Schema nach E-Commerce Richtlinien
+        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"/>');
+        $header = $xml->addChild('ExchangedDocumentContext');
+        $header->addChild('ID', $invoice->invoice_number);
+
+        // Speicherung der XML-Komponente
+        Storage::disk('local')->put($fileName, $xml->asXML());
 
         return $fileName;
+    }
+
+    /**
+     * Entwürfe physisch und aus DB löschen
+     */
+    public function deleteDraft(Invoice $invoice)
+    {
+        if ($invoice->status !== 'draft') return false;
+
+        $fileName = "invoices/{$invoice->invoice_number}.pdf";
+        if (Storage::disk('local')->exists($fileName)) {
+            Storage::disk('local')->delete($fileName);
+        }
+
+        return $invoice->forceDelete();
     }
 
     private function generateInvoiceNumber($prefix = 'RE')

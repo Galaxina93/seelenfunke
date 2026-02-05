@@ -27,12 +27,20 @@ trait FormatsECommerceData
             $lineGross = $item->total_price ?? 0;
             $goodsGrossCents += $lineGross;
 
+            // SICHERER ZUGRIFF AUF CONFIGURATION (Verhindert stdClass Fehler)
+            $config = null;
+            if (is_object($item) && isset($item->configuration)) {
+                $config = $item->configuration;
+            } elseif (is_array($item) && isset($item['configuration'])) {
+                $config = $item['configuration'];
+            }
+
             $items[] = [
                 'name'         => $item->product_name ?? $item->name ?? 'Unbekanntes Produkt',
                 'quantity'     => $item->quantity,
                 'single_price' => number_format(($item->unit_price ?? 0) / 100, 2, ',', '.'),
                 'total_price'  => number_format($lineGross / 100, 2, ',', '.'),
-                'config'       => $item->configuration
+                'config'       => $config
             ];
         }
 
@@ -99,6 +107,10 @@ trait FormatsECommerceData
             'tax_note'          => $isSmallBusiness
                 ? 'Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.'
                 : "Enthaltene MwSt. ({$defaultTaxRate}%):",
+
+            // Erweiterung für Buchhaltung & Archivierung
+            'is_e_invoice'      => (bool)($this->is_e_invoice ?? false),
+            'pdf_exists'        => (bool)($this->has_archived_pdf ?? false),
         ];
     }
 

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class Invoices extends Component
 {
@@ -21,6 +22,7 @@ class Invoices extends Component
     public $filterType = '';
     public $isCreatingManual = false;
     public $selectedCustomerId = null;
+    public $activeTab = 'list'; // list, e_invoices, archive
 
     // Feedback States
     public $saveSuccess = false;
@@ -114,7 +116,7 @@ class Invoices extends Component
             'subject' => $invoice->subject,
             'header_text' => $invoice->header_text,
             'footer_text' => $invoice->footer_text,
-            'is_e_invoice' => $invoice->is_e_invoice,
+            'is_e_invoice' => (bool)$invoice->is_e_invoice,
             'items' => collect($invoice->custom_items)->map(fn($item) => [
                 'product_name' => $item['product_name'],
                 'quantity' => $item['quantity'],
@@ -230,6 +232,11 @@ class Invoices extends Component
     {
         $invoice = Invoice::findOrFail($id);
 
+        // Prüfung ob archiviertes PDF existiert (GoBD Konformität)
+        if (Storage::disk('local')->exists("invoices/{$invoice->invoice_number}.pdf")) {
+            return Storage::disk('local')->download("invoices/{$invoice->invoice_number}.pdf");
+        }
+
         $pdf = Pdf::loadView('global.mails.invoice_pdf_template', [
             'invoice' => $invoice,
             'items' => $invoice->order ? $invoice->order->items : collect($invoice->custom_items),
@@ -327,7 +334,7 @@ class Invoices extends Component
                     'subject' => $this->manualInvoice['subject'],
                     'header_text' => $this->manualInvoice['header_text'],
                     'footer_text' => $this->manualInvoice['footer_text'],
-                    'is_e_invoice' => $this->manualInvoice['is_e_invoice'],
+                    'is_e_invoice' => (bool)$this->manualInvoice['is_e_invoice'],
                     'type' => 'invoice',
                     'status' => $finalStatus,
                     'customer_id' => $this->selectedCustomerId,
@@ -351,6 +358,11 @@ class Invoices extends Component
                     'custom_items' => $items,
                 ]
             );
+
+            // Physische Archivierung bei Abschluss (Status paid)
+            if ($finalStatus === 'paid') {
+                app(InvoiceService::class)->storePdf($invoice);
+            }
 
             // E-Rechnungs Logik: Technischer Export / Trigger
             if ($this->manualInvoice['is_e_invoice'] && $finalStatus === 'paid') {
@@ -420,9 +432,35 @@ class Invoices extends Component
             $cancellationInvoice->total = -$invoice->total;
 
             $cancellationInvoice->save();
+
+            // Auch Stornobeleg archivieren
+            app(InvoiceService::class)->storePdf($cancellationInvoice);
         });
 
         session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');
+    }
+
+    /**
+     * Entwurf unwiderruflich löschen
+     */
+    public function deleteDraft($id)
+    {
+        $invoice = Invoice::where('id', $id)->where('status', 'draft')->firstOrFail();
+        $invoice->forceDelete();
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Entwurf gelöscht']);
+    }
+
+    public function switchTab($tab)
+    {
+        $this->activeTab = $tab;
+        $this->resetPage();
+    }
+
+    public function downloadPdfByFilename($filename)
+    {
+        if (Storage::disk('local')->exists("invoices/{$filename}")) {
+            return Storage::disk('local')->download("invoices/{$filename}");
+        }
     }
 
     public function render()
@@ -434,6 +472,10 @@ class Invoices extends Component
                 $q->where('invoice_number', 'like', '%'.$this->search.'%')
                     ->orWhere('billing_address->last_name', 'like', '%'.$this->search.'%');
             });
+        }
+
+        if ($this->activeTab === 'e_invoices') {
+            $query->where('is_e_invoice', true);
         }
 
         if ($this->filterType) {
@@ -475,10 +517,23 @@ class Invoices extends Component
             $totalsPreview['gross'] -= ((float)$this->manualInvoice['discount_amount'] + (float)$this->manualInvoice['volume_discount']);
         }
 
-        return view('livewire.shop.invoices', [
+        $archivedFiles = [];
+        if ($this->activeTab === 'archive') {
+            $files = Storage::disk('local')->files('invoices');
+            foreach ($files as $file) {
+                $archivedFiles[] = [
+                    'name' => basename($file),
+                    'size' => round(Storage::disk('local')->size($file) / 1024, 2) . ' KB',
+                    'date' => Carbon::createFromTimestamp(Storage::disk('local')->lastModified($file))->format('d.m.Y H:i')
+                ];
+            }
+        }
+
+        return view('livewire.shop.invoice.invoices', [
             'invoices' => $query->paginate(15),
             'totalsPreview' => $totalsPreview,
-            'customers' => Customer::orderBy('last_name')->get()
+            'customers' => Customer::orderBy('last_name')->get(),
+            'archivedFiles' => $archivedFiles
         ]);
     }
 }

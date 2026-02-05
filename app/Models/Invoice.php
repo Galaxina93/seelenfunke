@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Storage;
 
 class Invoice extends Model
 {
@@ -155,5 +156,84 @@ class Invoice extends Model
     public function getEmailAttribute($value)
     {
         return $value ?? ($this->order->email ?? ($this->customer->email ?? ''));
+    }
+
+    /**
+     * GIBT DEN PHYSIKALISCHEN ARCHIV-PFAD ZURÜCK
+     * Erforderlich für GoBD-konforme PDF-Ablage
+     */
+    public function getPdfStoragePathAttribute()
+    {
+        return 'invoices/' . $this->invoice_number . '.pdf';
+    }
+
+    /**
+     * PRÜFT OB DIE ARCHIVIERTE DATEI EXISTIERT
+     */
+    public function getHasArchivedPdfAttribute()
+    {
+        return Storage::disk('local')->exists($this->pdf_storage_path);
+    }
+
+    /**
+     * LOGIK FÜR DAS LÖSCHEN VON ENTWÜRFEN
+     * Stellt sicher, dass nur Entwürfe unwiderruflich gelöscht werden können.
+     */
+    public function canBeDeleted()
+    {
+        return $this->status === 'draft';
+    }
+
+    /**
+     * FORMATIERTE E-RECHNUNGS-METADATEN
+     * Hilfreich für XRechnung/ZUGFeRD Exporte
+     */
+    public function getEInvoiceMetadata()
+    {
+        return [
+            'guid' => $this->id,
+            'number' => $this->invoice_number,
+            'type_code' => $this->isCreditNote() ? '381' : '380',
+            'currency' => 'EUR',
+            'tax_registration' => shop_setting('owner_tax_id'),
+        ];
+    }
+
+    /**
+     * Ersetzt Platzhalter im Kopftext.
+     */
+    public function getParsedHeaderTextAttribute()
+    {
+        return $this->parseInvoiceVariables($this->header_text);
+    }
+
+    /**
+     * Ersetzt Platzhalter im Fußtext.
+     */
+    public function getParsedFooterTextAttribute()
+    {
+        return $this->parseInvoiceVariables($this->footer_text);
+    }
+
+    /**
+     * Kern-Logik zum Ersetzen der Variablen [%...%]
+     */
+    protected function parseInvoiceVariables($text)
+    {
+        if (empty($text)) return '';
+
+        // Werte vorbereiten
+        $dueDate = $this->due_date ? $this->due_date->format('d.m.Y') : now()->addDays(14)->format('d.m.Y');
+        $ownerName = shop_setting('owner_proprietor', 'Alina Steinhauer');
+        $invoiceNumber = $this->invoice_number;
+
+        // Ersetzungs-Map
+        $variables = [
+            '[%ZAHLUNGSZIEL%]' => $dueDate,
+            '[%KONTAKTPERSON%]' => $ownerName,
+            '[%RECHNUNGSNUMMER%]' => $invoiceNumber,
+        ];
+
+        return str_replace(array_keys($variables), array_values($variables), $text);
     }
 }

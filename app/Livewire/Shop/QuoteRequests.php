@@ -27,7 +27,7 @@ class QuoteRequests extends Component
     public function render()
     {
         if ($this->selectedQuoteId) {
-            return view('livewire.shop.quote-requests-detail', [
+            return view('livewire.shop.offer.quote-requests-detail', [
                 'quote' => QuoteRequest::with(['items.product', 'customer'])->find($this->selectedQuoteId)
             ]);
         }
@@ -47,7 +47,7 @@ class QuoteRequests extends Component
             $query->where('status', $this->filterStatus);
         }
 
-        return view('livewire.shop.quote-requests', [
+        return view('livewire.shop.offer.quote-requests', [
             'quotes' => $query->paginate(10)
         ]);
     }

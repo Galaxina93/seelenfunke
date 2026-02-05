@@ -64,8 +64,30 @@ return new class extends Migration
 
             $table->text('notes')->nullable();
 
+            // --- ERWEITERUNGEN FÜR ARCHIVIERUNG & E-RECHNUNG ---
+
+            // Pfad zur physischen PDF Datei im Storage (GoBD Konformität)
+            $table->string('pdf_path')->nullable();
+
+            // Pfad zur generierten XML Datei (ZUGFeRD / XRechnung)
+            $table->string('xml_path')->nullable();
+
+            // Hash-Wert der Datei zur Verifizierung der Unveränderbarkeit
+            $table->string('file_hash')->nullable();
+
+            // Metadaten für E-Rechnungen (z.B. Leitweg-ID für B2G)
+            $table->string('buyer_reference')->nullable();
+
+            // Zeitpunkt der Archivierung
+            $table->timestamp('archived_at')->nullable();
+
             $table->timestamps();
             $table->softDeletes();
+
+            // Indexe für schnellere Suche in großen Beständen
+            $table->index('invoice_number');
+            $table->index('invoice_date');
+            $table->index('status');
         });
     }
 
