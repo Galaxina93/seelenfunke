@@ -609,8 +609,6 @@
 
             </div>
         </section>
-
-        <!-- CTA Section -->
         <section class="bg-gradient-to-br from-gray-900 to-black text-white py-24 relative overflow-hidden">
 
             {{-- Dekorativer Hintergrund-Effekt (Goldener Schimmer) --}}
@@ -626,7 +624,7 @@
                         <span class="text-primary">Sondern echtes Handwerk aus Deutschland.</span>
                     </h2>
 
-                    {{-- Der emotionale Text (Professionalisiert) --}}
+                    {{-- Der emotionale Text --}}
                     <p class="text-lg md:text-xl text-gray-200 font-light leading-relaxed">
                         In Zeiten von anonymer Massenware gehen wir bewusst einen anderen Weg.
                         Wenn Sie bei einem Großkonzern bestellen, sind Sie oft nur eine Bestellnummer im System.
@@ -634,27 +632,68 @@
                         <strong>Bei uns ist das anders. Jede Bestellung wird in unserer Manufaktur persönlich bearbeitet, geprüft und gefeiert.</strong>
                         <br><br>
                         Mit Ihrem Auftrag unterstützen Sie kein riesiges Logistikzentrum, sondern ein lokales Unternehmen, das auf Qualität und Nachhaltigkeit setzt.
-                        Sie sorgen dafür, dass wir dieses Handwerk mit Leidenschaft weiterführen können. Danke für Ihr Vertrauen.
                     </p>
 
-                    {{-- CTA Button (Intern statt Etsy) --}}
+                    {{-- CTA Button --}}
                     <div class="pt-6 flex flex-col items-center gap-4">
                         <a href="{{ route('calculator') }}"
                            class="inline-flex items-center gap-3 bg-primary text-white px-10 py-5 rounded-full font-bold text-lg shadow-[0_0_25px_rgba(201,166,107,0.3)] hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.5)]">
-                            {{-- Icon: Calculator/Offer --}}
                             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                             Jetzt Angebot berechnen
                         </a>
-
                         <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold opacity-80">
                             Unverbindlich & Sofort
                         </p>
                     </div>
-
                 </div>
             </div>
+
+            <!-- Infinite Logo Marquee -->
+            <div class="relative flex overflow-hidden group/container pt-8">
+
+                {{-- Erster Animations-Block --}}
+                <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0">
+                    @for ($i = 0; $i < 10; $i++)
+                        <div class="flex items-center group">
+                            {{-- Logo: Harmonische Größe (h-12 auf Mobile, h-20 auf Desktop) --}}
+                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
+                                 alt="Mein Seelenfunke Logo"
+                                 class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
+                        </div>
+                    @endfor
+                </div>
+
+                {{-- Zweiter Animations-Block (Loop-Kopie) --}}
+                <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0 ml-20 md:ml-32" aria-hidden="true">
+                    @for ($i = 0; $i < 10; $i++)
+                        <div class="flex items-center group">
+                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
+                                 alt="Mein Seelenfunke Logo"
+                                 class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
+                        </div>
+                    @endfor
+                </div>
+            </div>
+
+            <style>
+                @keyframes marquee {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-100%); }
+                }
+
+                .animate-marquee {
+                    /* Geschwindigkeit auf 60s angepasst - bei kleineren Logos wirkt zu langsam oft "stehend" */
+                    animation: marquee 60s linear infinite;
+                    will-change: transform;
+                }
+
+                .group\/container:hover .animate-marquee {
+                    animation-play-state: paused;
+                }
+            </style>
+
         </section>
 
         <!-- Process Section -->
@@ -672,7 +711,7 @@
                 </div>
 
                 <div class="relative">
-                    {{-- Verbindungslinie (Nur Desktop) - liegt HINTER den Bildern --}}
+                    {{-- Verbindungslinie (Nur Desktop) --}}
                     <div class="hidden lg:block absolute top-12 left-0 w-full h-1 bg-gray-100 my-4 rounded-full overflow-hidden z-0">
                         <div class="h-full bg-gradient-to-r from-primary-light via-primary to-primary-dark w-full opacity-30"></div>
                     </div>
@@ -693,6 +732,7 @@
                                     'text' => 'Mit modernster Lasertechnologie wird Ihr Motiv dauerhaft und gestochen scharf in das Material eingearbeitet. Präzision im Mikrometerbereich.'
                                 ],
                                 [
+                                    'video' => '4_augen', // Nur der Dateiname ohne Endung für maximale Flexibilität
                                     'image' => '/images/projekt/process/handveredelung.png',
                                     'title' => 'Veredelung & Check',
                                     'text' => 'Jedes Stück wird von Hand gereinigt, poliert und durchläuft unsere strenge 4-Augen-Qualitätsprüfung. Nur Makelloses verlässt das Haus.'
@@ -713,18 +753,43 @@
                         @foreach($steps as $index => $step)
                             <div class="text-center fade-in group relative z-10" style="animation-delay: {{ $index * 0.2 }}s;">
 
-                                {{-- Bild Container mit Hover-Effekt --}}
                                 <div class="relative inline-block transition-transform transform group-hover:-translate-y-2 duration-300">
 
-                                    {{-- Das runde Bild --}}
+                                    {{-- Container für Bild ODER Video --}}
                                     <div class="w-32 h-32 bg-white border-4 border-primary rounded-full overflow-hidden mx-auto mb-6 shadow-xl relative z-10 group-hover:shadow-2xl group-hover:border-primary-dark transition-all">
-                                        <img src="{{ asset($step['image']) }}"
-                                             onerror="this.src='https://placehold.co/200x200/f8f8f8/CCCCCC?text={{ $index+1 }}'; this.style.objectFit='cover';"
-                                             alt="{{ $step['title'] }}"
-                                             class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+
+                                        @if(isset($step['video']))
+                                            {{-- High-Performance Video-Logik --}}
+                                            <video
+                                                autoplay
+                                                loop
+                                                muted
+                                                playsinline
+                                                preload="none"
+                                                loading="lazy"
+                                                poster="{{ asset($step['image']) }}" {{-- Zeigt das Bild, während das Video lädt --}}
+                                                class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+
+                                                {{-- Falls du eine WebM Version hast (sehr empfohlen für Speed) --}}
+                                                <source src="{{ asset('images/projekt/process/' . $step['video'] . '.webm') }}" type="video/webm">
+                                                {{-- Fallback MP4 --}}
+                                                <source src="{{ asset('images/projekt/process/' . $step['video'] . '.mp4') }}" type="video/mp4">
+
+                                                {{-- Fallback Image falls Video gar nicht geht --}}
+                                                <img src="{{ asset($step['image']) }}" alt="{{ $step['title'] }}">
+                                            </video>
+                                        @else
+                                            {{-- Klassische Bild-Logik --}}
+                                            <img src="{{ asset($step['image']) }}"
+                                                 onerror="this.src='https://placehold.co/200x200/f8f8f8/CCCCCC?text={{ $index+1 }}'; this.style.objectFit='cover';"
+                                                 alt="{{ $step['title'] }}"
+                                                 loading="lazy"
+                                                 class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+                                        @endif
+
                                     </div>
 
-                                    {{-- Nummer Badge (Kleiner Kreis am Rand) --}}
+                                    {{-- Nummer Badge --}}
                                     <div class="absolute -top-1 -right-1 w-8 h-8 bg-primary text-white font-bold rounded-full flex items-center justify-center border-2 border-white shadow-md z-20">
                                         {{ $index + 1 }}
                                     </div>
@@ -734,7 +799,7 @@
                                     {{ $step['title'] }}
                                 </h3>
                                 <p class="text-gray-600 text-sm leading-relaxed px-1">
-                                    {{ $step['text'] }}
+                                    {{ $text = $step['text'] }}
                                 </p>
                             </div>
                         @endforeach
@@ -928,6 +993,29 @@
 
             --}}{{-- Button "Mehr anzeigen" entfernt, da 6 Schritte perfekt in das Grid passen und man den Prozess immer ganz sehen sollte --}}{{--
         </section>--}}
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12">
+            <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                <span class="text-2xl mb-2 block">🇩🇪</span>
+                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Standort Gifhorn</h4>
+                <p class="text-[10px] text-gray-500 mt-1">Echtes Handwerk aus Niedersachsen</p>
+            </div>
+            <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                <span class="text-2xl mb-2 block">🛡️</span>
+                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Geprüfte Qualität</h4>
+                <p class="text-[10px] text-gray-500 mt-1">Zertifizierte Laserschutz-Sicherheit</p>
+            </div>
+            <div class="p-index p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                <span class="text-2xl mb-2 block">✨</span>
+                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">K9 Kristallglas</h4>
+                <p class="text-[10px] text-gray-500 mt-1">Nur die hochwertigsten Rohmaterialien</p>
+            </div>
+            <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                <span class="text-2xl mb-2 block">📦</span>
+                <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sicherer Versand</h4>
+                <p class="text-[10px] text-gray-500 mt-1">Bruchsicher & liebevoll verpackt</p>
+            </div>
+        </div>
 
         <!--FAQ Section-->
         <section id="faq" class="bg-gray-50 py-24 scroll-mt-20">

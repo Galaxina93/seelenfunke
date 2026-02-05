@@ -30,7 +30,9 @@ class QuoteRequest extends Model
                 $quote->token = Str::random(32);
             }
             if (empty($quote->expires_at)) {
-                $quote->expires_at = now()->addDays(14);
+                // HOLT DEN WERT AUS DER CONFIG (Standard 14 als Fallback)
+                $validityDays = (int)shop_setting('order_quote_validity_days', 14);
+                $quote->expires_at = now()->addDays($validityDays);
             }
             if (empty($quote->status)) {
                 $quote->status = 'open';

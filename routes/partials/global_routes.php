@@ -115,6 +115,10 @@ Route::get('/versand', function () {
     return view('frontend.pages.versand');
 })->name('versand');
 
+Route::get('/barrierefreiheit', function () {
+    return view('frontend.pages.barrierefreiheit');
+})->name('barrierefreiheit');
+
 // Redirects für alte/falsche Links
 Route::redirect('/datenschutzerklaerung', '/datenschutz');
 

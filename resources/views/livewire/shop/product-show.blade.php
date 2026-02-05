@@ -239,14 +239,26 @@
                 @endif
 
                 {{-- USP Icons --}}
-                <div class="grid grid-cols-2 gap-4 mt-10">
-                    <div class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
-                        <svg class="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>
-                        <span class="text-sm font-bold text-gray-700">Handgefertigt</span>
+                <div class="grid md:grid-cols-3 gap-3 mt-12">
+                    {{-- Qualität --}}
+                    <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                        <span class="text-2xl mb-2 block">🛡️</span>
+                        <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Geprüfte Qualität</h4>
+                        <p class="text-[10px] text-gray-500 mt-1">Zertifizierte Laserschutz-Sicherheit</p>
                     </div>
-                    <div class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100">
-                        <svg class="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <span class="text-sm font-bold text-gray-700">Schneller Versand</span>
+
+                    {{-- Handveredelt (Fokus auf Auswahl & Handwerk) --}}
+                    <div class="p-index p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                        <span class="text-2xl mb-2 block">✨</span>
+                        <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Handveredelt</h4>
+                        <p class="text-[10px] text-gray-500 mt-1">Sorgsam gewählte Rohlinge, persönlich für dich gelasert</p>
+                    </div>
+
+                    {{-- Versand --}}
+                    <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                        <span class="text-2xl mb-2 block">📦</span>
+                        <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sicherer Versand</h4>
+                        <p class="text-[10px] text-gray-500 mt-1">Bruchsicher & liebevoll von Hand verpackt</p>
                     </div>
                 </div>
 

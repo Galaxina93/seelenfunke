@@ -9,8 +9,14 @@
                 <p class="text-sm text-gray-300">Bitte prüfe deine E-Mails, um die Anmeldung zu bestätigen.</p>
             </div>
         @else
-            <h4 class="text-lg font-serif font-semibold mb-2 text-primary">Newsletter</h4>
-            <p class="text-sm text-gray-400 mb-4">
+            <h4 class="text-lg font-serif font-semibold mb-1 text-primary">Newsletter</h4>
+
+            {{-- Der neue Slogan --}}
+            <p class="text-sm text-gray-100 font-medium italic mb-3">
+                Ein kleiner Lichtblick für dein Postfach.
+            </p>
+
+            <p class="text-xs text-gray-400 mb-4 leading-relaxed">
                 Erhalte exklusive Angebote und Einblicke in unsere Manufaktur.
             </p>
 
@@ -24,7 +30,6 @@
                 </div>
 
                 <div class="flex items-start gap-2">
-                    {{-- WICHTIG: .live sorgt für sofortiges Update des Buttons --}}
                     <input type="checkbox"
                            id="privacy"
                            wire:model.live="privacy_accepted"
@@ -35,7 +40,6 @@
                 </div>
                 @error('privacy_accepted') <span class="text-red-400 text-xs block">{{ $message }}</span> @enderror
 
-                {{-- BUTTON LOGIK: disabled attribute und styling angepasst --}}
                 <button type="submit"
                         @disabled(!$privacy_accepted)
                         class="w-full font-bold py-2.5 rounded-lg transition shadow-lg flex items-center justify-center gap-2

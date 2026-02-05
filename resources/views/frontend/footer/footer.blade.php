@@ -64,6 +64,7 @@
                     <li><a href="/agb" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerruf</a></li>
                     <li><a href="/verhaltenskodex" class="hover:text-white transition opacity-80 hover:opacity-100">Verhaltenskodex</a></li>
                     <li><a href="/versand" class="hover:text-white transition opacity-80 hover:opacity-100">Versand</a></li>
+                    <li><a href="/barrierefreiheit" class="hover:text-white transition opacity-80 hover:opacity-100">Erklärung zur Barrierefreiheit</a></li>
                 </ul>
             </div>
 

@@ -274,7 +274,8 @@
                     @if(!empty($data['contact']['telefon'])) Tel: {{ $data['contact']['telefon'] }} @endif
 
                     <div style="margin-top: 10px; font-style: italic; color: #999; font-size: 10px;">
-                        Gültig bis zum {{ $data['quote_expiry'] ?? now()->addDays(14)->format('d.m.Y') }}.
+                        {{-- Nutzt den Config-Wert für den Fallback, falls kein expires_at am Objekt hängt --}}
+                        Gültig bis zum {{ $data['quote_expiry'] ?? now()->addDays((int)shop_setting('order_quote_validity_days', 14))->format('d.m.Y') }}.
                     </div>
                 </td>
                 <td style="vertical-align: top; text-align: right;">
