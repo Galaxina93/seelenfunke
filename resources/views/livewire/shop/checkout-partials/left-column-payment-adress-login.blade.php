@@ -3,7 +3,7 @@
 
     {{-- Gast / Login Hinweis --}}
     @if(!auth()->guard('customer')->check())
-        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm" x-data="{ showLogin: false }">
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm" x-data="{ showLogin: false }" wire:key="checkout-login-box">
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div>
                     <h3 class="text-sm font-bold text-gray-900">Bereits Kunde?</h3>
@@ -42,18 +42,18 @@
             </div>
         </div>
     @else
-        <div class="bg-green-50 p-4 rounded-xl border border-green-100 flex items-center gap-3 text-green-800 text-sm">
+        <div class="bg-green-50 p-4 rounded-xl border border-green-100 flex items-center gap-3 text-green-800 text-sm" wire:key="checkout-logged-in-msg">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             <span>Angemeldet als <strong>{{ auth()->guard('customer')->user()->first_name }}</strong>. Deine Daten wurden übernommen.</span>
         </div>
     @endif
 
-    {{-- Kontakt & Rechnung --}}
+    {{-- Kontakt & Rechnung mit Auto-Collapse Logik --}}
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+         wire:key="checkout-address-section"
          x-data="{
             isOpen: true,
             checkFields() {
-                {{-- Prüft ob alle Pflichtfelder Wert enthalten --}}
                 const isComplete = @entangle('email') && @entangle('first_name') && @entangle('last_name') && @entangle('address') && @entangle('postal_code') && @entangle('city');
                 if(isComplete) { this.isOpen = false; }
             }
@@ -70,7 +70,7 @@
                 <template x-if="!isOpen">
                     <div class="text-right mr-2 animate-fade-in">
                         <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>
-                        <p class="text-xs text-gray-500 font-medium" x-text="'{{ $first_name }} {{ $last_name }}'"></p>
+                        <p class="text-xs text-gray-500 font-medium">{{ $first_name }} {{ $last_name }}</p>
                     </div>
                 </template>
                 <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" :class="isOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -210,7 +210,8 @@
     </div>
 
     {{-- Zahlung (Stripe Element) --}}
-    <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm">
+    {{-- wire:ignore verhindert das Neurendern durch Livewire bei AGB-Klicks --}}
+    <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm" wire:ignore wire:key="stripe-payment-container">
         <h2 class="text-xl font-serif font-bold text-gray-900 mb-6 flex items-center gap-2">
             <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold">2</span>
             Zahlungsmethode
@@ -223,8 +224,9 @@
             </p>
         </div>
 
-        <div wire:ignore>
-            <div id="payment-element"></div>
+        {{-- WICHTIG: Die ID muss exakt für das Stripe JS passen --}}
+        <div id="payment-element">
+            {{-- Stripe injiziert hier das Iframe --}}
         </div>
 
         <div id="payment-message" class="hidden mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg"></div>
