@@ -54,7 +54,7 @@
                         </a>
 
                         {{-- NEU: Login Dropdown (Ersetzt das alte Icon) --}}
-                        <livewire:auth.login-dropdown />
+                        <livewire:global.auth.login-dropdown />
 
                         {{-- Warenkorb Icon (Desktop) --}}
                         <livewire:shop.cart.cart-icon />

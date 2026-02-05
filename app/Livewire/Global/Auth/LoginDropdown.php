@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Livewire\Shop\checkout;
+namespace App\Livewire\Global\Auth;
 
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
