@@ -324,7 +324,7 @@ class Checkout extends Component
 
             $this->finalOrderNumber = $order->order_number;
 
-            // --- [NEU] VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
+            // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
             if (Session::has('checkout_from_quote_id')) {
                 $quoteId = Session::get('checkout_from_quote_id');
                 $quote = QuoteRequest::find($quoteId);
@@ -341,11 +341,16 @@ class Checkout extends Component
                 }
             }
 
-            // 3. Rechnung & PDF zentral erstellen
+            // 3. Rechnung & Dokumente zentral erstellen
             $pdfPath = null;
+            $xmlPath = null; // [NEU] Variable für XML Pfad
             try {
                 $invoiceService = app(\App\Services\InvoiceService::class);
+
+                // Invoice Model in DB erstellen
                 $invoice = $invoiceService->createFromOrder($order);
+
+                // A) PDF Generieren
                 $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
 
                 if ($invoice && !file_exists($pdfPath)) {
@@ -355,6 +360,25 @@ class Checkout extends Component
                     }
                     file_put_contents($pdfPath, $pdf->output());
                 }
+
+                // B) [NEU] XML Generieren (ZUGFeRD/XRechnung)
+                // Wir machen das immer, damit jeder Kunde (auch B2B) versorgt ist.
+                if ($invoice) {
+                    try {
+                        $xmlService = app(\App\Services\NativeXmlInvoiceService::class);
+
+                        // Der Service gibt den relativen Pfad zurück (z.B. 'invoices/xml/RE-123.xml')
+                        $relativePath = $xmlService->generate($invoice);
+
+                        // Wir brauchen den absoluten Pfad für den Mail-Anhang
+                        $xmlPath = storage_path("app/{$relativePath}");
+
+                    } catch (\Exception $e) {
+                        // XML Fehler loggen, aber Checkout nicht abbrechen!
+                        \Illuminate\Support\Facades\Log::error("XML-Generierung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
+                    }
+                }
+
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
             }
@@ -363,11 +387,13 @@ class Checkout extends Component
             try {
                 $mailData = $order->toFormattedArray();
 
-                // A) Bestätigung an Kunden (JETZT MIT PDF ANHANG)
+                // A) Bestätigung an Kunden (JETZT MIT PDF UND XML)
+                // WICHTIG: Du musst deine Mail-Klasse anpassen (siehe unten), damit sie das 3. Argument nimmt!
                 \Illuminate\Support\Facades\Mail::to($order->email)
-                    ->send(new \App\Mail\OrderMailToCustomer($mailData, $pdfPath));
+                    ->send(new \App\Mail\OrderMailToCustomer($mailData, $pdfPath, $xmlPath));
 
                 // B) Arbeits-Anfrage an Admin (Dich)
+                // Admin braucht XML meist nicht zwingend per Mail, sonst auch hier hinzufügen
                 \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
                     ->send(new \App\Mail\OrderMailToAdmin($mailData, $pdfPath));
 

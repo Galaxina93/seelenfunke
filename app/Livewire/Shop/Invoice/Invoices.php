@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Invoice;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Order;
+use App\Services\EInvoiceService;
 use App\Services\InvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -279,12 +280,13 @@ class Invoices extends Component
         // 1. Die ID der aktuellen Rechnung holen (falls vorhanden)
         $currentId = $this->manualInvoice['id'] ?? null;
 
+        // 2. Validierung
         if ($finalStatus === 'draft') {
             $this->validate([
                 'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
             ]);
         } else {
-            // Klare Validierung für Abschluss
+            // Strenge Validierung für den Abschluss
             $this->validate([
                 'manualInvoice.customer_email' => 'required|email',
                 'manualInvoice.first_name' => 'required',
@@ -306,43 +308,78 @@ class Invoices extends Component
             ]);
         }
 
-        // Variable für PDF-Fehler
+        // Variable für PDF-Fehler (Initialisierung)
         $pdfError = null;
 
-        DB::transaction(function () use ($finalStatus, $currentId) {
-            $subtotal = 0;
-            $taxTotal = 0;
+        DB::transaction(function () use ($finalStatus, $currentId, &$pdfError) {
+            $itemsGrossSum = 0; // Summe der Brutto-Werte der Positionen
+            $totalTaxAmount = 0; // Gesamte Steuer (Items + Versand)
             $items = [];
 
+            // --- SCHRITT 1: Positionen berechnen (Basis: Eingabe ist NETTO) ---
             foreach ($this->manualInvoice['items'] as $item) {
-                $priceInCent = (int)round(($item['unit_price'] ?? 0) * 100);
-                $lineTotal = $priceInCent * ($item['quantity'] ?? 0);
-
+                // A. Eingabewerte normalisieren
+                $inputNetPrice = (float)($item['unit_price'] ?? 0); // Netto Einzelpreis Euro
+                $qty = (float)($item['quantity'] ?? 0);
                 $taxRate = (float)($item['tax_rate'] ?? 19);
-                $taxLine = (int)round($lineTotal - ($lineTotal / (1 + ($taxRate / 100))));
 
-                $subtotal += $lineTotal;
-                $taxTotal += $taxLine;
+                // B. Berechnungen in Cent durchführen (für Präzision)
+                $netUnitCent = (int)round($inputNetPrice * 100);
+
+                // Zeile Netto Gesamt
+                $lineNetTotalCent = (int)round($netUnitCent * $qty);
+
+                // Steuer für diese Zeile (Netto * Steuersatz)
+                // WICHTIG: Hier wird die Steuer AUFGESCHLAGEN
+                $lineTaxCent = (int)round($lineNetTotalCent * ($taxRate / 100));
+
+                // Zeile Brutto Gesamt
+                $lineGrossTotalCent = $lineNetTotalCent + $lineTaxCent;
+
+                // C. Summen aktualisieren
+                $itemsGrossSum += $lineGrossTotalCent;
+                $totalTaxAmount += $lineTaxCent;
+
+                // D. Item für DB Array vorbereiten
+                // Wir speichern den berechneten Brutto-Einzelpreis zurück, damit PDF-Anzeigen stimmen,
+                // die Brutto erwarten. (Falls dein PDF Netto erwartet, müsste man das hier anpassen)
+                $calculatedGrossUnitCent = $qty > 0 ? (int)round($lineGrossTotalCent / $qty) : 0;
 
                 $items[] = [
                     'product_name' => $item['product_name'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $priceInCent,
-                    'total_price' => $lineTotal,
+                    'quantity' => $qty,
+                    'unit_price' => $calculatedGrossUnitCent, // Brutto-Einzelpreis in Cent
+                    'total_price' => $lineGrossTotalCent,     // Brutto-Gesamtpreis in Cent
                     'tax_rate' => $taxRate,
                     'configuration' => $item['configuration'] ?? null
                 ];
             }
 
-            $shippingInCent = (int)round(($this->manualInvoice['shipping_cost'] ?? 0) * 100);
+            // --- SCHRITT 2: Versandkosten berechnen (Basis: Eingabe ist NETTO) ---
+            $shippingInputNet = (float)($this->manualInvoice['shipping_cost'] ?? 0);
+            $shippingNetCent = (int)round($shippingInputNet * 100);
+
+            // 19% Standard auf Versand
+            $shippingTaxCent = (int)round($shippingNetCent * 0.19);
+            $shippingGrossCent = $shippingNetCent + $shippingTaxCent;
+
+            // Steuer zum Gesamt-Steuertopf hinzufügen
+            $totalTaxAmount += $shippingTaxCent;
+
+
+            // --- SCHRITT 3: Rabatte (Basis: Eingabe ist meist Brutto-Abzug) ---
+            // Rabatte werden in der Regel als absoluter Betrag vom Endpreis abgezogen
             $discountInCent = (int)round(($this->manualInvoice['discount_amount'] ?? 0) * 100);
             $volumeDiscountInCent = (int)round(($this->manualInvoice['volume_discount'] ?? 0) * 100);
+            $totalDiscountCent = $discountInCent + $volumeDiscountInCent;
 
-            $totalBrutto = ($subtotal + $shippingInCent) - ($discountInCent + $volumeDiscountInCent);
 
-            // [FIX 1] Zusammenführung der Argumente: updateOrCreate darf nur 2 Arrays haben!
-            // Array 1: Suchkriterium (ID)
-            // Array 2: ALLE Werte die gespeichert/geupdated werden sollen
+            // --- SCHRITT 4: Endsummen ---
+            // Total = (Summe Items Brutto + Versand Brutto) - Rabatte
+            $grandTotalCent = ($itemsGrossSum + $shippingGrossCent) - $totalDiscountCent;
+
+
+            // --- SCHRITT 5: Speichern in DB ---
             $invoice = Invoice::updateOrCreate(
                 ['id' => $currentId ?? (string) Str::uuid()],
                 [
@@ -370,59 +407,59 @@ class Invoices extends Component
                         'country' => $this->manualInvoice['country'],
                         'email' => $this->manualInvoice['customer_email'],
                     ],
-                    'subtotal' => $subtotal,
-                    'shipping_cost' => $shippingInCent,
+                    // DB Felder (in Cent)
+                    'subtotal' => $itemsGrossSum,         // Summe der Positionen (Brutto)
+                    'shipping_cost' => $shippingGrossCent,// Versand (Brutto)
                     'discount_amount' => $discountInCent,
                     'volume_discount' => $volumeDiscountInCent,
-                    'tax_amount' => $taxTotal,
-                    'total' => $totalBrutto,
+                    'tax_amount' => $totalTaxAmount,      // Enthaltene MwSt.
+                    'total' => $grandTotalCent,           // Zahlbetrag
                     'custom_items' => $items,
                 ]
             );
-            // --- KORREKTUR ENDE ---
 
-            // ID zurückschreiben, falls wir weiter bearbeiten
+            // ID setzen für weitere Bearbeitung im gleichen Request
             $this->manualInvoice['id'] = $invoice->id;
 
-            // Physische Archivierung (PDF) - JETZT MIT FEHLERABFANGUNG
+            // --- SCHRITT 6: Dokumente generieren (Fehlertolerant) ---
+
+            // A) PDF (Archivierung)
             if ($finalStatus === 'paid') {
                 try {
                     app(InvoiceService::class)->storePdf($invoice);
                 } catch (\Exception $e) {
-                    // Fehler speichern, aber NICHT abstürzen, damit der Redirect klappt
                     $pdfError = $e->getMessage();
                 }
             }
 
-            // E-Rechnung - Ebenfalls abgesichert
+            // B) E-Rechnung (XML)
             if ($this->manualInvoice['is_e_invoice'] && $finalStatus === 'paid') {
                 try {
                     $this->processEInvoice($invoice);
                 } catch (\Exception $e) {
-                    // E-Rechnung Fehler logging...
+                    \Illuminate\Support\Facades\Log::error('XML Generation Failed: ' . $e->getMessage());
+                    // XML Fehler loggen wir nur, unterbrechen aber nicht den User-Flow
                 }
             }
         });
 
-        // UI Updates
+        // --- SCHRITT 7: UI Feedback & Redirect ---
         if (!$isAutoSave) {
             if ($finalStatus === 'paid') {
                 $this->saveSuccess = true;
 
-                // Meldung ausgeben (inkl. Warnung falls PDF schiefging)
                 if ($pdfError) {
                     $this->dispatch('notify', ['type' => 'warning', 'message' => 'Rechnung erstellt, aber PDF fehlgeschlagen: ' . $pdfError]);
                 } else {
-                    $this->dispatch('notify', ['type' => 'success', 'message' => 'Rechnung erfolgreich erstellt.']);
+                    $this->dispatch('notify', ['type' => 'success', 'message' => 'Rechnung erfolgreich abgeschlossen.']);
                 }
 
-                // DIESE ZEILE SORGT FÜR DEN WECHSEL:
+                // Editor schließen und zur Liste zurückkehren
                 $this->isCreatingManual = false;
-
-                // Formular zurücksetzen für das nächste Mal
                 $this->resetManualInvoice();
 
             } else {
+                // Bei Entwurf bleiben wir im Editor
                 $this->draftSuccess = true;
                 $this->dispatch('resetDraftSuccess');
                 session()->flash('success', 'Entwurf gespeichert.');
@@ -430,11 +467,46 @@ class Invoices extends Component
         }
     }
 
-    protected function processEInvoice($invoice)
+    /**
+     * Erstellt die XML-Datei für die E-Rechnung.
+     */
+    protected function processEInvoice(Invoice $invoice)
     {
-        // Hier erfolgt die technische Generierung des XML (ZUGFeRD / XRechnung)
-        // Platzhalter für Service-Aufruf
-        // app(EInvoiceService::class)->generate($invoice);
+        try {
+            // HIER DIE ÄNDERUNG: NativeXmlInvoiceService statt EInvoiceService
+            $eInvoiceService = app(\App\Services\NativeXmlInvoiceService::class);
+
+            // XML generieren
+            $xmlPath = $eInvoiceService->generate($invoice);
+
+            \Illuminate\Support\Facades\Log::info("E-Rechnung (Native) generiert: {$xmlPath}");
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Fehler bei E-Rechnung: " . $e->getMessage());
+            // Kein Abbruch für den User!
+        }
+    }
+
+    /**
+     * Download Action für das Frontend
+     */
+    public function downloadXml($id)
+    {
+        $invoice = Invoice::findOrFail($id);
+        $path = 'invoices/xml/' . $invoice->invoice_number . '.xml';
+
+        // ... Logik wie gehabt, aber im Catch-Block ggf. auch den neuen Service nutzen:
+        if (!Storage::disk('local')->exists($path)) {
+            try {
+                $service = app(\App\Services\NativeXmlInvoiceService::class);
+                $service->generate($invoice);
+                return Storage::disk('local')->download($path);
+            } catch (\Exception $e) {
+                $this->dispatch('notify', ['type' => 'error', 'message' => 'XML Fehler: ' . $e->getMessage()]);
+            }
+        }
+
+        return Storage::disk('local')->download($path);
     }
 
     // Methode zum Sortieren hinzufügen:

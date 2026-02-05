@@ -131,6 +131,9 @@
                         <button wire:click="downloadPdf('{{ $inv->id }}')" class="p-1 text-gray-400 hover:text-primary transition" title="PDF Kopie">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                         </button>
+                        @if($inv->is_e_invoice)
+                            <button wire:click="downloadXml('{{ $inv->id }}')" class="text-blue-600 hover:underline text-xs font-bold" title="ZUGFeRD XML laden">XML</button>
+                        @endif
                         @if($inv->status === 'draft')
                             <button wire:click="editDraft('{{ $inv->id }}')" class="text-amber-600 font-black text-xs uppercase hover:underline">Bearbeiten</button>
                             <button wire:confirm="Entwurf wirklich löschen? Dies kann nicht rückgängig gemacht werden." wire:click="deleteDraft('{{ $inv->id }}')" class="text-red-600 font-black text-xs uppercase hover:underline">Löschen</button>
