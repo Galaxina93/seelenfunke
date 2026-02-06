@@ -131,40 +131,33 @@
                             </tbody>
                         </table>
 
-                        {{-- CALCULATION SUMMARY (Detailliert) --}}
+                        {{-- CALCULATION SUMMARY (Angepasst an Kundenansicht Brutto) --}}
                         <div class="bg-gray-50 p-6 border-t border-gray-200">
                             <div class="flex flex-col gap-2 max-w-xs ml-auto">
 
                                 @php
-                                    // NEUE LOGIK: Werte direkt aus der Datenbank-Tabelle 'shop-settings' beziehen
+                                    // Shop Settings laden
                                     $isSmallBusiness = (bool)shop_setting('is_small_business', false);
                                     $taxRate = (float)shop_setting('default_tax_rate', 19.0);
 
-                                    // Divisor dynamisch bestimmen (z.B. 1.19 oder 1.0 bei Kleinunternehmern)
-                                    $taxDivisor = $isSmallBusiness ? 1.0 : (1 + ($taxRate / 100));
-
                                     $hasExpress = $quote->is_express;
-
-                                    // Express-Kosten ebenfalls dynamisch aus den Settings laden
                                     $expressCost = $hasExpress ? (int)shop_setting('express_surcharge', 2500) : 0;
-
                                     $shippingCost = $quote->shipping_cost_calculated ?? ($quote->shipping_price ?? 0);
 
-                                    // Dynamische Rückrechnung des Netto-Anteils für die Anzeige
-                                    $shippingNet = ($shippingCost > 0) ? ($shippingCost / $taxDivisor) : 0;
-                                    $expressNet = ($expressCost > 0) ? ($expressCost / $taxDivisor) : 0;
+                                    // Berechnungen für die Anzeige (Alles Brutto Basis wie in der Mail)
+                                    $grossTotal = $quote->gross_total; // Gesamtsumme Brutto aus DB
 
-                                    // Bereinigter Warenwert Netto basierend auf den Model-Gesamtwerten
-                                    $goodsNet = $quote->net_total - round($shippingNet) - round($expressNet);
+                                    // Warenwert Brutto = Gesamt Brutto - Versand - Express
+                                    $goodsGross = $grossTotal - $shippingCost - $expressCost;
                                 @endphp
 
-                                {{-- Zwischensumme (Netto) --}}
+                                {{-- 1. Warenwert (Brutto) --}}
                                 <div class="flex justify-between text-sm text-gray-600">
-                                    <span>Warenwert (Netto)</span>
-                                    <span>{{ number_format($goodsNet / 100, 2, ',', '.') }} €</span>
+                                    <span>Warenwert (Brutto)</span>
+                                    <span>{{ number_format($goodsGross / 100, 2, ',', '.') }} €</span>
                                 </div>
 
-                                {{-- Express --}}
+                                {{-- 2. Express (Brutto) --}}
                                 @if($hasExpress)
                                     <div class="flex justify-between text-sm text-blue-600 font-medium">
                                         <div class="flex items-center gap-1">
@@ -175,7 +168,7 @@
                                     </div>
                                 @endif
 
-                                {{-- Versandkosten --}}
+                                {{-- 3. Versandkosten (Brutto) --}}
                                 <div class="flex justify-between text-sm text-gray-600">
                                     <span>Versand & Verpackung</span>
                                     @if($shippingCost > 0)
@@ -185,24 +178,29 @@
                                     @endif
                                 </div>
 
-                                {{-- MwSt --}}
-                                <div class="flex justify-between text-sm text-gray-500 italic">
-                                    @if(!$isSmallBusiness)
-                                        <span>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%)</span>
-                                        <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
-                                    @else
-                                        <span>Steuerfrei gemäß § 19 UStG</span>
-                                        <span>0,00 €</span>
-                                    @endif
-                                </div>
-
                                 {{-- Divider --}}
                                 <div class="border-t border-gray-200 my-2"></div>
 
-                                {{-- Gesamtsumme --}}
-                                <div class="flex justify-between items-end">
-                                    <span class="font-bold text-gray-900">Gesamtsumme (Brutto)</span>
-                                    <span class="font-bold text-xl text-primary">{{ number_format($quote->gross_total / 100, 2, ',', '.') }} €</span>
+                                {{-- 4. Gesamtsumme (Fett) --}}
+                                <div class="flex justify-between items-end mb-2">
+                                    <span class="font-bold text-gray-900">Gesamtsumme</span>
+                                    <span class="font-bold text-xl text-primary">{{ number_format($grossTotal / 100, 2, ',', '.') }} €</span>
+                                </div>
+
+                                {{-- 5. Steuer-Hinweis (Klein & Dezent) --}}
+                                <div class="text-right text-[11px] text-gray-400 italic leading-tight">
+                                    <div class="flex justify-between gap-4">
+                                        <span>Nettowarenwert:</span>
+                                        <span>{{ number_format($quote->net_total / 100, 2, ',', '.') }} €</span>
+                                    </div>
+                                    <div class="flex justify-between gap-4 mt-0.5">
+                                        @if(!$isSmallBusiness)
+                                            <span>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%):</span>
+                                            <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
+                                        @else
+                                            <span>Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.</span>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
                         </div>
