@@ -16,6 +16,7 @@
             $isFree = $totals['is_free_shipping'];
         @endphp
 
+        {{-- 1. Versandkostenfrei-Balken --}}
         @if($country === 'DE')
             <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
                 @if($isFree)
@@ -58,6 +59,7 @@
             </div>
         @endif
 
+        {{-- 2. Artikelliste --}}
         <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
             @foreach($cart->items as $item)
                 <li class="flex items-start py-6 space-x-4">
@@ -120,12 +122,16 @@
             @endforeach
         </ul>
 
+        {{-- 3. Zahlen / Summen --}}
         <div class="border-t border-gray-100 pt-6 space-y-3">
+
+            {{-- A) Zwischensumme --}}
             <div class="flex items-center justify-between text-sm text-gray-600">
                 <span>Zwischensumme</span>
                 <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
             </div>
 
+            {{-- B) Mengenrabatt --}}
             @if($totals['volume_discount'] > 0)
                 <div class="flex items-center justify-between text-sm text-green-600">
                     <span>Mengenrabatt</span>
@@ -133,6 +139,7 @@
                 </div>
             @endif
 
+            {{-- C) Gutschein --}}
             @if($totals['discount_amount'] > 0)
                 <div class="flex items-center justify-between text-sm text-green-600">
                     <span>Gutschein</span>
@@ -140,6 +147,23 @@
                 </div>
             @endif
 
+            {{-- D) [NEU] EXPRESS SERVICE --}}
+            @if(!empty($totals['is_express']) && $totals['is_express'])
+                @php
+                    $expressCost = $totals['express'] ?? (int)shop_setting('express_surcharge', 2500);
+                @endphp
+                <div class="flex items-center justify-between text-sm text-red-600 font-bold bg-red-50 p-2 rounded -mx-2">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Express-Service</span>
+                    </div>
+                    <span>+ {{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
+                </div>
+            @endif
+
+            {{-- E) Versandkosten --}}
             <div class="flex items-center justify-between text-sm">
                 <span class="text-gray-600">Versand ({{ $country }})</span>
                 @if($totals['shipping'] > 0)
@@ -149,11 +173,13 @@
                 @endif
             </div>
 
+            {{-- F) Gesamtsumme --}}
             <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
                 <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
                 <span class="text-xl font-bold text-primary">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
             </div>
 
+            {{-- G) MwSt --}}
             <div class="space-y-1 pt-2 border-t border-dashed border-gray-200 mt-2">
                 @if(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
                     @foreach($totals['taxes_breakdown'] as $taxRate => $taxAmount)
@@ -170,6 +196,7 @@
             </div>
         </div>
 
+        {{-- 4. Checkboxen --}}
         <div class="mt-8 space-y-4 bg-gray-50 p-4 rounded-xl">
             <div class="flex items-start">
                 <div class="flex h-5 items-center">
@@ -205,6 +232,7 @@
             @endif
         </div>
 
+        {{-- 5. Button --}}
         <div class="mt-8">
             <button id="submit-button" type="submit"
                     @disabled(!$terms_accepted || !$privacy_accepted) class="w-full rounded-full border border-transparent bg-gray-900 py-4 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-1">
