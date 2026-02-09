@@ -26,7 +26,17 @@
         .paid-stamp { position: absolute; top: 20%; left: 50%; margin-left: -150px; transform: rotate(-20deg); border: 8px solid #16a34a; color: #16a34a; opacity: 0.12; font-size: 70px; font-weight: 900; padding: 10px 40px; text-transform: uppercase; z-index: -1; }
         .cancelled-stamp { position: absolute; top: 20%; left: 50%; margin-left: -150px; transform: rotate(-15deg); border: 8px solid #dc2626; color: #dc2626; opacity: 0.12; font-size: 60px; font-weight: 900; padding: 10px 40px; text-transform: uppercase; z-index: -1; }
 
-        /* MODERN FOOTER DESIGN - MEIN SEELENFUNKE */
+        /* ZAHLUNGSHINWEIS BOX */
+        .payment-info-box {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #C5A059;
+            font-size: 11px;
+            color: #555;
+        }
+
+        /* FOOTER DESIGN */
         .footer {
             position: fixed;
             bottom: -100px;
@@ -59,19 +69,6 @@
             color: #777;
             text-decoration: none;
         }
-        .footer-bottom-links {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 8px;
-            border-top: 1px solid #f9f9f9;
-            padding-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .footer-bottom-links a {
-            margin: 0 15px;
-            color: #aaa;
-        }
     </style>
 </head>
 <body>
@@ -87,7 +84,7 @@
     $ownerCity     = shop_setting('owner_city', '38518 Gifhorn');
     $ownerEmail    = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
     $ownerWeb      = shop_setting('owner_website', 'www.mein-seelenfunke.de');
-    $ownerIban     = shop_setting('owner_iban', 'Wird nachgereicht');
+    $ownerIban     = shop_setting('owner_iban', 'DE81 1234 5678 9012 3456 78'); // Fallback wenn leer
     $ownerBic      = shop_setting('owner_bic', '');
     $taxId         = shop_setting('owner_tax_id', '19/143/11624');
     $ustId         = shop_setting('owner_ust_id');
@@ -96,7 +93,7 @@
 @endphp
 
 {{-- Stempel-Logik --}}
-@if($invoice->status === 'paid' && $invoice->type !== 'cancellation')
+@if($invoice->paid_at && $invoice->type !== 'cancellation')
     <div class="paid-stamp">Bezahlt</div>
 @endif
 
@@ -108,6 +105,7 @@
     <table width="100%">
         <tr>
             <td>
+                {{-- Logo Pfad fixen für PDF Generierung --}}
                 <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.png') }}" class="logo" alt="{{ $ownerName }}">
             </td>
             <td class="text-right">
@@ -118,6 +116,7 @@
                     <strong>Nummer:</strong> {{ $invoice->invoice_number }}<br>
                     <strong>Datum:</strong> {{ $invoice->invoice_date->format('d.m.Y') }}<br>
                     @if($invoice->delivery_date) <strong>Leistungsdatum:</strong> {{ $invoice->delivery_date->format('d.m.Y') }}<br> @endif
+                    <strong>Kunden-Nr.:</strong> {{ $invoice->customer_id ?? 'Gast' }}
                 </div>
             </td>
         </tr>
@@ -129,10 +128,8 @@
         <td width="55%">
             <div class="sender-small">{{ $ownerName }} · {{ $ownerStreet }} · {{ $ownerCity }}</div>
             <div class="address-box">
-                <strong>
-                    @if(!empty($data['contact']['firma'])) {{ $data['contact']['firma'] }}<br> @endif
-                    {{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}
-                </strong><br>
+                @if(!empty($data['contact']['firma'])) <strong>{{ $data['contact']['firma'] }}</strong><br> @endif
+                <strong>{{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}</strong><br>
                 {{ $data['billing_address']['address'] ?? '' }}<br>
                 @if(!empty($data['billing_address']['address_addition'])) {{ $data['billing_address']['address_addition'] }}<br> @endif
                 {{ $data['billing_address']['postal_code'] ?? '' }} {{ $data['billing_address']['city'] ?? '' }}<br>
@@ -151,28 +148,49 @@
     </tr>
 </table>
 
-<div class="subject">{{ $invoice->subject ?? 'Rechnung' }}</div>
+<div class="subject">{{ $invoice->subject ?? 'Rechnung zur Bestellung #' . ($invoice->order ? $invoice->order->order_number : '') }}</div>
+
 <div class="text-block">
     {{ $invoice->header_text ?? "vielen Dank für deinen Auftrag und dein Vertrauen!\nHiermit stellen wir dir folgende Leistungen in Rechnung:" }}
 </div>
 
-{{-- ZENTRALE PARTIALS NUTZEN --}}
+{{-- ARTIKELLISTE & PREISE --}}
 @include('global.mails.partials.mail_item_list', ['data' => $data])
 @include('global.mails.partials.mail_price_list', ['data' => $data])
 
-<div class="clear" style="margin-top: 30px;">
-    <div class="text-block">
-        {{ $invoice->footer_text ?? "Der Rechnungsbetrag ist fällig bis zum " . ($invoice->due_date ? $invoice->due_date->format('d.m.Y') : now()->addDays(14)->format('d.m.Y')) . "." }}
-    </div>
 
-    <p style="font-size: 10px; color: #555;">
-        <strong>Zahlungsinformationen:</strong><br>
-        Zahlungsart: {{ ucfirst($invoice->payment_method ?: 'Onlinezahlung') }}<br>
-        Status: {{ $invoice->status === 'paid' ? 'Bezahlt' : 'Offen' }}
-    </p>
+{{-- [NEU] INTELLIGENTE ZAHLUNGS-INFO BOX --}}
+<div class="payment-info-box">
+    @if($invoice->paid_at)
+        {{-- FALL 1: BEREITS BEZAHLT --}}
+        <p style="margin: 0; color: #16a34a; font-weight: bold;">
+            ✅ Der Rechnungsbetrag wurde bereits am {{ $invoice->paid_at->format('d.m.Y') }} vollständig beglichen. Vielen Dank!
+        </p>
+    @else
+        {{-- FALL 2: NOCH OFFEN --}}
+        <p style="margin: 0 0 10px 0; font-weight: bold;">
+            Der Rechnungsbetrag ist fällig bis zum {{ $invoice->due_date ? $invoice->due_date->format('d.m.Y') : now()->addDays(14)->format('d.m.Y') }}.
+        </p>
+
+        @if($invoice->order && $invoice->order->payment_method === 'stripe_link')
+            {{-- OPTION A: STRIPE ZAHLUNGSLINK --}}
+            <p style="margin: 0;">
+                Bitte nutzen Sie zur Zahlung den <strong>Link in der E-Mail</strong>, die wir Ihnen gesendet haben.<br>
+                Alternativ können Sie den Betrag auch auf unten genanntes Konto überweisen.
+            </p>
+        @else
+            {{-- OPTION B: KLASSISCHE ÜBERWEISUNG --}}
+            <p style="margin: 0;">
+                Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer <strong>{{ $invoice->invoice_number }}</strong> auf folgendes Konto:<br><br>
+                Empfänger: <strong>{{ $ownerName }}</strong><br>
+                IBAN: <strong>{{ $ownerIban }}</strong><br>
+                Bank: {{ $ownerBic ? 'BIC ' . $ownerBic : 'Volksbank BraWo' }}
+            </p>
+        @endif
+    @endif
 </div>
 
-{{-- FOOTER - MODERN & DYNAMISCH --}}
+{{-- FOOTER --}}
 <div class="footer">
     <table class="footer-table">
         <tr>
@@ -185,8 +203,8 @@
             </td>
             <td class="footer-col">
                 <span class="footer-heading">Kontakt</span>
-                E-Mail: <a href="mailto:{{ $ownerEmail }}">{{ $ownerEmail }}</a><br>
-                Web: <a href="{{ url('/') }}">{{ str_replace(['http://', 'https://'], '', $ownerWeb) }}</a><br>
+                E-Mail: {{ $ownerEmail }}<br>
+                Web: {{ str_replace(['http://', 'https://'], '', $ownerWeb) }}<br>
                 USt-IdNr.: {{ $ustId ?? 'n.a.' }}<br>
                 Steuernummer: {{ $taxId }}
             </td>
@@ -201,12 +219,6 @@
             </td>
         </tr>
     </table>
-
-    <div class="footer-bottom-links">
-        <a href="{{ url('/agb') }}">AGB</a>
-        <a href="{{ url('/datenschutz') }}">Datenschutz</a>
-        <a href="{{ url('/impressum') }}">Impressum</a>
-    </div>
 </div>
 
 </body>

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 class InvoiceService
 {
     /**
-     * Erstellt eine rechtssichere Rechnung aus einer bezahlten Bestellung.
+     * Erstellt eine rechtssichere Rechnung aus einer Bestellung.
      */
     public function createFromOrder(Order $order): ?Invoice
     {
@@ -26,17 +26,30 @@ class InvoiceService
         return DB::transaction(function () use ($order) {
             $invoiceNumber = $this->generateInvoiceNumber();
 
+            // [FIX] Status dynamisch anhand der Order ermitteln
+            $isPaid = $order->payment_status === 'paid';
+            $invoiceStatus = $isPaid ? 'paid' : 'open';
+            $paidAt = $isPaid ? now() : null;
+
+            // Fälligkeit berechnen (z.B. 7 Tage bei Rechnungskauf)
+            // Nur wenn noch nicht bezahlt.
+            $dueDays = 7;
+            $dueDate = now()->addDays($dueDays);
+
             $invoice = Invoice::create([
                 'order_id' => $order->id,
                 'customer_id' => $order->customer_id,
                 'invoice_number' => $invoiceNumber,
                 'type' => 'invoice',
-                'status' => 'paid',
+
+                // [FIX] Hier nutzen wir jetzt die dynamischen Werte
+                'status' => $invoiceStatus,
                 'invoice_date' => now(),
-                'delivery_date' => $order->created_at,
-                'due_date' => now(),
-                'due_days' => 0,
-                'paid_at' => now(),
+                'delivery_date' => $order->created_at, // Leistungsdatum = Bestelldatum
+                'due_date' => $dueDate,
+                'due_days' => $dueDays,
+                'paid_at' => $paidAt, // Ist null, wenn nicht bezahlt -> PDF zeigt Bankdaten an
+
                 'subject' => 'Rechnung zu Bestellung #' . $order->order_number,
                 'billing_address' => $order->billing_address,
                 'shipping_address' => $order->shipping_address,
