@@ -164,7 +164,7 @@
     @if($invoice->paid_at)
         {{-- FALL 1: BEREITS BEZAHLT --}}
         <p style="margin: 0; color: #16a34a; font-weight: bold;">
-            ✅ Der Rechnungsbetrag wurde bereits am {{ $invoice->paid_at->format('d.m.Y') }} vollständig beglichen. Vielen Dank!
+            Der Rechnungsbetrag wurde bereits am {{ $invoice->paid_at->format('d.m.Y') }} vollständig beglichen. Vielen Dank!
         </p>
     @else
         {{-- FALL 2: NOCH OFFEN --}}
