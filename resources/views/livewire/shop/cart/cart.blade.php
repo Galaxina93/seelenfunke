@@ -132,21 +132,20 @@
                         <h3 class="font-serif font-bold text-xl text-gray-900 mb-6">Zusammenfassung</h3>
 
                         @php
-                            // Jetzt laden wir den dynamischen Wert aus der Config.
+                            // Dynamischen Wert aus Config laden
                             $threshold = (int) shop_setting('shipping_free_threshold', 5000);
 
                             $currentValue = $totals['subtotal_gross'];
 
-                            // Berechnung des Prozentsatzes basierend auf dem dynamischen Schwellenwert
+                            // Berechnung des Prozentsatzes
                             $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
 
-                            // Diese Werte kommen korrekt berechnet aus deinem CartService
+                            // Werte aus CartService
                             $missing = $totals['missing_for_free_shipping'];
                             $isFree = $totals['is_free_shipping'];
                         @endphp
 
-                        {{-- Fortschrittsanzeige für kostenlosen Versand --}}
-                        {{-- Logik-Erweiterung: Wir prüfen isFree, missing und ob überhaupt ein Schwellenwert gesetzt ist --}}
+                        {{-- 1. Fortschrittsanzeige für kostenlosen Versand --}}
                         @if(!$isFree && $missing > 0 && $threshold > 0)
                             <div class="mb-6 bg-gray-50 p-3 rounded-xl border border-gray-200">
                                 <p class="text-xs text-gray-600 mb-2">
@@ -166,12 +165,16 @@
                             </div>
                         @endif
 
+                        {{-- 2. Kostenaufstellung --}}
                         <div class="space-y-3 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-100">
+
+                            {{-- A) Warenwert --}}
                             <div class="flex justify-between">
                                 <span>Warenwert</span>
                                 <span>{{ number_format($totals['subtotal_original'] / 100, 2, ',', '.') }} €</span>
                             </div>
 
+                            {{-- B) Mengenrabatt --}}
                             @if(!empty($totals['volume_discount']) && $totals['volume_discount'] > 0)
                                 <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                                     <div class="flex items-center gap-2">
@@ -189,6 +192,7 @@
                                 </div>
                             @endif
 
+                            {{-- C) Gutschein --}}
                             @if(!empty($totals['discount_amount']) && $totals['discount_amount'] > 0)
                                 <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                                     <div class="flex items-center gap-2">
@@ -206,6 +210,24 @@
                                 </div>
                             @endif
 
+                            {{-- D) [NEU] EXPRESS SERVICE --}}
+                            @if(!empty($totals['is_express']) && $totals['is_express'])
+                                @php
+                                    // Preis aus Totals holen (CartService berechnet das in 'express')
+                                    $expressCost = $totals['express'] ?? 0;
+                                @endphp
+                                <div class="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded -mx-2 border border-red-100">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                        <span>Express-Service</span>
+                                    </div>
+                                    <span>+ {{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
+                                </div>
+                            @endif
+
+                            {{-- E) Versandkosten --}}
                             <div class="flex justify-between text-gray-600">
                                 <span>Versand</span>
                                 @if($totals['shipping'] > 0)
@@ -217,11 +239,13 @@
                                 @endif
                             </div>
 
+                            {{-- F) Gesamtsumme --}}
                             <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
                                 <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
                                 <span class="text-xl font-bold text-gray-900">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
                             </div>
 
+                            {{-- G) MwSt Ausweisung --}}
                             <div class="pt-1 space-y-1 text-right">
                                 @foreach($totals['taxes_breakdown'] as $rate => $amount)
                                     @if($amount > 0)
@@ -233,7 +257,7 @@
                             </div>
                         </div>
 
-                        {{-- Gutschein Input --}}
+                        {{-- 3. Gutschein Input --}}
                         @if(empty($totals['coupon_code']))
                             <div class="mb-6">
                                 <form wire:submit.prevent="applyCoupon" class="flex gap-2">
@@ -255,7 +279,7 @@
                             </div>
                         @endif
 
-                        {{-- Checkout Button --}}
+                        {{-- 4. Checkout Button --}}
                         <a href="{{ route('checkout') }}"
                            class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
                             <span>Zur Kasse</span>
@@ -264,7 +288,7 @@
                             </svg>
                         </a>
 
-                        {{-- Zahlungsanbieter --}}
+                        {{-- 5. Zahlungsanbieter --}}
                         <div class="mt-5">
                             <p class="text-[10px] text-gray-400 text-center mb-2">Sichere Zahlung mit</p>
                             <div class="flex flex-wrap justify-center gap-2">

@@ -2,8 +2,10 @@
 
 namespace App\Livewire\Shop\Order;
 
+use App\Mail\NewOrderShippedToCustomer;
 use App\Models\Order;
 use App\Models\OrderItem;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -30,6 +32,9 @@ class Orders extends Component
     public $payment_status;
     public $notes;
     public $cancellationReason = '';
+
+    // STATUS FÜR DAS SICHERHEITS-MODAL
+    public $confirmingShipmentId = null;
 
     protected $queryString = ['search', 'statusFilter', 'paymentFilter'];
 
@@ -74,6 +79,12 @@ class Orders extends Component
     public function saveStatus()
     {
         if (!$this->selectedOrder) return;
+
+        // [NEU] Wenn Status auf "shipped" geändert wird -> Modal öffnen
+        if ($this->status === 'shipped' && $this->selectedOrder->status !== 'shipped') {
+            $this->confirmingShipmentId = $this->selectedOrder->id;
+            return; // Hier stoppen, User muss erst im Modal bestätigen
+        }
 
         // Fall: Stornierung
         if ($this->status === 'cancelled') {
@@ -136,24 +147,74 @@ class Orders extends Component
     public function updateStatus($orderId, $newStatus)
     {
         $order = Order::find($orderId);
-        if ($order) {
-            $order->update(['status' => $newStatus]);
+        if (!$order) return;
 
-            // Falls Detailansicht offen ist -> Sync
-            if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
-                $this->status = $newStatus;
+        // [NEU] Wenn Status auf "shipped" geändert wird -> Modal öffnen
+        if ($newStatus === 'shipped' && $order->status !== 'shipped') {
+            $this->confirmingShipmentId = $orderId;
+            // Wir aktualisieren das Select im UI noch nicht fest, da wir erst Bestätigung brauchen.
+            // Livewire rendert neu, das Dropdown springt zurück (das ist okay als Feedback "Noch nicht fertig").
+            return;
+        }
+
+        // Normales Update
+        $order->update(['status' => $newStatus]);
+
+        if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
+            $this->status = $newStatus;
+            $this->selectedOrder->refresh();
+        }
+        session()->flash('success', "Status auf '$newStatus' geändert.");
+    }
+    public function confirmShipment($sendMail = true)
+    {
+        if (!$this->confirmingShipmentId) return;
+
+        $order = Order::find($this->confirmingShipmentId);
+        if ($order) {
+            // 1. Status ändern
+            $order->update(['status' => 'shipped']);
+
+            // 2. Mail senden (optional)
+            if ($sendMail) {
+                try {
+                    Mail::to($order->email)->send(new NewOrderShippedToCustomer($order->toFormattedArray()));
+                    session()->flash('success', 'Bestellung auf "Versendet" gesetzt und Kunden-Mail verschickt! 🚀');
+                } catch (\Exception $e) {
+                    session()->flash('warning', 'Status geändert, aber Mail konnte nicht gesendet werden: ' . $e->getMessage());
+                }
+            } else {
+                session()->flash('success', 'Bestellung auf "Versendet" gesetzt (ohne Mail).');
+            }
+
+            // 3. UI Sync
+            if ($this->selectedOrder && $this->selectedOrder->id == $order->id) {
+                $this->status = 'shipped';
                 $this->selectedOrder->refresh();
             }
-            session()->flash('success', "Status auf '$newStatus' geändert.");
+        }
+
+        // Modal schließen
+        $this->confirmingShipmentId = null;
+    }
+
+    // --- [NEU] MODAL ABBRECHEN ---
+    public function cancelShipment()
+    {
+        $this->confirmingShipmentId = null;
+        // Falls wir in der Detailansicht waren, setzen wir den Dropdown-Wert zurück auf den alten DB-Wert
+        if ($this->selectedOrder) {
+            $this->status = $this->selectedOrder->status;
         }
     }
+
+    // ... markAsPaid, delete, render bleiben gleich ...
 
     public function markAsPaid($orderId)
     {
         $order = Order::find($orderId);
         if ($order) {
             $order->update(['payment_status' => 'paid']);
-
             if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
                 $this->payment_status = 'paid';
                 $this->selectedOrder->refresh();

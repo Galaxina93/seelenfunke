@@ -2,8 +2,8 @@
 <div class="bg-white border-x border-b border-gray-200 shadow-sm rounded-b-xl overflow-hidden">
     @php
         $headers = [
-            'order_number' => ['label' => 'Nr. / Prio', 'sortable' => true], // Label angepasst
-            'created_at' => ['label' => 'Datum / Ziel', 'sortable' => true], // Label angepasst
+            'order_number' => ['label' => 'Nr. / Prio', 'sortable' => true],
+            'created_at' => ['label' => 'Datum / Ziel', 'sortable' => true],
             'customer' => ['label' => 'Kunde', 'sortable' => true],
             'total' => ['label' => 'Summe', 'align' => 'right', 'sortable' => true],
             'payment' => ['label' => 'Zahlung', 'align' => 'center', 'sortable' => true],
@@ -12,19 +12,24 @@
         ];
 
         $statusMap = [
-            'pending' => 'Wartend', 'processing' => 'In Bearbeitung', 'shipped' => 'Versendet',
-            'completed' => 'Abgeschlossen', 'cancelled' => 'Storniert'
+            'pending' => 'Wartend',
+            'processing' => 'In Bearbeitung',
+            'shipped' => 'Versendet',
+            'completed' => 'Abgeschlossen',
+            'cancelled' => 'Storniert'
         ];
+
         $paymentMap = ['paid' => 'Bezahlt', 'unpaid' => 'Offen', 'refunded' => 'Erstattet'];
 
-        // Status Farben
+        // Status Farben (angepasst für Select-Hintergründe)
         $statusColors = [
-            'pending' => 'bg-yellow-50 text-yellow-700 border border-yellow-200',
-            'processing' => 'bg-blue-50 text-blue-700 border border-blue-200',
-            'shipped' => 'bg-purple-50 text-purple-700 border border-purple-200',
-            'completed' => 'bg-green-50 text-green-700 border border-green-200',
-            'cancelled' => 'bg-red-50 text-red-700 border border-red-200',
+            'pending' => 'bg-yellow-100 text-yellow-800 border-yellow-200',
+            'processing' => 'bg-blue-100 text-blue-800 border-blue-200',
+            'shipped' => 'bg-purple-100 text-purple-800 border-purple-200',
+            'completed' => 'bg-green-100 text-green-800 border-green-200',
+            'cancelled' => 'bg-red-100 text-red-800 border-red-200',
         ];
+
         $paymentColors = [
             'paid' => 'bg-green-100 text-green-800',
             'unpaid' => 'bg-gray-100 text-gray-800',
@@ -41,18 +46,18 @@
         {{-- Desktop Content --}}
         @forelse($orders as $order)
             @php
-                // Logik für die Markierung (Alarmstufe Rot wenn Express + Deadline vorbei + nicht fertig)
+                // Logik für die Markierung
                 $isOverdue = $order->is_express
                              && $order->deadline
                              && $order->deadline->isPast()
                              && !in_array($order->status, ['shipped', 'completed', 'cancelled']);
 
-                // Hintergrundfarbe bestimmen
+                // Zeilen-Hintergrundfarbe
                 $rowClass = '';
                 if ($isOverdue) {
                     $rowClass = 'bg-red-50 border-l-4 border-red-500'; // ALARM
                 } elseif ($order->is_express) {
-                    $rowClass = 'bg-amber-50/60'; // Express (Goldig)
+                    $rowClass = 'bg-amber-50/60'; // Express
                 } else {
                     $rowClass = 'hover:bg-gray-50/50'; // Standard
                 }
@@ -68,7 +73,6 @@
                             {{ $order->order_number }}
                         </span>
 
-                        {{-- Express Badge --}}
                         @if($order->is_express)
                             <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-amber-600 mt-1">
                                 🚀 Express
@@ -81,7 +85,6 @@
                 <td class="px-6 py-4 text-gray-500 whitespace-nowrap align-top">
                     <div>{{ $order->created_at->format('d.m.Y H:i') }}</div>
 
-                    {{-- Deadline Anzeige --}}
                     @if($order->deadline)
                         <div class="mt-1 flex items-center gap-1 text-xs font-bold {{ $isOverdue ? 'text-red-600 animate-pulse' : 'text-gray-400' }}">
                             @if($isOverdue) ⚠️ @else 🏁 @endif
@@ -108,11 +111,25 @@
                     </span>
                 </td>
 
-                {{-- SPALTE 6: STATUS --}}
+                {{-- SPALTE 6: STATUS (JETZT BEARBEITBAR) --}}
                 <td class="px-6 py-4 text-center align-top">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusColors[$order->status] ?? 'bg-gray-100' }}">
-                        {{ $statusMap[$order->status] ?? $order->status }}
-                    </span>
+                    <div class="relative inline-block w-40">
+                        <select
+                            wire:change="updateStatus('{{ $order->id }}', $event.target.value)"
+                            wire:loading.attr="disabled"
+                            class="appearance-none w-full text-xs font-bold rounded-full border-0 py-1.5 pl-3 pr-8 cursor-pointer focus:ring-2 focus:ring-primary/20 transition-all shadow-sm outline-none {{ $statusColors[$order->status] ?? 'bg-gray-100 text-gray-800' }}"
+                        >
+                            @foreach($statusMap as $value => $label)
+                                <option value="{{ $value }}" class="bg-white text-gray-900" {{ $order->status === $value ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        {{-- Custom Arrow Icon --}}
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-600">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                    </div>
                 </td>
 
                 {{-- SPALTE 7: ACTIONS --}}
@@ -140,8 +157,8 @@
                 <div wire:click="openDetail('{{ $order->id }}')"
                      class="p-4 active:bg-gray-50 transition-colors cursor-pointer border-b last:border-b-0 {{ $isOverdue ? 'bg-red-50 border-l-4 border-red-500' : ($order->is_express ? 'bg-amber-50' : '') }}">
 
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="flex flex-col">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex flex-col gap-1">
                             <span class="font-mono font-bold text-primary flex items-center gap-2">
                                 {{ $order->order_number }}
                                 @if($order->shipping_address && serialize($order->billing_address) !== serialize($order->shipping_address))
@@ -149,7 +166,7 @@
                                 @endif
                             </span>
                             @if($order->is_express)
-                                <span class="text-[10px] font-bold text-amber-600 uppercase flex items-center gap-1 mt-0.5">
+                                <span class="text-[10px] font-bold text-amber-600 uppercase flex items-center gap-1">
                                     🚀 Express
                                     @if($order->deadline)
                                         <span class="{{ $isOverdue ? 'text-red-600' : 'text-gray-500' }}">({{ $order->deadline->format('d.m.') }})</span>
@@ -158,9 +175,19 @@
                             @endif
                         </div>
 
-                        <span @class(['px-2 py-0.5 rounded-full text-[10px] font-bold uppercase', $statusColors[$order->status] ?? 'bg-gray-100'])>
-                            {{ $statusMap[$order->status] ?? $order->status }}
-                        </span>
+                        {{-- MOBIL: Status Select (mit click.stop um Detail-Öffnung zu verhindern) --}}
+                        <div class="relative inline-block w-32" wire:click.stop>
+                            <select
+                                wire:change="updateStatus('{{ $order->id }}', $event.target.value)"
+                                class="appearance-none w-full text-[10px] font-bold rounded-full border-0 py-1 pl-2 pr-6 cursor-pointer focus:ring-2 focus:ring-primary/20 shadow-sm {{ $statusColors[$order->status] ?? 'bg-gray-100 text-gray-800' }}"
+                            >
+                                @foreach($statusMap as $value => $label)
+                                    <option value="{{ $value }}" class="bg-white text-gray-900" {{ $order->status === $value ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
 
                     <div class="flex justify-between items-end">
