@@ -76,7 +76,7 @@ class NativeXmlInvoiceService
         $isSmallBusiness = (bool)shop_setting('is_small_business', false);
 
         // Positionen + Versandkosten zusammenführen
-        $allItems = $invoice->custom_items;
+        $allItems = $invoice->custom_items ?? [];
 
         if ($invoice->shipping_cost > 0) {
             $allItems[] = [
