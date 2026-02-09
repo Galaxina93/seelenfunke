@@ -322,6 +322,12 @@ class Checkout extends Component
                 }
             }
 
+            // GUTSCHEIN VERBRAUCHEN (Counter hochzählen)
+            if ($order->coupon_code) {
+                // Wir nutzen increment(), das ist atomar und sicher bei gleichzeitigen Zugriffen
+                \App\Models\Coupon::where('code', $order->coupon_code)->increment('used_count');
+            }
+
             $this->finalOrderNumber = $order->order_number;
 
             // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
@@ -484,6 +490,24 @@ class Checkout extends Component
     {
         $cartService = app(CartService::class);
         $cart = $cartService->getCart();
+
+        // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
+        if ($cart->coupon_code) {
+            $coupon = \App\Models\Coupon::where('code', $cart->coupon_code)->first();
+
+            // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
+            if (!$coupon || !$coupon->isValid()) {
+                // Gutschein aus Cart entfernen
+                $cart->update(['coupon_code' => null]);
+
+                // Exception werfen, damit der Checkout abbricht und Livewire den Fehler anzeigt
+                // Du müsstest im Frontend ggf. ein try-catch um validateAndCreateOrder bauen oder
+                // einfach ValidationException nutzen, die Livewire automatisch handhabt.
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'coupon' => 'Der verwendete Gutschein ist leider nicht mehr gültig oder aufgebraucht.'
+                ]);
+            }
+        }
 
         $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
         $totals = $cartService->calculateTotals($cart, $targetCountry);
