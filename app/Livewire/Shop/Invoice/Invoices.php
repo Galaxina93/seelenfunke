@@ -636,15 +636,26 @@ class Invoices extends Component
         }
 
         $archivedFiles = [];
+
         if ($this->activeTab === 'archive') {
             $files = Storage::disk('local')->files('invoices');
+
             foreach ($files as $file) {
+                // Wir holen den Timestamp einmalig in eine Variable
+                $timestamp = Storage::disk('local')->lastModified($file);
+
                 $archivedFiles[] = [
                     'name' => basename($file),
                     'size' => round(Storage::disk('local')->size($file) / 1024, 2) . ' KB',
-                    'date' => Carbon::createFromTimestamp(Storage::disk('local')->lastModified($file))->format('d.m.Y H:i')
+                    'timestamp' => $timestamp, // WICHTIG: Rohdaten für die Sortierung speichern
+                    'date' => Carbon::createFromTimestamp($timestamp)->format('d.m.Y H:i')
                 ];
             }
+
+            // Hier sortieren wir das Array absteigend (neueste zuerst) basierend auf dem Timestamp
+            usort($archivedFiles, function ($a, $b) {
+                return $b['timestamp'] <=> $a['timestamp'];
+            });
         }
 
         return view('livewire.shop.invoice.invoices', [
