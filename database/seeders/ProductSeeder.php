@@ -47,7 +47,7 @@ class ProductSeeder extends Seeder
             'short_description' => 'Personalisiertes 3D-Glasgeschenk inkl. Geschenkbox.',
             'status' => 'active',
 
-            // Preis & Steuer (NEU: tax_class statt tax_rate)
+            // Preis & Steuer
             'price' => 3990, // 39,90 €
             'compare_at_price' => 4990, // UVP 49,90 €
             'cost_per_item' => 1250, // Einkauf
@@ -104,23 +104,94 @@ class ProductSeeder extends Seeder
                 'Gewicht' => '1250'
             ],
 
-            // WICHTIG: Das JSON Feld bleibt leer, da wir die Tabelle 'product_tier_prices' nutzen
             'tier_pricing' => [],
-
-            // SEO
             'seo_title' => 'Der Seelen Kristall | Personalisierbares Glasgeschenk | Mein-Seelenfunke',
             'seo_description' => 'Verschenken Sie Ewigkeit: Unser Seelen Kristall aus hochwertigem Glas mit individueller Gravur.',
             'completion_step' => 4
         ]);
 
-        // Staffelpreise über die Relation anlegen
+        // Staffelpreise für p1
         $p1->tierPrices()->createMany([
-            ['qty' => 5, 'percent' => 5.00],   // Ab 5 Stk: 5% Rabatt
-            ['qty' => 10, 'percent' => 10.00], // Ab 10 Stk: 10% Rabatt
-            ['qty' => 25, 'percent' => 15.00], // Ab 25 Stk: 15% Rabatt
+            ['qty' => 5, 'percent' => 5.00],
+            ['qty' => 10, 'percent' => 10.00],
+            ['qty' => 25, 'percent' => 15.00],
         ]);
 
+        // ---------------------------------------------------------
+        // 2. Neues Produkt (Der Seelenanhänger)
+        // ---------------------------------------------------------
+        $p2 = Product::create([
+            // Basisdaten
+            'name' => 'Der Seelenanhänger',
+            'slug' => 'seelen-anhaenger',
+            'description' => 'Ein Aluminium Metall Herz das ganz besondere Gefühle auslösen kann. Es ist sehr hochwertig und schwer, wodurch es sich besonders wertig in der Hand anfühlt. Ideal als Handschmeichler oder persönlicher Glücksbringer.',
+            'short_description' => 'Hochwertiges, schweres Aluminium-Herz für besondere Momente.',
+            'status' => 'active',
 
+            // Preis & Steuer
+            'price' => 999, // 9,99 €
+            'compare_at_price' => 1499, // Optional: UVP z.B. 14,99 €
+            'cost_per_item' => 111, // 1,11 € Einkauf
 
+            // Lager & Identifikation
+            'sku' => 'ALU-HEART-001',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => true,
+            'quantity' => 50,
+            'continue_selling_when_out_of_stock' => true,
+
+            // Versand
+            'is_physical_product' => true,
+            'weight' => 85, // Gramm (geschätzt für "schweres" kleines Metall)
+            'height' => 5, // mm
+            'width' => 50,  // mm
+            'length' => 50, // mm
+            'shipping_class' => 'paket_s', // oder 'brief'
+
+            // Medien & Konfigurator
+            'preview_image_path' => 'Testdata/seelenanhaenger/overlay.png',
+            'media_gallery' => [
+                [
+                    'type' => 'image',
+                    'path' => 'Testdata/seelenanhaenger/seelen-anhaenger_s.jpg',
+                    'is_main' => true,
+                    'alt' => 'Seelenanhänger Frontansicht'
+                ],
+                [
+                    'type' => 'video',
+                    'path' => 'Testdata/seelenkristall/video.mp4', // Wiederverwendet wie gewünscht
+                    'is_main' => false
+                ]
+            ],
+            'configurator_settings' => [
+                'allow_text_pos' => true,
+                'allow_logo' => true,
+                'area_top' => 10,
+                'area_left' => 10,
+                'area_width' => 80,
+                'area_height' => 80,
+                'area_shape' => 'heart' // Passend zum Produkt
+            ],
+
+            // JSON Daten
+            'attributes' => [
+                'Material' => 'Aluminium (Massiv)',
+                'Form' => 'Herz',
+                'Oberfläche' => 'Matt gebürstet',
+                'Besonderheit' => 'Extra schwer & hochwertig'
+            ],
+
+            'tier_pricing' => [],
+            'seo_title' => 'Der Seelenanhänger | Massives Aluminium Herz | Mein-Seelenfunke',
+            'seo_description' => 'Ein Herz aus schwerem Aluminium, das Gefühle weckt. Hochwertig verarbeitet für 9,99€.',
+            'completion_step' => 4
+        ]);
+
+        // Optional: Staffelpreise für p2 (z.B. für Gastgeschenke)
+        $p2->tierPrices()->createMany([
+            ['qty' => 10, 'percent' => 5.00],
+            ['qty' => 20, 'percent' => 10.00],
+        ]);
     }
 }
