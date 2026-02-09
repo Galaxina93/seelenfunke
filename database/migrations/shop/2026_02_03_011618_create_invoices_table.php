@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('invoice_number')->unique(); // z.B. RE-2024-1001
             $table->string('reference_number')->nullable(); // NEU: Referenznummer
             $table->enum('type', ['invoice', 'credit_note', 'cancellation'])->default('invoice');
-            $table->string('status')->default('paid'); // draft, paid, cancelled, sent
+            $table->string('status')->default('open'); // draft, paid, cancelled, sent
             $table->boolean('is_e_invoice')->default(false); // NEU: E-Rechnung Switch
 
             // Datum & Zeitraum
