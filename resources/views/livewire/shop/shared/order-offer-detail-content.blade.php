@@ -1,5 +1,6 @@
 {{--
     MASTER TEMPLATE FÜR DETAIL-ANSICHTEN (ORDERS & QUOTES)
+    Pfad: resources/views/livewire/shop/shared/detail-content.blade.php
     Erwartet:
     - $model: Das Order oder QuoteRequest Objekt
     - $context: 'order' oder 'quote'
@@ -8,12 +9,12 @@
 
 @php
     // -------------------------------------------------------------------------
-    // 1. DATEN NORMALISIERUNG (Damit Order & Quote gleich behandelt werden)
+    // 1. DATEN NORMALISIERUNG
     // -------------------------------------------------------------------------
     $isOrder = $context === 'order';
     $isQuote = $context === 'quote';
 
-    // Adressdaten extrahieren
+    // ADRESSDATEN
     if ($isOrder) {
         $billing = [
             'name' => $model->billing_address['first_name'] . ' ' . $model->billing_address['last_name'],
@@ -25,39 +26,39 @@
         ];
         $shipping = $model->shipping_address ?? null;
     } else {
-        // Quote Logic (Flache Struktur oder JSON, je nach DB Design, hier basierend auf QuoteRequest Model)
+        // Quote Logic
         $billing = [
             'name' => $model->first_name . ' ' . $model->last_name,
             'company' => $model->company ?? null,
-            'address' => ($model->street ?? '') . ' ' . ($model->house_number ?? ''),
+            'address' => trim(($model->street ?? '') . ' ' . ($model->house_number ?? '')),
             'city_zip' => ($model->postal ?? '') . ' ' . ($model->city ?? ''),
             'country' => $model->country ?? 'DE',
             'email' => $model->email
         ];
-        // Quotes haben im Standard oft keine abweichende Lieferadresse in der DB-Struktur, falls doch:
-        $shipping = null;
+        $shipping = null; // Quotes haben meist keine abweichende Lieferadresse in dieser Phase
     }
 
-    // Preis-Felder Normalisierung
+    // PREISE
     $subtotal = $isOrder ? $model->subtotal_price : $model->net_total;
     $taxTotal = $isOrder ? $model->tax_amount : $model->tax_total;
     $grossTotal = $isOrder ? $model->total_price : $model->gross_total;
-    $shippingCost = $isOrder ? $model->shipping_price : $model->shipping_price; // Kann bei Quote auch shipping_cost heißen
+    $shippingCost = $model->shipping_price ?? 0;
 
-    // Einstellungen
+    // EINSTELLUNGEN
     $isSmallBusiness = (bool)shop_setting('is_small_business', false);
     $taxRate = (float)shop_setting('default_tax_rate', 19.0);
-    $expressSurchargeGross = (int)shop_setting('express_surcharge', 2500); // 25.00 EUR
+    $expressSurchargeGross = (int)shop_setting('express_surcharge', 2500);
 @endphp
 
 <div class="w-full lg:w-1/2 h-1/2 lg:h-full overflow-y-auto border-b lg:border-b-0 border-r-0 lg:border-r border-gray-200 bg-white custom-scrollbar z-10">
     <div class="p-4 md:p-6 space-y-6 md:space-y-8">
 
         {{-- ========================================================================
-             SECTION 1: EXPRESS ALERT (Für beide gleich)
+             SECTION 1: EXPRESS ALERT
              ======================================================================== --}}
         @if($model->is_express)
             <div class="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-red-600 rounded-full opacity-10 blur-xl"></div>
                 <div class="flex items-center gap-4 relative z-10">
                     <div class="bg-white p-2 rounded-full shadow-sm border border-red-100 text-red-600">
                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -300,86 +301,8 @@
         {{-- ========================================================================
              SECTION 5: ABRECHNUNG (Dynamisch für beide)
              ======================================================================== --}}
-        <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h4 class="text-xs font-bold uppercase text-gray-500 mb-4 border-b border-gray-200 pb-2">Abrechnung</h4>
-
-            @php
-                // Netto-Anteil des Express-Zuschlags berechnen
-                $expressNet = 0;
-                if ($model->is_express) {
-                    $expressNet = $expressSurchargeGross / (1 + ($taxRate / 100));
-                }
-
-                // Subtotal für Anzeige bereinigen (Express abziehen, damit er separat gelistet wird)
-                // Bei Orders ist der Zuschlag oft schon im subtotal_price enthalten, bei Quotes wird er draufgerechnet.
-                // Hier gehen wir davon aus, dass $subtotal die reine Warenschumme sein soll.
-                $displaySubtotal = $model->is_express ? ($subtotal - $expressNet) : $subtotal;
-
-                // Falls durch Rundungsdifferenzen negativ, auf Original setzen (Sicherheitsnetz)
-                if($displaySubtotal < 0) $displaySubtotal = $subtotal;
-
-                // Rabatte
-                $volumeDiscount = $model->volume_discount ?? 0;
-                $couponDiscount = $model->discount_amount ?? 0;
-            @endphp
-
-            <div class="space-y-3 text-sm">
-                {{-- Warenwert --}}
-                <div class="flex justify-between text-gray-600">
-                    <span>Warenwert</span>
-                    <span>{{ number_format($displaySubtotal / 100, 2, ',', '.') }} €</span>
-                </div>
-
-                {{-- Rabatte --}}
-                @if($volumeDiscount > 0)
-                    <div class="flex justify-between text-green-600">
-                        <span>Mengenrabatt</span>
-                        <span>-{{ number_format($volumeDiscount / 100, 2, ',', '.') }} €</span>
-                    </div>
-                @endif
-                @if($couponDiscount > 0)
-                    <div class="flex justify-between text-green-600">
-                        <span>Gutschein ({{ $model->coupon_code ?? '' }})</span>
-                        <span>-{{ number_format($couponDiscount / 100, 2, ',', '.') }} €</span>
-                    </div>
-                @endif
-
-                {{-- Express Service (Separat) --}}
-                @if($model->is_express)
-                    <div class="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded border border-red-100">
-                        <span class="flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                            Express-Service Aufschlag
-                        </span>
-                        <span>+ {{ number_format($expressSurchargeGross / 100, 2, ',', '.') }} €</span>
-                    </div>
-                @endif
-
-                {{-- Versand --}}
-                <div class="flex justify-between text-gray-600">
-                    <span>Versandkosten</span>
-                    <span>{{ $shippingCost > 0 ? number_format($shippingCost / 100, 2, ',', '.') . ' €' : 'Kostenlos' }}</span>
-                </div>
-
-                {{-- MwSt --}}
-                @if(!$isSmallBusiness)
-                    <div class="flex justify-between text-gray-500 text-xs">
-                        <span>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%)</span>
-                        <span>{{ number_format($taxTotal / 100, 2, ',', '.') }} €</span>
-                    </div>
-                @else
-                    <div class="flex justify-between text-[10px] text-gray-500 italic pb-1">
-                        <span>Steuerfrei gemäß § 19 UStG</span>
-                        <span>0,00 €</span>
-                    </div>
-                @endif
-
-                {{-- Gesamt --}}
-                <div class="pt-3 mt-1 border-t border-gray-200 flex justify-between items-end">
-                    <span class="font-bold text-gray-900">Gesamtsumme</span>
-                    <span class="text-xl font-bold text-primary">{{ number_format($grossTotal / 100, 2, ',', '.') }} €</span>
-                </div>
-            </div>
+        <div>
+            <x-shop.cost-summary :model="$model" />
         </div>
 
         {{-- ========================================================================

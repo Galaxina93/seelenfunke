@@ -165,96 +165,14 @@
                             </div>
                         @endif
 
-                        {{-- 2. Kostenaufstellung --}}
-                        <div class="space-y-3 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-100">
-
-                            {{-- A) Warenwert --}}
-                            <div class="flex justify-between">
-                                <span>Warenwert</span>
-                                <span>{{ number_format($totals['subtotal_original'] / 100, 2, ',', '.') }} €</span>
-                            </div>
-
-                            {{-- B) Mengenrabatt --}}
-                            @if(!empty($totals['volume_discount']) && $totals['volume_discount'] > 0)
-                                <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span>Mengenrabatt</span>
-                                    </div>
-                                    <span>-{{ number_format($totals['volume_discount'] / 100, 2, ',', '.') }} €</span>
-                                </div>
-                                <div class="border-b border-gray-100 my-1"></div>
-                                <div class="flex justify-between text-gray-500 italic text-xs">
-                                    <span>Zwischensumme</span>
-                                    <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
-                                </div>
-                            @endif
-
-                            {{-- C) Gutschein --}}
-                            @if(!empty($totals['discount_amount']) && $totals['discount_amount'] > 0)
-                                <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-                                        </svg>
-                                        <span>Gutschein ({{ $totals['coupon_code'] }})</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
-                                        <button wire:click="removeCoupon" class="text-red-400 hover:text-red-600" title="Entfernen">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            @endif
-
-                            {{-- D) [NEU] EXPRESS SERVICE --}}
-                            @if(!empty($totals['is_express']) && $totals['is_express'])
-                                @php
-                                    // Preis aus Totals holen (CartService berechnet das in 'express')
-                                    $expressCost = $totals['express'] ?? 0;
-                                @endphp
-                                <div class="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded -mx-2 border border-red-100">
-                                    <div class="flex items-center gap-2">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                        </svg>
-                                        <span>Express-Service</span>
-                                    </div>
-                                    <span>+ {{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
-                                </div>
-                            @endif
-
-                            {{-- E) Versandkosten --}}
-                            <div class="flex justify-between text-gray-600">
-                                <span>Versand</span>
-                                @if($totals['shipping'] > 0)
-                                    <span>{{ number_format($totals['shipping'] / 100, 2, ',', '.') }} €</span>
-                                @else
-                                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded -mx-2">
-                                        <span class="text-green-700 font-bold uppercase text-xs tracking-wider">Kostenlos</span>
-                                    </div>
-                                @endif
-                            </div>
-
-                            {{-- F) Gesamtsumme --}}
-                            <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
-                                <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
-                                <span class="text-xl font-bold text-gray-900">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
-                            </div>
-
-                            {{-- G) MwSt Ausweisung --}}
-                            <div class="pt-1 space-y-1 text-right">
-                                @foreach($totals['taxes_breakdown'] as $rate => $amount)
-                                    @if($amount > 0)
-                                        <div class="text-[10px] text-gray-400">
-                                            inkl. {{ number_format($amount / 100, 2, ',', '.') }} € MwSt. ({{ floatval($rate) }}%)
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
+                        {{-- 2. Kostenaufstellung via Master Component --}}
+                        <div class="mb-6 pb-6 border-b border-gray-100">
+                            <x-shop.cost-summary :totals="$totals" :showTitle="false">
+                                {{-- Slot für Gutschein Löschen Button --}}
+                                <button wire:click="removeCoupon" class="text-red-400 hover:text-red-600 transition" title="Gutschein entfernen">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </x-shop.cost-summary>
                         </div>
 
                         {{-- 3. Gutschein Input --}}

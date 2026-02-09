@@ -122,78 +122,9 @@
             @endforeach
         </ul>
 
-        {{-- 3. Zahlen / Summen --}}
-        <div class="border-t border-gray-100 pt-6 space-y-3">
-
-            {{-- A) Zwischensumme --}}
-            <div class="flex items-center justify-between text-sm text-gray-600">
-                <span>Zwischensumme</span>
-                <span>{{ number_format($totals['subtotal_gross'] / 100, 2, ',', '.') }} €</span>
-            </div>
-
-            {{-- B) Mengenrabatt --}}
-            @if($totals['volume_discount'] > 0)
-                <div class="flex items-center justify-between text-sm text-green-600">
-                    <span>Mengenrabatt</span>
-                    <span>-{{ number_format($totals['volume_discount'] / 100, 2, ',', '.') }} €</span>
-                </div>
-            @endif
-
-            {{-- C) Gutschein --}}
-            @if($totals['discount_amount'] > 0)
-                <div class="flex items-center justify-between text-sm text-green-600">
-                    <span>Gutschein</span>
-                    <span>-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }} €</span>
-                </div>
-            @endif
-
-            {{-- D) [NEU] EXPRESS SERVICE --}}
-            @if(!empty($totals['is_express']) && $totals['is_express'])
-                @php
-                    $expressCost = $totals['express'] ?? (int)shop_setting('express_surcharge', 2500);
-                @endphp
-                <div class="flex items-center justify-between text-sm text-red-600 font-bold bg-red-50 p-2 rounded -mx-2">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <span>Express-Service</span>
-                    </div>
-                    <span>+ {{ number_format($expressCost / 100, 2, ',', '.') }} €</span>
-                </div>
-            @endif
-
-            {{-- E) Versandkosten --}}
-            <div class="flex items-center justify-between text-sm">
-                <span class="text-gray-600">Versand ({{ $country }})</span>
-                @if($totals['shipping'] > 0)
-                    <span class="font-medium text-gray-900">{{ number_format($totals['shipping'] / 100, 2, ',', '.') }} €</span>
-                @else
-                    <span class="font-bold text-green-600">Kostenlos</span>
-                @endif
-            </div>
-
-            {{-- F) Gesamtsumme --}}
-            <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
-                <span class="text-base font-bold text-gray-900">Gesamtsumme</span>
-                <span class="text-xl font-bold text-primary">{{ number_format($totals['total'] / 100, 2, ',', '.') }} €</span>
-            </div>
-
-            {{-- G) MwSt --}}
-            <div class="space-y-1 pt-2 border-t border-dashed border-gray-200 mt-2">
-                @if(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
-                    @foreach($totals['taxes_breakdown'] as $taxRate => $taxAmount)
-                        <div class="flex justify-between text-xs text-gray-400">
-                            <span>Enthaltene MwSt. ({{ $taxRate }}%)</span>
-                            <span>{{ number_format($taxAmount / 100, 2, ',', '.') }} €</span>
-                        </div>
-                    @endforeach
-                @else
-                    <div class="text-xs text-gray-400 text-right">
-                        inkl. {{ number_format($totals['tax'] / 100, 2, ',', '.') }} € MwSt.
-                    </div>
-                @endif
-            </div>
+        {{-- 3. Zahlen / Summen via Master Component --}}
+        <div class="mt-6 pt-6 border-t border-gray-100">
+            <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
         </div>
 
         {{-- 4. Checkboxen --}}
