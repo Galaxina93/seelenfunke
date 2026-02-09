@@ -218,7 +218,13 @@ class Orders extends Component
         if ($this->statusFilter) $query->where('status', $this->statusFilter);
         if ($this->paymentFilter) $query->where('payment_status', $this->paymentFilter);
 
-        // --- SORTIER-LOGIK ---
+        // --- [NEU] PRIORITÄT: EXPRESS ZUERST ---
+        // Wir sortieren IMMER erst nach Express (1 kommt vor 0), egal was der User sonst sortiert.
+        // Damit bleiben die eiligen Sachen immer oben kleben.
+        $query->orderBy('is_express', 'desc');
+
+        // --- DYNAMISCHE SEKUNDÄR-SORTIERUNG ---
+        // Danach wird innerhalb der Express-Gruppe (und der Standard-Gruppe) sortiert.
         if ($this->sortField === 'customer') {
             $query->orderBy('billing_address->last_name', $this->sortDirection)
                 ->orderBy('billing_address->first_name', $this->sortDirection);
@@ -227,6 +233,7 @@ class Orders extends Component
         } elseif ($this->sortField === 'payment') {
             $query->orderBy('payment_status', $this->sortDirection);
         } else {
+            // Standardfall: created_at (Datum)
             $query->orderBy($this->sortField, $this->sortDirection);
         }
 
