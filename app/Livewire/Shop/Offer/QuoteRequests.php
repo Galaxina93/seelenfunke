@@ -160,6 +160,13 @@ class QuoteRequests extends Component
                 'city' => $quote->city,
                 'country' => $quote->country ?? 'DE'
             ],
+
+            // [FIX] DIESE ZEILEN FEHLTEN:
+            'volume_discount' => 0,  // Standardmäßig 0, da im Kalkulator-Preis schon drin oder nicht separat ausgewiesen
+            'discount_amount' => 0,  // Standardmäßig 0
+            'coupon_code'     => null,
+            // -----------------------
+
             'subtotal_price' => $quote->net_total,
             'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
             'total_price' => $quote->gross_total,
