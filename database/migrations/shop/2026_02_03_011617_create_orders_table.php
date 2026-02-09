@@ -20,8 +20,12 @@ return new class extends Migration
 
             // Status-Felder (genutzt in den Filtern und Badges)
             $table->string('status')->default('pending');
+            $table->boolean('is_express')->default(false);
+            $table->date('deadline')->nullable();
+
             $table->string('payment_status')->default('unpaid');
             $table->string('payment_method')->default('stripe');
+            $table->text('payment_url')->nullable();
             $table->string('stripe_payment_intent_id')->nullable();
 
             $table->string('email'); // Wichtig für Kommunikation & Suche

@@ -550,6 +550,9 @@ class Checkout extends Component
             'customer_id' => $customerId,
             'email' => $this->email,
             'status' => 'pending',
+            'is_express' => $cart->is_express,
+            'deadline' => $cart->deadline,
+
             'payment_status' => 'unpaid',
             'payment_method' => 'stripe',
 

@@ -279,6 +279,7 @@ class QuoteAcceptance extends Component
         // Express-Status und Adress-Vorauswahl in das cart-Model übernehmen
         $cart->update([
             'is_express' => $this->quote->is_express,
+            'deadline' => $this->quote->deadline,
             // Wir können hier auch die Adressdaten für den Checkout vor-reservieren falls gewünscht
         ]);
 

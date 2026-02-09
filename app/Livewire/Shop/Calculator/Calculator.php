@@ -429,6 +429,19 @@ class Calculator extends Component
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
             return;
         }
+
+        // [NEU] Validierung für Express-Datum
+        // Wir prüfen nur, wenn Express angehakt ist.
+        if ($this->isExpress) {
+            $this->validate([
+                'deadline' => 'required|date|after:today', // Muss in der Zukunft liegen
+            ], [
+                'deadline.required' => 'Bitte wählen Sie einen Wunschtermin für die Express-Lieferung.',
+                'deadline.date' => 'Bitte geben Sie ein gültiges Datum ein.',
+                'deadline.after' => 'Der Termin muss in der Zukunft liegen.',
+            ]);
+        }
+
         $this->step = 3;
         $this->persist();
         $this->dispatch('scroll-top');

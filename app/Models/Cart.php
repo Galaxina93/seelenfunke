@@ -21,11 +21,13 @@ class Cart extends Model
         'user_id',
         'coupon_code',
         'customer_id',
-        'is_express'
+        'is_express',
+        'deadline'
     ];
 
     protected $casts = [
-        'is_express' => 'boolean'
+        'is_express' => 'boolean',
+        'deadline' => 'date'
     ];
 
     /**

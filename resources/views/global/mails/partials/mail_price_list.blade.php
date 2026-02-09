@@ -83,4 +83,23 @@
             </td>
         </tr>
     </table>
+
+    {{-- [NEU] ZAHLUNGSBUTTON (Nur sichtbar, wenn Payment Link vorhanden) --}}
+    @if(isset($data['payment_url']) && $data['payment_url'])
+        <div style="margin-top: 30px; margin-bottom: 10px; text-align: center; border-top: 1px dashed #eee; padding-top: 20px;">
+            <p style="margin-bottom: 15px; color: #555; font-size: 14px;">
+                Um Ihre Bestellung abzuschließen, können Sie hier sicher online bezahlen:
+            </p>
+
+            <a href="{{ $data['payment_url'] }}"
+               style="background-color: #C5A059; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 50px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                🔒 Jetzt sicher bezahlen
+            </a>
+
+            <p style="font-size: 11px; color: #999; margin-top: 12px;">
+                (Kreditkarte, PayPal, Apple Pay, Klarna, Sofort)
+            </p>
+        </div>
+    @endif
+
 </div>

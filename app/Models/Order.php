@@ -21,6 +21,7 @@ class Order extends Model
         'status',
         'payment_status',
         'payment_method',
+        'payment_url',
         'stripe_payment_intent_id',
         'billing_address',
         'shipping_address',
@@ -49,6 +50,7 @@ class Order extends Model
         'created_at' => 'datetime',
         'expires_at' => 'datetime',
         'is_express' => 'boolean',
+        'deadline' => 'date',
         'cancellation_reason' => 'string',
     ];
 

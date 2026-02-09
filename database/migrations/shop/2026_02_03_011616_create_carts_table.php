@@ -19,6 +19,7 @@ return new class extends Migration
 
             $table->string('coupon_code')->nullable();
             $table->boolean('is_express')->default(false);
+            $table->date('deadline')->nullable();
 
             $table->timestamps();
         });

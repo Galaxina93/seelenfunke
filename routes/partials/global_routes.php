@@ -39,6 +39,9 @@ Route::get('/checkout/success', CheckoutSuccess::class)->name('checkout.success'
 // Angebot annehmen
 Route::get('/angebot/{token}/annehmen', QuoteAcceptance::class)->name('quote.accept');
 
+// Bezahlungen über Bezahllink zuordenen und Bestellung als bezahlt markieren
+Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle']);
+
 // --- 1. Hauptseiten ---
 
 // Startseite

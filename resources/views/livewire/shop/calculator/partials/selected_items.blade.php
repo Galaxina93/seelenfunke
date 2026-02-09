@@ -147,23 +147,86 @@
         </div>
 
         <div class="flex flex-col md:flex-row justify-between items-end gap-6">
-            <div class="bg-white border border-gray-200 rounded-lg p-4 w-full md:w-auto shadow-sm">
+            <div class="relative w-full md:w-auto transition-all duration-300">
                 @php
                     $expressCharge = (int)shop_setting('express_surcharge', 2500);
+                    $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
                 @endphp
-                <div class="flex items-center">
-                    <input wire:model.live="isExpress" id="express" type="checkbox" class="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary">
-                    <label for="express" class="ml-2 font-bold text-gray-700 text-sm cursor-pointer">
-                        Express-Bearbeitung (+{{ number_format($expressCharge / 100, 2, ',', '.') }} €)
-                    </label>
-                </div>
-                @if($isExpress)
-                    <div class="mt-3">
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1">Gewünschter Liefertermin</label>
-                        <input wire:model="deadline" type="date" min="{{ now()->addDays(2)->format('Y-m-d') }}" class="block w-full rounded border-gray-300 text-sm focus:ring-primary focus:border-primary">
-                        <p class="mt-1 text-[9px] text-gray-400 italic">Wir priorisieren Ihre Fertigung.</p>
+
+                {{-- Container: Wenn ausgewählt, goldener Rahmen & Hintergrund, sonst grau/weiß --}}
+                <label
+                    class="block border rounded-xl p-4 cursor-pointer shadow-sm hover:shadow-md transition-all group
+                    {{ $isExpress ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-300' : 'bg-white border-gray-200 hover:border-primary/50' }}"
+                >
+                    <div class="flex items-start gap-4">
+
+                        {{-- Checkbox (Visuell angepasst) --}}
+                        <div class="pt-1">
+                            <input
+                                wire:model.live="isExpress"
+                                type="checkbox"
+                                class="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer"
+                            >
+                        </div>
+
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center flex-wrap gap-2">
+                                {{-- Titel mit Icon --}}
+                                <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                                    <span>🚀 Eiliges express Geschenk?</span>
+                                    @if($isExpress)
+                                        <span class="text-[10px] bg-primary text-white px-2 py-0.5 rounded-full uppercase tracking-wide font-bold animate-pulse">Aktiv</span>
+                                    @endif
+                                </h3>
+
+                                {{-- Preis Badge --}}
+                                <span class="font-bold text-primary bg-primary/10 px-2 py-1 rounded text-sm whitespace-nowrap">
+                        + {{ $formattedPrice }} €
+                    </span>
+                            </div>
+
+                            <p class="text-sm text-gray-500 mt-1 leading-relaxed">
+                                Wir ziehen Ihre Bestellung in der Manufaktur vor. Ideal für Geburtstage oder Hochzeiten, die kurz bevorstehen.
+                            </p>
+
+                            {{-- Datumsauswahl (Fährt weich aus) --}}
+                            @if($isExpress)
+                                <div
+                                    class="mt-4 pt-4 border-t border-amber-200/60 animate-fade-in-down"
+                                >
+                                    <label class="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        Wann wird es benötigt?
+                                    </label>
+
+                                    <div class="relative">
+                                        <input
+                                            wire:model="deadline"
+                                            type="date"
+                                            {{-- WICHTIG: addDay() = Morgen. Der heutige Tag ist gesperrt. --}}
+                                            min="{{ now()->addDay()->format('Y-m-d') }}"
+                                            class="block w-full rounded-lg bg-white text-gray-900 shadow-sm
+                                            @error('deadline') border-red-500 focus:border-red-500 focus:ring-red-500 @else border-amber-300 focus:ring-amber-500 focus:border-amber-500 @enderror"
+                                        >
+                                    </div>
+
+                                    {{-- [NEU] FEHLERMELDUNG ANZEIGEN --}}
+                                    @error('deadline')
+                                    <p class="text-red-600 text-xs font-bold mt-1 flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        {{ $message }}
+                                    </p>
+                                    @else
+                                        <p class="mt-2 text-xs text-amber-700 italic flex items-start gap-1">
+                                            <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            <span>Wir setzen alles daran, diesen Termin für Sie zu halten.</span>
+                                        </p>
+                                        @enderror
+                                </div>
+                            @endif
+                        </div>
                     </div>
-                @endif
+                </label>
             </div>
 
             <div class="text-right w-full md:w-auto">
@@ -188,7 +251,7 @@
                             $missing = ($freeShippingThreshold / 100) - $warenwertItemsBrutto;
                         @endphp
                         @if($missing > 0.01)
-                            <div class="text-xs text-amber-600 font-bold mt-1 animate-pulse">
+                            <div class="text-xs text-amber-600 font-bold mt-1">
                                 Noch <strong>{{ number_format($missing, 2, ',', '.') }} €</strong> bis zum kostenlosen Versand!
                             </div>
                         @endif

@@ -218,13 +218,18 @@ class Orders extends Component
         if ($this->statusFilter) $query->where('status', $this->statusFilter);
         if ($this->paymentFilter) $query->where('payment_status', $this->paymentFilter);
 
-        // --- [NEU] PRIORITÄT: EXPRESS ZUERST ---
-        // Wir sortieren IMMER erst nach Express (1 kommt vor 0), egal was der User sonst sortiert.
-        // Damit bleiben die eiligen Sachen immer oben kleben.
+        // 1. OBERSTE PRIO: Express-Bestellungen immer ganz oben
         $query->orderBy('is_express', 'desc');
 
-        // --- DYNAMISCHE SEKUNDÄR-SORTIERUNG ---
-        // Danach wird innerhalb der Express-Gruppe (und der Standard-Gruppe) sortiert.
+        // 2. ZWEITE PRIO: Dringlichkeit (Deadline)
+        // Innerhalb der Express-Gruppe sortieren wir nach dem Datum, das am nächsten liegt (ASC).
+        // Standard-Bestellungen haben meist 'deadline' = null, was bei ASC oft ganz oben steht,
+        // aber da wir vorher schon nach 'is_express' getrennt haben, stört das nicht.
+        // Express (Deadline 12.02.) kommt VOR Express (Deadline 20.02.)
+        $query->orderBy('deadline');
+
+        // 3. DRITTE PRIO: Dynamische User-Sortierung
+        // Dies greift als "Tie-Breaker", wenn is_express und deadline identisch sind (oder deadline null ist)
         if ($this->sortField === 'customer') {
             $query->orderBy('billing_address->last_name', $this->sortDirection)
                 ->orderBy('billing_address->first_name', $this->sortDirection);
