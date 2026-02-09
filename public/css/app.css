@@ -715,6 +715,10 @@ video {
   margin-top: 2rem;
   margin-bottom: 2rem;
 }
+.mx-4 {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
 .-mr-1 {
   margin-right: -0.25rem;
 }
@@ -4093,6 +4097,10 @@ video {
   .sm\:mx-auto {
     margin-left: auto;
     margin-right: auto;
+  }
+  .sm\:mx-6 {
+    margin-left: 1.5rem;
+    margin-right: 1.5rem;
   }
   .sm\:mb-16 {
     margin-bottom: 4rem;

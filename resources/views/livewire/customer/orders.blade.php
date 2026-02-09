@@ -16,7 +16,14 @@
                         Zurück zur Übersicht
                     </button>
                     <div class="text-right">
-                        <h1 class="text-2xl font-serif font-bold text-gray-900">Bestellung {{ $order->order_number }}</h1>
+                        <h1 class="text-2xl font-serif font-bold text-gray-900 flex items-center justify-end gap-3">
+                            Bestellung {{ $order->order_number }}
+                            @if($order->is_express)
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200 uppercase tracking-wide">
+                                    🚀 Express
+                                </span>
+                            @endif
+                        </h1>
                         <p class="text-sm text-gray-500">
                             Bestellt am <time datetime="{{ $order->created_at }}">{{ $order->created_at->format('d.m.Y') }}</time>
                             <span class="mx-1">·</span>
@@ -169,20 +176,16 @@
                                                     </button>
                                                 </div>
 
-                                                {{-- In der orders.blade.php unter der Konfigurations-Vorschau --}}
+                                                {{-- Fingerprint Hinweis --}}
                                                 @if($item->config_fingerprint)
-                                                    <div class="mt-4 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100">
-                                                        <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <div class="mt-4 mx-4 sm:mx-6 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
+                                                        <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                                   d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                                         </svg>
                                                         <div class="text-[10px] text-green-800 leading-tight">
-                                                            <p class="font-bold uppercase">Produktkonfiguration – Digitales Echtheits-Siegel</p>
-                                                            <p class="font-mono text-green-600">{{ substr($item->config_fingerprint, 0, 16) }}</p>
-                                                            <p class="mt-1 text-green-700">
-                                                                Hinweis: Diese Produktkonfiguration wurde bei der Bestellung eindeutig versiegelt.
-                                                                Nachträgliche Änderungen am Konfigurationszustand sind nicht möglich.
-                                                            </p>
+                                                            <p class="font-bold uppercase">Digital versiegelt</p>
+                                                            <p class="mt-0.5 text-green-700 opacity-80">Konfiguration wurde fixiert.</p>
                                                         </div>
                                                     </div>
                                                 @endif
@@ -200,7 +203,7 @@
                                         </div>
                                     @endif
 
-                                @if(!$loop->last) <div class="border-b border-gray-50"></div> @endif
+                                    @if(!$loop->last) <div class="border-b border-gray-50"></div> @endif
                                     @endforeach
                                 </div>
                         </div>
@@ -231,10 +234,12 @@
                                         <div class="text-sm text-gray-600">
                                             <p class="font-medium text-gray-900">
                                                 @if($order->payment_method === 'paypal') PayPal
-                                                @elseif($order->payment_method === 'stripe') Kreditkarte / Stripe
+                                                @elseif($order->payment_method === 'stripe' || $order->payment_method === 'credit_card') Kreditkarte
+                                                @elseif($order->payment_method === 'stripe_link') Online Link
+                                                @elseif($order->payment_method === 'invoice') Rechnung
                                                 @else Online Zahlung @endif
                                             </p>
-                                            <p class="text-xs {{ $order->payment_status === 'paid' ? 'text-green-600 font-bold' : '' }}">
+                                            <p class="text-xs {{ $order->payment_status === 'paid' ? 'text-green-600 font-bold' : 'text-yellow-600' }}">
                                                 {{ $order->payment_status === 'paid' ? 'Vollständig bezahlt' : ucfirst($order->payment_status) }}
                                             </p>
                                         </div>
@@ -260,6 +265,16 @@
                                 // Neue dynamische Logik über den Shop-Helper
                                 $isSmallBusiness = (bool)shop_setting('is_small_business', false);
                                 $taxRate = (float)shop_setting('default_tax_rate', 19.0);
+
+                                // Express Berechnung (analog zum Admin-Panel und Checkout)
+                                $expressGross = $order->is_express ? (int)shop_setting('express_surcharge', 2500) : 0;
+                                // Netto-Anteil des Express-Zuschlags berechnen (um ihn für die Anzeige vom Warenwert abzuziehen)
+                                $expressNet = $expressGross / (1 + ($taxRate / 100));
+
+                                // Subtotal bereinigen für die separate Anzeige
+                                $displaySubtotal = $order->is_express ? ($order->subtotal_price - $expressNet) : $order->subtotal_price;
+                                // Fallback gegen negative Werte durch Rundung
+                                if($displaySubtotal < 0) $displaySubtotal = $order->subtotal_price;
                             @endphp
 
                             <h4 class="font-bold text-gray-900 text-sm mb-4 uppercase tracking-widest">Kostenübersicht</h4>
@@ -267,7 +282,7 @@
                             <dl class="space-y-3 text-sm">
                                 <div class="flex justify-between text-gray-600">
                                     <dt>Warenwert</dt>
-                                    <dd>{{ number_format($order->subtotal_price / 100, 2, ',', '.') }} €</dd>
+                                    <dd>{{ number_format($displaySubtotal / 100, 2, ',', '.') }} €</dd>
                                 </div>
 
                                 @if($order->volume_discount > 0)
@@ -284,9 +299,34 @@
                                     </div>
                                 @endif
 
+                                {{-- [NEU] EXPRESS SERVICE SEPARAT --}}
+                                @if($order->is_express)
+                                    <div class="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded -mx-2 border border-red-100">
+                                        <dt class="flex items-center gap-2">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                            Express-Service
+                                        </dt>
+                                        <dd>+ {{ number_format($expressGross / 100, 2, ',', '.') }} €</dd>
+                                    </div>
+                                @endif
+
                                 <div class="border-t border-gray-50 my-2 pt-2 flex justify-between text-gray-900 font-medium">
                                     <dt>Zwischensumme</dt>
-                                    <dd>{{ number_format(($order->subtotal_price - $order->volume_discount - $order->discount_amount) / 100, 2, ',', '.') }} €</dd>
+                                    <dd>
+                                        @php
+                                            // Zwischensumme berechnen: Warenwert - Rabatte + Express
+                                            // Achtung: displaySubtotal ist exkl. Express-Nettoanteil, also müssen wir Express Gross addieren
+                                            // Vereinfacht: Wir nehmen den ursprünglichen Subtotal minus Rabatte plus Express (für die visuelle Logik)
+                                            $interimTotal = ($order->subtotal_price - $order->volume_discount - $order->discount_amount);
+                                            // Wenn Express separat angezeigt wurde, ist er in $order->subtotal_price oft rechnerisch enthalten (je nach Speicherlogik).
+                                            // Hier zeigen wir einfach die logische Zwischensumme (alles außer Versand) an.
+                                            // Sicherste Variante: Total - Versand
+                                            $interimTotalSafe = $order->total_price - $order->shipping_price;
+                                        @endphp
+                                        {{ number_format($interimTotalSafe / 100, 2, ',', '.') }} €
+                                    </dd>
                                 </div>
 
                                 <div class="flex justify-between text-gray-600">
@@ -343,16 +383,21 @@
                         <li class="p-4 sm:p-6 hover:bg-gray-50 transition-colors">
                             <div class="flex items-center justify-between flex-wrap gap-4">
                                 <div class="flex items-center gap-4">
-                                    <div class="bg-gray-100 p-3 rounded-xl text-gray-500 shadow-inner">
+                                    <div class="bg-gray-100 p-3 rounded-xl text-gray-500 shadow-inner relative">
                                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                                        @if($o->is_express)
+                                            <div class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
+                                        @endif
                                     </div>
                                     <div>
-                                        <p class="text-sm font-bold text-gray-900">
+                                        <p class="text-sm font-bold text-gray-900 flex items-center gap-2">
                                             {{ $o->order_number }}
-                                            <span class="text-[10px] font-normal text-gray-400 ml-1 uppercase tracking-widest">· {{ $o->created_at->format('d.m.Y') }}</span>
+                                            @if($o->is_express)
+                                                <span class="text-[9px] text-red-600 font-bold uppercase bg-red-50 px-1.5 py-0.5 rounded border border-red-100">Express</span>
+                                            @endif
                                         </p>
                                         <p class="text-xs text-gray-500 mt-1">
-                                            <span class="font-bold text-primary">{{ number_format($o->total_price / 100, 2, ',', '.') }} €</span> · {{ $o->items->count() }} Position(en)
+                                            <span class="font-bold text-primary">{{ number_format($o->total_price / 100, 2, ',', '.') }} €</span> · {{ $o->items->count() }} Position(en) · {{ $o->created_at->format('d.m.Y') }}
                                         </p>
                                     </div>
                                 </div>
