@@ -135,7 +135,24 @@
                                             $parentInvoice = \App\Models\Invoice::find($invoice->parent_id);
                                             if($parentInvoice) { $displayItems = $parentInvoice->items; }
                                         }
+
+                                        // PROFI-LÖSUNG: Liste der technischen Felder, die NICHT auf der Rechnung erscheinen sollen
+                                        $hiddenConfigKeys = [
+                                            'image',
+                                            'product_image_path',
+                                            'logo_storage_path',
+                                            'text_x', 'text_y', 'logo_x', 'logo_y',
+                                            // Neue technische Felder, die das Layout sprengen würden:
+                                            'texts',
+                                            'elements',
+                                            'canvas_data',
+                                            'json',
+                                            'svg',
+                                            'preview',
+                                            'background'
+                                        ];
                                     @endphp
+
                                     @foreach($displayItems as $item)
                                         <tr>
                                             <td class="py-4 align-top">
@@ -151,15 +168,20 @@
                                                 @endphp
 
                                                 @if($config)
-                                                    <div class="text-[10px] text-gray-500 italic leading-snug">
+                                                    {{-- 'break-all' sorgt dafür, dass lange Wörter notfalls umgebrochen werden --}}
+                                                    <div class="text-[10px] text-gray-500 italic leading-snug break-all max-w-[350px]">
                                                         @foreach($config as $label => $value)
-                                                            @if(!empty($value) && !in_array($label, ['image', 'product_image_path', 'logo_storage_path', 'text_x', 'text_y', 'logo_x', 'logo_y']))
+                                                            {{-- Hier nutzen wir jetzt das definierte Array zum Filtern --}}
+                                                            @if(!empty($value) && !in_array($label, $hiddenConfigKeys))
                                                                 @php
                                                                     $displayValue = is_array($value)
                                                                         ? implode(', ', array_map(fn($v) => is_array($v) ? json_encode($v) : $v, $value))
                                                                         : $value;
                                                                 @endphp
-                                                                <strong>{{ ucfirst($label) }}:</strong> {{ $displayValue }}@if(!$loop->last) · @endif
+                                                                {{-- Nur anzeigen, wenn der Wert kein roher JSON-String ist (Sicherheitscheck) --}}
+                                                                @if(!Str::startsWith((string)$displayValue, ['{', '[']))
+                                                                    <strong>{{ ucfirst($label) }}:</strong> {{ $displayValue }}@if(!$loop->last) · @endif
+                                                                @endif
                                                             @endif
                                                         @endforeach
                                                     </div>
