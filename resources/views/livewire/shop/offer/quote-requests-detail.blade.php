@@ -69,71 +69,13 @@
         </div>
     </div>
 
-    {{-- SPLIT CONTENT: Stacked auf Mobile, Row auf Desktop --}}
+    {{-- SPLIT CONTENT --}}
     <div class="flex flex-col lg:flex-row flex-1 overflow-hidden">
-
-        {{-- LINKS: Details & Liste (Scrollbar) --}}
         @include('livewire.shop.shared.order-offer-detail-content', [
-            'model' => $quote,          // Wir mappen $quote auf $model
-            'context' => 'quote',       // Kontext setzen
-            'selectedItemId' => $this->selectedQuoteItemId // ID für Vorschau
+            'model' => $quote,
+            'context' => 'quote',
+            'selectedItemId' => $this->selectedQuoteItemId,
+            'previewItem' => $this->previewItem // Nutzt die Property aus QuoteRequests.php
         ])
-
-        {{-- RECHTS: Visual Preview (Scrollbar nur Desktop) --}}
-        <div class="w-full lg:w-1/2 bg-gray-50 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-200 min-h-[500px] lg:h-full">
-            <div class="flex-1 p-4 lg:p-6 bg-gray-100 overflow-y-auto custom-scrollbar">
-                @if($this->previewItem)
-                    <div class="bg-white rounded-2xl shadow-lg border border-gray-200 flex flex-col h-full min-h-[400px]">
-                        {{-- Configurator Header --}}
-                        <div class="bg-white border-b border-gray-100 px-4 py-3 lg:px-6 lg:py-4 flex justify-between items-center shrink-0">
-                            <div class="min-w-0">
-                                <h3 class="font-bold text-gray-800 text-sm lg:text-base truncate">{{ $this->previewItem->product_name }}</h3>
-                                <p class="text-[10px] text-gray-400 uppercase tracking-tighter">
-                                    Konfigurations-Vorschau</p>
-                            </div>
-                            <button wire:click="$set('previewItem', null)" class="lg:hidden text-gray-400 p-2">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                          d="M6 18L18 6M6 6l12 12"/>
-                                </svg>
-                            </button>
-                        </div>
-
-                        {{-- CONFIGURATOR COMPONENT: Live Preview --}}
-                        <div class="relative flex-1 bg-gray-50/50 flex flex-col">
-                            @if($this->previewItem->product)
-                                <div class="flex-1">
-                                    <livewire:shop.configurator.configurator
-                                            :product="$this->previewItem->product->id"
-                                            :initialData="$this->previewItem->configuration"
-                                            :qty="$this->previewItem->quantity"
-                                            context="preview"
-                                            :key="'quote-preview-'.$this->previewItem->id"
-                                    />
-                                </div>
-                            @else
-                                <div class="p-12 text-center">
-                                    <div class="text-red-500 font-bold">Produkt nicht mehr verfügbar.</div>
-                                    <p class="text-xs text-gray-400 mt-2">Das Produkt wurde aus dem Katalog
-                                        entfernt.</p>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                @else
-                    <div class="h-full flex flex-col items-center justify-center text-center p-8">
-                        <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                            <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                            </svg>
-                        </div>
-                        <p class="font-medium text-gray-500">Klicke eine Position an,</p>
-                        <p class="text-sm text-gray-400">um das Design im Konfigurator zu prüfen.</p>
-                    </div>
-                @endif
-            </div>
-        </div>
-
     </div>
 </div>

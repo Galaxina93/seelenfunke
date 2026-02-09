@@ -318,3 +318,64 @@
 
     </div>
 </div>
+
+{{-- ========================================================================
+     RECHTE SPALTE: VISUAL PREVIEW & CONFIGURATOR
+     ======================================================================== --}}
+<div class="w-full lg:w-1/2 h-1/2 lg:h-full bg-gray-50 flex flex-col border-l-0 lg:border-l border-gray-200 overflow-hidden">
+    <div class="flex-1 p-4 md:p-6 bg-gray-100 h-full overflow-y-auto custom-scrollbar">
+        @if($previewItem)
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col min-h-0">
+                {{-- Header --}}
+                <div class="bg-white border-b border-gray-100 px-4 md:px-6 py-4 flex justify-between items-center shrink-0">
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-sm lg:text-base">{{ $previewItem->product_name }}</h3>
+                        <p class="text-[10px] text-gray-400 uppercase tracking-tighter">Konfigurations-Vorschau</p>
+                    </div>
+                    {{-- Schließen Button (Optional, da Auswahl links reicht) --}}
+                    <button wire:click="$set('{{ $isOrder ? 'selectedOrderItemId' : 'selectedQuoteItemId' }}', null)" class="lg:hidden text-gray-400 p-2">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                {{-- Digitales Siegel (Nur bei Orders) --}}
+                @if($isOrder && $previewItem->config_fingerprint)
+                    <div class="mt-4 mx-4 md:mx-6 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
+                        <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                        <div class="text-[10px] text-green-800 leading-tight">
+                            <p class="font-bold uppercase">Digital versiegelt</p>
+                            <p class="mt-0.5 text-green-700 opacity-80">Konfiguration wurde fixiert: <span class="font-mono">{{ substr($previewItem->config_fingerprint, 0, 8) }}...</span></p>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- Configurator Component --}}
+                <div class="relative flex-1 bg-gray-50/50 flex flex-col">
+                    @if($previewItem->product)
+                        <div class="flex-1">
+                            <livewire:shop.configurator.configurator
+                                :product="$previewItem->product->id"
+                                :initialData="$previewItem->configuration"
+                                :qty="$previewItem->quantity"
+                                context="preview"
+                                :key="'preview-'.$previewItem->id"
+                            />
+                        </div>
+                    @else
+                        <div class="p-12 text-center">
+                            <div class="text-red-500 font-bold">Produkt nicht mehr verfügbar.</div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @else
+            <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
+                <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 text-gray-400">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                </div>
+                <p class="font-medium text-gray-500">Klicke eine Position an,</p>
+                <p class="text-sm text-gray-400">um das Design im Konfigurator zu prüfen.</p>
+            </div>
+        @endif
+    </div>
+</div>

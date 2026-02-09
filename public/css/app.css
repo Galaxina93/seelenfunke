@@ -4294,6 +4294,10 @@ video {
   .md\:col-span-full {
     grid-column: 1 / -1;
   }
+  .md\:mx-6 {
+    margin-left: 1.5rem;
+    margin-right: 1.5rem;
+  }
   .md\:mb-0 {
     margin-bottom: 0px;
   }
