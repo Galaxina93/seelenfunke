@@ -89,7 +89,11 @@ class QuoteRequests extends Component
         $this->selectedQuoteItemId = null;
     }
 
-    public function convertToOrder($quoteId)
+    /**
+     * Neue Signatur: Wir übergeben den gewünschten Typ direkt beim Klick.
+     * $type kann sein: 'invoice' oder 'stripe_link'
+     */
+    public function convertToOrder($quoteId, $type = 'invoice')
     {
         $quote = QuoteRequest::with('items')->find($quoteId);
 
@@ -126,6 +130,9 @@ class QuoteRequests extends Component
         // ---------------------------------------------------------
         // 2. ORDER ERSTELLEN
         // ---------------------------------------------------------
+        // Wir speichern in der DB, was gewählt wurde
+        $methodDbString = ($type === 'stripe_link') ? 'stripe_link' : 'invoice';
+
         $order = Order::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
             'customer_id' => $customer->id,
@@ -134,7 +141,7 @@ class QuoteRequests extends Component
             'payment_status' => 'unpaid',
 
             // Wir setzen 'stripe_link', damit wir wissen: Hier wurde ein Link gesendet
-            'payment_method' => 'stripe_link',
+            'payment_method' => $methodDbString, // <--- Hier setzen wir den Typ
 
             // WICHTIG: Express Daten & Versandkosten übernehmen!
             'is_express' => $quote->is_express,

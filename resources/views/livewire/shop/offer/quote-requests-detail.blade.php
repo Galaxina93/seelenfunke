@@ -24,15 +24,29 @@
         {{-- ACTIONS: Volle Breite auf Mobilgeräten --}}
         <div class="flex gap-2 w-full sm:w-auto justify-end">
             @if($quote->status === 'open')
-                <button wire:click="markAsRejected('{{ $quote->id }}')" class="flex-1 sm:flex-none px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-xs font-bold transition">
+                {{-- ABLEHNEN BUTTON --}}
+                <button wire:click="markAsRejected('{{ $quote->id }}')"
+                        wire:confirm="Möchtest du diese Anfrage wirklich ablehnen?"
+                        class="flex-1 sm:flex-none px-3 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-xs font-bold transition">
                     Ablehnen
                 </button>
-                <button wire:click="convertToOrder('{{ $quote->id }}')"
-                        wire:confirm="Soll diese Anfrage wirklich in eine Bestellung umgewandelt werden?"
-                        class="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    Annehmen
+
+                {{-- [NEU] OPTION 1: RECHNUNG --}}
+                <button wire:click="convertToOrder('{{ $quote->id }}', 'invoice')"
+                        wire:loading.attr="disabled"
+                        class="flex-1 sm:flex-none px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Rechnung
                 </button>
+
+                {{-- [NEU] OPTION 2: ONLINE ZAHLUNG --}}
+                <button wire:click="convertToOrder('{{ $quote->id }}', 'stripe_link')"
+                        wire:loading.attr="disabled"
+                        class="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-bold shadow-sm transition flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    Zahlungslink
+                </button>
+
             @elseif($quote->status === 'converted' || $quote->status === 'accepted')
                 <div class="w-full sm:w-auto text-center flex items-center justify-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-lg border border-green-200 text-xs font-bold">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
