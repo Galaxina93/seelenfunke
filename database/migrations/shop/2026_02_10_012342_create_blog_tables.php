@@ -21,7 +21,7 @@ return new class extends Migration
         // Artikel
         Schema::create('blog_posts', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('user_id')->constrained()->onDelete('cascade'); // Author
+            $table->foreignUuid('user_id')->constrained('admins')->onDelete('cascade');// Author
             $table->foreignUuid('blog_category_id')->nullable()->constrained('blog_categories')->nullOnDelete();
 
             // Inhalt
