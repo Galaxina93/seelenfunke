@@ -1,59 +1,21 @@
 <x-layouts.guest>
-    <section class="dark:bg-gray-900 min-h-screen flex items-center justify-center px-4 py-8">
-        <div class="w-full max-w-xl">
+    <section class="dark:bg-gray-900 min-h-screen flex flex-col items-center justify-center px-4 py-8">
 
-            {{-- Logo --}}
-            <a href="/" class="flex justify-center mb-8">
-                <img class="h-56" src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="mein-seelenfunke">
-            </a>
+        {{-- Logo --}}
+        <a href="/" class="flex justify-center mb-8 hover:opacity-90 transition-opacity">
+            <img class="h-56 object-contain" src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="mein-seelenfunke">
+        </a>
 
-            {{-- Login Card --}}
-            <div
-                x-data="{
-                    tabs: ['customer', 'employee', 'admin'],
-                    labels: { customer: 'Kunde', employee: 'Mitarbeiter', admin: 'Admin' },
-                    selected: 'customer'
-                }"
-                class="bg-white dark:bg-gray-800 shadow rounded-lg p-6"
-            >
-
-                {{-- Tab Buttons --}}
-                <div class="relative flex rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden mb-6">
-                    <template x-for="tab in tabs" :key="tab">
-                        <button
-                            @click="selected = tab"
-                            type="button"
-                            class="w-1/3 py-2 text-sm font-medium transition"
-                            :class="{
-                                'bg-primary text-white': selected === tab,
-                                'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600': selected !== tab
-                            }"
-                            x-text="labels[tab]"
-                        ></button>
-                    </template>
-                </div>
-
-                {{-- Tab Content --}}
-                <div>
-                    <template x-if="selected === 'admin'">
-                        <div>
-                            @livewire('global.auth.login', ['guard' => 'admin'])
-                        </div>
-                    </template>
-
-                    <template x-if="selected === 'employee'">
-                        <div>
-                            @livewire('global.auth.login', ['guard' => 'employee'])
-                        </div>
-                    </template>
-
-                    <template x-if="selected === 'customer'">
-                        <div>
-                            @livewire('global.auth.login', ['guard' => 'customer'])
-                        </div>
-                    </template>
-                </div>
-            </div>
+        {{-- Login Component --}}
+        {{--
+            Wir binden die Komponente nur einmal ein.
+            Die Komponente selbst bringt das Design (weiße Box, Schatten) mit.
+            Der Parameter 'guard' ist hier nicht mehr zwingend nötig, da der Controller
+            das dynamisch macht, aber wir können 'customer' als Default lassen.
+        --}}
+        <div class="w-full max-w-md">
+            @livewire('global.auth.login')
         </div>
+
     </section>
 </x-layouts.guest>

@@ -3,103 +3,188 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Session as SessionModel; // Alias um Namenskonflikte zu vermeiden
+use App\Models\Session as SessionModel;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use App\Models\User; // Dein Haupt-User Model für die Helper Funktion
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use App\Models\User;
+use App\Models\Customer;
+use Intervention\Image\Facades\Image;
+use Illuminate\Support\Facades\Storage;
 
 class GoogleAuthController extends Controller
 {
-    // 1. Weiterleitung zu Google
     public function redirectToGoogle($guard)
     {
-        // Wir speichern den Guard in der Session, damit wir ihn beim Callback noch kennen
         Session::put('auth_guard', $guard);
-
+        Session::save();
         return Socialite::driver('google')->redirect();
     }
 
-    // 2. Rückkehr von Google
     public function handleGoogleCallback()
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
+            // Google User abrufen (stateless)
+            $googleUser = Socialite::driver('google')->stateless()->user();
 
-            // Welcher Guard war ausgewählt?
-            $guard = Session::get('auth_guard', 'customer'); // Fallback auf customer
+            $user = null;
+            $guard = null;
 
-            // Das richtige Model holen (Deine Logik aus dem Livewire Component)
-            $modelClass = (new User)->getUserModelByGuard($guard);
+            // ---------------------------------------------------------
+            // 1. INTELLIGENTE BENUTZER-ERKENNUNG
+            // Wir prüfen der Reihe nach: Admin -> Employee -> Customer
+            // ---------------------------------------------------------
 
-            // Benutzer suchen (per Google ID oder E-Mail)
-            $user = $modelClass::where('google_id', $googleUser->id)
+            // A) Check: Ist es ein Admin?
+            $admin = Admin::where('google_id', $googleUser->id)
                 ->orWhere('email', $googleUser->email)
                 ->first();
 
-            if ($user) {
-                // Google ID speichern, falls noch nicht vorhanden (Account Linking)
-                if (!$user->google_id) {
-                    $user->update(['google_id' => $googleUser->id]);
-                }
-
-                // Einloggen
-                Auth::guard($guard)->login($user);
-
-                // Permissions in Session laden (Deine Logik)
-                $permissions = [];
-                if(method_exists($user, 'roles')) { // Sicherheitscheck
-                    foreach ($user->roles as $role) {
-                        foreach ($role->permissions as $permission) {
-                            $permissions[$permission->name] = $permission->name;
-                        }
-                    }
-                }
-                session(["permissions" => $permissions]);
-
-                // Browser Session Logik (Kopie aus deiner Livewire Component)
-                $this->setBrowserSession($user);
-
-                return redirect()->route($guard . '.dashboard');
-            } else {
-                return redirect()->route('login')->with('error', 'Kein Benutzerkonto mit dieser E-Mail gefunden.');
+            if ($admin) {
+                $user = $admin;
+                $guard = 'admin';
             }
 
+            // B) Check: Ist es ein Mitarbeiter? (Nur wenn kein Admin gefunden)
+            if (!$user) {
+                $employee = Employee::where('google_id', $googleUser->id)
+                    ->orWhere('email', $googleUser->email)
+                    ->first();
+
+                if ($employee) {
+                    $user = $employee;
+                    $guard = 'employee';
+                }
+            }
+
+            // C) Check: Ist es ein Kunde? (Nur wenn bisher nichts gefunden)
+            if (!$user) {
+                $customer = Customer::where('google_id', $googleUser->id)
+                    ->orWhere('email', $googleUser->email)
+                    ->first();
+
+                if ($customer) {
+                    $user = $customer;
+                    $guard = 'customer';
+                }
+            }
+
+            // ---------------------------------------------------------
+            // 2. NEU-REGISTRIERUNG (NUR KUNDE)
+            // ---------------------------------------------------------
+
+            // Wenn gar kein User gefunden wurde -> Neuen Kunden anlegen
+            if (!$user) {
+                $guard = 'customer'; // Default für neue User
+
+                // Wir müssen Vor- und Nachnamen trennen
+                $nameParts = explode(' ', $googleUser->name, 2);
+                $firstName = $nameParts[0] ?? 'Kunde';
+                $lastName = $nameParts[1] ?? '';
+
+                // Neuen Kunden anlegen
+                $user = Customer::create([
+                    'email' => $googleUser->email,
+                    'first_name' => $googleUser->user['given_name'] ?? $firstName,
+                    'last_name' => $googleUser->user['family_name'] ?? $lastName,
+                    'password' => Hash::make(Str::random(24)), // Zufälliges, starkes Passwort
+                    'google_id' => $googleUser->id,
+                ]);
+
+                // WICHTIG: Model neu laden für Relationen
+                $user->refresh();
+
+                Log::info('Neuer Kunde via Google registriert: ' . $googleUser->email);
+            }
+
+            // ---------------------------------------------------------
+            // 3. DATEN AKTUALISIEREN & LOGIK
+            // ---------------------------------------------------------
+
+            // Google ID nachtragen, falls sie fehlte (Account Linking)
+            if (!$user->google_id) {
+                $user->update(['google_id' => $googleUser->id]);
+            }
+
+            // PROFILBILD LOGIK
+            $avatarUrl = $googleUser->avatar_original ?? $googleUser->avatar;
+
+            // Zugriff auf Profil prüfen
+            if ($avatarUrl && $user->profile && empty($user->profile->photo_path)) {
+                try {
+                    $fileContents = @file_get_contents($avatarUrl);
+
+                    if ($fileContents) {
+                        $image = Image::make($fileContents)->fit(400, 400);
+                        $filename = Str::random(40) . '.jpg';
+
+                        // Pfad dynamisch mit dem ermittelten $guard
+                        $photoPath = 'public/user/' . $guard . '/' . $user->id . '/profile-photo/' . $filename;
+
+                        Storage::put($photoPath, (string) $image->encode('jpg', 90));
+
+                        $user->profile->update([
+                            'photo_path' => $photoPath
+                        ]);
+
+                        Log::info('Google Profilbild für User ' . $user->id . ' (' . $guard . ') gespeichert.');
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Fehler beim Laden des Google Profilbilds: ' . $e->getMessage());
+                }
+            }
+
+            // ---------------------------------------------------------
+            // 4. LOGIN DURCHFÜHREN
+            // ---------------------------------------------------------
+
+            Auth::guard($guard)->login($user, true);
+
+            // Permissions laden
+            $permissions = [];
+            if(method_exists($user, 'roles')) {
+                foreach ($user->roles as $role) {
+                    foreach ($role->permissions as $permission) {
+                        $permissions[$permission->name] = $permission->name;
+                    }
+                }
+            }
+            session(["permissions" => $permissions]);
+
+            // Browser Session speichern
+            $this->setBrowserSession($user);
+
+            // Redirect zum Dashboard des ermittelten Guards
+            return redirect()->route($guard . '.dashboard');
+
         } catch (\Exception $e) {
-            return redirect()->route('login')->with('error', 'Login mit Google fehlgeschlagen: ' . $e->getMessage());
+            Log::error('Google Login Error: ' . $e->getMessage());
+            return redirect()->route('login')->with('error', 'Login fehlgeschlagen. Bitte versuche es erneut.');
         }
     }
 
-    // Hilfsfunktion: Browser Session (1:1 Kopie aus deinem Livewire Code)
     protected function setBrowserSession($user)
     {
         $sessionId = Session::getId();
         $payload = base64_encode(serialize(Session::all()));
-        list($shortenedUserAgent, $deviceType) = $this->getShortenedUserAgent(request()->userAgent());
 
+        // Einfache User Agent Erkennung
         $sessionData = [
             'id' => $sessionId,
             'user_id' => $user->id,
             'ip_address' => request()->ip(),
-            'user_agent' => $shortenedUserAgent,
+            'user_agent' => substr(request()->userAgent(), 0, 255),
             'payload' => $payload,
-            'device_type' => $deviceType,
+            'device_type' => 'Desktop',
             'last_activity' => time(),
         ];
 
-        // Beachte: Hier muss das Model passen. Wenn SessionModel polymorph ist,
-        // musst du evtl. auch 'user_type' speichern, da IDs über Tabellen hinweg doppelt sein können.
-        // Für dieses Beispiel nutze ich deine Logik:
         SessionModel::updateOrInsert(
             ['user_id' => $user->id, 'ip_address' => request()->ip()],
             $sessionData
         );
-    }
-
-    protected function getShortenedUserAgent($userAgent): array
-    {
-        // (Hier deine exakte getShortenedUserAgent Funktion aus der Livewire Component einfügen)
-        // ... (Kürzung der Übersichtlichkeit halber) ...
-        return ['Browser', 'Desktop']; // Platzhalter, bitte deine Logik einfügen
     }
 }
