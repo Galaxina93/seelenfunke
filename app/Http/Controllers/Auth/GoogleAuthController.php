@@ -10,15 +10,20 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use App\Models\User;
-use App\Models\Customer;
 use Intervention\Image\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 
+// WICHTIG: Diese Zeilen haben gefehlt oder waren falsch:
+use App\Models\User;
+use App\Models\Customer;
+use App\Models\Admin;     // <--- Fix für deinen Fehler
+use App\Models\Employee;  // <--- Wird für Mitarbeiter benötigt
+
 class GoogleAuthController extends Controller
 {
-    public function redirectToGoogle($guard)
+    public function redirectToGoogle($guard = 'customer')
     {
+        // Guard speichern (wird aber durch intelligente Erkennung oft überschrieben)
         Session::put('auth_guard', $guard);
         Session::save();
         return Socialite::driver('google')->redirect();
@@ -39,6 +44,7 @@ class GoogleAuthController extends Controller
             // ---------------------------------------------------------
 
             // A) Check: Ist es ein Admin?
+            // Jetzt findet er die Klasse, da "use App\Models\Admin;" oben steht
             $admin = Admin::where('google_id', $googleUser->id)
                 ->orWhere('email', $googleUser->email)
                 ->first();
@@ -171,7 +177,6 @@ class GoogleAuthController extends Controller
         $sessionId = Session::getId();
         $payload = base64_encode(serialize(Session::all()));
 
-        // Einfache User Agent Erkennung
         $sessionData = [
             'id' => $sessionId,
             'user_id' => $user->id,
