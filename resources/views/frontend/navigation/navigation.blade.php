@@ -43,6 +43,11 @@
                             Shop
                         </a>
 
+                        <a href="{{ route('blog') }}"
+                           class="{{ Request::routeIs('blog') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
+                            Blog
+                        </a>
+
                         <a href="{{ route('contact') }}"
                            class="{{ Request::routeIs('contact') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
                             Kontakt

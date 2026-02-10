@@ -24,6 +24,7 @@
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
                     <x-forms.list-item route="/admin/newsletter" title="Newsletter" pageName="newsletter" icon="envelope" />
                     <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="ticket" />
+                    <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
                 </ul>
             </li>
 

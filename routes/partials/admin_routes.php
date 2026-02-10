@@ -58,6 +58,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.configuration');
     })->name('admin.configuration');
 
+    Route::get('/admin/blog', function () {
+        return view('backend.admin.pages.blog');
+    })->name('admin.blog');
+
 });
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {

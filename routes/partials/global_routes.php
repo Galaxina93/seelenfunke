@@ -11,6 +11,8 @@ use App\Livewire\Shop\Product\ProductShow;
 use App\Models\PageVisit;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Route;
+use App\Livewire\Shop\Blog\BlogFrontendIndex;
+use App\Livewire\Shop\Blog\BlogFrontendShow;
 
 /*
 |--------------------------------------------------------------------------
@@ -22,7 +24,6 @@ use Illuminate\Support\Facades\Route;
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
 
-Route::get('/shop', ProductIndex::class)->name('shop');
 // Wichtig: {product:slug} sagt Laravel, es soll in der Spalte 'slug' suchen, nicht 'id'
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
 
@@ -79,6 +80,13 @@ Route::get('/manufaktur', function () {
     return view('frontend.pages.manufacture');
 })->name('manufacture');
 
+Route::get('/shop', ProductIndex::class)->name('shop');
+
+Route::get('/blog', BlogFrontendIndex::class)->name('blog');
+
+// Blog Einzelansicht (muss nach der Übersicht kommen, damit "magazin" nicht als Slug interpretiert wird)
+Route::get('/blog/{slug}', BlogFrontendShow::class)->name('blog.show');
+
 // Kontakt
 Route::get('/kontakt', function () {
     return view('frontend.pages.contact');
@@ -124,6 +132,7 @@ Route::get('/barrierefreiheit', function () {
 
 // Redirects für alte/falsche Links
 Route::redirect('/datenschutzerklaerung', '/datenschutz');
+
 
 
 
