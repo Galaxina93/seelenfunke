@@ -27,7 +27,7 @@
                 @if ($activeView === 'login')
                     <div class="flex justify-center mb-6">
                         <h1 class="font-bold text-2xl text-gray-800">
-                            Willkommen zurück
+                            Willkommen!
                         </h1>
                     </div>
                     <form wire:submit.prevent="login" novalidate class="space-y-6">

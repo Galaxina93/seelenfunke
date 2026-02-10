@@ -67,7 +67,7 @@
         @else
             {{-- STATUS: AUSGELOGGT --}}
             <div class="px-4 py-3 text-center">
-                <p class="text-sm font-medium text-gray-900 mb-1">Willkommen zurück</p>
+                <p class="text-sm font-medium text-gray-900 mb-1">Willkommen!</p>
                 <p class="text-xs text-gray-500 mb-3">Melde dich an, um auf dein Konto zuzugreifen.</p>
 
                 <a href="{{ route('login') }}" class="block w-full bg-primary text-white py-2 rounded text-xs font-bold hover:bg-primary-dark transition text-center mb-2">
