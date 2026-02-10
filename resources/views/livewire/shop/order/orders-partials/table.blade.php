@@ -6,7 +6,7 @@
             'created_at' => ['label' => 'Datum / Ziel', 'sortable' => true],
             'customer' => ['label' => 'Kunde', 'sortable' => true],
             'total' => ['label' => 'Summe', 'align' => 'right', 'sortable' => true],
-            'payment' => ['label' => 'Zahlung', 'align' => 'center', 'sortable' => true],
+            'payment' => ['label' => 'Zahlung & Beleg', 'align' => 'center', 'sortable' => true], // Label angepasst
             'status' => ['label' => 'Status', 'align' => 'center', 'sortable' => true],
             'actions' => ['label' => 'Aktionen', 'align' => 'right']
         ];
@@ -104,14 +104,33 @@
                     {{ number_format($order->total_price / 100, 2, ',', '.') }} €
                 </td>
 
-                {{-- SPALTE 5: ZAHLUNG --}}
+                {{-- SPALTE 5: ZAHLUNG & RECHNUNG (NEU) --}}
                 <td class="px-6 py-4 text-center align-top">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $paymentColors[$order->payment_status] ?? 'bg-gray-100' }}">
-                        {{ $paymentMap[$order->payment_status] ?? $order->payment_status }}
-                    </span>
+                    <div class="flex flex-col items-center gap-2">
+                        {{-- Zahlungsstatus Badge --}}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $paymentColors[$order->payment_status] ?? 'bg-gray-100' }}">
+                            {{ $paymentMap[$order->payment_status] ?? $order->payment_status }}
+                        </span>
+
+                        {{-- [NEU] Rechnungs-Links --}}
+                        @if($order->invoices && $order->invoices->isNotEmpty())
+                            @foreach($order->invoices as $invoice)
+                                <a href="{{ route('invoice.download', $invoice->id) }}"
+                                   target="_blank"
+                                   wire:click.stop
+                                   class="text-[10px] text-gray-500 hover:text-primary flex items-center gap-1 transition-colors group/inv"
+                                   title="Rechnung herunterladen">
+                                    <svg class="w-3 h-3 text-gray-400 group-hover/inv:text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <span class="underline decoration-dotted">{{ $invoice->invoice_number }}</span>
+                                </a>
+                            @endforeach
+                        @endif
+                    </div>
                 </td>
 
-                {{-- SPALTE 6: STATUS (JETZT BEARBEITBAR) --}}
+                {{-- SPALTE 6: STATUS --}}
                 <td class="px-6 py-4 text-center align-top">
                     <div class="relative inline-block w-40">
                         <select
@@ -194,6 +213,21 @@
                         <div>
                             <div class="text-sm font-bold text-gray-900">{{ $order->customer_name }}</div>
                             <div class="text-[11px] text-gray-400">{{ $order->email }}</div>
+
+                            {{-- [NEU] Rechnung Mobil --}}
+                            @if($order->invoices && $order->invoices->isNotEmpty())
+                                <div class="mt-1 flex flex-wrap gap-2">
+                                    @foreach($order->invoices as $invoice)
+                                        <a href="{{ route('invoice.download', $invoice->id) }}"
+                                           target="_blank"
+                                           wire:click.stop
+                                           class="inline-flex items-center gap-1 text-[10px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-500 hover:text-primary hover:border-primary">
+                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            RE: {{ $invoice->invoice_number }}
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
                         <div class="text-right font-bold text-lg text-primary">
                             {{ number_format($order->total_price / 100, 2, ',', '.') }} €
