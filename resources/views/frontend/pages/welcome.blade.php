@@ -549,6 +549,9 @@
                     </div>
                 </div>
 
+                {{-- Customer Feedbacks --}}
+                @livewire('global.widgets.google-reviews')
+
                 <section class="bg-white overflow-hidden rounded-3xl mt-12 shadow-sm border border-gray-100">
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-gray-900">
 
