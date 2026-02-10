@@ -8,12 +8,15 @@
 
         <label for="photo">
             @if($user->profile->photo_path != null)
-                <img class="h-24 w-24 text-gray-300 rounded-full cursor-pointer"
-                     src="{{ Storage::url($user->profile->photo_path) }}"
+                {{-- WICHTIG: str_replace entfernt 'public/', damit der Link stimmt --}}
+                <img class="h-24 w-24 object-cover rounded-full cursor-pointer border border-gray-200"
+                     src="{{ Storage::url(str_replace('public/', '', $user->profile->photo_path)) }}"
+                     alt="{{ $user->first_name }}"
                      title="Klicken Sie hier, um das Foto zu ändern">
             @else
-                <img class="h-24 w-24 text-gray-300 rounded-full cursor-pointer"
-                     src="{{ URL::to('/images/profile.webp') }}"
+                <img class="h-24 w-24 object-cover rounded-full cursor-pointer border border-gray-200"
+                     src="{{ asset('images/profile.webp') }}" {{-- Besser asset() statt URL::to() --}}
+                     alt="Profilbild Platzhalter"
                      title="Klicken Sie hier, um das Foto zu ändern">
             @endif
         </label>

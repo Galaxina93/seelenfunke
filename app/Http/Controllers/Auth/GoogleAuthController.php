@@ -127,13 +127,16 @@ class GoogleAuthController extends Controller
                         $image = Image::make($fileContents)->fit(400, 400);
                         $filename = Str::random(40) . '.jpg';
 
-                        // Pfad dynamisch mit dem ermittelten $guard
-                        $photoPath = 'public/user/' . $guard . '/' . $user->id . '/profile-photo/' . $filename;
+                        // 1. Physischer Pfad (wohin gespeichert wird)
+                        // Wir nutzen den Disk 'public', der zeigt automatisch auf storage/app/public
+                        $folderPath = 'user/' . $guard . '/' . $user->id . '/profile-photo/';
 
-                        Storage::put($photoPath, (string) $image->encode('jpg', 90));
+                        // 2. Speichern über den 'public' Disk
+                        Storage::disk('public')->put($folderPath . $filename, (string) $image->encode('jpg', 90));
 
+                        // 3. In Datenbank speichern (OHNE 'public/' am Anfang, da wir den Disk nutzen)
                         $user->profile->update([
-                            'photo_path' => $photoPath
+                            'photo_path' => $folderPath . $filename
                         ]);
 
                         Log::info('Google Profilbild für User ' . $user->id . ' (' . $guard . ') gespeichert.');
