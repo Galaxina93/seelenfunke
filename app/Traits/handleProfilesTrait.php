@@ -30,22 +30,36 @@ trait handleProfilesTrait
 
         $photo = Image::make($this->photo)->fit(400, 400);
 
-        $photoPath = 'public/user/' . $this->guard . '/' . auth()->id() . '/profile-photo/' . strtolower($this->photo->hashName() );
+        // 1. Dateiname und Ordner definieren (OHNE 'public/' am Anfang)
+        $filename = strtolower($this->photo->hashName());
+        $folderPath = 'user/' . $this->guard . '/' . auth()->id() . '/profile-photo/';
+        $fullPath = $folderPath . $filename;
 
-        Storage::put($photoPath, (string) $photo->encode());
+        // 2. Physisch speichern: Wir nutzen explizit den Disk 'public'
+        // Das landet physisch in: storage/app/public/user/...
+        Storage::disk('public')->put($fullPath, (string) $photo->encode());
 
-        // Altes Bild löschen, falls vorhanden
+        // 3. Altes Bild löschen (falls vorhanden)
         if ($this->user->profile->photo_path) {
-            Storage::delete($this->user->profile->photo_path);
+            // Wichtig: Auch beim Löschen den Disk 'public' angeben, da der Pfad in der DB kein 'public/' mehr enthält
+            Storage::disk('public')->delete($this->user->profile->photo_path);
         }
 
-        $this->user->profile->photo_path = $photoPath;
+        // 4. In der DB speichern wir den Pfad OHNE 'public/'
+        // Damit funktioniert Storage::url() später korrekt
+        $this->user->profile->photo_path = $fullPath;
         $this->user->profile->save();
+
+        // Reset Input
+        $this->photo = null;
     }
+
     public function deleteUserProfilePhoto(): void
     {
         if ($this->user->profile->photo_path) {
-            Storage::delete($this->user->profile->photo_path);
+            // Löschen auf dem Disk 'public'
+            Storage::disk('public')->delete($this->user->profile->photo_path);
+
             $this->user->profile->photo_path = null;
             $this->user->profile->save();
         }
