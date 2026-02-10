@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\NewsletterController;
 use App\Livewire\Shop\Cart\Cart;
 use App\Livewire\Shop\Checkout\Checkout;
@@ -42,6 +43,10 @@ Route::get('/angebot/{token}/annehmen', QuoteAcceptance::class)->name('quote.acc
 
 // Bezahlungen über Bezahllink zuordenen und Bestellung als bezahlt markieren
 Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle']);
+
+// Google Accounts
+Route::get('auth/{guard}/google', [GoogleAuthController::class, 'redirectToGoogle'])->name('auth.google');
+Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']);
 
 // --- 1. Hauptseiten ---
 

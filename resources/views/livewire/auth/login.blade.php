@@ -25,7 +25,6 @@
 
                 {{-- Login View --}}
                 @if ($activeView === 'login')
-
                     <div class="flex justify-center">
                         <h1 class="font-bold text-2xl">
                             @if($this->guard === "customer") Kunden-Login @endif
@@ -119,6 +118,29 @@
                             </button>
                         </div>
                     </form>
+
+                    <div class="mt-6">
+                        <div class="relative">
+                            <div class="absolute inset-0 flex items-center">
+                                <div class="w-full border-t border-gray-300"></div>
+                            </div>
+                            <div class="relative flex justify-center text-sm">
+                                <span class="px-2 bg-white text-gray-500">Oder weiter mit</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 grid grid-cols-1 gap-3">
+                            <a href="{{ route('auth.google', ['guard' => $guard]) }}"
+                               class="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Sign in with Google</span>
+                                <svg class="w-5 h-5" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.813 1.053 6.44 2.56l2.36-2.36c-2.32-2.16-5.44-4.187-8.8-4.187-7.227 0-13.067 5.84-13.067 13.067s5.84 13.067 13.067 13.067c3.773 0 6.64-1.227 8.547-3.2 1.96-1.96 2.56-4.933 2.56-7.547 0-.547-.053-1.08-.16-1.6H12.48z"></path>
+                                </svg>
+                                <span class="ml-2">Google</span>
+                            </a>
+                        </div>
+                    </div>
+
                 @endif
 
                 {{-- Two-Factor --}}

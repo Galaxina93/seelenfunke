@@ -20,6 +20,8 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('password');
 
+            $table->string('google_id')->nullable();
+
             $table->rememberToken();
             $table->softDeletes();
             $table->timestamps();
@@ -60,6 +62,8 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('password');
 
+            $table->string('google_id')->nullable();
+
             $table->rememberToken();
             $table->softDeletes();
             $table->timestamps();
@@ -99,6 +103,8 @@ return new class extends Migration
             $table->string('last_name');
             $table->string('email')->unique();
             $table->string('password');
+
+            $table->string('google_id')->nullable();
 
             $table->rememberToken();
             $table->softDeletes();
