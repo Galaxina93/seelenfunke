@@ -722,17 +722,19 @@
                         @php
                             $steps = [
                                 [
+                                    'video' => 'beratung',
                                     'image' => '/images/projekt/process/beratung.png',
                                     'title' => 'Auftrag & Design',
                                     'text' => 'Alles beginnt mit Ihrer Idee. Wir prüfen Ihre Daten oder erstellen gemeinsam ein Layout, das perfekt auf das Glas abgestimmt ist.'
                                 ],
                                 [
+                                    'video' => 'lasergravur',
                                     'image' => '/images/projekt/process/lasergravur.png',
                                     'title' => 'High-End Laser',
                                     'text' => 'Mit modernster Lasertechnologie wird Ihr Motiv dauerhaft und gestochen scharf in das Material eingearbeitet. Präzision im Mikrometerbereich.'
                                 ],
                                 [
-                                    'video' => '4_augen', // Nur der Dateiname ohne Endung für maximale Flexibilität
+                                    'video' => '4_augen',
                                     'image' => '/images/projekt/process/handveredelung.png',
                                     'title' => 'Veredelung & Check',
                                     'text' => 'Jedes Stück wird von Hand gereinigt, poliert und durchläuft unsere strenge 4-Augen-Qualitätsprüfung. Nur Makelloses verlässt das Haus.'
@@ -773,7 +775,7 @@
                                                 {{-- Falls du eine WebM Version hast (sehr empfohlen für Speed) --}}
                                                 <source src="{{ asset('images/projekt/process/' . $step['video'] . '.webm') }}" type="video/webm">
                                                 {{-- Fallback MP4 --}}
-                                                <source src="{{ asset('images/projekt/process/' . $step['video'] . '.mp4') }}" type="video/mp4">
+                                                {{--<source src="{{ asset('images/projekt/process/' . $step['video'] . '.mp4') }}" type="video/mp4">--}}
 
                                                 {{-- Fallback Image falls Video gar nicht geht --}}
                                                 <img src="{{ asset($step['image']) }}" alt="{{ $step['title'] }}">
