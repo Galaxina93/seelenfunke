@@ -15,7 +15,9 @@ class FinanceSpecialIssue extends Model
     protected $casts = [
         'execution_date' => 'date',
         'amount' => 'decimal:2',
-        'is_business' => 'boolean'
+        'is_business' => 'boolean',
+        'file_paths' => 'array',
+        'tax_rate' => 'integer'
     ];
 
     public function admin(): BelongsTo

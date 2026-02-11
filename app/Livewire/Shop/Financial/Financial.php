@@ -3,16 +3,17 @@
 namespace App\Livewire\Shop\Financial;
 
 use App\Models\Financial\FinanceCategory;
-use App\Models\Financial\FinanceCostItem;
 use App\Models\Financial\FinanceGroup;
+use App\Models\Financial\FinanceCostItem;
 use App\Models\Financial\FinanceSpecialIssue;
 use App\Services\FinancialService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Attributes\Rule;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\Attributes\Rule;
 
 class Financial extends Component
 {
@@ -28,6 +29,8 @@ class Financial extends Component
     public $showGroupsSection = false;
     public $showYearlySection = false;
 
+    public $showCategoryManagement = false;
+    public $showSpecialList = false; // Toggle für die Liste der Sonderausgaben
     public $specialSearch = '';
 
     // Chart Filter
@@ -79,7 +82,15 @@ class Financial extends Component
     public $specialLocation = '';
     public $specialIsBusiness = false;
 
-    // Inline Editing Special
+    // NEU: Business Felder
+    public $specialTaxRate = 19;
+    public $specialInvoiceNumber = '';
+
+    // NEU: Uploads (Array für mehrere)
+    #[Rule(['specialFiles.*' => 'max:10240'])]
+    public $specialFiles = [];
+
+    // Edit State Special
     public ?string $editingSpecialId = null;
     public $editSpecialTitle;
     public $editSpecialCategory;
@@ -87,6 +98,10 @@ class Financial extends Component
     public $editSpecialDate;
     public $editSpecialLocation;
     public $editSpecialIsBusiness;
+    public $editSpecialTaxRate;
+    public $editSpecialInvoiceNumber;
+    public $editSpecialFiles = []; // Bestehende Dateien (Pfade)
+    public $newEditFiles = []; // Neue Uploads beim Bearbeiten
 
     // Category Management
     public $newCategoryName = '';
@@ -128,6 +143,13 @@ class Financial extends Component
             $this->dateTo = Carbon::now()->endOfYear()->format('Y-m-d');
         }
         // Custom behält die Werte bei
+    }
+
+    // --- Actions: Export ---
+    public function downloadTaxExport(FinancialService $service)
+    {
+        $path = $service->generateTaxExport($this->getAdminId(), $this->selectedMonth, $this->selectedYear);
+        return response()->download($path)->deleteFileAfterSend(true);
     }
 
     public function updatedSpecialSearch()
@@ -288,7 +310,6 @@ class Financial extends Component
 
     public function saveItem()
     {
-        // FIX: Nur die Felder für Kostenstellen validieren!
         $this->validate([
             'itemName' => 'required',
             'itemAmount' => 'required|numeric',
@@ -361,7 +382,6 @@ class Financial extends Component
 
     public function createSpecial()
     {
-        // FIX: Nur die Felder für Sonderausgaben validieren!
         $this->validate([
             'specialTitle' => 'required',
             'specialAmount' => 'required|numeric',
@@ -372,6 +392,14 @@ class Financial extends Component
             'specialDate.required' => 'Bitte wählen Sie ein Datum.',
         ]);
 
+        // Upload Handling
+        $filePaths = [];
+        if (!empty($this->specialFiles)) {
+            foreach ($this->specialFiles as $file) {
+                $filePaths[] = $file->store('financial_docs/' . date('Y/m'), 'public');
+            }
+        }
+
         FinanceSpecialIssue::create([
             'admin_id' => $this->getAdminId(),
             'title' => $this->specialTitle,
@@ -380,11 +408,15 @@ class Financial extends Component
             'location' => $this->specialLocation,
             'category' => $this->specialCategory,
             'is_business' => $this->specialIsBusiness,
+            'tax_rate' => $this->specialIsBusiness ? $this->specialTaxRate : null,
+            'invoice_number' => $this->specialIsBusiness ? $this->specialInvoiceNumber : null,
+            'file_paths' => $filePaths
         ]);
 
         $this->trackCategoryUsage($this->specialCategory);
-        $this->reset(['specialTitle', 'specialAmount', 'specialLocation', 'specialCategory', 'specialIsBusiness']);
+        $this->reset(['specialTitle', 'specialAmount', 'specialLocation', 'specialCategory', 'specialIsBusiness', 'specialFiles', 'specialInvoiceNumber', 'specialTaxRate']);
         $this->specialDate = date('Y-m-d');
+        $this->specialTaxRate = 19;
 
         session()->flash('success', 'Sonderausgabe erstellt.');
     }
@@ -399,12 +431,16 @@ class Financial extends Component
         $this->editSpecialLocation = $special->location;
         $this->editSpecialCategory = $special->category;
         $this->editSpecialIsBusiness = (bool) $special->is_business;
+        $this->editSpecialTaxRate = $special->tax_rate;
+        $this->editSpecialInvoiceNumber = $special->invoice_number;
+        $this->editSpecialFiles = $special->file_paths ?? []; // Bestehende Pfade
+        $this->newEditFiles = [];
     }
 
     public function cancelEditSpecial()
     {
         $this->editingSpecialId = null;
-        $this->reset(['editSpecialTitle', 'editSpecialAmount', 'editSpecialDate', 'editSpecialLocation', 'editSpecialCategory', 'editSpecialIsBusiness']);
+        $this->reset(['editSpecialTitle', 'editSpecialAmount', 'editSpecialDate', 'editSpecialLocation', 'editSpecialCategory', 'editSpecialIsBusiness', 'editSpecialTaxRate', 'editSpecialInvoiceNumber', 'editSpecialFiles', 'newEditFiles']);
     }
 
     public function updateSpecial($id)
@@ -416,6 +452,14 @@ class Financial extends Component
 
         $special = FinanceSpecialIssue::where('id', $id)->where('admin_id', $this->getAdminId())->firstOrFail();
 
+        // Files mergen
+        $currentFiles = $this->editSpecialFiles;
+        if (!empty($this->newEditFiles)) {
+            foreach ($this->newEditFiles as $file) {
+                $currentFiles[] = $file->store('financial_docs/' . date('Y/m'), 'public');
+            }
+        }
+
         $special->update([
             'title' => $this->editSpecialTitle,
             'amount' => $this->editSpecialAmount,
@@ -423,11 +467,23 @@ class Financial extends Component
             'location' => $this->editSpecialLocation,
             'category' => $this->editSpecialCategory,
             'is_business' => $this->editSpecialIsBusiness,
+            'tax_rate' => $this->editSpecialIsBusiness ? $this->editSpecialTaxRate : null,
+            'invoice_number' => $this->editSpecialIsBusiness ? $this->editSpecialInvoiceNumber : null,
+            'file_paths' => $currentFiles
         ]);
 
         $this->trackCategoryUsage($this->editSpecialCategory);
         $this->cancelEditSpecial();
         session()->flash('success', 'Sonderausgabe aktualisiert.');
+    }
+
+    public function removeFileFromSpecial($index)
+    {
+        if (isset($this->editSpecialFiles[$index])) {
+            // Optional: Datei löschen. Hier nur aus Array entfernen.
+            unset($this->editSpecialFiles[$index]);
+            $this->editSpecialFiles = array_values($this->editSpecialFiles); // Re-index
+        }
     }
 
     public function deleteSpecial($id)
@@ -442,7 +498,6 @@ class Financial extends Component
     {
         $adminId = $this->getAdminId();
 
-        // Statistiken basieren weiterhin auf dem ausgewählten Monat/Jahr
         $stats = $service->getMonthlyStats($adminId, $this->selectedMonth, $this->selectedYear);
         $matrix = $service->getYearlyMatrix($adminId, $this->selectedYear);
 
@@ -462,7 +517,7 @@ class Financial extends Component
             });
         }
 
-        $specials = $specialsQuery->orderBy('execution_date', 'desc')->paginate(5);
+        $specials = $specialsQuery->orderBy('execution_date', 'desc')->paginate(10);
 
         // Chart Data
         $pieData = $service->getPieChartData($adminId, $this->dateFrom, $this->dateTo);

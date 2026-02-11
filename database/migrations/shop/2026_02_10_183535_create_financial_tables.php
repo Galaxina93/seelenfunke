@@ -42,13 +42,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 3. Sonderausgaben (Variable Kosten)
+        // 3. Sonderausgaben (Erweitert)
         Schema::create('finance_special_issues', function (Blueprint $table) {
             $table->uuid('id')->primary();
-
-            // WICHTIG: Verknüpfung zur 'admins' Tabelle!
             $table->foreignUuid('admin_id')->constrained('admins')->onDelete('cascade');
-
             $table->string('title');
             $table->string('location')->nullable();
             $table->string('category')->nullable();
@@ -56,7 +53,13 @@ return new class extends Migration
             $table->date('execution_date');
             $table->text('note')->nullable();
 
-            $table->boolean('is_business')->default(false); // Neu: Gewerblich/Privat Trennung
+            // Business Felder
+            $table->boolean('is_business')->default(false);
+            $table->integer('tax_rate')->nullable(); // 0, 7, 19
+            $table->string('invoice_number')->nullable();
+
+            // Datei-Uploads (Mehrere Dateien möglich)
+            $table->json('file_paths')->nullable();
 
             $table->timestamps();
         });
