@@ -4,11 +4,11 @@ namespace App\Livewire\Shop\Calculator;
 
 use App\Mail\CalcMailToAdmin;
 use App\Mail\CalcMailToCustomer;
-use App\Models\Customer;
-use App\Models\Product;
-use App\Models\QuoteRequest;
-use App\Models\QuoteRequestItem;
-use App\Models\ShippingZone;
+use App\Models\Customer\Customer;
+use App\Models\Product\Product;
+use App\Models\Quote\QuoteRequest;
+use App\Models\Quote\QuoteRequestItem;
+use App\Models\Shipping\ShippingZone;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;

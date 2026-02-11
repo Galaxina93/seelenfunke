@@ -1,19 +1,20 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Customer;
 
-use Ramsey\Uuid\Uuid;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Ramsey\Uuid\Uuid;
 
-class EmployeeProfile extends Model
+class CustomerProfile extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, HasUuids, softDeletes;
 
     protected $fillable = [
         'id',
-        'employee_id',
+        'customer_id',
         'photo_path',
         'about',
         'url',
@@ -30,8 +31,8 @@ class EmployeeProfile extends Model
         'last_seen'
     ];
 
-    public $incrementing = false;
-    protected $keyType = 'string';
+    public $incrementing = false; // Deaktivieren Sie das Inkrementieren des Primärschlüssels
+    protected $keyType = 'string'; // Setzen Sie den Primärschlüsseltyp auf 'string'
 
     protected static function boot()
     {
@@ -42,6 +43,11 @@ class EmployeeProfile extends Model
         });
     }
 
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
     protected $hidden = [
         'password',
         'rememberToken',
@@ -49,8 +55,9 @@ class EmployeeProfile extends Model
         'two_factor_secret',
     ];
 
-    public function employee(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function customer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(Employee::class);
+        return $this->belongsTo(Customer::class);
     }
+
 }

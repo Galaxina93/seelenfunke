@@ -3,10 +3,10 @@
 namespace App\Livewire\Shop\Offer;
 
 use App\Mail\OrderMailToCustomer;
-use App\Models\Customer;
-use App\Models\Order;
-use App\Models\QuoteRequest;
-use App\Models\QuoteRequestItem;
+use App\Models\Customer\Customer;
+use App\Models\Order\Order;
+use App\Models\Quote\QuoteRequest;
+use App\Models\Quote\QuoteRequestItem;
 use App\Services\InvoiceService;
 use App\Services\NativeXmlInvoiceService;
 use Illuminate\Support\Facades\Hash;
@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Stripe\Stripe;
 use Stripe\Checkout\Session as StripeSession;
+use Stripe\Stripe;
 
 class QuoteRequests extends Component
 {

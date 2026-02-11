@@ -3,14 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Mail\PaymentReceivedMail;
-use App\Models\Order;
 use App\Models\Invoice;
+use App\Models\Order\Order;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Stripe\Webhook;
 use Stripe\Exception\SignatureVerificationException;
+use Stripe\Webhook;
 
 class StripeWebhookController extends Controller
 {

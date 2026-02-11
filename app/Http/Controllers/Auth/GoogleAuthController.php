@@ -3,21 +3,22 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Admin\Admin;
+use App\Models\Customer\Customer;
+use App\Models\Employee\Employee;
 use App\Models\Session as SessionModel;
-use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Facades\Image;
-use Illuminate\Support\Facades\Storage;
+use Laravel\Socialite\Facades\Socialite;
 
 // WICHTIG: Diese Zeilen haben gefehlt oder waren falsch:
-use App\Models\User;
-use App\Models\Customer;
-use App\Models\Admin;     // <--- Fix für deinen Fehler
-use App\Models\Employee;  // <--- Wird für Mitarbeiter benötigt
+// <--- Fix für deinen Fehler
+// <--- Wird für Mitarbeiter benötigt
 
 class GoogleAuthController extends Controller
 {

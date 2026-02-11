@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Product;
 
-use App\Models\Product;
+use App\Models\Product\Product;
 use Livewire\Component;
 
 class ProductShipping extends Component

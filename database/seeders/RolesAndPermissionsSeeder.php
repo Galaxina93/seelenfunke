@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\Admin;
-use App\Models\Customer;
-use App\Models\Employee;
-use App\Models\Role;
+use App\Models\Admin\Admin;
+use App\Models\Customer\Customer;
+use App\Models\Employee\Employee;
 use App\Models\Permission;
+use App\Models\Role;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 

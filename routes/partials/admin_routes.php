@@ -54,6 +54,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.shipping');
     })->name('admin.shipping');
 
+    Route::get('/admin/financial', function () {
+        return view('backend.admin.pages.financial');
+    })->name('admin.financial');
+
     Route::get('/admin/configuration', function () {
         return view('backend.admin.pages.configuration');
     })->name('admin.configuration');

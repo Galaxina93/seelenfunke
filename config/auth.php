@@ -78,15 +78,15 @@ return [
         ],
         'admins' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Admin::class,
+            'model' => \App\Models\Admin\Admin::class,
         ],
         'customers' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Customer::class,
+            'model' => \App\Models\Customer\Customer::class,
         ],
         'employees' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Employee::class,
+            'model' => \App\Models\Employee\Employee::class,
         ],
         // 'users' => [
         //     'driver' => 'database',

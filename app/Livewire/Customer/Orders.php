@@ -2,13 +2,16 @@
 
 namespace App\Livewire\Customer;
 
-use App\Models\Order;
-use App\Models\OrderItem; // Import für die Vorschau-Logik
+use App\Models\Order\Order;
+use App\Models\Order\OrderItem;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Computed; // Für die previewItem Property
+
+// Import für die Vorschau-Logik
+// Für die previewItem Property
 
 class Orders extends Component
 {

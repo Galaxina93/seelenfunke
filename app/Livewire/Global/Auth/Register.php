@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Global\Auth;
 
-use App\Models\Customer;
-use App\Models\CustomerProfile;
+use App\Models\Customer\Customer;
+use App\Models\Customer\CustomerProfile;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
 

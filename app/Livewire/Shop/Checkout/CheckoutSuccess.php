@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Shop\Checkout;
 
-use App\Models\Cart;
-use App\Models\Order;
-use App\Models\QuoteRequest;
+use App\Models\Cart\Cart;
+use App\Models\Order\Order;
+use App\Models\Quote\QuoteRequest;
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;

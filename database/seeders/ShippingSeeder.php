@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\ShippingRate;
-use App\Models\ShippingZone;
-use App\Models\ShippingZoneCountry;
+use App\Models\Shipping\ShippingRate;
+use App\Models\Shipping\ShippingZone;
+use App\Models\Shipping\ShippingZoneCountry;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 

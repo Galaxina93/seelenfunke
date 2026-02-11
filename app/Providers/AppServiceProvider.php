@@ -25,9 +25,9 @@ class AppServiceProvider extends ServiceProvider
 
         // 2. Füge die Morph Map hinzu
         Relation::enforceMorphMap([
-            'admin'    => 'App\Models\Admin',
-            'customer' => 'App\Models\Customer',
-            'employee' => 'App\Models\Employee',
+            'admin'    => 'App\Models\Admin\Admin',
+            'customer' => 'App\Models\Customer\Customer',
+            'employee' => 'App\Models\Employee\Employee',
             'permission' => 'App\Models\Permission',
             'directory' => 'App\Models\Directory',
             'role' => 'App\Models\Role',

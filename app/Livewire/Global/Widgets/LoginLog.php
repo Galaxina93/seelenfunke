@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Global\Widgets;
 
-use App\Models\Admin;
-use App\Models\Customer;
-use App\Models\Employee;
+use App\Models\Admin\Admin;
+use App\Models\Customer\Customer;
+use App\Models\Employee\Employee;
 use Livewire\Component;
 
 class LoginLog extends Component

@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Shop\Invoice;
 
-use App\Models\Customer;
+use App\Models\Customer\Customer;
 use App\Models\Invoice;
-use App\Models\Order;
+use App\Models\Order\Order;
 use App\Services\EInvoiceService;
 use App\Services\InvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;

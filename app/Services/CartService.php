@@ -2,11 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\Cart;
-use App\Models\CartItem;
-use App\Models\Product;
+use App\Models\Cart\Cart;
+use App\Models\Cart\CartItem;
 use App\Models\Coupon;
-use App\Models\ShippingZone;
+use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 
@@ -365,13 +364,13 @@ class CartService
         $globalDefaultCost = (int) shop_setting('shipping_cost', 490);
 
         // 1. Zone finden (DE oder Ausland)
-        $zone = \App\Models\ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
+        $zone = \App\Models\Shipping\ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
 
         // Fallback "Weltweit"
         if (!$zone) {
-            $zone = \App\Models\ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            $zone = \App\Models\Shipping\ShippingZone::where('name', 'Weltweit')->with('rates')->first();
         }
 
         // Initialisierung der Status-Variablen für DE (Prioritäts-Logik)

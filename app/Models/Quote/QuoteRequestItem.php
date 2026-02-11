@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Quote;
 
+use App\Models\Product\Product;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Configurator;
 
-use App\Models\Product;
+use App\Models\Product\Product;
 use App\Services\CartService;
 use Illuminate\Support\Str;
 use Livewire\Component;

@@ -1,14 +1,15 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Employee;
 
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
-use Ramsey\Uuid\Uuid;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Role;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Ramsey\Uuid\Uuid;
 
 class Employee extends Model implements Authenticatable
 {

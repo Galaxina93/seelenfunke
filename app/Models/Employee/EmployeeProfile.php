@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Employee;
 
-use Ramsey\Uuid\Uuid;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Ramsey\Uuid\Uuid;
 
-class AdminProfile extends Model
+class EmployeeProfile extends Model
 {
-    use HasFactory, softDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'id',
-        'admin_id',
+        'employee_id',
         'photo_path',
         'about',
         'url',
@@ -30,9 +30,8 @@ class AdminProfile extends Model
         'last_seen'
     ];
 
-
-    public $incrementing = false; // Deaktivieren Sie das Inkrementieren des Primärschlüssels
-    protected $keyType = 'string'; // Setzen Sie den Primärschlüsseltyp auf 'string'
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected static function boot()
     {
@@ -43,11 +42,6 @@ class AdminProfile extends Model
         });
     }
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var array<int, string>
-     */
     protected $hidden = [
         'password',
         'rememberToken',
@@ -55,9 +49,8 @@ class AdminProfile extends Model
         'two_factor_secret',
     ];
 
-    public function admin(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function employee(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(Admin::class);
+        return $this->belongsTo(Employee::class);
     }
-
 }

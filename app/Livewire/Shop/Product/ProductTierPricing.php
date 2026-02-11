@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Shop\Product;
 
-use App\Models\Product;
-use App\Models\ProductTierPrice;
+use App\Models\Product\Product;
+use App\Models\Product\ProductTierPrice;
 use Livewire\Attributes\Reactive;
 use Livewire\Component;
 

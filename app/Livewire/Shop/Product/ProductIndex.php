@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Product;
 
-use App\Models\Product;
+use App\Models\Product\Product;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;

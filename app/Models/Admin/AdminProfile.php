@@ -1,20 +1,19 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Admin;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Ramsey\Uuid\Uuid;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Ramsey\Uuid\Uuid;
 
-class CustomerProfile extends Model
+class AdminProfile extends Model
 {
-    use HasFactory, HasUuids, softDeletes;
+    use HasFactory, softDeletes;
 
     protected $fillable = [
         'id',
-        'customer_id',
+        'admin_id',
         'photo_path',
         'about',
         'url',
@@ -30,6 +29,7 @@ class CustomerProfile extends Model
         'email_verified_at',
         'last_seen'
     ];
+
 
     public $incrementing = false; // Deaktivieren Sie das Inkrementieren des Primärschlüssels
     protected $keyType = 'string'; // Setzen Sie den Primärschlüsseltyp auf 'string'
@@ -55,9 +55,9 @@ class CustomerProfile extends Model
         'two_factor_secret',
     ];
 
-    public function customer(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function admin(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Admin::class);
     }
 
 }

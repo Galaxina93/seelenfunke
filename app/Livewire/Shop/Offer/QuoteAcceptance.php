@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Shop\Offer;
 
-use App\Models\QuoteRequest;
-use App\Models\ShippingZone;
+use App\Models\Quote\QuoteRequest;
+use App\Models\Shipping\ShippingZone;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;

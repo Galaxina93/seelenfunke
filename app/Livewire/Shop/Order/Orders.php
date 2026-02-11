@@ -3,8 +3,8 @@
 namespace App\Livewire\Shop\Order;
 
 use App\Mail\NewOrderShippedToCustomer;
-use App\Models\Order;
-use App\Models\OrderItem;
+use App\Models\Order\Order;
+use App\Models\Order\OrderItem;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use Livewire\WithPagination;

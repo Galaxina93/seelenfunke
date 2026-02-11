@@ -46,6 +46,9 @@
             {{-- Versand --}}
             <x-forms.list-item route="/admin/shipping" title="Versand & Logistik" pageName="shipping" icon="truck" />
 
+            {{-- Finanzmanager --}}
+            <x-forms.list-item route="/admin/financial-manager" title="Finanzmanager" pageName="financial-manager" icon="calculator" />
+
             {{-- Shop Einstellungen --}}
             <x-forms.list-item route="/admin/configuration" title="Einstellungen" pageName="configuration" icon="cog" />
 

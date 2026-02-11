@@ -1,13 +1,14 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Shipping;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-class ShippingRate extends Model
+class ShippingZoneCountry extends Model
 {
     use HasUuids;
 
     protected $guarded = [];
+    public $timestamps = false;
 }

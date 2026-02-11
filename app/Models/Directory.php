@@ -3,6 +3,9 @@
 // app/Models/Directory.php
 namespace App\Models;
 
+use App\Models\Admin\Admin;
+use App\Models\Customer\Customer;
+use App\Models\Employee\Employee;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Config;
 
-use App\Models\ShippingZoneCountry;
+use App\Models\Shipping\ShippingZoneCountry;
 use App\Models\ShopSetting;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Component;

@@ -17,7 +17,8 @@ class DatabaseSeeder extends Seeder
             ProductSeeder::class,
             ShippingSeeder::class,
             ShopSettingSeeder::class,
-            BlogCategorySeeder::class
+            BlogCategorySeeder::class,
+            FinancialSeeder::class
         ]);
 
     }

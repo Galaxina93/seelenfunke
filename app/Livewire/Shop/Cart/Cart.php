@@ -43,7 +43,7 @@ class Cart extends Component
     public function increment($itemId)
     {
         // Hole aktuelle Quantity
-        $item = \App\Models\CartItem::find($itemId);
+        $item = \App\Models\Cart\CartItem::find($itemId);
         if ($item) {
             $this->cartService->updateQuantity($itemId, $item->quantity + 1);
             $this->dispatch('cart-updated'); // Aktualisiert das Icon im Header
@@ -52,7 +52,7 @@ class Cart extends Component
 
     public function decrement($itemId)
     {
-        $item = \App\Models\CartItem::find($itemId);
+        $item = \App\Models\Cart\CartItem::find($itemId);
         if ($item) {
             $this->cartService->updateQuantity($itemId, $item->quantity - 1);
             $this->dispatch('cart-updated');
@@ -69,7 +69,7 @@ class Cart extends Component
     #[On('add-to-cart')]
     public function addToCartHandler($productId, $qty = 1, $config = null)
     {
-        $product = \App\Models\Product::find($productId);
+        $product = \App\Models\Product\Product::find($productId);
         if($product) {
             $this->cartService->addItem($product, $qty, $config);
 

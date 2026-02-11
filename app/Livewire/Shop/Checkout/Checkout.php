@@ -2,10 +2,10 @@
 
 namespace App\Livewire\Shop\Checkout;
 
-use App\Models\Cart;
-use App\Models\Customer;
-use App\Models\Order;
-use App\Models\QuoteRequest;
+use App\Models\Cart\Cart;
+use App\Models\Customer\Customer;
+use App\Models\Order\Order;
+use App\Models\Quote\QuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;

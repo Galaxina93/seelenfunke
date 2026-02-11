@@ -2,12 +2,10 @@
 
 namespace App\Livewire\Customer;
 
-use App\Models\Order;
-use App\Models\Invoice;
-use App\Services\InvoiceService;
+use App\Models\Order\Order;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Component;
 
 class OrderDetail extends Component
 {

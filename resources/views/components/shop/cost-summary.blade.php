@@ -26,7 +26,7 @@
 
     // FALL A: MODEL (Order / Quote)
     if ($model) {
-        $isOrder = $model instanceof \App\Models\Order;
+        $isOrder = $model instanceof \App\Models\Order\Order;
 
         $data['volume_discount'] = $model->volume_discount ?? 0;
         $data['coupon_code'] = $model->coupon_code ?? null;
@@ -91,7 +91,10 @@
         @if($data['volume_discount'] > 0)
             <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                 <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
                     <span>Mengenrabatt</span>
                 </div>
                 <span>-{{ number_format($data['volume_discount'] / 100, 2, ',', '.') }} €</span>
@@ -101,7 +104,10 @@
         @if($data['discount_amount'] > 0)
             <div class="flex justify-between text-green-600 font-bold bg-green-50 p-2 rounded -mx-2">
                 <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                    </svg>
                     <span>Gutschein ({{ $data['coupon_code'] }})</span>
                 </div>
                 {{-- Slot für Delete Button im Cart --}}
@@ -126,7 +132,9 @@
         @if($data['is_express'])
             <div class="flex justify-between text-red-600 font-bold bg-red-50 p-2 rounded -mx-2 border border-red-100">
                 <span class="flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path
+                                stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     Express-Service
                 </span>
                 <span>+ {{ number_format($expressSurchargeGross / 100, 2, ',', '.') }} €</span>
@@ -141,7 +149,9 @@
             @else
                 @if(isset($totals))
                     {{-- Im Cart/Checkout Kontext etwas fetter anzeigen --}}
-                    <div class="bg-green-50 px-2 py-0.5 rounded -mx-2 text-green-700 font-bold text-xs uppercase tracking-wider">Kostenlos</div>
+                    <div class="bg-green-50 px-2 py-0.5 rounded -mx-2 text-green-700 font-bold text-xs uppercase tracking-wider">
+                        Kostenlos
+                    </div>
                 @else
                     <span class="text-green-600 font-bold text-xs uppercase">Kostenlos</span>
                 @endif
@@ -169,7 +179,8 @@
                 @else
                     {{-- Einfache Summe (Order/Quote) --}}
                     <div class="text-[10px] text-gray-400 italic">
-                        inkl. {{ number_format($data['tax_amount'] / 100, 2, ',', '.') }} € MwSt. ({{ number_format($taxRate, 0) }}%)
+                        inkl. {{ number_format($data['tax_amount'] / 100, 2, ',', '.') }} € MwSt.
+                        ({{ number_format($taxRate, 0) }}%)
                     </div>
                 @endif
             @else

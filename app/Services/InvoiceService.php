@@ -3,11 +3,11 @@
 namespace App\Services;
 
 use App\Models\Invoice;
-use App\Models\Order;
-use Illuminate\Support\Facades\DB;
+use App\Models\Order\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class InvoiceService
 {
