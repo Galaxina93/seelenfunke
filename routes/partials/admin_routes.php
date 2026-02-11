@@ -54,9 +54,18 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.shipping');
     })->name('admin.shipping');
 
-    Route::get('/admin/financial', function () {
-        return view('backend.admin.pages.financial');
-    })->name('admin.financial');
+    Route::get('/admin/financial-evaluation', function () {
+        return view('backend.admin.pages.financial-evaluation');
+    })->name('admin.financial-evaluation');
+
+    Route::get('/admin/financial-categories-special-editions', function () {
+        return view('backend.admin.pages.financial-categories-special-editions');
+    })->name('admin.financial-categories-special-editions');
+
+    Route::get('/admin/financial-contracts-groups', function () {
+        return view('backend.admin.pages.financial-contracts-groups');
+    })->name('admin.financial-contracts-groups');
+
 
     Route::get('/admin/configuration', function () {
         return view('backend.admin.pages.configuration');

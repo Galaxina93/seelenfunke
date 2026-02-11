@@ -69,17 +69,17 @@ class ProductSeeder extends Seeder
             'shipping_class' => 'paket_s',
 
             // Medien & Konfigurator
-            'preview_image_path' => 'Testdata/seelenkristall/overlay.png',
+            'preview_image_path' => 'testdata/seelenkristall/overlay.png',
             'media_gallery' => [
                 [
                     'type' => 'image',
-                    'path' => 'Testdata/seelenkristall/seelen-kristall_b.jpg',
+                    'path' => 'testdata/seelenkristall/seelen-kristall_b.jpg',
                     'is_main' => true,
                     'alt' => 'Seelen Kristall Frontansicht'
                 ],
                 [
                     'type' => 'video',
-                    'path' => 'Testdata/seelenkristall/video.mp4',
+                    'path' => 'testdata/seelenkristall/video.mp4',
                     'is_main' => false
                 ]
             ],
@@ -150,17 +150,17 @@ class ProductSeeder extends Seeder
             'shipping_class' => 'paket_s', // oder 'brief'
 
             // Medien & Konfigurator
-            'preview_image_path' => 'Testdata/seelenanhaenger/overlay.png',
+            'preview_image_path' => 'testdata/seelenanhaenger/overlay.png',
             'media_gallery' => [
                 [
                     'type' => 'image',
-                    'path' => 'Testdata/seelenanhaenger/seelen-anhaenger_s.jpg',
+                    'path' => 'testdata/seelenanhaenger/seelen-anhaenger_s.jpg',
                     'is_main' => true,
                     'alt' => 'Seelenanhänger Frontansicht'
                 ],
                 [
                     'type' => 'video',
-                    'path' => 'Testdata/seelenkristall/video.mp4', // Wiederverwendet wie gewünscht
+                    'path' => 'testdata/seelenkristall/video.mp4', // Wiederverwendet wie gewünscht
                     'is_main' => false
                 ]
             ],

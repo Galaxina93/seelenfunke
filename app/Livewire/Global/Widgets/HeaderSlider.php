@@ -48,6 +48,6 @@ class HeaderSlider extends Component
 
     public function render()
     {
-        return view('livewire.widgets.header-slider');
+        return view('livewire.global.widgets.header-slider');
     }
 }

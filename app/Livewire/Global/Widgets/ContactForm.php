@@ -26,7 +26,7 @@ class ContactForm extends Component
     public function render()
     {
         $this->refresh();
-        return view('livewire.widgets.contact-form', [
+        return view('livewire.global.widgets.contact-form', [
             'message_length' => $this->message_length,
         ]);
     }

@@ -51,7 +51,7 @@ class LoginLog extends Component
     {
         $this->refresh();
 
-        return view('livewire.widgets.login-log', [
+        return view('livewire.global.widgets.login-log', [
             'last_logins' => $this->last_logins
         ]);
     }

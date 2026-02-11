@@ -17,6 +17,6 @@ class GoogleReviews extends Component
 
     public function render()
     {
-        return view('livewire.widgets.google-reviews');
+        return view('livewire.global.widgets.google-reviews');
     }
 }

@@ -1,0 +1,84 @@
+{{-- Toggle Button --}}
+<div class="flex justify-center mt-6">
+    @if($showAddItemFormForGroup !== $group->id)
+        <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Kostenstelle hinzufügen
+        </button>
+    @endif
+</div>
+
+{{-- Formular --}}
+@if($showAddItemFormForGroup === $group->id && !$editingItemId)
+    <div class="mt-6 space-y-8 bg-gray-50 p-8 rounded-3xl border border-gray-200 shadow-inner relative animate-fade-in-down">
+
+        <div class="flex items-center justify-between border-b border-gray-200 pb-4">
+            <span class="text-xs uppercase font-extrabold text-gray-400 tracking-widest">Neue Kostenstelle</span>
+            <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="text-gray-400 hover:text-red-500"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+
+        {{-- Zeile 1 --}}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Bezeichnung</label>
+                <input type="text" wire:model="itemName" placeholder="z.B. Haftpflicht" class="w-full text-base p-4 rounded-2xl border-gray-200 bg-white text-gray-800 placeholder-gray-400 focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-100/50 transition-all duration-200 outline-none shadow-sm">
+                @error('itemName') <span class="text-xs text-red-500 mt-1 block font-medium ml-1">{{ $message }}</span> @enderror
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Betrag</label>
+                <div class="relative">
+                    <span class="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">€</span>
+                    <input type="text" wire:model="itemAmount" placeholder="0.00" class="w-full text-base p-4 pl-10 rounded-2xl border-gray-200 bg-white text-gray-800 font-mono placeholder-gray-400 focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-100/50 transition-all duration-200 outline-none shadow-sm">
+                </div>
+                @error('itemAmount') <span class="text-xs text-red-500 mt-1 block font-medium ml-1">{{ $message }}</span> @enderror
+            </div>
+        </div>
+
+        {{-- Zeile 2 --}}
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Intervall</label>
+                <div class="relative">
+                    <select wire:model="itemInterval" class="w-full text-base p-4 rounded-2xl border-gray-200 bg-white text-gray-800 focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-100/50 transition-all duration-200 outline-none appearance-none cursor-pointer shadow-sm">
+                        <option value="1">Monatlich</option>
+                        <option value="3">Quartalsweise</option>
+                        <option value="6">Halbjährlich</option>
+                        <option value="12">Jährlich</option>
+                        <option value="24">Alle 2 Jahre</option>
+                    </select>
+                    <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Erste Zahlung</label>
+                <input type="date" wire:model="itemDate" class="w-full text-base p-4 rounded-2xl border-gray-200 bg-white text-gray-800 focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-100/50 transition-all duration-200 outline-none cursor-pointer shadow-sm">
+                @error('itemDate') <span class="text-xs text-red-500 mt-1 block font-medium ml-1">{{ $message }}</span> @enderror
+            </div>
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Vertrag / Datei</label>
+                <input type="file" wire:model="itemFile" class="block w-full text-sm text-gray-500 file:mr-4 file:py-3 file:px-6 file:rounded-2xl file:border-0 file:text-xs file:font-bold file:bg-white file:text-orange-600 hover:file:bg-orange-50 transition cursor-pointer">
+            </div>
+        </div>
+
+        {{-- Zeile 3 --}}
+        <div class="pt-2">
+            <label class="inline-flex items-center cursor-pointer select-none group mb-4">
+                <input type="checkbox" wire:model="itemIsBusiness" class="sr-only peer">
+                <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner"></div>
+                <span class="ms-3 text-sm font-bold text-gray-600 group-hover:text-gray-800 transition">Gewerblicher Eintrag</span>
+            </label>
+            <textarea wire:model="itemDescription" placeholder="Notizen, Vertragsnummer..." class="w-full text-base p-4 rounded-2xl border-gray-200 bg-white text-gray-800 placeholder-gray-400 focus:bg-white focus:border-orange-300 focus:ring-4 focus:ring-orange-100/50 transition-all duration-200 outline-none resize-none shadow-sm" rows="3"></textarea>
+        </div>
+
+        {{-- Footer --}}
+        <div class="flex justify-end gap-4 pt-6 border-t border-gray-200">
+            <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="px-6 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-2xl transition-all">Abbrechen</button>
+
+            <button wire:click="saveNewItem('{{ $group->id }}')" wire:loading.attr="disabled" class="bg-gray-900 text-white px-8 py-3 rounded-2xl text-sm font-bold shadow-xl shadow-gray-200 hover:bg-black hover:scale-[1.02] active:scale-95 transition-all transform flex items-center gap-2">
+                <span wire:loading.remove wire:target="saveNewItem">Speichern</span>
+                <span wire:loading wire:target="saveNewItem">Speichert...</span>
+                <svg wire:loading wire:target="saveNewItem" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            </button>
+        </div>
+    </div>
+@endif
