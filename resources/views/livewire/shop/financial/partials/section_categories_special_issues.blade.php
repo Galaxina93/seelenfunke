@@ -66,11 +66,14 @@
 
                 {{-- Liste & Suche (Toggled) --}}
                 <div class="space-y-4 mt-2 border-t border-gray-200 pt-6 animate-fade-in-down">
+
+                    <h3 class="text-sm font-bold text-gray-700">Sonderausgaben bearbeiten</h3>
+
                     {{-- Suche --}}
                     <div class="relative">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </span>
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </span>
                         <input type="text" wire:model.live="specialSearch" placeholder="Suchen..." class="w-full text-sm rounded-lg border-gray-300 focus:ring-orange-400 bg-white pl-10 py-2.5">
                     </div>
 
