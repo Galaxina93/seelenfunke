@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Config;
 use App\Models\Shipping\ShippingZoneCountry;
 use App\Models\ShopSetting;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Artisan;
 use Livewire\Component;
 
 class ShopConfig extends Component
@@ -29,7 +30,20 @@ class ShopConfig extends Component
         'shipping_free_threshold',
         'express_surcharge',
         'prices_entered_gross',
-        'order_quote_validity_days'
+        'order_quote_validity_days',
+        'maintenance_mode',
+        'inventory_low_stock_threshold',
+        'skip_shipping_for_digital',
+        'stripe_publishable_key',
+        'stripe_secret_key',
+        'stripe_webhook_secret',
+        // NEU: Erweiterte Stammdaten
+        'owner_finanzamt_nr',
+        'owner_social_security_nr',
+        'owner_tax_ident_nr',
+        'owner_health_insurance_nr',
+        'owner_agency_labor_nr',
+        'owner_economic_ident_nr'
     ];
 
     public $infoTexts = [
@@ -45,7 +59,19 @@ class ShopConfig extends Component
         'shipping_cost' => 'Standardversandkosten pro Bestellung (Eingabe in Euro).',
         'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
         'express_surcharge' => 'Zusätzliche Gebühr, wenn der Kunde die Express-Option im Checkout wählt (Eingabe in Euro).',
-        'order_quote_validity_days' => 'Legt fest, wie viele Tage ein generiertes PDF-Angebot rechtlich bindend ist.'
+        'order_quote_validity_days' => 'Legt fest, wie viele Tage ein generiertes PDF-Angebot rechtlich bindend ist.',
+        'maintenance_mode' => 'Sperrt den Zugang zum Frontend für Kunden. Nur Admins können den Shop sehen.',
+        'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
+        'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
+        'stripe_publishable_key' => 'Der öffentliche Schlüssel von Stripe (pk_test_... oder pk_live_...).',
+        'stripe_secret_key' => 'Der geheime Schlüssel von Stripe (sk_test_... oder sk_live_...).',
+        'stripe_webhook_secret' => 'Das Secret für Webhooks (whsec_...), um Zahlungsbestätigungen zu empfangen.',
+        'owner_finanzamt_nr' => 'Steuernummer beim zuständigen Finanzamt.',
+        'owner_social_security_nr' => 'Sozialversicherungsnummer (Rentenversicherungsnummer).',
+        'owner_tax_ident_nr' => 'Persönliche Steuer-Identifikationsnummer (Steuer-ID).',
+        'owner_health_insurance_nr' => 'Mitgliedsnummer bei der Krankenkasse.',
+        'owner_agency_labor_nr' => 'Kundennummer bei der Agentur für Arbeit.',
+        'owner_economic_ident_nr' => 'Wirtschafts-Identifikationsnummer (W-IdNr.), falls vorhanden.'
     ];
 
     public $saved = false;
@@ -59,7 +85,6 @@ class ShopConfig extends Component
         foreach ($this->configKeys as $key) {
             $value = $dbSettings[$key] ?? $this->getFallback($key);
 
-            // Konvertierung von Cent zu Euro für die Anzeige im Admin
             if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge'])) {
                 $value = number_format((int)$value / 100, 2, '.', '');
             }
@@ -67,8 +92,10 @@ class ShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $this->settings['is_small_business'] = filter_var($this->settings['is_small_business'], FILTER_VALIDATE_BOOLEAN);
-        $this->settings['prices_entered_gross'] = filter_var($this->settings['prices_entered_gross'], FILTER_VALIDATE_BOOLEAN);
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'maintenance_mode', 'skip_shipping_for_digital'];
+        foreach($boolKeys as $key) {
+            $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
+        }
     }
 
     public function getActiveShippingCountriesProperty()
@@ -93,6 +120,9 @@ class ShopConfig extends Component
             'express_surcharge' => 2500,
             'prices_entered_gross' => true,
             'order_quote_validity_days' => 14,
+            'maintenance_mode' => false,
+            'inventory_low_stock_threshold' => 5,
+            'skip_shipping_for_digital' => false,
         ];
         return $fallbacks[$key] ?? '';
     }
@@ -105,12 +135,12 @@ class ShopConfig extends Component
             'settings.shipping_cost' => 'required|numeric',
             'settings.shipping_free_threshold' => 'required|numeric',
             'settings.express_surcharge' => 'required|numeric',
+            'settings.inventory_low_stock_threshold' => 'required|integer|min:0',
         ]);
 
         foreach ($this->settings as $key => $value) {
             $finalValue = $value;
 
-            // Konvertierung von Euro zurück in Cent für die Datenbank
             if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge'])) {
                 $finalValue = (int)round((float)$value * 100);
             }
@@ -122,6 +152,8 @@ class ShopConfig extends Component
         }
 
         Cache::forget('global_shop_settings');
+        Cache::forget('shop_setting_inventory_threshold');
+
         $this->saved = true;
     }
 
