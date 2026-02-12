@@ -196,4 +196,10 @@ class Product extends Model
             $this->increment('quantity', $amount);
         }
     }
+
+    public function isDigital(): bool
+    {
+        // Wenn is_physical_product FALSE ist, dann ist es digital.
+        return $this->is_physical_product === false;
+    }
 }

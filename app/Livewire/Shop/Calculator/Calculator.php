@@ -98,7 +98,11 @@ class Calculator extends Component
 
     public function loadProducts()
     {
-        $products = Product::with('tierPrices')->where('status', 'active')->get();
+        // ÄNDERUNG: Nur aktive UND physische Produkte laden
+        $products = Product::with('tierPrices')
+            ->where('status', 'active')
+            ->where('is_physical_product', true) // Filter für physische Produkte
+            ->get();
 
         $this->dbProducts = $products->map(function($p) {
             $previewPath = $p->preview_image_path;

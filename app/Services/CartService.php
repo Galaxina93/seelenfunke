@@ -8,9 +8,18 @@ use App\Models\Coupon;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use App\Services\ShippingCalculatorService;
 
 class CartService
 {
+    protected $shippingService;
+
+    // Dependency Injection im Constructor (Best Practice)
+    public function __construct(ShippingCalculatorService $shippingService)
+    {
+        $this->shippingService = $shippingService;
+    }
+
     /**
      * Ruft den aktuellen Warenkorb ab oder erstellt einen neuen.
      */
@@ -277,11 +286,16 @@ class CartService
         $totalAfterDiscount = max(0, $subtotalGross - $discountAmount);
 
         /**
-         * 3. VERSANDKOSTEN
-         * ERWEITERUNG: Wir übergeben hier $subtotalGross (Warenwert VOR Gutschein).
-         * Dadurch verliert der Kunde seinen Gratis-Versand nicht durch das Einlösen eines Rabattcodes.
+         * 3. VERSANDKOSTEN (ZENTRALISIERT)
+         * Wir nutzen jetzt den ShippingCalculatorService
          */
-        $shippingResult = $this->determineShippingCost($subtotalGross, $totalWeight, $countryCode);
+        $shippingResult = $this->shippingService->calculateShippingCost(
+            $cart->items,        // Die Items für die "Digital Check" Logik
+            $subtotalGross,      // Warenwert VOR Rabatt für Freigrenze
+            $totalWeight,        // Gewicht für Zonen
+            $countryCode         // Land für Zonen
+        );
+
         $shippingGross = $shippingResult['cost'];
         $isFreeShipping = $shippingResult['is_free'];
         $missingForFreeShipping = $shippingResult['missing'];
@@ -315,7 +329,9 @@ class CartService
         $expressGross = 0;
         $expressTaxAmount = 0;
 
-        if ($cart->is_express) {
+        // Express nur berechnen, wenn Versand überhaupt nötig ist!
+        // (Wenn alles digital ist -> kein Versand -> auch kein Express möglich)
+        if ($cart->is_express && $this->shippingService->needsShipping($cart->items)) {
             $expressGross = (int) shop_setting('express_surcharge', 2500);
             $expressTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
 

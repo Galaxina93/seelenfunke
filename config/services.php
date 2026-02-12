@@ -32,9 +32,13 @@ return [
     ],
 
     'stripe' => [
-        'key' => env('STRIPE_KEY'),
+        'model'  => App\Models\User::class, // Lass es drin, schadet nicht, falls du später Cashier nutzt
+        'key'    => env('STRIPE_KEY'),
         'secret' => env('STRIPE_SECRET'),
-        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'webhook' => [  // <--- Verschachteltes Array
+            'secret' => env('STRIPE_WEBHOOK_SECRET'),
+            'tolerance' => 300,
+        ],
     ],
 
     'google' => [

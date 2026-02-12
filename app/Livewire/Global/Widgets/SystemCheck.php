@@ -7,6 +7,7 @@ use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+// use Illuminate\Support\Facades\Cache; // Cache wird nicht mehr benötigt
 
 // Models
 use App\Models\Admin\Admin;
@@ -20,6 +21,7 @@ use App\Models\Product\Product;
 use App\Models\Order\Order;
 use App\Models\Invoice;
 use App\Models\Quote\QuoteRequest;
+use App\Models\ShopSetting;
 
 class SystemCheck extends Component
 {
@@ -132,14 +134,17 @@ class SystemCheck extends Component
 
     public function render()
     {
-        return view('livewire.global.widgets.system-check', [
+        // Wir laden die Config hier einmalig für die View, falls benötigt, aber primär für die Checks
+        // $threshold = ShopSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5;
+
+        return view('livewire.global.widgets.system-check.system-check', [
             'checks' => $this->performAllChecks(),
             'paginatedLogins' => $this->paginatedLogins,
             'paginatedFailedLogins' => $this->paginatedFailedLogins,
         ]);
     }
 
-    // --- Business Logic Checks (Unverändert übernommen) ---
+    // --- Business Logic Checks ---
 
     private function performAllChecks(): array
     {
@@ -183,8 +188,19 @@ class SystemCheck extends Component
 
     private function checkInventory(): array
     {
-        $lowStockCount = Product::where('track_quantity', true)->where('quantity', '<', 20)->where('status', 'active')->count();
-        $outOfStock = Product::where('track_quantity', true)->where('quantity', '<=', 0)->where('status', 'active')->count();
+        // Lade den Schwellenwert direkt aus der DB
+        $threshold = ShopSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5;
+
+        $lowStockCount = Product::where('track_quantity', true)
+            ->where('quantity', '<', $threshold)
+            ->where('quantity', '>', 0) // Nur die, die nicht 0 sind (0 ist outOfStock)
+            ->where('status', 'active')
+            ->count();
+
+        $outOfStock = Product::where('track_quantity', true)
+            ->where('quantity', '<=', 0)
+            ->where('status', 'active')
+            ->count();
 
         if ($outOfStock > 0) {
             return [
@@ -194,15 +210,28 @@ class SystemCheck extends Component
                 'message' => "$outOfStock ausverkauft!",
                 'count' => $outOfStock,
                 'action_label' => 'Auffüllen',
-                'action_url' => '#',
+                'action_url' => route('admin.products'),
             ];
         }
+
+        if ($lowStockCount > 0) {
+            return [
+                'title' => 'Lagerbestand',
+                'icon' => 'solar-box-bold-duotone',
+                'status' => 'warning',
+                'message' => "$lowStockCount unter Limit ($threshold Stk).",
+                'count' => $lowStockCount,
+                'action_label' => 'Prüfen',
+                'action_url' => route('admin.products'),
+            ];
+        }
+
         return [
             'title' => 'Lagerbestand',
             'icon' => 'solar-box-bold-duotone',
-            'status' => $lowStockCount > 0 ? 'warning' : 'success',
-            'message' => $lowStockCount > 0 ? "$lowStockCount niedrig." : "Bestand optimal.",
-            'count' => $lowStockCount,
+            'status' => 'success',
+            'message' => "Bestand optimal.",
+            'count' => 0,
             'action_label' => 'Prüfen',
             'action_url' => route('admin.products'),
         ];
@@ -218,7 +247,7 @@ class SystemCheck extends Component
             'message' => $drafts > 0 ? "$drafts unfertig." : "Keine Entwürfe.",
             'count' => $drafts,
             'action_label' => 'Bearbeiten',
-            'action_url' => '#',
+            'action_url' => 'admin.products',
         ];
     }
 
@@ -232,7 +261,7 @@ class SystemCheck extends Component
             'message' => $overdueInvoices > 0 ? "$overdueInvoices überfällig!" : "Alles bezahlt.",
             'count' => $overdueInvoices,
             'action_label' => 'Mahnwesen',
-            'action_url' => '#',
+            'action_url' => 'admin.invoices',
         ];
     }
 
@@ -247,7 +276,7 @@ class SystemCheck extends Component
             'message' => "$expiringQuotes laufen ab.",
             'count' => $expiringQuotes,
             'action_label' => 'Prüfen',
-            'action_url' => '#',
+            'action_url' => 'admin.quote-requests',
         ];
     }
 }
