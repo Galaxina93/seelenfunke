@@ -131,7 +131,12 @@
                                 $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
                                 $freeThreshold   = (int) shop_setting('shipping_free_threshold', 5000);
                                 $shippingCost    = (int) shop_setting('shipping_cost', 490);
-                                $isFree          = $this->product->price >= $freeThreshold;
+
+                                // NEU: Prüfung auf digitales Produkt
+                                $isDigital       = !$this->product->is_physical_product;
+
+                                // Kostenlos ist es, wenn es digital ist ODER der Preis über der Schwelle liegt
+                                $isFree          = $isDigital || ($this->product->price >= $freeThreshold);
 
                                 // Bestimme den finalen Lagerstatus für die Anzeige und Logik
                                 $isTrulyOutOfStock = $this->product->track_quantity &&
@@ -152,8 +157,16 @@
                                 @endif
                              </span>
 
-                            {{-- 2. Dynamischer Versandhinweis --}}
-                            @if($isFree)
+                            {{-- 2. Dynamischer Versandhinweis (Digital vs Physisch) --}}
+                            @if($isDigital)
+                                <span class="text-xs font-bold text-blue-600 flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H11V9.413l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13H5.5z" />
+                                        <path d="M9 13h2v5a1 1 0 11-2 0v-5z" />
+                                    </svg>
+                                    Sofort-Download (Versandkostenfrei)
+                                </span>
+                            @elseif($isFree)
                                 <span class="text-xs font-bold text-green-700 flex items-center gap-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                         <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
@@ -254,11 +267,17 @@
                         <p class="text-[10px] text-gray-500 mt-1">Sorgsam gewählte Rohlinge, persönlich für dich gelasert</p>
                     </div>
 
-                    {{-- Versand --}}
+                    {{-- Versand (Dynamisch) --}}
                     <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                        <span class="text-2xl mb-2 block">📦</span>
-                        <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sicherer Versand</h4>
-                        <p class="text-[10px] text-gray-500 mt-1">Bruchsicher & liebevoll von Hand verpackt</p>
+                        @if($isDigital)
+                            <span class="text-2xl mb-2 block">🚀</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sofort verfügbar</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Direkter Download nach Zahlung</p>
+                        @else
+                            <span class="text-2xl mb-2 block">📦</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sicherer Versand</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Bruchsicher & liebevoll von Hand verpackt</p>
+                        @endif
                     </div>
                 </div>
 
