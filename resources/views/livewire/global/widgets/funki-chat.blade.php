@@ -15,7 +15,7 @@
     --}}
     <div class="fixed z-50 flex gap-4 pointer-events-none
                 bottom-6 right-6 flex-col-reverse items-end
-                sm:bottom-auto sm:top-1/2 sm:right-6 sm:flex-row sm:items-center sm:-translate-y-1/2">
+                sm:bottom-auto sm:top-1/3 sm:right-6 sm:flex-row sm:items-center sm:-translate-y-1/2">
 
         {{-- CHAT FENSTER --}}
         <div
@@ -114,7 +114,7 @@
         {{-- TRIGGER BUTTON (BUBBLE) --}}
         <button
             wire:click="toggleChat"
-            class="pointer-events-auto group relative flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-black hover:bg-gray-900 text-white rounded-full shadow-2xl transition-all duration-300 transform hover:scale-110 ring-4 ring-white/50"
+            class="pointer-events-auto group relative flex items-center justify-center w-14 h-14 sm:w-20 sm:h-20 bg-black hover:bg-gray-900 text-white rounded-full shadow-2xl transition-all duration-300 transform hover:scale-110 ring-4 ring-white/50"
         >
             @if($isOpen)
                 <svg class="w-8 h-8 sm:w-10 sm:h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
