@@ -115,12 +115,17 @@
 
                 <a href="{{ route('manufacture') }}"
                    class="block px-3 py-2 text-lg {{ Request::routeIs('manufacture') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Manufaktur & Qualität
+                    Die Manufaktur
                 </a>
 
                 <a href="{{ route('shop') }}"
                    class="block px-3 py-2 text-lg {{ Request::routeIs('shop') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
                     Shop
+                </a>
+
+                <a href="{{ route('blog') }}"
+                   class="block px-3 py-2 text-lg {{ Request::routeIs('blog') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
+                    Blog
                 </a>
 
                 <a href="{{ route('contact') }}"
