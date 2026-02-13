@@ -2,15 +2,13 @@
 
 namespace App\Models\Product;
 
+use App\Models\Category;
 use App\Services\PriceCalculator;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
-
-// NEU
-
 
 class Product extends Model
 {
@@ -25,13 +23,10 @@ class Product extends Model
         'configurator_settings' => 'array',
         'track_quantity' => 'boolean',
         'continue_selling_when_out_of_stock' => 'boolean',
-        'is_physical_product' => 'boolean',
-
-        // WICHTIG: Zahlen explizit casten
         'price' => 'integer',
         'compare_at_price' => 'integer',
         'cost_per_item' => 'integer',
-        'weight' => 'integer', // Gramm
+        'weight' => 'integer',
         'height' => 'integer',
         'width' => 'integer',
         'length' => 'integer',
@@ -42,37 +37,26 @@ class Product extends Model
         return Attribute::make(
             get: fn ($value, $attributes) => $attributes['price'] / 100,
             set: fn ($value) => [
-                // FIX: (string) $value verhindert Absturz bei null
                 'price' => (int) round((float)str_replace(',', '.', (string) $value) * 100)
             ],
         );
     }
 
-    // NEU: Berechnet Nettopreis dynamisch
     public function getNetPriceAttribute(): int
     {
         $calculator = new PriceCalculator();
-
         if ($this->tax_included) {
-            // Preis in DB ist Brutto -> Netto berechnen
             return $calculator->getNetFromGross($this->price, (float)$this->tax_rate);
         }
-
-        // Preis in DB ist bereits Netto
         return $this->price;
     }
 
-    // NEU: Berechnet Bruttopreis dynamisch
     public function getGrossPriceAttribute(): int
     {
         $calculator = new PriceCalculator();
-
         if ($this->tax_included) {
-            // Preis in DB ist bereits Brutto
             return $this->price;
         }
-
-        // Preis in DB ist Netto -> Brutto berechnen
         return $calculator->getGrossFromNet($this->price, (float)$this->tax_rate);
     }
 
@@ -98,62 +82,42 @@ class Product extends Model
 
     public function getRouteKeyName() { return 'slug'; }
 
-    /**
-     * Berechnet den aktuellen Steuersatz basierend auf der Steuerklasse.
-     * Dies ersetzt das statische Feld tax_rate.
-     */
-    // app/Models/Product.php
-
-    /**
-     * Berechnet den aktuellen Steuersatz.
-     * PRIORITY: 1. Kleinunternehmer (0%) | 2. Globaler Standard | 3. Spezial-Ausnahme
-     */
     public function getTaxRateAttribute(): float
     {
-        // 1. Höchste Priorität: Kleinunternehmerregelung
         if (shop_setting('is_small_business', false)) {
             return 0.00;
         }
 
-        // 2. Zweite Priorität: Globaler Standard aus den Shop-Settings
-        // Wenn das Produkt auf 'standard' steht, nehmen wir IMMER den Wert aus den Settings.
         $globalDefault = (float)shop_setting('default_tax_rate', 19.00);
 
         if ($this->tax_class === 'standard' || empty($this->tax_class)) {
             return $globalDefault;
         }
 
-        // 3. Dritte Priorität: Spezial-Sätze aus der tax_rates Tabelle (z.B. 'reduced' für 7%)
         $specialRate = DB::table('tax_rates')
             ->where('tax_class', $this->tax_class)
-            ->where('country_code', 'DE') // Hier könntest du später $this->billing_address['country'] nutzen
+            ->where('country_code', 'DE')
             ->value('rate');
 
-        // Falls in tax_rates nichts gefunden wurde, sicherheitshalber globaler Fallback
         return $specialRate !== null ? (float)$specialRate : $globalDefault;
     }
 
-    /**
-     * Prüft, ob das Produkt bestellbar ist.
-     */
     public function isAvailable(): bool
     {
-        // Wenn der Status vom Produkt acitve ist
         if ($this->status !== 'active') {
             return false;
         }
 
-        // Wenn Lagerbestand nicht getrackt wird -> Immer verfügbar
+        // Bei digitalen Produkten oder Dienstleistungen ist "Lager" oft irrelevant
+        // Wir prüfen trotzdem track_quantity, falls limitierte Plätze/Lizenzen verkauft werden
         if (!$this->track_quantity) {
             return true;
         }
 
-        // Wenn Weiterverkauf erlaubt ist -> Immer verfügbar (Backorder)
         if ($this->continue_selling_when_out_of_stock) {
             return true;
         }
 
-        // Sonst: Nur verfügbar, wenn Menge > 0
         return $this->quantity > 0;
     }
 
@@ -164,32 +128,22 @@ class Product extends Model
 
     public function getTaxIncludedAttribute(): bool
     {
-        // Wir fragen unseren Helper, ob Preise im Backend als Brutto eingegeben werden.
-        // Der Fallback ist 'true', falls in der DB noch nichts hinterlegt wurde.
         return (bool) shop_setting('prices_entered_gross', true);
     }
 
-    /**
-     * Reduziert den Lagerbestand sicher.
-     */
     public function reduceStock(int $amount): bool
     {
         if (!$this->track_quantity) {
             return true;
         }
 
-        // Wir prüfen, ob genug da ist (außer Backorders sind erlaubt)
         if ($this->quantity < $amount && !$this->continue_selling_when_out_of_stock) {
             return false;
         }
 
-        // Atomares Update in der Datenbank
         return $this->decrement('quantity', $amount);
     }
 
-    /**
-     * Gibt Bestand zurück (bei Stornierung).
-     */
     public function restoreStock(int $amount): void
     {
         if ($this->track_quantity) {
@@ -197,9 +151,31 @@ class Product extends Model
         }
     }
 
+    // --- NEUE TYP-LOGIK ---
+
+    public function isPhysical(): bool
+    {
+        return $this->type === 'physical';
+    }
+
     public function isDigital(): bool
     {
-        // Wenn is_physical_product FALSE ist, dann ist es digital.
-        return $this->is_physical_product === false;
+        return $this->type === 'digital';
+    }
+
+    public function isService(): bool
+    {
+        return $this->type === 'service';
+    }
+
+    public function hasDigitalFile(): bool
+    {
+        return !empty($this->digital_download_path);
+    }
+
+    // Relationship: Product belongs to many Categories
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class);
     }
 }

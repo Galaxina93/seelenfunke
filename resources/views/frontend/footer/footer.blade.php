@@ -78,7 +78,7 @@
         <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="text-gray-500 text-sm text-center md:text-left">
                 &copy; {{ date('Y') }} <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong>. Alle Rechte vorbehalten.<br>
-                <span class="text-xs">Handmade with ❤️ in {{ shop_setting('owner_court', 'Gifhorn') }}.</span>
+                <span class="text-xs">Handmade with ❤️ in {{ shop_setting('owner_city', 'Gifhorn') }}.</span>
             </div>
 
             <div class="flex space-x-4">

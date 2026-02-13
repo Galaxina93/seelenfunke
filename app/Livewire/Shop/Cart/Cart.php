@@ -79,11 +79,11 @@ class Cart extends Component
         }
     }
 
-    public function applyCoupon(CartService $cartService)
+    public function applyCoupon()
     {
         $this->validate(['couponCodeInput' => 'required|string']);
 
-        $result = $cartService->applyCoupon($this->couponCodeInput);
+        $result = $this->cartService->applyCoupon($this->couponCodeInput);
 
         if ($result['success']) {
             $this->couponCodeInput = ''; // Input leeren
@@ -94,9 +94,9 @@ class Cart extends Component
         }
     }
 
-    public function removeCoupon(CartService $cartService)
+    public function removeCoupon()
     {
-        $cartService->removeCoupon();
+        $this->cartService->removeCoupon();
         $this->dispatch('cart-updated');
         session()->flash('success', 'Gutschein entfernt.');
     }
@@ -106,10 +106,15 @@ class Cart extends Component
         $cart = $this->cartService->getCart();
         $totals = $this->cartService->getTotals();
 
-        // Eager Loading der Relation product, damit wir auf attributes zugreifen können
+        // KORREKTUR: Wir laden nur die Relation 'product'.
+        // 'media_gallery' ist ein Attribut (array cast) im Product-Model, keine Relation.
+        $items = $cart
+            ? $cart->items()->with('product')->get()
+            : collect();
+
         return view('livewire.shop.cart.cart', [
             'cart' => $cart,
-            'items' => $cart->items()->with('product')->get(),
+            'items' => $items,
             'totals' => $totals
         ]);
     }

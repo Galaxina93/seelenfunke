@@ -1,16 +1,5 @@
-{{--
-    MASTER TEMPLATE FÜR DETAIL-ANSICHTEN (ORDERS & QUOTES)
-    Pfad: resources/views/livewire/shop/shared/detail-content.blade.php
-    Erwartet:
-    - $model: Das Order oder QuoteRequest Objekt
-    - $context: 'order' oder 'quote'
-    - $selectedItemId: ID des aktuell ausgewählten Items für die Vorschau
---}}
-
 @php
-    // -------------------------------------------------------------------------
-    // 1. DATEN NORMALISIERUNG
-    // -------------------------------------------------------------------------
+    // DATEN NORMALISIERUNG
     $isOrder = $context === 'order';
     $isQuote = $context === 'quote';
 
@@ -26,7 +15,6 @@
         ];
         $shipping = $model->shipping_address ?? null;
     } else {
-        // Quote Logic
         $billing = [
             'name' => $model->first_name . ' ' . $model->last_name,
             'company' => $model->company ?? null,
@@ -35,283 +23,176 @@
             'country' => $model->country ?? 'DE',
             'email' => $model->email
         ];
-        $shipping = null; // Quotes haben meist keine abweichende Lieferadresse in dieser Phase
+        $shipping = null;
     }
 
-    // PREISE
-    $subtotal = $isOrder ? $model->subtotal_price : $model->net_total;
-    $taxTotal = $isOrder ? $model->tax_amount : $model->tax_total;
-    $grossTotal = $isOrder ? $model->total_price : $model->gross_total;
-    $shippingCost = $model->shipping_price ?? 0;
-
-    // EINSTELLUNGEN
-    $isSmallBusiness = (bool)shop_setting('is_small_business', false);
-    $taxRate = (float)shop_setting('default_tax_rate', 19.0);
-    $expressSurchargeGross = (int)shop_setting('express_surcharge', 2500);
+    $isDigitalItem = isset($previewItem->configuration['is_digital']) && $previewItem->configuration['is_digital'];
+    $fingerprint = $previewItem->config_fingerprint ?? null;
 @endphp
 
-<div class="w-full lg:w-1/2 h-1/2 lg:h-full overflow-y-auto border-b lg:border-b-0 border-r-0 lg:border-r border-gray-200 bg-white custom-scrollbar z-10">
-    <div class="p-4 md:p-6 space-y-6 md:space-y-8">
+{{-- LINKE SPALTE: DETAILS --}}
+<div class="w-full lg:w-1/2 h-1/2 lg:h-full overflow-y-auto bg-white custom-scrollbar z-10 lg:border-r border-gray-100">
+    <div class="p-6 space-y-8">
 
-        {{-- ========================================================================
-             SECTION 1: EXPRESS ALERT
-             ======================================================================== --}}
+        {{-- 1. EXPRESS ALERT --}}
         @if($model->is_express)
-            <div class="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                <div class="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-red-600 rounded-full opacity-10 blur-xl"></div>
-                <div class="flex items-center gap-4 relative z-10">
-                    <div class="bg-white p-2 rounded-full shadow-sm border border-red-100 text-red-600">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+            <div class="bg-gradient-to-r from-red-50 to-white border-l-4 border-red-500 p-4 rounded-r-xl shadow-sm">
+                <div class="flex items-start gap-4">
+                    <div class="p-2 bg-red-100 text-red-600 rounded-full animate-pulse">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                     <div>
-                        <h3 class="text-red-700 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                            Express Bestellung
-                            <span class="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">DRINGEND</span>
-                        </h3>
+                        <h3 class="text-red-800 font-bold uppercase tracking-wider text-sm">Express Auftrag</h3>
                         @if($model->deadline)
-                            <p class="text-red-900 text-sm font-medium mt-0.5">
+                            <p class="text-red-900 text-sm font-medium mt-1">
                                 🏁 Deadline: <strong>{{ \Carbon\Carbon::parse($model->deadline)->format('d.m.Y') }}</strong>
                             </p>
                         @else
-                            <p class="text-red-800/70 text-xs mt-0.5">Schnellstmögliche Bearbeitung gewünscht.</p>
+                            <p class="text-red-700 text-xs mt-1">Bitte priorisiert bearbeiten (FIFO beachten).</p>
                         @endif
                     </div>
                 </div>
             </div>
         @endif
 
-        {{-- ========================================================================
-             SECTION 2: KUNDENDATEN & ADRESSEN
-             ======================================================================== --}}
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 md:gap-6">
-
-            {{-- Rechnungsadresse / Antragsteller --}}
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
+        {{-- 2. KUNDENDATEN --}}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {{-- Rechnungsadresse --}}
+            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:border-primary/20 transition-colors">
+                <h3 class="text-[10px] font-bold uppercase text-gray-400 mb-3 tracking-widest flex items-center gap-2">
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                    {{ $isOrder ? 'Rechnungsadresse' : 'Antragsteller' }}
+                    Kunde / Rechnung
                 </h3>
-                <div class="text-sm text-gray-900 leading-snug">
-                    <span class="font-bold">{{ $billing['name'] }}</span><br>
-                    @if(!empty($billing['company'])) {{ $billing['company'] }}<br> @endif
+                <div class="text-sm text-gray-800 leading-relaxed">
+                    <span class="font-bold text-base block mb-1">{{ $billing['name'] }}</span>
+                    @if(!empty($billing['company'])) <span class="block text-gray-500 mb-1">{{ $billing['company'] }}</span> @endif
                     {{ $billing['address'] }}<br>
                     {{ $billing['city_zip'] }}<br>
-                    {{ $billing['country'] }}
+                    <span class="uppercase text-xs font-bold text-gray-400">{{ $billing['country'] }}</span>
                 </div>
-                <div class="mt-2 text-xs text-blue-600 truncate">
-                    <a href="mailto:{{ $billing['email'] }}" class="hover:underline">{{ $billing['email'] }}</a>
+                <div class="mt-3 pt-3 border-t border-gray-50">
+                    <a href="mailto:{{ $billing['email'] }}" class="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        {{ $billing['email'] }}
+                    </a>
                 </div>
-                @if($isQuote && $model->phone)
-                    <div class="mt-1 text-xs text-gray-500">{{ $model->phone }}</div>
-                @endif
             </div>
 
-            {{-- Lieferadresse (Nur bei Orders oder wenn shipping vorhanden) --}}
+            {{-- Lieferadresse (Nur Order) --}}
             @if($isOrder)
-                @php
-                    $isDifferent = $shipping && serialize($model->billing_address) !== serialize($model->shipping_address);
-                @endphp
-                <div @class(['p-4 rounded-xl border', $isDifferent ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-gray-50 border-gray-100'])>
-                    <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        Lieferadresse
-                        @if($isDifferent)
-                            <span class="ml-auto text-[9px] bg-amber-500 px-1.5 py-0.5 rounded-full font-black tracking-widest uppercase animate-pulse">Abweichend!</span>
-                        @endif
+                @php $isDifferent = $shipping && serialize($model->billing_address) !== serialize($model->shipping_address); @endphp
+                <div @class(['p-5 rounded-2xl border transition-colors shadow-sm', $isDifferent ? 'bg-amber-50/50 border-amber-200' : 'bg-white border-gray-100'])>
+                    <h3 class="text-[10px] font-bold uppercase text-gray-400 mb-3 tracking-widest flex items-center gap-2">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                        Lieferung
+                        @if($isDifferent) <span class="ml-auto text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold uppercase">Abweichend</span> @endif
                     </h3>
-                    <div class="text-sm text-gray-900 leading-snug">
+                    <div class="text-sm text-gray-800 leading-relaxed">
                         @if($shipping)
-                            <span class="font-bold">{{ $shipping['first_name'] }} {{ $shipping['last_name'] }}</span><br>
+                            <span class="font-bold block mb-1">{{ $shipping['first_name'] }} {{ $shipping['last_name'] }}</span>
                             @if(!empty($shipping['company'])) {{ $shipping['company'] }}<br> @endif
                             {{ $shipping['address'] }}<br>
                             {{ $shipping['postal_code'] }} {{ $shipping['city'] }}<br>
-                            {{ $shipping['country'] }}
+                            <span class="uppercase text-xs font-bold text-gray-400">{{ $shipping['country'] }}</span>
                         @else
-                            <span class="italic text-gray-400">Wie Rechnungsadresse</span>
-                        @endif
-                    </div>
-                </div>
-            @elseif($isQuote)
-                {{-- Bei Angeboten: Interne Notizen anzeigen statt Lieferadresse --}}
-                <div class="bg-amber-50/30 p-4 rounded-xl border border-amber-100/50">
-                    <h3 class="text-[10px] lg:text-xs font-bold uppercase text-amber-600/70 mb-2 flex items-center gap-1 tracking-wider">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                        Interne Notizen
-                    </h3>
-                    <div class="text-sm text-amber-900 italic leading-snug">
-                        {{ $model->admin_notes ?: 'Keine internen Notizen.' }}
-                    </div>
-                </div>
-            @endif
-
-            {{-- Zahlung & Status (Nur ORDER) --}}
-            @if($isOrder)
-                <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 xl:col-span-2">
-                    <h3 class="text-xs font-bold uppercase text-gray-500 mb-2 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                        Zahlung & Info
-                    </h3>
-                    <div class="space-y-2 text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-gray-500">Zahlungsstatus:</span>
-                            <span class="font-bold {{ $model->payment_status == 'paid' ? 'text-green-600' : 'text-yellow-600' }}">
-                                {{ $model->payment_status == 'paid' ? 'Bezahlt' : 'Offen' }}
+                            <span class="italic text-gray-400 flex items-center gap-2 mt-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+                                Identisch mit Rechnung
                             </span>
-                        </div>
-                        @if($model->payment_status !== 'paid')
-                            <button wire:click="markAsPaid('{{ $model->id }}')" class="w-full text-xs bg-white border border-gray-300 rounded px-2 py-1 hover:bg-gray-50 font-bold shadow-sm transition">
-                                Als bezahlt markieren
-                            </button>
                         @endif
                     </div>
                 </div>
             @endif
         </div>
 
-        {{-- ========================================================================
-             SECTION 3: STORNO MANAGEMENT (Nur ORDER)
-             ======================================================================== --}}
-        @if($isOrder && isset($this->status) && $this->status === 'cancelled')
-            <div class="mt-6 animate-fade-in-up">
-                @if($model->status === 'cancelled' && !empty($model->cancellation_reason))
-                    {{-- Status: Bereits storniert --}}
-                    <div class="bg-green-50 border border-green-200 rounded-xl p-5 transition-all">
-                        <div class="flex items-start gap-3 mb-3">
-                            <div class="mt-0.5 bg-green-100 rounded-full p-1">
-                                <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-green-800 text-sm">Stornierungsgrund gespeichert</h4>
-                                <p class="text-xs text-green-700">Dieser Grund ist hinterlegt und für den Kunden sichtbar.</p>
-                            </div>
-                        </div>
-                        <textarea wire:model="cancellationReason" rows="2" class="w-full rounded-lg border-green-300 bg-white focus:border-green-500 focus:ring-green-500 text-sm placeholder-gray-400" placeholder="Grund bearbeiten..."></textarea>
-                        <div class="mt-2 text-right">
-                            <button wire:click="saveStatus" class="text-xs font-bold text-green-700 hover:text-green-900 underline">Änderung speichern</button>
-                        </div>
-                    </div>
-                @else
-                    {{-- Status: Neu stornieren --}}
-                    <div class="bg-red-50 border border-red-200 rounded-xl p-5 transition-all">
-                        <div class="flex items-start gap-3 mb-3">
-                            <svg class="w-5 h-5 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                            <div>
-                                <h4 class="font-bold text-red-700 text-sm">Stornierungsgrund erforderlich</h4>
-                                <p class="text-xs text-red-600">Bitte geben Sie einen Grund an, um die Stornierung abzuschließen.</p>
-                            </div>
-                        </div>
-                        <textarea wire:model="cancellationReason" rows="3" class="w-full rounded-lg border-red-300 focus:border-red-500 focus:ring-red-500 text-sm placeholder-red-300" placeholder="z.B. Artikel nicht lieferbar oder Kundenwunsch..."></textarea>
-                        @error('cancellationReason')
-                        <p class="text-red-600 text-xs mt-1 font-bold flex items-center gap-1"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>{{ $message }}</p>
-                        @enderror
-                        <div class="mt-4 flex justify-end">
-                            <button wire:click="saveStatus" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-700 transition shadow-sm flex items-center gap-2">
-                                <span>Stornierung bestätigen</span>
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                @endif
-            </div>
-        @endif
-
-        {{-- ========================================================================
-             SECTION 4: ARTIKELLISTE (Für beide gleich)
-             ======================================================================== --}}
+        {{-- 3. POSITIONEN --}}
         <div>
-            <h3 class="font-bold text-gray-900 mb-4 px-1 flex items-center justify-between">
-                <span>Positionen</span>
-                <span class="text-xs font-normal text-gray-400">Klicke zum Anzeigen</span>
+            <h3 class="font-serif font-bold text-gray-900 text-lg mb-4 flex items-center justify-between">
+                <span>Bestellpositionen</span>
+                <span class="text-xs font-sans font-normal text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ count($model->items) }} Artikel</span>
             </h3>
+
             <div class="space-y-3">
                 @foreach($model->items as $item)
+                    {{-- TYPE CHECK --}}
+                    @php
+                        $productType = $item->product->type ?? 'physical';
+                        $isService = $productType === 'service';
+                        $isDigital = $productType === 'digital';
+                    @endphp
+
                     <div wire:click="selectItemForPreview('{{ $item->id }}')"
-                         class="cursor-pointer border rounded-xl p-3 transition-all relative overflow-hidden group
-                                {{ $selectedItemId == $item->id ? 'border-primary ring-1 ring-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50' }}"
+                         class="cursor-pointer border rounded-2xl p-3 transition-all relative overflow-hidden group
+                                {{ $selectedItemId == $item->id ? 'border-primary ring-1 ring-primary bg-primary/5' : 'border-gray-100 bg-white hover:border-primary/30 hover:shadow-md' }}"
                     >
-                        <div class="flex justify-between items-start">
-                            <div class="flex items-center gap-4">
-                                <div class="h-14 w-14 bg-white rounded-lg border border-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                    @php
-                                        $conf = $item->configuration;
-                                        $imgPath = $conf['preview_file'] ?? ($conf['logo_storage_path'] ?? ($item->product->preview_image_path ?? null));
-                                    @endphp
-                                    @if($imgPath)
-                                        <img src="{{ asset('storage/'.$imgPath) }}" class="h-full w-full object-contain">
-                                    @else
-                                        <svg class="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                    @endif
-                                </div>
-                                <div>
-                                    <div class="font-bold text-gray-900 text-sm">{{ $item->product_name }}</div>
-                                    <div class="text-xs text-gray-500 mt-0.5">{{ $item->quantity }} Stück á {{ number_format($item->unit_price / 100, 2, ',', '.') }} €</div>
-                                </div>
-                            </div>
-                            <div class="text-right">
-                                <div class="font-mono font-bold text-gray-900 text-sm">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</div>
-                                @if($selectedItemId == $item->id)
-                                    <div class="text-[10px] text-primary font-bold mt-1 bg-white px-2 py-0.5 rounded-full shadow-sm inline-block">WIRD ANGEZEIGT</div>
+                        <div class="flex gap-4">
+                            {{-- Bild --}}
+                            <div class="h-16 w-16 bg-gray-50 rounded-xl border border-gray-100 overflow-hidden shrink-0 relative">
+                                @php
+                                    $conf = $item->configuration;
+                                    $imgPath = $conf['preview_file'] ?? ($conf['logo_storage_path'] ?? ($item->product->preview_image_path ?? null));
+                                @endphp
+                                @if($imgPath)
+                                    <img src="{{ asset('storage/'.$imgPath) }}" class="h-full w-full object-cover">
                                 @else
-                                    <div class="text-[10px] text-gray-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Anzeigen &rarr;</div>
+                                    <div class="h-full w-full flex items-center justify-center text-gray-300"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
                                 @endif
+
+                                {{-- Type Badge auf Bild --}}
+                                @if($isService)
+                                    <div class="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-[10px] font-bold uppercase tracking-widest backdrop-blur-[1px]">Service</div>
+                                @elseif($isDigital)
+                                    <div class="absolute inset-0 bg-blue-500/50 flex items-center justify-center text-white text-[10px] font-bold uppercase tracking-widest backdrop-blur-[1px]">Digital</div>
+                                @endif
+                            </div>
+
+                            {{-- Infos --}}
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-start">
+                                    <h4 class="font-bold text-gray-900 text-sm truncate pr-2">{{ $item->product_name }}</h4>
+                                    <span class="font-mono font-bold text-gray-900 text-sm">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-0.5">{{ $item->quantity }}x á {{ number_format($item->unit_price / 100, 2, ',', '.') }} €</p>
+
+                                {{-- Config Hints --}}
+                                @if(!empty($conf))
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        @if(!empty($conf['text']))
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600 border border-gray-200">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                                Text
+                                            </span>
+                                        @endif
+                                        @if(!empty($conf['files']) || !empty($conf['logo_storage_path']))
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-blue-50 text-blue-600 border border-blue-100">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                Dateien
+                                            </span>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+
+                            {{-- Arrow Indicator --}}
+                            <div class="self-center text-gray-300 group-hover:text-primary transition-colors">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                             </div>
                         </div>
-
-                        {{-- Item Details --}}
-                        @if(!empty($conf))
-                            <div class="mt-3 pt-3 border-t border-gray-200/60 grid grid-cols-1 xl:grid-cols-2 gap-4 text-xs">
-                                @if(!empty($conf['text']))
-                                    <div>
-                                        <span class="block text-gray-400 uppercase font-bold text-[10px] mb-1">Gravurtext</span>
-                                        <div class="font-serif italic text-gray-800 bg-gray-50 px-2 py-1.5 rounded border border-gray-100">"{{ $conf['text'] }}"</div>
-                                    </div>
-                                @endif
-                                @if(!empty($conf['notes']))
-                                    <div>
-                                        <span class="block text-gray-400 uppercase font-bold text-[10px] mb-1">Kunden-Anmerkung</span>
-                                        <div class="text-gray-700 bg-yellow-50 px-2 py-1.5 rounded border border-yellow-100">{{ $conf['notes'] }}</div>
-                                    </div>
-                                @endif
-                                @php
-                                    $files = $conf['files'] ?? [];
-                                    if(empty($files) && !empty($conf['logo_storage_path'])) { $files[] = $conf['logo_storage_path']; }
-                                @endphp
-                                @if(count($files) > 0)
-                                    <div class="col-span-1 xl:col-span-2">
-                                        <span class="block text-gray-400 uppercase font-bold text-[10px] mb-1">Hochgeladene Dateien ({{ count($files) }})</span>
-                                        <div class="flex flex-wrap gap-2">
-                                            @foreach($files as $file)
-                                                <a href="{{ asset('storage/'.$file) }}" target="_blank" download class="flex items-center gap-2 bg-white border border-gray-300 rounded px-3 py-1.5 hover:bg-gray-50 hover:border-primary hover:text-primary transition group/btn">
-                                                    <svg class="w-4 h-4 text-gray-500 group-hover/btn:text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                                    <span class="truncate max-w-[150px]">{{ basename($file) }}</span>
-                                                </a>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                @endif
-                            </div>
-                        @endif
                     </div>
                 @endforeach
             </div>
         </div>
 
-        {{-- ========================================================================
-             SECTION 5: ABRECHNUNG (Dynamisch für beide)
-             ======================================================================== --}}
+        {{-- 4. COST SUMMARY --}}
         <div>
             <x-shop.cost-summary :model="$model" />
         </div>
 
-        {{-- ========================================================================
-             SECTION 6: LÖSCHEN (Nur ORDER)
-             ======================================================================== --}}
+        {{-- 5. LÖSCHEN --}}
         @if($isOrder)
-            <div class="pt-6 border-t border-gray-100">
-                <button wire:click="delete('{{ $model->id }}')" wire:confirm="Bestellung endgültig löschen?" class="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 hover:underline">
-                    Bestellung endgültig löschen
+            <div class="pt-8 border-t border-gray-100 flex justify-center">
+                <button wire:click="delete('{{ $model->id }}')" wire:confirm="Wirklich löschen?" class="text-xs font-bold text-red-400 hover:text-red-600 uppercase tracking-widest hover:underline transition-colors">
+                    Bestellung unwiderruflich löschen
                 </button>
             </div>
         @endif
@@ -319,62 +200,57 @@
     </div>
 </div>
 
-{{-- ========================================================================
-     RECHTE SPALTE: VISUAL PREVIEW & CONFIGURATOR
-     ======================================================================== --}}
-<div class="w-full lg:w-1/2 h-1/2 lg:h-full bg-gray-50 flex flex-col border-l-0 lg:border-l border-gray-200 overflow-hidden">
-    <div class="flex-1 p-4 md:p-6 bg-gray-100 h-full overflow-y-auto custom-scrollbar">
+{{-- RECHTE SPALTE: PREVIEW --}}
+<div class="w-full lg:w-1/2 h-1/2 lg:h-full bg-gray-50 flex flex-col border-l-0 lg:border-l border-gray-200">
+    <div class="flex-1 p-6 h-full overflow-y-auto custom-scrollbar">
         @if($previewItem)
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col min-h-0">
-                {{-- Header --}}
-                <div class="bg-white border-b border-gray-100 px-4 md:px-6 py-4 flex justify-between items-center shrink-0">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col h-full overflow-hidden">
+
+                {{-- Preview Header --}}
+                <div class="bg-white border-b border-gray-100 px-6 py-4 shrink-0 flex justify-between items-center">
                     <div>
-                        <h3 class="font-bold text-gray-800 text-sm lg:text-base">{{ $previewItem->product_name }}</h3>
-                        <p class="text-[10px] text-gray-400 uppercase tracking-tighter">Konfigurations-Vorschau</p>
+                        <h3 class="font-bold text-gray-900">{{ $previewItem->product_name }}</h3>
+                        <p class="text-[10px] text-gray-400 uppercase tracking-widest">Detail-Ansicht</p>
                     </div>
-                    {{-- Schließen Button (Optional, da Auswahl links reicht) --}}
-                    <button wire:click="$set('{{ $isOrder ? 'selectedOrderItemId' : 'selectedQuoteItemId' }}', null)" class="lg:hidden text-gray-400 p-2">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
+                    @if($isDigitalItem)
+                        <span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase">Digital</span>
+                    @elseif($isService)
+                        <span class="bg-gray-800 text-white text-[10px] font-bold px-2 py-1 rounded uppercase">Service</span>
+                    @endif
                 </div>
 
-                {{-- Digitales Siegel (Nur bei Orders) --}}
-                @if($isOrder && $previewItem->config_fingerprint)
-                    <div class="mt-4 mx-4 md:mx-6 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
-                        <svg class="w-4 h-4 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                        <div class="text-[10px] text-green-800 leading-tight">
-                            <p class="font-bold uppercase">Digital versiegelt</p>
-                            <p class="mt-0.5 text-green-700 opacity-80">Konfiguration wurde fixiert: <span class="font-mono">{{ substr($previewItem->config_fingerprint, 0, 8) }}...</span></p>
+                {{-- Configurator Content --}}
+                <div class="flex-1 bg-gray-50/50 relative overflow-hidden">
+                    @if($previewItem->product)
+                        <livewire:shop.configurator.configurator
+                            :product="$previewItem->product->id"
+                            :initialData="$previewItem->configuration"
+                            :qty="$previewItem->quantity"
+                            context="preview"
+                            :key="'admin-preview-'.$previewItem->id"
+                        />
+                    @else
+                        <div class="flex items-center justify-center h-full text-red-400 font-bold">Produkt gelöscht</div>
+                    @endif
+                </div>
+
+                {{-- Footer Info --}}
+                @if($fingerprint)
+                    <div class="bg-green-50 px-6 py-3 border-t border-green-100 flex items-center gap-3">
+                        <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                        <div class="text-[10px] text-green-800">
+                            <strong>Originalgetreu:</strong> Diese Konfiguration ist digital signiert und unveränderlich.
                         </div>
                     </div>
                 @endif
-
-                {{-- Configurator Component --}}
-                <div class="relative flex-1 bg-gray-50/50 flex flex-col">
-                    @if($previewItem->product)
-                        <div class="flex-1">
-                            <livewire:shop.configurator.configurator
-                                :product="$previewItem->product->id"
-                                :initialData="$previewItem->configuration"
-                                :qty="$previewItem->quantity"
-                                context="preview"
-                                :key="'preview-'.$previewItem->id"
-                            />
-                        </div>
-                    @else
-                        <div class="p-12 text-center">
-                            <div class="text-red-500 font-bold">Produkt nicht mehr verfügbar.</div>
-                        </div>
-                    @endif
-                </div>
             </div>
         @else
-            <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
-                <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 text-gray-400">
-                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            <div class="h-full flex flex-col items-center justify-center text-center text-gray-400">
+                <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                 </div>
-                <p class="font-medium text-gray-500">Klicke eine Position an,</p>
-                <p class="text-sm text-gray-400">um das Design im Konfigurator zu prüfen.</p>
+                <p class="font-medium text-gray-500">Wähle eine Position links aus,</p>
+                <p class="text-sm">um die Konfiguration zu prüfen.</p>
             </div>
         @endif
     </div>

@@ -2,16 +2,46 @@
 
 namespace Database\Seeders;
 
+use App\Models\Category;
 use App\Models\Product\Product;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ProductSeeder extends Seeder
 {
     public function run(): void
     {
         // ---------------------------------------------------------
-        // 0. Steuersätze initialisieren (Falls Tabelle leer)
+        // 0. VORBEREITUNG: Kategorien sicherstellen
+        // ---------------------------------------------------------
+        // Damit der Seeder nicht abstürzt, falls der CategorySeeder noch nicht lief,
+        // stellen wir sicher, dass die benötigten Kategorien existieren.
+        // Das garantiert, dass die Tabelle 'category_product' befüllt werden kann.
+        $cats = [
+            'Glas & Kristall' => 'physical',
+            'Geschenksets' => 'physical',
+            'Bestseller' => 'physical',
+            'Metall & Alu' => 'physical',
+            'Schmuck & Anhänger' => 'physical',
+            'E-Books & Guides' => 'digital',
+            'Beratung' => 'service',
+            'Express-Service' => 'service',
+        ];
+
+        foreach ($cats as $name => $type) {
+            Category::firstOrCreate(
+                ['name' => $name], // Suche nach Name
+                [                  // Erstelle wenn nicht gefunden
+                    'slug' => Str::slug($name),
+                    'type' => $type,
+                    'color' => 'bg-gray-100 text-gray-800'
+                ]
+            );
+        }
+
+        // ---------------------------------------------------------
+        // 1. Steuersätze initialisieren (Falls Tabelle leer)
         // ---------------------------------------------------------
         if (DB::table('tax_rates')->count() === 0) {
             DB::table('tax_rates')->insert([
@@ -37,51 +67,35 @@ class ProductSeeder extends Seeder
         }
 
         // ---------------------------------------------------------
-        // 1. Standard-Produkt (Der Bestseller)
+        // 2. PRODUKTE ERSTELLEN & VERKNÜPFEN
         // ---------------------------------------------------------
+
+        // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
         $p1 = Product::create([
-            // Basisdaten
             'name' => 'Der Seelen Kristall',
             'slug' => 'seelen-kristall',
+            'type' => 'physical',
             'description' => 'Ein handgeschliffener Kristall für besondere Momente. Durch die hochwertige 3D-Innengravur schwebt Ihr Wunschmotiv förmlich im Glas. Ein unvergessliches Geschenk für Hochzeiten, Jahrestage oder als Erinnerungsstück. Lieferumfang: Kristallglas, Geschenkbox, Pflegehinweise.',
             'short_description' => 'Personalisiertes 3D-Glasgeschenk inkl. Geschenkbox.',
             'status' => 'active',
-
-            // Preis & Steuer
-            'price' => 3990, // 39,90 €
-            'compare_at_price' => 4990, // UVP 49,90 €
-            'cost_per_item' => 1250, // Einkauf
-
-            // Lager & Identifikation
+            'price' => 3990,
+            'compare_at_price' => 4990,
+            'cost_per_item' => 1250,
             'sku' => 'CRYSTAL-001-CLR',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 150,
             'continue_selling_when_out_of_stock' => true,
-
-            // Versand
-            'is_physical_product' => true,
-            'weight' => 1250, // Gramm
-            'height' => 70, // mm
-            'width' => 244,  // mm
-            'length' => 284, // mm
+            'weight' => 1250,
+            'height' => 70,
+            'width' => 244,
+            'length' => 284,
             'shipping_class' => 'paket_s',
-
-            // Medien & Konfigurator
             'preview_image_path' => 'testdata/seelenkristall/overlay.png',
             'media_gallery' => [
-                [
-                    'type' => 'image',
-                    'path' => 'testdata/seelenkristall/seelen-kristall_b.jpg',
-                    'is_main' => true,
-                    'alt' => 'Seelen Kristall Frontansicht'
-                ],
-                [
-                    'type' => 'video',
-                    'path' => 'testdata/seelenkristall/video.mp4',
-                    'is_main' => false
-                ]
+                ['type' => 'image', 'path' => 'testdata/seelenkristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht'],
+                ['type' => 'video', 'path' => 'testdata/seelenkristall/video.mp4', 'is_main' => false]
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -92,8 +106,6 @@ class ProductSeeder extends Seeder
                 'area_height' => 80,
                 'area_shape' => 'circle'
             ],
-
-            // JSON Daten
             'attributes' => [
                 'Material' => 'Hochwertiges K9 Kristallglas',
                 'Größe' => '160*180*40 mm',
@@ -103,66 +115,50 @@ class ProductSeeder extends Seeder
                 'Technik' => 'Oberflächengravur',
                 'Gewicht' => '1250'
             ],
-
             'tier_pricing' => [],
             'seo_title' => 'Der Seelen Kristall | Personalisierbares Glasgeschenk | Mein-Seelenfunke',
             'seo_description' => 'Verschenken Sie Ewigkeit: Unser Seelen Kristall aus hochwertigem Glas mit individueller Gravur.',
             'completion_step' => 4
         ]);
 
-        // Staffelpreise für p1
+        // -> Pivot Tabelle füllen (category_product)
+        $catIds1 = Category::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
+        $p1->categories()->attach($catIds1);
+
+        // -> Staffelpreise
         $p1->tierPrices()->createMany([
             ['qty' => 5, 'percent' => 5.00],
             ['qty' => 10, 'percent' => 10.00],
             ['qty' => 25, 'percent' => 15.00],
         ]);
 
-        // ---------------------------------------------------------
-        // 2. Neues Produkt (Der Seelenanhänger)
-        // ---------------------------------------------------------
+
+        // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
         $p2 = Product::create([
-            // Basisdaten
             'name' => 'Der Seelenanhänger',
             'slug' => 'seelen-anhaenger',
+            'type' => 'physical',
             'description' => 'Ein Aluminium Metall Herz das ganz besondere Gefühle auslösen kann. Es ist sehr hochwertig und schwer, wodurch es sich besonders wertig in der Hand anfühlt. Ideal als Handschmeichler oder persönlicher Glücksbringer.',
             'short_description' => 'Hochwertiges, schweres Aluminium-Herz für besondere Momente.',
             'status' => 'active',
-
-            // Preis & Steuer
-            'price' => 999, // 9,99 €
-            'compare_at_price' => 1499, // Optional: UVP z.B. 14,99 €
-            'cost_per_item' => 111, // 1,11 € Einkauf
-
-            // Lager & Identifikation
+            'price' => 999,
+            'compare_at_price' => 1499,
+            'cost_per_item' => 111,
             'sku' => 'ALU-HEART-001',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 50,
             'continue_selling_when_out_of_stock' => true,
-
-            // Versand
-            'is_physical_product' => true,
-            'weight' => 85, // Gramm (geschätzt für "schweres" kleines Metall)
-            'height' => 5, // mm
-            'width' => 50,  // mm
-            'length' => 50, // mm
-            'shipping_class' => 'paket_s', // oder 'brief'
-
-            // Medien & Konfigurator
+            'weight' => 85,
+            'height' => 5,
+            'width' => 50,
+            'length' => 50,
+            'shipping_class' => 'paket_s',
             'preview_image_path' => 'testdata/seelenanhaenger/overlay.png',
             'media_gallery' => [
-                [
-                    'type' => 'image',
-                    'path' => 'testdata/seelenanhaenger/seelen-anhaenger_s.jpg',
-                    'is_main' => true,
-                    'alt' => 'Seelenanhänger Frontansicht'
-                ],
-                [
-                    'type' => 'video',
-                    'path' => 'testdata/seelenkristall/video.mp4', // Wiederverwendet wie gewünscht
-                    'is_main' => false
-                ]
+                ['type' => 'image', 'path' => 'testdata/seelenanhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
+                ['type' => 'video', 'path' => 'testdata/seelenkristall/video.mp4', 'is_main' => false]
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -171,27 +167,135 @@ class ProductSeeder extends Seeder
                 'area_left' => 10,
                 'area_width' => 80,
                 'area_height' => 80,
-                'area_shape' => 'heart' // Passend zum Produkt
+                'area_shape' => 'heart'
             ],
-
-            // JSON Daten
             'attributes' => [
                 'Material' => 'Aluminium (Massiv)',
                 'Form' => 'Herz',
                 'Oberfläche' => 'Matt gebürstet',
                 'Besonderheit' => 'Extra schwer & hochwertig'
             ],
-
             'tier_pricing' => [],
             'seo_title' => 'Der Seelenanhänger | Massives Aluminium Herz | Mein-Seelenfunke',
             'seo_description' => 'Ein Herz aus schwerem Aluminium, das Gefühle weckt. Hochwertig verarbeitet für 9,99€.',
             'completion_step' => 4
         ]);
 
-        // Optional: Staffelpreise für p2 (z.B. für Gastgeschenke)
+        // -> Pivot Tabelle füllen (category_product)
+        $catIds2 = Category::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger'])->pluck('id');
+        $p2->categories()->attach($catIds2);
+
+        // -> Staffelpreise
         $p2->tierPrices()->createMany([
             ['qty' => 10, 'percent' => 5.00],
             ['qty' => 20, 'percent' => 10.00],
         ]);
+
+
+        // --- PRODUKT 3: Das Seelenbuch (Digital) ---
+        $p3 = Product::create([
+            'name' => 'Das Seelenbuch', // NEUER NAME
+            'slug' => 'seelenbuch',
+            'type' => 'digital',
+            'description' => 'Ihr digitaler Begleiter für mehr Achtsamkeit und Inspiration. Dieses E-Book enthält wertvolle Impulse, Gedankenanstöße und praktische Übungen für den Alltag. Einfach herunterladen und sofort loslegen. Kompatibel mit allen gängigen Tablets und Readern.',
+            'short_description' => 'Digitaler Guide für Inspiration & Achtsamkeit (PDF).',
+            'status' => 'active',
+            'price' => 1990,
+            'compare_at_price' => 2990,
+            'cost_per_item' => 0,
+            'sku' => 'EBOOK-SEELEN-01',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => false,
+            'quantity' => 0,
+            'continue_selling_when_out_of_stock' => true,
+
+            // Versand null
+            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
+
+            // KORRIGIERTE PFADE ("seelenbuch" Ordner)
+            'digital_download_path' => 'testdata/seelenbuch/Produktübersicht - Mein Seelenfunke.pdf',
+            'digital_filename' => 'Produktübersicht - Mein Seelenfunke.pdf',
+
+            'preview_image_path' => null,
+            'media_gallery' => [
+                [
+                    'type' => 'image',
+                    'path' => 'testdata/seelenbuch/Seelen-Book.png', // KORRIGIERT
+                    'is_main' => true,
+                    'alt' => 'Das Seelenbuch Cover'
+                ]
+            ],
+            'configurator_settings' => [
+                'allow_text_pos' => false,
+                'allow_logo' => false,
+            ],
+            'attributes' => [
+                'Format' => 'PDF (Digital)',
+                'Seiten' => 'Produktübersicht',
+                'Sprache' => 'Deutsch',
+                'Auslieferung' => 'Sofort-Download'
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Das Seelenbuch | Digitaler Ratgeber | Mein-Seelenfunke',
+            'seo_description' => 'Inspiration und Achtsamkeit für jeden Tag. Jetzt das Seelenbuch als PDF herunterladen.',
+            'completion_step' => 4
+        ]);
+
+        // -> Pivot Tabelle füllen (category_product)
+        $catIds3 = Category::whereIn('name', ['E-Books & Guides'])->pluck('id');
+        $p3->categories()->attach($catIds3);
+
+
+        // --- PRODUKT 4: Persönliche Laser-Beratung (Service) ---
+        $p4 = Product::create([
+            'name' => 'Persönliche Laser-Beratung',
+            'slug' => 'laser-beratung',
+            'type' => 'service',
+            'description' => 'Planen Sie ein Großprojekt oder benötigen Sie Hilfe bei der Erstellung Ihrer Gravurdaten? Buchen Sie eine 30-minütige persönliche Beratung per Video-Call mit unseren Experten. Wir besprechen Materialien, Machbarkeit und Optimierung Ihrer Dateien für das perfekte Ergebnis. Ideal für Firmenkunden und komplexe Unikate.',
+            'short_description' => '30 Min. Video-Consulting für Ihr Laser-Projekt.',
+            'status' => 'active',
+            'price' => 4900,
+            'compare_at_price' => null,
+            'cost_per_item' => 0,
+            'sku' => 'SERVICE-CONSULT-30',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => true,
+            'quantity' => 10,
+            'continue_selling_when_out_of_stock' => false,
+
+            // Versand null
+            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
+            'digital_download_path' => null, 'digital_filename' => null,
+
+            'preview_image_path' => null,
+            'media_gallery' => [
+                [
+                    'type' => 'image',
+                    'path' => 'testdata/laserberatung/laser-beratung.png',
+                    'is_main' => true,
+                    'alt' => 'Laser Beratungsservice'
+                ]
+            ],
+            'configurator_settings' => [
+                'allow_text_pos' => false,
+                'allow_logo' => false,
+            ],
+            'attributes' => [
+                'Dauer' => '30 Minuten',
+                'Ort' => 'Online (Video-Call)',
+                'Sprache' => 'Deutsch',
+                'Experte' => 'Alina Steinhauer'
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Laser-Beratung buchen | Mein-Seelenfunke Experten',
+            'seo_description' => 'Professionelle Beratung für Ihre Lasergravur-Projekte. Jetzt Termin sichern.',
+            'completion_step' => 4
+        ]);
+
+        // -> Pivot Tabelle füllen (category_product)
+        $catIds4 = Category::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
+        $p4->categories()->attach($catIds4);
     }
 }

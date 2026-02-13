@@ -9,7 +9,6 @@ class ProductShipping extends Component
 {
     public Product $product;
 
-    public $is_physical_product;
     public $weight;
     public $height;
     public $width;
@@ -17,14 +16,12 @@ class ProductShipping extends Component
     public $shipping_class;
 
     public $infoTexts = [
-        'is_physical' => 'Legt fest, ob das Produkt versendet werden muss. Deaktivieren für digitale Güter oder Dienstleistungen.',
         'weight' => 'Das Gewicht des verpackten Produkts in Gramm. Entscheidend für die automatische Versandkostenberechnung.',
         'shipping_class' => 'Ordnet das Produkt einer Versandkategorie zu (z.B. für Sperrgut-Zuschläge oder Briefversand).',
         'dimensions' => 'Die Außenmaße der Verpackung in Millimetern. Wichtig für die Auswahl der Paketgröße.',
     ];
 
     protected $rules = [
-        'is_physical_product' => 'boolean',
         'weight' => 'nullable|integer|min:0',
         'height' => 'nullable|integer|min:0',
         'width' => 'nullable|integer|min:0',
@@ -35,8 +32,9 @@ class ProductShipping extends Component
     public function mount(Product $product)
     {
         $this->product = $product;
+
+        // Initialisieren der Werte aus dem Model
         $this->fill([
-            'is_physical_product' => $product->is_physical_product,
             'weight' => $product->weight,
             'height' => $product->height,
             'width' => $product->width,
@@ -45,35 +43,35 @@ class ProductShipping extends Component
         ]);
     }
 
-    // --- Explizite Update Methoden für mehr Stabilität ---
-
-    public function updatedIsPhysicalProduct($value)
-    {
-        $this->product->update(['is_physical_product' => (bool) $value]);
-    }
+    // --- Live Updates: Speichern sofort bei Änderung (Blur) ---
 
     public function updatedWeight($value)
     {
         $this->validateOnly('weight');
-        $this->product->update(['weight' => $value === '' ? null : $value]);
+        // Cast auf Integer oder null sicherstellen
+        $val = ($value === '' || $value === null) ? null : (int) $value;
+        $this->product->update(['weight' => $val]);
     }
 
     public function updatedHeight($value)
     {
         $this->validateOnly('height');
-        $this->product->update(['height' => $value === '' ? null : $value]);
+        $val = ($value === '' || $value === null) ? null : (int) $value;
+        $this->product->update(['height' => $val]);
     }
 
     public function updatedWidth($value)
     {
         $this->validateOnly('width');
-        $this->product->update(['width' => $value === '' ? null : $value]);
+        $val = ($value === '' || $value === null) ? null : (int) $value;
+        $this->product->update(['width' => $val]);
     }
 
     public function updatedLength($value)
     {
         $this->validateOnly('length');
-        $this->product->update(['length' => $value === '' ? null : $value]);
+        $val = ($value === '' || $value === null) ? null : (int) $value;
+        $this->product->update(['length' => $val]);
     }
 
     public function updatedShippingClass($value)

@@ -59,6 +59,13 @@
                         Neu
                     </span>
                         @endif
+
+                        {{-- NEU: Typ-Badge --}}
+                        @if($this->product->type === 'digital')
+                            <span class="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                                Digital
+                            </span>
+                        @endif
                     </div>
                 </div>
 
@@ -132,13 +139,16 @@
                                 $freeThreshold   = (int) shop_setting('shipping_free_threshold', 5000);
                                 $shippingCost    = (int) shop_setting('shipping_cost', 490);
 
-                                // NEU: Prüfung auf digitales Produkt
-                                $isDigital       = !$this->product->is_physical_product;
+                                // NEU: Typ-Check
+                                $type            = $this->product->type;
+                                $isDigital       = $type === 'digital';
+                                $isService       = $type === 'service';
+                                $isPhysical      = $type === 'physical';
 
-                                // Kostenlos ist es, wenn es digital ist ODER der Preis über der Schwelle liegt
-                                $isFree          = $isDigital || ($this->product->price >= $freeThreshold);
+                                // Kostenlos bei Digital/Service oder wenn Preis über Schwelle
+                                $isFree          = !$isPhysical || ($this->product->price >= $freeThreshold);
 
-                                // Bestimme den finalen Lagerstatus für die Anzeige und Logik
+                                // Lagerstatus
                                 $isTrulyOutOfStock = $this->product->track_quantity &&
                                                      $this->product->quantity <= 0 &&
                                                      !$this->product->continue_selling_when_out_of_stock;
@@ -157,7 +167,7 @@
                                 @endif
                              </span>
 
-                            {{-- 2. Dynamischer Versandhinweis (Digital vs Physisch) --}}
+                            {{-- 2. Dynamischer Versandhinweis (Digital / Service / Physisch) --}}
                             @if($isDigital)
                                 <span class="text-xs font-bold text-blue-600 flex items-center gap-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
@@ -165,6 +175,13 @@
                                         <path d="M9 13h2v5a1 1 0 11-2 0v-5z" />
                                     </svg>
                                     Sofort-Download (Versandkostenfrei)
+                                </span>
+                            @elseif($isService)
+                                <span class="text-xs font-bold text-orange-600 flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+                                    </svg>
+                                    Kein Versand (Dienstleistung)
                                 </span>
                             @elseif($isFree)
                                 <span class="text-xs font-bold text-green-700 flex items-center gap-1">
@@ -194,17 +211,17 @@
                                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                   <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                                 </span>
-                                Auf Lager, sofort lieferbar
+                                {{ $isService ? 'Plätze verfügbar' : 'Auf Lager, sofort lieferbar' }}
                             </span>
                         @elseif($this->product->continue_selling_when_out_of_stock)
                             <span class="inline-flex items-center gap-1.5 text-amber-600 font-medium">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Verfügbar auf Nachbestellung
+                                {{ $isService ? 'Warteliste verfügbar' : 'Verfügbar auf Nachbestellung' }}
                             </span>
                         @else
                             <span class="inline-flex items-center gap-1.5 text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100 animate-pulse">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                Derzeit leider vergriffen
+                                {{ $isService ? 'Derzeit ausgebucht' : 'Derzeit leider vergriffen' }}
                             </span>
                         @endif
                     @endif
@@ -242,7 +259,54 @@
                             Zurück zur Kollektion
                         </a>
                     </div>
+                @elseif($isDigital)
+                    {{-- DIGITALES PRODUKT --}}
+                    <div class="bg-white rounded-2xl border border-gray-200 shadow-xl p-8 transition-all hover:shadow-2xl">
+                        <div class="flex flex-col gap-6">
+                            <div class="flex items-center gap-4">
+                                <div class="bg-blue-50 text-blue-600 p-3 rounded-xl">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-gray-900">Digitales Produkt</h4>
+                                    <p class="text-xs text-gray-500">Nach der Zahlung sofort als Download verfügbar.</p>
+                                </div>
+                            </div>
+
+                            {{-- Button via Configurator --}}
+                            <livewire:shop.configurator.configurator
+                                :product="$product"
+                                context="add"
+                            />
+                        </div>
+                    </div>
+                @elseif($isService)
+                    {{-- DIENSTLEISTUNG --}}
+                    <div class="bg-white rounded-2xl border border-gray-200 shadow-xl p-8 transition-all hover:shadow-2xl">
+                        <div class="flex flex-col gap-6">
+                            <div class="flex items-center gap-4">
+                                <div class="bg-orange-50 text-orange-600 p-3 rounded-xl">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-gray-900">Service buchen</h4>
+                                    <p class="text-xs text-gray-500">Persönliche Beratung & Dienstleistung</p>
+                                </div>
+                            </div>
+
+                            {{-- Button via Configurator --}}
+                            <livewire:shop.configurator.configurator
+                                :product="$product"
+                                context="add"
+                            />
+                        </div>
+                    </div>
                 @else
+                    {{-- PHYSISCHES PRODUKT (Standard) --}}
                     <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all hover:shadow-2xl">
                         <livewire:shop.configurator.configurator
                             :product="$product"
@@ -251,34 +315,59 @@
                     </div>
                 @endif
 
-                {{-- USP Icons --}}
+                {{-- USP Icons (Dynamisch angepasst) --}}
                 <div class="grid md:grid-cols-3 gap-3 mt-12">
-                    {{-- Qualität --}}
-                    <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                        <span class="text-2xl mb-2 block">🛡️</span>
-                        <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Geprüfte Qualität</h4>
-                        <p class="text-[10px] text-gray-500 mt-1">Zertifizierte Laserschutz-Sicherheit</p>
-                    </div>
 
-                    {{-- Handveredelt (Fokus auf Auswahl & Handwerk) --}}
-                    <div class="p-index p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                        <span class="text-2xl mb-2 block">✨</span>
-                        <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Handveredelt</h4>
-                        <p class="text-[10px] text-gray-500 mt-1">Sorgsam gewählte Rohlinge, persönlich für dich gelasert</p>
-                    </div>
-
-                    {{-- Versand (Dynamisch) --}}
-                    <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
-                        @if($isDigital)
+                    @if($isDigital)
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
                             <span class="text-2xl mb-2 block">🚀</span>
                             <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sofort verfügbar</h4>
                             <p class="text-[10px] text-gray-500 mt-1">Direkter Download nach Zahlung</p>
-                        @else
+                        </div>
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">📱</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Überall lesen</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Optimiert für alle Geräte</p>
+                        </div>
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">🌿</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Nachhaltig</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Kein Versand, keine Verpackung</p>
+                        </div>
+                    @elseif($isService)
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">🎓</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Expertenwissen</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Persönliche Beratung vom Profi</p>
+                        </div>
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">📹</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Online Termin</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Bequem von Zuhause aus</p>
+                        </div>
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">🤝</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Individuell</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Lösungen für dein Projekt</p>
+                        </div>
+                    @else
+                        {{-- Standard Physisch --}}
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">🛡️</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Geprüfte Qualität</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Zertifizierte Laserschutz-Sicherheit</p>
+                        </div>
+                        <div class="p-index p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
+                            <span class="text-2xl mb-2 block">✨</span>
+                            <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Handveredelt</h4>
+                            <p class="text-[10px] text-gray-500 mt-1">Sorgsam gewählte Rohlinge, persönlich für dich gelasert</p>
+                        </div>
+                        <div class="p-6 bg-white border border-gray-100 rounded-2xl text-center hover:shadow-md transition-shadow">
                             <span class="text-2xl mb-2 block">📦</span>
                             <h4 class="text-xs font-bold uppercase tracking-tight text-gray-900">Sicherer Versand</h4>
                             <p class="text-[10px] text-gray-500 mt-1">Bruchsicher & liebevoll von Hand verpackt</p>
-                        @endif
-                    </div>
+                        </div>
+                    @endif
                 </div>
 
                 {{-- Mobile Beschreibung (unter den Buttons sichtbar) --}}

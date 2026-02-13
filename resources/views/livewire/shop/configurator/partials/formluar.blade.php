@@ -1,24 +1,7 @@
 {{-- FORMULAR --}}
 <div class="p-6 space-y-6 text-sm max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
-    {{-- 1. MENGE --}}
-    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-            <label class="text-xs font-bold text-gray-900 uppercase tracking-wider">Menge</label>
-            <div class="text-right">
-                <span class="font-serif font-bold text-xl text-primary block leading-none">{{ number_format($totalPrice / 100, 2, ',', '.') }} €</span>
-                <span class="text-[10px] text-gray-400">Einzelpreis: {{ number_format($currentPrice / 100, 2, ',', '.') }} €</span>
-            </div>
-        </div>
-        <div class="relative w-full">
-            <select wire:model.live="qty" wire:change="calculatePrice" class="appearance-none w-full pl-4 pr-10 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
-                @for($i = 1; $i <= 100; $i++) <option value="{{ $i }}">{{ $i }}x</option> @endfor
-            </select>
-            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg></div>
-        </div>
-    </div>
-
-    {{-- 2. GRAVUR TEXTE (Liste) --}}
+    {{-- 1. GRAVUR TEXTE (Liste) --}}
     <div class="space-y-4 pt-2 border-t border-gray-100">
         <div class="flex items-center justify-between">
             <label class="text-sm font-bold text-gray-900 uppercase tracking-wide">Gravuren</label>
@@ -70,7 +53,7 @@
         </div>
     </div>
 
-    {{-- 3. MEDIEN --}}
+    {{-- 2. MEDIEN --}}
     @if($configSettings['allow_logo'])
         <div class="space-y-3 pt-4 border-t border-gray-100">
             <label class="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
@@ -178,7 +161,7 @@
         </div>
     @endif
 
-    {{-- 4. ANMERKUNGEN --}}
+    {{-- 3. ANMERKUNGEN --}}
     <div class="pt-4 border-t border-gray-100">
         <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Interne Anmerkungen</label>
         <textarea wire:model="notes" rows="2" class="w-full p-4 rounded-xl border border-yellow-200 bg-yellow-50/50 text-gray-900 placeholder-gray-400 focus:bg-yellow-50 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/50 transition-all text-sm leading-relaxed resize-none" placeholder="Haben Sie Sonderwünsche?" {{ $context === 'preview' ? 'readonly' : '' }}></textarea>

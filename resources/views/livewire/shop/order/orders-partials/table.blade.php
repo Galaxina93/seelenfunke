@@ -238,6 +238,3 @@
         </x-slot>
     </x-table.master>
 </div>
-
-{{-- Pagination Links --}}
-<div class="mt-4">{{ $orders->links() }}</div>

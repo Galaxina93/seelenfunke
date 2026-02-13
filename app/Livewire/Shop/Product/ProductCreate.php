@@ -21,12 +21,16 @@ class ProductCreate extends Component
 
     // --- SCHRITT 1: Basis, Preis & SEO ---
     public $name = '';
+    public $type = 'physical'; // NEU: Standardwert
     public $short_description = '';
     public $description = '';
 
     // Preis & Steuer
     public $price_input = '';
     public $compare_price_input = '';
+
+    // Staffelpreise (Array für Livewire Binding)
+    public $tiers = [];
 
     // Identifikatoren
     public $sku = '';
@@ -36,7 +40,7 @@ class ProductCreate extends Component
     // Status (Enum)
     public $status = 'draft';
 
-    // --- Versanddaten
+    // --- Versanddaten (Nur bei Type = physical)
     public $weight = 0; // Gramm
     public $height = 0; // mm
     public $width = 0;  // mm
@@ -53,16 +57,31 @@ class ProductCreate extends Component
     public $new_video;
     public $new_preview_image;
 
+    // NEU: Für den Digital-Upload
+    public $new_digital_file;
+
     // --- SCHRITT 3: Attribute & Lager ---
     public $productAttributes = [
+        // Physisch
         'Material' => '',
         'Druck' => '',
         'Technik' => '',
         'Größe' => '',
-        'Gewicht' => '', // Nur als Attribut für Frontend-Anzeige, logistik-Gewicht ist $weight
+        'Gewicht' => '',
         'Verpackung' => '',
         'Lieferzeit' => '3-5 Werktage',
-        'Farbe' => ''
+        'Farbe' => '',
+
+        // Digital
+        'Format' => '',
+        'Seiten' => '',
+        'Sprache' => 'Deutsch',
+        'Auslieferung' => 'Sofort-Download',
+
+        // Service
+        'Dauer' => '',
+        'Ort' => 'Online',
+        'Experte' => ''
     ];
 
     public $track_quantity = true;
@@ -98,19 +117,74 @@ class ProductCreate extends Component
         'allowed_align' => ['left', 'center', 'right']
     ];
 
-    protected $rules = [
-        'name' => 'required|min:3',
-        'sku' => 'required|min:3', // SKU ist jetzt wichtiger
-        'price_input' => 'required|numeric|min:0',
-        'slug_input' => 'required|alpha_dash|min:3',
-    ];
+    protected function rules()
+    {
+        return [
+            'name' => 'required|min:3',
+            // SKU nur validieren, wenn sie nicht leer ist oder wir im Speicher-Modus sind
+            'sku' => 'nullable|min:3',
+            'price_input' => 'required|numeric|min:0',
+            'slug_input' => 'nullable', // Slug wird automatisch generiert, muss hier nicht strict sein
+            'type' => 'required|in:physical,digital,service',
+        ];
+    }
 
     #[On('product-updated')]
     public function refreshProduct()
     {
-        // Lädt das Model neu aus der DB, damit die Vorschau die neuen Steuerdaten hat
+        // Lädt das Model neu aus der DB
         $this->product->refresh();
     }
+
+    // --- LIVE UPDATES ---
+
+    public function updatedType($value)
+    {
+        // 1. Validierung nur für dieses Feld, um Crashes zu vermeiden
+        $this->validateOnly('type');
+
+        // 2. Steps anpassen
+        $this->totalSteps = ($value === 'physical') ? 4 : 3;
+
+        // 3. Current Step korrigieren, falls man von Step 4 (Physical) zurückwechselt
+        if ($this->currentStep > $this->totalSteps) {
+            $this->currentStep = $this->totalSteps;
+        }
+
+        // 4. Reset von physischen Daten, falls nötig (Optional, aber sauber)
+        if ($value !== 'physical') {
+            $this->weight = 0;
+            $this->height = 0;
+            $this->width = 0;
+            $this->length = 0;
+        }
+
+        // Standardwerte für Attribute je nach Typ setzen (optional)
+        if ($value === 'digital') {
+            $this->productAttributes['Auslieferung'] = 'Sofort-Download';
+            $this->track_quantity = false; // Bei Digital oft irrelevant
+        } elseif ($value === 'service') {
+            $this->productAttributes['Ort'] = 'Online';
+            $this->track_quantity = true; // Bei Service (Termine) oft relevant
+        } else {
+            $this->productAttributes['Lieferzeit'] = '3-5 Werktage';
+            $this->track_quantity = true;
+        }
+    }
+
+    public function updatedName($value)
+    {
+        if (empty($this->slug_input)) {
+            $this->slug_input = Str::slug($value);
+        }
+    }
+
+    public function updatedSlugInput($value)
+    {
+        $this->slug_input = Str::slug($value);
+    }
+
+    // --- ACTIONS ---
 
     public function createDraft()
     {
@@ -118,6 +192,7 @@ class ProductCreate extends Component
             'name' => 'Neues Produkt ' . date('H:i'),
             'slug' => 'draft-' . Str::uuid(),
             'status' => 'draft',
+            'type' => 'physical', // Standard
             'price' => 0,
             'media_gallery' => [],
             'tier_pricing' => [],
@@ -135,9 +210,13 @@ class ProductCreate extends Component
 
         // Basisdaten
         $this->name = $this->product->name;
+        $this->type = $this->product->type; // NEU: Typ laden
         $this->description = $this->product->description;
         $this->short_description = $this->product->short_description;
         $this->status = $this->product->status;
+
+        // Steps Logik basierend auf geladenem Typ initialisieren
+        $this->totalSteps = ($this->type === 'physical') ? 4 : 3;
 
         // SEO & Slug
         $this->seo_title = $this->product->seo_title;
@@ -169,11 +248,10 @@ class ProductCreate extends Component
             ? number_format($this->product->compare_at_price / 100, 2, '.', '')
             : '';
 
-        // --- NEU: Staffelpreise laden (aus der neuen Relation) ---
-        // Wir mappen es in ein Array, damit Livewire es bearbeiten kann
+        // Staffelpreise laden
         $this->tiers = $this->product->tierPrices->map(function($tier) {
             return [
-                'id' => Str::uuid()->toString(), // <--- NEU: Eindeutige ID
+                'id' => Str::uuid()->toString(),
                 'qty' => $tier->qty,
                 'percent' => $tier->percent
             ];
@@ -185,26 +263,58 @@ class ProductCreate extends Component
         $this->configSettings = array_merge($this->configSettings, $savedConfig);
 
         $this->viewMode = 'edit';
-        $this->currentStep = ($this->product->completion_step > 0) ? $this->product->completion_step : 1;
-        if($this->product->completion_step >= 4) $this->currentStep = 4;
+
+        // Step Berechnung korrigieren (Falls man von Physical auf Digital gewechselt hat und Step auf 4 stand)
+        $dbStep = ($this->product->completion_step > 0) ? $this->product->completion_step : 1;
+        $this->currentStep = min($dbStep, $this->totalSteps);
     }
 
-    // --- UPDATE LOGIC ---
-    public function updatedName($value)
+    public function updatedNewDigitalFile()
     {
-        if (empty($this->slug_input)) {
-            $this->slug_input = Str::slug($value);
+        // Validierung: Erlaube gängige Formate, max 100MB (je nach Server-Config)
+        $this->validate([
+            'new_media.*' => 'image|max:10240', // Existierende Regel
+            'new_digital_file' => 'required|file|mimes:pdf,zip,rar,mp3,wav,mp4,mov,epub,mobi|max:102400', // NEU: 100MB
+        ]);
+
+        // WICHTIG: Speichern im 'local' Disk (nicht public!), damit es geschützt ist
+        // Ordnerstruktur: products-secure/{slug}/
+        $folder = 'products-secure/' . ($this->product->slug ?? 'draft');
+
+        // Original-Dateiname speichern
+        $originalName = $this->new_digital_file->getClientOriginalName();
+
+        // Datei speichern (privat)
+        $path = $this->new_digital_file->storeAs($folder, time() . '_' . $originalName); // Default disk ist meist 'local' (storage/app)
+
+        // Datenbank Update
+        $this->product->update([
+            'digital_download_path' => $path,
+            'digital_filename' => $originalName
+        ]);
+
+        $this->new_digital_file = null;
+        session()->flash('success', 'Produktdatei sicher hochgeladen!');
+    }
+
+    public function removeDigitalFile()
+    {
+        if ($this->product->digital_download_path) {
+            // Datei vom Server löschen
+            Storage::delete($this->product->digital_download_path);
+
+            // DB bereinigen
+            $this->product->update([
+                'digital_download_path' => null,
+                'digital_filename' => null
+            ]);
+
+            session()->flash('success', 'Produktdatei entfernt.');
         }
     }
-    public function updatedSlugInput($value)
-    {
-        $this->slug_input = Str::slug($value);
-    }
 
-    // --- NAVIGATION & STATUS ---
     public function updateStatus($id, $newStatus)
     {
-        // Validierung gegen Enum-Werte
         if (!in_array($newStatus, ['draft', 'active', 'archived'])) {
             return;
         }
@@ -215,6 +325,7 @@ class ProductCreate extends Component
             $prod->save();
         }
     }
+
     public function backToList()
     {
         $this->viewMode = 'list';
@@ -224,36 +335,51 @@ class ProductCreate extends Component
     }
 
     // --- WIZARD NAVIGATION ---
+
     public function goToStep($step)
     {
-        if ($step > $this->product->completion_step + 1 && $this->product->completion_step < 4) return;
+        // Darf nicht weiter springen als erlaubt (Completion Step + 1)
+        if ($step > $this->product->completion_step + 1 && $this->product->completion_step < $this->totalSteps) return;
+
+        // Darf nicht über die maximalen Steps des aktuellen Typs hinaus
+        if ($step > $this->totalSteps) return;
+
         if ($step > $this->currentStep) {
             if (!$this->canProceed()) return;
             $this->save(false);
         }
         $this->currentStep = $step;
     }
+
     public function nextStep()
     {
         if(!$this->canProceed()) return;
+
+        // Fortschritt speichern
         if($this->currentStep >= $this->product->completion_step) {
             $this->product->completion_step = $this->currentStep;
         }
+
         $this->save(false);
-        if($this->currentStep < $this->totalSteps) $this->currentStep++;
+
+        if($this->currentStep < $this->totalSteps) {
+            $this->currentStep++;
+        }
     }
+
     public function prevStep()
     {
         if($this->currentStep > 1) $this->currentStep--;
     }
+
     public function canProceed()
     {
         if ($this->currentStep === 1) {
             $price = (float) $this->price_input;
-            // SKU ist jetzt wichtiger
-            return !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input);
+            return !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input) && !empty($this->type);
         }
         if ($this->currentStep === 2) {
+            // Mindestens ein Bild prüfen
             $hasImage = false;
             foreach($this->product->media_gallery ?? [] as $media) {
                 if(isset($media['type']) && $media['type'] === 'image') {
@@ -264,119 +390,33 @@ class ProductCreate extends Component
         }
         return true;
     }
+
     public function finish()
     {
         if(!$this->canProceed()) return;
+
         $this->save(false);
-        $this->product->update(['status' => 'active', 'completion_step' => 4]);
+
+        // Status auf active setzen
+        // Completion Step auf Maximum für diesen Typ setzen
+        $this->product->update([
+            'status' => 'active',
+            'completion_step' => $this->totalSteps
+        ]);
+
         session()->flash('success', 'Produkt veröffentlicht!');
         $this->backToList();
     }
 
-    // --- MEDIA ---
-
-    // (Hier bleibt die Logik weitgehend gleich, da JSON für Medien vorerst ok ist für MVP)
-    public function updatedNewMedia()
-    {
-        $this->validate(['new_media.*' => 'image|max:10240']);
-        foreach($this->new_media as $file) {
-            if ($file->getSize() > 3 * 1024 * 1024) { $this->addError('new_media', 'Datei zu groß.'); return; }
-        }
-
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
-        $gallery = $this->product->media_gallery ?? [];
-
-        foreach ($this->new_media as $file) {
-            $filename = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.jpg';
-            $fullPath = $folder . '/' . $filename;
-            $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
-            $gallery[] = ['type' => 'image', 'path' => $fullPath];
-        }
-
-        $this->product->media_gallery = $gallery;
-        $this->product->save();
-        $this->new_media = [];
-        session()->flash('success', 'Bilder hochgeladen!');
-    }
-    public function updatedNewVideo()
-    {
-        $this->validate(['new_video' => 'mimetypes:video/mp4,video/quicktime|max:51200']);
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
-        $path = $this->new_video->store($folder, 'public');
-        $gallery = $this->product->media_gallery ?? [];
-        $gallery[] = ['type' => 'video', 'path' => $path];
-        $this->product->media_gallery = $gallery;
-        $this->product->save();
-        $this->new_video = null;
-    }
-    public function setMainImage($index)
-    {
-        $gallery = $this->product->media_gallery;
-        if(isset($gallery[$index])) {
-            $item = $gallery[$index];
-            unset($gallery[$index]);
-            array_unshift($gallery, $item);
-            $this->product->media_gallery = array_values($gallery);
-            $this->product->save();
-        }
-    }
-    private function resizeAndSaveImage($sourcePath, $destinationPath)
-    {
-        list($width, $height, $type) = getimagesize($sourcePath);
-        $maxWidth = 1920; $maxHeight = 1920;
-        $ratio = $width / $height;
-        if ($width > $maxWidth || $height > $maxHeight) {
-            if ($maxWidth / $maxHeight > $ratio) { $newWidth = $maxHeight * $ratio; $newHeight = $maxHeight; } else { $newHeight = $maxWidth / $ratio; $newWidth = $maxWidth; }
-        } else { $newWidth = $width; $newHeight = $height; }
-
-        switch ($type) {
-            case IMAGETYPE_JPEG: $src = imagecreatefromjpeg($sourcePath); break;
-            case IMAGETYPE_PNG: $src = imagecreatefrompng($sourcePath); break;
-            case IMAGETYPE_WEBP: $src = imagecreatefromwebp($sourcePath); break;
-            default: return;
-        }
-
-        $dst = imagecreatetruecolor($newWidth, $newHeight);
-        $white = imagecolorallocate($dst, 255, 255, 255);
-        imagefilledrectangle($dst, 0, 0, $newWidth, $newHeight, $white);
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
-        ob_start(); imagejpeg($dst, null, 85); $imageData = ob_get_clean();
-        Storage::disk('public')->put($destinationPath, $imageData);
-        imagedestroy($src); imagedestroy($dst);
-    }
-    public function removeMedia($index)
-    {
-        $gallery = $this->product->media_gallery;
-        if(isset($gallery[$index])) Storage::disk('public')->delete($gallery[$index]['path']);
-        unset($gallery[$index]);
-        $this->product->media_gallery = array_values($gallery);
-        $this->product->save();
-    }
-    public function updatedNewPreviewImage()
-    {
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
-        $path = $this->new_preview_image->store($folder, 'public');
-        $this->product->preview_image_path = $path;
-        $this->product->save();
-        $this->new_preview_image = null;
-    }
-    public function removePreviewImage()
-    {
-        if($this->product->preview_image_path) {
-            Storage::disk('public')->delete($this->product->preview_image_path);
-            $this->product->preview_image_path = null;
-            $this->product->save();
-        }
-    }
-
-    // --- SAVE (KERNLOGIK) ---
+    // --- SAVE LOGIK ---
 
     public function save($notify = true)
     {
         // 1. Basisdaten
         $this->product->name = $this->name;
+        $this->product->type = $this->type; // Typ speichern
         $this->product->description = $this->description;
-        $this->product->short_description = $this->short_description; // $this->product->short_description = $this->product->short_description;
+        $this->product->short_description = $this->short_description;
 
         // 2. Slug Logik
         if (!empty($this->slug_input)) {
@@ -409,19 +449,27 @@ class ProductCreate extends Component
             $this->product->compare_at_price = null;
         }
 
-        // 7. Versanddaten
-        $this->product->weight = (int) $this->weight;
-        $this->product->height = (int) $this->height;
-        $this->product->width = (int) $this->width;
-        $this->product->length = (int) $this->length;
+        // 7. Versanddaten (Nur speichern wenn Typ physical ist)
+        if ($this->type === 'physical') {
+            $this->product->weight = (int) $this->weight;
+            $this->product->height = (int) $this->height;
+            $this->product->width = (int) $this->width;
+            $this->product->length = (int) $this->length;
+        } else {
+            // Bereinigung falls Typ geändert wurde
+            $this->product->weight = null;
+            $this->product->height = null;
+            $this->product->width = null;
+            $this->product->length = null;
+        }
 
         // 8. JSON Arrays
-        $this->product->attributes = $this->productAttributes;
         $this->product->configurator_settings = $this->configSettings;
 
-        // 9. Fortschritt
+        // 9. Fortschritt aktualisieren
         if($this->currentStep > $this->product->completion_step && $this->canProceed()) {
-            $this->product->completion_step = $this->currentStep;
+            // Sicherstellen, dass completion_step nicht höher als erlaubt ist
+            $this->product->completion_step = min($this->currentStep, $this->totalSteps);
         }
 
         $this->product->save();
@@ -429,7 +477,109 @@ class ProductCreate extends Component
         if($notify) session()->flash('success', 'Produkt gespeichert.');
     }
 
+    // --- MEDIA HANDLING (Bleibt gleich) ---
+
+    public function updatedNewMedia()
+    {
+        $this->validate(['new_media.*' => 'image|max:10240']);
+        foreach($this->new_media as $file) {
+            if ($file->getSize() > 3 * 1024 * 1024) { $this->addError('new_media', 'Datei zu groß.'); return; }
+        }
+
+        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
+        $gallery = $this->product->media_gallery ?? [];
+
+        foreach ($this->new_media as $file) {
+            $filename = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.jpg';
+            $fullPath = $folder . '/' . $filename;
+            $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
+            $gallery[] = ['type' => 'image', 'path' => $fullPath];
+        }
+
+        $this->product->media_gallery = $gallery;
+        $this->product->save();
+        $this->new_media = [];
+        session()->flash('success', 'Bilder hochgeladen!');
+    }
+
+    public function updatedNewVideo()
+    {
+        $this->validate(['new_video' => 'mimetypes:video/mp4,video/quicktime|max:51200']);
+        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
+        $path = $this->new_video->store($folder, 'public');
+        $gallery = $this->product->media_gallery ?? [];
+        $gallery[] = ['type' => 'video', 'path' => $path];
+        $this->product->media_gallery = $gallery;
+        $this->product->save();
+        $this->new_video = null;
+    }
+
+    public function setMainImage($index)
+    {
+        $gallery = $this->product->media_gallery;
+        if(isset($gallery[$index])) {
+            $item = $gallery[$index];
+            unset($gallery[$index]);
+            array_unshift($gallery, $item);
+            $this->product->media_gallery = array_values($gallery);
+            $this->product->save();
+        }
+    }
+
+    private function resizeAndSaveImage($sourcePath, $destinationPath)
+    {
+        list($width, $height, $type) = getimagesize($sourcePath);
+        $maxWidth = 1920; $maxHeight = 1920;
+        $ratio = $width / $height;
+        if ($width > $maxWidth || $height > $maxHeight) {
+            if ($maxWidth / $maxHeight > $ratio) { $newWidth = $maxHeight * $ratio; $newHeight = $maxHeight; } else { $newHeight = $maxWidth / $ratio; $newWidth = $maxWidth; }
+        } else { $newWidth = $width; $newHeight = $height; }
+
+        switch ($type) {
+            case IMAGETYPE_JPEG: $src = imagecreatefromjpeg($sourcePath); break;
+            case IMAGETYPE_PNG: $src = imagecreatefrompng($sourcePath); break;
+            case IMAGETYPE_WEBP: $src = imagecreatefromwebp($sourcePath); break;
+            default: return;
+        }
+
+        $dst = imagecreatetruecolor($newWidth, $newHeight);
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $newWidth, $newHeight, $white);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        ob_start(); imagejpeg($dst, null, 85); $imageData = ob_get_clean();
+        Storage::disk('public')->put($destinationPath, $imageData);
+        imagedestroy($src); imagedestroy($dst);
+    }
+
+    public function removeMedia($index)
+    {
+        $gallery = $this->product->media_gallery;
+        if(isset($gallery[$index])) Storage::disk('public')->delete($gallery[$index]['path']);
+        unset($gallery[$index]);
+        $this->product->media_gallery = array_values($gallery);
+        $this->product->save();
+    }
+
+    public function updatedNewPreviewImage()
+    {
+        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
+        $path = $this->new_preview_image->store($folder, 'public');
+        $this->product->preview_image_path = $path;
+        $this->product->save();
+        $this->new_preview_image = null;
+    }
+
+    public function removePreviewImage()
+    {
+        if($this->product->preview_image_path) {
+            Storage::disk('public')->delete($this->product->preview_image_path);
+            $this->product->preview_image_path = null;
+            $this->product->save();
+        }
+    }
+
     // --- QUICK ACTIONS ---
+
     public function updateStock($id, $newQty)
     {
         $product = Product::find($id);
@@ -447,8 +597,6 @@ class ProductCreate extends Component
         $query = Product::query();
         if($this->search) $query->where('name', 'like', '%'.$this->search.'%');
 
-        // Performance: Eager Loading der Felder ist bei Eloquent Standard, aber falls
-        // Tax Rates irgendwann relational geladen werden, hier ->with() einfügen.
         $products = ($this->viewMode === 'list') ? $query->latest()->get() : [];
 
         return view('livewire.shop.product.product-create', [

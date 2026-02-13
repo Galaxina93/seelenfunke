@@ -17,53 +17,60 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes(); // Wichtig für GoBD & Wiederherstellung
 
-            // 2. Basisdaten
+            // 2. Basisdaten & Typisierung
             $table->string('name');
             $table->string('slug')->unique();
+
+            // NEU: Produkttyp statt Boolean (physical, digital, service)
+            $table->string('type')->default('physical')->index();
+
+            $table->enum('status', ['draft', 'active', 'archived'])->default('draft')->index();
+
             $table->longText('description')->nullable();
             $table->text('short_description')->nullable();
 
-            // Verbesserung: Status als Enum (Datenbank-Level Validierung)
-            $table->enum('status', ['draft', 'active', 'archived'])->default('draft')->index();
-
-            // 3. Preis & Steuer (tax_rate entfernt!)
+            // 3. Preis & Steuer
             $table->integer('price'); // Preis in Cent
             $table->integer('compare_at_price')->nullable(); // Preis in Cent
             $table->integer('cost_per_item')->nullable(); // Preis in Cent
+            $table->string('tax_class')->default('standard');
 
             // 4. Lager & Identifikation
-            // SKU nullable für Drafts, aber unique wenn gesetzt
             $table->string('sku')->nullable()->unique();
             $table->string('barcode')->nullable();
             $table->string('brand')->nullable();
+
+            // Lagerhaltung (für Digital oft irrelevant, aber optional möglich für Limitierungen)
             $table->boolean('track_quantity')->default(true);
             $table->integer('quantity')->default(0);
             $table->boolean('continue_selling_when_out_of_stock')->default(false);
 
-            // 5. Steuer
-            $table->string('tax_class')->default('standard');
-
-            // 6. Versanddaten (Erweitert um Maße & Klasse)
-            $table->boolean('is_physical_product')->default(true);
+            // 5. Physische Attribute (Nur relevant wenn type = physical)
+            // is_physical_product WURDE ENTFERNT
             $table->integer('weight')->nullable(); // in Gramm
             $table->integer('height')->nullable(); // in mm
             $table->integer('width')->nullable();  // in mm
             $table->integer('length')->nullable(); // in mm
-            $table->string('shipping_class')->nullable(); // z.B. 'sperrgut', 'brief'
+            $table->string('shipping_class')->nullable();
 
-            // 7. JSON-Felder (Akzeptabel für MVP/Single-Product Shops)
+            // 6. JSON-Felder
             $table->json('media_gallery')->nullable();
             $table->json('attributes')->nullable();
             $table->json('tier_pricing')->nullable();
-            $table->json('configurator_settings')->nullable(); // Für deinen Konfigurator
+            $table->json('configurator_settings')->nullable();
 
-            // 8. SEO
+            // 7. SEO
             $table->string('seo_title')->nullable();
             $table->text('seo_description')->nullable();
 
             // Meta
             $table->integer('completion_step')->default(1);
             $table->string('preview_image_path')->nullable();
+
+            // Speichert den internen Pfad zur geschützten Datei
+            $table->string('digital_download_path')->nullable();
+            // Optional: Originaler Dateiname für den Download (z.B. "Mein-Ebook.pdf")
+            $table->string('digital_filename')->nullable();
         });
     }
 

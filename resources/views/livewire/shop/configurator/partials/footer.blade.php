@@ -4,9 +4,9 @@
          x-data="{ saved: false }"
          x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 6000)">
 
-        <div class="max-w-2xl mx-auto flex flex-col gap-4">
+        <div class="max-w-4xl mx-auto space-y-4">
 
-            {{-- RECHTLICHER HINWEIS (VOR DEM BUTTON) --}}
+            {{-- 1. RECHTLICHER HINWEIS --}}
             <div @class([
                     'p-3 rounded-xl border transition-all duration-200',
                     'bg-gray-50 border-gray-200' => !$errors->has('config_confirmed'),
@@ -17,48 +17,95 @@
                            wire:model.live="config_confirmed"
                            class="mt-1 w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary">
                     <span class="text-[11px] text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
+                        @if($isDigital)
+                            Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist begonnen wird. Mir ist bekannt, dass ich durch diese Zustimmung mein Widerrufsrecht verliere.
+                        @else
                             Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
-                            <a href="/agb#konfigurator" target="_blank" class="text-primary underline font-bold">AGB Details</a>.
-                        </span>
+                        @endif
+                        <a href="/agb" target="_blank" class="text-primary underline font-bold ml-1">AGB Details</a>.
+                    </span>
                 </label>
             </div>
 
-            {{-- HAUPT-BUTTON --}}
-            <button
-                wire:click="save"
-                wire:loading.attr="disabled"
-                @disabled(!$config_confirmed)
-                :class="saved ? 'bg-green-600 hover:bg-green-700' : ({{ $config_confirmed ? 'true' : 'false' }} ? 'bg-gray-900 hover:bg-black' : 'bg-gray-200 cursor-not-allowed')"
-                class="w-full text-white py-4 rounded-full font-bold text-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 flex items-center justify-center gap-3 shadow-lg disabled:grayscale disabled:opacity-50"
-            >
-                {{-- Zustand: Laden --}}
-                <svg wire:loading class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+            {{-- 2. ACTION AREA: MENGE & KAUFEN BUTTON --}}
+            <div class="flex flex-col sm:flex-row gap-3 h-auto sm:h-14">
 
-                {{-- Zustand: Erfolg --}}
-                <template x-if="saved">
-                    <div class="flex items-center gap-2 animate-fade-in">
-                        <svg class="w-6 h-6 text-white animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>Erfolgreich hinzugefügt!</span>
-                    </div>
-                </template>
+                {{-- MENGENAUSWAHL (Links) --}}
+                <div class="relative w-full sm:w-32 h-14 bg-gray-100 rounded-xl border border-transparent hover:border-gray-300 focus-within:border-primary focus-within:bg-white transition-all flex items-center">
+                    <label class="absolute left-4 text-[10px] font-bold text-gray-500 uppercase tracking-wider pointer-events-none">Menge</label>
+                    <select wire:model.live="qty" wire:change="calculatePrice" class="appearance-none bg-transparent w-full h-full text-right font-bold text-xl text-gray-900 focus:outline-none cursor-pointer pl-4 pr-10 pt-3">
+                        @for($i = 1; $i <= 100; $i++)
+                            <option value="{{ $i }}">{{ $i }}</option>
+                        @endfor
+                    </select>
+                    {{-- Chevron Icon --}}
+                    <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
 
-                {{-- Zustand: Normal --}}
-                <template x-if="!saved">
-                        <span wire:loading.remove>
-                            @if($context === 'add') In den Warenkorb
-                            @elseif($context === 'edit') Änderungen speichern
-                            @elseif($context === 'calculator') In Kalkulation übernehmen
-                            @endif
+                {{-- HAUPT-BUTTON (Rechts) --}}
+                <button
+                    wire:click="save"
+                    wire:loading.attr="disabled"
+                    @disabled(!$config_confirmed)
+                    :class="saved ? 'bg-green-600 hover:bg-green-700' : ({{ $config_confirmed ? 'true' : 'false' }} ? 'bg-gray-900 hover:bg-black' : 'bg-gray-200 cursor-not-allowed text-gray-400')"
+                    class="flex-1 h-14 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl disabled:shadow-none text-white relative overflow-hidden group"
+                >
+                    {{-- PREIS ANZEIGE IM BUTTON --}}
+                    <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-5 flex flex-col justify-center items-start border-r border-white/10 min-w-[100px]">
+                        {{-- Gesamtpreis --}}
+                        <span class="font-serif font-bold leading-none tracking-wide {{ $qty > 1 ? 'text-base' : 'text-lg' }}">
+                            {{ number_format($totalPrice / 100, 2, ',', '.') }} €
                         </span>
-                </template>
+                        {{-- Einzelpreis (nur wenn Menge > 1) --}}
+                        @if($qty > 1)
+                            <span class="text-[9px] opacity-80 font-normal leading-none mt-0.5">
+                                á {{ number_format($currentPrice / 100, 2, ',', '.') }} €
+                            </span>
+                        @endif
+                    </div>
 
-                <span wire:loading>Verarbeite...</span>
-            </button>
+                    {{-- TEXT & LOADING --}}
+                    <div class="pl-24 pr-4 w-full flex items-center justify-center">
+
+                        {{-- Zustand: Erfolg --}}
+                        <template x-if="saved">
+                            <div class="flex items-center gap-2 animate-fade-in">
+                                <svg class="w-6 h-6 text-white animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>Hinzugefügt!</span>
+                            </div>
+                        </template>
+
+                        {{-- Zustand: Normal / Loading --}}
+                        <template x-if="!saved">
+                            <div class="flex items-center gap-2">
+
+                                {{-- 1. Loading Icon (Links, nur sichtbar wenn wire:loading) --}}
+                                <svg wire:loading class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+
+                                {{-- 2. Text Normal (Wird ausgeblendet beim Laden) --}}
+                                <span wire:loading.remove>
+                                    @if($context === 'add') In den Warenkorb
+                                    @elseif($context === 'edit') Speichern
+                                    @elseif($context === 'calculator') Übernehmen
+                                    @endif
+                                </span>
+
+                                {{-- 3. Text Loading (Wird eingeblendet beim Laden) --}}
+                                <span wire:loading>
+                                    Moment...
+                                </span>
+                            </div>
+                        </template>
+                    </div>
+                </button>
+            </div>
 
             {{-- SEKUNDÄR-BUTTON: Warenkorb (Erscheint nur bei Erfolg) --}}
             <div x-show="saved"
@@ -69,25 +116,14 @@
                  style="display: none;">
 
                 <a href="{{ route('cart') }}"
-                   class="w-full border-2 border-primary text-gray-900 py-4 rounded-full font-bold text-base flex items-center justify-center gap-3 transition-all duration-500 group relative overflow-hidden bg-white hover:text-white hover:shadow-[0_10px_20px_rgba(201,166,107,0.2)]">
-
-                    {{-- Subtiler Hintergrund-Slide Effekt --}}
-                    <div class="absolute inset-0 bg-primary translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out"></div>
-
-                    {{-- Content: Höherer Z-Index damit Text über dem Slide-Effekt liegt --}}
-                    <span class="relative z-10 tracking-wide uppercase text-sm">Jetzt zum Warenkorb</span>
-
-                    <svg class="relative z-10 w-5 h-5 transition-transform duration-500 group-hover:translate-x-1"
-                         fill="none"
-                         viewBox="0 0 24 24"
-                         stroke="currentColor">
-                        <path stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                   class="w-full border-2 border-primary text-gray-900 py-3 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all duration-300 hover:bg-primary hover:text-white group">
+                    <span>Zum Warenkorb wechseln</span>
+                    <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                 </a>
             </div>
+
         </div>
     </div>
 @endif

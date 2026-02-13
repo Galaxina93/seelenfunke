@@ -1,4 +1,5 @@
 @if($currentStep === 4)
+    {{-- Dieser Step wird nur angezeigt, wenn type === 'physical' ist (gesteuert durch das Haupt-Blade) --}}
     <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-fade-in-up space-y-8">
         <h2 class="text-2xl font-serif text-gray-900">4. Live-Konfigurator</h2>
 
@@ -48,7 +49,7 @@
                     <p class="text-xs text-gray-500">Legen Sie fest, wo Kunden Elemente platzieren dürfen.</p>
                 </div>
 
-                {{-- NEU: Umschalter für die Form --}}
+                {{-- Umschalter für die Form --}}
                 <div class="flex bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
                     <button type="button"
                             wire:click="$set('configSettings.area_shape', 'rect')"
@@ -82,7 +83,7 @@
                 </div>
             </div>
 
-            {{-- VISUELLE VORSCHAU (unverändert, da Logik bereits vorhanden war) --}}
+            {{-- VISUELLE VORSCHAU --}}
             <div class="border border-gray-300 rounded-lg overflow-hidden bg-white relative max-w-sm mx-auto shadow-sm">
                 <div class="text-xs text-gray-400 text-center py-2 border-b border-gray-100 uppercase font-bold tracking-widest">Live Vorschau</div>
                 <div class="relative w-full aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">

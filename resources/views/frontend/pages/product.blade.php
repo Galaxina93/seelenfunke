@@ -1,63 +1,82 @@
 <x-layouts.frontend_layout>
     <x-sections.page-container>
 
-        <section class="relative bg-white pt-32 pb-16 lg:pt-40 lg:pb-24 overflow-hidden">
+        {{--
+            SECTION 1: HERO
+            Fokus: Viel Weißraum, edle Typografie, großes Produktbild.
+        --}}
+        <section class="relative bg-white pt-32 pb-16 lg:pt-40 lg:pb-32 overflow-hidden">
+            {{-- Dezentster Hintergrund-Verlauf (kaum wahrnehmbar für Tiefe) --}}
+            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-gray-50/50 to-white pointer-events-none"></div>
+
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
 
                     {{-- Linke Seite: Text & CTA --}}
-                    <div class="order-2 lg:order-1">
-                        <div class="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary-dark text-xs font-bold uppercase tracking-widest mb-6">
+                    <div class="order-2 lg:order-1 text-center lg:text-left">
+                        {{-- Badge --}}
+                        <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-primary/5 border border-primary/20 text-primary-dark text-[11px] font-bold uppercase tracking-[0.2em] mb-8">
                             Exklusiv-Edition
                         </div>
-                        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-gray-900 leading-tight mb-6">
-                            Der <span class="text-primary">Seelen-Kristall</span>
+
+                        {{-- Headline --}}
+                        <h1 class="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold text-gray-900 leading-[1.1] mb-6">
+                            Der <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-dark">Seelen-Kristall</span>
                         </h1>
-                        <p class="text-xl text-gray-600 mb-8 leading-relaxed">
+
+                        {{-- Subline --}}
+                        <p class="text-lg sm:text-xl text-gray-500 mb-10 leading-relaxed font-light max-w-lg mx-auto lg:mx-0">
                             Ein massives Meisterwerk aus reinem K9-Kristallglas.
                             Geschaffen, um den einen Moment festzuhalten, der für immer bleibt.
-                            Inklusive Lasergravur und edler Geschenkbox.
+                            <span class="block mt-2 text-gray-900 font-medium">Inklusive Lasergravur & Geschenkbox.</span>
                         </p>
 
-                        <div class="flex flex-col sm:flex-row gap-4 mb-10">
-                            <a href="{{ route('calculator') }}" class="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-bold rounded-lg text-white bg-primary-dark hover:bg-primary transition-all shadow-lg hover:shadow-primary/40 transform hover:-translate-y-1">
+                        {{-- Buttons --}}
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-12">
+                            <a href="{{ route('calculator') }}"
+                               class="group inline-flex justify-center items-center px-8 py-4 bg-primary text-white text-lg font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dark hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300">
                                 Preis berechnen
-                                <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                <svg class="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                                 </svg>
                             </a>
-                            <a href="#details" class="inline-flex justify-center items-center px-8 py-4 border-2 border-gray-200 text-lg font-bold rounded-lg text-gray-700 hover:border-primary hover:text-primary transition-colors">
+                            <a href="#details"
+                               class="inline-flex justify-center items-center px-8 py-4 bg-white border border-gray-200 text-lg font-bold rounded-xl text-gray-600 hover:text-primary hover:border-primary/50 transition-colors shadow-sm">
                                 Details ansehen
                             </a>
                         </div>
 
-                        <div class="flex items-center gap-6 text-sm text-gray-500 font-medium">
+                        {{-- Trust Indicators --}}
+                        <div class="flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-3 text-sm text-gray-500 font-medium">
                             <div class="flex items-center">
-                                <span class="text-green-500 mr-2">✓</span> Sofort lieferbar
+                                <div class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs">✓</div>
+                                Sofort lieferbar
                             </div>
                             <div class="flex items-center">
-                                <span class="text-green-500 mr-2">✓</span> Ab 1 Stück
+                                <div class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs">✓</div>
+                                Ab 1 Stück
                             </div>
                             <div class="flex items-center">
-                                <span class="text-primary mr-2">★</span> Premium Qualität
+                                <div class="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-2 text-xs">★</div>
+                                Premium Qualität
                             </div>
                         </div>
                     </div>
 
                     {{-- Rechte Seite: Großes Produktbild --}}
-                    <div class="order-1 lg:order-2 relative group">
-                        {{-- Dekorativer Hintergrundkreis --}}
-                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-br from-gray-100 to-white rounded-full opacity-70 blur-3xl -z-10"></div>
+                    <div class="order-1 lg:order-2 relative group perspective-1000">
+                        {{-- Dekorativer Hintergrundkreis (Subtil) --}}
+                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-radial-gradient from-gray-100 to-transparent opacity-60 blur-3xl -z-10"></div>
 
-                        <div class="relative rounded-2xl overflow-hidden shadow-2xl border border-gray-100 bg-white p-4">
+                        <div class="relative rounded-3xl overflow-hidden shadow-2xl shadow-gray-200/50 border border-gray-100 bg-white p-2 md:p-4 transform transition-transform duration-700 hover:scale-[1.02]">
                             <img src="{{ asset('images/projekt/products/seelen-kristall_w.jpg') }}"
                                  alt="Seelen-Kristall Trophäe"
-                                 class="w-full h-auto transform transition duration-1000 group-hover:scale-105">
+                                 class="w-full h-auto rounded-2xl object-cover">
 
-                            {{-- Preis Badge --}}
-                            <div class="absolute top-6 right-6 bg-white/95 backdrop-blur shadow-lg rounded-xl p-4 text-center border border-gray-100">
-                                <span class="block text-gray-500 text-xs uppercase font-bold">Ab</span>
-                                <span class="block text-2xl font-bold text-gray-900">39,90 €</span>
+                            {{-- Floating Badge --}}
+                            <div class="absolute top-8 right-8 bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-4 text-center border border-white/50">
+                                <span class="block text-gray-400 text-[10px] uppercase font-bold tracking-wider">Ab</span>
+                                <span class="block text-3xl font-serif font-bold text-gray-900">39<span class="text-lg">,90€</span></span>
                             </div>
                         </div>
                     </div>
@@ -67,98 +86,110 @@
 
         {{--
             SECTION 2: HIGHLIGHTS (Icons)
-            Warum dieses Produkt?
+            Clean, Gray Background zur Abgrenzung
         --}}
-        <section id="details" class="py-16 bg-gray-50 border-t border-gray-200">
+        <section id="details" class="py-24 bg-gray-50 border-y border-gray-100/50">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto mb-16">
+                    <h2 class="text-3xl font-serif font-bold text-gray-900 mb-4">Warum der Seelen-Kristall?</h2>
+                    <p class="text-gray-500">Qualität, die man spürt. Ein Geschenk, das bleibt.</p>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {{-- Feature 1 --}}
-                    <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary text-2xl mb-6">
+                    <div class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
+                        <div class="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 text-2xl mb-6 group-hover:scale-110 transition-transform">
                             💎
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900 mb-3">Massives K9 Kristallglas</h3>
-                        <p class="text-gray-600">Kein Acryl, kein Plastik. Unser Glas wiegt schwer in der Hand und bricht das Licht in spektralen Farben. Ein Unterschied, den man fühlt.</p>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Massives K9 Kristall</h3>
+                        <p class="text-gray-500 leading-relaxed text-sm">Kein Acryl, kein Plastik. Unser Glas wiegt schwer in der Hand (ca. 1kg) und bricht das Licht in spektralen Farben.</p>
                     </div>
 
                     {{-- Feature 2 --}}
-                    <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary text-2xl mb-6">
+                    <div class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
+                        <div class="w-14 h-14 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 text-2xl mb-6 group-hover:scale-110 transition-transform">
                             ✨
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900 mb-3">Hochpräzise Lasergravur</h3>
-                        <p class="text-gray-600">Ihr Logo und Text werden dauerhaft in das Glas graviert. Kratzfest, spülmaschinenfest und gestochen scharf bis ins kleinste Detail.</p>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Präzise Lasergravur</h3>
+                        <p class="text-gray-500 leading-relaxed text-sm">Ihr Logo und Text werden dauerhaft in das Glas graviert. Kratzfest, zeitlos und gestochen scharf bis ins Detail.</p>
                     </div>
 
                     {{-- Feature 3 --}}
-                    <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary text-2xl mb-6">
+                    <div class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
+                        <div class="w-14 h-14 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 text-2xl mb-6 group-hover:scale-110 transition-transform">
                             🎁
                         </div>
                         <h3 class="text-xl font-bold text-gray-900 mb-3">Geschenkbox inklusive</h3>
-                        <p class="text-gray-600">Jeder Seelen-Kristall kommt in einer hochwertigen, mit Seide ausgelegten Geschenkbox. Bereit für die feierliche Übergabe.</p>
+                        <p class="text-gray-500 leading-relaxed text-sm">Jeder Seelen-Kristall kommt in einer hochwertigen, mit Satin ausgelegten Geschenkbox. Bereit für die Übergabe.</p>
                     </div>
                 </div>
             </div>
         </section>
 
         {{--
-            SECTION 3: TECHNISCHE DATEN & EMOTION
-            Split Screen: Links Daten, Rechts Bild
+            SECTION 3: DETAILS & EMOTION
+            Weißer Hintergrund
         --}}
-        <section class="py-20 bg-white">
+        <section class="py-24 bg-white overflow-hidden">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
 
                     {{-- Linke Seite: Bild --}}
                     <div class="relative">
+                        <div class="absolute inset-0 bg-gray-100 rounded-3xl transform rotate-3 scale-95 origin-bottom-right -z-10"></div>
                         <img src="{{ asset('images/projekt/other/appreciation.png') }}"
                              alt="Seelen-Kristall Detail"
-                             class="rounded-lg shadow-2xl w-full object-cover h-[500px]">
-                        {{-- Kleines Detailbild overlay --}}
-                        <div class="absolute -bottom-6 -right-6 w-48 h-48 bg-white p-2 rounded-lg shadow-xl hidden md:block">
-                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" class="w-full h-full object-contain border border-gray-100 rounded">
+                             class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
+
+                        {{-- Kleines Detailbild Overlay --}}
+                        <div class="absolute -bottom-8 -right-8 w-40 h-40 bg-white p-3 rounded-2xl shadow-xl hidden md:block border border-gray-100 animate-float">
+                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" class="w-full h-full object-contain rounded-lg">
                         </div>
                     </div>
 
                     {{-- Rechte Seite: Tabelle --}}
                     <div>
-                        <h2 class="text-3xl font-serif font-bold text-gray-900 mb-6">
+                        <h2 class="text-4xl font-serif font-bold text-gray-900 mb-6">
                             Details, die überzeugen.
                         </h2>
-                        <p class="text-gray-600 mb-8 text-lg">
-                            Der Seelen-Kristall ist zeitlos. Durch den aufwendigen Facettenschliff an den Kanten fängt er das Umgebungslicht ein und lässt die Lasergravur hell erstrahlen.
+                        <p class="text-gray-600 mb-10 text-lg font-light leading-relaxed">
+                            Der Seelen-Kristall ist zeitlos. Durch den aufwendigen Facettenschliff an den Kanten fängt er das Umgebungslicht ein und lässt die Lasergravur hell erstrahlen. Ein Objekt für die Ewigkeit.
                         </p>
 
-                        <div class="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Technische Spezifikationen</h3>
-                            <dl class="space-y-4">
-                                <div class="flex justify-between border-b border-gray-200 pb-2">
-                                    <dt class="text-gray-600">Material</dt>
-                                    <dd class="font-bold text-gray-900">K9 Hochleistungs-Kristallglas</dd>
+                        <div class="bg-white rounded-2xl p-8 shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] border border-gray-100">
+                            <h3 class="text-xs font-bold text-primary uppercase tracking-[0.2em] mb-6">Technische Spezifikationen</h3>
+
+                            <dl class="divide-y divide-gray-100">
+                                <div class="grid grid-cols-3 gap-4 py-4">
+                                    <dt class="text-gray-500 font-medium text-sm">Material</dt>
+                                    <dd class="col-span-2 font-bold text-gray-900">K9 Hochleistungs-Kristallglas</dd>
                                 </div>
-                                <div class="flex justify-between border-b border-gray-200 pb-2">
-                                    <dt class="text-gray-600">Maße</dt>
-                                    <dd class="font-bold text-gray-900">160mm*180mm*40mm</dd>
+                                <div class="grid grid-cols-3 gap-4 py-4">
+                                    <dt class="text-gray-500 font-medium text-sm">Maße (H*B*T)</dt>
+                                    <dd class="col-span-2 font-bold text-gray-900">160 x 180 x 40 mm</dd>
                                 </div>
-                                <div class="flex justify-between border-b border-gray-200 pb-2">
-                                    <dt class="text-gray-600">Gewicht</dt>
-                                    <dd class="font-bold text-gray-900">ca. 930g (Massiv)</dd>
+                                <div class="grid grid-cols-3 gap-4 py-4">
+                                    <dt class="text-gray-500 font-medium text-sm">Gewicht</dt>
+                                    <dd class="col-span-2 font-bold text-gray-900">ca. 930g (Massiv)</dd>
                                 </div>
-                                <div class="flex justify-between border-b border-gray-200 pb-2">
-                                    <dt class="text-gray-600">Veredelung</dt>
-                                    <dd class="font-bold text-gray-900">UV-Lasergravur (Weiß-Effekt)</dd>
+                                <div class="grid grid-cols-3 gap-4 py-4">
+                                    <dt class="text-gray-500 font-medium text-sm">Veredelung</dt>
+                                    <dd class="col-span-2 font-bold text-gray-900">UV-Lasergravur (Weiß-Effekt)</dd>
                                 </div>
-                                <div class="flex justify-between pt-2">
-                                    <dt class="text-gray-600">Verpackung</dt>
-                                    <dd class="font-bold text-gray-900">Geschenkbox</dd>
+                                <div class="grid grid-cols-3 gap-4 py-4 pt-4 pb-0">
+                                    <dt class="text-gray-500 font-medium text-sm">Verpackung</dt>
+                                    <dd class="col-span-2 font-bold text-gray-900 flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full bg-primary"></span>
+                                        Premium Geschenkbox
+                                    </dd>
                                 </div>
                             </dl>
                         </div>
 
-                        <div class="mt-8">
-                            <p class="text-sm text-gray-500 mb-4 italic">
-                                * Hinweis: Da es sich um ein handveredeltes Produkt handelt, sind minimale Abweichungen möglich.
+                        <div class="mt-8 flex items-start gap-3">
+                            <svg class="w-5 h-5 text-gray-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <p class="text-xs text-gray-400 italic">
+                                Hinweis: Da es sich um ein handveredeltes Produkt handelt, sind minimale Abweichungen möglich. Jedes Stück ist ein Unikat.
                             </p>
                         </div>
                     </div>
@@ -169,37 +200,46 @@
 
         {{--
             SECTION 4: PREIS-KALKULATOR CTA
-            Der "Abschluss"-Bereich
+            Dunkler Kontrastbereich als Abschluss des Info-Teils
         --}}
-        <section class="py-20 bg-primary-dark text-white relative overflow-hidden">
+        <section class="py-24 bg-gray-900 relative overflow-hidden">
             {{-- Background Pattern --}}
-            <div class="absolute inset-0 opacity-10" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');"></div>
+            <div class="absolute inset-0 opacity-[0.03]" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');"></div>
+
+            {{-- Schein --}}
+            <div class="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-primary/20 rounded-full blur-[120px]"></div>
 
             <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
-                <h2 class="text-3xl sm:text-4xl font-serif font-bold mb-6">
+                <h2 class="text-3xl sm:text-5xl font-serif font-bold text-white mb-6">
                     Bereit für echte Wertschätzung?
                 </h2>
-                <p class="text-lg text-gray-300 mb-10 max-w-2xl mx-auto">
+                <p class="text-xl text-gray-400 mb-12 max-w-2xl mx-auto font-light">
                     Egal ob Einzelstück für den besten Mitarbeiter oder 100 Stück für das ganze Turnier.
                     Nutzen Sie unseren Kalkulator für sofortige Staffelpreise.
                 </p>
 
-                <div class="flex flex-col sm:flex-row justify-center gap-4">
-                    <a href="{{ route('calculator') }}" class="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-bold rounded-lg text-primary-dark bg-white hover:bg-gray-100 transition-all shadow-xl hover:scale-105">
+                <div class="flex flex-col sm:flex-row justify-center gap-5">
+                    <a href="{{ route('calculator') }}" class="inline-flex justify-center items-center px-10 py-5 border border-transparent text-lg font-bold rounded-xl text-black bg-primary hover:bg-white transition-all shadow-[0_0_30px_-5px_rgba(234,179,8,0.4)] hover:shadow-white/20 hover:-translate-y-1">
                         Zum Angebotskalkulator
                     </a>
-                    <a href="#contact" class="inline-flex justify-center items-center px-8 py-4 border border-white text-lg font-bold rounded-lg text-white hover:bg-white hover:text-primary-dark transition-colors">
+                    <a href="#contact" class="inline-flex justify-center items-center px-10 py-5 border border-white/20 text-lg font-bold rounded-xl text-white hover:bg-white/10 transition-colors backdrop-blur-sm">
                         Frage stellen
                     </a>
                 </div>
 
-                <p class="mt-8 text-sm text-gray-400">
+                <p class="mt-10 text-sm text-gray-500 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     Keine versteckten Kosten. Angebot sofort als PDF.
                 </p>
             </div>
         </section>
 
-        {{--Contact Section--}}
+        {{-- Contact Section (Livewire Component) --}}
+        {{--
+             Anmerkung: Das Formular wird hier eingebunden.
+             Da die Komponente selbst dunkel gestaltet wurde (wie im vorherigen Schritt),
+             passt sie perfekt unter die dunkle CTA Section als nahtloser Abschluss.
+        --}}
         @livewire('global.widgets.contact-form')
 
     </x-sections.page-container>

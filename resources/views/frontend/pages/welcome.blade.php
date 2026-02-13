@@ -393,10 +393,12 @@
             {{-- ========================================== --}}
             <div id="kontakt" class="relative bg-white overflow-hidden border-t border-gray-100">
                 {{-- Bild linksbündig --}}
-                <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2">
-                    <img class="w-full h-full object-cover"
-                         src="{{ asset('images/projekt/other/contact.png') }}"
-                         alt="Kontakt aufnehmen">
+                {{-- Änderung: Flexbox für bessere Zentrierung auf Mobile hinzugefügt --}}
+                <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2 bg-white flex items-center justify-center">
+                    <img
+                        class="w-full h-full object-contain object-center p-4 md:p-0"
+                        src="{{ asset('images/projekt/funki/funki.png') }}"
+                        alt="Kontakt aufnehmen">
                 </div>
 
                 <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">

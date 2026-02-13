@@ -39,6 +39,32 @@
 
                             {{-- Bild Container --}}
                             <div class="aspect-square bg-gray-100 rounded-2xl overflow-hidden mb-4 relative border border-gray-100 shadow-sm transition-all duration-300 group-hover:shadow-md">
+
+                                {{--
+                                    NEU: PRODUKT TYP SCHLEIFEN (OBEN RECHTS)
+                                    Wir zeigen diese nur an, wenn das Produkt NICHT ausverkauft/nachbestellbar ist,
+                                    um Überlappungen mit dem roten/grauen Banner zu vermeiden.
+                                --}}
+                                @if(!$isSoldOut && !$isBackorder)
+                                    {{-- BLAUE SCHLEIFE: DIGITAL --}}
+                                    @if($product->type === 'digital')
+                                        <div class="absolute top-6 -right-12 z-30 pointer-events-none">
+                                            <div class="bg-blue-600 text-white text-[10px] font-bold py-1 w-48 transform rotate-45 shadow-md border-b border-blue-800 uppercase tracking-widest text-center">
+                                                Digital
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    {{-- ORANGE SCHLEIFE: DIENSTLEISTUNG --}}
+                                    @if($product->type === 'service')
+                                        <div class="absolute top-6 -right-12 z-30 pointer-events-none">
+                                            <div class="bg-orange-500 text-white text-[10px] font-bold py-1 w-48 transform rotate-45 shadow-md border-b border-orange-700 uppercase tracking-widest text-center">
+                                                Service
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endif
+
                                 <a href="{{ route('product.show', $product->slug) }}" class="block w-full h-full">
 
                                     {{-- Visueller Status: Graustufen NUR bei echtem Ausverkauf --}}

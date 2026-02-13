@@ -164,24 +164,45 @@
                     </h2>
 
                     {{-- Warnbox: Ausschluss --}}
-                    <div class="bg-red-50 border-l-4 border-red-500 p-6 mb-10 rounded-r-xl shadow-sm">
-                        <div class="flex items-start gap-4">
-                            <div class="flex-shrink-0 mt-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
+                    <div class="space-y-4 mb-10">
+                        {{-- Physische Personalisierung --}}
+                        <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-xl shadow-sm">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0 mt-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-red-800 text-lg">Ausschluss bei personalisierten Produkten</h3>
+                                    <p class="text-red-800 mt-2 text-sm leading-relaxed">
+                                        Das Widerrufsrecht besteht <strong>nicht</strong> bei Verträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (§ 312g Abs. 2 Nr. 1 BGB).
+                                    </p>
+                                    <p class="text-red-900 mt-3 font-bold text-sm bg-white/50 p-2 rounded inline-block border border-red-100">
+                                        Dies gilt für alle Produkte, die speziell für Sie graviert oder anderweitig personalisiert werden.
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 class="font-bold text-red-800 text-lg">Wichtiger Hinweis zum Ausschluss des Widerrufsrechts</h3>
-                                <p class="text-red-800 mt-2 text-sm leading-relaxed">
-                                    Das Widerrufsrecht besteht, soweit die Parteien nichts anderes vereinbart haben, <strong>nicht</strong> bei folgenden Verträgen:
-                                </p>
-                                <ul class="list-disc list-outside ml-4 mt-2 text-red-800 text-sm font-medium">
-                                    <li>Verträge zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (§ 312g Abs. 2 Nr. 1 BGB).</li>
-                                </ul>
-                                <p class="text-red-900 mt-3 font-bold text-sm bg-white/50 p-2 rounded inline-block border border-red-100">
-                                    Dies gilt für alle unsere Produkte, die wir speziell für Sie gravieren, bedrucken oder anderweitig personalisieren.
-                                </p>
+                        </div>
+
+                        {{-- Digitale Inhalte --}}
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-r-xl shadow-sm">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0 mt-1 text-blue-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-blue-800 text-lg">Erlöschen bei digitalen Inhalten</h3>
+                                    <p class="text-blue-800 mt-2 text-sm leading-relaxed">
+                                        Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten (z.B. Downloads, E-Books, Design-Vorlagen), wenn der Unternehmer mit der Ausführung des Vertrags begonnen hat, nachdem der Verbraucher:
+                                    </p>
+                                    <ul class="list-disc list-outside ml-4 mt-2 text-blue-800 text-sm font-medium">
+                                        <li>ausdrücklich zugestimmt hat, dass der Unternehmer mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnt, und</li>
+                                        <li>seine Kenntnis davon bestätigt hat, dass er durch seine Zustimmung mit Beginn der Ausführung des Vertrags sein Widerrufsrecht verliert.</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>

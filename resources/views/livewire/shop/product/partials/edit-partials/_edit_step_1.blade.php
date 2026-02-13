@@ -1,5 +1,72 @@
 @if($currentStep === 1)
     <div class="space-y-6">
+        {{-- Produkttyp Auswahl (Mit Golden Border Fix) --}}
+        <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-fade-in-up">
+            <h2 class="text-2xl font-serif text-gray-900 mb-6">Produkttyp wählen</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {{-- OPTION: PHYSISCH --}}
+                <label class="cursor-pointer relative group">
+                    <input type="radio" wire:model.live="type" value="physical" class="sr-only">
+                    <div class="p-6 rounded-xl border-2 transition-all duration-200 ease-in-out text-center h-full flex flex-col items-center justify-center gap-3
+                                {{ $type === 'physical'
+                                    ? 'border-[#C5A059] bg-[#C5A059]/5 text-gray-900 shadow-lg scale-[1.02]'
+                                    : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:shadow-md'
+                                }}">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-1 transition-colors
+                                    {{ $type === 'physical' ? 'bg-[#C5A059] text-white' : 'bg-gray-100 text-gray-400' }}">📦</div>
+                        <div>
+                            <span class="font-bold text-lg block mb-1">Physisch</span>
+                            <span class="text-xs opacity-80 block leading-tight">Versandartikel mit Lager & Konfigurator</span>
+                        </div>
+                        <div class="absolute top-3 right-3 text-[#C5A059] transition-opacity {{ $type === 'physical' ? 'opacity-100' : 'opacity-0' }}">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        </div>
+                    </div>
+                </label>
+
+                {{-- OPTION: DIGITAL --}}
+                <label class="cursor-pointer relative group">
+                    <input type="radio" wire:model.live="type" value="digital" class="sr-only">
+                    <div class="p-6 rounded-xl border-2 transition-all duration-200 ease-in-out text-center h-full flex flex-col items-center justify-center gap-3
+                                {{ $type === 'digital'
+                                    ? 'border-[#C5A059] bg-[#C5A059]/5 text-gray-900 shadow-lg scale-[1.02]'
+                                    : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:shadow-md'
+                                }}">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-1 transition-colors
+                                    {{ $type === 'digital' ? 'bg-[#C5A059] text-white' : 'bg-gray-100 text-gray-400' }}">☁️</div>
+                        <div>
+                            <span class="font-bold text-lg block mb-1">Digital</span>
+                            <span class="text-xs opacity-80 block leading-tight">Download, E-Book oder Datei</span>
+                        </div>
+                        <div class="absolute top-3 right-3 text-[#C5A059] transition-opacity {{ $type === 'digital' ? 'opacity-100' : 'opacity-0' }}">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        </div>
+                    </div>
+                </label>
+
+                {{-- OPTION: DIENSTLEISTUNG --}}
+                <label class="cursor-pointer relative group">
+                    <input type="radio" wire:model.live="type" value="service" class="sr-only">
+                    <div class="p-6 rounded-xl border-2 transition-all duration-200 ease-in-out text-center h-full flex flex-col items-center justify-center gap-3
+                                {{ $type === 'service'
+                                    ? 'border-[#C5A059] bg-[#C5A059]/5 text-gray-900 shadow-lg scale-[1.02]'
+                                    : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:shadow-md'
+                                }}">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-1 transition-colors
+                                    {{ $type === 'service' ? 'bg-[#C5A059] text-white' : 'bg-gray-100 text-gray-400' }}">🤝</div>
+                        <div>
+                            <span class="font-bold text-lg block mb-1">Dienstleistung</span>
+                            <span class="text-xs opacity-80 block leading-tight">Service, Termin oder Beratung</span>
+                        </div>
+                        <div class="absolute top-3 right-3 text-[#C5A059] transition-opacity {{ $type === 'service' ? 'opacity-100' : 'opacity-0' }}">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        </div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
         {{-- Karte 1: Grunddaten --}}
         <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-fade-in-up">
             <h2 class="text-2xl font-serif text-gray-900 mb-6">1. Basisinformationen</h2>
@@ -7,7 +74,6 @@
                 <div>
                     <div class="flex items-center gap-1.5 mb-2">
                         <label class="block text-sm font-bold text-gray-800">Produktname *</label>
-                        {{-- Zentraler Tooltip --}}
                         @include('components.alerts.info-tooltip', ['key' => 'name'])
                     </div>
                     <input type="text" wire:model.live="name" class="w-full px-4 py-3.5 rounded-xl border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" placeholder="z.B. Seelen-Kristall">
@@ -40,18 +106,10 @@
             </div>
         </div>
 
-        {{-- Staffelpreise --}}
-        <livewire:shop.product.product-tier-pricing
-            :product="$product"
-            :currentPrice="$price_input"
-        />
-
         {{-- Steuer & Mehrwertsteuer --}}
-        <livewire:shop.product.product-tax
-            :product="$product"
-        />
+        <livewire:shop.product.product-tax :product="$product" />
 
-        {{-- Karte 2: SEO & Marketing --}}
+        {{-- Karte 2: SEO --}}
         <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-fade-in-up">
             <div class="flex items-center justify-between mb-4 border-b pb-2">
                 <div class="flex items-center gap-1.5">
@@ -89,7 +147,7 @@
             </div>
         </div>
 
-        {{-- Karte 3: Identifikatoren --}}
+        {{-- Karte 3: Identifikatoren (Wichtig für alle Typen für Rechnungen/System) --}}
         <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 animate-fade-in-up">
             <h3 class="text-lg font-serif font-bold text-gray-900 mb-4 border-b pb-2">Produktidentifikatoren</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -61,7 +61,7 @@
 
             // Hauptprüfung
             checkCompletion() {
-                // Zugriff auf die Livewire-Properties
+                // 1. Rechnungsdaten prüfen
                 let e = $wire.email;
                 let f = $wire.first_name;
                 let l = $wire.last_name;
@@ -69,11 +69,24 @@
                 let p = $wire.postal_code;
                 let c = $wire.city;
 
-                // Prüfen ob alle Pflichtfelder ausgefüllt sind
-                if (this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c)) {
-                    this.isOpen = false; // Nur dann zuklappen
+                let billingComplete = this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c);
+
+                // 2. Lieferdaten prüfen (wenn aktiv)
+                let hasShipping = $wire.has_separate_shipping;
+                let sf = $wire.shipping_first_name;
+                let sl = $wire.shipping_last_name;
+                let sa = $wire.shipping_address;
+                let sp = $wire.shipping_postal_code;
+                let sc = $wire.shipping_city;
+
+                // Lieferadresse ist 'complete', wenn sie entweder NICHT aktiv ist, ODER wenn sie aktiv UND ausgefüllt ist
+                let shippingComplete = !hasShipping || (this.isValid(sf) && this.isValid(sl) && this.isValid(sa) && this.isValid(sp) && this.isValid(sc));
+
+                // Nur zuklappen, wenn BEIDES vollständig ist
+                if (billingComplete && shippingComplete) {
+                    this.isOpen = false;
                 } else {
-                    this.isOpen = true; // Sonst offen lassen
+                    this.isOpen = true;
                 }
             }
          }"
@@ -86,7 +99,7 @@
                 Rechnungsdetails
             </h2>
             <div class="flex items-center gap-3">
-                {{-- Anzeige 'Vollständig' nur wenn zugeklappt (was impliziert, dass es valide ist durch die Logik oben) --}}
+                {{-- Anzeige 'Vollständig' nur wenn zugeklappt --}}
                 <template x-if="!isOpen">
                     <div class="text-right mr-2 animate-fade-in">
                         <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>

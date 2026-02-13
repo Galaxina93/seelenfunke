@@ -18,7 +18,11 @@ class DatabaseSeeder extends Seeder
             ShippingSeeder::class,
             ShopSettingSeeder::class,
             BlogCategorySeeder::class,
-            FinancialSeeder::class
+            FinancialSeeder::class,
+            CategorySeeder::class,
+            ShopAttributeSeeder::class,
+            OrdersTableSeeder::class,
+            BlogSeeder::class
         ]);
 
     }

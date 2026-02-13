@@ -23,27 +23,35 @@ class ShippingCalculatorService
 
         // 2. Einstellung "Versand für Digitales überspringen" laden
         // Wir nutzen shop_setting() Helper falls vorhanden, sonst DB direkt
-        $skipForDigital = filter_var(shop_setting('skip_shipping_for_digital', false), FILTER_VALIDATE_BOOLEAN);
+        $skipForNonPhysical = filter_var(shop_setting('skip_shipping_for_digital', false), FILTER_VALIDATE_BOOLEAN);
 
         // Wenn die Einstellung AUS ist, berechnen wir IMMER Versand (sofern Items da sind)
-        if (!$skipForDigital) {
+        if (!$skipForNonPhysical) {
             return true;
         }
 
-        // 3. Prüfen: Sind ALLE Produkte digital?
+        // 3. Prüfen: Sind ALLE Produkte "nicht-physisch" (also Digital oder Service)?
         // Wir nutzen every(): Gibt true zurück, wenn der Callback für ALLE Elemente true ist.
-        $allDigital = collect($items)->every(function ($item) {
+        $allNonPhysical = collect($items)->every(function ($item) {
             // Flexible Handhabung: $item kann CartItem oder Product sein
             $product = $item instanceof \App\Models\Product\Product ? $item : ($item->product ?? null);
 
             if (!$product) return false;
 
+            // ERWEITERTE LOGIK:
+            // Wir prüfen, ob das Produkt NICHT physisch ist.
+            // Das schließt 'digital' UND 'service' ein.
+            if (method_exists($product, 'isPhysical')) {
+                return !$product->isPhysical();
+            }
+
+            // Fallback auf alte Methode, falls Model noch nicht aktualisiert
             return $product->isDigital();
         });
 
-        // Wenn alles digital ist -> KEIN Versand (false)
+        // Wenn alles nicht-physisch ist (Digital/Service) -> KEIN Versand (false)
         // Wenn auch nur eins physisch ist -> Versand (true)
-        return !$allDigital;
+        return !$allNonPhysical;
     }
 
     /**
@@ -58,7 +66,7 @@ class ShippingCalculatorService
                 'cost' => 0,
                 'is_free' => true,
                 'missing' => 0,
-                'reason' => 'digital_only' // Debug Info
+                'reason' => 'non_physical_only' // Debug Info: Nur Digitales oder Services
             ];
         }
 
