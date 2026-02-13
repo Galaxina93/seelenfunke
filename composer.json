@@ -7,6 +7,7 @@
     "require": {
         "php": "^8.2",
         "ext-dom": "*",
+        "ext-zip": "*",
         "bacon/bacon-qr-code": "^2.0",
         "barryvdh/laravel-dompdf": "^3.1",
         "blade-ui-kit/blade-heroicons": "^2.1",
@@ -19,10 +20,10 @@
         "laravel/socialite": "^5.24",
         "laravel/tinker": "^2.9",
         "livewire/livewire": "^3.4",
+        "openai-php/laravel": "^0.18.0",
         "pragmarx/google2fa-laravel": "^2.3",
         "ramsey/uuid": "^4.7",
-        "stripe/stripe-php": "^19.2",
-        "ext-zip": "*"
+        "stripe/stripe-php": "^19.2"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.13",

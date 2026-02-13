@@ -66,6 +66,7 @@
         {{-- Footer --}}
         @include('frontend.footer.footer')
 
+        @livewire('global.widgets.funki-chat')
         @livewireScripts
     </body>
 </html>
