@@ -85,7 +85,14 @@ class FinancialCategoriesSpecialEditions extends Component
 
     public function getManageableCategoriesProperty()
     {
+        // Wir nutzen eine Subquery (addSelect), um die Einträge live zu zählen.
+        // Das überschreibt den statischen Wert aus der Datenbank für diese Anzeige.
         return FinanceCategory::where('admin_id', $this->getAdminId())
+            ->addSelect([
+                'usage_count' => FinanceSpecialIssue::selectRaw('count(*)')
+                    ->whereColumn('category', 'finance_categories.name')
+                    ->whereColumn('admin_id', 'finance_categories.admin_id')
+            ])
             ->orderByDesc('usage_count')
             ->get();
     }
