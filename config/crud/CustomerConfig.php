@@ -11,7 +11,7 @@ class CustomerConfig
         return [
 
             // Definiere das Model, welches hier genutzt wird.
-            'model' => 'Customer',
+            'model' => 'Customer\Customer',
 
             // Definiere den Titel für das CRUD
             'crud_title' => 'Kunden',

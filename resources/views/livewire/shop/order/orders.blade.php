@@ -26,7 +26,7 @@
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Davon Express</p>
-                        <h3 class="text-3xl font-serif font-bold text-gray-900 {{ $stats['open_express'] > 0 ? 'text-red-600 animate-pulse' : '' }}">{{ $stats['open_express'] }}</h3>
+                        <h3 class="text-3xl font-serif font-bold text-gray-900 {{ $stats['open_express'] > 0 ? 'text-red-600' : '' }}">{{ $stats['open_express'] }}</h3>
                     </div>
                     <div class="p-3 bg-red-50 text-red-600 rounded-xl">
                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>

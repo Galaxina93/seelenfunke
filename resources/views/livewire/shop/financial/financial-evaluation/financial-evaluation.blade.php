@@ -146,7 +146,7 @@
                 </div>
 
                 {{-- HIER WIRD DIE NEUE KOMPONENTE GELADEN --}}
-                {{--<livewire:shop.financial.financial-quick-entry />--}}
+                <livewire:shop.financial.financial-quick-entry />
             </div>
 
             {{-- Section 2: Jahresübersicht + Bar Chart --}}

@@ -25,7 +25,7 @@
         </div>
         <div class="flex justify-between items-center py-2 border-b border-slate-100">
             <span class="text-slate-500">Aktive Sessions</span>
-            <span class="font-semibold text-indigo-600 animate-pulse">{{ $stats['active_sessions'] }}</span>
+            <span class="font-semibold text-indigo-600">{{ $stats['active_sessions'] }}</span>
         </div>
         <div class="flex justify-between items-center py-2">
             <span class="text-slate-500">Nie eingeloggt</span>

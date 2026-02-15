@@ -34,6 +34,9 @@ class AppServiceProvider extends ServiceProvider
             'permission' => 'App\Models\Permission',
             'directory' => 'App\Models\Directory',
             'role' => 'App\Models\Role',
+            'financial_special_issue' => 'App\Models\Financial\FinanceSpecialIssue',
+            'order' => 'App\Models\Order\Order',
+            'order_item' => 'App\Models\Order\OrderItem',
             // Füge hier bei Bedarf weitere Models hinzu
         ]);
 

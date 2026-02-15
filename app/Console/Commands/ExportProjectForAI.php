@@ -8,8 +8,9 @@ use Symfony\Component\Finder\Finder;
 
 class ExportProjectForAI extends Command
 {
-    protected $signature = 'project:export {--output=project_context.txt}';
-    protected $description = 'Verschlankter Export: Fokus auf Logik, UI und Models.';
+    // Signatur erweitert um die --migrations Option
+    protected $signature = 'project:export {--output=project_context.txt} {--migrations : Exportiert nur die Datenbank-Migrationen}';
+    protected $description = 'Verschlankter Export: Fokus auf Logik, UI und Models (oder nur Migrationen).';
 
     /**
      * Radikale Reduzierung: Wir ignorieren alles, was Standard-Laravel ist
@@ -30,17 +31,24 @@ class ExportProjectForAI extends Command
 
     public function handle()
     {
+        // 1. CHECK: Sollen nur Migrationen exportiert werden?
+        if ($this->option('migrations')) {
+            return $this->exportMigrations();
+        }
+
+        // 2. STANDARD LOGIK (Dein ursprünglicher Code)
         $outputFile = $this->option('output');
         $startTime = microtime(true);
 
-        $this->info("Funki startet die Schlankheitskur...");
+        $this->info("Funki startet die Schlankheitskur (Standard Export)...");
 
         $finder = new Finder();
         $finder->files()
             ->in(base_path())
             ->ignoreDotFiles(true)
-            ->exclude($this->ignoredDirectories);
+            ->exclude($this->ignoredDirectories); // Hier werden migrations normal ignoriert
 
+        // Filter für Standard-Export
         $finder->filter(function (\SplFileInfo $file) {
             if (in_array($file->getBasename(), $this->ignoredFiles)) return false;
 
@@ -55,21 +63,8 @@ class ExportProjectForAI extends Command
             $relativePath = $file->getRelativePathname();
             $fileContent = $file->getContents();
 
-            // --- TOKEN-SAVING LOGIK ---
-
-            // 1. PHP Kommentare entfernen (Doku-Blöcke fressen extrem viel Platz)
-            if ($file->getExtension() === 'php') {
-                // Entfernt /* ... */ Kommentare
-                $fileContent = preg_replace('!/\*.*?\*/!s', '', $fileContent);
-                // Entfernt // Kommentare (nur wenn sie allein in der Zeile stehen)
-                $fileContent = preg_replace('/^\s*\/\/.*$/m', '', $fileContent);
-            }
-
-            // 2. Mehrfache Leerzeilen auf eine reduzieren
-            $fileContent = preg_replace("/\n\s*\n+/", "\n", $fileContent);
-
-            // 3. Unnötige Leerzeichen an Zeilenenden trimmen
-            $fileContent = implode("\n", array_map('trim', explode("\n", $fileContent)));
+            // Bereinigen (Kommentare etc.)
+            $fileContent = $this->cleanContent($fileContent, $file->getExtension());
 
             $content .= "--- FILE: {$relativePath} ---\n";
             $content .= trim($fileContent) . "\n\n";
@@ -79,8 +74,77 @@ class ExportProjectForAI extends Command
 
         File::put(base_path($outputFile), $content);
 
+        $this->finishExport($startTime, $outputFile);
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Neue Logik: Nur Migrationen exportieren
+     */
+    protected function exportMigrations()
+    {
+        // Wenn kein individueller Output angegeben wurde, ändern wir den Standard-Namen
+        $outputFile = $this->option('output') === 'project_context.txt'
+            ? 'migrations.txt'
+            : $this->option('output');
+
+        $startTime = microtime(true);
+        $this->info("Exportiere nur Datenbank-Migrationen...");
+
+        $finder = new Finder();
+        $finder->files()
+            ->in(base_path('database/migrations')) // Nur dieser Ordner
+            ->name('*.php') // Nur PHP Dateien
+            ->sortByName(); // Wichtig: Nach Timestamp sortieren
+
+        $content = "DATABASE MIGRATIONS ONLY\n========================\n\n";
+
+        foreach ($finder as $file) {
+            $relativePath = $file->getRelativePathname();
+            $fileContent = $file->getContents();
+
+            // Auch hier unnötige Kommentare entfernen, um Tokens zu sparen
+            $fileContent = $this->cleanContent($fileContent, 'php');
+
+            $content .= "--- MIGRATION: {$relativePath} ---\n";
+            $content .= trim($fileContent) . "\n\n";
+
+            $this->line("Hinzugefügt: <comment>{$relativePath}</comment>");
+        }
+
+        File::put(base_path($outputFile), $content);
+
+        $this->finishExport($startTime, $outputFile);
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Hilfsfunktion: Code bereinigen (aus deinem Original-Code extrahiert)
+     */
+    protected function cleanContent($content, $extension)
+    {
+        // 1. PHP Kommentare entfernen
+        if ($extension === 'php') {
+            $content = preg_replace('!/\*.*?\*/!s', '', $content);
+            $content = preg_replace('/^\s*\/\/.*$/m', '', $content);
+        }
+
+        // 2. Mehrfache Leerzeilen reduzieren
+        $content = preg_replace("/\n\s*\n+/", "\n", $content);
+
+        // 3. Trimmen
+        return implode("\n", array_map('trim', explode("\n", $content)));
+    }
+
+    /**
+     * Hilfsfunktion: Abschluss-Statistik
+     */
+    protected function finishExport($startTime, $outputFile)
+    {
         $duration = round(microtime(true) - $startTime, 2);
-        $size = round(File::size(base_path($outputFile)) / 1024, 2); // In KB statt MB
+        $size = round(File::size(base_path($outputFile)) / 1024, 2);
 
         $this->info("Export abgeschlossen!");
         $this->table(
@@ -91,7 +155,5 @@ class ExportProjectForAI extends Command
                 ['Speicherort', base_path($outputFile)],
             ]
         );
-
-        return Command::SUCCESS;
     }
 }

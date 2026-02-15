@@ -20,7 +20,7 @@
                         <h3 class="text-white font-black text-sm tracking-widest uppercase italic">Funki OS</h3>
                         <div class="flex items-center gap-1.5 text-green-400">
                             <span class="w-2 h-2 bg-current rounded-full animate-pulse shadow-[0_0_8px_currentColor]"></span>
-                            <p class="text-[9px] font-bold uppercase tracking-wider">Gehirn aktiv</p>
+                            <p class="text-[10px] font-bold uppercase tracking-wider">Aktiv</p>
                         </div>
                     </div>
                 </div>
@@ -29,7 +29,7 @@
                 </button>
             </div>
 
-            {{-- Mode Switcher --}}
+            {{-- Mode Switcher (Nur Admin sieht Automations) --}}
             <div class="flex bg-slate-50 p-2 gap-2 border-b border-slate-100 shrink-0">
                 <button wire:click="setMode('chat')" class="flex-1 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all {{ $activeMode === 'chat' ? 'bg-white shadow-sm text-blue-600 border border-blue-100' : 'text-slate-400 hover:bg-slate-100' }}">
                     <i class="bi bi-chat-heart-fill me-1.5"></i> Kommunikation
@@ -37,15 +37,6 @@
                 @if(auth()->guard('admin')->check())
                     <button wire:click="setMode('automations')" class="flex-1 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all {{ $activeMode === 'automations' ? 'bg-white shadow-sm text-blue-600 border border-blue-100' : 'text-slate-400 hover:bg-slate-100' }}">
                         <i class="bi bi-cpu-fill me-1.5"></i> Automatisierungen
-                    </button>
-                    <button wire:click="setMode('health')" class="flex-1 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all relative {{ $activeMode === 'health' ? 'bg-white shadow-sm text-blue-600 border border-blue-100' : 'text-slate-400 hover:bg-slate-100' }}">
-                        <i class="bi bi-heart-pulse-fill me-1.5"></i> Health Check
-                        @if($hasHealthIssues)
-                            <span class="absolute top-2 right-2 flex h-2 w-2">
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                            </span>
-                        @endif
                     </button>
                 @endif
             </div>
@@ -63,12 +54,13 @@
                         @endforeach
                         @if($isTyping)
                             <div class="flex justify-start animate-pulse">
-                                <div class="bg-slate-100 rounded-2xl px-5 py-3 text-slate-400 text-xs font-bold uppercase tracking-widest">Funki denkt...</div>
+                                <div class="bg-slate-100 rounded-2xl px-5 py-3 text-slate-400 text-xs font-bold uppercase tracking-widest">Funki denkt nach...</div>
                             </div>
                         @endif
                     </div>
+                    {{-- Eingabeleiste --}}
                     <div class="p-5 bg-white border-t border-slate-50 shrink-0">
-                        <form wire:submit.prevent="sendMessage" class="relative flex items-center bg-slate-100 rounded-[1.8rem] p-1.5 shadow-inner transition-all group">
+                        <form wire:submit.prevent="sendMessage" class="relative flex items-center bg-slate-100 rounded-[1.8rem] p-1.5 shadow-inner focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all group">
                             <input wire:model="input" type="text" placeholder="Befehl an Funki..." class="flex-1 bg-transparent border-0 pl-5 py-4 text-sm focus:ring-0 outline-none placeholder-slate-400">
                             <button type="submit" class="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
                                 <i class="bi bi-send-fill text-xl"></i>
@@ -92,15 +84,31 @@
                         </div>
 
                         <div class="space-y-4">
+                            <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3 px-2">
+                                <span class="w-8 h-px bg-slate-200"></span> Aktive Prozesse
+                            </h4>
                             @foreach($autoTasks as $task)
-                                <div class="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:border-blue-200 transition-all group relative overflow-hidden">
+                                <div class="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:border-blue-200 transition-all group relative overflow-hidden text-left">
+                                    @if($task['status'] === 'active')
+                                        <div class="absolute top-0 right-0 p-2">
+                                            <span class="flex h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]"></span>
+                                        </div>
+                                    @endif
                                     <div class="flex items-start gap-5">
-                                        <div class="w-12 h-12 shrink-0 rounded-2xl {{ $task['status'] === 'active' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-300' }} flex items-center justify-center">
+                                        <div class="w-12 h-12 shrink-0 rounded-2xl {{ $task['status'] === 'active' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-300' }} flex items-center justify-center transition-transform group-hover:scale-110">
                                             <i class="bi {{ $task['icon'] }} fs-4"></i>
                                         </div>
                                         <div class="flex-1">
                                             <h5 class="text-sm font-black text-slate-900">{{ $task['name'] }}</h5>
                                             <p class="text-[10px] text-slate-500 mt-1 leading-normal">{{ $task['description'] }}</p>
+                                            <div class="flex items-center gap-4 mt-3">
+                                                <span class="text-[9px] font-black text-slate-400 uppercase tracking-tighter flex items-center gap-1.5">
+                                                    <i class="bi bi-clock-history"></i> {{ $task['schedule'] }}
+                                                </span>
+                                                <span class="text-[9px] font-black text-blue-500 uppercase tracking-tighter flex items-center gap-1.5">
+                                                    <i class="bi bi-calendar-check"></i> {{ $task['last_run'] }}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -117,105 +125,34 @@
                                     @forelse($this->history as $entry)
                                         <tr class="hover:bg-slate-50/50 transition-colors">
                                             <td class="px-5 py-4">
-                                                <div class="flex items-center gap-3">
-                                                    <i class="bi {{ $entry->status === 'success' ? 'bi-check-circle-fill text-green-500' : 'bi-exclamation-triangle-fill text-red-500' }} fs-6"></i>
+                                                <div class="flex items-center gap-3 text-left">
+                                                    @php
+                                                        $icon = match($entry->status) {
+                                                            'success' => 'bi-check-circle-fill text-green-500',
+                                                            'error' => 'bi-exclamation-triangle-fill text-red-500',
+                                                            'running' => 'bi-arrow-repeat text-blue-500 animate-spin',
+                                                            default => 'bi-info-circle-fill text-slate-400'
+                                                        };
+                                                    @endphp
+                                                    <i class="bi {{ $icon }} fs-6"></i>
                                                     <div>
-                                                        <span class="block font-black text-slate-900 leading-none mb-1">{{ $entry->title }}</span>
-                                                        <span class="text-[9px] text-slate-400 font-mono">{{ $entry->started_at->format('H:i:s') }}</span>
+                                                        <span class="block font-black text-slate-900 leading-none mb-1 text-left">{{ $entry->title }}</span>
+                                                        <span class="text-[9px] text-slate-400 font-mono text-left">{{ $entry->started_at->format('H:i:s') }}</span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td class="px-5 py-4 text-right font-black uppercase text-[9px] {{ $entry->status === 'success' ? 'text-green-600' : 'text-red-500' }}">
-                                                {{ $entry->status === 'success' ? 'Erfolg' : 'Fehler' }}
+                                            <td class="px-5 py-4 text-right">
+                                                <span class="text-[9px] font-black uppercase tracking-widest {{ $entry->status === 'success' ? 'text-green-600' : 'text-red-500' }}">
+                                                    {{ $entry->status === 'success' ? 'Erfolg' : ($entry->status === 'running' ? 'Läuft' : 'Fehler') }}
+                                                </span>
                                             </td>
                                         </tr>
                                     @empty
-                                        <tr><td class="p-10 text-center text-slate-400 italic">Keine Einträge.</td></tr>
+                                        <tr><td class="p-10 text-center text-slate-400 italic font-medium">Funkis Tagebuch ist noch leer...</td></tr>
                                     @endforelse
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
-                @elseif($activeMode === 'health')
-                    {{-- SYSTEM & HEALTH CHECK TAB (Aktiv zum Lösen) --}}
-                    <div class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30 custom-scrollbar text-left">
-                        <div class="grid grid-cols-1 gap-4">
-                            @foreach($this->performAllChecks as $key => $check)
-                                <div class="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm transition-all {{ $expandedHealthKey === $key ? 'ring-2 ring-blue-500 ring-offset-2' : '' }}">
-
-                                    {{-- Kachel Header --}}
-                                    <div wire:click="toggleHealthCard('{{ $key }}')" class="p-4 cursor-pointer flex justify-between items-center bg-white hover:bg-slate-50 transition-colors">
-                                        <div class="flex gap-4">
-                                            <div class="p-3 rounded-2xl {{ $check['status'] === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600 shadow-[0_0_10px_rgba(244,63,94,0.2)] animate-pulse' }}">
-                                                <i class="bi {{ $check['icon'] }} fs-4"></i>
-                                            </div>
-                                            <div class="text-left">
-                                                <h4 class="text-xs font-black text-slate-800 uppercase tracking-tighter">{{ $check['title'] }}</h4>
-                                                <p class="text-[10px] text-slate-500 font-medium leading-tight">{{ $check['message'] }}</p>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-3">
-                                            @if($check['count'] > 0)
-                                                <span class="text-[10px] font-black px-2 py-0.5 rounded-lg bg-slate-900 text-white">{{ $check['count'] }}</span>
-                                            @endif
-                                            <i class="bi bi-chevron-{{ $expandedHealthKey === $key ? 'up' : 'down' }} text-slate-300"></i>
-                                        </div>
-                                    </div>
-
-                                    {{-- Kachel Body (Quick Actions) --}}
-                                    @if($expandedHealthKey === $key)
-                                        <div class="border-t border-slate-100 bg-slate-50/50 p-4 animate-in slide-in-from-top-2 duration-200">
-
-                                            {{-- LAGERBESTAND LÖSEN --}}
-                                            @if($key === 'inventory')
-                                                <div class="space-y-3">
-                                                    @foreach($check['data'] as $prod)
-                                                        <div class="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-100">
-                                                            <span class="text-[10px] font-bold text-slate-700 truncate mr-2">{{ $prod->name }}</span>
-                                                            <div class="flex items-center gap-2">
-                                                                <input type="number" wire:model="stockUpdate.{{ $prod->id }}" placeholder="{{ $prod->quantity }}" class="w-16 h-8 text-[10px] font-black rounded-lg border-slate-200 bg-slate-50 text-center focus:ring-blue-500">
-                                                                <button wire:click="updateStock('{{ $prod->id }}')" class="bg-slate-900 text-white px-2 py-1.5 rounded-lg text-[9px] font-bold">Fix</button>
-                                                            </div>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-
-                                                {{-- SONDERAUSGABEN / BELEGE LÖSEN --}}
-                                            @elseif($key === 'special_issues')
-                                                <div class="space-y-3">
-                                                    @foreach($check['data'] as $issue)
-                                                        <div class="bg-white p-3 rounded-2xl border border-slate-100">
-                                                            <div class="flex justify-between mb-2">
-                                                                <span class="text-[10px] font-bold text-slate-800">{{ $issue->title }}</span>
-                                                                <span class="text-[9px] text-rose-500 font-black">{{ number_format($issue->amount, 2, ',', '.') }} €</span>
-                                                            </div>
-                                                            <input type="file" wire:model="uploadFile" class="text-[9px] w-full file:bg-blue-600 file:text-white file:border-0 file:rounded-lg file:px-3 file:py-1 file:mr-2">
-                                                            <button wire:click="uploadSpecialReceipt('{{ $issue->id }}')" wire:loading.attr="disabled" class="w-full mt-2 bg-slate-900 text-white py-1.5 rounded-lg text-[10px] font-black">Hinterlegen</button>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-
-                                                {{-- VERTRÄGE LÖSEN --}}
-                                            @elseif($key === 'contracts')
-                                                <div class="space-y-3">
-                                                    @foreach($check['data'] as $item)
-                                                        <div class="bg-white p-3 rounded-2xl border border-slate-100">
-                                                            <div class="flex justify-between mb-2 text-[10px]">
-                                                                <span class="font-bold text-slate-800">{{ $item->name }}</span>
-                                                                <span class="text-slate-400 italic">({{ $item->group->name }})</span>
-                                                            </div>
-                                                            <input type="file" wire:model="uploadFile" class="text-[9px] w-full file:bg-emerald-600 file:text-white file:border-0 file:rounded-lg file:px-3 file:py-1 file:mr-2">
-                                                            <button wire:click="uploadContract('{{ $item->id }}')" wire:loading.attr="disabled" class="w-full mt-2 bg-slate-900 text-white py-1.5 rounded-lg text-[10px] font-black">Vertrag hochladen</button>
-                                                        </div>
-                                                    @endforeach
-                                                </div>
-                                            @endif
-
-                                        </div>
-                                    @endif
-                                </div>
-                            @endforeach
                         </div>
                     </div>
                 @endif
@@ -229,9 +166,9 @@
                 <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" class="w-full h-full object-cover rounded-[1.4rem] shadow-inner" style="max-width: 100%; max-height: 100%;">
 
                 <div x-show="!$wire.isOpen" x-transition.opacity class="absolute top-1.5 right-1.5 flex h-6 w-6">
-                    <span class="animate-ping absolute inset-0 rounded-full {{ $hasHealthIssues ? 'bg-rose-400' : 'bg-blue-400' }} opacity-75"></span>
-                    <span class="relative h-6 w-6 {{ $hasHealthIssues ? 'bg-rose-500' : 'bg-blue-600' }} border-2 border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm italic font-serif">
-                        {{ $hasHealthIssues ? '!' : 'OS' }}
+                    <span class="animate-ping absolute inset-0 rounded-full bg-blue-400 opacity-75"></span>
+                    <span class="relative h-6 w-6 bg-blue-600 border-2 border-white rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm italic font-serif">
+                        OS
                     </span>
                 </div>
             </div>

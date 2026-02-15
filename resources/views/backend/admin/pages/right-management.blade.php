@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('global.crud.rights-crud')
+        @livewire('admin.rights-management')
 
     @endsection
 

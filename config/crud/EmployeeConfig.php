@@ -11,7 +11,7 @@ class EmployeeConfig
         return [
 
             // Definiere das Model, welches hier genutzt wird.
-            'model' => 'Employee',
+            'model' => 'Employee\Employee',
 
             // Definiere den Titel für das CRUD
             'crud_title' => 'Mitarbeiter',

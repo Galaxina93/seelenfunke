@@ -11,7 +11,7 @@ class AdminConfig
         return [
 
             // Definiere das Model, welches hier genutzt wird.
-            'model' => 'Admin',
+            'model' => 'Admin\Admin',
 
             // Definiere den Titel für das CRUD
             'crud_title' => 'Administratoren',

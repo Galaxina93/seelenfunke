@@ -1,4 +1,4 @@
-<div class="py-10">
+<div class="py-4">
 
     {{ $slot }}
 
