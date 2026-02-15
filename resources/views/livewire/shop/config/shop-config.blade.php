@@ -44,10 +44,8 @@
         <div class="flex border-b border-gray-200 mb-8 overflow-x-auto no-scrollbar">
             <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Allgemein & Steuern</button>
             <button @click="activeTab = 'products'" :class="activeTab === 'products' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Produkt & Marketing</button>
-            <button @click="activeTab = 'stripe'" :class="activeTab === 'stripe' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Zahlung (Stripe)</button>
             <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Versand & Länder</button>
             <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Stammdaten (Impressum)</button>
-            <button @click="activeTab = 'scheduler'" :class="activeTab === 'scheduler' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'" class="whitespace-nowrap pb-4 px-6 border-b-2 font-bold text-sm transition-all">Automatisierung</button>
         </div>
 
         <div class="grid grid-cols-1 gap-8">
@@ -145,53 +143,6 @@
                                     <span class="text-xs text-gray-500">Keine Versandkosten, wenn nur Downloads im Warenkorb liegen.</span>
                                 </div>
                             </label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- TAB: STRIPE --}}
-            <div x-show="activeTab === 'stripe'" class="space-y-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <h3 class="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-[#635BFF]" fill="currentColor" viewBox="0 0 24 24"><path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.895-1.352 2.222-1.352 1.85 0 3.287.669 3.287.669l.608-3.541s-1.465-.631-3.669-.631c-3.155 0-5.187 1.637-5.187 4.298 0 2.871 2.585 4.025 5.518 5.044 2.193.75 2.766 1.488 2.766 2.384 0 1.258-1.503 1.706-3.045 1.706-2.316 0-3.957-.887-3.957-.887l-.683 3.633s1.77.712 4.148.712c3.705 0 5.617-1.802 5.617-4.492 0-3.08-2.613-4.14-5.269-5.046z"/></svg>
-                        Stripe API Konfiguration
-                    </h3>
-
-                    <div class="mb-6 bg-blue-50 text-blue-700 p-4 rounded-xl text-sm border border-blue-100">
-                        <strong>Hinweis:</strong> Ob der Test- oder Live-Modus aktiv ist, wird automatisch anhand der Schlüssel erkannt.
-                        <br><code>pk_test_...</code> = Testmodus (Sandbox) | <code>pk_live_...</code> = Livemodus (Echtgeld)
-                    </div>
-
-                    <div class="grid grid-cols-1 gap-6">
-                        <div class="bg-primary/5 p-6 rounded-2xl border border-primary/10">
-                            <div class="flex items-center gap-1 mb-3">
-                                <label class="text-[11px] font-bold text-primary uppercase tracking-widest">Publishable Key</label>
-                                @include('components.alerts.info-tooltip', ['key' => 'stripe_publishable_key'])
-                            </div>
-                            <input type="text" wire:model="settings.stripe_publishable_key"
-                                   class="w-full rounded-xl border-primary/20 bg-white focus:ring-4 focus:ring-primary/10 focus:border-primary py-4 px-6 font-mono tracking-wider text-sm text-primary shadow-inner outline-none"
-                                   placeholder="pk_test_... oder pk_live_...">
-                        </div>
-
-                        <div class="bg-primary/5 p-6 rounded-2xl border border-primary/10">
-                            <div class="flex items-center gap-1 mb-3">
-                                <label class="text-[11px] font-bold text-primary uppercase tracking-widest">Secret Key</label>
-                                @include('components.alerts.info-tooltip', ['key' => 'stripe_secret_key'])
-                            </div>
-                            <input type="password" wire:model="settings.stripe_secret_key"
-                                   class="w-full rounded-xl border-primary/20 bg-white focus:ring-4 focus:ring-primary/10 focus:border-primary py-4 px-6 font-mono tracking-wider text-sm text-primary shadow-inner outline-none"
-                                   placeholder="sk_test_... oder sk_live_...">
-                        </div>
-
-                        <div class="bg-primary/5 p-6 rounded-2xl border border-primary/10">
-                            <div class="flex items-center gap-1 mb-3">
-                                <label class="text-[11px] font-bold text-primary uppercase tracking-widest">Webhook Secret</label>
-                                @include('components.alerts.info-tooltip', ['key' => 'stripe_webhook_secret'])
-                            </div>
-                            <input type="password" wire:model="settings.stripe_webhook_secret"
-                                   class="w-full rounded-xl border-primary/20 bg-white focus:ring-4 focus:ring-primary/10 focus:border-primary py-4 px-6 font-mono tracking-wider text-sm text-primary shadow-inner outline-none"
-                                   placeholder="whsec_...">
                         </div>
                     </div>
                 </div>
@@ -414,17 +365,6 @@
                             <p class="text-[10px] text-primary/60 mt-2 italic">Hinweis: Diese IBAN wird auf Rechnungen für Vorkasse-Zahlungen angezeigt.</p>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            {{-- TAB: AUTOMATISIERUNG --}}
-            <div x-show="activeTab === 'scheduler'" class="space-y-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
-                    <h3 class="text-xl font-bold text-gray-900 mb-8 border-b pb-4 flex items-center gap-2">
-                        <svg class="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Automatisierung & System-Aufgaben
-                    </h3>
-                    <livewire:shop.scheduler.scheduler-manager />
                 </div>
             </div>
 

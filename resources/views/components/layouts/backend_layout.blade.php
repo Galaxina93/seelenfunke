@@ -132,6 +132,7 @@
 
 </div>
 
+@livewire('global.widgets.funki')
 @livewireScripts
 @stack('scripts')
 </body>

@@ -48,12 +48,11 @@ class FinancialCategoriesSpecialEditions extends Component
     public $editSpecialInvoiceNumber;
     public $editSpecialExistingFiles = [];
 
-
     public $editSpecialFiles = [];
     #[Rule(['newEditFiles.*' => 'max:10240'])]
     public $newEditFiles = [];
 
-    // Quick Upload State (Missing Receipts)
+    // --- NEU/WIEDERHERGESTELLT: Quick Upload State (Missing Receipts) ---
     public ?string $uploadingMissingSpecialId = null;
     #[Rule('required|file|max:10240')]
     public $quickUploadFile;
@@ -85,8 +84,6 @@ class FinancialCategoriesSpecialEditions extends Component
 
     public function getManageableCategoriesProperty()
     {
-        // Wir nutzen eine Subquery (addSelect), um die Einträge live zu zählen.
-        // Das überschreibt den statischen Wert aus der Datenbank für diese Anzeige.
         return FinanceCategory::where('admin_id', $this->getAdminId())
             ->addSelect([
                 'usage_count' => FinanceSpecialIssue::selectRaw('count(*)')
@@ -131,7 +128,6 @@ class FinancialCategoriesSpecialEditions extends Component
 
         $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($this->editingCategoryId);
         if ($cat) {
-            // Update auch in den bestehenden Einträgen, damit die Historie stimmt
             FinanceSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $cat->name)
                 ->update(['category' => $this->editCategoryName]);
@@ -148,7 +144,6 @@ class FinancialCategoriesSpecialEditions extends Component
         $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($id);
         if (!$cat) return;
 
-        // Check usage
         $usage = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
             ->where('category', $cat->name)
             ->count();
@@ -158,7 +153,7 @@ class FinancialCategoriesSpecialEditions extends Component
             $this->categoryToDeleteName = $cat->name;
             $this->showCategoryDeleteModal = true;
         } else {
-            $cat->delete(); // Soft delete oder force delete je nach Model
+            $cat->delete();
             session()->flash('success', 'Kategorie gelöscht.');
         }
     }
@@ -178,12 +173,10 @@ class FinancialCategoriesSpecialEditions extends Component
         $newCat = FinanceCategory::find($this->targetCategoryId);
 
         if ($oldCat && $newCat) {
-            // Move entries
             FinanceSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $oldCat->name)
                 ->update(['category' => $newCat->name]);
 
-            // Update usage counts
             $countMoved = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $newCat->name)
                 ->count();
@@ -208,27 +201,26 @@ class FinancialCategoriesSpecialEditions extends Component
         $this->editSpecialTitle = $special->title;
         $this->editSpecialCategory = $special->category;
         $this->editSpecialAmount = abs($special->amount);
-        $this->editSpecialDate = $special->execution_date;
+
+        // FIX: Sicherstellen, dass das Datum im Format YYYY-MM-DD für das HTML-Input vorliegt
+        $this->editSpecialDate = \Carbon\Carbon::parse($special->execution_date)->format('Y-m-d');
+
         $this->editSpecialLocation = $special->location;
         $this->editSpecialIsBusiness = $special->is_business;
         $this->editSpecialTaxRate = $special->tax_rate;
         $this->editSpecialInvoiceNumber = $special->invoice_number;
 
-        // --- NEU: Dateien laden ---
         $files = $special->file_paths;
-        // Sicherheitscheck, falls es als String kommt (je nach Cast Einstellungen)
         if (is_string($files)) {
             $files = json_decode($files, true);
         }
         $this->editSpecialExistingFiles = is_array($files) ? $files : [];
     }
 
-    // --- Datei aus der Liste entfernen (nur im State, noch nicht DB) ---
     public function removeExistingFile($index)
     {
         if (isset($this->editSpecialExistingFiles[$index])) {
             unset($this->editSpecialExistingFiles[$index]);
-            // Array neu nummerieren, damit JSON array daraus wird und kein Objekt
             $this->editSpecialExistingFiles = array_values($this->editSpecialExistingFiles);
         }
     }
@@ -250,12 +242,8 @@ class FinancialCategoriesSpecialEditions extends Component
         ]);
 
         $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($this->editingSpecialId);
-
-        // --- UPDATE: Dateien zusammenführen ---
-        // Wir nehmen die (evtl. reduzierte) Liste der alten Dateien
         $finalFiles = $this->editSpecialExistingFiles;
 
-        // Und fügen die neuen Uploads hinzu
         if (!empty($this->newEditFiles)) {
             foreach ($this->newEditFiles as $file) {
                 $path = $file->store('financial/receipts', 'public');
@@ -272,7 +260,7 @@ class FinancialCategoriesSpecialEditions extends Component
             'is_business' => $this->editSpecialIsBusiness,
             'tax_rate' => $this->editSpecialIsBusiness ? $this->editSpecialTaxRate : null,
             'invoice_number' => $this->editSpecialIsBusiness ? $this->editSpecialInvoiceNumber : null,
-            'file_paths' => $finalFiles // <--- Hier die kombinierte Liste speichern
+            'file_paths' => $finalFiles
         ]);
 
         $this->cancelEditSpecial();
@@ -284,31 +272,24 @@ class FinancialCategoriesSpecialEditions extends Component
         $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
 
         if ($special) {
-            // 1. Zugehörige Dateien vom Server löschen
             $files = $special->file_paths;
-
-            // Sicherstellen, dass es ein Array ist (falls es als JSON-String kommt)
             if (is_string($files)) {
                 $files = json_decode($files, true);
             }
 
             if (is_array($files) && count($files) > 0) {
                 foreach ($files as $path) {
-                    // Prüfen und löschen ('public' disk nutzen)
                     if (Storage::disk('public')->exists($path)) {
                         Storage::disk('public')->delete($path);
                     }
                 }
             }
-
-            // 2. Datenbank-Eintrag löschen
             $special->delete();
-
             session()->flash('success', 'Eintrag und zugehörige Belege wurden gelöscht.');
         }
     }
 
-    // Quick Upload for missing
+    // --- NEU/WIEDERHERGESTELLT: Quick Upload Logic ---
     public function updatedQuickUploadFile()
     {
         if($this->uploadingMissingSpecialId && $this->quickUploadFile) {
@@ -317,7 +298,6 @@ class FinancialCategoriesSpecialEditions extends Component
             if($special) {
                 $path = $this->quickUploadFile->store('financial/receipts', 'public');
 
-                // Bestehende Pfade laden und sicherstellen, dass es ein Array ist
                 $files = $special->file_paths;
                 if (is_string($files)) {
                     $files = json_decode($files, true);
@@ -332,28 +312,13 @@ class FinancialCategoriesSpecialEditions extends Component
                 session()->flash('success', 'Beleg hochgeladen.');
             }
 
-            // Reset
             $this->reset(['quickUploadFile', 'uploadingMissingSpecialId']);
         }
-    }
-
-    public function getSpecialsMissingReceiptsProperty()
-    {
-        // Sucht Sonderausgaben ohne Datei
-        return FinanceSpecialIssue::where('admin_id', $this->getAdminId())
-            ->where(function($query) {
-                $query->whereNull('file_paths')
-                    ->orWhere('file_paths', '[]')
-                    ->orWhere('file_paths', '');
-            })
-            ->orderBy('execution_date', 'desc')
-            ->get();
     }
 
     public function render()
     {
         $adminId = $this->getAdminId();
-
         $specialsQuery = FinanceSpecialIssue::where('admin_id', $adminId);
 
         if (!empty($this->specialSearch)) {
@@ -366,17 +331,7 @@ class FinancialCategoriesSpecialEditions extends Component
 
         $specials = $specialsQuery->orderBy('execution_date', 'desc')->paginate(10);
 
-        // Chart Data Calculation
-        // WICHTIG: Das muss bei JEDEM Render passieren, damit der Chart auch beim Suchen aktualisiert wird
         $chartDataObj = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
-            ->when(!empty($this->specialSearch), function($q) {
-                // Chart soll sich auch filtern, wenn man sucht?
-                // Meistens besser: Chart zeigt immer Gesamtübersicht, oder gefiltert.
-                // Hier: Wir lassen den Chart ungefiltert von der Suche für Stabilität,
-                // oder du nimmst denselben Filter rein. Ich lasse ihn hier "Gesamt",
-                // damit die Grafik nicht wild springt beim Tippen.
-                // Wenn du es gefiltert willst, kopier den where-Block von oben hier rein.
-            })
             ->where('amount', '<', 0)
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')
@@ -384,9 +339,8 @@ class FinancialCategoriesSpecialEditions extends Component
             ->get();
 
         $chartLabels = $chartDataObj->pluck('category');
-        $chartDataValues = $chartDataObj->pluck('total'); // Umbenannt, um Konflikt zu vermeiden
+        $chartDataValues = $chartDataObj->pluck('total');
 
-        // Wir senden das Event an JS bei jedem Render
         $this->dispatch('update-category-chart', labels: $chartLabels, data: $chartDataValues);
 
         return view('livewire.shop.financial.financial-categories-special-editions.financial-categories-special-editions', [

@@ -130,7 +130,7 @@
                                 <td class="p-4">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ $special->category }}</span>
                                 </td>
-                                <td class="p-4 text-right font-mono font-bold {{ $special->amount < 0 ? 'text-red-500' : 'text-green-600' }}">
+                                <td class="p-4 text-right font-mono font-bold whitespace-nowrap {{ $special->amount < 0 ? 'text-red-500' : 'text-green-600' }}">
                                     {{ number_format($special->amount, 2, ',', '.') }} €
                                 </td>
                                 <td class="p-4 text-center">
@@ -193,7 +193,7 @@
                                             <span class="w-3 h-3 rounded-full bg-orange-{{ max(100, 500 - ($index * 100)) }}"></span>
                                             {{ $label }}
                                         </span>
-                            <span class="font-bold text-gray-700">{{ number_format($chartData[$index] ?? 0, 2, ',', '.') }} €</span>
+                            <span class="font-bold text-gray-700 whitespace-nowrap">{{ number_format($chartData[$index] ?? 0, 2, ',', '.') }} €</span>
                         </div>
                     @endif
                 @endforeach

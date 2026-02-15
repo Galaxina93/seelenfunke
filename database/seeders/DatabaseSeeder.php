@@ -22,7 +22,8 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             ShopAttributeSeeder::class,
             OrdersTableSeeder::class,
-            BlogSeeder::class
+            BlogSeeder::class,
+            NewsletterTemplateSeeder::class
         ]);
 
     }

@@ -21,6 +21,6 @@ class NewsletterVerificationMail extends Mailable
     public function build()
     {
         return $this->subject('Bitte bestätige deine Anmeldung – Mein Seelenfunke')
-            ->view('global.mails.verification');
+            ->view('global.mails.newsletter.verification');
     }
 }
