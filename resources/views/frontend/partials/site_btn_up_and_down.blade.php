@@ -1,5 +1,5 @@
 {{-- To Top & Bottom Buttons + Cookie-Warner --}}
-<div class="fixed right-2 bottom-4 z-50 flex flex-col items-end space-y-4">
+<div class="fixed right-2 bottom-40 z-50 flex flex-col items-end space-y-4">
 
     {{-- To Top Btn --}}
     <div onclick="topFunction()" id="toTopBtn" title="Nach oben" class="hidden">

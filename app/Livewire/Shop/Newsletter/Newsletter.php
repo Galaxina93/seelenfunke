@@ -6,6 +6,7 @@ use App\Mail\NewsletterMail;
 use App\Models\NewsletterTemplate; // Neue Model Klasse
 use App\Models\NewsletterSubscriber;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use Livewire\WithPagination;
 

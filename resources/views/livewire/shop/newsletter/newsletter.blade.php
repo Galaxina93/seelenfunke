@@ -3,22 +3,59 @@
     {{-- KPI Header --}}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up">
 
-        {{-- Next Send --}}
-        <div class="bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-            <div class="absolute right-0 top-0 p-4 opacity-10">
-                <svg class="w-24 h-24 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        {{-- FUNKI TILE: Next Send --}}
+        <div class="bg-slate-900 rounded-[2rem] p-7 relative overflow-hidden shadow-xl shadow-blue-900/10 border border-slate-800 group hover:border-blue-500/30 transition-all duration-500">
+
+            {{-- Background Effects --}}
+            <div class="absolute inset-0 bg-gradient-to-tr from-blue-600/10 to-transparent animate-pulse"></div>
+            <div class="absolute -right-6 -top-6 text-slate-800 transform rotate-12 group-hover:rotate-0 group-hover:scale-110 transition-all duration-700">
+                <svg class="w-40 h-40 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
             </div>
-            <p class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Autopilot Status</p>
-            @if($this->nextScheduledSend)
-                <h3 class="text-xl font-bold leading-tight">{{ $this->nextScheduledSend['subject'] }}</h3>
-                <div class="mt-4 flex items-center gap-3">
-                    <span class="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">Aktiv</span>
-                    <span class="text-gray-300 text-sm">Versand am {{ $this->nextScheduledSend['send_date']->format('d.m.Y') }}</span>
+
+            <div class="relative z-10 h-full flex flex-col justify-between">
+                {{-- Header Label --}}
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>
+                    <p class="text-[10px] font-black text-blue-300 uppercase tracking-[0.2em]">Autopilot Status</p>
                 </div>
-            @else
-                <h3 class="text-xl font-bold text-gray-400">Alles ruhig</h3>
-                <p class="text-sm text-gray-500 mt-1">Keine anstehenden Mails in den nächsten 365 Tagen.</p>
-            @endif
+
+                @if($this->nextScheduledSend)
+                    {{-- ACTIVE STATE --}}
+                    <div>
+                        <h3 class="text-white font-black text-xl leading-tight mb-5 drop-shadow-md">
+                            {{ $this->nextScheduledSend['subject'] }}
+                        </h3>
+
+                        {{-- Funki Pill Badge --}}
+                        <div class="inline-flex items-center gap-3 bg-white/5 rounded-2xl px-4 py-2.5 border border-white/10 backdrop-blur-sm group-hover:bg-white/10 transition-colors">
+                            <div class="flex items-center gap-2 text-green-400">
+                                <span class="w-2 h-2 bg-current rounded-full animate-pulse shadow-[0_0_8px_currentColor]"></span>
+                                <span class="text-[10px] font-black uppercase tracking-wider text-white">Aktiv</span>
+                            </div>
+                            <div class="w-px h-3 bg-white/10"></div>
+                            <div class="flex items-center gap-2 text-slate-300">
+                                <i class="bi bi-calendar-event text-[10px]"></i>
+                                <span class="text-xs font-mono tracking-tight">{{ $this->nextScheduledSend['send_date']->format('d.m.Y') }}</span>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    {{-- IDLE STATE --}}
+                    <div class="flex flex-col h-full justify-center">
+                        <h3 class="text-white font-black text-xl mb-2">Alles ruhig im Kosmos</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed font-medium max-w-[90%]">
+                            Funki hat aktuell keine Mails für die nächsten 365 Tage auf dem Radar.
+                        </p>
+                        <div class="mt-4 flex items-center gap-2 opacity-50">
+                            <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
+                            <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
+                            <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
+                        </div>
+                    </div>
+                @endif
+            </div>
         </div>
 
         {{-- Active Automations --}}
