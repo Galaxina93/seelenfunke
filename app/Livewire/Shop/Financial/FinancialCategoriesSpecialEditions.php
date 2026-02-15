@@ -7,6 +7,7 @@ use App\Models\Financial\FinanceSpecialIssue;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
@@ -54,6 +55,15 @@ class FinancialCategoriesSpecialEditions extends Component
     public ?string $uploadingMissingSpecialId = null;
     #[Rule('required|file|max:10240')]
     public $quickSpecialUploadFile;
+
+    #[On('special-issue-created')]
+    public function refreshList()
+    {
+        // Diese Methode muss nichts tun, außer existieren.
+        // Livewire rendert die Komponente automatisch neu, wenn ein Event empfangen wird.
+        // Wir setzen nur die Seite zurück, damit man den neuen Eintrag sieht.
+        $this->resetPage();
+    }
 
     public function mount()
     {
