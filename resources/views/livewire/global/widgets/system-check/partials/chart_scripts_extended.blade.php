@@ -4,7 +4,7 @@
         let profitChart, expensesChart, customersChart, visitsChart;
 
         const initCharts = (data) => {
-            // Profit Chart
+            // --- 1. Profit & Revenue Chart (Line) ---
             const profitCtx = document.getElementById('profitChart').getContext('2d');
             const profitGradient = profitCtx.createLinearGradient(0, 0, 0, 300);
             profitGradient.addColorStop(0, 'rgba(16, 185, 129, 0.2)');
@@ -71,9 +71,7 @@
                             callbacks: {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
+                                    if (label) { label += ': '; }
                                     if (context.parsed.y !== null) {
                                         label += new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(context.parsed.y);
                                     }
@@ -89,7 +87,7 @@
                 }
             });
 
-            // Expenses Chart
+            // --- 2. Expenses Chart (Doughnut) ---
             const expCtx = document.getElementById('expensesChart');
             if(expCtx) {
                 if(expensesChart) expensesChart.destroy();
@@ -120,21 +118,19 @@
                                 }
                             }
                         },
-                        layout: {
-                            padding: 20
-                        }
+                        layout: { padding: 20 }
                     }
                 });
             }
 
-            // Customers Chart
+            // --- 3. Customers Chart (Doughnut) ---
             const custCtx = document.getElementById('customersChart');
             if(custCtx) {
                 if(customersChart) customersChart.destroy();
                 customersChart = new Chart(custCtx, {
                     type: 'doughnut',
                     data: {
-                        labels: data.top_customers.map(i => i.display_name),
+                        labels: data.top_customers.map(i => i.category || i.display_name),
                         datasets: [{
                             data: data.top_customers.map(i => i.total),
                             backgroundColor: ['#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe'],
@@ -158,46 +154,57 @@
                                 }
                             }
                         },
-                        layout: {
-                            padding: 20
+                        layout: { padding: 20 }
+                    }
+                });
+            }
+
+            // --- 4. Traffic / Visits Chart (Line) - JETZT DYNAMISCH ---
+            const vCtx = document.getElementById('visitsChart');
+            if(vCtx) {
+                if(visitsChart) visitsChart.destroy();
+                const ctxVisits = vCtx.getContext('2d');
+                const gradVisits = ctxVisits.createLinearGradient(0, 0, 0, 300);
+                gradVisits.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+                gradVisits.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+                visitsChart = new Chart(ctxVisits, {
+                    type: 'line',
+                    data: {
+                        labels: data.visit_days,
+                        datasets: [{
+                            label: 'Seitenaufrufe',
+                            data: data.visit_counts,
+                            borderColor: '#3B82F6',
+                            backgroundColor: gradVisits,
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, grid: { display:false }, border: {display:false} },
+                            x: { grid: { display:false }, border: {display:false} }
                         }
                     }
                 });
             }
         };
 
-        // Init with initial data passed from component
+        // Initiale Ausführung mit den beim Laden übergebenen PHP-Daten
         initCharts(@json($stats));
 
-        // Listen for updates from Livewire
+        // Listener für Livewire Updates (Filterklicks)
         Livewire.on('update-charts', (event) => {
-            // Access the 'stats' property from the event detail
-            initCharts(event.stats || event[0].stats);
+            // Verarbeitet sowohl Array- als auch Objekt-Events von Livewire
+            const responseData = event.stats || (event[0] && event[0].stats);
+            if(responseData) {
+                initCharts(responseData);
+            }
         });
-
-        // Visits Chart (Static)
-        if(document.getElementById('visitsChart')) {
-            const ctxVisits = document.getElementById('visitsChart').getContext('2d');
-            const gradVisits = ctxVisits.createLinearGradient(0, 0, 0, 300);
-            gradVisits.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
-            gradVisits.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
-
-            new Chart(ctxVisits, {
-                type: 'line',
-                data: {
-                    labels: @json($stats['visit_days']),
-                    datasets: [{
-                        label: 'Seitenaufrufe',
-                        data: @json($stats['visit_counts']),
-                        borderColor: '#3B82F6',
-                        backgroundColor: gradVisits,
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display:false }, border: {display:false} }, x: { grid: { display:false }, border: {display:false} } } }
-            });
-        }
     });
 </script>

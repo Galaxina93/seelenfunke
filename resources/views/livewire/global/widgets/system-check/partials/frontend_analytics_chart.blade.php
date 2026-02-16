@@ -1,4 +1,4 @@
-<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 xl:col-span-2 flex flex-col">
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 xl:col-span-3 flex flex-col">
     <div class="flex justify-between items-start mb-6">
         <div>
             <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
