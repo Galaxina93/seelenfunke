@@ -1,9 +1,21 @@
 <div class="relative font-sans">
+    {{-- Container für Ausrichtung unten rechts --}}
     <div class="fixed z-[9999] flex gap-4 pointer-events-none bottom-6 right-6 flex-col items-end">
 
         {{-- HAUPTFENSTER --}}
-        {{-- Änderung: w-[calc(100vw-3rem)] und ml-auto sorgt für den Abstand zum linken Rand auf Mobilgeräten --}}
-        <div class="pointer-events-auto bg-white w-[calc(100vw-3rem)] sm:w-[500px] h-[780px] max-h-[88vh] rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 transform origin-bottom-right shadow-blue-900/5 mb-4"
+        {{--
+             x-data: Steuert den Maximieren-Zustand
+             Klassen-Logik:
+             - Standard Mobil: w-[calc(100vw-3rem)] h-[60vh] (Genug Abstand oben/unten)
+             - Maximiert Mobil: w-[calc(100vw-2rem)] h-[85vh]
+             - Standard Desktop: w-[500px] h-[780px]
+             - Maximiert Desktop: w-[800px] h-[85vh]
+        --}}
+        <div x-data="{ isMaximized: false }"
+             class="pointer-events-auto bg-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 transform origin-bottom-right shadow-blue-900/5 mb-4"
+             :class="isMaximized
+                ? 'w-[calc(100vw-2rem)] h-[85vh] sm:w-[800px] sm:h-[85vh]'
+                : 'w-[calc(100vw-3rem)] h-[60vh] sm:w-[500px] sm:h-[780px]'"
              x-show="$wire.isOpen"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 scale-95 translate-y-10"
@@ -13,6 +25,8 @@
             {{-- Modern Header --}}
             <div class="bg-slate-900 p-6 flex items-center justify-between relative overflow-hidden shrink-0">
                 <div class="absolute inset-0 bg-gradient-to-tr from-blue-600/30 to-transparent animate-pulse"></div>
+
+                {{-- Linke Seite: Avatar & Status --}}
                 <div class="flex items-center gap-4 relative z-10">
                     <div class="w-14 h-14 rounded-2xl bg-white/10 p-1 backdrop-blur-xl border border-white/20 shadow-lg">
                         <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" class="w-full h-full object-cover rounded-xl shadow-sm">
@@ -25,9 +39,28 @@
                         </div>
                     </div>
                 </div>
-                <button wire:click="toggleChat" class="text-slate-400 hover:text-white p-2 transition-all transform hover:rotate-90">
-                    <i class="bi bi-x-lg fs-4"></i>
-                </button>
+
+                {{-- Rechte Seite: Buttons (Resize & Close) --}}
+                <div class="flex items-center gap-1 relative z-10">
+                    {{-- Resize Button --}}
+                    <button @click="isMaximized = !isMaximized" class="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-all">
+                        {{-- Icon: Expand (Anzeigen wenn NICHT maximiert) --}}
+                        <svg x-show="!isMaximized" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                        {{-- Icon: Contract (Anzeigen wenn maximiert) --}}
+                        <svg x-show="isMaximized" style="display: none;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5M15 15l5.25 5.25" />
+                        </svg>
+                    </button>
+
+                    {{-- Close Button --}}
+                    <button wire:click="toggleChat" class="text-slate-400 hover:text-red-400 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-all transform hover:rotate-90">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             {{-- Mode Switcher (Nur Admin sieht Automations) --}}
@@ -161,7 +194,7 @@
         </div>
 
         {{-- TRIGGER BUTTON --}}
-        {{-- Das Icon bleibt durch die flex-col Anordnung des Parent-Divs immer unten rechts --}}
+        {{-- Bleibt unten rechts fixiert durch flex-col im Parent --}}
         <button wire:click="toggleChat" class="pointer-events-auto relative group outline-none shrink-0 transition-all active:scale-90">
             <div class="absolute inset-0 bg-blue-600 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
             <div class="w-16 h-16 sm:w-20 sm:h-20 bg-slate-900 rounded-[1.8rem] p-1 shadow-2xl transition-all duration-500 transform group-hover:scale-110 group-hover:-rotate-3 flex items-center justify-center border-2 border-white relative z-10 overflow-hidden shrink-0">
