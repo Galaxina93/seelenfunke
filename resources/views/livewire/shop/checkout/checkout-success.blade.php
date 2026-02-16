@@ -1,4 +1,8 @@
-<div class="max-w-3xl mx-auto px-4 py-16 my-8 text-center animate-fade-in">
+{{-- Hier wurde x-data und x-init hinzugefügt, damit er sofort hochscrollt --}}
+<div x-data
+     x-init="window.scrollTo({ top: 0, behavior: 'smooth' })"
+     class="max-w-3xl mx-auto px-4 py-16 my-8 text-center animate-fade-in">
+
     {{-- FUNKI STATT GRÜNEM HAKEN --}}
     <div class="mb-6 flex justify-center">
         {{-- h-40 macht ihn schön groß und präsent --}}
