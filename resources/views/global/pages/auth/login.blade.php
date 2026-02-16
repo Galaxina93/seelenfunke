@@ -11,7 +11,7 @@
             - 'h-64 md:h-96': Ausreichend Höhe, damit das Video wirken kann.
             - 'shrink-0': Verhindert Stauchen.
         --}}
-        <div class="w-full h-64 md:h-96 relative overflow-hidden shrink-0">
+        <div class="w-full h-48 md:h-64 relative overflow-hidden shrink-0">
             <video autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover opacity-80">
                 <source src="{{ asset('videos/login_header_sk_b.mp4') }}" type="video/mp4">
                 Ihr Browser unterstützt dieses Video-Format nicht.

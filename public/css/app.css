@@ -6127,6 +6127,9 @@ video {
   .md\:h-screen {
     height: 100vh;
   }
+  .md\:h-64 {
+    height: 16rem;
+  }
   .md\:w-1\/2 {
     width: 50%;
   }

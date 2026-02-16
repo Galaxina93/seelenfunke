@@ -745,11 +745,13 @@
                                     'text' => 'Jedes Stück wird von Hand gereinigt, poliert und durchläuft unsere strenge 4-Augen-Qualitätsprüfung. Nur Makelloses verlässt das Haus.'
                                 ],
                                 [
+                                    'video' => 'edle_verpackung',
                                     'image' => '/images/projekt/process/edle_verpackung.png',
                                     'title' => 'Edle Verpackung',
                                     'text' => 'Der erste Eindruck zählt. Ihr Unikat wird direkt in unserer hochwertigen Geschenkbox verpackt und ist somit bereit zur feierlichen Übergabe.'
                                 ],
                                 [
+                                    'video' => 'sicherer_versand',
                                     'image' => '/images/projekt/process/sicherer_versand.png',
                                     'title' => 'Sicherer Versand',
                                     'text' => 'Wir verpacken bruchsicher in speziellen Kartonagen. Ihr Paket wird versichert an unseren Logistikpartner übergeben.'
