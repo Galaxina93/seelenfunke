@@ -33,7 +33,7 @@
             Sie möchten keine Neuigkeiten mehr erhalten?
             <br>
             {{-- Die Route muss in web.php definiert sein, z.B. Route::get('/newsletter/unsubscribe/{id}', ...) --}}
-            <a href="{{ url('/newsletter/unsubscribe/' . $subscriber->id) }}" style="color: #999; text-decoration: underline;">
+            <a href="{{ url('/newsletter') }}" style="color: #999; text-decoration: underline;">
                 Hier vom Newsletter abmelden
             </a>
         </p>

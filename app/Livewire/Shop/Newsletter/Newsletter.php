@@ -53,27 +53,39 @@ class Newsletter extends Component
 
     public function sendTestMail()
     {
+        // 1. Validierung
         $this->validate([
-            'edit_subject' => 'required',
-            'edit_content' => 'required',
+            'edit_subject' => 'required|string',
+            'edit_content' => 'required|string',
         ]);
 
         $adminEmail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
 
-        // Temporäres Template-Objekt für die Mail-Klasse
-        $tempTemplate = new NewsletterTemplate([
+        // 2. FIX: forceFill nutzen, um Mass Assignment Protection zu umgehen
+        // Da das Model nicht gespeichert wird, ist das sicher.
+        $tempTemplate = new NewsletterTemplate();
+        $tempTemplate->forceFill([
             'subject' => '[TEST] ' . $this->edit_subject,
-            'content' => $this->edit_content
+            'content' => $this->edit_content,
+            'days_offset' => 0,
+            'target_event_key' => 'test_preview'
         ]);
 
-        // Dummy Subscriber für Platzhalter
-        $dummySubscriber = new NewsletterSubscriber(['email' => $adminEmail]);
+        // Dummy Subscriber
+        $dummySubscriber = new NewsletterSubscriber();
+        $dummySubscriber->email = $adminEmail;
+        $dummySubscriber->first_name = 'Admin';
+        $dummySubscriber->last_name = 'User';
 
         try {
+            // Mail Versand
             Mail::to($adminEmail)->send(new NewsletterMail($tempTemplate, $dummySubscriber));
+
             session()->flash('test_success', 'Testmail wurde an ' . $adminEmail . ' versendet! ✨');
         } catch (\Exception $e) {
-            session()->flash('test_error', 'Fehler beim Versand: ' . $e->getMessage());
+            // Fehler Logging für Debugging
+            \Illuminate\Support\Facades\Log::error('Newsletter Test Mail Error: ' . $e->getMessage());
+            session()->flash('test_error', 'Fehler: ' . $e->getMessage());
         }
     }
 

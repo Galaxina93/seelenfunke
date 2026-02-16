@@ -23,12 +23,18 @@ class NewsletterMail extends Mailable
 
     public function build()
     {
-        // Platzhalter ersetzen
-        $content = str_replace('{first_name}', 'Lieber Kunde', $this->template->content);
-        // (In einem echten System würdest du hier den echten Namen nehmen, falls vorhanden)
+        // 1. Echten Namen ermitteln oder Fallback setzen
+        // Wenn first_name existiert und nicht leer ist -> nimm Namen
+        // Sonst -> nimm "Kunde" (damit im Text z.B. "Hallo Kunde" steht statt "Hallo ,")
+        $nameToUse = !empty($this->subscriber->first_name)
+            ? $this->subscriber->first_name
+            : 'Kunde';
+
+        // 2. Platzhalter im Content ersetzen
+        $content = str_replace('{first_name}', $nameToUse, $this->template->content);
 
         return $this->subject($this->template->subject)
-            ->view('emails.newsletter.default')
+            ->view('global.mails.newsletter.default')
             ->with(['content' => $content]);
     }
 }
