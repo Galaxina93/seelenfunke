@@ -25,6 +25,11 @@ class Newsletter extends Component
     public $editingTemplateId = null;
     public $edit_subject, $edit_content, $edit_offset;
 
+    // --- Tooltip Texte ---
+    public $infoTexts = [
+        'system_integrity' => 'Aktive Zyklen: Anzahl der eingeschalteten jährlichen Kampagnen. Empfänger: Anzahl der bestätigten Abonnenten (Double-Opt-In).',
+    ];
+
     // --- Event Definitions ---
     public $availableEvents = [
         'valentines' => 'Valentinstag (14.02.)',
