@@ -72,11 +72,11 @@
                 <p class="text-xs text-rose-400 mt-1 uppercase tracking-widest font-semibold">Abgewiesene Versuche</p>
             </div>
             <div @class([
-                'p-3 rounded-2xl shadow-sm transition-all',
-                'bg-rose-50 text-rose-500 shadow-rose-100' => $stats['failed_logins'] > 0,
-                'bg-slate-50 text-slate-300' => $stats['failed_logins'] == 0
-            ])>
-                <i class="solar-shield-warning-bold-duotone text-xl {{ $stats['failed_logins'] > 0 ? 'animate-pulse' : '' }}"></i>
+                        'p-3 rounded-2xl shadow-sm transition-all',
+                        'bg-rose-50 text-rose-500 shadow-rose-100' => $stats['failed_logins'] > 0,
+                        'bg-slate-50 text-slate-300' => $stats['failed_logins'] == 0
+                    ])>
+                <i class="solar-shield-warning-bold-duotone text-xl"></i>
             </div>
         </div>
 
