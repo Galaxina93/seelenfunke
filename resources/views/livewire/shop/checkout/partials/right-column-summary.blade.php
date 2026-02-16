@@ -1,5 +1,19 @@
 {{-- RECHTE SPALTE: Zusammenfassung --}}
-<div class="mt-10 lg:mt-0 lg:col-span-5 h-full">
+<div class="mt-10 lg:mt-0 lg:col-span-5 h-full"
+     x-data="{
+        {{-- Wir binden die Checkboxen an Alpine --}}
+        terms: @entangle('terms_accepted'),
+        privacy: @entangle('privacy_accepted'),
+
+        {{-- Die Logik für das anzuzeigende Bild --}}
+        get funkiState() {
+            {{-- Wenn beide Haken gesetzt sind -> Party --}}
+            if (this.terms && this.privacy) return 'party';
+            {{-- Sonst -> Standard --}}
+            return 'normal';
+        }
+     }">
+
     <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg sticky top-24">
         <h2 class="text-lg font-medium text-gray-900 mb-6">Bestellübersicht</h2>
 
@@ -44,7 +58,6 @@
         @endif
 
         {{-- 2. Artikelliste --}}
-        {{-- NEU: Wrapper für Scroll-Funktion (max-h-96 entspricht ca. 384px, bei Bedarf anpassen) --}}
         <div class="max-h-96 overflow-y-auto pr-2 overscroll-contain custom-scrollbar">
             <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
                 @foreach($cart->items as $item)
@@ -95,13 +108,30 @@
         </div>
 
         {{-- 3. Zahlen / Summen via Master Component --}}
-        {{-- HIER WURDE DIE ÄNDERUNG VORGENOMMEN --}}
         <div class="mt-6 pt-6 border-t border-gray-100">
             <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
         </div>
 
+        {{-- NEU: FUNKI MASCOTT --}}
+        <div class="flex justify-center items-center py-6">
+            <div class="relative w-32 h-32 transition-transform duration-300" :class="funkiState === 'party' ? 'scale-110' : 'scale-100'">
+
+                {{-- 1. Startbild (Standard) --}}
+                <img x-show="funkiState === 'normal'"
+                     src="{{ asset('images/projekt/funki/checkout/funki_l_n.png') }}"
+                     class="absolute inset-0 w-full h-full object-contain animate-fade-in"
+                     alt="Funki wartet">
+
+                {{-- 2. Haken gesetzt (Party) --}}
+                <img x-show="funkiState === 'party'"
+                     src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}"
+                     class="absolute inset-0 w-full h-full object-contain animate-fade-in"
+                     alt="Funki feiert">
+            </div>
+        </div>
+
         {{-- 4. Checkboxen --}}
-        <div class="mt-8 space-y-4 bg-gray-50 p-4 rounded-xl">
+        <div class="space-y-4 bg-gray-50 p-4 rounded-xl">
             <div class="flex items-start">
                 <div class="flex h-5 items-center">
                     <input id="terms" wire:model.live="terms_accepted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer">
@@ -129,7 +159,10 @@
 
         {{-- 5. Button --}}
         <div class="mt-8">
-            <button id="submit-button" type="submit" @disabled(!$terms_accepted || !$privacy_accepted) class="w-full rounded-full border border-transparent bg-gray-900 py-4 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-1">
+            <button id="submit-button"
+                    type="submit"
+                    @disabled(!$terms_accepted || !$privacy_accepted)
+                    class="w-full rounded-full border border-transparent bg-gray-900 py-4 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-1">
                 <span id="button-text">Zahlungspflichtig bestellen</span>
                 <div id="spinner" class="hidden flex items-center justify-center gap-2">
                     <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
