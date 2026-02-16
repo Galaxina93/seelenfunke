@@ -21,7 +21,9 @@
 
         {{-- NEU: LADE-ANIMATION (Wird angezeigt, sobald geklickt wurde) --}}
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
-            <div class="relative w-40 h-40">
+            <div x-data
+                 x-init="window.scrollTo({ top: 0, behavior: 'smooth' })"
+                class="relative w-40 h-40">
                 <img src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}"
                      class="w-full h-full object-contain animate-bounce-slow"
                      alt="Verarbeite Bestellung">
