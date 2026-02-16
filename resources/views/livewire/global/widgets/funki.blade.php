@@ -1,8 +1,9 @@
 <div class="relative font-sans">
-    <div class="fixed z-[9999] flex gap-4 pointer-events-none bottom-6 right-6 flex-col-reverse items-end sm:flex-row sm:items-center">
+    <div class="fixed z-[9999] flex gap-4 pointer-events-none bottom-6 right-6 flex-col items-end">
 
         {{-- HAUPTFENSTER --}}
-        <div class="pointer-events-auto bg-white w-[95vw] sm:w-[500px] h-[780px] max-h-[88vh] rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 transform origin-bottom-right sm:origin-right shadow-blue-900/5"
+        {{-- Änderung: w-[calc(100vw-3rem)] und ml-auto sorgt für den Abstand zum linken Rand auf Mobilgeräten --}}
+        <div class="pointer-events-auto bg-white w-[calc(100vw-3rem)] sm:w-[500px] h-[780px] max-h-[88vh] rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 transform origin-bottom-right shadow-blue-900/5 mb-4"
              x-show="$wire.isOpen"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 scale-95 translate-y-10"
@@ -160,6 +161,7 @@
         </div>
 
         {{-- TRIGGER BUTTON --}}
+        {{-- Das Icon bleibt durch die flex-col Anordnung des Parent-Divs immer unten rechts --}}
         <button wire:click="toggleChat" class="pointer-events-auto relative group outline-none shrink-0 transition-all active:scale-90">
             <div class="absolute inset-0 bg-blue-600 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
             <div class="w-16 h-16 sm:w-20 sm:h-20 bg-slate-900 rounded-[1.8rem] p-1 shadow-2xl transition-all duration-500 transform group-hover:scale-110 group-hover:-rotate-3 flex items-center justify-center border-2 border-white relative z-10 overflow-hidden shrink-0">
