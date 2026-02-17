@@ -1,6 +1,11 @@
 {{-- FORMULAR (UNTERER BEREICH) --}}
 <div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
+    {{--
+        HINWEIS: Die Sektion "Text-Einstellungen" wurde entfernt.
+        Schriftart und Ausrichtung werden jetzt direkt über die Icons am Textfeld gesteuert.
+    --}}
+
     {{-- MEDIEN (Bilder & PDFs) --}}
     @if($configSettings['allow_logo'])
         <div class="space-y-4">
@@ -23,54 +28,35 @@
                         </svg>
                     </div>
                     <p class="text-xs text-blue-800/80 leading-relaxed">
-                        Wir prüfen jede Datei manuell. (PDF, JPG, PNG erlaubt).
+                        Laden Sie Ihr Logo hoch. Position, Größe und Rotation können Sie direkt oben im Vorschaubild durch Ziehen der Icons anpassen. Wir prüfen jede Datei manuell.
                     </p>
                 </div>
             @endif
 
-            {{--
-                ALPINE JS LOGIK (GETRENNT):
-                1. handleDrop: Wird beim Reinziehen gefeuert -> Setzt Files -> Feuert Change.
-                2. handleInput: Wird beim "Change" gefeuert (egal ob durch Drop oder Klick) -> Validiert nur.
-            --}}
+            {{-- Alpine JS Logik für Datei-Upload --}}
             <div x-data="{
                     isDropping: false,
                     currentCount: {{ count($uploaded_files) }},
                     uploadError: null,
 
-                    // Funktion A: Nur für Drag & Drop
                     handleDrop(e) {
                         this.isDropping = false;
                         this.uploadError = null;
-
                         let files = e.dataTransfer.files;
-
-                        // Validierung
                         if (!this.validateFiles(files)) return;
-
-                        // Dateien auf das Input-Feld übertragen
-                        // Dies triggert NICHT automatisch Livewire, daher müssen wir dispatchEvent nutzen
                         this.$refs.fileInput.files = files;
-
-                        // Manuell das Change-Event feuern, damit Livewire startet.
-                        // WICHTIG: Das Input-Feld darf NICHT 'handleDrop' bei change aufrufen, sonst Loop!
                         this.$refs.fileInput.dispatchEvent(new Event('change'));
                     },
 
-                    // Funktion B: Für Klick-Auswahl ODER durch handleDrop ausgelöst
                     handleInput(e) {
                         this.uploadError = null;
                         let files = e.target.files;
-
-                        // Wenn die Validierung fehlschlägt, Input leeren damit Livewire nicht hochlädt
                         if (!this.validateFiles(files)) {
-                            this.$refs.fileInput.value = ''; // Reset
-                            return; // Stop
+                            this.$refs.fileInput.value = '';
+                            return;
                         }
-                        // Wenn alles OK ist, macht Livewire (wire:model) den Rest automatisch
                     },
 
-                    // Hilfsfunktion zur Prüfung
                     validateFiles(files) {
                         let newCount = files.length;
                         if ((this.currentCount + newCount) > 10) {
@@ -79,8 +65,7 @@
                         }
                         return true;
                     }
-                 }"
-                 class="relative">
+                 }" class="relative">
 
                 {{-- Fehleranzeige --}}
                 <div x-show="uploadError" x-cloak class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-xs font-bold text-center animate-pulse">
@@ -102,11 +87,6 @@
                              class="group border-2 border-dashed rounded-[2rem] p-10 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer hover:border-primary/50 relative overflow-hidden"
                              @click="$refs.fileInput.click()">
 
-                            {{--
-                                WICHTIGSTE ÄNDERUNG HIER:
-                                x-on:change ruft jetzt 'handleInput' auf, NICHT 'handleDrop'.
-                                Das verhindert die Endlosschleife.
-                            --}}
                             <input type="file"
                                    x-ref="fileInput"
                                    wire:model.live="new_files"
@@ -156,7 +136,6 @@
                         $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'svg']);
                         $isActive = $this->isLogoActive($path);
                     @endphp
-
                     <div class="flex items-center justify-between bg-white p-3 rounded-2xl border transition-all {{ $isActive ? 'border-primary shadow-md' : 'border-slate-100' }}">
                         <div class="flex items-center gap-4 overflow-hidden">
                             <div class="w-12 h-12 rounded-xl bg-slate-50 overflow-hidden flex items-center justify-center border border-slate-100 shrink-0 relative">
@@ -164,19 +143,15 @@
                                     <img src="{{ asset('storage/'.$path) }}" class="w-full h-full object-cover">
                                 @else
                                     <div class="flex flex-col items-center justify-center text-slate-400">
-                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                                        </svg>
+                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
                                         <span class="text-[8px] font-bold uppercase mt-0.5">{{ $ext }}</span>
                                     </div>
                                 @endif
                             </div>
-
                             <div class="min-w-0 flex-1">
                                 <p class="text-[11px] font-bold text-slate-800 truncate" title="{{ basename($path) }}">
                                     {{ basename($path) }}
                                 </p>
-
                                 @if($isImage)
                                     <button wire:click="toggleLogo('saved', '{{ $path }}')"
                                             class="text-[9px] font-black uppercase tracking-tighter mt-1 {{ $isActive ? 'text-primary' : 'text-slate-400 hover:text-primary transition-colors' }}">
@@ -190,15 +165,8 @@
                                 @endif
                             </div>
                         </div>
-
                         @if($context !== 'preview')
-                            <button wire:click="removeFile({{ $index }})"
-                                    class="p-2 text-slate-300 hover:text-rose-500 transition-colors ml-2"
-                                    title="Datei entfernen">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                            </button>
+                            <button wire:click="removeFile({{ $index }})" class="p-2 text-slate-300 hover:text-rose-500"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                         @endif
                     </div>
                 @endforeach
@@ -206,13 +174,17 @@
         </div>
     @endif
 
-    {{-- ANMERKUNGEN --}}
-    <div class="pt-6 border-t border-slate-100">
-        <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 block">Besondere Wünsche
-            an die Manufaktur</label>
+    {{-- ANMERKUNGEN (MIT ZÄHLER UND LIMIT) --}}
+    <div class="pt-6 border-t border-slate-100" x-data="{ count: @entangle('notes').live?.length || 0 }">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex justify-between">
+            <span>Besondere Wünsche an die Manufaktur</span>
+            <span class="text-[9px]" :class="count >= 400 ? 'text-red-500 font-bold' : 'text-slate-300'" x-text="count + ' / 400'">0 / 400</span>
+        </label>
         <textarea
             wire:model="notes"
-            rows="2"
+            maxlength="400"
+            x-on:input="count = $el.value.length"
+            rows="5"
             class="w-full bg-slate-50 border-none rounded-[1.5rem] p-5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-primary/20 transition-all resize-none shadow-inner"
             placeholder="Geben Sie hier Details zu Ihrer gewünschten Gravur an..."
             {{ $context === 'preview' ? 'readonly' : '' }}

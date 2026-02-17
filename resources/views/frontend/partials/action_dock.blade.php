@@ -26,7 +26,7 @@
             <div class="absolute inset-0 w-3 h-16 bg-primary/40 rounded-full blur-md animate-pulse"></div>
 
             {{-- Kern-Linie --}}
-            <div class="relative w-2 h-14 bg-primary rounded-full shadow-[0_0_20px_rgba(197,160,89,1)] transition-all duration-300 group-hover:h-20"
+            <div class="relative w-4 h-16 bg-primary rounded-full shadow-[0_0_20px_rgba(197,160,89,1)] transition-all duration-300 group-hover:h-20"
                  :class="dockOpen ? 'opacity-20' : 'opacity-100'">
             </div>
 

@@ -148,7 +148,7 @@
 
                             {{-- Inline Konfigurator (Nur wenn aktiv & nicht digital) --}}
                             @if($editingItemId == $item->id && $type !== 'digital')
-                                <div class="bg-white p-2 sm:p-4 animate-fade-in-down border-t border-primary/10 shadow-inner bg-gray-50/30">
+                                <div class="bg-white md:p-[7rem] animate-fade-in-down border-t border-primary/10 shadow-inner bg-gray-50/30">
                                     <div class="relative min-h-[400px]">
                                         <livewire:shop.configurator.configurator
                                             :product="$prod"
