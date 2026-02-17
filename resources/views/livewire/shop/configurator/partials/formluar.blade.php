@@ -1,170 +1,221 @@
-{{-- FORMULAR --}}
-<div class="p-6 space-y-6 text-sm max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
+{{-- FORMULAR (UNTERER BEREICH) --}}
+<div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
-    {{-- 1. GRAVUR TEXTE (Liste) --}}
-    <div class="space-y-4 pt-2 border-t border-gray-100">
-        <div class="flex items-center justify-between">
-            <label class="text-sm font-bold text-gray-900 uppercase tracking-wide">Gravuren</label>
-            @if($context !== 'preview')
-                <button wire:click="addText" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-full font-bold transition flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    Weitere Gravur
-                </button>
-            @endif
-        </div>
-
-        <div class="space-y-4">
-            @foreach($texts as $index => $textItem)
-                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 relative group" wire:key="text-field-{{ $textItem['id'] }}">
-
-                    {{-- Header mit Löschen Button --}}
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase">Gravur #{{ $index + 1 }}</span>
-                        @if(count($texts) > 1 && $context !== 'preview')
-                            <button wire:click="removeText({{ $index }})" class="text-red-400 hover:text-red-600 text-xs p-1">Löschen</button>
-                        @endif
-                    </div>
-
-                    {{-- Text Input --}}
-                    <textarea
-                        wire:model.live="texts.{{ $index }}.text"
-                        rows="2"
-                        class="w-full p-3 rounded-lg border border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:border-primary focus:ring-1 focus:ring-primary text-sm resize-none mb-3"
-                        placeholder="Ihr Wunschtext..."
-                        x-on:focus="selectItem('text', {{ $index }})"
-                                {{ $context === 'preview' ? 'readonly' : '' }}
-                            ></textarea>
-
-                    {{-- Controls --}}
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <select wire:model.live="texts.{{ $index }}.font" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
-                                @foreach($fonts as $fontName => $css) <option value="{{ $fontName }}">{{ $fontName }}</option> @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <select wire:model.live="texts.{{ $index }}.align" class="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs text-gray-700 focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer" {{ $context === 'preview' ? 'disabled' : '' }}>
-                                @foreach($alignmentOptions as $k => $l) <option value="{{ $k }}">{{ $l }}</option> @endforeach
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            @endforeach
-        </div>
-    </div>
-
-    {{-- 2. MEDIEN --}}
+    {{-- MEDIEN (Bilder & PDFs) --}}
     @if($configSettings['allow_logo'])
-        <div class="space-y-3 pt-4 border-t border-gray-100">
-            <label class="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                <span>Medien</span>
-                <span class="text-[10px] font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Bilder & PDFs</span>
-            </label>
+        <div class="space-y-4">
+            {{-- Header mit Zähler --}}
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                    <span class="w-8 h-px bg-slate-200"></span>
+                    Logos & Bilder
+                </h3>
+                <span class="text-[10px] font-bold px-2 py-1 rounded-md {{ count($uploaded_files) >= 10 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500' }}">
+                    {{ count($uploaded_files) }} / 10 Dateien
+                </span>
+            </div>
 
-            {{-- INFO BOX (nur wenn kein Preview) --}}
             @if($context !== 'preview')
                 <div class="bg-blue-50/80 border border-blue-100 rounded-xl p-4 flex gap-4 items-start shadow-sm">
                     <div class="shrink-0 text-blue-500 mt-0.5">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-blue-900 text-sm mb-1">Professioneller Design-Check inklusive</h4>
-                        <p class="text-sm text-blue-800/80 leading-relaxed">
-                            Wir prüfen jede Datei manuell auf Umsetzbarkeit. Bitte beachten Sie: Im Laserverfahren erfolgt
-                            keine farbliche Wiedergabe; Grafiken und Fotos werden materialabhängig in Graustufen oder
-                            Konturen umgesetzt. Details finden Sie in unseren
-                            <a href="/agb#konfigurator" target="_blank" class="underline font-bold">Hinweisen zur Konfiguration</a>.
-                        </p>
-                    </div>
+                    <p class="text-xs text-blue-800/80 leading-relaxed">
+                        Wir prüfen jede Datei manuell. (PDF, JPG, PNG erlaubt).
+                    </p>
                 </div>
             @endif
 
-            {{-- Upload Bereich --}}
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                @if($context !== 'preview')
-                    <input type="file" wire:model.live="new_files" multiple class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-gray-900 file:text-white hover:file:bg-black file:transition-colors file:cursor-pointer cursor-pointer">
-                    <div wire:loading wire:target="new_files" class="text-xs text-primary mt-2">Dateien werden hochgeladen...</div>
+            {{--
+                ALPINE JS LOGIK (GETRENNT):
+                1. handleDrop: Wird beim Reinziehen gefeuert -> Setzt Files -> Feuert Change.
+                2. handleInput: Wird beim "Change" gefeuert (egal ob durch Drop oder Klick) -> Validiert nur.
+            --}}
+            <div x-data="{
+                    isDropping: false,
+                    currentCount: {{ count($uploaded_files) }},
+                    uploadError: null,
 
-                    @error('new_files.*') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    // Funktion A: Nur für Drag & Drop
+                    handleDrop(e) {
+                        this.isDropping = false;
+                        this.uploadError = null;
+
+                        let files = e.dataTransfer.files;
+
+                        // Validierung
+                        if (!this.validateFiles(files)) return;
+
+                        // Dateien auf das Input-Feld übertragen
+                        // Dies triggert NICHT automatisch Livewire, daher müssen wir dispatchEvent nutzen
+                        this.$refs.fileInput.files = files;
+
+                        // Manuell das Change-Event feuern, damit Livewire startet.
+                        // WICHTIG: Das Input-Feld darf NICHT 'handleDrop' bei change aufrufen, sonst Loop!
+                        this.$refs.fileInput.dispatchEvent(new Event('change'));
+                    },
+
+                    // Funktion B: Für Klick-Auswahl ODER durch handleDrop ausgelöst
+                    handleInput(e) {
+                        this.uploadError = null;
+                        let files = e.target.files;
+
+                        // Wenn die Validierung fehlschlägt, Input leeren damit Livewire nicht hochlädt
+                        if (!this.validateFiles(files)) {
+                            this.$refs.fileInput.value = ''; // Reset
+                            return; // Stop
+                        }
+                        // Wenn alles OK ist, macht Livewire (wire:model) den Rest automatisch
+                    },
+
+                    // Hilfsfunktion zur Prüfung
+                    validateFiles(files) {
+                        let newCount = files.length;
+                        if ((this.currentCount + newCount) > 10) {
+                            this.uploadError = 'Limit erreicht! Maximal 10 Dateien erlaubt (Vorhanden: ' + this.currentCount + ', Neu: ' + newCount + ').';
+                            return false;
+                        }
+                        return true;
+                    }
+                 }"
+                 class="relative">
+
+                {{-- Fehleranzeige --}}
+                <div x-show="uploadError" x-cloak class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-xs font-bold text-center animate-pulse">
+                    <span x-text="uploadError"></span>
+                </div>
+
+                @if ($errors->has('new_files') || $errors->has('new_files.*'))
+                    <div class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-xs font-bold text-center">
+                        {{ $errors->first('new_files') ?: $errors->first('new_files.*') }}
+                    </div>
                 @endif
 
-                {{-- Liste der Dateien --}}
-                <div class="mt-4 space-y-2">
+                @if(count($uploaded_files) < 10)
+                    @if($context !== 'preview')
+                        <div x-on:dragover.prevent="isDropping = true"
+                             x-on:dragleave.prevent="isDropping = false"
+                             x-on:drop.prevent="handleDrop($event)"
+                             :class="isDropping ? 'border-primary bg-primary/5 scale-[1.02]' : 'border-slate-200 bg-slate-50/50'"
+                             class="group border-2 border-dashed rounded-[2rem] p-10 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer hover:border-primary/50 relative overflow-hidden"
+                             @click="$refs.fileInput.click()">
 
-                    {{-- 1. Bereits gespeicherte Dateien --}}
-                    @foreach($uploaded_files as $index => $path)
-                        @php
-                            $ext = pathinfo($path, PATHINFO_EXTENSION);
-                            $isImage = in_array(strtolower($ext), ['jpg','jpeg','png','webp']);
-                            $isActive = $this->isLogoActive('saved', $path);
-                        @endphp
-                        <div class="flex items-center justify-between bg-white p-2 rounded border {{ $isActive ? 'border-green-500 ring-1 ring-green-500' : 'border-gray-200' }}">
-                            <div class="flex items-center gap-3">
-                                @if($isImage)
-                                    <img src="{{ asset('storage/'.$path) }}" class="h-10 w-10 object-cover rounded bg-gray-100">
-                                @else
-                                    <div class="h-10 w-10 flex items-center justify-center bg-gray-100 rounded text-gray-500 font-bold text-xs">{{ strtoupper($ext) }}</div>
-                                @endif
-                                <div class="text-xs truncate max-w-[150px]">{{ basename($path) }}</div>
-                            </div>
-                            @if($context !== 'preview')
-                                <div class="flex gap-2">
-                                    @if($isImage)
-                                        <button wire:click="toggleLogo('saved', '{{ $path }}')" class="text-[10px] px-2 py-1 rounded {{ $isActive ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
-                                            {{ $isActive ? 'Vorschau an' : 'Als Vorschau' }}
-                                        </button>
-                                    @endif
-                                    <button wire:click="removeFile({{ $index }})" class="text-red-500 hover:text-red-700 p-1">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
-                                </div>
-                            @else
-                                <span class="text-[10px] bg-green-50 text-green-700 px-2 py-1 rounded">Vorschau aktiv</span>
-                            @endif
-                        </div>
-                    @endforeach
+                            {{--
+                                WICHTIGSTE ÄNDERUNG HIER:
+                                x-on:change ruft jetzt 'handleInput' auf, NICHT 'handleDrop'.
+                                Das verhindert die Endlosschleife.
+                            --}}
+                            <input type="file"
+                                   x-ref="fileInput"
+                                   wire:model.live="new_files"
+                                   multiple
+                                   accept=".jpg,.jpeg,.png,.webp,.svg,.pdf"
+                                   class="hidden"
+                                   x-on:change="handleInput($event)">
 
-                    {{-- 2. Neue (temporäre) Dateien --}}
-                    @foreach($new_files as $index => $file)
-                        @php
-                            $isImage = in_array(strtolower($file->extension()), ['jpg','jpeg','png','webp']);
-                            $isActive = $this->isLogoActive('new', $index);
-                        @endphp
-                        <div class="flex items-center justify-between bg-white p-2 rounded border {{ $isActive ? 'border-green-500 ring-1 ring-green-500' : 'border-blue-200 border-dashed' }}">
-                            <div class="flex items-center gap-3">
-                                @if($isImage)
-                                    <img src="{{ $file->temporaryUrl() }}" class="h-10 w-10 object-cover rounded bg-gray-100">
-                                @else
-                                    <div class="h-10 w-10 flex items-center justify-center bg-gray-100 rounded text-gray-500 font-bold text-xs">{{ strtoupper($file->extension()) }}</div>
-                                @endif
-                                <div>
-                                    <div class="text-xs text-blue-600 font-bold">NEU</div>
-                                    <div class="text-xs truncate max-w-[150px]">{{ $file->getClientOriginalName() }}</div>
-                                </div>
+                            <div class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-primary transition-all mb-3 relative z-10">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                                </svg>
                             </div>
-                            <div class="flex gap-2">
+                            <p class="text-[10px] font-black text-slate-900 uppercase tracking-widest relative z-10">Datei hochladen oder hierher ziehen</p>
+                            <p class="text-[9px] text-slate-400 mt-1 relative z-10">PDF, JPG, PNG (Max. 10 Dateien)</p>
+                        </div>
+                    @endif
+
+                    <div wire:loading wire:target="new_files"
+                         class="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-[2rem] flex items-center justify-center z-20 border border-slate-100">
+                        <div class="flex flex-col items-center gap-3">
+                            <svg class="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            <span class="text-xs font-black text-slate-800 uppercase tracking-wide">Wird verarbeitet...</span>
+                        </div>
+                    </div>
+                @else
+                    <div class="border-2 border-red-100 bg-red-50 rounded-[2rem] p-6 text-center">
+                        <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto mb-2 text-red-500 shadow-sm">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <p class="text-xs font-bold text-red-800">Maximale Anzahl (10) erreicht.</p>
+                        <p class="text-[10px] text-red-600 mt-1">Bitte löschen Sie eine Datei, um eine neue hochzuladen.</p>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Dateiliste --}}
+            <div class="grid grid-cols-1 gap-3">
+                @foreach($uploaded_files as $index => $path)
+                    @php
+                        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                        $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'svg']);
+                        $isActive = $this->isLogoActive($path);
+                    @endphp
+
+                    <div class="flex items-center justify-between bg-white p-3 rounded-2xl border transition-all {{ $isActive ? 'border-primary shadow-md' : 'border-slate-100' }}">
+                        <div class="flex items-center gap-4 overflow-hidden">
+                            <div class="w-12 h-12 rounded-xl bg-slate-50 overflow-hidden flex items-center justify-center border border-slate-100 shrink-0 relative">
                                 @if($isImage)
-                                    <button wire:click="toggleLogo('new', {{ $index }})" class="text-[10px] px-2 py-1 rounded {{ $isActive ? 'bg-green-100 text-green-700 font-bold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
-                                        {{ $isActive ? 'Vorschau an' : 'Als Vorschau' }}
-                                    </button>
+                                    <img src="{{ asset('storage/'.$path) }}" class="w-full h-full object-cover">
+                                @else
+                                    <div class="flex flex-col items-center justify-center text-slate-400">
+                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                                        </svg>
+                                        <span class="text-[8px] font-bold uppercase mt-0.5">{{ $ext }}</span>
+                                    </div>
                                 @endif
-                                <button wire:click="removeNewFile({{ $index }})" class="text-gray-400 hover:text-red-500">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[11px] font-bold text-slate-800 truncate" title="{{ basename($path) }}">
+                                    {{ basename($path) }}
+                                </p>
+
+                                @if($isImage)
+                                    <button wire:click="toggleLogo('saved', '{{ $path }}')"
+                                            class="text-[9px] font-black uppercase tracking-tighter mt-1 {{ $isActive ? 'text-primary' : 'text-slate-400 hover:text-primary transition-colors' }}">
+                                        {{ $isActive ? 'In Vorschau aktiv' : 'Als Vorschau einblenden' }}
+                                    </button>
+                                @else
+                                    <div class="text-[9px] font-medium text-slate-400 mt-1 flex items-center gap-1">
+                                        <svg class="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                        Erfolgreich angehängt
+                                    </div>
+                                @endif
                             </div>
                         </div>
-                    @endforeach
-                </div>
+
+                        @if($context !== 'preview')
+                            <button wire:click="removeFile({{ $index }})"
+                                    class="p-2 text-slate-300 hover:text-rose-500 transition-colors ml-2"
+                                    title="Datei entfernen">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        @endif
+                    </div>
+                @endforeach
             </div>
         </div>
     @endif
 
-    {{-- 3. ANMERKUNGEN --}}
-    <div class="pt-4 border-t border-gray-100">
-        <label class="text-xs font-bold text-gray-500 mb-2 block uppercase tracking-wide">Interne Anmerkungen</label>
-        <textarea wire:model="notes" rows="2" class="w-full p-4 rounded-xl border border-yellow-200 bg-yellow-50/50 text-gray-900 placeholder-gray-400 focus:bg-yellow-50 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/50 transition-all text-sm leading-relaxed resize-none" placeholder="Haben Sie Sonderwünsche?" {{ $context === 'preview' ? 'readonly' : '' }}></textarea>
+    {{-- ANMERKUNGEN --}}
+    <div class="pt-6 border-t border-slate-100">
+        <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 block">Besondere Wünsche
+            an die Manufaktur</label>
+        <textarea
+            wire:model="notes"
+            rows="2"
+            class="w-full bg-slate-50 border-none rounded-[1.5rem] p-5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-primary/20 transition-all resize-none shadow-inner"
+            placeholder="Geben Sie hier Details zu Ihrer gewünschten Gravur an..."
+            {{ $context === 'preview' ? 'readonly' : '' }}
+        ></textarea>
     </div>
-
 </div>

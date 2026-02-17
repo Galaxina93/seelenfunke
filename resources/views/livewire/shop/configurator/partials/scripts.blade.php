@@ -15,48 +15,92 @@
             },
             context: configData.context,
             isDragging: false,
-            // currentElement Struktur: { type: 'text'|'logo', index: 0 }
             currentElement: null,
             dragOffsetX: 0,
             dragOffsetY: 0,
 
-            // Für die Regler oben (damit sie auch da bleiben, wenn man nicht mehr draggt)
-            selectedType: null, // 'text' oder 'logo'
+            // Auswahlstatus für die Toolbar
+            selectedType: null,
             selectedIndex: null,
 
             init() {
                 this.onDrag = this.handleDrag.bind(this);
                 this.stopDrag = this.handleStop.bind(this);
 
-                // Standardauswahl: Erster Text, wenn vorhanden
-                if(this.texts.length > 0) {
-                    this.selectItem('text', 0);
-                } else if (this.logos.length > 0) {
-                    this.selectItem('logo', 0);
+                // Scroll-Handler für den Calculator-Flow (war fehlend)
+                if (typeof Livewire !== 'undefined') {
+                    Livewire.on('scroll-top', () => {
+                        const anchor = document.getElementById('calculator-anchor');
+                        if (anchor) {
+                            anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    });
                 }
 
-                // Watchers für neue Items
+                // Initial-Auswahl beim Laden mit Sicherheitscheck
+                this.$nextTick(() => {
+                    if(this.texts && this.texts.length > 0) {
+                        this.selectItem('text', 0);
+                    } else if (this.logos && this.logos.length > 0) {
+                        this.selectItem('logo', 0);
+                    }
+                });
+
+                // Automatische Auswahl bei neuen Elementen
                 this.$watch('texts', val => {
-                    if(val.length > 0 && this.selectedType !== 'text') {
-                        // Wenn ein neuer Text dazu kommt und wir grad kein Text bearbeiten, auswählen
-                        this.selectItem('text', val.length - 1);
+                    if(val && val.length > 0 && this.selectedType !== 'text') {
+                        this.$nextTick(() => {
+                            // Wichtig: Nur wenn das Element wirklich existiert (Livewire Sync)
+                            if(val[val.length - 1]) {
+                                this.selectItem('text', val.length - 1);
+                            }
+                        });
                     }
                 });
+
                 this.$watch('logos', val => {
-                    if(val.length > 0 && this.selectedType !== 'logo') {
-                        this.selectItem('logo', val.length - 1);
+                    if(val && val.length > 0 && this.selectedType !== 'logo') {
+                        this.$nextTick(() => {
+                            if(val[val.length - 1]) {
+                                this.selectItem('logo', val.length - 1);
+                            }
+                        });
                     }
                 });
+            },
+
+            deselectAll() {
+                if(this.context === 'preview') return;
+                this.selectedType = null;
+                this.selectedIndex = null;
             },
 
             selectItem(type, index) {
-                if(this.context === 'preview') return; // Sperre für Preview
-                this.selectedType = type;
-                this.selectedIndex = index;
+                if(this.context === 'preview') return;
+
+                // Sicherheit: Existiert das Array und der Index?
+                const targetArray = (type === 'text') ? this.texts : this.logos;
+
+                if (targetArray && targetArray[index]) {
+                    this.selectedType = type;
+                    this.selectedIndex = index;
+                } else {
+                    // Falls das Element nicht existiert, Auswahl aufheben
+                    this.selectedType = null;
+                    this.selectedIndex = null;
+                }
             },
 
             startDrag(event, type, index) {
-                if(this.context === 'preview') return; // Sperre für Preview
+                if(this.context === 'preview') return;
+
+                // Verhindert Drag-Start, wenn man gerade in das Input-Feld tippt (Inline Edit)
+                if (event.target.tagName === 'INPUT') return;
+
+                // Sicherheits-Check: Existiert das Element überhaupt?
+                let item = (type === 'text') ? this.texts[index] : this.logos[index];
+                if (!item) return;
+
                 this.isDragging = true;
                 this.currentElement = { type: type, index: index };
                 this.selectItem(type, index);
@@ -67,13 +111,8 @@
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const container = this.$refs.container.getBoundingClientRect();
 
-                // Startwerte holen
-                let item;
-                if (type === 'text') item = this.texts[index];
-                else item = this.logos[index];
-
-                let currentPercentX = parseFloat(item.x);
-                let currentPercentY = parseFloat(item.y);
+                let currentPercentX = parseFloat(item.x || 50);
+                let currentPercentY = parseFloat(item.y || 50);
 
                 let currentPixelX = (currentPercentX / 100) * container.width;
                 let currentPixelY = (currentPercentY / 100) * container.height;
@@ -92,6 +131,11 @@
 
             handleDrag(event) {
                 if (!this.isDragging || !this.currentElement || this.context === 'preview') return;
+
+                // Prüfen ob das aktuell gezogene Element noch existiert (während Livewire Syncs)
+                if (this.currentElement.type === 'text' && (!this.texts || !this.texts[this.currentElement.index])) return;
+                if (this.currentElement.type === 'logo' && (!this.logos || !this.logos[this.currentElement.index])) return;
+
                 if(event.cancelable) event.preventDefault();
 
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
@@ -117,6 +161,8 @@
 
                     let dx = percentX - centerX;
                     let dy = percentY - centerY;
+
+                    // Normalisierte Distanz prüfen
                     let distance = (dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY);
 
                     if (distance > 1) {
@@ -125,7 +171,7 @@
                         percentY = centerY + radiusY * Math.sin(angle);
                     }
                 } else {
-                    // --- RECHTECK LOGIK (Standard) ---
+                    // --- RECHTECK LOGIK ---
                     let minX = this.area.left;
                     let maxX = this.area.left + this.area.width;
                     let minY = this.area.top;
@@ -135,11 +181,11 @@
                     percentY = Math.max(minY, Math.min(maxY, percentY));
                 }
 
-                // Update der Livewire-Daten
+                // Update der Daten am korrekten Index
                 if (this.currentElement.type === 'text') {
                     this.texts[this.currentElement.index].x = percentX;
                     this.texts[this.currentElement.index].y = percentY;
-                } else {
+                } else if (this.currentElement.type === 'logo') {
                     this.logos[this.currentElement.index].x = percentX;
                     this.logos[this.currentElement.index].y = percentY;
                 }
@@ -154,12 +200,11 @@
                 window.removeEventListener('touchend', this.stopDrag);
             },
 
-            // Slider Change Handler
             updateSize(size) {
-                if(this.context === 'preview') return; // Sperre für Preview
-                if (this.selectedType === 'text' && this.texts[this.selectedIndex]) {
+                if(this.context === 'preview') return;
+                if (this.selectedType === 'text' && this.texts && this.texts[this.selectedIndex]) {
                     this.texts[this.selectedIndex].size = parseFloat(size);
-                } else if (this.selectedType === 'logo' && this.logos[this.selectedIndex]) {
+                } else if (this.selectedType === 'logo' && this.logos && this.logos[this.selectedIndex]) {
                     this.logos[this.selectedIndex].size = parseInt(size);
                 }
             }
