@@ -59,7 +59,7 @@ class Orders extends Component
         $this->selectedOrderId = $id;
 
         // 1. Order laden (Eager Loading für Performance)
-        $this->selectedOrder = Order::with(['items.product', 'invoices', 'billing_address', 'shipping_address'])->find($id);
+        $this->selectedOrder = Order::with(['items.product', 'invoices'])->find($id);
 
         // 2. Daten laden
         if ($this->selectedOrder) {

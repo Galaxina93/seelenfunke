@@ -101,7 +101,7 @@ class Calculator extends Component
         // ÄNDERUNG: Nur aktive UND physische Produkte laden
         $products = Product::with('tierPrices')
             ->where('status', 'active')
-            ->where('is_physical_product', true) // Filter für physische Produkte
+            ->where('type', 'physical')
             ->get();
 
         $this->dbProducts = $products->map(function($p) {
