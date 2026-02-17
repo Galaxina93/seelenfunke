@@ -1,3 +1,4 @@
+{{--
 @if($editingTemplateId)
     <div class="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-fade-in">
         <div class="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-zoom-in flex flex-col max-h-[90vh] border border-white/20">
@@ -16,7 +17,9 @@
 
             <div class="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {{-- Left Column: Settings --}}
+                    --}}
+{{-- Left Column: Settings --}}{{--
+
                     <div class="space-y-6">
                         <div class="group">
                             <label class="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 ml-1">E-Mail Betreff</label>
@@ -51,7 +54,9 @@
                         </div>
                     </div>
 
-                    {{-- Right Column: Content --}}
+                    --}}
+{{-- Right Column: Content --}}{{--
+
                     <div class="flex flex-col">
                         <label class="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 ml-1">Inhalt (HTML-Editor)</label>
                         <textarea wire:model="edit_content" class="flex-1 w-full bg-slate-900 border-none rounded-[2rem] p-6 font-mono text-sm text-blue-300 focus:ring-4 focus:ring-blue-500/20 outline-none min-h-[300px] shadow-inner"></textarea>
@@ -70,3 +75,4 @@
         </div>
     </div>
 @endif
+--}}

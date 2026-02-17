@@ -1,4 +1,5 @@
-{{-- JAHRES LISTE --}}
+{{-- JAHRES LISTE --}}{{--
+
 <div class="space-y-12">
     @foreach($this->calendarData->groupBy(fn($d) => $d['date']->format('F')) as $month => $events)
         <div class="relative pl-10 border-l-2 border-orange-100">
@@ -45,3 +46,4 @@
         </div>
     @endforeach
 </div>
+--}}

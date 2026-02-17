@@ -25,7 +25,7 @@ use App\Models\Financial\FinanceCategory;
 use App\Models\Financial\FinanceSpecialIssue;
 use App\Models\Blog\BlogCategory;
 use App\Models\Blog\BlogPost;
-use App\Models\NewsletterTemplate;
+use App\Models\FunkiNewsletter;
 
 class ProjectMasterSeeder extends Seeder
 {
@@ -195,7 +195,7 @@ class ProjectMasterSeeder extends Seeder
             ]
         );
 
-        NewsletterTemplate::firstOrCreate(
+        FunkiNewsletter::firstOrCreate(
             ['target_event_key' => 'sale_winter'],
             [
                 'title' => 'Winter Sale Vorbereitung',

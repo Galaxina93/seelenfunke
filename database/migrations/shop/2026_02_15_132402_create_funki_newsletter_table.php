@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('newsletter_templates', function (Blueprint $table) {
+        Schema::create('funki_newsletters', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
             $table->string('title'); // Interner Name (z.B. "Muttertag Template")
@@ -36,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('newsletter_templates');
+        Schema::dropIfExists('funki_newsletters');
     }
 };

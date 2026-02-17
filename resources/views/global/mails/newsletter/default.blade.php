@@ -27,7 +27,7 @@
     {{-- Dieser Teil ist exklusiv für Newsletter und nicht im globalen Footer enthalten --}}
     <div style="margin-top: 40px; padding-top: 20px; border-top: 1px dashed #eee; text-align: center; font-size: 11px; color: #999;">
         <p style="margin-bottom: 5px;">
-            Diese E-Mail wurde an <strong>{{ $subscriber->email }}</strong> gesendet.
+            Diese E-Mail wurde an <strong>{{ $subscriber->email ?? 'Test-Empfänger' }}</strong> gesendet.
         </p>
         <p>
             Sie möchten keine Neuigkeiten mehr erhalten?

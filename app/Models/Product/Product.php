@@ -3,7 +3,7 @@
 namespace App\Models\Product;
 
 use App\Models\Category;
-use App\Services\PriceCalculator;
+use App\Services\PriceCalcService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -44,7 +44,7 @@ class Product extends Model
 
     public function getNetPriceAttribute(): int
     {
-        $calculator = new PriceCalculator();
+        $calculator = new PriceCalcService();
         if ($this->tax_included) {
             return $calculator->getNetFromGross($this->price, (float)$this->tax_rate);
         }
@@ -53,7 +53,7 @@ class Product extends Model
 
     public function getGrossPriceAttribute(): int
     {
-        $calculator = new PriceCalculator();
+        $calculator = new PriceCalcService();
         if ($this->tax_included) {
             return $this->price;
         }

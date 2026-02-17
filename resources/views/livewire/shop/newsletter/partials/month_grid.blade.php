@@ -1,4 +1,5 @@
-{{-- MONATS GRID --}}
+{{-- MONATS GRID --}}{{--
+
 <div class="grid grid-cols-7 mb-6 bg-slate-900 rounded-2xl py-4 shadow-lg">
     @foreach(['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as $day)
         <div class="text-center text-[10px] font-black text-blue-300 uppercase tracking-[0.2em]">{{ $day }}</div>
@@ -37,3 +38,4 @@
         </div>
     @endforeach
 </div>
+--}}

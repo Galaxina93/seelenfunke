@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.newsletter.newsletter')
+        @livewire('shop.funki.funki-bot')
 
     @endsection
 

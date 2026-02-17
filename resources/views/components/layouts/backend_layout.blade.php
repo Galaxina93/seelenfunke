@@ -132,7 +132,7 @@
 
 </div>
 
-@livewire('global.widgets.funki')
+@livewire('global.widgets.funki-chat')
 @livewireScripts
 @stack('scripts')
 </body>

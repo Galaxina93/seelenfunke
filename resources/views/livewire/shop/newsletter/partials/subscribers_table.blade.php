@@ -1,3 +1,4 @@
+{{--
 <div class="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-8 animate-fade-in">
     <div class="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4 px-2">
         <div>
@@ -50,3 +51,4 @@
     </div>
     <div class="mt-8">{{ $subscribers->links() }}</div>
 </div>
+--}}

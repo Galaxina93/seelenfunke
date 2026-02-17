@@ -12,6 +12,9 @@
         <div class="text-xs font-semibold leading-6 text-gray-200 uppercase tracking-wider mb-2">Shopverwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
 
+            {{-- Funki --}}
+            <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="bolt" />
+
             {{-- Produkte & Marketing Dropdown --}}
             <li x-data="{ open: true }">
                 <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
@@ -22,8 +25,6 @@
                 <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
                     {{-- HIER WAREN DIE FEHLER: Icons wieder hinzugefügt --}}
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
-                    <x-forms.list-item route="/admin/newsletter" title="Newsletter" pageName="newsletter" icon="envelope" />
-                    <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="ticket" />
                     <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
                 </ul>
             </li>

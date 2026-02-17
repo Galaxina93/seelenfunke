@@ -2,20 +2,20 @@
 
 namespace App\Mail;
 
-use App\Models\NewsletterTemplate;
+use App\Models\FunkiNewsletter;
 use App\Models\NewsletterSubscriber;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
 
-class NewsletterMail extends Mailable
+class AutomaticNewsletterMail extends Mailable implements ShouldQueue
 {
-    use Queueable, SerializesModels;
+    use Queueable;
 
     public $template;
     public $subscriber;
 
-    public function __construct(NewsletterTemplate $template, NewsletterSubscriber $subscriber)
+    public function __construct(FunkiNewsletter $template, NewsletterSubscriber $subscriber)
     {
         $this->template = $template;
         $this->subscriber = $subscriber;
@@ -23,15 +23,13 @@ class NewsletterMail extends Mailable
 
     public function build()
     {
-        // 1. Echten Namen ermitteln oder Fallback setzen
-        // Wenn first_name existiert und nicht leer ist -> nimm Namen
-        // Sonst -> nimm "Kunde" (damit im Text z.B. "Hallo Kunde" steht statt "Hallo ,")
+        // Name ermitteln (Datenbank oder Fallback)
         $nameToUse = !empty($this->subscriber->first_name)
             ? $this->subscriber->first_name
-            : 'Kunde';
+            : 'du'; // Fallback für "Hallo {first_name}" -> "Hallo du"
 
-        // 2. Platzhalter im Content ersetzen
         $content = str_replace('{first_name}', $nameToUse, $this->template->content);
+        $content = str_replace('{year}', date('Y'), $content);
 
         return $this->subject($this->template->subject)
             ->view('global.mails.newsletter.default')

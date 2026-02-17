@@ -26,17 +26,13 @@ Route::middleware(['auth:admin'])->group(function () {
     })->name('admin.profile');
 
     // Shop
+    Route::get('/admin/funki', function () {
+        return view('backend.admin.pages.funki');
+    })->name('admin.funki');
+
     Route::get('/admin/products', function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');
-
-    Route::get('/admin/newsletter', function () {
-        return view('backend.admin.pages.newsletter');
-    })->name('admin.newsletter');
-
-    Route::get('/admin/voucher', function () {
-        return view('backend.admin.pages.voucher');
-    })->name('admin.voucher');
 
     Route::get('/admin/invoices', function () {
         return view('backend.admin.pages.invoices');

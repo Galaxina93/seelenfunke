@@ -1,10 +1,11 @@
 <?php
-
+/*
 namespace App\Livewire\Shop\Newsletter;
 
-use App\Mail\NewsletterMail;
-use App\Models\NewsletterTemplate; // Neue Model Klasse
+use App\Mail\AutomaticNewsletterMail;
+use App\Models\FunkiNewsletter; // Neue Model Klasse
 use App\Models\NewsletterSubscriber;
+use App\Services\NewsletterService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
@@ -30,25 +31,16 @@ class Newsletter extends Component
         'system_integrity' => 'Aktive Zyklen: Anzahl der eingeschalteten jährlichen Kampagnen. Empfänger: Anzahl der bestätigten Abonnenten (Double-Opt-In).',
     ];
 
-    // --- Event Definitions ---
-    public $availableEvents = [
-        'valentines' => 'Valentinstag (14.02.)',
-        'womens_day' => 'Weltfrauentag (08.03.)',
-        'easter' => 'Ostern (Variabel)',
-        'mothers_day' => 'Muttertag (2. So im Mai)',
-        'fathers_day' => 'Vatertag (Christi Himmelfahrt)',
-        'halloween' => 'Halloween (31.10.)',
-        'advent_1' => '1. Advent (Variabel)',
-        'christmas' => 'Weihnachten (24.12.)',
-        'new_year' => 'Neujahr (01.01.)',
-        'sale_summer' => 'Sommer Sale (01.07.)',
-        'sale_winter' => 'Winter Sale (01.01.)',
-    ];
-
     public function mount()
     {
         $this->selectedYear = date('Y');
         $this->selectedMonth = date('n');
+    }
+
+    // Helper, um den Service in Computed Properties zu nutzen
+    protected function getService()
+    {
+        return app(NewsletterService::class);
     }
 
     public function sendTestMail()
@@ -63,7 +55,7 @@ class Newsletter extends Component
 
         // 2. FIX: forceFill nutzen, um Mass Assignment Protection zu umgehen
         // Da das Model nicht gespeichert wird, ist das sicher.
-        $tempTemplate = new NewsletterTemplate();
+        $tempTemplate = new FunkiNewsletter();
         $tempTemplate->forceFill([
             'subject' => '[TEST] ' . $this->edit_subject,
             'content' => $this->edit_content,
@@ -79,7 +71,7 @@ class Newsletter extends Component
 
         try {
             // Mail Versand
-            Mail::to($adminEmail)->send(new NewsletterMail($tempTemplate, $dummySubscriber));
+            Mail::to($adminEmail)->send(new AutomaticNewsletterMail($tempTemplate, $dummySubscriber));
 
             session()->flash('test_success', 'Testmail wurde an ' . $adminEmail . ' versendet! ✨');
         } catch (\Exception $e) {
@@ -110,9 +102,14 @@ class Newsletter extends Component
 
     // --- Properties ---
 
+    public function getAvailableEventsProperty()
+    {
+        return $this->getService()->getAvailableEvents();
+    }
+
     public function getTemplatesProperty()
     {
-        return NewsletterTemplate::all();
+        return FunkiNewsletter::all();
     }
 
     public function getNextScheduledSendProperty()
@@ -192,7 +189,7 @@ class Newsletter extends Component
     // Template zum Bearbeiten laden
     public function editTemplate($id)
     {
-        $t = NewsletterTemplate::find($id);
+        $t = FunkiNewsletter::find($id);
         if(!$t) return;
 
         $this->editingTemplateId = $t->id;
@@ -208,7 +205,7 @@ class Newsletter extends Component
             'edit_offset' => 'required|integer',
         ]);
 
-        NewsletterTemplate::find($this->editingTemplateId)->update([
+        FunkiNewsletter::find($this->editingTemplateId)->update([
             'subject' => $this->edit_subject,
             'content' => $this->edit_content,
             'days_offset' => $this->edit_offset
@@ -221,14 +218,14 @@ class Newsletter extends Component
     // "Löschen" aus dem Kalender = Archivieren (Deaktivieren)
     public function archiveTemplate($id)
     {
-        NewsletterTemplate::find($id)->update(['is_active' => false]);
+        FunkiNewsletter::find($id)->update(['is_active' => false]);
         session()->flash('success', 'Automatische Mail deaktiviert und ins Archiv verschoben.');
     }
 
     // Wiederherstellen aus Archiv
     public function restoreTemplate($id)
     {
-        NewsletterTemplate::find($id)->update(['is_active' => true]);
+        FunkiNewsletter::find($id)->update(['is_active' => true]);
         session()->flash('success', 'Automatische Mail wieder aktiviert.');
     }
 
@@ -246,7 +243,7 @@ class Newsletter extends Component
         // Archivierte Templates laden
         $archivedTemplates = [];
         if($this->activeTab === 'archive') {
-            $archivedTemplates = NewsletterTemplate::where('is_active', false)->get();
+            $archivedTemplates = FunkiNewsletter::where('is_active', false)->get();
         }
 
         // Abonnenten
@@ -286,7 +283,8 @@ class Newsletter extends Component
             'archivedTemplates' => $archivedTemplates,
             'subscribers' => $subscribers,
             'subscriberCount' => NewsletterSubscriber::count(),
-            'activeTemplatesCount' => NewsletterTemplate::where('is_active', true)->count()
+            'activeTemplatesCount' => FunkiNewsletter::where('is_active', true)->count(),
+            'availableEvents' => $this->availableEvents,
         ]);
     }
-}
+}*/

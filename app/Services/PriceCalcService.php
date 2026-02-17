@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-class PriceCalculator
+class PriceCalcService
 {
     /**
      * Berechnet den Nettopreis aus einem Bruttopreis.

@@ -557,7 +557,7 @@
                 <section class="bg-white overflow-hidden rounded-3xl mt-12 shadow-sm border border-gray-100">
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-gray-900">
 
-                        <div class="text-center mb-12">
+                        <div class="text-center mb-16">
                             <h2 class="text-3xl font-bold mb-4 font-serif">Das Herz der Manufaktur</h2>
                             <p class="max-w-2xl mx-auto text-lg text-gray-600 leading-relaxed">
                                 Hinter <em>Mein Seelenfunke</em> steht eine klare Vision: Hochwertiges Kristallglas mit modernster Veredelungstechnik zu verbinden.
@@ -565,18 +565,17 @@
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-4xl mx-auto">
+                        {{-- Team Grid --}}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
 
                             {{-- 1. ALINA (VISION & LEITUNG) --}}
-                            <div class="flex flex-col sm:flex-row items-center gap-6 p-6 bg-white border-2 border-primary/20 rounded-2xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
-
-                                {{-- Badge: KOMPETENZ --}}
+                            <div class="flex flex-col sm:flex-row items-center gap-6 p-6 bg-white border-2 border-primary/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
                                 <div class="absolute top-0 right-0 bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
                                     Geschäftsführung
                                 </div>
 
                                 <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}" alt="Alina Steinhauer"
-                                     class="w-32 h-32 rounded-full border-4 border-primary object-cover shadow-md flex-shrink-0" />
+                                     class="w-32 h-32 rounded-2xl border-4 border-primary object-cover shadow-md flex-shrink-0" />
 
                                 <div class="text-center sm:text-left">
                                     <h3 class="text-2xl font-bold text-gray-900">Alina Steinhauer</h3>
@@ -589,24 +588,44 @@
                                 </div>
                             </div>
 
-                            {{-- 2. PRODUKTION & SERVICE (DAS "WIR") --}}
-                            <div class="flex flex-col sm:flex-row items-center gap-6 p-6 bg-white border border-gray-200 rounded-2xl shadow-lg transition hover:shadow-xl hover:border-primary/30">
-
-                                <div class="w-32 h-32 rounded-full border-4 border-gray-100 bg-gray-50 flex items-center justify-center shadow-sm text-4xl flex-shrink-0 text-primary">
-                                    🛠️
+                            {{-- 2. FUNKI (DER ALLESKÖNNER) --}}
+                            <div class="flex flex-col sm:flex-row items-center gap-6 p-6 bg-white border-2 border-indigo-500/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
+                                <div class="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
+                                    System & Support
                                 </div>
 
+                                <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" alt="Funki"
+                                     class="w-32 h-32 rounded-2xl border-4 border-indigo-500 object-cover shadow-md flex-shrink-0" />
+
                                 <div class="text-center sm:text-left">
-                                    <h3 class="text-2xl font-bold text-gray-900">Produktion & Service</h3>
-                                    <p class="text-gray-500 font-bold uppercase tracking-wide text-xs mt-1">
-                                        Made in Gifhorn
+                                    <h3 class="text-2xl font-bold text-gray-900">Funki</h3>
+                                    <p class="text-indigo-600 font-bold uppercase tracking-wide text-xs mt-1">
+                                        Digitale Seele & Alleskönner
                                     </p>
                                     <p class="text-gray-600 mt-3 text-sm">
-                                        Unser Anspruch ist Präzision. Von der ersten Beratung bis zum sicheren Versand. Wir kombinieren traditionelle Werte mit zertifizierter Sicherheitstechnik. Egal ob Einzelstück oder Firmenauftrag: Wir sorgen für einen reibungslosen Ablauf.
+                                        Funki ist das Herz unserer Automatisierung. Er behält den Überblick über alle Bestellungen, koordiniert die Logik im Hintergrund und sorgt dafür, dass kein Seelenfunke verloren geht. Mit Admin-Rechten ausgestattet, ist er unser unermüdlicher 24/7 Begleiter.
                                     </p>
                                 </div>
                             </div>
+                        </div>
 
+                        {{-- Produktion & Service Bereich (Volle Breite, keine Kachel) --}}
+                        <div class="max-w-5xl mx-auto pt-12 border-t border-gray-100">
+                            <div class="flex flex-col md:flex-row items-center gap-8 md:gap-12">
+                                <div class="w-24 h-24 rounded-2xl bg-primary/10 flex items-center justify-center text-5xl flex-shrink-0 text-primary shadow-inner">
+                                    🛠️
+                                </div>
+                                <div class="flex-1 text-center md:text-left">
+                                    <div class="flex flex-col md:flex-row md:items-center gap-2 mb-4">
+                                        <h3 class="text-2xl font-bold text-gray-900">Produktion & Service</h3>
+                                        <span class="hidden md:block text-gray-300">|</span>
+                                        <span class="text-primary font-bold uppercase tracking-widest text-sm">Made in Gifhorn</span>
+                                    </div>
+                                    <p class="text-gray-600 text-lg leading-relaxed">
+                                        Unser Anspruch ist absolute Präzision. Von der ersten individuellen Beratung bis zum sicheren, liebevollen Versand Ihres Unikats. Wir kombinieren traditionelle handwerkliche Werte mit zertifizierter, modernster Sicherheitstechnik. Egal ob persönliches Einzelstück oder komplexer Firmenauftrag: Unser eingespieltes Team sorgt für einen reibungslosen Ablauf und Ergebnisse, die begeistern.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                     </div>

@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Checkout;
 
 use App\Models\Cart\Cart;
 use App\Models\Customer\Customer;
+use App\Models\FunkiVoucher;
 use App\Models\Order\Order;
 use App\Models\Quote\QuoteRequest;
 use App\Services\CartService;
@@ -325,7 +326,7 @@ class Checkout extends Component
             // GUTSCHEIN VERBRAUCHEN (Counter hochzählen)
             if ($order->coupon_code) {
                 // Wir nutzen increment(), das ist atomar und sicher bei gleichzeitigen Zugriffen
-                \App\Models\Coupon::where('code', $order->coupon_code)->increment('used_count');
+                FunkiVoucher::where('code', $order->coupon_code)->increment('used_count');
             }
 
             $this->finalOrderNumber = $order->order_number;
@@ -493,7 +494,7 @@ class Checkout extends Component
 
         // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
         if ($cart->coupon_code) {
-            $coupon = \App\Models\Coupon::where('code', $cart->coupon_code)->first();
+            $coupon = FunkiVoucher::where('code', $cart->coupon_code)->first();
 
             // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
             if (!$coupon || !$coupon->isValid()) {

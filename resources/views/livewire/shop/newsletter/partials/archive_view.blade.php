@@ -1,3 +1,4 @@
+{{--
 <div class="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-10 animate-fade-in">
     <div class="mb-10">
         <h2 class="text-2xl font-serif font-bold text-gray-900 italic">Ruhende Vorlagen</h2>
@@ -28,3 +29,4 @@
         @endforelse
     </div>
 </div>
+--}}

@@ -14,17 +14,18 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolesAndPermissionsSeeder::class,
             /*UserSeeder::class,*/
-            ProductSeeder::class,               // Für den Livegang notwendig
-            ShippingSeeder::class,              // Für den Livegang notwendig
-            ShopSettingSeeder::class,           // Für den Livegang notwendig
-            BlogCategorySeeder::class,          // Für den Livegang notwendig
-            FinancialSeeder::class,             // Für den Livegang notwendig
-            CategorySeeder::class,              // Für den Livegang notwendig
+            ProductSeeder::class,                   // Für den Livegang notwendig
+            ShippingSeeder::class,                  // Für den Livegang notwendig
+            ShopSettingSeeder::class,               // Für den Livegang notwendig
+            BlogCategorySeeder::class,              // Für den Livegang notwendig
+            FinancialSeeder::class,                 // Für den Livegang notwendig
+            CategorySeeder::class,                  // Für den Livegang notwendig
             ShopAttributeSeeder::class,             // Für den Livegang notwendig
             OrdersTableSeeder::class,               // DEAKTIVIEREN BEI LIVEGANG
             BlogSeeder::class,                      // Für den Livegang notwendig
-            NewsletterTemplateSeeder::class,        // Für den Livegang notwendig
-            // ProjectMasterSeeder::class,             // DEAKTIVIEREN BEI LIVEGANG
+            NewsletterKampagnenSeeder::class,       // Für den Livegang notwendig
+            // ProjectMasterSeeder::class,          // DEAKTIVIEREN BEI LIVEGANG
+            MonthlyVoucherSeeder::class             // Für den Livegang notwendig
         ]);
 
     }
