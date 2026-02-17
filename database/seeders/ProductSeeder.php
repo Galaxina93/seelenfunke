@@ -100,10 +100,10 @@ class ProductSeeder extends Seeder
             'configurator_settings' => [
                 'allow_text_pos' => true,
                 'allow_logo' => true,
-                'area_top' => 4,
-                'area_left' => 12,
-                'area_width' => 77,
-                'area_height' => 76,
+                'area_top' => 17,
+                'area_left' => 15,
+                'area_width' => 70,
+                'area_height' => 69,
                 'area_shape' => 'circle'
             ],
             'attributes' => [

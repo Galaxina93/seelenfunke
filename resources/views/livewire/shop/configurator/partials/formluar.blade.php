@@ -1,11 +1,6 @@
 {{-- FORMULAR (UNTERER BEREICH) --}}
 <div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
-    {{--
-        HINWEIS: Die Sektion "Text-Einstellungen" wurde entfernt.
-        Schriftart und Ausrichtung werden jetzt direkt über die Icons am Textfeld gesteuert.
-    --}}
-
     {{-- MEDIEN (Bilder & PDFs) --}}
     @if($configSettings['allow_logo'])
         <div class="space-y-4">
@@ -33,11 +28,11 @@
                 </div>
             @endif
 
-            {{-- Alpine JS Logik für Datei-Upload --}}
             <div x-data="{
                     isDropping: false,
                     currentCount: {{ count($uploaded_files) }},
                     uploadError: null,
+                    imageDetails: {},
 
                     handleDrop(e) {
                         this.isDropping = false;
@@ -67,7 +62,6 @@
                     }
                  }" class="relative">
 
-                {{-- Fehleranzeige --}}
                 <div x-show="uploadError" x-cloak class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-xs font-bold text-center animate-pulse">
                     <span x-text="uploadError"></span>
                 </div>
@@ -128,7 +122,6 @@
                 @endif
             </div>
 
-            {{-- Dateiliste --}}
             <div class="grid grid-cols-1 gap-3">
                 @foreach($uploaded_files as $index => $path)
                     @php
@@ -136,45 +129,65 @@
                         $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'svg']);
                         $isActive = $this->isLogoActive($path);
                     @endphp
-                    <div class="flex items-center justify-between bg-white p-3 rounded-2xl border transition-all {{ $isActive ? 'border-primary shadow-md' : 'border-slate-100' }}">
-                        <div class="flex items-center gap-4 overflow-hidden">
-                            <div class="w-12 h-12 rounded-xl bg-slate-50 overflow-hidden flex items-center justify-center border border-slate-100 shrink-0 relative">
-                                @if($isImage)
-                                    <img src="{{ asset('storage/'.$path) }}" class="w-full h-full object-cover">
-                                @else
-                                    <div class="flex flex-col items-center justify-center text-slate-400">
-                                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                                        <span class="text-[8px] font-bold uppercase mt-0.5">{{ $ext }}</span>
-                                    </div>
-                                @endif
+                    <div x-data="{
+                            width: 0,
+                            height: 0,
+                            init() {
+                                if ('{{ $isImage }}') {
+                                    let img = new Image();
+                                    img.onload = () => { this.width = img.width; this.height = img.height; };
+                                    img.src = '{{ asset('storage/'.$path) }}';
+                                }
+                            }
+                         }"
+                         class="flex flex-col bg-white p-3 rounded-2xl border transition-all {{ $isActive ? 'border-primary shadow-md' : 'border-slate-100' }}">
+
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4 overflow-hidden">
+                                <div class="w-12 h-12 rounded-xl bg-slate-50 overflow-hidden flex items-center justify-center border border-slate-100 shrink-0 relative">
+                                    @if($isImage)
+                                        <img src="{{ asset('storage/'.$path) }}" class="w-full h-full object-cover">
+                                    @else
+                                        <div class="flex flex-col items-center justify-center text-slate-400">
+                                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                                            <span class="text-[8px] font-bold uppercase mt-0.5">{{ $ext }}</span>
+                                        </div>
+                                    @endif
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-[11px] font-bold text-slate-800 truncate" title="{{ basename($path) }}">
+                                        {{ basename($path) }}
+                                    </p>
+                                    @if($isImage)
+                                        <button wire:click="toggleLogo('saved', '{{ $path }}')"
+                                                class="text-[9px] font-black uppercase tracking-tighter mt-1 {{ $isActive ? 'text-primary' : 'text-slate-400 hover:text-primary transition-colors' }}">
+                                            {{ $isActive ? 'In Vorschau aktiv' : 'Als Vorschau einblenden' }}
+                                        </button>
+                                    @else
+                                        <div class="text-[9px] font-medium text-slate-400 mt-1 flex items-center gap-1">
+                                            <svg class="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                            Erfolgreich angehängt
+                                        </div>
+                                    @endif
+                                </div>
                             </div>
-                            <div class="min-w-0 flex-1">
-                                <p class="text-[11px] font-bold text-slate-800 truncate" title="{{ basename($path) }}">
-                                    {{ basename($path) }}
-                                </p>
-                                @if($isImage)
-                                    <button wire:click="toggleLogo('saved', '{{ $path }}')"
-                                            class="text-[9px] font-black uppercase tracking-tighter mt-1 {{ $isActive ? 'text-primary' : 'text-slate-400 hover:text-primary transition-colors' }}">
-                                        {{ $isActive ? 'In Vorschau aktiv' : 'Als Vorschau einblenden' }}
-                                    </button>
-                                @else
-                                    <div class="text-[9px] font-medium text-slate-400 mt-1 flex items-center gap-1">
-                                        <svg class="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
-                                        Erfolgreich angehängt
-                                    </div>
-                                @endif
-                            </div>
+                            @if($context !== 'preview')
+                                <button wire:click="removeFile({{ $index }})" class="p-2 text-slate-300 hover:text-rose-500"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                            @endif
                         </div>
-                        @if($context !== 'preview')
-                            <button wire:click="removeFile({{ $index }})" class="p-2 text-slate-300 hover:text-rose-500"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                        @endif
+
+                        <template x-if="{{ $isActive ? 'true' : 'false' }} && (width > 0 && (width < 877 || height < 877))">
+                            <div class="mt-2 bg-amber-50 border border-amber-100 text-amber-700 p-2 rounded-xl text-[9px] font-bold flex items-center gap-2">
+                                <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                <span>Optimale Ergebnisse ab 877x877px. Aktuell: <span x-text="width + 'x' + height"></span>px.</span>
+                            </div>
+                        </template>
                     </div>
                 @endforeach
             </div>
         </div>
     @endif
 
-    {{-- ANMERKUNGEN (MIT ZÄHLER UND LIMIT) --}}
     <div class="pt-6 border-t border-slate-100" x-data="{ count: @entangle('notes').live?.length || 0 }">
         <label class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex justify-between">
             <span>Besondere Wünsche an die Manufaktur</span>

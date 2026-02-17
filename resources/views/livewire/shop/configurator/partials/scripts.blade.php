@@ -3,7 +3,7 @@
 <script>
     window.universalConfigurator = function(configData) {
         return {
-            ...configData.wireModels, // enthält texts & logos arrays via entangle
+            ...configData.wireModels,
             fontMap: configData.fonts,
             alignMap: { 'left': 'text-left', 'center': 'text-center', 'right': 'text-right' },
             area: {
@@ -23,9 +23,9 @@
             dragOffsetX: 0,
             dragOffsetY: 0,
 
-            // RESPONSIVITÄT & SKALIERUNG (WICHTIG FÜR PIXELGENAUE DARSTELLUNG)
-            baseWidth: 500, // Referenzbreite in Pixeln
-            scaleFactor: 1, // Wird dynamisch berechnet
+            // RESPONSIVITÄT & SKALIERUNG
+            baseWidth: 500,
+            scaleFactor: 1,
             resizeObserver: null,
 
             // Snapping & Guides
@@ -43,13 +43,14 @@
             // UI State
             selectedType: null,
             selectedIndex: null,
-            showFontMenu: false,
+            showFontMenu: false, // Menü State Schriftart
+            showSizeMenu: false, // Slider State Größe
+            showAlignMenu: false, // Menü State Ausrichtung (NEU)
 
             init() {
                 this.onMouseMove = this.handleMouseMove.bind(this);
                 this.onMouseUp = this.handleMouseUp.bind(this);
 
-                // Scroll-Handler
                 if (typeof Livewire !== 'undefined') {
                     Livewire.on('scroll-top', () => {
                         const anchor = document.getElementById('calculator-anchor');
@@ -58,10 +59,7 @@
                 }
 
                 this.$nextTick(() => {
-                    // 1. Initial Scale berechnen
                     this.updateScaleFactor();
-
-                    // 2. ResizeObserver starten, um auf Container-Änderungen zu reagieren
                     if (this.$refs.container) {
                         this.resizeObserver = new ResizeObserver((entries) => {
                             for (let entry of entries) {
@@ -71,7 +69,6 @@
                         this.resizeObserver.observe(this.$refs.container);
                     }
 
-                    // 3. Initial-Auswahl
                     if(this.texts && this.texts.length > 0) {
                         this.selectItem('text', 0);
                     } else if (this.logos && this.logos.length > 0) {
@@ -85,7 +82,6 @@
                 window.addEventListener('touchend', this.onMouseUp);
             },
 
-            // Berechnet den Faktor basierend auf der aktuellen Breite vs. Basisbreite
             updateScaleFactor(width = null) {
                 if (!width && this.$refs.container) {
                     width = this.$refs.container.getBoundingClientRect().width;
@@ -93,8 +89,6 @@
                 if (width && width > 0) {
                     this.scaleFactor = width / this.baseWidth;
                 }
-
-                // Textareas neu anpassen, da sich Font-Size geändert haben könnte
                 this.$nextTick(() => {
                     const textareas = document.querySelectorAll('textarea[x-model]');
                     textareas.forEach(el => this.fitTextarea(el));
@@ -103,10 +97,15 @@
 
             deselectAll(e) {
                 if(this.context === 'preview') return;
+                // Verhindert Deselect, wenn man auf Menüs klickt
+                if (e.target.closest('.flex.items-center.gap-3.mt-4')) return;
+
                 if (e.target === this.$refs.container || e.target.id === 'stage-overlay') {
                     this.selectedType = null;
                     this.selectedIndex = null;
                     this.showFontMenu = false;
+                    this.showSizeMenu = false;
+                    this.showAlignMenu = false; // NEU
                 }
             },
 
@@ -116,10 +115,43 @@
                 if (targetArray && targetArray[index]) {
                     this.selectedType = type;
                     this.selectedIndex = index;
+                    // Menüs resetten bei neuem Item
+                    this.showFontMenu = false;
+                    this.showSizeMenu = false;
+                    this.showAlignMenu = false; // NEU
                 } else {
                     this.selectedType = null;
                     this.selectedIndex = null;
                 }
+            },
+
+            duplicateElement() {
+                if (this.selectedIndex === null) return;
+                let target = (this.selectedType === 'text') ? this.texts : this.logos;
+                let original = target[this.selectedIndex];
+                let clone = JSON.parse(JSON.stringify(original));
+                clone.id = Math.random().toString(36).substr(2, 9);
+                clone.x = Math.min(this.area.left + this.area.width, clone.x + 5);
+                clone.y = Math.min(this.area.top + this.area.height, clone.y + 5);
+                target.push(clone);
+                this.selectItem(this.selectedType, target.length - 1);
+            },
+
+            centerHorizontal() {
+                if (this.selectedIndex === null) return;
+                let item = (this.selectedType === 'text') ? this.texts[this.selectedIndex] : this.logos[this.selectedIndex];
+                item.x = this.area.left + (this.area.width / 2);
+            },
+
+            centerVertical() {
+                if (this.selectedIndex === null) return;
+                let item = (this.selectedType === 'text') ? this.texts[this.selectedIndex] : this.logos[this.selectedIndex];
+                item.y = this.area.top + (this.area.height / 2);
+            },
+
+            centerBoth() {
+                this.centerHorizontal();
+                this.centerVertical();
             },
 
             startAction(event, type, index, action = 'drag') {
@@ -134,21 +166,16 @@
 
                 if (action === 'drag') {
                     if (event.target.tagName === 'TEXTAREA' || event.target.tagName === 'SELECT') return;
-
                     this.isDragging = true;
                     this.currentElement = { type: type, index: index };
-
-                    // Berechnung des Offsets basierend auf %-Werten und aktueller Containergröße
                     let currentPixelX = (parseFloat(item.x || 50) / 100) * rect.width;
                     let currentPixelY = (parseFloat(item.y || 50) / 100) * rect.height;
-
                     this.dragOffsetX = (clientX - rect.left) - currentPixelX;
                     this.dragOffsetY = (clientY - rect.top) - currentPixelY;
                 }
                 else if (action === 'resize') {
                     this.isResizing = true;
                     this.currentElement = { type: type, index: index };
-                    // Mittelpunkt des Elements berechnen
                     let centerX = (parseFloat(item.x) / 100) * rect.width + rect.left;
                     let centerY = (parseFloat(item.y) / 100) * rect.height + rect.top;
                     this.initialDist = Math.hypot(clientX - centerX, clientY - centerY);
@@ -167,7 +194,6 @@
 
             handleMouseMove(event) {
                 if (!this.currentElement || this.context === 'preview') return;
-
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const rect = this.$refs.container.getBoundingClientRect();
@@ -176,34 +202,16 @@
                 if (this.isDragging) {
                     let mouseX = clientX - rect.left;
                     let mouseY = clientY - rect.top;
-
-                    // Umrechnung Pixel -> Prozent für responsive Speicherung
                     let pX = ((mouseX - this.dragOffsetX) / rect.width) * 100;
                     let pY = ((mouseY - this.dragOffsetY) / rect.height) * 100;
 
-                    // Snapping & Guides
                     this.showVGuide = Math.abs(pX - 50) < this.snapTolerance;
                     this.showHGuide = Math.abs(pY - 50) < this.snapTolerance;
                     if(this.showVGuide) pX = 50;
                     if(this.showHGuide) pY = 50;
 
-                    // Boundary Check
-                    if (this.area.shape === 'circle') {
-                        const cX = this.area.left + (this.area.width / 2);
-                        const cY = this.area.top + (this.area.height / 2);
-                        const rX = this.area.width / 2;
-                        const rY = this.area.height / 2;
-                        let dx = pX - cX;
-                        let dy = pY - cY;
-                        if ((dx*dx)/(rX*rX) + (dy*dy)/(rY*rY) > 1) {
-                            let angle = Math.atan2(dy, dx);
-                            pX = cX + rX * Math.cos(angle);
-                            pY = cY + rY * Math.sin(angle);
-                        }
-                    } else {
-                        pX = Math.max(this.area.left, Math.min(this.area.left + this.area.width, pX));
-                        pY = Math.max(this.area.top, Math.min(this.area.top + this.area.height, pY));
-                    }
+                    pX = Math.max(this.area.left, Math.min(this.area.left + this.area.width, pX));
+                    pY = Math.max(this.area.top, Math.min(this.area.top + this.area.height, pY));
 
                     item.x = pX;
                     item.y = pY;
@@ -213,16 +221,10 @@
                     let centerY = (item.y / 100) * rect.height + rect.top;
                     let dist = Math.hypot(clientX - centerX, clientY - centerY);
                     let ratio = dist / this.initialDist;
-
                     if (this.currentElement.type === 'text') {
                         item.size = Math.max(0.5, Math.min(8, this.initialSize * ratio));
-                        this.$nextTick(() => {
-                            const el = document.querySelector('textarea:focus');
-                            if(el) this.fitTextarea(el);
-                        });
                     } else {
-                        // Logos haben Pixel-Werte als Basis, skalieren aber visuell mit
-                        item.size = Math.max(20, Math.min(800, this.initialSize * ratio));
+                        item.size = Math.max(20, Math.min(1000, this.initialSize * ratio));
                     }
                 }
                 else if (this.isRotating) {
@@ -230,10 +232,8 @@
                     let centerY = (item.y / 100) * rect.height + rect.top;
                     let angle = Math.atan2(clientY - centerY, clientX - centerX);
                     let deg = (this.initialRotation + (angle - this.initialAngle) * (180 / Math.PI)) % 360;
-
-                    // Smart Snap (0, 90, 180, 270)
                     [0, 90, 180, 270, 360].forEach(snap => {
-                        if(Math.abs(deg - snap) < this.rotateTolerance || Math.abs(deg + 360 - snap) < this.rotateTolerance) deg = (snap === 360) ? 0 : snap;
+                        if(Math.abs(deg - snap) < this.rotateTolerance) deg = (snap === 360) ? 0 : snap;
                     });
                     item.rotation = deg;
                 }
@@ -245,15 +245,6 @@
                 this.currentElement = null;
             },
 
-            updateSize(size) {
-                if(this.context === 'preview') return;
-                if (this.selectedType === 'text') {
-                    this.texts[this.selectedIndex].size = parseFloat(size);
-                } else if (this.selectedType === 'logo') {
-                    this.logos[this.selectedIndex].size = parseInt(size);
-                }
-            },
-
             toggleAlignment() {
                 if (this.selectedType !== 'text') return;
                 let item = this.texts[this.selectedIndex];
@@ -262,12 +253,16 @@
                 item.align = states[nextIndex];
             },
 
+            // Optimierte Version: Setzt Breite auf 0, um Schrumpfen zu erlauben
             fitTextarea(el) {
                 if(!el) return;
+                // Height Reset
                 el.style.height = 'auto';
                 el.style.height = el.scrollHeight + 'px';
-                el.style.width = 'auto';
-                el.style.width = Math.max(50, el.scrollWidth + 5) + 'px';
+
+                // Width Reset - WICHTIG für Links/Zentriert
+                el.style.width = '0px';
+                el.style.width = (el.scrollWidth + 2) + 'px'; // +2 für minimalen Puffer
             }
         }
     }
