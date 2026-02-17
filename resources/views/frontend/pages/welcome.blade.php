@@ -67,13 +67,13 @@
         </section>
 
         <!-- Service Section -->
-        <section id="services" class="bg-white text-black py-24 px-6 lg:px-12">
+        <section id="services" class="bg-white text-black py-24 px-6 lg:px-12" aria-labelledby="services-heading">
             <header class="text-center mb-16">
-                <h2 class="text-primary-dark font-serif font-bold text-3xl sm:text-4xl lg:text-5xl">
-                    Einzigartige Veredelungen
+                <h2 id="services-heading" class="text-primary-dark font-serif font-bold text-3xl sm:text-4xl lg:text-5xl">
+                    Veredelungen & Materialien für Ihre Unikate
                 </h2>
                 <p class="mt-4 text-gray-600 text-base max-w-3xl mx-auto">
-                    Wir starten mit unseren exklusiven Glas-Unikaten. Doch das ist erst der Anfang. Hier siehst du, welche Veredelungen wir in Zukunft anbieten werden.
+                    Wir starten mit unseren exklusiven <strong>Glas-Unikaten aus K9-Kristall</strong>. Doch das ist erst der Anfang. Entdecken Sie hier, welche hochwertigen Veredelungen wir zukünftig für personalisierte Geschenke anbieten werden.
                 </p>
             </header>
 
@@ -89,13 +89,14 @@
                             JETZT VERFÜGBAR
                         </div>
                         <img src="{{ asset('images/projekt/products/seelen-kristall_w.jpg') }}"
-                             alt="Hochwertige Lasergravur auf Glas"
+                             alt="K9-Kristallglas mit präziser 3D-Lasergravur und Weiß-Effekt"
+                             loading="lazy"
                              class="w-full h-56 object-cover transform group-hover:scale-110 transition-transform duration-500">
                     </figure>
 
                     <div class="bg-gradient-to-br from-primary to-primary-dark p-6 relative">
                         <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg absolute -top-8 right-6">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-primary">
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-primary">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
                             </svg>
                         </div>
@@ -104,13 +105,15 @@
                     </div>
 
                     <div class="p-6">
-                        <p class="text-gray-600 mb-4">Unsere Königsdisziplin. Wir veredeln hochwertiges K9-Kristallglas mit präzisen Lasergravuren, die wie gefrostet wirken.</p>
-                        <ul class="text-sm text-gray-500 space-y-2 mb-6">
-                            <li class="flex items-center gap-2"><span class="text-primary">✔</span> Individueller Text & Wunschmotiv</li>
-                            <li class="flex items-center gap-2"><span class="text-primary">✔</span> Massives, schweres Kristallglas</li>
-                            <li class="flex items-center gap-2"><span class="text-primary">✔</span> Standardmäßig in edler Box</li>
+                        <p class="text-gray-600 mb-4">Unsere Königsdisziplin. Wir veredeln hochwertiges <strong>K9-Kristallglas</strong> mit präzisen Lasergravuren, die durch den Weiß-Effekt wie gefrostet wirken.</p>
+                        <ul class="text-sm text-gray-500 space-y-2 mb-6" aria-label="Produktmerkmale Glas & Kristall">
+                            <li class="flex items-center gap-2"><span class="text-primary" aria-hidden="true">✔</span> Individueller Text & Wunschmotiv</li>
+                            <li class="flex items-center gap-2"><span class="text-primary" aria-hidden="true">✔</span> Massives, schweres Kristallglas</li>
+                            <li class="flex items-center gap-2"><span class="text-primary" aria-hidden="true">✔</span> Standardmäßig in edler Box</li>
                         </ul>
-                        <a href="{{ route('shop') }}" class="block text-center w-full bg-primary text-white py-2 rounded-md font-bold hover:bg-primary-dark transition-colors">
+                        <a href="{{ route('shop') }}"
+                           title="Zur Kategorie Glas & Kristall im Shop"
+                           class="block text-center w-full bg-primary text-white py-2 rounded-md font-bold hover:bg-primary-dark transition-colors">
                             Zum Shop
                         </a>
                     </div>
@@ -126,19 +129,22 @@
                     </div>
 
                     <figure class="overflow-hidden">
-                        <img src="{{ asset('images/projekt/products/schiefer.png') }}" alt="Personalisierter Schiefer" class="w-full h-56 object-cover">
+                        <img src="{{ asset('images/projekt/products/schiefer.png') }}"
+                             alt="Personalisierte Schieferplatten mit Lasergravur"
+                             loading="lazy"
+                             class="w-full h-56 object-cover">
                     </figure>
                     {{-- Header Grau statt Bunt --}}
                     <div class="bg-gray-600 p-6 relative">
                         <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 shadow-sm absolute -top-8 right-6">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>
                         </div>
                         <h3 class="text-2xl font-bold text-gray-200 mb-1">Schiefer & Natur</h3>
                         <span class="text-gray-300/80 text-sm font-medium tracking-wider">RUSTIKALE UNIKATE</span>
                     </div>
                     <div class="p-6">
-                        <p class="text-gray-500 mb-4">Jedes Stück ein Unikat. Die natürliche Struktur des Schiefers sorgt für starke Kontraste.</p>
-                        <ul class="text-sm text-gray-400 space-y-2"><li class="flex items-center gap-2">Isoliert & Wetterfest</li><li class="flex items-center gap-2">Untersetzer & Schilder</li></ul>
+                        <p class="text-gray-500 mb-4">Jedes Stück ein Unikat. Die natürliche Struktur des Schiefers sorgt für starke Kontraste bei der Gravur.</p>
+                        <ul class="text-sm text-gray-400 space-y-2" aria-label="Produktmerkmale Schiefer"><li class="flex items-center gap-2">Isoliert & Wetterfest</li><li class="flex items-center gap-2">Untersetzer & Schilder</li></ul>
                     </div>
                 </article>
 
@@ -149,16 +155,19 @@
                         <div class="bg-black/80 text-white px-6 py-2 rounded-full font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">DEMNÄCHST</div>
                     </div>
                     <figure class="overflow-hidden">
-                        <img src="{{ asset('images/projekt/products/liebesfunke-metallkarte.png') }}" alt="Lasergravur auf Metall" class="w-full h-56 object-cover">
+                        <img src="{{ asset('images/projekt/products/liebesfunke-metallkarte.png') }}"
+                             alt="Lasergravur auf Metallkarten und Aluminium"
+                             loading="lazy"
+                             class="w-full h-56 object-cover">
                     </figure>
                     <div class="bg-gray-700 p-6 relative">
                         <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 shadow-sm absolute -top-8 right-6">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
                         </div>
                         <h3 class="text-2xl font-bold text-gray-200 mb-1">Metall & Business</h3>
                         <span class="text-gray-300/80 text-sm font-medium tracking-wider">MODERNE ELEGANZ</span>
                     </div>
-                    <div class="p-6"><p class="text-gray-500 mb-4">Hauchdünne Metallkarten und Visitenkarten aus Aluminium oder Edelstahl.</p></div>
+                    <div class="p-6"><p class="text-gray-500 mb-4">Hauchdünne Metallkarten und Visitenkarten aus Aluminium oder Edelstahl für einen bleibenden Eindruck.</p></div>
                 </article>
 
                 {{-- 4. KLEINARTIKEL (INAKTIV) --}}
@@ -171,13 +180,16 @@
 
                     <figure class="overflow-hidden">
                         {{-- Bild-Pfad bitte entsprechend anpassen, z.B. auf einen Schlüsselanhänger --}}
-                        <img src="{{ asset('images/projekt/products/flaschenoeffner.png') }}" alt="Personalisierte Schlüsselanhänger und Öffner" class="w-full h-56 object-cover">
+                        <img src="{{ asset('images/projekt/products/flaschenoeffner.png') }}"
+                             alt="Personalisierte Schlüsselanhänger und Flaschenöffner"
+                             loading="lazy"
+                             class="w-full h-56 object-cover">
                     </figure>
 
                     <div class="bg-gray-600 p-6 relative">
                         <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 shadow-sm absolute -top-8 right-6">
                             {{-- Icon: Schlüssel --}}
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500">
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
                             </svg>
                         </div>
@@ -186,7 +198,7 @@
                     </div>
 
                     <div class="p-6">
-                        <p class="text-gray-500 mb-4">Große Freude im kleinen Format. Wir planen edle Flaschenöffner und Schlüsselanhänger als perfekte Mitbringsel.</p>
+                        <p class="text-gray-500 mb-4">Große Freude im kleinen Format. Wir planen edle Flaschenöffner und Schlüsselanhänger als perfekte Mitbringsel und Werbegeschenke.</p>
                     </div>
                 </article>
 
@@ -197,16 +209,19 @@
                         <div class="bg-black/80 text-white px-6 py-2 rounded-full font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">DEMNÄCHST</div>
                     </div>
                     <figure class="overflow-hidden">
-                        <img src="{{ asset('images/projekt/products/geschenkpapier.jpg') }}" alt="Geschenkverpackung" class="w-full h-56 object-cover">
+                        <img src="{{ asset('images/projekt/products/geschenkpapier.jpg') }}"
+                             alt="Exklusive Geschenkverpackung für Ihr Unikat"
+                             loading="lazy"
+                             class="w-full h-56 object-cover">
                     </figure>
                     <div class="bg-gray-500 p-6 relative">
                         <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 shadow-sm absolute -top-8 right-6">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>
                         </div>
                         <h3 class="text-2xl font-bold text-gray-200 mb-1">Liebevoll Verpackt</h3>
                         <span class="text-gray-300/80 text-sm font-medium tracking-wider">ALL-INCLUSIVE SERVICE</span>
                     </div>
-                    <div class="p-6"><p class="text-gray-500 mb-4">Das Auspacken ist Teil des Erlebnisses. Edle Verpackungen für dein Unikat.</p></div>
+                    <div class="p-6"><p class="text-gray-500 mb-4">Das Auspacken ist Teil des Erlebnisses. Edle Verpackungen runden Ihr Unikat perfekt ab.</p></div>
                 </article>
 
                 {{-- 6. INDIVIDUELLE WÜNSCHE (INAKTIV) --}}
@@ -216,23 +231,26 @@
                         <div class="bg-black/80 text-white px-6 py-2 rounded-full font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">DEMNÄCHST</div>
                     </div>
                     <figure class="overflow-hidden">
-                        <img src="{{ asset('images/projekt/products/individuell.png') }}" alt="Laser in Aktion" class="w-full h-56 object-cover">
+                        <img src="{{ asset('images/projekt/products/individuell.png') }}"
+                             alt="Sonderanfertigungen und individuelle Laser-Projekte"
+                             loading="lazy"
+                             class="w-full h-56 object-cover">
                     </figure>
                     <div class="bg-gray-800 p-6 relative">
                         <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4 shadow-sm absolute -top-8 right-6">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg>
+                            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg>
                         </div>
                         <h3 class="text-2xl font-bold text-gray-200 mb-1">Deine Idee</h3>
                         <span class="text-gray-300/80 text-sm font-medium tracking-wider">WIR MACHEN ES MÖGLICH</span>
                     </div>
-                    <div class="p-6"><p class="text-gray-500 mb-4">Du hast eine spezielle Idee? Wir prüfen die Machbarkeit für die Zukunft.</p></div>
+                    <div class="p-6"><p class="text-gray-500 mb-4">Sie haben eine spezielle Idee für eine Gravur? Wir prüfen die Machbarkeit für zukünftige Projekte.</p></div>
                 </article>
 
             </div>
         </section>
 
         <!-- Work Areas Section -->
-        <section id="use-cases" class="bg-white overflow-hidden">
+        <section id="use-cases" class="bg-white overflow-hidden" aria-label="Anwendungsbereiche und Zielgruppen">
 
             {{-- ========================================== --}}
             {{-- 1. PRIVATE ANLÄSSE (Emotionale Geschenke) --}}
@@ -242,38 +260,43 @@
                 <div class="h-56 sm:h-72 md:absolute md:right-0 md:h-full md:w-1/2">
                     <img class="w-full h-full object-cover opacity-90"
                          src="{{ asset('images/projekt/other/trophy.png') }}"
-                         alt="Personalisiertes Glasgeschenk für Hochzeiten">
+                         alt="Personalisierte 3D-Glasgeschenke und Trophäen für Hochzeiten"
+                         loading="lazy">
                     {{-- Goldener Overlay-Schleier --}}
                     <div class="absolute inset-0 bg-primary-dark/20"></div>
                 </div>
 
                 <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
                     <div class="md:w-1/2 md:pr-12">
-                        <h3 class="text-sm font-bold uppercase tracking-widest text-primary">
+                        {{-- SEO: Dies ist eine Dachzeile, keine Hauptüberschrift -> span/div statt h3 --}}
+                        <div class="text-sm font-bold uppercase tracking-widest text-primary">
                             Für Herzensmenschen
-                        </h3>
-                        <p class="mt-2 text-white text-3xl font-serif font-bold sm:text-4xl">
+                        </div>
+                        {{-- SEO: Die wichtige Aussage ist jetzt H3 --}}
+                        <h3 class="mt-2 text-white text-3xl font-serif font-bold sm:text-4xl">
                             Unvergessliche <span class="text-primary">Momente</span>
-                        </p>
+                        </h3>
                         <p class="mt-4 text-gray-300 text-lg">
-                            Ein Geschenk sagt mehr als tausend Worte. Unsere Glas-Unikate sind perfekt für die emotionalen Höhepunkte des Lebens.
+                            Ein Geschenk sagt mehr als tausend Worte. Unsere Glas-Unikate sind perfekt für die emotionalen Höhepunkte des Lebens – veredelt durch präzise Lasergravur.
                         </p>
                         <ul class="mt-6 space-y-3 text-white text-lg list-none">
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✨</span> Hochzeiten & Jahrestage
+                                <span class="text-primary text-xl" aria-hidden="true">✨</span> Hochzeiten & Jahrestage
                             </li>
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✨</span> Geburten & Taufen
+                                <span class="text-primary text-xl" aria-hidden="true">✨</span> Geburten & Taufen
                             </li>
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✨</span> Erinnerungen an Haustiere
+                                <span class="text-primary text-xl" aria-hidden="true">✨</span> Erinnerungen an Haustiere
                             </li>
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✨</span> Geburtstage & Feiertage
+                                <span class="text-primary text-xl" aria-hidden="true">✨</span> Geburtstage & Feiertage
                             </li>
                         </ul>
                         <div class="mt-8">
-                            <a href="{{ route('shop') }}" class="text-primary font-bold hover:text-white transition-colors border-b-2 border-primary pb-1">
+                            <a href="{{ route('shop') }}"
+                               title="Zum Online-Shop für personalisierte Geschenke"
+                               class="text-primary font-bold hover:text-white transition-colors border-b-2 border-primary pb-1">
                                 Zum Shop →
                             </a>
                         </div>
@@ -289,23 +312,23 @@
                 <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2">
                     <img class="w-full h-full object-cover"
                          src="{{ asset('images/projekt/other/appreciation.png') }}"
-                         alt="Firmenaward aus Glas">
+                         alt="Hochwertige Firmenawards und Trophäen aus Glas für Mitarbeiter"
+                         loading="lazy">
                 </div>
 
                 <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
                     <div class="md:ml-auto md:w-1/2 md:pl-12 md:text-right">
 
-                        <h3 class="text-sm font-bold uppercase tracking-widest text-primary-dark">
-                            Für B2B Kunden
+                        <div class="text-sm font-bold uppercase tracking-widest text-primary-dark">
+                            Für B2B Kunden & Vereine
+                        </div>
+
+                        <h3 class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
+                            Der <span class="text-primary">Seelen-Kristall</span>
                         </h3>
 
-                        <p class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
-                            Der <span class="text-primary">Seelen-Kristall</span>
-                        </p>
-
-                        {{-- Hier der psychologische Dreh: Fokus auf das EINE Produkt --}}
                         <p class="mt-4 text-gray-600 text-lg leading-relaxed">
-                            Wir glauben an Klasse statt Masse. Deshalb konzentrieren wir uns voll und ganz auf dieses Meisterstück aus massivem Kristallglas. Die perfekte Wahl für besondere Ehrungen, die wirklich Gewicht haben.
+                            Wir glauben an Klasse statt Masse. Deshalb konzentrieren wir uns voll und ganz auf dieses Meisterstück aus massivem <strong>K9-Kristallglas</strong>. Die perfekte Wahl für besondere Ehrungen, Awards und Jubiläen.
                         </p>
 
                         {{-- Liste: Rechtsbündig mit Icons rechts --}}
@@ -314,33 +337,35 @@
                             {{-- Item 1 --}}
                             <li class="flex items-start justify-end gap-3">
                                 <span class="text-right"><strong>Mengenrabatte</strong> (ab 10 Stk.) automatisch berechnen</span>
-                                <span class="text-primary text-xl flex-shrink-0 mt-1">💎</span>
+                                <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">💎</span>
                             </li>
 
                             {{-- Item 2 --}}
                             <li class="flex items-start justify-end gap-3">
                                 <span class="text-right"><strong>Inklusive Lasergravur</strong> & Geschenkbox</span>
-                                <span class="text-primary text-xl flex-shrink-0 mt-1">🎁</span>
+                                <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">🎁</span>
                             </li>
 
                             {{-- Item 3 --}}
                             <li class="flex items-start justify-end gap-3">
                                 <span class="text-right">Bequemer <strong>Rechnungskauf</strong> für Vereine</span>
-                                <span class="text-primary text-xl flex-shrink-0 mt-1">📄</span>
+                                <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">📄</span>
                             </li>
 
                             {{-- Item 4 --}}
                             <li class="flex items-start justify-end gap-3">
                                 <span class="text-right">Das Highlight für Jubiläen & Awards</span>
-                                <span class="text-primary text-xl flex-shrink-0 mt-1">🏆</span>
+                                <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">🏆</span>
                             </li>
                         </ul>
 
                         {{-- Button zum Kalkulator --}}
                         <div class="mt-10 flex justify-center md:justify-end">
-                            <a href="/calculator" class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
+                            <a href="/calculator"
+                               title="Individuelles Angebot für Firmenawards berechnen"
+                               class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
                                 Jetzt Preis berechnen
-                                <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                                 </svg>
                             </a>
@@ -356,32 +381,32 @@
             <div id="manufaktur" class="relative bg-primary-dark overflow-hidden">
                 {{-- Bild rechtsbündig --}}
                 <div class="h-56 sm:h-72 md:absolute md:right-0 md:h-full md:w-1/2">
-                    {{-- Hier idealerweise ein Bild von DIR am Laser oder Nahaufnahme der Maschine --}}
                     <img class="w-full h-full object-cover hover:grayscale-0 transition-all duration-700"
                          src="{{ asset('images/projekt/other/handmade.png') }}"
-                         alt="Laser Manufaktur in Deutschland">
+                         alt="Lasergravur Manufaktur in Gifhorn, Deutschland"
+                         loading="lazy">
                 </div>
 
                 <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
                     <div class="md:w-1/2 md:pr-12">
-                        <h3 class="text-sm font-bold uppercase tracking-widest text-primary">
+                        <div class="text-sm font-bold uppercase tracking-widest text-primary">
                             Unsere Manufaktur
-                        </h3>
-                        <p class="mt-2 text-white text-3xl font-serif font-bold sm:text-4xl">
+                        </div>
+                        <h3 class="mt-2 text-white text-3xl font-serif font-bold sm:text-4xl">
                             Handveredelt in <span class="text-primary">Deutschland</span>
-                        </p>
+                        </h3>
                         <p class="mt-4 text-gray-300 text-lg">
-                            Wir sind kein anonymer Großhändler. Jedes Stück wird in unserer Manufaktur geprüft, gereinigt und mit modernster Laser-Technologie für dich personalisiert.
+                            Wir sind kein anonymer Großhändler. Jedes Stück wird in unserer Manufaktur in Gifhorn geprüft, gereinigt und mit modernster Laser-Technologie für dich personalisiert.
                         </p>
                         <ul class="mt-6 space-y-3 text-white text-lg list-none">
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✔</span> Liebe zum Detail bei jedem Stück
+                                <span class="text-primary text-xl" aria-hidden="true">✔</span> Liebe zum Detail bei jedem Stück
                             </li>
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✔</span> Schnelle Bearbeitung (1-3 Tage)
+                                <span class="text-primary text-xl" aria-hidden="true">✔</span> Schnelle Bearbeitung (1-3 Tage)
                             </li>
                             <li class="flex items-center gap-3">
-                                <span class="text-primary text-xl">✔</span> Wir starten mit Glas und haben noch viel vor.
+                                <span class="text-primary text-xl" aria-hidden="true">✔</span> Wir starten mit Glas und haben noch viel vor.
                             </li>
                         </ul>
                     </div>
@@ -393,23 +418,22 @@
             {{-- ========================================== --}}
             <div id="kontakt" class="relative bg-white overflow-hidden border-t border-gray-100">
                 {{-- Bild linksbündig --}}
-                {{-- Änderung: Flexbox für bessere Zentrierung auf Mobile hinzugefügt --}}
                 <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2 bg-white flex items-center justify-center">
-                    <img
-                        class="w-full h-full object-contain object-center p-4 md:p-0"
-                        src="{{ asset('images/projekt/funki/funki.png') }}"
-                        alt="Kontakt aufnehmen">
+                    <img class="w-full h-full object-contain object-center p-4 md:p-0"
+                         src="{{ asset('images/projekt/funki/funki.png') }}"
+                         alt="Funki Maskottchen hilft bei Kontaktfragen"
+                         loading="lazy">
                 </div>
 
                 <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
                     <div class="md:ml-auto md:w-1/2 md:pl-12 md:text-right">
-                        <h3 class="text-sm font-bold uppercase tracking-widest text-primary-dark">
+                        <div class="text-sm font-bold uppercase tracking-widest text-primary-dark">
                             Noch Fragen?
-                        </h3>
+                        </div>
 
-                        <p class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
+                        <h3 class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
                             Wir sind für dich da.
-                        </p>
+                        </h3>
 
                         <p class="mt-4 text-lg text-gray-600">
                             Du hast eine spezielle Idee, eine Frage zum Foto oder möchtest eine größere Menge für deinen Verein bestellen? Schreib uns einfach!
@@ -418,9 +442,11 @@
                         <ul class="mt-8 space-y-4 text-gray-800 text-lg list-none inline-block text-left md:text-right w-full">
                             {{-- E-Mail --}}
                             <li class="group">
-                                <a href="mailto:kontakt@mein-seelenfunke.de" class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-primary transition-colors">
+                                <a href="mailto:kontakt@mein-seelenfunke.de"
+                                   title="E-Mail an den Kundenservice senden"
+                                   class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-primary transition-colors">
                                     <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>
                                     </div>
                                     <span class="font-semibold">kontakt@mein-seelenfunke.de</span>
                                 </a>
@@ -428,10 +454,14 @@
 
                             {{-- Social Media / TikTok --}}
                             <li class="group">
-                                <a href="https://www.tiktok.com/@mein_seelenfunke" target="_blank" class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-primary transition-colors">
+                                <a href="https://www.tiktok.com/@mein_seelenfunke"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   title="Mein Seelenfunke auf TikTok folgen"
+                                   class="flex items-center gap-4 flex-row md:flex-row-reverse hover:text-primary transition-colors">
                                     <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
                                         {{-- TikTok Icon --}}
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-6 h-6"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
                                     </div>
                                     <span class="font-semibold">Folge uns auf TikTok</span>
                                 </a>
@@ -444,24 +474,26 @@
         </section>
 
         <!-- About Section -->
-        <section id="about" class="bg-gray-50 py-20">
+        <section id="about" class="bg-gray-50 py-20" aria-labelledby="about-heading">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 {{-- HEADLINE & VISION --}}
                 <div class="text-center mb-16 fade-in">
-                    <h2 class="text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-6">
-                        Warum <span class="text-primary">Mein Seelenfunke?</span>
+                    <h2 id="about-heading" class="text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-6">
+                        Warum <span class="text-primary">Mein Seelenfunke?</span><br>
+                        <span class="text-2xl md:text-3xl text-gray-500 font-sans font-light mt-2 block">Ihre Manufaktur für personalisierte Geschenke</span>
                     </h2>
                     <p class="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
                         "Geschenke von der Stange landen in der Schublade. Ein Seelenfunke bleibt im Herzen.
-                        Wir erschaffen keine Produkte, sondern konservieren Erinnerungen die persönlich und hochwertig sind,
-                        beim Auspacken für Gänsehaut zu sorgen."
+                        Wir erschaffen keine Produkte, sondern konservieren Erinnerungen, die persönlich und hochwertig sind,
+                        um beim Auspacken für Gänsehaut zu sorgen."
                     </p>
 
                     {{-- BUTTONS: Etsy Shop & E-Mail --}}
                     <div class="flex flex-col sm:flex-row gap-4 justify-center">
 
                         <a href="{{ route('shop') }}"
+                           title="Zum Online-Shop für handgefertigte Unikate"
                            class="inline-flex items-center px-8 py-3 bg-primary text-white text-base font-medium rounded-full shadow-lg hover:bg-primary-dark transition transform hover:scale-105">
                             <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 2.25a.75.75 0 000 1.5h1.386c.17 0 .318.114.362.278l2.558 9.592a3.752 3.752 0 00-2.806 3.63c0 .414.336.75.75.75h15.75a.75.75 0 000-1.5H5.378A2.25 2.25 0 017.5 15h11.218a.75.75 0 00.674-.421 60.358 60.358 0 002.96-7.228.75.75 0 00-.525-.965A60.864 60.864 0 005.68 4.509l-.232-.867A1.875 1.875 0 003.636 2.25H2.25zM3.75 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM16.5 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" /></svg>
                             Zum Shop
@@ -469,6 +501,7 @@
 
                         {{-- 2. Button: E-Mail Kontakt --}}
                         <a href="mailto:kontakt@mein-seelenfunke.de"
+                           title="Kontaktieren Sie uns per E-Mail"
                            class="inline-flex items-center px-8 py-3 bg-white text-primary border-2 border-primary text-base font-medium rounded-full shadow hover:bg-gray-50 transition transform hover:scale-105">
                             ✉️ E-Mail schreiben
                         </a>
@@ -483,10 +516,12 @@
                             <div class="bg-white rounded-2xl p-8 shadow-xl border-t-4 border-primary">
                                 <div class="flex items-start gap-4 mb-6">
                                     {{-- Hier dein Profilbild einfügen --}}
-                                    <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}" alt="Gründerin von Mein Seelenfunke"
+                                    <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}"
+                                         alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
+                                         loading="lazy"
                                          class="w-16 h-16 rounded-full object-cover border-2 border-primary" />
                                     <div>
-                                        <div class="text-primary text-4xl font-serif leading-none mb-1">“</div>
+                                        <div class="text-primary text-4xl font-serif leading-none mb-1" aria-hidden="true">“</div>
                                         <h3 class="text-xl font-bold text-gray-800">Alina Steinhauer</h3>
                                         <p class="text-sm text-primary font-semibold">Gründerin & Inhaberin</p>
                                     </div>
@@ -513,7 +548,7 @@
                             <div class="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transform hover:scale-105 transition-all duration-300 group">
                                 <div class="flex items-center mb-3">
                                     <div class="w-12 h-12 bg-primary/10 group-hover:bg-primary transition-colors rounded-full flex items-center justify-center text-primary group-hover:text-white">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
                                         </svg>
                                     </div>
@@ -525,7 +560,7 @@
                             <div class="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transform hover:scale-105 transition-all duration-300 group">
                                 <div class="flex items-center mb-3">
                                     <div class="w-12 h-12 bg-primary/10 group-hover:bg-primary transition-colors rounded-full flex items-center justify-center text-primary group-hover:text-white">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                                         </svg>
                                     </div>
@@ -537,7 +572,7 @@
                             <div class="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transform hover:scale-105 transition-all duration-300 group">
                                 <div class="flex items-center mb-3">
                                     <div class="w-12 h-12 bg-primary/10 group-hover:bg-primary transition-colors rounded-full flex items-center justify-center text-primary group-hover:text-white">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
                                         </svg>
                                     </div>
@@ -558,7 +593,7 @@
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-gray-900">
 
                         <div class="text-center mb-16">
-                            <h2 class="text-3xl font-bold mb-4 font-serif">Das Herz der Manufaktur</h2>
+                            <h3 class="text-3xl font-bold mb-4 font-serif">Das Herz der Manufaktur</h3>
                             <p class="max-w-2xl mx-auto text-lg text-gray-600 leading-relaxed">
                                 Hinter <em>Mein Seelenfunke</em> steht eine klare Vision: Hochwertiges Kristallglas mit modernster Veredelungstechnik zu verbinden.
                                 Wir sind kein anonymer Großkonzern, sondern eine spezialisierte Manufaktur in Gifhorn, die für Qualität, persönlichen Service und echte Werte steht.
@@ -574,11 +609,13 @@
                                     Geschäftsführung
                                 </div>
 
-                                <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}" alt="Alina Steinhauer"
+                                <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}"
+                                     alt="Alina Steinhauer - Gründerin von Mein Seelenfunke"
+                                     loading="lazy"
                                      class="w-32 h-32 rounded-2xl border-4 border-primary object-cover shadow-md flex-shrink-0" />
 
                                 <div class="text-center sm:text-left">
-                                    <h3 class="text-2xl font-bold text-gray-900">Alina Steinhauer</h3>
+                                    <h4 class="text-2xl font-bold text-gray-900">Alina Steinhauer</h4>
                                     <p class="text-primary font-bold uppercase tracking-wide text-xs mt-1">
                                         Gründerin & Laserschutzbeauftragte
                                     </p>
@@ -594,11 +631,13 @@
                                     System & Support
                                 </div>
 
-                                <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" alt="Funki"
+                                <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}"
+                                     alt="Funki, das digitale Maskottchen von Mein Seelenfunke"
+                                     loading="lazy"
                                      class="w-32 h-32 rounded-2xl border-4 border-indigo-500 object-cover shadow-md flex-shrink-0" />
 
                                 <div class="text-center sm:text-left">
-                                    <h3 class="text-2xl font-bold text-gray-900">Funki</h3>
+                                    <h4 class="text-2xl font-bold text-gray-900">Funki</h4>
                                     <p class="text-indigo-600 font-bold uppercase tracking-wide text-xs mt-1">
                                         Digitale Seele & Alleskönner
                                     </p>
@@ -661,8 +700,9 @@
                     {{-- CTA Button --}}
                     <div class="pt-6 flex flex-col items-center gap-4">
                         <a href="{{ route('calculator') }}"
+                           title="Angebot für personalisierte Geschenke online berechnen"
                            class="inline-flex items-center gap-3 bg-primary text-white px-10 py-5 rounded-full font-bold text-lg shadow-[0_0_25px_rgba(201,166,107,0.3)] hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.5)]">
-                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                             Jetzt Angebot berechnen
@@ -674,8 +714,7 @@
                 </div>
             </div>
 
-            <!-- Infinite Logo Marquee -->
-            <div class="relative flex overflow-hidden group/container pt-8">
+            <div class="relative flex overflow-hidden group/container pt-8" aria-hidden="true">
 
                 {{-- Erster Animations-Block --}}
                 <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0">
@@ -684,17 +723,19 @@
                             {{-- Logo: Harmonische Größe (h-12 auf Mobile, h-20 auf Desktop) --}}
                             <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
                                  alt="Mein Seelenfunke Logo"
+                                 loading="lazy"
                                  class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
                         </div>
                     @endfor
                 </div>
 
                 {{-- Zweiter Animations-Block (Loop-Kopie) --}}
-                <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0 ml-20 md:ml-32" aria-hidden="true">
+                <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0 ml-20 md:ml-32">
                     @for ($i = 0; $i < 10; $i++)
                         <div class="flex items-center group">
                             <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
                                  alt="Mein Seelenfunke Logo"
+                                 loading="lazy"
                                  class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
                         </div>
                     @endfor
@@ -721,22 +762,22 @@
         </section>
 
         <!-- Process Section -->
-        <section id="process" class="bg-white py-24">
+        <section id="process" class="bg-white py-24" aria-labelledby="process-heading">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 {{-- HEADLINE --}}
                 <div class="text-center mb-20 fade-in">
-                    <h2 class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-6">
-                        Von der Idee zum <span class="text-primary">Seelenfunken</span>
+                    <h2 id="process-heading" class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-6">
+                        Vom Rohling zum <span class="text-primary">personalisierten Unikat</span>
                     </h2>
                     <p class="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                        Transparenz schafft Vertrauen. Ihr Unikat ist keine Lagerware. Hier sehen Sie, wie wir Ihr Produkt Schritt für Schritt in unserer Manufaktur fertigen. Von der Datenprüfung bis zum sicheren Versand.
+                        Transparenz schafft Vertrauen. Ihr Unikat ist keine Lagerware. Erfahren Sie hier, wie wir Ihr Produkt Schritt für Schritt in unserer Manufaktur in Gifhorn fertigen – von der Datenprüfung bis zum sicheren Versand.
                     </p>
                 </div>
 
                 <div class="relative">
                     {{-- Verbindungslinie (Nur Desktop) --}}
-                    <div class="hidden lg:block absolute top-12 left-0 w-full h-1 bg-gray-100 my-4 rounded-full overflow-hidden z-0">
+                    <div class="hidden lg:block absolute top-12 left-0 w-full h-1 bg-gray-100 my-4 rounded-full overflow-hidden z-0" aria-hidden="true">
                         <div class="h-full bg-gradient-to-r from-primary-light via-primary to-primary-dark w-full opacity-30"></div>
                     </div>
 
@@ -804,13 +845,15 @@
                                                 {{--<source src="{{ asset('images/projekt/process/' . $step['video'] . '.mp4') }}" type="video/mp4">--}}
 
                                                 {{-- Fallback Image falls Video gar nicht geht --}}
-                                                <img src="{{ asset($step['image']) }}" alt="{{ $step['title'] }}">
+                                                <img src="{{ asset($step['image']) }}"
+                                                     alt="Prozess-Schritt: {{ $step['title'] }} - {{ $step['text'] }}"
+                                                     loading="lazy">
                                             </video>
                                         @else
                                             {{-- Klassische Bild-Logik --}}
                                             <img src="{{ asset($step['image']) }}"
                                                  onerror="this.src='https://placehold.co/200x200/f8f8f8/CCCCCC?text={{ $index+1 }}'; this.style.objectFit='cover';"
-                                                 alt="{{ $step['title'] }}"
+                                                 alt="Prozess-Schritt: {{ $step['title'] }} - {{ $step['text'] }}"
                                                  loading="lazy"
                                                  class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
                                         @endif
@@ -818,7 +861,7 @@
                                     </div>
 
                                     {{-- Nummer Badge --}}
-                                    <div class="absolute -top-1 -right-1 w-8 h-8 bg-primary text-white font-bold rounded-full flex items-center justify-center border-2 border-white shadow-md z-20">
+                                    <div class="absolute -top-1 -right-1 w-8 h-8 bg-primary text-white font-bold rounded-full flex items-center justify-center border-2 border-white shadow-md z-20" aria-hidden="true">
                                         {{ $index + 1 }}
                                     </div>
                                 </div>
@@ -842,22 +885,25 @@
                     </p>
 
                     <a href="{{ route('calculator') }}"
+                       title="Kalkulieren Sie jetzt den Preis für Ihr individuelles Geschenk"
                        class="inline-flex items-center gap-3 bg-primary text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg hover:bg-primary-dark transition-all transform hover:scale-105 hover:shadow-2xl">
                         <span>Jetzt Preis berechnen</span>
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                     </a>
                 </div>
             </div>
         </section>
 
         <!-- 360° carefree -->
-        <section id="carefree" class="py-24 bg-gray-50 overflow-hidden">
+        <section id="carefree" class="py-24 bg-gray-50 overflow-hidden" aria-labelledby="carefree-heading">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
                 <div class="grid md:grid-cols-2 gap-x-12 gap-y-16 items-center">
 
                     <div class="fade-in">
-                        <span class="text-primary font-serif font-semibold mb-2 inline-block tracking-wider uppercase text-sm">Service-Versprechen</span>
-                        <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-6 font-serif">
+                        <div class="text-primary font-serif font-semibold mb-2 inline-block tracking-wider uppercase text-sm">
+                            Full-Service Manufaktur
+                        </div>
+                        <h2 id="carefree-heading" class="text-3xl md:text-4xl font-bold text-gray-900 mb-6 font-serif">
                             Unser Rundum-Sorglos-Paket
                         </h2>
 
@@ -878,7 +924,7 @@
 
                             {{-- Vorteil 1 --}}
                             <li class="flex items-start">
-                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 <div>
                                     <strong class="font-semibold text-gray-900">Alles aus einer Hand:</strong>
                                     Keine externen Dienstleister, keine Verzögerungen. Designprüfung, Veredelung und Logistik erfolgen direkt in unserer Manufaktur. Das garantiert kurze Wege und präzise Ergebnisse.
@@ -887,7 +933,7 @@
 
                             {{-- Vorteil 2 --}}
                             <li class="flex items-start">
-                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 <div>
                                     <strong class="font-semibold text-gray-900">Qualitätsgarantie:</strong>
                                     Bevor ein Paket unser Haus verlässt, wird es streng kontrolliert. Keine Kratzer, keine Fingerabdrücke. Nur reines Glas und eine perfekte Gravur.
@@ -896,7 +942,7 @@
 
                             {{-- Vorteil 3 --}}
                             <li class="flex items-start">
-                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 <div>
                                     <strong class="font-semibold text-gray-900">Geschenkfertig geliefert:</strong>
                                     Ihr Unikat kommt <strong>standardmäßig</strong> in einer hochwertigen, mit Stoff ausgelegten Geschenkbox. Bereit zur sofortigen Übergabe oder Ehrung.
@@ -905,7 +951,7 @@
 
                             {{-- Vorteil 4 --}}
                             <li class="flex items-start">
-                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 <div>
                                     <strong class="font-semibold text-gray-900">Persönlicher Service:</strong>
                                     Haben Sie Sonderwünsche? Sie landen in keinem Callcenter, sondern sprechen direkt mit unseren Experten. Wir finden für fast jede Anforderung eine Lösung.
@@ -922,105 +968,13 @@
                         <div class="absolute inset-0 bg-primary/5 rounded-full transform scale-90 blur-3xl"></div>
 
                         <img src="{{ asset('images/projekt/logo/logo-up.png') }}"
-                             alt="Full-Service Manufaktur"
+                             alt="Mein Seelenfunke - Ihre Full-Service Manufaktur für personalisierte Geschenke"
+                             loading="lazy"
                              class="relative w-full max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">
                     </div>
                 </div>
             </div>
         </section>
-
-        <!--Process 2 Section-->
-        {{--<section id="quality-process" class="bg-white py-16 px-6 md:px-12">
-            <div class="max-w-7xl mx-auto text-center mb-12">
-                <h2 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4">
-                    Von der Idee zum <span class="text-primary">Seelenfunken</span>
-                </h2>
-                <p class="text-lg text-gray-700 max-w-3xl mx-auto leading-relaxed">
-                    Transparenz schafft Vertrauen. Hier sehen Sie, wie wir mit Präzision und Herzblut Ihr persönliches Unikat fertigen – vom digitalen Entwurf bis zum sicheren Versand.
-                </p>
-            </div>
-
-            <div class="max-w-6xl mx-auto grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 text-left">
-                @php
-                    // Strategie: Prozess statt Historie. Das zeigt Kompetenz.
-                    $items = [
-                        [
-                            // Bildidee: Jemand am Laptop/Tablet mit einer Vektorgrafik
-                            'image' => '/images/projekt/process/beratung.png',
-                            'title' => '1. Beratung & Design',
-                            'text' => 'Alles beginnt mit Ihrer Idee. Wir prüfen Ihre Daten oder erstellen gemeinsam ein Layout, das perfekt auf das Glas abgestimmt ist.'
-                        ],
-                        [
-                            // Bildidee: Nahaufnahme des Laserkopfs (vielleicht dein Laser-Bild von vorhin)
-                            'image' => '/images/projekt/process/lasergravur.png',
-                            'title' => '2. High-End Lasergravur',
-                            'text' => 'Mit modernster Lasertechnologie wird Ihr Motiv dauerhaft und gestochen scharf in das Material eingearbeitet. Präzision im Mikrometerbereich.'
-                        ],
-                        [
-                            // Bildidee: Hände (z.B. mit Handschuhen), die das Glas polieren/prüfen
-                            'image' => '/images/projekt/process/handveredelung.png',
-                            'title' => '3. Handveredelung',
-                            'text' => 'Maschinen sind präzise, aber das Auge ist unersetzlich. Jedes Stück wird von Hand gereinigt, poliert und finalisiert.'
-                        ],
-                        [
-                            // Bildidee: Jemand hält das Glas gegen das Licht (Qualitätscheck)
-                            'image' => '/images/projekt/process/4_augen.png',
-                            'title' => '4. 4-Augen Qualitätsprüfung',
-                            'text' => 'Nur makellose Produkte verlassen unsere Manufaktur. Wir prüfen auf Kratzer, Gravurtiefe und Sauberkeit.'
-                        ],
-                        [
-                            // Bildidee: Die blaue Geschenkbox, schön drapiert
-                            'image' => '/images/projekt/process/edle_verpackung.png',
-                            'title' => '5. Edle Verpackung',
-                            'text' => 'Der erste Eindruck zählt. Ihr Unikat wird direkt in unserer hochwertigen Geschenkbox verpackt – bereit zur Übergabe.'
-                        ],
-                        [
-                            // Bildidee: Ein DHL Paket oder Stapel versandbereiter Kartons
-                            'image' => '/images/projekt/process/sicherer_versand.png',
-                            'title' => '6. Sicherer Versand',
-                            'text' => 'Bruchsicher verpackt und schnell versendet. Bei Großaufträgen koordinieren wir den Logistikprozess für Sie.'
-                        ],
-                    ];
-                @endphp
-
-                @foreach ($items as $index => $item)
-                    <div class="group h-full">
-                        <div class="flex flex-col h-full bg-white rounded-xl shadow-sm hover:shadow-xl border border-gray-100 transition-all duration-300 transform hover:-translate-y-1">
-
-                            --}}{{-- Bild-Container --}}{{--
-                            <div class="h-48 overflow-hidden relative bg-gray-50 border-b border-gray-100">
-                                --}}{{-- Overlay beim Hover --}}{{--
-                                <div class="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
-
-                                <img src="{{ $item['image'] }}"
-                                     --}}{{-- Placeholder Logik beibehalten --}}{{--
-                                     onerror="this.src='https://placehold.co/600x400/f8f8f8/CCCCCC?text=Prozess+Schritt+{{ $index+1 }}'; this.style.objectFit='cover';"
-                                     alt="{{ $item['title'] }}"
-                                     class="object-cover w-full h-full transition-transform duration-700 group-hover:scale-110">
-                            </div>
-
-                            <div class="p-6 flex-1 flex flex-col">
-                                <div class="flex items-center mb-3">
-                                    --}}{{-- Nummerierung als Design-Element --}}{{--
-                                    <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm mr-3">
-                                        {{ $index + 1 }}
-                                    </div>
-                                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wide">Schritt</span>
-                                </div>
-
-                                <h3 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-primary transition-colors">
-                                    --}}{{-- Titel bereinigen (Nummer entfernen, da oben schon Icon) --}}{{--
-                                    {{ str_replace(($index+1).'. ', '', $item['title']) }}
-                                </h3>
-                                <p class="text-gray-600 text-sm leading-relaxed">{{ $item['text'] }}</p>
-                            </div>
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-
-            --}}{{-- Button "Mehr anzeigen" entfernt, da 6 Schritte perfekt in das Grid passen und man den Prozess immer ganz sehen sollte --}}{{--
-        </section>--}}
 
         <!--FAQ Section-->
         @php
@@ -1029,7 +983,7 @@
             $expressSurcharge = (int) shop_setting('express_surcharge', 2500);
         @endphp
 
-        <section id="faq" class="bg-gradient-to-b from-gray-50 to-white py-24 scroll-mt-20">
+        <section id="faq" class="bg-gradient-to-b from-gray-50 to-white py-24 scroll-mt-20" aria-labelledby="faq-heading">
             <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 {{-- HEADLINE --}}
@@ -1037,28 +991,28 @@
             <span class="inline-block px-4 py-1.5 mb-4 text-xs font-bold tracking-widest text-primary uppercase bg-primary/10 rounded-full">
                 Häufige Fragen
             </span>
-                    <h2 class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-6 text-serif">
+                    <h2 id="faq-heading" class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-6 text-serif">
                         Alles, was du über deinen <span class="text-primary italic">Seelenfunken</span> wissen musst
                     </h2>
-                    <div class="w-24 h-1 bg-primary/30 mx-auto rounded-full mb-8 text-serif"></div>
+                    <div class="w-24 h-1 bg-primary/30 mx-auto rounded-full mb-8 text-serif" aria-hidden="true"></div>
                     <p class="text-xl text-gray-600 leading-relaxed max-w-2xl mx-auto text-serif">
                         Du hast noch offene Punkte? Hier findest du die Antworten rund um unsere Manufaktur in Gifhorn, den Versand und die Personalisierung.
                     </p>
                 </div>
 
                 {{-- FAQ ACCORDION --}}
-                <div class="space-y-6 fade-in">
+                <div class="space-y-6 fade-in" id="faq-container">
 
                     {{-- FRAGE: Material --}}
                     <details class="group bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-300 open:ring-2 open:ring-primary/20">
                         <summary class="flex cursor-pointer items-center justify-between gap-4 p-8 text-gray-900 transition-colors hover:bg-gray-50/50">
                             <div class="flex items-center gap-4">
-                                <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary">
+                                <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary" aria-hidden="true">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                                 </div>
-                                <h3 class="text-lg md:text-xl font-bold font-serif">Ist das wirklich Glas oder Acryl/Plastik?</h3>
+                                <h3 class="text-lg md:text-xl font-bold font-serif m-0">Ist das wirklich Glas oder Acryl/Plastik?</h3>
                             </div>
-                            <div class="ml-4 flex-shrink-0">
+                            <div class="ml-4 flex-shrink-0" aria-hidden="true">
                         <span class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all duration-300 group-open:rotate-180 group-open:bg-primary group-open:text-white group-open:border-primary shadow-sm text-serif">
                             <svg class="w-6 h-6 transition-transform group-open:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             <svg class="w-6 h-6 hidden group-open:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
@@ -1066,7 +1020,7 @@
                             </div>
                         </summary>
                         <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4 text-serif">
-                            Wir verwenden ausschließlich **massives K9-Kristallglas**. Das ist kein leichtes Plastik oder Acryl, sondern schweres, optisch reines Glas, das speziell für Laserinnengravuren entwickelt wurde. Du wirst den Qualitätsunterschied sofort am Gewicht und der Brillanz spüren.
+                            Wir verwenden ausschließlich <strong>massives K9-Kristallglas</strong>. Das ist kein leichtes Plastik oder Acryl, sondern schweres, optisch reines Glas, das speziell für Laserinnengravuren entwickelt wurde. Du wirst den Qualitätsunterschied sofort am Gewicht und der Brillanz spüren.
                         </div>
                     </details>
 
@@ -1074,12 +1028,12 @@
                     <details class="group bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-300 open:ring-2 open:ring-primary/20">
                         <summary class="flex cursor-pointer items-center justify-between gap-4 p-8 text-gray-900 transition-colors hover:bg-gray-50/50">
                             <div class="flex items-center gap-4 text-serif">
-                                <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary text-serif">
+                                <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary text-serif" aria-hidden="true">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 00-2 2z" /></svg>
                                 </div>
-                                <h3 class="text-lg md:text-xl font-bold font-serif text-serif">Kann ich auch ein eigenes Foto gravieren lassen?</h3>
+                                <h3 class="text-lg md:text-xl font-bold font-serif text-serif m-0">Kann ich auch ein eigenes Foto gravieren lassen?</h3>
                             </div>
-                            <div class="ml-4 flex-shrink-0">
+                            <div class="ml-4 flex-shrink-0" aria-hidden="true">
                         <span class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all duration-300 group-open:rotate-180 group-open:bg-primary group-open:text-white group-open:border-primary shadow-sm text-serif text-serif">
                             <svg class="w-6 h-6 transition-transform group-open:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2 text-serif"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             <svg class="w-6 h-6 hidden group-open:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2 text-serif"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
@@ -1095,12 +1049,12 @@
                     <details class="group bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-300 open:ring-2 open:ring-primary/20">
                         <summary class="flex cursor-pointer items-center justify-between gap-4 p-8 text-gray-900 transition-colors hover:bg-gray-50/50">
                             <div class="flex items-center gap-4 text-serif">
-                                <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary">
+                                <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary" aria-hidden="true">
                                     <svg class="w-6 h-6 text-serif" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                                 </div>
-                                <h3 class="text-lg md:text-xl font-bold font-serif">Was kostet der Versand & wie schnell seid ihr?</h3>
+                                <h3 class="text-lg md:text-xl font-bold font-serif m-0">Was kostet der Versand & wie schnell seid ihr?</h3>
                             </div>
-                            <div class="ml-4 flex-shrink-0">
+                            <div class="ml-4 flex-shrink-0" aria-hidden="true">
                         <span class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all duration-300 group-open:rotate-180 group-open:bg-primary group-open:text-white group-open:border-primary shadow-sm text-serif">
                             <svg class="w-6 h-6 transition-transform group-open:hidden text-serif text-serif" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
                             <svg class="w-6 h-6 hidden group-open:block text-serif text-serif" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
@@ -1114,9 +1068,11 @@
                             <p class="mb-4">
                                 Die Fertigung dauert in der Regel 1–3 Werktage. Der Versand erfolgt sicher per DHL.
                             </p>
-                            <a href="{{ url('/versand') }}" class="inline-flex items-center gap-1.5 text-primary font-bold hover:underline">
+                            <a href="{{ url('/versand') }}"
+                               title="Übersicht der Versandkosten und Lieferzeiten"
+                               class="inline-flex items-center gap-1.5 text-primary font-bold hover:underline">
                                 Alle Details zur Lieferung & EU-Versand ansehen
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                             </a>
                         </div>
                     </details>
@@ -1126,16 +1082,16 @@
                         <details class="group bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-300 open:ring-2 open:ring-primary/20">
                             <summary class="flex cursor-pointer items-center justify-between gap-4 p-8 text-gray-900 transition-colors hover:bg-gray-50/50">
                                 <div class="flex items-center gap-4 text-serif">
-                                    <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary text-serif">
+                                    <div class="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5 text-primary text-serif" aria-hidden="true">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                     </div>
-                                    <h3 class="text-lg md:text-xl font-bold font-serif text-serif italic">Bietet ihr einen Express-Service an?</h3>
+                                    <h3 class="text-lg md:text-xl font-bold font-serif text-serif italic m-0">Bietet ihr einen Express-Service an?</h3>
                                 </div>
-                                <div class="ml-4 flex-shrink-0 text-serif">
-                        <span class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all duration-300 group-open:rotate-180 group-open:bg-primary group-open:text-white group-open:border-primary shadow-sm text-serif text-serif">
-                            <svg class="w-6 h-6 transition-transform group-open:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2 text-serif"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                            <svg class="w-6 h-6 hidden group-open:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2 text-serif"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
-                        </span>
+                                <div class="ml-4 flex-shrink-0 text-serif" aria-hidden="true">
+                            <span class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all duration-300 group-open:rotate-180 group-open:bg-primary group-open:text-white group-open:border-primary shadow-sm text-serif text-serif">
+                                <svg class="w-6 h-6 transition-transform group-open:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2 text-serif"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                <svg class="w-6 h-6 hidden group-open:block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2 text-serif"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" /></svg>
+                            </span>
                                 </div>
                             </summary>
                             <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4 text-serif">
@@ -1152,8 +1108,10 @@
                     <p class="text-gray-500 mb-6">
                         Schreib uns einfach eine Nachricht. Wir antworten meist innerhalb weniger Stunden.
                     </p>
-                    <a href="mailto:kontakt@mein-seelenfunke.de" class="inline-flex items-center gap-2 px-8 py-3 bg-gray-900 text-white font-bold rounded-full hover:bg-primary transition-all duration-300 group text-serif">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <a href="mailto:kontakt@mein-seelenfunke.de"
+                       title="Kundenservice per E-Mail kontaktieren"
+                       class="inline-flex items-center gap-2 px-8 py-3 bg-gray-900 text-white font-bold rounded-full hover:bg-primary transition-all duration-300 group text-serif">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                         Jetzt Kontakt aufnehmen
@@ -1162,6 +1120,50 @@
 
             </div>
         </section>
+
+        {{-- STRUCTURED DATA FOR FAQ (JSON-LD) --}}
+        <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "Ist das wirklich Glas oder Acryl/Plastik?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Wir verwenden ausschließlich massives K9-Kristallglas. Das ist kein leichtes Plastik oder Acryl, sondern schweres, optisch reines Glas, das speziell für Laserinnengravuren entwickelt wurde."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Kann ich auch ein eigenes Foto gravieren lassen?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Ja, absolut! Das ist unsere Spezialität. Du kannst uns dein Wunschfoto einfach im Konfigurator hochladen. Unser Team prüft die Qualität manuell, bevor wir den Laser starten."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Was kostet der Versand & wie schnell seid ihr?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Innerhalb Deutschlands versenden wir ab einem Bestellwert von {{ number_format($freeThreshold / 100, 2, ',', '.') }} € versandkostenfrei. Darunter beträgt die Pauschale {{ number_format($shippingCost / 100, 2, ',', '.') }} €. Die Fertigung dauert ca. 1–3 Werktage."
+                  }
+                }
+            @if($expressSurcharge > 0)
+                ,{
+                  "@type": "Question",
+                  "name": "Bietet ihr einen Express-Service an?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Ja! Für einen Aufpreis von {{ number_format($expressSurcharge / 100, 2, ',', '.') }} € wird Ihr Auftrag mit höchster Priorität gefertigt und bevorzugt versendet."
+                    }
+                }
+            @endif
+            ]
+          }
+        </script>
 
         {{--Contact Section--}}
         @livewire('global.widgets.contact-form')
