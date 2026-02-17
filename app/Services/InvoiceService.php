@@ -27,7 +27,8 @@ class InvoiceService
             $invoiceNumber = $this->generateInvoiceNumber();
 
             // [FIX] Status dynamisch anhand der Order ermitteln
-            $isPaid = $order->payment_status === 'paid';
+            $isPaid = ($order->payment_status === 'paid' && $order->payment_method !== 'invoice');
+
             $invoiceStatus = $isPaid ? 'paid' : 'open';
             $paidAt = $isPaid ? now() : null;
 

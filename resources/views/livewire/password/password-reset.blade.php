@@ -1,32 +1,65 @@
-<div>
-    <div class="w-full bg-white rounded-lg shadow dark:border md:mt-0 sm:max-w-md xl:p-0 dark:bg-gray-800 dark:border-gray-700">
-        <div class="p-6 space-y-4 md:space-y-6 sm:p-8">
+<div class="p-8 md:p-10 space-y-8">
+    {{-- Header --}}
+    <div class="text-center">
+        <h1 class="text-2xl font-serif font-bold leading-tight tracking-tight text-slate-800 md:text-3xl">
+            Passwort erneuern
+        </h1>
+        <p class="text-slate-500 mt-3 text-sm leading-relaxed">
+            Gib deine E-Mail und dein neues Wunschpasswort ein, um deinen Zugang wiederherzustellen.
+        </p>
+    </div>
 
-            <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white">
-                Passwort Zurücksetzen
-            </h1>
+    <div class="pt-2">
+        <x-forms.form submit="submit" :grid="false">
 
-            <span class="text-sm"> Gib deine E-Mail Adresse und dein neues Passwort ein. </span>
+            <div class="space-y-5">
+                {{-- E-Mail --}}
+                <div class="space-y-1">
+                    <label class="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">E-Mail Adresse</label>
+                    <x-forms.email class="w-full !rounded-xl !border-slate-200 !bg-slate-50/50 focus:!bg-white focus:!ring-[#C5A059] focus:!border-[#C5A059] transition-all py-3" />
+                </div>
 
-            <x-forms.form submit="submit" :grid="false">
+                {{-- Passwort Felder --}}
+                <div class="grid grid-cols-1 gap-5">
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Neues Passwort</label>
+                        <x-forms.password title="" variable="password" class="!rounded-xl !border-slate-200 !bg-slate-50/50 focus:!bg-white focus:!ring-[#C5A059] py-3" />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Bestätigung</label>
+                        <x-forms.password title="" variable="passwordConfirm" class="!rounded-xl !border-slate-200 !bg-slate-50/50 focus:!bg-white focus:!ring-[#C5A059] py-3" />
+                    </div>
+                </div>
+            </div>
 
-                <x-forms.email class="mt-4"/>
+            {{-- Button --}}
+            <div class="mt-10">
+                <x-forms.button
+                    title="Passwort speichern"
+                    category="primary"
+                    type="submit"
+                />
+            </div>
 
-                <x-forms.password title="Passwort" variable="password" class="mt-4"/>
-                <x-forms.password title="Passwort Wiederholen" variable="passwordConfirm" class="mt-4"/>
+            {{-- Feedback Sektion --}}
+            <div class="mt-6">
+                @if (session('status'))
+                    <div class="rounded-xl border-none bg-emerald-50 text-emerald-700 p-4 text-sm font-medium animate-pulse">
+                        <x-alerts.message sessionVariable="status" />
+                    </div>
+                @endif
 
-                <x-forms.button title="Passwort Zurücksetzen" category="primary" type="submit" class="mt-4"/>
+                <x-alerts.errors class="rounded-xl bg-rose-50 text-rose-700 p-4 text-sm" />
+            </div>
 
-                <x-alerts.message sessionVariable="status"/>
+        </x-forms.form>
+    </div>
 
-                <x-alerts.errors/>
-
-            </x-forms.form>
-
-            @if (session()->has('error'))
-                <p class="text-sm text-red-500">{{ session('error') }}</p>
-            @endif
-
-        </div>
+    {{-- Hilfreiche Links --}}
+    <div class="text-center pt-6 border-t border-slate-50">
+        <a href="{{ route('login') }}" class="text-sm font-semibold text-slate-400 hover:text-[#C5A059] transition-colors flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            Zurück zum Login
+        </a>
     </div>
 </div>

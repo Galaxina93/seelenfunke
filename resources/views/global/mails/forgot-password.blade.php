@@ -1,59 +1,57 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passwort Zurücksetzen</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-            line-height: 1.5;
-            color: #333;
-            background-color: #f5f5f5;
-            margin: 0;
-            padding: 40px;
-        }
-        .container {
-            background-color: #ffffff;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 40px;
-            border-radius: 8px;
-        }
-        h1 {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            color: #444;
-        }
-        a {
-            color: #ffffff;
-            background-color: #3490dc;
-            display: inline-block;
-            padding: 12px 24px;
-            font-weight: bold;
-            text-decoration: none;
-            border-radius: 4px;
-            margin: 20px 0;
-        }
-        p {
-            margin: 10px 0;
-        }
-    </style>
-</head>
-<body>
+{{-- HTML TREE (Öffnet HTML, Head und Body) --}}
+@include('global.mails.partials.mail_html_tree', ['title' => 'Passwort zurücksetzen'])
+
 <div class="container">
-    <h1>Passwort Zurücksetzen</h1>
-    <p>Hallo,</p>
-    <p>Wir haben eine Anfrage zum Zurücksetzen Ihres Passworts erhalten. Bitte klicken Sie auf den folgenden Link, um Ihr Passwort zurückzusetzen:</p>
-    <p><a href="{{ $emailData['reset_link'] }}">Passwort zurücksetzen</a></p>
-    <p>Falls Sie diese Anfrage nicht gestellt haben, ignorieren Sie bitte diese E-Mail.</p>
-    <br>
-    <strong>Dieser Link ist 60 Minuten gültig.</strong>
-    <br>
-    <p>Vielen Dank,</p>
-    <p>Ihr Team</p>
+
+    {{-- LOGO --}}
+    @include('global.mails.partials.mail_logo')
+
+    {{-- EINLEITUNG --}}
+    <div class="content-body" style="font-family: sans-serif; color: #333333; line-height: 1.6; font-size: 15px;">
+        <p>Hallo,</p>
+
+        <p>du erhältst diese E-Mail, weil wir eine Anfrage zum Zurücksetzen des Passworts für dein Benutzerkonto erhalten haben.</p>
+
+        <div class="info-notice" style="background-color: #f9f9f9; border-left: 3px solid #C5A059; padding: 15px; margin: 25px 0;">
+            <span style="color: #C5A059; font-weight: bold; text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">Sicherheitshinweis</span><br>
+            <span style="color: #666666;">Dieser Link zum Zurücksetzen des Passworts läuft in <strong>60 Minuten</strong> ab.</span>
+        </div>
+
+        <p style="margin-top: 30px;">
+            Klicke auf den untenstehenden Button, um dein Passwort neu festzulegen. Falls du kein neues Passwort angefordert hast, ist keine weitere Aktion erforderlich.
+        </p>
+    </div>
+
+    {{-- ACTION BUTTON --}}
+    <div class="action-section" style="margin: 45px 0; text-align: center; border-top: 1px solid #f5f5f5; padding-top: 40px;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0">
+            <tr>
+                <td align="center">
+                    <table border="0" cellspacing="0" cellpadding="0">
+                        <tr>
+                            <td align="center" style="border-radius: 4px;" bgcolor="#C5A059">
+                                <a href="{{ $emailData['reset_link'] }}"
+                                   target="_blank"
+                                   style="font-size: 15px; font-family: sans-serif; color: #ffffff; text-decoration: none; border-radius: 4px; padding: 16px 40px; border: 1px solid #C5A059; display: inline-block; font-weight: bold; letter-spacing: 0.5px;">
+                                    Passwort jetzt zurücksetzen
+                                </a>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <p style="margin-top: 25px; font-size: 13px; color: #999999;">
+            Sollte der Button nicht funktionieren, kopiere bitte den folgenden Link direkt in deinen Browser:<br>
+            <span style="color: #C5A059; word-break: break-all;">{{ $emailData['reset_link'] }}</span>
+        </p>
+    </div>
+
+    {{-- FOOTER --}}
+    @include('global.mails.partials.mail_footer')
+
 </div>
+
 </body>
 </html>
