@@ -27,72 +27,121 @@
 
                 {{-- Search & Table --}}
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="p-4 border-b border-gray-100 flex gap-4">
+                    {{-- Search Header --}}
+                    <div class="p-4 border-b border-gray-100 flex gap-4 bg-white sticky top-0 z-10">
                         <div class="relative flex-1">
-                            <input wire:model.live.debounce.300ms="search" type="text" placeholder="Beitrag suchen..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
-                            <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input wire:model.live.debounce.300ms="search" type="text" placeholder="Beitrag suchen..."
+                                   class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary text-sm shadow-sm transition-all">
+                            <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                            </svg>
                         </div>
                     </div>
 
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                        <tr>
-                            <th class="px-6 py-4">Titel</th>
-                            <th class="px-6 py-4">Status</th>
-                            <th class="px-6 py-4">Sichtbar ab</th>
-                            <th class="px-6 py-4">Kategorie / Autor</th>
-                            <th class="px-6 py-4 text-right">Aktionen</th>
-                        </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                        @forelse($posts as $post)
-                            <tr class="hover:bg-gray-50/50 transition group">
-                                <td class="px-6 py-4">
-                                    <div class="font-bold text-gray-900">{{ $post->title }}</div>
-                                    <div class="text-xs text-gray-400 mt-0.5 font-mono">/{{ $post->slug }}</div>
-                                    @if($post->is_advertisement)
-                                        <span class="inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                    {{-- Responsive Table Wrapper --}}
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            {{-- Kopfzeile: Nur auf Desktop sichtbar --}}
+                            <thead class="hidden md:table-header-group bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            <tr>
+                                <th class="px-6 py-4 border-b border-gray-100">Titel</th>
+                                <th class="px-6 py-4 border-b border-gray-100">Status</th>
+                                <th class="px-6 py-4 border-b border-gray-100">Sichtbar ab</th>
+                                <th class="px-6 py-4 border-b border-gray-100">Kategorie / Autor</th>
+                                <th class="px-6 py-4 border-b border-gray-100 text-right">Aktionen</th>
+                            </tr>
+                            </thead>
+
+                            <tbody class="divide-y divide-gray-100 block md:table-row-group">
+                            @forelse($posts as $post)
+                                {{-- Row: Auf Mobile ein Block (Karte), auf Desktop eine Tabellenzeile --}}
+                                <tr class="hover:bg-gray-50/50 transition group block md:table-row bg-white relative">
+
+                                    {{-- 1. TITEL --}}
+                                    <td class="px-4 py-3 md:px-6 md:py-4 block md:table-cell">
+                                        {{-- Mobile Label nicht nötig, Titel steht für sich --}}
+                                        <div class="flex items-start justify-between md:block">
+                                            <div>
+                                                <div class="font-bold text-gray-900 text-base md:text-sm">{{ $post->title }}</div>
+                                                <div class="text-xs text-gray-400 mt-0.5 font-mono break-all md:break-normal">/{{ $post->slug }}</div>
+                                                @if($post->is_advertisement)
+                                                    <span class="inline-flex mt-1 items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
                                             Anzeige
                                         </span>
-                                    @endif
-                                </td>
-                                <td class="px-6 py-4">
-                                    @php
-                                        $badges = [
-                                            'published' => 'bg-green-100 text-green-800 border-green-200',
-                                            'draft' => 'bg-gray-100 text-gray-800 border-gray-200',
-                                            'scheduled' => 'bg-blue-100 text-blue-800 border-blue-200',
-                                        ];
-                                        $labels = [
-                                            'published' => 'Veröffentlicht',
-                                            'draft' => 'Entwurf',
-                                            'scheduled' => 'Geplant',
-                                        ];
-                                    @endphp
-                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border {{ $badges[$post->status] }}">
-                                        {{ $labels[$post->status] }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-600">
-                                    {{ $post->published_at ? $post->published_at->format('d.m.Y H:i') : '-' }}
-                                </td>
-                                <td class="px-6 py-4 text-sm text-gray-600">
-                                    <div class="font-medium">{{ $post->category->name ?? '-' }}</div>
-                                    <div class="text-xs text-gray-400">{{ $post->author->name ?? 'Unbekannt' }}</div>
-                                </td>
-                                <td class="px-6 py-4 text-right">
-                                    <button wire:click="edit('{{ $post->id }}')" class="text-primary hover:text-primary-dark font-bold text-xs uppercase tracking-wider mr-4 transition">Bearbeiten</button>
-                                    <button wire:click="delete('{{ $post->id }}')" wire:confirm="Möchtest du den Beitrag '{{ $post->title }}' wirklich löschen?" class="text-gray-400 hover:text-red-600 font-bold text-xs uppercase tracking-wider transition">Löschen</button>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-6 py-12 text-center text-gray-500">Keine Beiträge gefunden.</td>
-                            </tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                    <div class="p-4 border-t border-gray-100">
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </td>
+
+                                    {{-- 2. STATUS --}}
+                                    <td class="px-4 py-2 md:px-6 md:py-4 block md:table-cell">
+                                        <div class="flex items-center justify-between md:block">
+                                            <span class="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">Status</span>
+                                            @php
+                                                $badges = [
+                                                    'published' => 'bg-green-100 text-green-800 border-green-200',
+                                                    'draft' => 'bg-gray-100 text-gray-800 border-gray-200',
+                                                    'scheduled' => 'bg-blue-100 text-blue-800 border-blue-200',
+                                                ];
+                                                $labels = [
+                                                    'published' => 'Veröffentlicht',
+                                                    'draft' => 'Entwurf',
+                                                    'scheduled' => 'Geplant',
+                                                ];
+                                            @endphp
+                                            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border {{ $badges[$post->status] }}">
+                                    {{ $labels[$post->status] }}
+                                </span>
+                                        </div>
+                                    </td>
+
+                                    {{-- 3. DATUM --}}
+                                    <td class="px-4 py-2 md:px-6 md:py-4 block md:table-cell text-sm text-gray-600">
+                                        <div class="flex items-center justify-between md:block">
+                                            <span class="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">Datum</span>
+                                            <span>{{ $post->published_at ? $post->published_at->format('d.m.Y H:i') : '-' }}</span>
+                                        </div>
+                                    </td>
+
+                                    {{-- 4. KATEGORIE / AUTOR --}}
+                                    <td class="px-4 py-2 md:px-6 md:py-4 block md:table-cell text-sm text-gray-600">
+                                        <div class="flex items-center justify-between md:block">
+                                            <span class="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">Details</span>
+                                            <div class="text-right md:text-left">
+                                                <div class="font-medium">{{ $post->category->name ?? '-' }}</div>
+                                                <div class="text-xs text-gray-400">{{ $post->author->name ?? 'Unbekannt' }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+
+                                    {{-- 5. AKTIONEN --}}
+                                    <td class="px-4 py-4 md:px-6 md:py-4 block md:table-cell md:text-right border-t md:border-0 border-gray-50 mt-2 md:mt-0">
+                                        <div class="flex justify-end gap-3 md:gap-4 w-full">
+                                            <button wire:click="edit('{{ $post->id }}')"
+                                                    class="text-primary hover:text-primary-dark font-bold text-xs uppercase tracking-wider bg-primary/5 hover:bg-primary/10 px-3 py-2 rounded-lg md:bg-transparent md:p-0 transition">
+                                                Bearbeiten
+                                            </button>
+                                            <button wire:click="delete('{{ $post->id }}')"
+                                                    wire:confirm="Möchtest du den Beitrag '{{ $post->title }}' wirklich löschen?"
+                                                    class="text-gray-400 hover:text-red-600 font-bold text-xs uppercase tracking-wider bg-gray-100 hover:bg-red-50 px-3 py-2 rounded-lg md:bg-transparent md:p-0 transition">
+                                                Löschen
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="px-6 py-12 text-center text-gray-500 italic block md:table-cell">
+                                        Keine Beiträge gefunden.
+                                    </td>
+                                </tr>
+                            @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {{-- Pagination Footer --}}
+                    <div class="p-4 border-t border-gray-100 bg-gray-50">
                         {{ $posts->links() }}
                     </div>
                 </div>

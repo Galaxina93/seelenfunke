@@ -6782,6 +6782,18 @@ video {
   .md\:table {
     display: table;
   }
+  .md\:table-cell {
+    display: table-cell;
+  }
+  .md\:table-header-group {
+    display: table-header-group;
+  }
+  .md\:table-row-group {
+    display: table-row-group;
+  }
+  .md\:table-row {
+    display: table-row;
+  }
   .md\:grid {
     display: grid;
   }
@@ -6922,6 +6934,10 @@ video {
     margin-top: calc(1.5rem * calc(1 - var(--tw-space-y-reverse)));
     margin-bottom: calc(1.5rem * var(--tw-space-y-reverse));
   }
+  .md\:break-normal {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
   .md\:rounded-\[3rem\] {
     border-radius: 3rem;
   }
@@ -6990,6 +7006,14 @@ video {
   .md\:py-48 {
     padding-top: 12rem;
     padding-bottom: 12rem;
+  }
+  .md\:px-6 {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+  .md\:py-4 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
   .md\:pb-0 {
     padding-bottom: 0px;
