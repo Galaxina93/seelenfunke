@@ -24,9 +24,10 @@ class DatabaseSeeder extends Seeder
             OrdersTableSeeder::class,               // DEAKTIVIEREN BEI LIVEGANG
             BlogSeeder::class,                      // Für den Livegang notwendig
             NewsletterKampagnenSeeder::class,       // Für den Livegang notwendig
-            // ProjectMasterSeeder::class,          // DEAKTIVIEREN BEI LIVEGANG
-            MonthlyVoucherSeeder::class,             // Für den Livegang notwendig
-            TodoSeeder::class,
+            MonthlyVoucherSeeder::class,            // Für den Livegang notwendig
+
+            TodoSeeder::class,                      // DEAKTIVIEREN BEI LIVEGANG
+            DayRoutineSeeder::class,                // Für den Livegang notwendig
         ]);
 
     }

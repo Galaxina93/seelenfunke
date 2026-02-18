@@ -5,6 +5,7 @@ use App\Mail\AutomaticNewsletterMail;
 use App\Mail\AutomaticVoucherMail;
 use App\Models\Blog\BlogPost;
 use App\Models\Coupon;
+use App\Models\DayRoutine;
 use App\Models\Financial\FinanceCostItem;
 use App\Models\FunkiVoucher;
 use App\Models\Customer\Customer;
@@ -18,7 +19,9 @@ use App\Models\Order\Order;
 use App\Models\Product\Product;
 use App\Models\Quote\QuoteRequest;
 use App\Models\ShopSetting;
+use App\Models\Todo;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -35,11 +38,86 @@ class FunkiBotService
     public function getUltimateCommand(): array
     {
         $baustellen = [];
+        $now = Carbon::now();
+
+        // ------------------------------------------------------------------
+        // LEVEL 0: BIO-RHYTHMUS & ZEITFENSTER
+        // ------------------------------------------------------------------
+
+        // Kernarbeitszeit definieren (09:00 - 22:00)
+        $isWorkTime = $now->between(
+            Carbon::createFromTime(9, 0, 0),
+            Carbon::createFromTime(22, 0, 0)
+        );
+
+        // Prüfen, ob gerade eine Routine aktiv ist (z.B. Mittagessen, Zähne putzen)
+        // Wir laden alle aktiven Routinen und prüfen, ob JETZT gerade der Zeitraum ist
+        $activeRoutine = DayRoutine::with('steps')->where('is_active', true)->get()->filter(function ($routine) use ($now) {
+            $start = Carbon::parse($routine->start_time);
+
+            // Sonderfall: Nachtruhe (Ende ist "unendlich" bzw. bis zum Morgen)
+            if ($routine->type === 'sleep') {
+                $end = $start->copy()->addHours(8); // Annahme: Bis morgens
+            } else {
+                $end = $start->copy()->addMinutes($routine->duration_minutes);
+            }
+
+            return $now->between($start, $end);
+        })->first();
+
+        // Wenn eine Routine aktiv ist, bekommt sie einen sehr hohen Score (150),
+        // damit sie normale Arbeit unterbricht, aber keine Sicherheitswarnungen.
+        if ($activeRoutine) {
+            // GENAUE SCHRITT-BERECHNUNG
+            $startTime = Carbon::parse($activeRoutine->start_time);
+            $minutesPassed = $startTime->diffInMinutes($now);
+
+            $currentStepName = "Allgemein";
+            $currentStepIndex = 1;
+            $accumulatedMinutes = 0;
+            $nextStepName = null;
+
+            foreach ($activeRoutine->steps as $step) {
+                $stepDuration = $step->duration_minutes;
+
+                // Wenn wir noch im Zeitfenster dieses Schritts sind
+                if ($minutesPassed >= $accumulatedMinutes && $minutesPassed < ($accumulatedMinutes + $stepDuration)) {
+                    $currentStepName = $step->title;
+                    $currentStepIndex = $step->position;
+                    // Nächsten Schritt finden
+                    $nextStep = $activeRoutine->steps->where('position', $step->position + 1)->first();
+                    $nextStepName = $nextStep ? $nextStep->title : 'Abschluss';
+                    break;
+                }
+
+                $accumulatedMinutes += $stepDuration;
+            }
+
+            // Wenn wir über der kalkulierten Zeit der Steps sind, aber noch in der Routine-Zeit (Puffer)
+            if ($minutesPassed >= $accumulatedMinutes && $activeRoutine->steps->count() > 0) {
+                $currentStepName = "Letzte Handgriffe / Pufferzeit";
+            }
+
+            $baustellen[] = [
+                'score' => 150,
+                'title' => $activeRoutine->title . " (Step $currentStepIndex)",
+                'message' => "Es ist " . $now->format('H:i') . ". Laut Plan solltest du jetzt folgendes tun:\n\n👉 **$currentStepName**\n\n(Danach: " . ($nextStepName ?? 'Fertig') . ")",
+                'action_label' => 'Routine anzeigen',
+                'action_route' => 'admin.funki', // Tab Routine
+                'icon' => $this->getIconForType($activeRoutine->type),
+                'instruction' => 'Aktueller Fokus:'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // LEVEL 1: KRITISCHE GESCHÄFTSVORFÄLLE (Sicherheit geht immer vor)
+        // ------------------------------------------------------------------
 
         // 1. SICHERHEIT: UNBEFUGTE LOGINS (Score 250)
         $failedLogins = LoginAttempt::where('success', false)
             ->where('attempted_at', '>', now()->subHours(24))
             ->count();
+
         if ($failedLogins > 5) {
             $baustellen[] = [
                 'score' => 250,
@@ -51,116 +129,188 @@ class FunkiBotService
             ];
         }
 
-        // 2. PRODUKTION: BESTELLUNGEN (Score 200+)
-        $prioOrder = Order::whereIn('status', ['pending', 'processing'])
-            ->orderBy('is_express', 'desc')
-            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
-            ->orderBy('deadline', 'asc')
-            ->first();
-
-        if ($prioOrder) {
-            $score = $prioOrder->is_express ? 220 : 200;
-            if ($prioOrder->deadline && $prioOrder->deadline->isPast()) $score += 100;
-
-            $baustellen[] = [
-                'score' => $score,
-                'title' => 'Produktion starten',
-                'message' => "Bestellung #{$prioOrder->order_number} wartet. " . ($prioOrder->is_express ? "ACHTUNG: EXPRESS-PRIO! " : "") . "Kunde: {$prioOrder->billing_address['first_name']} {$prioOrder->billing_address['last_name']}.",
-                'action_label' => 'Jetzt fertigen',
-                'action_route' => 'admin.orders',
-                'icon' => '🚀'
-            ];
-        }
-
-        // 3. BUCHHALTUNG: SONDERAUSGABEN OHNE BELEG (Score 110)
-        // Wir suchen Sonderausgaben, bei denen das file_paths Array leer oder null ist
-        $missingReceipt = FinanceSpecialIssue::where(function($q) {
-            $q->whereNull('file_paths')->orWhere('file_paths', '[]')->orWhere('file_paths', '');
-        })->orderBy('execution_date', 'desc')->first();
-
-        if ($missingReceipt) {
-            $baustellen[] = [
-                'score' => 110,
-                'title' => 'Beleg fehlt!',
-                'message' => "Für die Ausgabe '{$missingReceipt->title}' vom {$missingReceipt->execution_date->format('d.m.Y')} ({{ number_format($missingReceipt->amount, 2) }}€) hast du noch keinen Beleg hinterlegt. Das Finanzamt meckert sonst!",
-                'action_label' => 'Beleg hochladen',
-                'action_route' => 'admin.financial-categories-special-editions',
-                'icon' => '📸'
-            ];
-        }
-
-        // 4. BUCHHALTUNG: ÜBERFÄLLIGE RECHNUNGEN (Score 105)
-        $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
-        if ($overdueInvoices > 0) {
-            $baustellen[] = [
-                'score' => 105,
-                'title' => 'Zahlungseingänge prüfen',
-                'message' => "Wir haben {$overdueInvoices} überfällige Rechnungen. Schau nach, ob das Geld da ist oder schick eine freundliche Mahnung.",
-                'action_label' => 'Rechnungen prüfen',
-                'action_route' => 'admin.invoices',
-                'icon' => '💸'
-            ];
-        }
-
-        // 5. ORDNUNG: FIXKOSTEN OHNE VERTRAG (Score 85)
-        // Wir suchen Fixkosten-Items, bei denen der contract_file_path null ist
-        $missingContract = FinanceCostItem::whereNull('contract_file_path')->first();
-        if ($missingContract) {
-            $baustellen[] = [
-                'score' => 85,
-                'title' => 'Vertrag hinterlegen',
-                'message' => "In deinen Fixkosten ist '{$missingContract->name}' ohne Vertragsdokument hinterlegt. Scanne den Vertrag ein, damit wir alles an einem Ort haben.",
-                'action_label' => 'Vertrag hochladen',
-                'action_route' => 'admin.financial-contracts-groups',
-                'icon' => '📄'
-            ];
-        }
-
-        // 6. LAGER: BESTANDSPRÜFUNG (Score 80)
-        $lowStock = Product::where('track_quantity', true)
-            ->where('quantity', '<=', (int)shop_setting('inventory_low_stock_threshold', 5))
-            ->where('status', 'active')->first();
-        if ($lowStock) {
-            $baustellen[] = [
-                'score' => 80,
-                'title' => 'Lager auffüllen',
-                'message' => "Nur noch {$lowStock->quantity}x '{$lowStock->name}' verfügbar. Bestelle rechtzeitig nach!",
-                'action_label' => 'Lager verwalten',
-                'action_route' => 'admin.products',
-                'icon' => '📦'
-            ];
-        }
-
-        // 7. CONTENT: BLOG (Score 30)
-        $lastBlog = BlogPost::where('status', 'published')->latest('published_at')->first();
-        if (!$lastBlog || $lastBlog->published_at->diffInDays(now()) > 30) {
-            $baustellen[] = [
-                'score' => 30,
-                'title' => 'Inspiration teilen',
-                'message' => "Dein letzter Blogpost ist schon eine Weile her. Lass uns die Kunden mal wieder mit einer schönen Geschichte begeistern.",
-                'action_label' => 'Beitrag schreiben',
-                'action_route' => 'admin.blog',
-                'icon' => '✍️'
-            ];
-        }
-
-        // FINALE ENTSCHEIDUNG
-        if (empty($baustellen)) {
+        // ------------------------------------------------------------------
+        // BREAKPOINT: RUHEZEIT
+        // Wenn keine Routine aktiv ist, keine Sicherheitswarnung vorliegt
+        // UND wir außerhalb der Arbeitszeit sind -> Feierabend erzwingen.
+        // ------------------------------------------------------------------
+        if (!$isWorkTime && empty($baustellen)) {
             return [
-                'title' => 'Du bist der Wahnsinn!',
-                'message' => "Alles erledigt. Produktion leer, Belege sortiert, Lager voll. Gönn dir einen Kaffee – Funki passt auf alles auf! ✨",
-                'action_label' => 'Dashboard öffnen',
+                'score' => 1000, // Gewinnt gegen alles außer Sicherheit
+                'title' => 'Ruhemodus',
+                'message' => "Es ist " . $now->format('H:i') . " Uhr. Außerhalb der Kernzeit (09:00 - 22:00) wird nicht gearbeitet. Erhol dich gut!",
+                'action_label' => 'Gute Nacht',
                 'action_route' => 'admin.dashboard',
-                'icon' => '💎',
-                'instruction' => 'Status: Perfekt'
+                'icon' => '🌙',
+                'instruction' => 'System schläft'
             ];
         }
 
-        usort($baustellen, fn($a, $b) => $b['score'] <=> $a['score']);
-        $winner = $baustellen[0];
-        $winner['instruction'] = "Das ist jetzt am wichtigsten:";
+        // ------------------------------------------------------------------
+        // LEVEL 2: OPERATIVES GESCHÄFT (Nur während Arbeitszeit)
+        // ------------------------------------------------------------------
 
-        return $winner;
+        if ($isWorkTime) {
+            // 2. PRODUKTION: BESTELLUNGEN (Score 200+)
+            $prioOrder = Order::whereIn('status', ['pending', 'processing'])
+                ->orderBy('is_express', 'desc')
+                ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
+                ->orderBy('deadline', 'asc')
+                ->first();
+
+            if ($prioOrder) {
+                $score = $prioOrder->is_express ? 220 : 200;
+                if ($prioOrder->deadline && $prioOrder->deadline->isPast()) $score += 100;
+
+                $baustellen[] = [
+                    'score' => $score,
+                    'title' => 'Produktion starten',
+                    'message' => "Bestellung #{$prioOrder->order_number} wartet. " . ($prioOrder->is_express ? "ACHTUNG: EXPRESS-PRIO! " : "") . "Kunde: {$prioOrder->billing_address['first_name']} {$prioOrder->billing_address['last_name']}.",
+                    'action_label' => 'Jetzt fertigen',
+                    'action_route' => 'admin.orders',
+                    'icon' => '🚀'
+                ];
+            }
+
+            // 3. BUCHHALTUNG: SONDERAUSGABEN OHNE BELEG (Score 110)
+            $missingReceipt = FinanceSpecialIssue::where(function($q) {
+                $q->whereNull('file_paths')->orWhere('file_paths', '[]')->orWhere('file_paths', '');
+            })->orderBy('execution_date', 'desc')->first();
+
+            if ($missingReceipt) {
+                $baustellen[] = [
+                    'score' => 110,
+                    'title' => 'Beleg fehlt!',
+                    'message' => "Für die Ausgabe '{$missingReceipt->title}' vom {$missingReceipt->execution_date->format('d.m.Y')} ({{ number_format($missingReceipt->amount, 2) }}€) hast du noch keinen Beleg hinterlegt.",
+                    'action_label' => 'Beleg hochladen',
+                    'action_route' => 'admin.financial-categories-special-editions',
+                    'icon' => '📸'
+                ];
+            }
+
+            // 4. BUCHHALTUNG: ÜBERFÄLLIGE RECHNUNGEN (Score 105)
+            $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
+            if ($overdueInvoices > 0) {
+                $baustellen[] = [
+                    'score' => 105,
+                    'title' => 'Zahlungseingänge prüfen',
+                    'message' => "Wir haben {$overdueInvoices} überfällige Rechnungen. Schau nach, ob das Geld da ist oder schick eine freundliche Mahnung.",
+                    'action_label' => 'Rechnungen prüfen',
+                    'action_route' => 'admin.invoices',
+                    'icon' => '💸'
+                ];
+            }
+
+            // 5. ORDNUNG: FIXKOSTEN OHNE VERTRAG (Score 85)
+            $missingContract = FinanceCostItem::whereNull('contract_file_path')->first();
+            if ($missingContract) {
+                $baustellen[] = [
+                    'score' => 85,
+                    'title' => 'Vertrag hinterlegen',
+                    'message' => "Für '{$missingContract->name}' fehlt der Vertrag im System. Bitte einscannen und hochladen.",
+                    'action_label' => 'Vertrag hochladen',
+                    'action_route' => 'admin.financial-contracts-groups',
+                    'icon' => '📄'
+                ];
+            }
+
+            // 6. LAGER: BESTANDSPRÜFUNG (Score 80)
+            $lowStock = Product::where('track_quantity', true)
+                ->where('quantity', '<=', (int)shop_setting('inventory_low_stock_threshold', 5))
+                ->where('status', 'active')->first();
+            if ($lowStock) {
+                $baustellen[] = [
+                    'score' => 80,
+                    'title' => 'Lager auffüllen',
+                    'message' => "Nur noch {$lowStock->quantity}x '{$lowStock->name}' verfügbar. Bestelle rechtzeitig nach!",
+                    'action_label' => 'Lager verwalten',
+                    'action_route' => 'admin.products',
+                    'icon' => '📦'
+                ];
+            }
+
+            // 7. CONTENT: BLOG (Score 30)
+            $lastBlog = BlogPost::where('status', 'published')->latest('published_at')->first();
+            if (!$lastBlog || $lastBlog->published_at->diffInDays(now()) > 30) {
+                $baustellen[] = [
+                    'score' => 30,
+                    'title' => 'Inspiration teilen',
+                    'message' => "Dein letzter Blogpost ist schon eine Weile her. Lass uns die Kunden mal wieder mit einer schönen Geschichte begeistern.",
+                    'action_label' => 'Beitrag schreiben',
+                    'action_route' => 'admin.blog',
+                    'icon' => '✍️'
+                ];
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // ENTSCHEIDUNG LEVEL 1 & 2
+        // ------------------------------------------------------------------
+        if (!empty($baustellen)) {
+            // Sortieren nach Score (höchster zuerst)
+            usort($baustellen, fn($a, $b) => $b['score'] <=> $a['score']);
+
+            $winner = $baustellen[0];
+            $winner['instruction'] = $winner['instruction'] ?? "Tue jetzt exakt das:";
+            return $winner;
+        }
+
+        // ------------------------------------------------------------------
+        // LEVEL 3: LÜCKENFÜLLER (TODOS)
+        // ------------------------------------------------------------------
+        // Wenn keine operativen Probleme vorliegen und Arbeitszeit ist:
+        if ($isWorkTime) {
+            $nextTodo = Todo::where('is_completed', false)
+                ->whereNull('parent_id') // Nur Hauptaufgaben
+                ->orderBy('position', 'asc')
+                ->orderBy('created_at', 'asc')
+                ->first();
+
+            if ($nextTodo) {
+                $openCount = Todo::where('is_completed', false)->whereNull('parent_id')->count();
+                return [
+                    'score' => 10,
+                    'title' => 'Todo abarbeiten',
+                    'message' => "Operativ ist alles sauber. Zeit für die Warteschlange! ({$openCount} offen). Nächste Aufgabe: '{$nextTodo->title}'.",
+                    'action_label' => 'Zur ToDo Liste',
+                    'action_route' => 'admin.funki', // Tab Todo
+                    'icon' => '✅',
+                    'instruction' => 'Jetzt erledigen:'
+                ];
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // LEVEL 4: SPORT & FREIZEIT (Alles erledigt)
+        // ------------------------------------------------------------------
+
+        $user = Auth::user();
+        $name = $user ? $user->first_name : 'Du';
+
+        return [
+            'score' => 0,
+            'title' => 'Mach Sport!',
+            'message' => "Unglaublich, {$name}! Das System ist blitzsauber, alle Todos sind erledigt. Geh trainieren oder genieß den Tag. Du hast es dir verdient! 🏋️‍♀️",
+            'action_label' => 'Dashboard öffnen',
+            'action_route' => 'admin.dashboard',
+            'icon' => '🏆',
+            'instruction' => 'Status: Perfekt'
+        ];
+    }
+
+    /**
+     * Kleiner Helper für Routine-Icons
+     */
+    private function getIconForType($type)
+    {
+        return match($type) {
+            'food'    => '🍔',
+            'hygiene' => '🪥',
+            'sport'   => '🏋️',
+            'work'    => '💼',
+            'sleep'   => '🛌',
+            default   => '⏰'
+        };
     }
 
     /**

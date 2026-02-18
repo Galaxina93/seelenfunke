@@ -37,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
             'financial_special_issue' => 'App\Models\Financial\FinanceSpecialIssue',
             'order' => 'App\Models\Order\Order',
             'order_item' => 'App\Models\Order\OrderItem',
+            'day_routine' => 'App\Models\DayRoutine',
             // Füge hier bei Bedarf weitere Models hinzu
         ]);
 
