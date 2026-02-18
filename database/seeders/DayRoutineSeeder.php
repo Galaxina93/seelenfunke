@@ -11,10 +11,6 @@ class DayRoutineSeeder extends Seeder
 {
     public function run(): void
     {
-        // Altes löschen um Duplikate zu vermeiden
-        DayRoutine::truncate();
-        DayRoutineStep::truncate();
-
         $routines = [
             [
                 'time' => '09:00',
