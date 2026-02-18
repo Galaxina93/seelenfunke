@@ -1,15 +1,23 @@
 <?php
-
 namespace App\Services;
 
 use App\Mail\AutomaticNewsletterMail;
 use App\Mail\AutomaticVoucherMail;
+use App\Models\Blog\BlogPost;
 use App\Models\Coupon;
+use App\Models\Financial\FinanceCostItem;
 use App\Models\FunkiVoucher;
 use App\Models\Customer\Customer;
+use App\Models\Financial\FinanceSpecialIssue;
 use App\Models\FunkiLog;
+use App\Models\Invoice;
+use App\Models\LoginAttempt;
 use App\Models\NewsletterSubscriber;
 use App\Models\FunkiNewsletter;
+use App\Models\Order\Order;
+use App\Models\Product\Product;
+use App\Models\Quote\QuoteRequest;
+use App\Models\ShopSetting;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -17,9 +25,364 @@ use Illuminate\Support\Str;
 
 class FunkiBotService
 {
-    // =========================================================================
-    // 1. BASIS & KALENDER LOGIK
-    // =========================================================================
+    // --- MASTER METHODEN (ARBEITSANWEISUNGEN) ---
+
+    /**
+     * Die ultimative Ansage ermitteln.
+     * Logik: Jede Baustelle bekommt ein "Dringlichkeits-Score".
+     * Der höchste Score gewinnt und wird als "Tue jetzt das" ausgegeben.
+     */
+    public function getUltimateCommand(): array
+    {
+        $baustellen = [];
+
+        // 1. SICHERHEIT: UNBEFUGTE LOGINS (Score 250)
+        $failedLogins = LoginAttempt::where('success', false)
+            ->where('attempted_at', '>', now()->subHours(24))
+            ->count();
+        if ($failedLogins > 5) {
+            $baustellen[] = [
+                'score' => 250,
+                'title' => 'Sicherheits-Alarm!',
+                'message' => "Jemand rüttelt an der Tür! Ich habe {$failedLogins} Fehlversuche registriert. Prüfe sofort die IP-Adressen im User-Management.",
+                'action_label' => 'Sicherheit prüfen',
+                'action_route' => 'admin.user-management',
+                'icon' => '🛑'
+            ];
+        }
+
+        // 2. PRODUKTION: BESTELLUNGEN (Score 200+)
+        $prioOrder = Order::whereIn('status', ['pending', 'processing'])
+            ->orderBy('is_express', 'desc')
+            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
+            ->orderBy('deadline', 'asc')
+            ->first();
+
+        if ($prioOrder) {
+            $score = $prioOrder->is_express ? 220 : 200;
+            if ($prioOrder->deadline && $prioOrder->deadline->isPast()) $score += 100;
+
+            $baustellen[] = [
+                'score' => $score,
+                'title' => 'Produktion starten',
+                'message' => "Bestellung #{$prioOrder->order_number} wartet. " . ($prioOrder->is_express ? "ACHTUNG: EXPRESS-PRIO! " : "") . "Kunde: {$prioOrder->billing_address['first_name']} {$prioOrder->billing_address['last_name']}.",
+                'action_label' => 'Jetzt fertigen',
+                'action_route' => 'admin.orders',
+                'icon' => '🚀'
+            ];
+        }
+
+        // 3. BUCHHALTUNG: SONDERAUSGABEN OHNE BELEG (Score 110)
+        // Wir suchen Sonderausgaben, bei denen das file_paths Array leer oder null ist
+        $missingReceipt = FinanceSpecialIssue::where(function($q) {
+            $q->whereNull('file_paths')->orWhere('file_paths', '[]')->orWhere('file_paths', '');
+        })->orderBy('execution_date', 'desc')->first();
+
+        if ($missingReceipt) {
+            $baustellen[] = [
+                'score' => 110,
+                'title' => 'Beleg fehlt!',
+                'message' => "Für die Ausgabe '{$missingReceipt->title}' vom {$missingReceipt->execution_date->format('d.m.Y')} ({{ number_format($missingReceipt->amount, 2) }}€) hast du noch keinen Beleg hinterlegt. Das Finanzamt meckert sonst!",
+                'action_label' => 'Beleg hochladen',
+                'action_route' => 'admin.financial-categories-special-editions',
+                'icon' => '📸'
+            ];
+        }
+
+        // 4. BUCHHALTUNG: ÜBERFÄLLIGE RECHNUNGEN (Score 105)
+        $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
+        if ($overdueInvoices > 0) {
+            $baustellen[] = [
+                'score' => 105,
+                'title' => 'Zahlungseingänge prüfen',
+                'message' => "Wir haben {$overdueInvoices} überfällige Rechnungen. Schau nach, ob das Geld da ist oder schick eine freundliche Mahnung.",
+                'action_label' => 'Rechnungen prüfen',
+                'action_route' => 'admin.invoices',
+                'icon' => '💸'
+            ];
+        }
+
+        // 5. ORDNUNG: FIXKOSTEN OHNE VERTRAG (Score 85)
+        // Wir suchen Fixkosten-Items, bei denen der contract_file_path null ist
+        $missingContract = FinanceCostItem::whereNull('contract_file_path')->first();
+        if ($missingContract) {
+            $baustellen[] = [
+                'score' => 85,
+                'title' => 'Vertrag hinterlegen',
+                'message' => "In deinen Fixkosten ist '{$missingContract->name}' ohne Vertragsdokument hinterlegt. Scanne den Vertrag ein, damit wir alles an einem Ort haben.",
+                'action_label' => 'Vertrag hochladen',
+                'action_route' => 'admin.financial-contracts-groups',
+                'icon' => '📄'
+            ];
+        }
+
+        // 6. LAGER: BESTANDSPRÜFUNG (Score 80)
+        $lowStock = Product::where('track_quantity', true)
+            ->where('quantity', '<=', (int)shop_setting('inventory_low_stock_threshold', 5))
+            ->where('status', 'active')->first();
+        if ($lowStock) {
+            $baustellen[] = [
+                'score' => 80,
+                'title' => 'Lager auffüllen',
+                'message' => "Nur noch {$lowStock->quantity}x '{$lowStock->name}' verfügbar. Bestelle rechtzeitig nach!",
+                'action_label' => 'Lager verwalten',
+                'action_route' => 'admin.products',
+                'icon' => '📦'
+            ];
+        }
+
+        // 7. CONTENT: BLOG (Score 30)
+        $lastBlog = BlogPost::where('status', 'published')->latest('published_at')->first();
+        if (!$lastBlog || $lastBlog->published_at->diffInDays(now()) > 30) {
+            $baustellen[] = [
+                'score' => 30,
+                'title' => 'Inspiration teilen',
+                'message' => "Dein letzter Blogpost ist schon eine Weile her. Lass uns die Kunden mal wieder mit einer schönen Geschichte begeistern.",
+                'action_label' => 'Beitrag schreiben',
+                'action_route' => 'admin.blog',
+                'icon' => '✍️'
+            ];
+        }
+
+        // FINALE ENTSCHEIDUNG
+        if (empty($baustellen)) {
+            return [
+                'title' => 'Du bist der Wahnsinn!',
+                'message' => "Alles erledigt. Produktion leer, Belege sortiert, Lager voll. Gönn dir einen Kaffee – Funki passt auf alles auf! ✨",
+                'action_label' => 'Dashboard öffnen',
+                'action_route' => 'admin.dashboard',
+                'icon' => '💎',
+                'instruction' => 'Status: Perfekt'
+            ];
+        }
+
+        usort($baustellen, fn($a, $b) => $b['score'] <=> $a['score']);
+        $winner = $baustellen[0];
+        $winner['instruction'] = "Das ist jetzt am wichtigsten:";
+
+        return $winner;
+    }
+
+    /**
+     * Ermittelt die wichtigste Bestellung (Logik aus Orders.php übertragen).
+     */
+    public function getPriorityOrder()
+    {
+        return Order::query()
+            ->whereIn('status', ['pending', 'processing'])
+            ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
+            ->orderBy('is_express', 'desc')
+            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
+            ->orderBy('deadline', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->first();
+    }
+
+    /**
+     * Prüft den Produkt-Katalog auf Probleme (Low Stock, Drafts).
+     */
+    public function getProductStatus()
+    {
+        $lowStockCount = Product::where('track_quantity', true)
+            ->where('quantity', '<=', (int)shop_setting('inventory_low_stock_threshold', 5))
+            ->count();
+
+        $draftCount = Product::where('status', 'draft')->count();
+
+        if ($lowStockCount > 0) {
+            return [
+                'status' => 'warning',
+                'message' => "Achtung! {$lowStockCount} Artikel haben einen kritischen Lagerbestand.",
+                'action_route' => 'admin.products',
+                'action_label' => 'Lager prüfen'
+            ];
+        }
+
+        if ($draftCount > 0) {
+            return [
+                'status' => 'info',
+                'message' => "Du hast {$draftCount} Produkte im Entwurf. Zeit für den Release?",
+                'action_route' => 'admin.products',
+                'action_label' => 'Entwürfe ansehen'
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Das Sortiment ist glänzend aufgestellt.',
+            'action_route' => 'admin.products',
+            'action_label' => 'Sortiment'
+        ];
+    }
+
+    /**
+     * Prüft offene Angebote.
+     */
+    public function getQuoteStatus()
+    {
+        $openQuotes = QuoteRequest::where('status', 'open')->count();
+        $expiredQuotes = QuoteRequest::where('status', 'open')->where('expires_at', '<', now())->count();
+
+        if ($expiredQuotes > 0) {
+            return [
+                'status' => 'warning',
+                'message' => "{$expiredQuotes} Angebote sind abgelaufen. Nachfassen?",
+                'action_route' => 'admin.quote-requests',
+                'action_label' => 'Angebote prüfen'
+            ];
+        }
+
+        if ($openQuotes > 0) {
+            return [
+                'status' => 'info',
+                'message' => "{$openQuotes} Angebote warten auf Bestätigung durch den Kunden.",
+                'action_route' => 'admin.quote-requests',
+                'action_label' => 'Angebote ansehen'
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Alle Anfragen sind bearbeitet.',
+            'action_route' => 'admin.quote-requests',
+            'action_label' => 'Angebote'
+        ];
+    }
+
+    /**
+     * Prüft offene Rechnungen.
+     */
+    public function getInvoiceStatus()
+    {
+        $overdueCount = Invoice::where('status', 'open')
+            ->where('due_date', '<', now())
+            ->count();
+
+        $openCount = Invoice::where('status', 'open')->count();
+
+        if ($overdueCount > 0) {
+            return [
+                'status' => 'danger',
+                'message' => "Alarm! {$overdueCount} Rechnungen sind überfällig. Mahnung erforderlich.",
+                'action_route' => 'admin.invoices',
+                'action_label' => 'Mahnwesen'
+            ];
+        }
+
+        if ($openCount > 0) {
+            return [
+                'status' => 'info',
+                'message' => "{$openCount} Rechnungen sind noch offen (aber in der Frist).",
+                'action_route' => 'admin.invoices',
+                'action_label' => 'Buchhaltung'
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Kasse stimmt. Alle Rechnungen bezahlt.',
+            'action_route' => 'admin.invoices',
+            'action_label' => 'Rechnungen'
+        ];
+    }
+
+    /**
+     * Prüft Blog-Aktivität.
+     */
+    public function getBlogStatus()
+    {
+        $lastPost = BlogPost::where('status', 'published')->latest('published_at')->first();
+
+        if (!$lastPost) {
+            return [
+                'status' => 'info',
+                'message' => 'Der Blog ist noch leer. Schreib deine erste Geschichte!',
+                'action_route' => 'admin.blog',
+                'action_label' => 'Schreiben'
+            ];
+        }
+
+        $daysAgo = $lastPost->published_at->diffInDays(now());
+
+        if ($daysAgo > 30) {
+            return [
+                'status' => 'warning',
+                'message' => "Der letzte Beitrag ist {$daysAgo} Tage her. Die Leser warten!",
+                'action_route' => 'admin.blog',
+                'action_label' => 'Neuen Beitrag'
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Der Blog ist aktuell. Letzter Post vor ' . $daysAgo . ' Tagen.',
+            'action_route' => 'admin.blog',
+            'action_label' => 'Blog'
+        ];
+    }
+
+    /**
+     * Prüft Versandstatus (Processing Orders).
+     */
+    public function getShippingStatus()
+    {
+        $toShip = Order::where('status', 'processing')->count();
+
+        if ($toShip > 0) {
+            return [
+                'status' => 'warning',
+                'message' => "{$toShip} Pakete warten auf den Versand. Packstation bereit?",
+                'action_route' => 'admin.orders',
+                'action_label' => 'Versenden'
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Versandlager ist leer. Alles verschickt!',
+            'action_route' => 'admin.orders',
+            'action_label' => 'Bestellungen'
+        ];
+    }
+
+    /**
+     * Prüft Systemgesundheit (Fehlgeschlagene Logins, Wartungsmodus).
+     */
+    public function getSystemStatus()
+    {
+        $maintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+
+        if ($maintenance) {
+            return [
+                'status' => 'warning',
+                'message' => 'Der Wartungsmodus ist AKTIV. Der Shop ist für Kunden nicht erreichbar.',
+                'action_route' => 'admin.configuration',
+                'action_label' => 'Ausschalten'
+            ];
+        }
+
+        $failedLogins = LoginAttempt::where('success', false)
+            ->where('attempted_at', '>', now()->subHours(24))
+            ->count();
+
+        if ($failedLogins > 5) {
+            return [
+                'status' => 'danger',
+                'message' => "Sicherheits-Warnung: {$failedLogins} fehlgeschlagene Logins in 24h.",
+                'action_route' => 'admin.user-management',
+                'action_label' => 'Logs prüfen'
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Alle Systeme laufen stabil.',
+            'action_route' => 'admin.dashboard',
+            'action_label' => 'Systemcheck'
+        ];
+    }
+
+    // --- AUTOMATION METHODEN (Bestehend) ---
 
     public function getAvailableEvents(): array
     {
@@ -56,10 +419,6 @@ class FunkiBotService
         }
     }
 
-    // =========================================================================
-    // 2. NEWSLETTER MARKETING LOGIK
-    // =========================================================================
-
     public function sendNewsletterBatch(FunkiNewsletter $template)
     {
         Log::info("FunkiBot: Starte Newsletter-Versand für '{$template->subject}'");
@@ -82,11 +441,13 @@ class FunkiBotService
             'days_offset' => 0,
             'target_event_key' => 'test_preview'
         ]);
+
         $dummySubscriber = new NewsletterSubscriber();
         $dummySubscriber->email = $adminEmail;
         $dummySubscriber->first_name = 'Admin';
 
         Mail::to($adminEmail)->send(new AutomaticNewsletterMail($tempTemplate, $dummySubscriber));
+
         return $adminEmail;
     }
 
@@ -105,6 +466,7 @@ class FunkiBotService
                     $date = $this->getHolidayDate($key, $year + 1);
                     $sendDate = $date->copy()->subDays($tmpl->days_offset);
                 }
+
                 $events[] = [
                     'date' => $sendDate,
                     'title' => $tmpl->subject,
@@ -128,10 +490,6 @@ class FunkiBotService
         FunkiNewsletter::where('id', $id)->update(['is_active' => true]);
     }
 
-    // =========================================================================
-    // 3. GUTSCHEIN KAMPAGNEN LOGIK
-    // =========================================================================
-
     public function getVoucherTriggerEvents(): array
     {
         $global = $this->getAvailableEvents();
@@ -143,7 +501,6 @@ class FunkiBotService
     {
         $automations = FunkiVoucher::where('is_active', true)->get();
         $events = [];
-        // Available Events laden um den Namen zu mappen
         $availableEvents = $this->getAvailableEvents();
 
         foreach ($automations as $auto) {
@@ -157,7 +514,6 @@ class FunkiBotService
                 $sendDate = $targetDate->copy()->subDays($auto->days_offset);
             }
 
-            // Event Name ermitteln
             $eventName = $availableEvents[$auto->trigger_event] ?? 'Event';
 
             $events[] = [
@@ -183,28 +539,6 @@ class FunkiBotService
         }
     }
 
-    /**
-     * Sendet eine Test-Gutschein-Mail (Vorschau) an den Admin.
-     */
-    public function sendVoucherPreviewMail($subject, $content, $codePattern, $value, $type): string
-    {
-        $adminEmail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
-        $adminName = 'Admin';
-
-        // Dummy Coupon generieren
-        $dummyCode = $this->generateCouponCode($codePattern, $adminName);
-        $tempCoupon = new Coupon();
-        $tempCoupon->forceFill([
-            'code' => $dummyCode,
-            'type' => $type,
-            'value' => ($type === 'fixed') ? (int)($value * 100) : (int)$value, // Umrechnung für Anzeige
-        ]);
-
-        Mail::to($adminEmail)->send(new AutomaticVoucherMail($tempCoupon, $adminName, '[FUNKI TEST] ' . $subject, $content));
-
-        return $adminEmail;
-    }
-
     protected function processGlobalVoucherEvent(FunkiVoucher $automation)
     {
         $year = date('Y');
@@ -214,6 +548,7 @@ class FunkiBotService
         if (!$sendDate->isSameDay(now())) return;
 
         $log = FunkiLog::start('voucher:global', "Globale Kampagne: {$automation->title}", 'system');
+
         try {
             $subscribers = NewsletterSubscriber::where('is_verified', true)->get();
             $count = 0;

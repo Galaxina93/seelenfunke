@@ -23,10 +23,10 @@
 
         <div class="relative flex items-center justify-center">
             {{-- Pulsierender Glow --}}
-            <div class="absolute inset-0 w-3 h-16 bg-primary/40 rounded-full blur-md animate-pulse"></div>
+            <div class="absolute inset-0 w-6 h-16 bg-primary/40 rounded-full blur-md animate-pulse"></div>
 
             {{-- Kern-Linie --}}
-            <div class="relative w-4 h-16 bg-primary rounded-full shadow-[0_0_20px_rgba(197,160,89,1)] transition-all duration-300 group-hover:h-20"
+            <div class="relative w-6 h-16 bg-primary rounded-full shadow-[0_0_20px_rgba(197,160,89,1)] transition-all duration-300 group-hover:h-20"
                  :class="dockOpen ? 'opacity-20' : 'opacity-100'">
             </div>
 
@@ -48,11 +48,13 @@
                 class="group/icon relative p-2 text-primary hover:bg-primary/20 rounded-xl transition-all"
                 title="Gutscheine">
 
-            {{-- Der pulsierende Benachrichtigungspunkt --}}
-            <div class="absolute -top-1 -right-1 flex h-3 w-3">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-            </div>
+            {{-- Prüfe direkt gegen das Model, ob aktive Gutscheine im Zeitraum existieren --}}
+            @if(\App\Models\FunkiVoucher::current()->exists())
+                <div class="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                </div>
+            @endif
 
             {{-- NEU: Heroicon "gift" (outline) --}}
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 transition-transform group-hover/icon:scale-110">
@@ -122,7 +124,7 @@
          x-transition:enter-start="translate-x-10 opacity-0"
          x-transition:enter-end="translate-x-0 opacity-100"
          x-transition:leave="transition ease-in duration-300"
-         class="absolute right-full mr-4 bg-white/95 backdrop-blur-2xl w-[85vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 overflow-hidden flex flex-col"
+         class="absolute right-full mr-2 bg-white/95 backdrop-blur-2xl w-[77vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 overflow-hidden flex flex-col"
     >
         @livewire('frontend.voucher-slider')
     </div>

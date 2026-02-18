@@ -18,7 +18,7 @@ class Orders extends Component
     public $statusFilter = '';
     public $paymentFilter = '';
 
-    // Standard: Created At, aber wir nutzen benutzerdefinierte Logik im Render
+    // Standard: Custom Workflow (Offene oben, Express oben, Erledigte unten)
     public $sortField = 'default_workflow';
     public $sortDirection = 'asc';
 
@@ -38,7 +38,34 @@ class Orders extends Component
     // STATUS FÜR DAS SICHERHEITS-MODAL
     public $confirmingShipmentId = null;
 
-    protected $queryString = ['search', 'statusFilter', 'paymentFilter', 'sortField', 'sortDirection'];
+    protected $queryString = [
+        'search' => ['except' => ''],
+        'statusFilter' => ['except' => ''],
+        'paymentFilter' => ['except' => ''],
+        'sortField' => ['except' => 'default_workflow'],
+        'sortDirection' => ['except' => 'asc']
+    ];
+
+    // Reset aller Filter auf Standard
+    public function resetFilters()
+    {
+        $this->reset(['search', 'statusFilter', 'paymentFilter', 'sortField', 'sortDirection']);
+        $this->resetPage();
+    }
+
+    // --- COMPUTED: PRIORITÄTS-ORDER (Für Funki Header) ---
+    public function getPriorityOrderProperty()
+    {
+        // Holt genau EINE Order, die am wichtigsten ist
+        return Order::query()
+            ->whereIn('status', ['pending', 'processing']) // Nur offene
+            ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
+            ->orderBy('is_express', 'desc') // Express zuerst
+            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC") // Terminierte zuerst
+            ->orderBy('deadline', 'asc') // Nächster Termin zuerst
+            ->orderBy('created_at', 'asc') // Älteste zuerst (FIFO)
+            ->first();
+    }
 
     // --- ACTIONS: SORTIERUNG ---
 
@@ -58,10 +85,10 @@ class Orders extends Component
     {
         $this->selectedOrderId = $id;
 
-        // 1. Order laden (Eager Loading für Performance)
+        // Order laden (Eager Loading für Performance)
         $this->selectedOrder = Order::with(['items.product', 'invoices'])->find($id);
 
-        // 2. Daten laden
+        // Daten für das Bearbeitungs-Formular laden
         if ($this->selectedOrder) {
             $this->status = $this->selectedOrder->status;
             $this->payment_status = $this->selectedOrder->payment_status;
@@ -101,7 +128,7 @@ class Orders extends Component
 
         // Fall: Stornierung
         if ($this->status === 'cancelled') {
-            // Bestand prüfen & zurückbuchen wenn noch nicht in Arbeit
+            // Bestand zurückbuchen, wenn die Order vorher nur "eingegangen" war
             if ($this->selectedOrder->status !== 'cancelled' && $this->selectedOrder->status === 'pending') {
                 foreach ($this->selectedOrder->items as $item) {
                     if ($item->product) $item->product->restoreStock($item->quantity);
@@ -113,10 +140,10 @@ class Orders extends Component
                 'cancellationReason' => 'required|string|min:5|max:500',
             ]);
 
-            // Status Update
+            // Update
             $this->selectedOrder->update([
                 'status' => 'cancelled',
-                'payment_status' => $this->payment_status, // Geldstatus kann abweichen (z.B. refunded)
+                'payment_status' => $this->payment_status,
                 'notes' => $this->notes,
                 'cancellation_reason' => $this->cancellationReason
             ]);
@@ -138,7 +165,7 @@ class Orders extends Component
         }
     }
 
-    // --- ACTIONS: SCHNELL-UPDATE ---
+    // --- ACTIONS: SCHNELL-UPDATE (Direkt in der Tabelle) ---
 
     public function updateStatus($orderId, $newStatus)
     {
@@ -232,27 +259,42 @@ class Orders extends Component
         // A) Detail-Modus
         if ($this->selectedOrderId && $this->selectedOrder) {
             return view('livewire.shop.order.orders', [
-                'orders' => [], 'activeOrders' => [], 'archivedOrders' => [], 'stats' => []
+                'orders' => collect(),
+                'stats' => []
             ]);
         }
 
-        // B) Listen-Modus
+        // B) Listen-Modus (Single Table)
         $query = Order::query();
 
-        // 1. Suche
+        // 1. Suche (Über alle relevanten Felder)
         if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('order_number', 'like', '%' . $this->search . '%')
-                    ->orWhere('email', 'like', '%' . $this->search . '%')
-                    ->orWhere('billing_address->last_name', 'like', '%' . $this->search . '%');
+            $searchTerm = '%' . $this->search . '%';
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('order_number', 'like', $searchTerm)
+                    ->orWhere('email', 'like', $searchTerm)
+                    ->orWhere('billing_address->last_name', 'like', $searchTerm)
+                    ->orWhere('billing_address->first_name', 'like', $searchTerm)
+                    ->orWhere('billing_address->company', 'like', $searchTerm);
             });
         }
 
         // 2. Filter
-        if ($this->statusFilter) $query->where('status', $this->statusFilter);
-        if ($this->paymentFilter) $query->where('payment_status', $this->paymentFilter);
+        if ($this->statusFilter) {
+            $query->where('status', $this->statusFilter);
+        }
+        if ($this->paymentFilter) {
+            $query->where('payment_status', $this->paymentFilter);
+        }
 
-        // STATISTIKEN BERECHNEN (Vor dem Splitting)
+        // 3. Sortierung (Core Logic)
+        if ($this->sortField === 'default_workflow') {
+            $this->applyWorkflowSort($query);
+        } else {
+            $this->applyCustomSort($query);
+        }
+
+        // 4. Statistiken (Immer aktuell, basierend auf Gesamt-DB)
         $stats = [
             'total' => Order::count(),
             'open' => Order::whereIn('status', ['pending', 'processing'])->count(),
@@ -262,48 +304,40 @@ class Orders extends Component
             'avg_cart' => Order::where('status', 'completed')->avg('total_price') ?? 0,
         ];
 
-        // 3. SPLITTING & SORTIERUNG
-
-        // --- A) Aktuelle Aufgaben (Wartend & In Bearbeitung) ---
-        // Workflow: Hier IMMER "Express -> Älteste zuerst", außer User sortiert explizit anders
-        $activeQuery = clone $query;
-        $activeQuery->whereIn('status', ['pending', 'processing']);
-
-        if ($this->sortField === 'default_workflow') {
-            // Workflow Logik: Erst Express, dann Älteste (FIFO)
-            $activeQuery->orderByDesc('is_express')
-                ->orderBy('created_at', 'asc');
-        } else {
-            // Benutzerdefinierte Sortierung (Klick auf Spalte)
-            $this->applyCustomSort($activeQuery);
-        }
-
-        // Aktive laden wir alle (Pagination hier oft störend für Workflow, max 100 sicherheitshalber)
-        $activeOrders = $activeQuery->limit(100)->get();
-
-
-        // --- B) Archiv (Versendet, Fertig, Storniert) ---
-        // Workflow: Hier Standard "Neueste zuerst"
-        $archivedQuery = clone $query;
-        $archivedQuery->whereNotIn('status', ['pending', 'processing']);
-
-        if ($this->sortField === 'default_workflow') {
-            $archivedQuery->orderBy('created_at', 'desc'); // Historie: Neueste oben
-        } else {
-            $this->applyCustomSort($archivedQuery);
-        }
-
-        $archivedOrders = $archivedQuery->paginate(15);
+        // 5. Query ausführen (Pagination)
+        $orders = $query->paginate(20);
 
         return view('livewire.shop.order.orders', [
-            'activeOrders' => $activeOrders,
-            'archivedOrders' => $archivedOrders,
-            'orders' => $archivedOrders, // Fallback für Pagination Links
+            'orders' => $orders,
             'stats' => $stats
         ]);
     }
 
-    // Hilfsfunktion für die dynamische Sortierung
+    /**
+     * WORKFLOW SORTIERUNG:
+     * 1. Status: Offene zuerst (0), Erledigte unten (1)
+     * 2. Typ: Express zuerst (DESC)
+     * 3. Termin: Nächste Deadline zuerst (ASC), NULL Deadlines dahinter
+     * 4. Alter: Älteste Aufträge zuerst (FIFO, ASC)
+     */
+    private function applyWorkflowSort($query)
+    {
+        // 1. Gruppierung: Wichtiges oben (Pending/Processing/Shipped), Rest unten
+        $query->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC");
+
+        // 2. Express vor Standard
+        $query->orderBy('is_express', 'desc');
+
+        // 3. Deadline: Das Nächstgelegene (kleinstes Datum) zuerst.
+        // Trick: MySQL sortiert NULL bei ASC ganz nach oben. Das wollen wir nicht.
+        // Orders OHNE Deadline sollen hinter Orders MIT Deadline (innerhalb der gleichen Prio-Gruppe).
+        $query->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC");
+        $query->orderBy('deadline', 'asc');
+
+        // 4. Datum: Älteste zuerst (FIFO)
+        $query->orderBy('created_at', 'asc');
+    }
+
     private function applyCustomSort($query)
     {
         switch ($this->sortField) {

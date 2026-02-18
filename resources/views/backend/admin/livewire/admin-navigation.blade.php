@@ -40,6 +40,7 @@
                     {{-- HIER WAREN DIE FEHLER: Icons wieder hinzugefügt --}}
                     <x-forms.list-item route="/admin/orders" title="Alle Bestellungen" pageName="orders" icon="shopping-bag" />
                     <x-forms.list-item route="/admin/quote-requests" title="Angebote" pageName="quote-requests" icon="clipboard-document-list" />
+                    <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoices" icon="document-text" />
                 </ul>
             </li>
 
@@ -55,7 +56,6 @@
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="calculator" />
                     <x-forms.list-item route="/admin/financial-categories-special-editions" title="Variable Kosten" pageName="financial-categories-special-editions" icon="rectangle-stack" />
                     <x-forms.list-item route="/admin/financial-contracts-groups" title="Fixkosten" pageName="financial-contracts-groups" icon="document-check" />
-                    <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoices" icon="document-text" />
                 </ul>
             </li>
 
