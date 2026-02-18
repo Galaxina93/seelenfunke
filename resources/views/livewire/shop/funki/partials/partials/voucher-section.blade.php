@@ -5,7 +5,7 @@
     $themeColor = $isAuto ? 'purple' : 'orange';
 @endphp
 
-<section class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10 relative overflow-hidden transition-all duration-500">
+<section class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10 relative overflow-hidden transition-all duration-500 pt-4 mt-6">
     <div class="absolute top-0 left-0 w-2 h-full bg-{{ $themeColor }}-500 transition-colors duration-500"></div>
 
     <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 relative z-10">

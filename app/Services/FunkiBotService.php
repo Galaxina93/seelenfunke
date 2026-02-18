@@ -4,6 +4,7 @@ namespace App\Services;
 use App\Mail\AutomaticNewsletterMail;
 use App\Mail\AutomaticVoucherMail;
 use App\Models\Blog\BlogPost;
+use App\Models\CalendarEvent;
 use App\Models\Coupon;
 use App\Models\DayRoutine;
 use App\Models\Financial\FinanceCostItem;
@@ -41,7 +42,136 @@ class FunkiBotService
         $now = Carbon::now();
 
         // ------------------------------------------------------------------
-        // LEVEL 0: BIO-RHYTHMUS & ZEITFENSTER
+        // LEVEL 1: KRITISCHE SICHERHEIT (Geht über ALLES)
+        // ------------------------------------------------------------------
+        $failedLogins = LoginAttempt::where('success', false)
+            ->where('attempted_at', '>', now()->subHours(24))
+            ->count();
+
+        if ($failedLogins > 5) {
+            return [
+                'score' => 1000,
+                'title' => 'Sicherheits-Alarm!',
+                'message' => "ALARM! {$failedLogins} Fehlversuche registriert. Lass alles stehen und liegen. Prüfe die IP-Adressen!",
+                'action_label' => 'Sicherheit prüfen',
+                'action_route' => 'admin.user-management',
+                'icon' => '🛑',
+                'instruction' => 'SOFORT HANDELN:'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // LEVEL 2: KALENDER & TERMINE (Geht vor Routine)
+        // ------------------------------------------------------------------
+
+        // Termine laden (Einmalig & Wiederkehrend)
+        $calendarEvents = CalendarEvent::whereNull('recurrence')
+            ->whereDate('start_date', $now->toDateString())
+            ->get();
+
+        $recurringEvents = CalendarEvent::whereNotNull('recurrence')->get();
+        $allRelevantEvents = $calendarEvents->merge($recurringEvents);
+
+        $activeAppointment = null;
+        $appointmentState = ''; // 'active', 'upcoming_urgent', 'upcoming_reminder'
+
+        foreach ($allRelevantEvents as $event) {
+            $effectiveStart = $event->start_date->copy();
+            $effectiveEnd = $event->end_date ? $event->end_date->copy() : $effectiveStart->copy()->addHour();
+
+            // Wiederholung berechnen
+            if ($event->recurrence) {
+                $matchesToday = false;
+                $startOfToday = $now->copy()->startOfDay();
+
+                if ($event->recurrence_end_date && $event->recurrence_end_date < $startOfToday) continue;
+
+                switch ($event->recurrence) {
+                    case 'daily': $matchesToday = true; break;
+                    case 'weekly': $matchesToday = $event->start_date->isSameDayOfWeek($now); break;
+                    case 'monthly': $matchesToday = $event->start_date->day === $now->day; break;
+                    case 'yearly': $matchesToday = $event->start_date->format('m-d') === $now->format('m-d'); break;
+                }
+
+                if (!$matchesToday) continue;
+
+                $effectiveStart->setDate($now->year, $now->month, $now->day);
+                $effectiveEnd->setDate($now->year, $now->month, $now->day);
+            }
+
+            // CHECK 1: Läuft der Termin gerade?
+            if ($now->between($effectiveStart, $effectiveEnd)) {
+                $activeAppointment = $event;
+                $appointmentState = 'active';
+                break; // Top Prio, Schleife abbrechen
+            }
+
+            // CHECK 2: Baldiger Start (Erinnerung)
+            if ($effectiveStart->isFuture()) {
+                $minutesToStart = $now->diffInMinutes($effectiveStart);
+
+                // Hat der Termin eine eigene Erinnerung? Wenn nein, Standard 45 Min.
+                $reminderThreshold = $event->reminder_minutes ?? 45;
+
+                // Logik:
+                // 1. Sehr dringend (< 15 min): Immer warnen (höchste Prio bei Upcoming)
+                // 2. Erinnerung (< Threshold): Warnen
+
+                if ($minutesToStart <= 15) {
+                    $activeAppointment = $event;
+                    $appointmentState = 'upcoming_urgent'; // Rot
+                } elseif ($minutesToStart <= $reminderThreshold) {
+                    // Nur überschreiben, wenn wir nicht schon was Dringenderes (Urgent) haben
+                    if ($appointmentState !== 'upcoming_urgent') {
+                        $activeAppointment = $event;
+                        $appointmentState = 'upcoming_reminder'; // Gelb
+                    }
+                }
+            }
+        }
+
+        if ($activeAppointment) {
+            $effectiveStart = $activeAppointment->start_date->copy();
+            if ($activeAppointment->recurrence) {
+                $effectiveStart->setDate($now->year, $now->month, $now->day);
+            }
+
+            $message = "";
+            $score = 500;
+            $instruction = "Termin wahrnehmen:";
+
+            if ($appointmentState === 'active') {
+                $message = "Der Termin '{$activeAppointment->title}' läuft seit " . $effectiveStart->format('H:i') . " Uhr. Fokus!";
+                $score = 600;
+            } elseif ($appointmentState === 'upcoming_urgent') {
+                $message = "Achtung! In weniger als 15 Minuten startet '{$activeAppointment->title}' ({$effectiveStart->format('H:i')}). Mach dich bereit!";
+                $score = 550;
+                $instruction = "Gleich geht's los:";
+            } else {
+                // Reminder Phase (nach Config oder 45 min Standard)
+                $diff = $now->diffInMinutes($effectiveStart);
+                $message = "Erinnerung: In {$diff} Minuten ({$effectiveStart->format('H:i')}) ist '{$activeAppointment->title}'. Bereite dich vor.";
+                $score = 500;
+            }
+
+            $baustellen[] = [
+                'score' => $score,
+                'title' => ($appointmentState === 'active' ? 'Termin läuft' : 'Termin steht an'),
+                'message' => $message,
+                'action_label' => 'Kalender öffnen',
+                'action_route' => 'admin.funki-kalender', // <-- ANGEPASSTE ROUTE
+                'icon' => '📅',
+                'instruction' => $instruction
+            ];
+        }
+
+        // Wenn ein Termin aktiv/warnend ist, geben wir ihn sofort zurück (unterbricht Routine)
+        if (!empty($baustellen)) {
+            return $baustellen[0];
+        }
+
+        // ------------------------------------------------------------------
+        // LEVEL 3: BIO-RHYTHMUS (ROUTINE)
         // ------------------------------------------------------------------
 
         // Kernarbeitszeit definieren (09:00 - 22:00)
@@ -50,95 +180,66 @@ class FunkiBotService
             Carbon::createFromTime(22, 0, 0)
         );
 
-        // Prüfen, ob gerade eine Routine aktiv ist (z.B. Mittagessen, Zähne putzen)
-        // Wir laden alle aktiven Routinen und prüfen, ob JETZT gerade der Zeitraum ist
         $activeRoutine = DayRoutine::with('steps')->where('is_active', true)->get()->filter(function ($routine) use ($now) {
             $start = Carbon::parse($routine->start_time);
-
-            // Sonderfall: Nachtruhe (Ende ist "unendlich" bzw. bis zum Morgen)
             if ($routine->type === 'sleep') {
-                $end = $start->copy()->addHours(8); // Annahme: Bis morgens
+                $end = $start->copy()->addHours(8);
             } else {
                 $end = $start->copy()->addMinutes($routine->duration_minutes);
             }
-
             return $now->between($start, $end);
         })->first();
 
-        // Wenn eine Routine aktiv ist, bekommt sie einen sehr hohen Score (150),
-        // damit sie normale Arbeit unterbricht, aber keine Sicherheitswarnungen.
         if ($activeRoutine) {
-            // GENAUE SCHRITT-BERECHNUNG
+            // Schritt-Berechnung der Routine
             $startTime = Carbon::parse($activeRoutine->start_time);
             $minutesPassed = $startTime->diffInMinutes($now);
 
-            $currentStepName = "Allgemein";
+            $currentStepName = "Fokus halten";
             $currentStepIndex = 1;
             $accumulatedMinutes = 0;
             $nextStepName = null;
 
             foreach ($activeRoutine->steps as $step) {
                 $stepDuration = $step->duration_minutes;
-
-                // Wenn wir noch im Zeitfenster dieses Schritts sind
                 if ($minutesPassed >= $accumulatedMinutes && $minutesPassed < ($accumulatedMinutes + $stepDuration)) {
                     $currentStepName = $step->title;
                     $currentStepIndex = $step->position;
-                    // Nächsten Schritt finden
                     $nextStep = $activeRoutine->steps->where('position', $step->position + 1)->first();
                     $nextStepName = $nextStep ? $nextStep->title : 'Abschluss';
                     break;
                 }
-
                 $accumulatedMinutes += $stepDuration;
             }
 
-            // Wenn wir über der kalkulierten Zeit der Steps sind, aber noch in der Routine-Zeit (Puffer)
             if ($minutesPassed >= $accumulatedMinutes && $activeRoutine->steps->count() > 0) {
-                $currentStepName = "Letzte Handgriffe / Pufferzeit";
+                $currentStepName = "Pufferzeit / Abschluss";
             }
 
             $baustellen[] = [
-                'score' => 150,
-                'title' => $activeRoutine->title . " (Step $currentStepIndex)",
-                'message' => "Es ist " . $now->format('H:i') . ". Laut Plan solltest du jetzt folgendes tun:\n\n👉 **$currentStepName**\n\n(Danach: " . ($nextStepName ?? 'Fertig') . ")",
-                'action_label' => 'Routine anzeigen',
-                'action_route' => 'admin.funki', // Tab Routine
+                'score' => 300,
+                'title' => $activeRoutine->title,
+                'message' => "Es ist " . $now->format('H:i') . ". Kein Termin liegt an, also folge deiner Routine:\n\n👉 **$currentStepName**\n\n(Danach: " . ($nextStepName ?? 'Fertig') . ")",
+                'action_label' => 'Routine ansehen',
+                'action_route' => 'admin.funki-routine', // <-- ANGEPASSTE ROUTE
                 'icon' => $this->getIconForType($activeRoutine->type),
-                'instruction' => 'Aktueller Fokus:'
+                'instruction' => 'Bio-Rhythmus:'
             ];
         }
 
-        // ------------------------------------------------------------------
-        // LEVEL 1: KRITISCHE GESCHÄFTSVORFÄLLE (Sicherheit geht immer vor)
-        // ------------------------------------------------------------------
-
-        // 1. SICHERHEIT: UNBEFUGTE LOGINS (Score 250)
-        $failedLogins = LoginAttempt::where('success', false)
-            ->where('attempted_at', '>', now()->subHours(24))
-            ->count();
-
-        if ($failedLogins > 5) {
-            $baustellen[] = [
-                'score' => 250,
-                'title' => 'Sicherheits-Alarm!',
-                'message' => "Jemand rüttelt an der Tür! Ich habe {$failedLogins} Fehlversuche registriert. Prüfe sofort die IP-Adressen im User-Management.",
-                'action_label' => 'Sicherheit prüfen',
-                'action_route' => 'admin.user-management',
-                'icon' => '🛑'
-            ];
+        // Wenn Routine aktiv ist -> Routine ausgeben
+        if (!empty($baustellen)) {
+            return $baustellen[0];
         }
 
         // ------------------------------------------------------------------
         // BREAKPOINT: RUHEZEIT
-        // Wenn keine Routine aktiv ist, keine Sicherheitswarnung vorliegt
-        // UND wir außerhalb der Arbeitszeit sind -> Feierabend erzwingen.
         // ------------------------------------------------------------------
-        if (!$isWorkTime && empty($baustellen)) {
+        if (!$isWorkTime) {
             return [
-                'score' => 1000, // Gewinnt gegen alles außer Sicherheit
+                'score' => 1000,
                 'title' => 'Ruhemodus',
-                'message' => "Es ist " . $now->format('H:i') . " Uhr. Außerhalb der Kernzeit (09:00 - 22:00) wird nicht gearbeitet. Erhol dich gut!",
+                'message' => "Es ist " . $now->format('H:i') . " Uhr. Keine Termine, keine Routine. Ruh dich aus!",
                 'action_label' => 'Gute Nacht',
                 'action_route' => 'admin.dashboard',
                 'icon' => '🌙',
@@ -147,11 +248,11 @@ class FunkiBotService
         }
 
         // ------------------------------------------------------------------
-        // LEVEL 2: OPERATIVES GESCHÄFT (Nur während Arbeitszeit)
+        // LEVEL 4: OPERATIVES GESCHÄFT (Lückenfüller)
         // ------------------------------------------------------------------
 
         if ($isWorkTime) {
-            // 2. PRODUKTION: BESTELLUNGEN (Score 200+)
+            // 1. BESTELLUNGEN
             $prioOrder = Order::whereIn('status', ['pending', 'processing'])
                 ->orderBy('is_express', 'desc')
                 ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
@@ -165,14 +266,14 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => $score,
                     'title' => 'Produktion starten',
-                    'message' => "Bestellung #{$prioOrder->order_number} wartet. " . ($prioOrder->is_express ? "ACHTUNG: EXPRESS-PRIO! " : "") . "Kunde: {$prioOrder->billing_address['first_name']} {$prioOrder->billing_address['last_name']}.",
+                    'message' => "Freie Zeit nutzen! Bestellung #{$prioOrder->order_number} wartet. " . ($prioOrder->is_express ? "EXPRESS! " : "") . "Kunde: {$prioOrder->billing_address['first_name']} {$prioOrder->billing_address['last_name']}.",
                     'action_label' => 'Jetzt fertigen',
                     'action_route' => 'admin.orders',
                     'icon' => '🚀'
                 ];
             }
 
-            // 3. BUCHHALTUNG: SONDERAUSGABEN OHNE BELEG (Score 110)
+            // 2. BELEGE
             $missingReceipt = FinanceSpecialIssue::where(function($q) {
                 $q->whereNull('file_paths')->orWhere('file_paths', '[]')->orWhere('file_paths', '');
             })->orderBy('execution_date', 'desc')->first();
@@ -181,40 +282,40 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => 110,
                     'title' => 'Beleg fehlt!',
-                    'message' => "Für die Ausgabe '{$missingReceipt->title}' vom {$missingReceipt->execution_date->format('d.m.Y')} ({{ number_format($missingReceipt->amount, 2) }}€) hast du noch keinen Beleg hinterlegt.",
+                    'message' => "Buchhaltung machen: Für '{$missingReceipt->title}' ({{ number_format($missingReceipt->amount, 2) }}€) fehlt der Beleg.",
                     'action_label' => 'Beleg hochladen',
                     'action_route' => 'admin.financial-categories-special-editions',
                     'icon' => '📸'
                 ];
             }
 
-            // 4. BUCHHALTUNG: ÜBERFÄLLIGE RECHNUNGEN (Score 105)
+            // 3. RECHNUNGEN
             $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
             if ($overdueInvoices > 0) {
                 $baustellen[] = [
                     'score' => 105,
                     'title' => 'Zahlungseingänge prüfen',
-                    'message' => "Wir haben {$overdueInvoices} überfällige Rechnungen. Schau nach, ob das Geld da ist oder schick eine freundliche Mahnung.",
+                    'message' => "Wir haben {$overdueInvoices} überfällige Rechnungen. Schau nach dem Geld.",
                     'action_label' => 'Rechnungen prüfen',
                     'action_route' => 'admin.invoices',
                     'icon' => '💸'
                 ];
             }
 
-            // 5. ORDNUNG: FIXKOSTEN OHNE VERTRAG (Score 85)
+            // 4. VERTRAG
             $missingContract = FinanceCostItem::whereNull('contract_file_path')->first();
             if ($missingContract) {
                 $baustellen[] = [
                     'score' => 85,
                     'title' => 'Vertrag hinterlegen',
-                    'message' => "Für '{$missingContract->name}' fehlt der Vertrag im System. Bitte einscannen und hochladen.",
+                    'message' => "Für '{$missingContract->name}' fehlt der Vertrag im System.",
                     'action_label' => 'Vertrag hochladen',
                     'action_route' => 'admin.financial-contracts-groups',
                     'icon' => '📄'
                 ];
             }
 
-            // 6. LAGER: BESTANDSPRÜFUNG (Score 80)
+            // 5. LAGER
             $lowStock = Product::where('track_quantity', true)
                 ->where('quantity', '<=', (int)shop_setting('inventory_low_stock_threshold', 5))
                 ->where('status', 'active')->first();
@@ -222,20 +323,20 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => 80,
                     'title' => 'Lager auffüllen',
-                    'message' => "Nur noch {$lowStock->quantity}x '{$lowStock->name}' verfügbar. Bestelle rechtzeitig nach!",
+                    'message' => "Bestand niedrig: Nur noch {$lowStock->quantity}x '{$lowStock->name}'.",
                     'action_label' => 'Lager verwalten',
                     'action_route' => 'admin.products',
                     'icon' => '📦'
                 ];
             }
 
-            // 7. CONTENT: BLOG (Score 30)
+            // 6. BLOG
             $lastBlog = BlogPost::where('status', 'published')->latest('published_at')->first();
             if (!$lastBlog || $lastBlog->published_at->diffInDays(now()) > 30) {
                 $baustellen[] = [
                     'score' => 30,
-                    'title' => 'Inspiration teilen',
-                    'message' => "Dein letzter Blogpost ist schon eine Weile her. Lass uns die Kunden mal wieder mit einer schönen Geschichte begeistern.",
+                    'title' => 'Content erstellen',
+                    'message' => "Dein letzter Blogpost ist lange her. Zeit für neue Inspiration!",
                     'action_label' => 'Beitrag schreiben',
                     'action_route' => 'admin.blog',
                     'icon' => '✍️'
@@ -243,25 +344,20 @@ class FunkiBotService
             }
         }
 
-        // ------------------------------------------------------------------
-        // ENTSCHEIDUNG LEVEL 1 & 2
-        // ------------------------------------------------------------------
+        // ENTSCHEIDUNG LEVEL 4
         if (!empty($baustellen)) {
-            // Sortieren nach Score (höchster zuerst)
             usort($baustellen, fn($a, $b) => $b['score'] <=> $a['score']);
-
             $winner = $baustellen[0];
-            $winner['instruction'] = $winner['instruction'] ?? "Tue jetzt exakt das:";
+            $winner['instruction'] = $winner['instruction'] ?? "Freie Zeit nutzen:";
             return $winner;
         }
 
         // ------------------------------------------------------------------
-        // LEVEL 3: LÜCKENFÜLLER (TODOS)
+        // LEVEL 5: TODOS
         // ------------------------------------------------------------------
-        // Wenn keine operativen Probleme vorliegen und Arbeitszeit ist:
         if ($isWorkTime) {
             $nextTodo = Todo::where('is_completed', false)
-                ->whereNull('parent_id') // Nur Hauptaufgaben
+                ->whereNull('parent_id')
                 ->orderBy('position', 'asc')
                 ->orderBy('created_at', 'asc')
                 ->first();
@@ -271,9 +367,9 @@ class FunkiBotService
                 return [
                     'score' => 10,
                     'title' => 'Todo abarbeiten',
-                    'message' => "Operativ ist alles sauber. Zeit für die Warteschlange! ({$openCount} offen). Nächste Aufgabe: '{$nextTodo->title}'.",
+                    'message' => "Alles sauber im Shop! Zeit für die Warteschlange ({$openCount} offen). Nächste Aufgabe: '{$nextTodo->title}'.",
                     'action_label' => 'Zur ToDo Liste',
-                    'action_route' => 'admin.funki', // Tab Todo
+                    'action_route' => 'admin.funki-todos', // <-- ANGEPASSTE ROUTE
                     'icon' => '✅',
                     'instruction' => 'Jetzt erledigen:'
                 ];
@@ -281,16 +377,15 @@ class FunkiBotService
         }
 
         // ------------------------------------------------------------------
-        // LEVEL 4: SPORT & FREIZEIT (Alles erledigt)
+        // LEVEL 6: FREIZEIT
         // ------------------------------------------------------------------
-
         $user = Auth::user();
         $name = $user ? $user->first_name : 'Du';
 
         return [
             'score' => 0,
             'title' => 'Mach Sport!',
-            'message' => "Unglaublich, {$name}! Das System ist blitzsauber, alle Todos sind erledigt. Geh trainieren oder genieß den Tag. Du hast es dir verdient! 🏋️‍♀️",
+            'message' => "Unglaublich, {$name}! Keine Termine, Routine durch, Shop leer, Todos erledigt. Geh raus und mach Sport! 🏋️‍♀️",
             'action_label' => 'Dashboard öffnen',
             'action_route' => 'admin.dashboard',
             'icon' => '🏆',

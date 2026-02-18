@@ -16,25 +16,31 @@ class FunkiBot extends Component
 {
     use WithPagination;
 
-    // Tab & Ansichts-Steuerung
-    public $activeTab = 'instructions'; // 'instructions' oder 'automation'
+    // -------------------------------------------------------------------------
+    // 1. STEUERUNG & TABS
+    // -------------------------------------------------------------------------
+    public $activeTab = 'instructions'; // 'instructions', 'routine', 'funkitodo', 'automation', 'calendar'
+
+    // Unter-Ansichten Steuerung
     public $newsletterMode = 'timeline'; // 'timeline' oder 'subscribers'
     public $voucherMode = 'timeline';    // 'timeline' oder 'list'
     public $voucherSectionMode = 'auto'; // 'auto' (Saisonal) oder 'manual' (Manuell)
-
-    // Archiv-Steuerung
-    public $showNewsletterArchive = false;
+    public $showNewsletterArchive = false; // Steuert die Anzeige des Archivs
 
     // Suche & Pagination
     public $search = '';
 
-    // Newsletter Editor Variablen
+    // -------------------------------------------------------------------------
+    // 2. EDITOR VARIABLES (Newsletter)
+    // -------------------------------------------------------------------------
     public $editingTemplateId = null;
     public $edit_subject;
     public $edit_content;
     public $edit_offset;
 
-    // Voucher Automatisierung Editor (Auto-Modus)
+    // -------------------------------------------------------------------------
+    // 3. EDITOR VARIABLES (Voucher Automatisierung)
+    // -------------------------------------------------------------------------
     public $editingVoucherId = null;
     public $edit_voucher_title;
     public $edit_voucher_trigger;
@@ -49,7 +55,9 @@ class FunkiBot extends Component
     public $edit_voucher_valid_until;
     public $edit_voucher_min_order;
 
-    // Manuelle Gutschein Verwaltung (Manual-Modus)
+    // -------------------------------------------------------------------------
+    // 4. EDITOR VARIABLES (Manuelle Gutscheine)
+    // -------------------------------------------------------------------------
     public $isCreatingManual = false;
     public $isEditingManual = false;
     public $manualId = null;
@@ -60,6 +68,10 @@ class FunkiBot extends Component
     public $manual_usage_limit;
     public $manual_valid_until;
     public $manual_is_active = true;
+
+    // -------------------------------------------------------------------------
+    // COMPUTED PROPERTIES (Das "Gehirn")
+    // -------------------------------------------------------------------------
 
     /**
      * Arbeitsanweisungen für das Dashboard (Tab 1).
@@ -78,14 +90,17 @@ class FunkiBot extends Component
         ];
     }
 
-    // Füge dies zu deinen anderen Methoden hinzu
+    /**
+     * Ruft die ultimative Anweisung vom Service ab.
+     * Dies wird in der View via $this->ultimateCommand genutzt.
+     */
     public function getUltimateCommandProperty()
     {
         return app(FunkiBotService::class)->getUltimateCommand();
     }
 
     /**
-     * Statistiken für den Header-Bereich.
+     * Statistiken für den Header.
      */
     public function getStats()
     {
@@ -97,14 +112,16 @@ class FunkiBot extends Component
         ];
     }
 
+    // -------------------------------------------------------------------------
+    // ACTIONS
+    // -------------------------------------------------------------------------
+
     public function setTab($tab)
     {
         $this->activeTab = $tab;
     }
 
-    /* =========================================================================
-       NEWSLETTER LOGIK
-       ========================================================================= */
+    /* --- NEWSLETTER LOGIK --- */
 
     public function setNewsletterMode($mode)
     {
@@ -191,9 +208,7 @@ class FunkiBot extends Component
         }
     }
 
-    /* =========================================================================
-       GUTSCHEIN LOGIK (AUTO & MANUELL)
-       ========================================================================= */
+    /* --- GUTSCHEIN LOGIK (AUTO) --- */
 
     public function toggleVoucherSectionMode()
     {
@@ -202,18 +217,14 @@ class FunkiBot extends Component
         $this->cancelManualCoupon();
     }
 
-    /**
-     * Toggelt den Aktiv-Status eines Gutscheins (is_active).
-     */
     public function toggleVoucherStatus($id)
     {
         $v = FunkiVoucher::find($id);
         if ($v) {
             $v->is_active = !$v->is_active;
             $v->save();
-
-            $statusText = $v->is_active ? 'aktiviert' : 'pausiert';
-            session()->flash('success', "Gutschein erfolgreich $statusText.");
+            $status = $v->is_active ? 'aktiviert' : 'pausiert';
+            session()->flash('success', "Gutschein erfolgreich $status.");
         }
     }
 
@@ -279,6 +290,33 @@ class FunkiBot extends Component
         ]);
     }
 
+    public function sendTestVoucherMail()
+    {
+        $this->validate([
+            'edit_voucher_subject' => 'required',
+            'edit_voucher_content' => 'required',
+            'edit_voucher_value'   => 'required',
+            'edit_voucher_code'    => 'required'
+        ]);
+
+        try {
+            $service = app(FunkiBotService::class);
+            $recipient = $service->sendVoucherPreviewMail(
+                $this->edit_voucher_subject,
+                $this->edit_voucher_content,
+                $this->edit_voucher_code,
+                $this->edit_voucher_value,
+                $this->edit_voucher_type
+            );
+            session()->flash('voucher_test_success', 'Test-Gutschein an ' . $recipient . ' gesendet!');
+        } catch (\Exception $e) {
+            Log::error('Voucher Testmail Fehler: ' . $e->getMessage());
+            session()->flash('voucher_test_error', 'Fehler: ' . $e->getMessage());
+        }
+    }
+
+    /* --- GUTSCHEIN LOGIK (MANUELL) --- */
+
     public function createManualCoupon()
     {
         $this->cancelEditVoucher();
@@ -312,11 +350,12 @@ class FunkiBot extends Component
 
     public function saveManualCoupon()
     {
-        $this->validate([
+        $rules = [
             'manual_code'  => 'required|min:3|unique:funki_vouchers,code,' . $this->manualId,
             'manual_type'  => 'required|in:fixed,percent',
             'manual_value' => 'required|numeric|min:1',
-        ]);
+        ];
+        $this->validate($rules);
 
         $dbValue = ($this->manual_type === 'fixed') ? (int)($this->manual_value * 100) : (int)$this->manual_value;
         $dbMinOrder = $this->manual_min_order_value ? (int)($this->manual_min_order_value * 100) : null;
@@ -364,10 +403,9 @@ class FunkiBot extends Component
         $this->manual_type = 'fixed';
     }
 
-    /* =========================================================================
+    /* -------------------------------------------------------------------------
        RENDER
-       ========================================================================= */
-
+       ------------------------------------------------------------------------- */
     public function render(FunkiBotService $service)
     {
         $autoVouchers = FunkiVoucher::where('mode', 'auto')
@@ -388,7 +426,9 @@ class FunkiBot extends Component
             'subscribers'        => $this->newsletterMode === 'subscribers'
                 ? NewsletterSubscriber::where('email', 'like', "%{$this->search}%")->paginate(10)
                 : collect(),
-            'archivedTemplates'  => FunkiNewsletter::where('is_active', false)->get(),
+            'archivedTemplates'  => $this->showNewsletterArchive
+                ? FunkiNewsletter::where('is_active', false)->get()
+                : collect(), // Lade nur wenn Archiv offen
             'availableEvents'    => $service->getAvailableEvents(),
             'manualCoupons'      => $manualCoupons
         ]);

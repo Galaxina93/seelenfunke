@@ -1,6 +1,5 @@
 <?php
 
-use App\Livewire\Shop\OrderDetail;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:admin'])->group(function () {
@@ -9,6 +8,23 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/dashboard', function () {
     return view('backend.admin.pages.dashboard');
     })->name('admin.dashboard');
+
+    // Funki
+    Route::get('/admin/funki', function () {
+        return view('backend.admin.pages.funki');
+    })->name('admin.funki');
+    Route::get('/admin/funki-routine', function () {
+        return view('backend.admin.pages.funki-routine');
+    })->name('admin.funki-routine');
+    Route::get('/admin/funki-todos', function () {
+        return view('backend.admin.pages.funki-todos');
+    })->name('admin.funki-todos');
+    Route::get('/admin/funki-kalender', function () {
+        return view('backend.admin.pages.funki-kalender');
+    })->name('admin.funki-kalender');
+    Route::get('/admin/funki-autopilot', function () {
+        return view('backend.admin.pages.funki-autopilot');
+    })->name('admin.funki-autopilot');
 
     // Benutzerverwaltung
     Route::get('/admin/user-management', function () {
@@ -26,10 +42,6 @@ Route::middleware(['auth:admin'])->group(function () {
     })->name('admin.profile');
 
     // Shop
-    Route::get('/admin/funki', function () {
-        return view('backend.admin.pages.funki');
-    })->name('admin.funki');
-
     Route::get('/admin/products', function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');

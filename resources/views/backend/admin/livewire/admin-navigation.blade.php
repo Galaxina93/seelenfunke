@@ -3,7 +3,29 @@
     {{-- GRUPPE 1: Dashboard --}}
     <li>
         <ul role="list" class="-mx-2 space-y-1">
+
             <x-forms.list-item route="/admin/dashboard" title="Dashboard" pageName="dashboard" icon="home" />
+
+            {{-- Funki Dropdown --}}
+            <li x-data="{ open: true }">
+                <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
+                    <x-heroicon-o-cube class="h-6 w-6 shrink-0 text-white" />
+                    <span>Funkis Zentrale</span>
+                    <x-heroicon-m-chevron-right class="ml-auto h-5 w-5 transform transition-transform duration-200 text-white" ::class="open ? 'rotate-90' : ''" />
+                </button>
+                <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
+
+                    {{-- Funki --}}
+                    <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="bolt" />
+                    <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="bolt" />
+                    <x-forms.list-item route="/admin/funki-todos" title="Todos" pageName="funki-todos" icon="bolt" />
+                    <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="bolt" />
+                    <x-forms.list-item route="/admin/funki-autopilot" title="Autopilot" pageName="funki-autopilot" icon="bolt" />
+
+                </ul>
+            </li>
+
+
         </ul>
     </li>
 
@@ -11,10 +33,6 @@
     <li>
         <div class="text-xs font-semibold leading-6 text-gray-200 uppercase tracking-wider mb-2">Shopverwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
-
-            {{-- Funki --}}
-            <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="bolt" />
-
             {{-- Produkte & Marketing Dropdown --}}
             <li x-data="{ open: true }">
                 <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
