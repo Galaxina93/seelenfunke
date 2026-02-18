@@ -41,7 +41,7 @@
 
                 {{-- RECHTER BEREICH: Funkitodo --}}
                 <div class="sticky top-24">
-                    @livewire('shop.funki.funki-todo')
+                    @livewire('shop.funki.funki-to-do')
                 </div>
             </div>
 
