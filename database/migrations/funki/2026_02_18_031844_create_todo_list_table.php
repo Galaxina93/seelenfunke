@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->uuid('id')->primary();
             $table->foreignUuid('todo_list_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('parent_id')->nullable()->constrained('todos')->onDelete('cascade');
-            $table->string('title');
+            $table->text('title');
             $table->boolean('is_completed')->default(false);
             $table->integer('position')->default(0);
             $table->string('priority')->default('low');
