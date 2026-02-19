@@ -92,6 +92,15 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     $rawAmount = str_replace(',', '.', (string)$data['amount']);
     $amount = (float)$rawAmount;
 
+    // NEU: Verarbeitung der hochgeladenen Dateien aus der App (Foto/Galerie)
+    if ($request->hasFile('specialFiles')) {
+        $paths = [];
+        foreach ($request->file('specialFiles') as $file) {
+            $path = $file->store('financials/receipts', 'public');
+            $paths[] = $path;
+        }
+    }
+
     $issue = FinanceSpecialIssue::create([
         'id' => Str::uuid(),
         'admin_id' => $request->user()->id,
@@ -100,18 +109,9 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         'category' => $data['category'] ?? 'Sonstiges',
         'execution_date' => $data['date'] ?? now(),
         'is_business' => $data['is_business'] ?? false,
-        'location' => $data['location'] ?? 'App QuickEntry'
+        'location' => $data['location'] ?? 'App QuickEntry',
+        'file_paths' => $paths
     ]);
-
-    // NEU: Verarbeitung der hochgeladenen Dateien aus der App (Foto/Galerie)
-    if ($request->hasFile('specialFiles')) {
-        $paths = [];
-        foreach ($request->file('specialFiles') as $file) {
-            $path = $file->store('financials/special', 'public');
-            $paths[] = $path;
-        }
-        $issue->update(['file_paths' => $paths]);
-    }
 
     if (!empty($data['category'])) {
         $cat = FinanceCategory::firstOrCreate(
