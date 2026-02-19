@@ -1,4 +1,4 @@
-<div x-data="{ draggingId: null }">
+<div x-data="{ draggingItemId: null }">
     <div class="min-h-screen bg-gray-50 pb-20 font-sans text-gray-800">
 
         {{-- Success Notification --}}
@@ -27,8 +27,7 @@
         @endif
 
         {{-- Header --}}
-        <div
-            class="bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-100 sticky top-0 z-30 transition-all duration-300">
+        <div class="bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-100 sticky top-0 z-30 transition-all duration-300">
             <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                 <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-3 tracking-tight">
                     <div class="p-2 bg-blue-100 rounded-xl text-blue-600">
@@ -136,9 +135,7 @@
             @endif
 
             {{-- 1. Donut Chart Section (WIRE:IGNORE WICHTIG) --}}
-            <div
-                class="bg-white rounded-xl shadow-lg border border-gray-100 p-6 flex flex-col md:flex-row items-center gap-8"
-                wire:ignore>
+            <div class="bg-white rounded-xl shadow-lg border border-gray-100 p-6 flex flex-col md:flex-row items-center gap-8" wire:ignore>
                 <div class="w-full md:w-1/3">
                     <h3 class="text-lg font-bold text-gray-700 mb-2">Finanzielle Aufteilung</h3>
                     <p class="text-xs text-gray-400">Übersicht der monatlichen Volumina nach Gruppen. <br> <span
@@ -150,49 +147,83 @@
                 </div>
             </div>
 
-            {{-- 2. Gruppen Grid --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {{-- 2. Gruppen Grid (mit Drag & Drop für Gruppen) --}}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6"
+                 x-data="{
+                    draggedGroup: null,
+                    handleGroupDrop(e) {
+                        const target = e.target.closest('.group-sortable-card');
+                        if (this.draggedGroup && target && this.draggedGroup !== target) {
+                            const container = this.$refs.groupListContainer;
+                            const items = Array.from(container.querySelectorAll('.group-sortable-card'));
+                            const draggedIndex = items.indexOf(this.draggedGroup);
+                            const targetIndex = items.indexOf(target);
+
+                            if (draggedIndex < targetIndex) {
+                                target.after(this.draggedGroup);
+                            } else {
+                                target.before(this.draggedGroup);
+                            }
+
+                            const newOrder = Array.from(container.querySelectorAll('.group-sortable-card')).map(el => el.dataset.groupId);
+                            $wire.updateGroupOrder(newOrder);
+                        }
+                    }
+                 }"
+                 x-ref="groupListContainer">
+
                 @foreach($groups as $group)
                     @php
                         $groupMonthly = 0;
                         $groupYearly = 0;
                         foreach($group->items as $item) {
-                            $groupMonthly += $item->amount / $item->interval_months;
-                            $groupYearly += ($item->amount / $item->interval_months) * 12;
+                            $groupMonthly += $item->amount / ($item->interval_months ?: 1);
+                            $groupYearly += ($item->amount / ($item->interval_months ?: 1)) * 12;
                         }
                     @endphp
 
-                    {{-- DROPZONE für Drag & Drop --}}
-                    <div
-                        x-data="{ isDraggingOver: false }"
-                        @dragover.prevent="isDraggingOver = true"
-                        @dragleave.prevent="isDraggingOver = false"
-                        @drop="isDraggingOver = false; $wire.moveCostItem(draggingId, '{{ $group->id }}')"
-                        :class="isDraggingOver ? 'ring-2 ring-orange-400 bg-orange-50 scale-[1.01]' : 'bg-white border-gray-100'"
-                        class="bg-white border rounded-xl overflow-hidden shadow-sm transition-all duration-300 {{ $activeGroupId === $group->id ? 'ring-2 ring-primary/20 shadow-md lg:col-span-2' : '' }}"
+                    {{-- GROUP CARD (Dropzone für Gruppen UND Items) --}}
+                    <div data-group-id="{{ $group->id }}"
+                         class="group-sortable-card bg-white border rounded-xl overflow-hidden shadow-sm transition-all duration-300 {{ $activeGroupId === $group->id ? 'ring-2 ring-primary/20 shadow-md lg:col-span-2' : 'border-gray-100' }}"
+                         draggable="true"
+                         @dragstart.stop="draggedGroup = $el; $el.classList.add('opacity-50', 'scale-[0.98]')"
+                         @dragend.stop="draggedGroup = null; $el.classList.remove('opacity-50', 'scale-[0.98]')"
+                         x-data="{ isDraggingOver: false }"
+                         @dragover.prevent="if(!draggedGroup && draggingItemId) isDraggingOver = true"
+                         @dragleave.prevent="isDraggingOver = false"
+                         @drop.prevent="
+                            isDraggingOver = false;
+                            if(draggedGroup) {
+                                handleGroupDrop($event);
+                            } else if(draggingItemId) {
+                                $wire.moveCostItem(draggingItemId, '{{ $group->id }}');
+                            }
+                         "
+                         :class="isDraggingOver ? 'ring-2 ring-orange-400 bg-orange-50 scale-[1.01]' : ''"
                     >
+                        {{-- Drag Handle Indikator für die Gruppe --}}
+                        <div class="w-full py-1.5 bg-gray-50 flex items-center justify-center cursor-grab active:cursor-grabbing border-b border-gray-100 opacity-60 hover:opacity-100 transition-opacity" title="Gruppe verschieben">
+                            <div class="w-10 h-1.5 bg-gray-300 rounded-full"></div>
+                        </div>
 
                         {{-- Group Header --}}
                         @include('livewire.shop.financial.financial-contracts-groups.partials.group_header')
 
-                        {{-- Group Body --}}
+                        {{-- Group Body (Items) --}}
                         @if($activeGroupId === $group->id)
-                            <div class="border-t border-gray-100 bg-gray-50/50 p-4">
+                            <div class="border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6 animate-fade-in-down" @dragstart.stop>
 
-                                {{-- Items Liste --}}
-                                <div class="space-y-3 mb-6">
+                                <div class="space-y-3">
                                     @foreach($group->items as $item)
-                                        <div
-                                            class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
-                                            draggable="true"
-                                            @dragstart="draggingId = '{{ $item->id }}'"
-                                            @dragend="draggingId = null"
+                                        {{-- ITEM CARD (Draggable) --}}
+                                        <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                                             draggable="true"
+                                             @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
+                                             @dragend.stop="draggingItemId = null"
                                         >
                                             @if($editingItemId === $item->id)
-
                                                 {{-- EDIT COSTITEM --}}
                                                 @include('livewire.shop.financial.financial-contracts-groups.partials.edit_cost_item')
-
                                             @else
                                                 {{-- DISPLAY MODE --}}
                                                 @include('livewire.shop.financial.financial-contracts-groups.partials.cost_item')

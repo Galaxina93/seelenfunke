@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Livewire\Shop\Financial;
 
 use App\Models\Financial\FinanceGroup;
@@ -15,7 +14,6 @@ class FinancialContractsGroups extends Component
 {
     use WithFileUploads;
 
-    // State
     #[Url]
     public $selectedYear;
     #[Url]
@@ -23,27 +21,20 @@ class FinancialContractsGroups extends Component
 
     public ?string $activeGroupId = null;
 
-    // Inline Editing für Gruppen
     public ?string $editingGroupId = null;
     #[Rule('required|min:3')]
     public $tempGroupName = '';
 
-    // State für "Neue Kostenstelle"-Formular Toggle
     public $showAddItemFormForGroup = null;
 
-    // Forms: Neue Gruppe
     public $newGroupName = '';
     public $newGroupType = 'expense';
-
-    // State für "Neue Gruppe"-Formular Toggle (Kachel)
     public $isCreatingGroup = false;
 
-    // State für Quick Upload in der Validierungs-Tabelle
     public ?string $uploadingMissingItemId = null;
     #[Rule('required|file|max:10240')]
     public $quickUploadFile;
 
-    // Forms: Kostenstellen
     #[Rule('required', message: 'Bitte geben Sie einen Namen an.')]
     public $itemName = '';
 
@@ -69,9 +60,9 @@ class FinancialContractsGroups extends Component
         if (!Auth::guard('admin')->check()) {
             abort(403, 'Nur Administratoren haben Zugriff auf die Finanzen.');
         }
+
         $this->selectedYear = $this->selectedYear ?? date('Y');
         $this->selectedMonth = $this->selectedMonth ?? date('n');
-
         $this->itemDate = date('Y-m-d');
     }
 
@@ -79,8 +70,6 @@ class FinancialContractsGroups extends Component
     {
         return Auth::guard('admin')->id();
     }
-
-    // --- Computed Properties ---
 
     public function getMissingContractsProperty()
     {
@@ -92,8 +81,6 @@ class FinancialContractsGroups extends Component
             ->orderBy('name')
             ->get();
     }
-
-    // --- Actions: Quick Upload (Validierungs-Tabelle) ---
 
     public function startQuickUpload($itemId)
     {
@@ -110,10 +97,8 @@ class FinancialContractsGroups extends Component
     public function saveQuickUpload()
     {
         $this->validate(['quickUploadFile' => 'required|file|max:10240']);
-
         $item = FinanceCostItem::findOrFail($this->uploadingMissingItemId);
 
-        // Security Check
         if ($item->group->admin_id !== $this->getAdminId()) {
             abort(403);
         }
@@ -123,20 +108,20 @@ class FinancialContractsGroups extends Component
 
         $this->uploadingMissingItemId = null;
         $this->reset('quickUploadFile');
-
         session()->flash('success', 'Datei erfolgreich hochgeladen.');
     }
-
-    // --- Actions: Groups ---
 
     public function createGroup()
     {
         $this->validate(['newGroupName' => 'required|min:3']);
 
+        $position = FinanceGroup::where('admin_id', $this->getAdminId())->max('position') + 1;
+
         FinanceGroup::create([
             'admin_id' => $this->getAdminId(),
             'name' => $this->newGroupName,
-            'type' => $this->newGroupType
+            'type' => $this->newGroupType,
+            'position' => $position
         ]);
 
         $this->reset('newGroupName', 'newGroupType', 'isCreatingGroup');
@@ -193,7 +178,17 @@ class FinancialContractsGroups extends Component
         }
     }
 
-    // --- Actions: Items ---
+    // NEU: Gruppen Positionen nach Drag & Drop speichern
+    public function updateGroupOrder($orderedIds)
+    {
+        foreach ($orderedIds as $index => $id) {
+            FinanceGroup::where('id', $id)
+                ->where('admin_id', $this->getAdminId())
+                ->update(['position' => $index]);
+        }
+        $this->dispatchChartUpdate();
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Gruppen-Reihenfolge gespeichert.']);
+    }
 
     public function moveCostItem($itemId, $targetGroupId)
     {
@@ -228,7 +223,6 @@ class FinancialContractsGroups extends Component
     {
         $this->resetItemForm();
         $this->showAddItemFormForGroup = null;
-
         $this->addingToGroupId = $groupId;
 
         if ($itemId) {
@@ -296,7 +290,6 @@ class FinancialContractsGroups extends Component
             $item->update($data);
             $this->editingItemId = null;
             session()->flash('success', 'Kostenstelle aktualisiert.');
-
         } else {
             if(!$this->addingToGroupId) {
                 session()->flash('error', 'Fehler: Keine Zielgruppe gefunden.');
@@ -341,8 +334,8 @@ class FinancialContractsGroups extends Component
     {
         $item = FinanceCostItem::findOrFail($id);
         if($item->group->admin_id !== $this->getAdminId()) abort(403);
-        $item->delete();
 
+        $item->delete();
         $this->dispatchChartUpdate();
         session()->flash('success', 'Kostenstelle gelöscht.');
     }
@@ -357,7 +350,7 @@ class FinancialContractsGroups extends Component
     {
         $groups = FinanceGroup::with('items')
             ->where('admin_id', $this->getAdminId())
-            ->orderBy('type')
+            ->orderBy('position')
             ->orderBy('created_at')
             ->get();
 
@@ -374,7 +367,6 @@ class FinancialContractsGroups extends Component
             if($monthlySum > 0) {
                 $chartLabels[] = $group->name;
                 $chartData[] = round($monthlySum, 2);
-
                 if ($group->type === 'income') {
                     $chartColors[] = '#10b981';
                 } else {
@@ -388,13 +380,13 @@ class FinancialContractsGroups extends Component
 
     public function render()
     {
+        // WICHTIG: Sortierung nach `position`!
         $groups = FinanceGroup::with('items')
             ->where('admin_id', $this->getAdminId())
-            ->orderBy('type')
+            ->orderBy('position')
             ->orderBy('created_at')
             ->get();
 
-        // Initial Data for Render
         $chartLabels = [];
         $chartData = [];
         $chartColors = [];
@@ -404,6 +396,7 @@ class FinancialContractsGroups extends Component
             foreach($group->items as $item) {
                 $monthlySum += abs($item->amount) / $item->interval_months;
             }
+
             if($monthlySum > 0) {
                 $chartLabels[] = $group->name;
                 $chartData[] = round($monthlySum, 2);
