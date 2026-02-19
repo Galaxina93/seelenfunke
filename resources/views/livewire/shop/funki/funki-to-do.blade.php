@@ -145,11 +145,14 @@
                     @forelse($todos as $todo)
                         <div class="group/task" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }">
 
-                            {{-- Hauptaufgabe Karte --}}
+                            {{-- Hauptaufgabe Karte - DYNAMISCHE FARBEN --}}
                             <div @class([
                                 'relative flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 group-hover/task:shadow-md',
                                 'bg-slate-50/50 border-slate-100 opacity-60' => $todo->is_completed,
-                                'bg-white border-slate-100 shadow-sm hover:border-primary/20' => !$todo->is_completed
+                                'shadow-sm hover:border-primary/20' => !$todo->is_completed,
+                                'bg-white border-slate-100' => !$todo->is_completed && ($todo->priority ?? 'low') === 'low',
+                                'bg-orange-50/50 border-orange-200' => !$todo->is_completed && ($todo->priority ?? 'low') === 'medium',
+                                'bg-red-50/50 border-red-200' => !$todo->is_completed && ($todo->priority ?? 'low') === 'high',
                             ])>
                                 {{-- Checkbox --}}
                                 <button wire:click="toggleComplete('{{ $todo->id }}')"
@@ -182,8 +185,18 @@
                                     @endif
                                 </div>
 
-                                {{-- Context Menu --}}
-                                <div class="relative">
+                                {{-- Context Menu & Prio Dropdown --}}
+                                <div class="relative flex items-center gap-2">
+                                    @if(!$todo->is_completed)
+                                        <select wire:change="updateTodoPriority('{{ $todo->id }}', $event.target.value)"
+                                                class="text-xs font-bold border-none bg-transparent focus:ring-0 cursor-pointer py-1 pl-2 pr-6 rounded
+                                                {{ ($todo->priority ?? 'low') === 'high' ? 'text-red-500' : (($todo->priority ?? 'low') === 'medium' ? 'text-orange-500' : 'text-slate-400') }}">
+                                            <option value="low" class="text-slate-500 font-bold" {{ ($todo->priority ?? 'low') == 'low' ? 'selected' : '' }}>Niedrig</option>
+                                            <option value="medium" class="text-orange-500 font-bold" {{ ($todo->priority ?? 'low') == 'medium' ? 'selected' : '' }}>Mittel</option>
+                                            <option value="high" class="text-red-500 font-bold" {{ ($todo->priority ?? 'low') == 'high' ? 'selected' : '' }}>Hoch</option>
+                                        </select>
+                                    @endif
+
                                     <button @click="showMenu = !showMenu" class="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                                         <x-heroicon-m-ellipsis-vertical class="w-5 h-5" />
                                     </button>

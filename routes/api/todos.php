@@ -8,8 +8,10 @@ use Illuminate\Support\Str;
 
 Route::get('/funki/todos', function () {
     // ERWEITERT: 'is_completed' Filter entfernt, damit das Archiv in der App gefüllt werden kann!
-    return Todo::orderBy('position')
-        ->orderBy('created_at')
+    // NEU: Sortierung nach priority hinzugefügt
+    return Todo::orderByRaw("FIELD(COALESCE(priority, 'low'), 'high', 'medium', 'low')")
+        ->orderBy('position')
+        ->orderBy('created_at', 'desc')
         ->get()
         ->map(function($todo) {
             $todo->title = $todo->title ?? 'Ohne Titel';
@@ -61,13 +63,17 @@ Route::put('/funki/todos/lists/{id}', function (Request $request, $id) {
 
 // NEU: Hauptaufgabe (Root) in einer bestimmten Liste anlegen
 Route::post('/funki/todos/lists/{listId}/tasks', function (Request $request, $listId) {
-    $data = $request->validate(['title' => 'required|string']);
+    $data = $request->validate([
+        'title' => 'required|string',
+        'priority' => 'nullable|in:low,medium,high'
+    ]);
 
     $todo = Todo::create([
         'id' => Str::uuid(),
         'todo_list_id' => $listId,
         'parent_id' => null,
         'title' => $data['title'],
+        'priority' => $data['priority'] ?? 'low',
         'is_completed' => false
     ]);
 
@@ -85,8 +91,12 @@ Route::post('/funki/todos/{id}/toggle', function ($id) {
 
 Route::put('/funki/todos/{id}', function (Request $request, $id) {
     $todo = Todo::findOrFail($id);
-    $data = $request->validate(['title' => 'required']);
-    $todo->update(['title' => $data['title']]);
+    // Erlaubt das separate Senden von Title und Priority
+    $data = $request->validate([
+        'title' => 'sometimes|required',
+        'priority' => 'sometimes|in:low,medium,high'
+    ]);
+    $todo->update($data);
     return response()->json(['success' => true]);
 });
 
@@ -99,7 +109,8 @@ Route::post('/funki/todos/{id}/subtask', function (Request $request, $id) {
         'id' => Str::uuid(),
         'todo_list_id' => $todoListId,
         'parent_id' => $todo->id,
-        'title' => $data['title']
+        'title' => $data['title'],
+        'priority' => 'low'
     ]);
     return response()->json(['success' => true]);
 });

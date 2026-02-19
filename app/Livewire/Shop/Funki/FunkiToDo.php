@@ -68,6 +68,7 @@ class FunkiToDo extends Component
             'id' => (string) Str::uuid(),
             'todo_list_id' => $this->selectedListId,
             'title' => $this->newTask_title,
+            'priority' => 'low', // NEU: Default Prio
         ]);
 
         $this->reset('newTask_title');
@@ -82,10 +83,11 @@ class FunkiToDo extends Component
             'todo_list_id' => $this->selectedListId,
             'parent_id' => $parentId,
             'title' => $title,
+            'priority' => 'low',
         ]);
     }
 
-    // NEU: Methode zum Aktualisieren des Titels (Inline Edit)
+    // Methode zum Aktualisieren des Titels (Inline Edit)
     public function updateTodoTitle($id, $newTitle)
     {
         if(empty(trim($newTitle))) return;
@@ -93,6 +95,17 @@ class FunkiToDo extends Component
         $todo = Todo::find($id);
         if($todo) {
             $todo->update(['title' => $newTitle]);
+        }
+    }
+
+    // NEU: Methode zum Aktualisieren der Priorität (Inline Edit)
+    public function updateTodoPriority($id, $priority)
+    {
+        if(empty($priority)) return;
+
+        $todo = Todo::find($id);
+        if($todo && in_array($priority, ['low', 'medium', 'high'])) {
+            $todo->update(['priority' => $priority]);
         }
     }
 
@@ -144,6 +157,7 @@ class FunkiToDo extends Component
                 }])
                 ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
                 ->orderBy('is_completed', 'asc')
+                ->orderByRaw("FIELD(COALESCE(priority, 'low'), 'high', 'medium', 'low')") // NEU: Prio Sortierung
                 ->orderBy('created_at', 'desc')
                 ->get();
         }

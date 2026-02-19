@@ -21,6 +21,7 @@ return new class extends Migration {
             $table->string('title');
             $table->boolean('is_completed')->default(false);
             $table->integer('position')->default(0);
+            $table->string('priority')->default('low');
             $table->timestamps();
         });
     }
