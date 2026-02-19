@@ -320,9 +320,10 @@ Route::middleware('auth:sanctum')->group(function () {
         return response()->json(['success' => true]);
     });
 
-    // --- KALENDER (Fix: Null-Checks und Daten) ---
-    Route::get('/funki/calendar', function () {
-        $start = Carbon::today()->subMonths(1); // Auch etwas Rückblick laden
+    // --- KALENDER: LESEN (GET) ---
+    Route::get('/funki/calendar', function (Request $request) {
+        // Daten für die Ansicht laden
+        $start = Carbon::today()->subMonths(1);
         $end = Carbon::today()->addYear();
 
         $normalEvents = CalendarEvent::whereBetween('start_date', [$start, $end])
@@ -331,27 +332,33 @@ Route::middleware('auth:sanctum')->group(function () {
 
         $expandedEvents = collect();
 
-        foreach($normalEvents as $ev) {
-            if(!$ev->start_date) continue;
+        // 1. Normale Events hinzufügen
+        foreach ($normalEvents as $ev) {
+            if (!$ev->start_date) continue;
             $expandedEvents->push([
                 'id' => (string)$ev->id,
                 'title' => $ev->title ?? 'Termin',
                 'start' => $ev->start_date->toIso8601String(),
+                'end' => $ev->end_date ? $ev->end_date->toIso8601String() : null,
                 'is_all_day' => (bool)$ev->is_all_day,
-                'category' => $ev->category ?? 'general'
+                'category' => $ev->category ?? 'general',
+                'description' => $ev->description,
+                'recurrence' => 'none',
+                'reminder_minutes' => $ev->reminder_minutes
             ]);
         }
 
+        // 2. Wiederkehrende Events berechnen
         $recurringTemplates = CalendarEvent::whereNotNull('recurrence')->get();
-        $calcEnd = Carbon::today()->addMonths(3); // Performance Optimierung: Nicht ganzes Jahr
+        $calcEnd = Carbon::today()->addMonths(6); // Performance: Nur 6 Monate voraus berechnen
 
-        foreach($recurringTemplates as $tmpl) {
-            if(!$tmpl->start_date) continue;
+        foreach ($recurringTemplates as $tmpl) {
+            if (!$tmpl->start_date) continue;
             $simDate = $tmpl->start_date->copy();
 
-            // Auf Startdatum in der Zukunft/Heute spulen
-            if($simDate < Carbon::today()) {
-                while($simDate < Carbon::today()) {
+            // Datum auf heute vorspulen, falls in Vergangenheit
+            if ($simDate < Carbon::today()) {
+                while ($simDate < Carbon::today()) {
                     switch ($tmpl->recurrence) {
                         case 'daily': $simDate->addDay(); break;
                         case 'weekly': $simDate->addWeek(); break;
@@ -361,15 +368,23 @@ Route::middleware('auth:sanctum')->group(function () {
                 }
             }
 
-            while($simDate <= $calcEnd) {
+            while ($simDate <= $calcEnd) {
                 if ($tmpl->recurrence_end_date && $simDate > $tmpl->recurrence_end_date) break;
 
+                // Enddatum berechnen (Dauer beibehalten)
+                $duration = $tmpl->end_date->diffInSeconds($tmpl->start_date);
+                $simEnd = $simDate->copy()->addSeconds($duration);
+
                 $expandedEvents->push([
-                    'id' => $tmpl->id . '_' . $simDate->timestamp,
+                    'id' => $tmpl->id, // ID des Templates verwenden
                     'title' => $tmpl->title ?? 'Serie',
                     'start' => $simDate->toIso8601String(),
+                    'end' => $simEnd->toIso8601String(),
                     'is_all_day' => (bool)$tmpl->is_all_day,
-                    'category' => $tmpl->category ?? 'general'
+                    'category' => $tmpl->category ?? 'general',
+                    'description' => $tmpl->description,
+                    'recurrence' => $tmpl->recurrence,
+                    'reminder_minutes' => $tmpl->reminder_minutes
                 ]);
 
                 switch ($tmpl->recurrence) {
@@ -381,5 +396,74 @@ Route::middleware('auth:sanctum')->group(function () {
             }
         }
         return $expandedEvents->sortBy('start')->values();
+    });
+
+    // --- KALENDER: ERSTELLEN (POST) ---
+    Route::post('/funki/calendar', function (Request $request) {
+        $data = $request->validate([
+            'title' => 'required|string',
+            'start' => 'required|date',
+            'end' => 'nullable|date',
+            'is_all_day' => 'boolean',
+            'category' => 'nullable|string',
+            'description' => 'nullable|string',
+            'recurrence' => 'nullable|string', // 'none', 'daily', ...
+            'reminder_minutes' => 'nullable|integer'
+        ]);
+
+        $event = CalendarEvent::create([
+            'id' => Str::uuid(),
+            'title' => $data['title'],
+            'start_date' => Carbon::parse($data['start']),
+            'end_date' => $data['end'] ? Carbon::parse($data['end']) : Carbon::parse($data['start'])->addHour(),
+            'is_all_day' => $data['is_all_day'] ?? false,
+            'category' => $data['category'] ?? 'general',
+            'description' => $data['description'] ?? null,
+            'recurrence' => ($data['recurrence'] === 'none') ? null : $data['recurrence'],
+            'reminder_minutes' => $data['reminder_minutes'] ?? null
+        ]);
+
+        return response()->json(['success' => true, 'event' => $event]);
+    });
+
+    // --- KALENDER: UPDATE (PUT) ---
+    Route::put('/funki/calendar/{id}', function (Request $request, $id) {
+        $event = CalendarEvent::findOrFail($id);
+
+        $data = $request->validate([
+            'title' => 'required|string',
+            'start' => 'required|date',
+            'end' => 'nullable|date',
+            'is_all_day' => 'boolean',
+            'category' => 'nullable|string',
+            'description' => 'nullable|string',
+            'recurrence' => 'nullable|string',
+            'reminder_minutes' => 'nullable|integer'
+        ]);
+
+        $event->update([
+            'title' => $data['title'],
+            'start_date' => Carbon::parse($data['start']),
+            'end_date' => $data['end'] ? Carbon::parse($data['end']) : Carbon::parse($data['start'])->addHour(),
+            'is_all_day' => $data['is_all_day'] ?? false,
+            'category' => $data['category'] ?? 'general',
+            'description' => $data['description'] ?? null,
+            'recurrence' => ($data['recurrence'] === 'none') ? null : $data['recurrence'],
+            'reminder_minutes' => $data['reminder_minutes'] ?? null
+        ]);
+
+        return response()->json(['success' => true]);
+    });
+
+    // --- KALENDER: LÖSCHEN (DELETE) ---
+    Route::delete('/funki/calendar/{id}', function ($id) {
+        // Falls eine ID mit Timestamp kommt (z.B. "uuid_1234567890"), schneiden wir den Timestamp ab
+        if (str_contains($id, '_')) {
+            $parts = explode('_', $id);
+            $id = $parts[0];
+        }
+
+        CalendarEvent::destroy($id);
+        return response()->json(['success' => true]);
     });
 });
