@@ -16,7 +16,8 @@ class Todo extends Model
         'parent_id',
         'title',
         'is_completed',
-        'position'
+        'position',
+        'priority'
     ];
 
     protected $casts = [
