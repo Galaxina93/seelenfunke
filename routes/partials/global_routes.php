@@ -10,6 +10,7 @@ use App\Livewire\Shop\Offer\QuoteAcceptance;
 use App\Livewire\Shop\Product\ProductIndex;
 use App\Livewire\Shop\Product\ProductShow;
 use App\Models\PageVisit;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Route;
 use App\Livewire\Shop\Blog\BlogFrontendIndex;
@@ -20,6 +21,12 @@ use App\Livewire\Shop\Blog\BlogFrontendShow;
 | Web Routes
 |--------------------------------------------------------------------------
 */
+
+/*Cronjob*/
+Route::get('/system/cronjob/run-secret-847294', function () {
+    Artisan::call('schedule:run');
+    return 'Cronjob erfolgreich ausgeführt.';
+});
 
 
 // --- 1. Shop ---
