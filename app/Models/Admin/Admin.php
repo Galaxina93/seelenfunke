@@ -9,11 +9,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Notifications\Notifiable;
 use Ramsey\Uuid\Uuid;
+use Laravel\Sanctum\HasApiTokens;
 
 class Admin extends Model implements Authenticatable
 {
-    use HasFactory, SoftDeletes, AuthenticatableTrait;
+    use HasFactory, SoftDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
 
     protected $fillable = [
         'first_name',

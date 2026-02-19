@@ -20,7 +20,6 @@
                     <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="bolt" />
                     <x-forms.list-item route="/admin/funki-todos" title="Todos" pageName="funki-todos" icon="bolt" />
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="bolt" />
-                    <x-forms.list-item route="/admin/funki-autopilot" title="Autopilot" pageName="funki-autopilot" icon="bolt" />
 
                 </ul>
             </li>

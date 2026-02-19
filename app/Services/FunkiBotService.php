@@ -379,8 +379,18 @@ class FunkiBotService
         // ------------------------------------------------------------------
         // LEVEL 6: FREIZEIT
         // ------------------------------------------------------------------
-        $user = Auth::user();
-        $name = $user ? $user->first_name : 'Du';
+
+        // Versuche den User zu ermitteln (Fallback für CLI/Bot Context)
+        $name = 'Du';
+
+        // Prüfen, ob wir im Web-Context sind
+        $guard = (new \App\Models\User)->getGuard();
+        if ($guard) {
+            $user = Auth::guard($guard)->user();
+            if ($user) {
+                $name = $user->first_name;
+            }
+        }
 
         return [
             'score' => 0,

@@ -2,7 +2,7 @@
 
 namespace App\Models\Cart;
 
-use App\Models\User;
+use App\Models\Customer\Customer;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,7 +19,7 @@ class Cart extends Model
      */
     protected $fillable = [
         'session_id',
-        'user_id',
+        'customer_id',
         'coupon_code',
         'customer_id',
         'is_express',

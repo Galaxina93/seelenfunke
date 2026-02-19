@@ -24,3 +24,5 @@ Schedule::command('marketing:send-newsletters')->dailyAt('08:00');
 
 // Täglich um 09:00 Uhr prüfen und Gutscheine versenden
 Schedule::command('marketing:send-vouchers')->dailyAt('09:00');
+
+Schedule::command('funki:notify')->everyMinute();

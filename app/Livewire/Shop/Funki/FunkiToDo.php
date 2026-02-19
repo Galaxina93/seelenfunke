@@ -85,6 +85,17 @@ class FunkiToDo extends Component
         ]);
     }
 
+    // NEU: Methode zum Aktualisieren des Titels (Inline Edit)
+    public function updateTodoTitle($id, $newTitle)
+    {
+        if(empty(trim($newTitle))) return;
+
+        $todo = Todo::find($id);
+        if($todo) {
+            $todo->update(['title' => $newTitle]);
+        }
+    }
+
     public function toggleComplete($id)
     {
         $todo = Todo::find($id);

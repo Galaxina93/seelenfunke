@@ -10,11 +10,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Notifications\Notifiable;
 use Ramsey\Uuid\Uuid;
+use Laravel\Sanctum\HasApiTokens;
+
 
 class Customer extends Model implements Authenticatable
 {
-    use HasFactory, HasUuids, softDeletes, AuthenticatableTrait;
+    use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
 
     protected $fillable = [
         'first_name',

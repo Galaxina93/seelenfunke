@@ -22,9 +22,6 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki-kalender', function () {
         return view('backend.admin.pages.funki-kalender');
     })->name('admin.funki-kalender');
-    Route::get('/admin/funki-autopilot', function () {
-        return view('backend.admin.pages.funki-autopilot');
-    })->name('admin.funki-autopilot');
 
     // Benutzerverwaltung
     Route::get('/admin/user-management', function () {

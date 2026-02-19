@@ -4,9 +4,11 @@ namespace App\Livewire\Global\Widgets;
 
 use App\Models\FunkiLog;
 use App\Services\AiSupportService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On; // Neu hinzugefügt
 use Livewire\Component;
+use App\Models\User as UserHelper;
 
 class FunkiChat extends Component
 {
@@ -30,6 +32,9 @@ class FunkiChat extends Component
 
     public function mount(): void
     {
+        $guard = (new UserHelper)->getGuard();
+        $user = $guard ? Auth::guard($guard)->user() : null;
+
         // Initial-Nachricht
         if (auth()->check()) {
             $this->messages[] = [

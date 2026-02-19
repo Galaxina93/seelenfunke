@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Services;
 
 use App\Models\Financial\FinanceGroup;
@@ -13,12 +12,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class FinancialService
 {
-    /**
-     * Berechnet die Übersicht für einen spezifischen Monat für den Admin.
-     */
     public function getMonthlyStats($adminId, $month, $year)
     {
-        // 1. Fixkosten (Manuell)
+        // 1. Fixkosten (Bleibt wie gehabt)
         $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
         $fixedIncome = 0;
         $fixedExpenses = 0;
@@ -35,25 +31,27 @@ class FinancialService
             }
         }
 
-        // 2. Sonderausgaben (DB)
+        // 2. Sonderausgaben (Variable Kosten) - KORRIGIERTE LOGIK: Netto-Betrachtung
         $specialIssues = FinanceSpecialIssue::where('admin_id', $adminId)
             ->whereYear('execution_date', $year)
             ->whereMonth('execution_date', $month)
             ->get();
 
+        // Wir summieren ALLES zusammen. Positive Werte (Rückzahlungen) reduzieren automatisch die negativen Werte.
+        // Beispiel: -14.00 (Ausgabe) + 10.00 (Rückzahlung) = -4.00
+        $netSpecialSum = $specialIssues->sum('amount');
+
         $specialExpenses = 0;
         $specialIncome = 0;
 
-        foreach($specialIssues as $issue) {
-            if($issue->amount >= 0) {
-                $specialIncome += $issue->amount;
-            } else {
-                $specialExpenses += $issue->amount;
-            }
+        // Wir weisen das Netto-Ergebnis der korrekten Seite zu
+        if ($netSpecialSum < 0) {
+            $specialExpenses = $netSpecialSum; // z.B. -4.00
+        } else {
+            $specialIncome = $netSpecialSum;   // z.B. +5.00 (falls man Plus gemacht hat)
         }
 
-        // 3. Shop Umsätze (Automatisch aus Orders)
-        // Nur bezahlte Bestellungen, Summe Total Price (in Cents -> /100)
+        // 3. Shop Umsätze
         $shopRevenue = Order::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->where('payment_status', 'paid')
@@ -61,17 +59,19 @@ class FinancialService
 
         $shopIncome = $shopRevenue / 100; // Umrechnung Cent -> Euro
 
-        // Gesamtrechnung
-        // Shop Umsatz wird zu den Einnahmen gezählt
+        // 4. Totals berechnen
+        // $specialExpenses ist bereits negativ, daher addieren wir es einfach (+ minus = minus).
         $totalBudget = $fixedIncome + $specialIncome + $shopIncome;
         $totalSpent = $fixedExpenses + $specialExpenses;
-        $available = $totalBudget + $totalSpent; // Spent ist negativ
+
+        // Verfügbar: Einnahmen (pos) + Ausgaben (neg)
+        $available = $totalBudget + $totalSpent;
 
         return [
             'fixed_income' => $fixedIncome,
             'fixed_expenses' => $fixedExpenses,
-            'special_income' => $specialIncome,
-            'special_expenses' => $specialExpenses,
+            'special_income' => $specialIncome,     // Wird meistens 0 sein, es sei denn Netto-Plus
+            'special_expenses' => $specialExpenses, // Dies ist nun der korrekt verrechnete Wert (z.B. -4,13)
             'shop_income' => $shopIncome,
             'total_budget' => $totalBudget,
             'total_spent' => $totalSpent,
@@ -92,7 +92,6 @@ class FinancialService
 
     public function getYearlyMatrix($adminId, $year)
     {
-        // Struktur initialisieren
         $structure = [
             'income' => ['label' => 'Einnahmen (Fix)', 'color' => 'text-emerald-600', 'bg' => 'bg-emerald-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
             'shop_income' => ['label' => 'Shop Umsätze', 'color' => 'text-teal-600', 'bg' => 'bg-teal-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
@@ -107,6 +106,7 @@ class FinancialService
         foreach ($groups as $group) {
             foreach ($group->items as $item) {
                 $catKey = $item->amount >= 0 ? 'income' : ($item->is_business ? 'fixed_business' : 'fixed_private');
+
                 $itemRow = ['name' => $item->name . ' (' . $group->name . ')', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
 
                 for ($m = 1; $m <= 12; $m++) {
@@ -121,11 +121,22 @@ class FinancialService
             }
         }
 
-        // 2. Sonderausgaben
+        // 2. Sonderausgaben (Variable Kosten)
         $specials = FinanceSpecialIssue::where('admin_id', $adminId)->whereYear('execution_date', $year)->get();
+
         foreach ($specials as $special) {
             $m = $special->execution_date->month;
-            $catKey = $special->amount >= 0 ? 'income' : ($special->is_business ? 'special_business' : 'special_private');
+
+            // KORREKTUR: Positive Beträge (Rückerstattungen) bleiben in ihrer Kategorie,
+            // damit sie die Kosten dort reduzieren und nicht als allgemeine Einnahme gelten.
+            if ($special->is_business) {
+                $catKey = 'special_business';
+            } else {
+                // Wenn es privat ist, landet es bei special_private (auch wenn positiv, z.B. Rückzahlung)
+                // Ausnahme: Wenn man es explizit als Einnahme will, müsste man die Logik hier ändern,
+                // aber für "Sonderausgaben soll sich reduzieren" ist dies korrekt.
+                $catKey = 'special_private';
+            }
 
             $structure[$catKey]['months'][$m] += $special->amount;
             $structure[$catKey]['year_sum'] += $special->amount;
@@ -138,7 +149,7 @@ class FinancialService
             $structure[$catKey]['items'][$groupName]['year_sum'] += $special->amount;
         }
 
-        // 3. Shop Umsätze
+        // 3. Shop
         $shopOrders = Order::whereYear('created_at', $year)
             ->where('payment_status', 'paid')
             ->selectRaw('MONTH(created_at) as month, SUM(total_price) as total')
@@ -152,13 +163,13 @@ class FinancialService
 
             $structure['shop_income']['months'][$m] += $amount;
             $structure['shop_income']['year_sum'] += $amount;
+
             $shopRow['months'][$m] = $amount;
             $shopRow['year_sum'] += $amount;
         }
         $structure['shop_income']['items'][] = $shopRow;
 
-
-        // Totals berechnen
+        // Totals
         $totals = ['months' => array_fill(1, 12, 0), 'year_sum' => 0];
         foreach ($structure as $cat) {
             for ($m = 1; $m <= 12; $m++) {
@@ -174,7 +185,7 @@ class FinancialService
     {
         $data = FinanceSpecialIssue::where('admin_id', $adminId)
             ->whereBetween('execution_date', [$from, $to])
-            ->where('amount', '<', 0)
+            ->where('amount', '<', 0) // Pie Chart zeigt nur echte Ausgabenverteilung
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')
             ->orderByDesc('total')
@@ -191,6 +202,7 @@ class FinancialService
         $days = [];
         $start = Carbon::parse($from);
         $end = Carbon::parse($to);
+
         $diff = $start->diffInDays($end);
         $isMonthly = $diff > 32;
 
@@ -198,15 +210,18 @@ class FinancialService
         while($current <= $end) {
             $key = $isMonthly ? $current->format('Y-m') : $current->format('Y-m-d');
             $label = $isMonthly ? $current->format('M Y') : $current->format('d.m.');
+
             if(!isset($days[$key])) $days[$key] = ['label' => $label, 'income' => 0, 'expense' => 0];
+
             $isMonthly ? $current->addMonth() : $current->addDay();
         }
 
-        // 1. Fixkosten
+        // Fixkosten
         $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
         foreach($groups as $group) {
             foreach($group->items as $item) {
                 $dayOfMonth = $item->first_payment_date->day;
+
                 foreach($days as $dateKey => &$val) {
                     $dateObj = $isMonthly
                         ? Carbon::createFromFormat('Y-m', $dateKey)->startOfMonth()
@@ -223,14 +238,16 @@ class FinancialService
             }
         }
 
-        // 2. Sonderausgaben
+        // Variable (Specials)
         $specials = FinanceSpecialIssue::where('admin_id', $adminId)->whereBetween('execution_date', [$from, $to])->get();
         foreach($specials as $special) {
             $key = $isMonthly ? $special->execution_date->format('Y-m') : $special->execution_date->format('Y-m-d');
-            if(isset($days[$key])) $this->addToChartData($days[$key], $special->amount);
+            if(isset($days[$key])) {
+                $this->addToChartData($days[$key], $special->amount);
+            }
         }
 
-        // 3. Shop Umsätze (Orders)
+        // Shop Orders
         $orders = Order::whereBetween('created_at', [$from, $to])
             ->where('payment_status', 'paid')
             ->get();
@@ -250,13 +267,17 @@ class FinancialService
     }
 
     private function addToChartData(&$dataArray, $amount) {
-        if ($amount >= 0) $dataArray['income'] += $amount;
-        else $dataArray['expense'] += abs($amount);
+        if ($amount >= 0) {
+            // Einnahme
+            $dataArray['income'] += $amount;
+        } else {
+            // Ausgabe (wird als positiver Wert für den Chartbalken gespeichert)
+            // Wenn es hier eine Rückerstattung gibt (amount > 0), ist es oben in Income gelandet.
+            // Das ist für den Bar Chart (Cashflow) auch korrekt.
+            $dataArray['expense'] += abs($amount);
+        }
     }
 
-    /**
-     * Erstellt den ZIP Export für den Steuerberater
-     */
     public function generateTaxExport($adminId, $month, $year)
     {
         $specials = FinanceSpecialIssue::where('admin_id', $adminId)
@@ -265,7 +286,6 @@ class FinancialService
             ->where('is_business', true)
             ->get();
 
-        // Stats für das PDF holen
         $stats = $this->getMonthlyStats($adminId, $month, $year);
 
         $zipFileName = "Steuerunterlagen_{$year}_{$month}.zip";
@@ -276,9 +296,7 @@ class FinancialService
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
 
-            // 1. CSV Erstellen
             $csvHandle = fopen('php://temp', 'r+');
-            // BOM für Excel
             fprintf($csvHandle, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($csvHandle, ['Datum', 'Titel', 'Kategorie', 'Rechnungsnr.', 'Steuersatz', 'Betrag (Brutto)', 'Notiz'], ';');
 
@@ -293,16 +311,13 @@ class FinancialService
                     $s->note
                 ], ';');
 
-                // 2. Dateien hinzufügen (Automatisch umbenennen)
                 if($s->file_paths) {
                     foreach($s->file_paths as $index => $filePath) {
                         if(Storage::disk('public')->exists($filePath)) {
                             $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-                            // Logische Benennung: 2026-02-15_Amazon_RechnungNr_1.pdf
                             $cleanTitle = \Illuminate\Support\Str::slug($s->title);
                             $cleanInv = $s->invoice_number ? '_'.$s->invoice_number : '';
                             $newName = "Belege/{$s->execution_date->format('Y-m-d')}_{$cleanTitle}{$cleanInv}_{$index}.{$ext}";
-
                             $zip->addFile(storage_path("app/public/{$filePath}"), $newName);
                         }
                     }
@@ -311,10 +326,8 @@ class FinancialService
             rewind($csvHandle);
             $csvContent = stream_get_contents($csvHandle);
             fclose($csvHandle);
-
             $zip->addFromString("Bericht_{$year}_{$month}.csv", $csvContent);
 
-            // 3. PDF Generieren und hinzufügen
             $pdf = Pdf::loadView('global.pdf.financial_report', [
                 'stats' => $stats,
                 'specials' => $specials,

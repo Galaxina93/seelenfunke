@@ -50,7 +50,7 @@ class RolesAndPermissionsSeeder extends Seeder
             [
                 'first_name' => 'Alina',
                 'last_name' => 'Steinhauer',
-                'password' => Hash::make('SeelenPower123+++'),
+                'password' => Hash::make('SeeleSeele1993+++'),
             ]
         );
         $admin->roles()->sync($adminRole->id);
@@ -74,7 +74,7 @@ class RolesAndPermissionsSeeder extends Seeder
             [
                 'first_name' => 'Sarah',
                 'last_name' => 'Sonnenschein',
-                'password' => Hash::make('SeelenPower123+++'),
+                'password' => Hash::make('SeeleSeele1993+++'),
             ]
         );
         $customer->roles()->sync($customerRole->id);
@@ -98,7 +98,7 @@ class RolesAndPermissionsSeeder extends Seeder
             [
                 'first_name' => 'Marc',
                 'last_name' => 'Mitarbeiter',
-                'password' => Hash::make('SeelenPower123+++'),
+                'password' => Hash::make('SeeleSeele1993+++'),
             ]
         );
         $employee->roles()->sync($employeeRole->id);

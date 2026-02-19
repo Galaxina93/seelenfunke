@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Global\Profile;
 
-use App\Models\NewsletterSubscriber;
+use App\Models\User as UserHelper;
 use App\Traits\handleProfilesTrait;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -36,7 +36,17 @@ class Profile extends Component
 
     public function mount(): void
     {
-        $this->user = Auth::user();
+        // 1. Guard ermitteln
+        $this->guard = (new UserHelper)->getGuard();
+
+        // 2. User basierend auf Guard laden
+        if ($this->guard) {
+            $this->user = Auth::guard($this->guard)->user();
+        } else {
+            // Fallback: Login Redirect
+            redirect()->route('login');
+            return;
+        }
 
         // Mount User Data (füllt firstName, lastName, email, street, etc.)
         $this->mountUserProfileData();

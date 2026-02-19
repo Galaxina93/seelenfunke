@@ -228,20 +228,25 @@ class FinancialQuickEntry extends Component
     {
         $this->validate();
 
-        // Upload verarbeiten
         $filePaths = [];
         foreach ($this->specialFiles as $file) {
-            // Speichern im privaten Bereich (oder public, je nach Anforderung)
-            // Hier nutzen wir 'special_receipts' Disk oder Ordner
             $path = $file->store('financial/receipts', 'public');
             $filePaths[] = $path;
         }
+
+        // Aufgabe 1: Betragslogik
+        $rawAmount = str_replace(',', '.', $this->specialAmount);
+        $finalAmount = (float)$rawAmount;
+        // Wenn kein Minus davor steht, ist es positiv (Einnahme), sonst negativ (Ausgabe)
+        // Aber normalerweise sind Ausgaben negativ.
+        // Prompt sagt: "Minus vorschreiben = negativ, nur Zahl = positiv".
+        // Also nehmen wir den Wert 1:1, da der User das Vorzeichen selbst setzt.
 
         FinanceSpecialIssue::create([
             'admin_id' => $this->getAdminId(),
             'title' => $this->specialTitle,
             'category' => $this->specialCategory ?: 'Sonstiges',
-            'amount' => str_replace(',', '.', $this->specialAmount) * -1, // Negativ da Ausgabe
+            'amount' => $finalAmount,
             'execution_date' => $this->specialDate,
             'location' => $this->specialLocation,
             'is_business' => $this->specialIsBusiness,
@@ -252,15 +257,12 @@ class FinancialQuickEntry extends Component
 
         $this->trackCategoryUsage($this->specialCategory);
 
-        // Reset Form
         $this->reset(['specialTitle', 'specialAmount', 'specialLocation', 'specialCategory', 'specialIsBusiness', 'specialFiles', 'specialInvoiceNumber', 'specialTaxRate', 'isAutoFilled']);
         $this->specialDate = date('Y-m-d');
-        $this->specialTaxRate = 19;
+        $this->specialIsBusiness = false; // Reset auf aus
 
-        // WICHTIG: Event senden, damit FinancialEvaluation die Stats aktualisiert
         $this->dispatch('special-issue-created');
-
-        session()->flash('success', 'Sonderausgabe erfolgreich erstellt.');
+        session()->flash('success', 'Eintrag erfolgreich erstellt.');
     }
 
     private function trackCategoryUsage($categoryName)

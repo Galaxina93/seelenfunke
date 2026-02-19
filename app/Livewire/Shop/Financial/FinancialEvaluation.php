@@ -51,7 +51,9 @@ class FinancialEvaluation extends Component
     #[On('special-issue-created')]
     public function refreshStats()
     {
-        $this->render();
+        // Leer lassen oder nur Variablen zurücksetzen.
+        // Livewire ruft render() automatisch NACH dieser Methode auf
+        // und injiziert dabei den Service korrekt.
     }
 
     public function updatedChartFilter()

@@ -1011,6 +1011,9 @@ video {
 .mb-24 {
   margin-bottom: 6rem;
 }
+.-ml-2 {
+  margin-left: -0.5rem;
+}
 .line-clamp-1 {
   overflow: hidden;
   display: -webkit-box;
@@ -1806,6 +1809,9 @@ video {
 }
 .cursor-se-resize {
   cursor: se-resize;
+}
+.cursor-text {
+  cursor: text;
 }
 .touch-none {
   touch-action: none;
@@ -3575,6 +3581,10 @@ video {
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
+}
+.py-0 {
+  padding-top: 0px;
+  padding-bottom: 0px;
 }
 .pb-0 {
   padding-bottom: 0px;

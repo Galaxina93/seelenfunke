@@ -151,11 +151,24 @@
                                     <x-heroicon-m-check class="w-3.5 h-3.5" />
                                 </button>
 
-                                {{-- Text --}}
-                                <div class="flex-1 min-w-0 pt-0.5">
-                                    <p @class(['text-sm font-bold leading-snug break-words', 'line-through text-slate-400' => $todo->is_completed, 'text-slate-700' => !$todo->is_completed])>
+                                {{-- Text mit Inline Edit --}}
+                                <div class="flex-1 min-w-0 pt-0.5" x-data="{ isEditing: false, updatedTitle: '{{ $todo->title }}' }">
+                                    {{-- Anzeige Modus --}}
+                                    <p x-show="!isEditing"
+                                       @click="isEditing = true; $nextTick(() => $refs.editInput.focus())"
+                                        @class(['text-sm font-bold leading-snug break-words cursor-text hover:text-primary transition-colors', 'line-through text-slate-400' => $todo->is_completed, 'text-slate-700' => !$todo->is_completed])>
                                         {{ $todo->title }}
                                     </p>
+
+                                    {{-- Bearbeitungs Modus --}}
+                                    <input x-ref="editInput"
+                                           x-show="isEditing"
+                                           x-model="updatedTitle"
+                                           @blur="isEditing = false; $wire.updateTodoTitle('{{ $todo->id }}', updatedTitle)"
+                                           @keydown.enter="$el.blur()"
+                                           class="w-full text-sm font-bold bg-white border border-primary/30 rounded px-2 py-0 focus:outline-none focus:ring-2 focus:ring-primary/20 -ml-2 -mt-1 text-slate-900"
+                                           x-cloak
+                                    >
 
                                     {{-- Subtasks Counter if collapsed (optional) --}}
                                     @if($todo->subtasks->count() > 0 && $todo->is_completed)
@@ -195,9 +208,22 @@
                                                 <x-heroicon-m-check class="w-3 h-3" />
                                             </button>
 
-                                            <span @class(['flex-1 text-xs font-medium truncate', 'line-through text-slate-400' => $sub->is_completed, 'text-slate-600' => !$sub->is_completed])>
-                                                {{ $sub->title }}
-                                            </span>
+                                            {{-- Inline Edit für Subtasks --}}
+                                            <div class="flex-1 min-w-0" x-data="{ isEditingSub: false, updatedSubTitle: '{{ $sub->title }}' }">
+                                                <span x-show="!isEditingSub"
+                                                      @click="isEditingSub = true; $nextTick(() => $refs.editSubInput.focus())"
+                                                      @class(['flex-1 text-xs font-medium truncate cursor-text hover:text-primary transition-colors', 'line-through text-slate-400' => $sub->is_completed, 'text-slate-600' => !$sub->is_completed])>
+                                                    {{ $sub->title }}
+                                                </span>
+                                                <input x-ref="editSubInput"
+                                                       x-show="isEditingSub"
+                                                       x-model="updatedSubTitle"
+                                                       @blur="isEditingSub = false; $wire.updateTodoTitle('{{ $sub->id }}', updatedSubTitle)"
+                                                       @keydown.enter="$el.blur()"
+                                                       class="w-full text-xs font-medium bg-white border border-primary/30 rounded px-2 py-0 focus:outline-none focus:ring-1 focus:ring-primary/20 -ml-2 text-slate-900"
+                                                       x-cloak
+                                                >
+                                            </div>
 
                                             {{-- Sub Menu Hover --}}
                                             <div class="flex opacity-0 group-hover/sub:opacity-100 transition-opacity" x-data="{ openSub: false }">
