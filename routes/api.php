@@ -136,6 +136,25 @@ Route::middleware('auth:sanctum')->group(function () {
         return FinanceCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
     });
 
+    // NEU: Route zum LÖSCHEN einer Kategorie
+    Route::delete('/funki/financials/categories/{name}', function (Request $request, $name) {
+        $decodedName = urldecode($name);
+
+        // Lösche die Kategorie
+        $deleted = FinanceCategory::where('admin_id', $request->user()->id)
+            ->where('name', $decodedName)
+            ->delete();
+
+        // Optional: Referenzen in Special Issues entfernen oder auf 'Sonstiges' setzen
+        if ($deleted) {
+            FinanceSpecialIssue::where('admin_id', $request->user()->id)
+                ->where('category', $decodedName)
+                ->update(['category' => 'Sonstiges']);
+        }
+
+        return response()->json(['success' => true]);
+    });
+
     Route::post('/funki/financials/quick-entry', function (Request $request) {
         $data = $request->validate([
             'title' => 'required|string',
