@@ -1,24 +1,30 @@
 <div class="flex flex-col h-full bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden min-h-[600px]">
 
-    {{-- HEADER & SUCHE (Immer oben) --}}
-    <div class="p-6 border-b border-slate-100 bg-white z-20 shrink-0">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h3 class="text-xl font-serif font-bold text-slate-900 leading-none">Warteschlange</h3>
-                <span class="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Lückenfüller</span>
+    {{-- HEADER & TABS --}}
+    <div class="bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
+                {{-- Logo & Titel --}}
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" class="w-12 h-12 object-contain" alt="Funki">
+                        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-pulse"></div>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-serif font-bold text-gray-900">Funkis Zentrale</h1>
+                        <p class="text-xs text-gray-500">Dein Autopilot für deine Todos.</p>
+                    </div>
+                </div>
             </div>
-            {{-- Kleiner Counter gesamt --}}
-            <div class="bg-slate-100 text-slate-500 text-xs font-bold px-3 py-1 rounded-full">
-                {{ $todos->where('is_completed', false)->count() }} Offen
-            </div>
-        </div>
 
-        <div class="relative group">
-            <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
-                   class="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <x-heroicon-o-magnifying-glass class="w-4 h-4" />
+            <div class="relative group">
+                <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
+                       class="w-full pl-10 pr-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all text-sm font-medium placeholder:text-slate-400">
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <x-heroicon-o-magnifying-glass class="w-4 h-4" />
+                </div>
             </div>
+
         </div>
     </div>
 

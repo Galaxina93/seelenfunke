@@ -8,25 +8,24 @@ use Symfony\Component\Finder\Finder;
 
 class ExportProjectForAI extends Command
 {
-    // Signatur erweitert um die --migrations Option
     protected $signature = 'project:export {--output=project_context.txt} {--migrations : Exportiert nur die Datenbank-Migrationen}';
-    protected $description = 'Verschlankter Export: Fokus auf Logik, UI und Models (oder nur Migrationen).';
+    protected $description = 'Radikal verschlankter Export: Fokus auf Logik, ohne Leerzeilen und Kommentare.';
 
     /**
-     * Radikale Reduzierung: Wir ignorieren alles, was Standard-Laravel ist
-     * oder nur Metadaten enthält.
+     * Erweitert: Wir ignorieren noch mehr irrelevante Ordner (Sprachen, Seeder, etc.)
      */
     protected $ignoredDirectories = [
         'vendor', 'node_modules', 'storage', 'public', '.git', '.idea', '.vscode',
-        'bootstrap', 'tests', 'database/migrations', 'database/factories',
-        'app/Providers', 'app/Console', 'config' // Config & Provider sind meist Standard
+        'bootstrap', 'tests', 'database/migrations', 'database/factories', 'database/seeders',
+        'app/Providers', 'app/Console', 'config', 'lang', 'resources/lang'
     ];
 
     protected $allowedExtensions = ['php', 'blade.php', 'js'];
 
     protected $ignoredFiles = [
         'composer.lock', 'package-lock.json', 'yarn.lock', 'phpunit.xml',
-        'webpack.mix.js', 'vite.config.js', 'tailwind.config.js', 'postcss.config.js'
+        'webpack.mix.js', 'vite.config.js', 'tailwind.config.js', 'postcss.config.js',
+        'package.json', 'composer.json'
     ];
 
     public function handle()
@@ -36,19 +35,18 @@ class ExportProjectForAI extends Command
             return $this->exportMigrations();
         }
 
-        // 2. STANDARD LOGIK (Dein ursprünglicher Code)
+        // 2. STANDARD LOGIK
         $outputFile = $this->option('output');
         $startTime = microtime(true);
 
-        $this->info("Funki startet die Schlankheitskur (Standard Export)...");
+        $this->info("Funki startet den Ultra-Slim Export (ohne Leerzeilen)...");
 
         $finder = new Finder();
         $finder->files()
             ->in(base_path())
             ->ignoreDotFiles(true)
-            ->exclude($this->ignoredDirectories); // Hier werden migrations normal ignoriert
+            ->exclude($this->ignoredDirectories);
 
-        // Filter für Standard-Export
         $finder->filter(function (\SplFileInfo $file) {
             if (in_array($file->getBasename(), $this->ignoredFiles)) return false;
 
@@ -57,19 +55,21 @@ class ExportProjectForAI extends Command
             return in_array($extension, $this->allowedExtensions);
         });
 
-        $content = "PROJECT LOGIC SUMMARY (SLIM)\n============================\n\n";
+        $content = "PROJECT LOGIC SUMMARY (ULTRA SLIM)\n==================================\n";
 
         foreach ($finder as $file) {
             $relativePath = $file->getRelativePathname();
             $fileContent = $file->getContents();
+            $isBlade = str_contains($file->getBasename(), '.blade.php');
 
-            // Bereinigen (Kommentare etc.)
-            $fileContent = $this->cleanContent($fileContent, $file->getExtension());
+            // Radikale Bereinigung
+            $fileContent = $this->cleanContent($fileContent, $file->getExtension(), $isBlade);
 
-            $content .= "--- FILE: {$relativePath} ---\n";
-            $content .= trim($fileContent) . "\n\n";
-
-            $this->line("Verschlankt: <comment>{$relativePath}</comment>");
+            // Nur hinzufügen, wenn die Datei nicht komplett leer ist
+            if (!empty($fileContent)) {
+                $content .= "--- FILE: {$relativePath} ---\n{$fileContent}\n\n";
+                $this->line("Verschlankt: <comment>{$relativePath}</comment>");
+            }
         }
 
         File::put(base_path($outputFile), $content);
@@ -79,12 +79,8 @@ class ExportProjectForAI extends Command
         return Command::SUCCESS;
     }
 
-    /**
-     * Neue Logik: Nur Migrationen exportieren
-     */
     protected function exportMigrations()
     {
-        // Wenn kein individueller Output angegeben wurde, ändern wir den Standard-Namen
         $outputFile = $this->option('output') === 'project_context.txt'
             ? 'migrations.txt'
             : $this->option('output');
@@ -94,23 +90,22 @@ class ExportProjectForAI extends Command
 
         $finder = new Finder();
         $finder->files()
-            ->in(base_path('database/migrations')) // Nur dieser Ordner
-            ->name('*.php') // Nur PHP Dateien
-            ->sortByName(); // Wichtig: Nach Timestamp sortieren
+            ->in(base_path('database/migrations'))
+            ->name('*.php')
+            ->sortByName();
 
-        $content = "DATABASE MIGRATIONS ONLY\n========================\n\n";
+        $content = "DATABASE MIGRATIONS ONLY\n========================\n";
 
         foreach ($finder as $file) {
             $relativePath = $file->getRelativePathname();
             $fileContent = $file->getContents();
 
-            // Auch hier unnötige Kommentare entfernen, um Tokens zu sparen
-            $fileContent = $this->cleanContent($fileContent, 'php');
+            $fileContent = $this->cleanContent($fileContent, 'php', false);
 
-            $content .= "--- MIGRATION: {$relativePath} ---\n";
-            $content .= trim($fileContent) . "\n\n";
-
-            $this->line("Hinzugefügt: <comment>{$relativePath}</comment>");
+            if (!empty($fileContent)) {
+                $content .= "--- MIGRATION: {$relativePath} ---\n{$fileContent}\n\n";
+                $this->line("Hinzugefügt: <comment>{$relativePath}</comment>");
+            }
         }
 
         File::put(base_path($outputFile), $content);
@@ -121,26 +116,40 @@ class ExportProjectForAI extends Command
     }
 
     /**
-     * Hilfsfunktion: Code bereinigen (aus deinem Original-Code extrahiert)
+     * Radikale Bereinigung: Entfernt Kommentare, Leerzeilen und Einrückungen.
      */
-    protected function cleanContent($content, $extension)
+    protected function cleanContent($content, $extension, $isBlade = false)
     {
-        // 1. PHP Kommentare entfernen
-        if ($extension === 'php') {
-            $content = preg_replace('!/\*.*?\*/!s', '', $content);
-            $content = preg_replace('/^\s*\/\/.*$/m', '', $content);
+        // 1. Blade & HTML Kommentare entfernen
+        if ($isBlade) {
+            $content = preg_replace('/\{\{--.*?--\}\}/s', '', $content);
+            $content = preg_replace('//s', '', $content);
         }
 
-        // 2. Mehrfache Leerzeilen reduzieren
-        $content = preg_replace("/\n\s*\n+/", "\n", $content);
+        // 2. PHP Kommentare entfernen
+        if ($extension === 'php' || $isBlade) {
+            // /* ... */
+            $content = preg_replace('!/\*.*?\*/!s', '', $content);
+            // // ... (aber http:// ignorieren)
+            $content = preg_replace('/(?<!:)\/\/.*$/m', '', $content);
+        }
 
-        // 3. Trimmen
-        return implode("\n", array_map('trim', explode("\n", $content)));
+        // 3. Zeilenweise trimmen und leere Zeilen vernichten
+        $lines = explode("\n", $content);
+        $cleanedLines = [];
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            // Wenn die Zeile nach dem Trimmen nicht leer ist, übernehmen wir sie
+            if ($trimmed !== '') {
+                $cleanedLines[] = $trimmed;
+            }
+        }
+
+        // Zusammenfügen mit einfachem Zeilenumbruch (ohne Einrückungen)
+        return implode("\n", $cleanedLines);
     }
 
-    /**
-     * Hilfsfunktion: Abschluss-Statistik
-     */
     protected function finishExport($startTime, $outputFile)
     {
         $duration = round(microtime(true) - $startTime, 2);

@@ -14,7 +14,7 @@
                         </div>
                         <div>
                             <h1 class="text-xl font-serif font-bold text-gray-900">Funkis Zentrale</h1>
-                            <p class="text-xs text-gray-500">Dein Autopilot für den Tag.</p>
+                            <p class="text-xs text-gray-500">Dein Autopilot für deine Tagesroutine.</p>
                         </div>
                     </div>
                 </div>
