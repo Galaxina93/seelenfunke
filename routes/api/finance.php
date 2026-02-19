@@ -80,6 +80,14 @@ Route::delete('/funki/financials/categories/{name}', function (Request $request,
 });
 
 Route::post('/funki/financials/quick-entry', function (Request $request) {
+    // 1. LOGGING: Wir schauen uns an, was wirklich ankommt
+    Log::info('Quick-Entry Upload Versuch:', [
+        'all_input' => $request->all(),
+        'has_file_file' => $request->hasFile('file'),
+        'has_file_specialFiles' => $request->hasFile('specialFiles'),
+        'file_names' => array_keys($request->allFiles())
+    ]);
+
     $data = $request->validate([
         'title' => 'required|string',
         'amount' => 'required',
@@ -89,8 +97,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         'location' => 'nullable|string'
     ]);
 
-    $rawAmount = str_replace(',', '.', (string)$data['amount']);
-    $amount = (float)$rawAmount;
+    $amount = (float)str_replace(',', '.', (string)$data['amount']);
 
     $issue = FinanceSpecialIssue::create([
         'id' => Str::uuid(),
@@ -100,17 +107,34 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         'category' => $data['category'] ?? 'Sonstiges',
         'execution_date' => $data['date'] ?? now(),
         'is_business' => $data['is_business'] ?? false,
-        'location' => $data['location'] ?? 'App QuickEntry'
+        'location' => $data['location'] ?? 'App QuickEntry',
+        'file_paths' => []
     ]);
 
-    // NEU: Verarbeitung der hochgeladenen Dateien aus der App (Foto/Galerie)
+    // 2. DATEI-LOGIK: Wir prüfen beide gängigen Keys (file und specialFiles)
+    // Und wir nutzen den von dir gewünschten Pfad: financial/receipts
+    $paths = [];
+
+    // Check für Einzeldatei (Key: 'file')
+    if ($request->hasFile('file')) {
+        $path = $request->file('file')->store('financial/receipts', 'public');
+        $paths[] = $path;
+        Log::info('Datei über "file" empfangen:', ['path' => $path]);
+    }
+
+    // Check für Array (Key: 'specialFiles' oder 'specialFiles[]')
     if ($request->hasFile('specialFiles')) {
-        $paths = [];
         foreach ($request->file('specialFiles') as $file) {
-            $path = $file->store('financials/receipts', 'public');
+            $path = $file->store('financial/receipts', 'public');
             $paths[] = $path;
         }
+        Log::info('Dateien über "specialFiles" empfangen:', ['count' => count($paths)]);
+    }
+
+    if (!empty($paths)) {
         $issue->update(['file_paths' => $paths]);
+    } else {
+        Log::warning('Quick-Entry angelegt, aber KEINE Datei im Request gefunden.');
     }
 
     if (!empty($data['category'])) {
@@ -120,6 +144,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         );
         $cat->increment('usage_count');
     }
+
     return response()->json(['success' => true, 'entry' => $issue]);
 });
 
