@@ -33,407 +33,223 @@ class FunkiBotService
 
     /**
      * Die ultimative Ansage ermitteln.
-     * Logik: Jede Baustelle bekommt ein "Dringlichkeits-Score".
-     * Der höchste Score gewinnt und wird als "Tue jetzt das" ausgegeben.
+     * Sammelt alle Handlungsoptionen, bewertet sie nach dem Score-System
+     * und liefert den aktuellen Tages-Flow, eine Top-Empfehlung, Alternativen
+     * sowie die gesamte Tagesroutine für den Slider.
      */
     public function getUltimateCommand(): array
     {
-        $baustellen = [];
-        $allDayEvents = []; // Sammler für Ganztagstermine, damit diese nicht blockieren
-        $now = Carbon::now();
+        $now = \Carbon\Carbon::now();
+        $options = [];
 
         // ------------------------------------------------------------------
-        // LEVEL 1: KRITISCHE SICHERHEIT (Geht über ALLES)
+        // 0. KONTEXT: TAGESROUTINE (Der aktuelle Flow & der Slider)
         // ------------------------------------------------------------------
-        $failedLogins = LoginAttempt::where('success', false)
+        $currentFlow = [
+            'title' => 'Freie Zeit',
+            'step' => 'Keine feste Routine aktiv',
+            'type' => 'free',
+            'icon' => 'sun'
+        ];
+
+        // Alle Routinen für den Slider aufbereiten
+        $allRoutines = \App\Models\DayRoutine::with('steps')
+            ->where('is_active', true)
+            ->orderBy('start_time', 'asc')
+            ->get();
+
+        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options) {
+            $start = \Carbon\Carbon::parse($routine->start_time);
+            $duration = $routine->type === 'sleep' ? 8 * 60 : $routine->duration_minutes;
+            $end = $start->copy()->addMinutes($duration);
+
+            // Mitternachts-Korrektur (z.B. Schlafen von 22:00 bis 06:00 Uhr)
+            if ($start > $end) {
+                $end->addDay();
+                if ($now->hour < $end->hour) {
+                    $start->subDay();
+                }
+            }
+
+            $status = 'future';
+            if ($end->isPast()) {
+                $status = 'past';
+            } elseif ($now->between($start, $end)) {
+                $status = 'current';
+
+                // --- Aktuellen Flow für die Hauptanzeige setzen ---
+                $currentFlow['title'] = $routine->title;
+                $currentFlow['type'] = $routine->type;
+                $currentFlow['icon'] = $routine->icon ?? 'clock';
+
+                $minutesPassed = $start->diffInMinutes($now);
+                $accumulated = 0;
+                $stepFound = false;
+
+                foreach ($routine->steps->sortBy('position') as $step) {
+                    if ($minutesPassed >= $accumulated && $minutesPassed < ($accumulated + $step->duration_minutes)) {
+                        $currentFlow['step'] = $step->title;
+                        $stepFound = true;
+                        break;
+                    }
+                    $accumulated += $step->duration_minutes;
+                }
+
+                if (!$stepFound) {
+                    $currentFlow['step'] = 'Fokus-Phase';
+                }
+
+                // Wenn es Pause/Sport/Essen ist, pushen wir es als aktive Handlungsoption
+                if (in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
+                    $options[] = [
+                        'score' => 300,
+                        'title' => $routine->title,
+                        'message' => "Dein Körper braucht das jetzt: " . $currentFlow['step'] . ". " . ($routine->message ?? "Schalte kurz ab und lade die Akkus auf."),
+                        'action_label' => 'Routine ansehen',
+                        'action_route' => 'admin.funki-routine',
+                        'icon' => $routine->icon ?? '🧘'
+                    ];
+                }
+            }
+
+            return [
+                'id' => $routine->id,
+                'title' => $routine->title,
+                'time_formatted' => $start->format('H:i') . ' - ' . $end->format('H:i'),
+                'icon' => $routine->icon ?? 'clock',
+                'status' => $status,
+            ];
+        })->values()->toArray();
+
+        // ------------------------------------------------------------------
+        // 1. SICHERHEIT (Score 1000+)
+        // ------------------------------------------------------------------
+        $failedLogins = \App\Models\LoginAttempt::where('success', false)
             ->where('attempted_at', '>', now()->subHours(24))
             ->count();
 
         if ($failedLogins > 5) {
-            return [
-                'score' => 1000,
+            $options[] = [
+                'score' => 1000 + $failedLogins,
                 'title' => 'Sicherheits-Alarm!',
-                'message' => "Achtung Alina! Ich habe {$failedLogins} verdächtige Login-Versuche blockiert. Bitte wirf kurz einen Blick auf die IP-Adressen, um auf Nummer sicher zu gehen.",
+                'message' => "Ich habe {$failedLogins} verdächtige Login-Versuche blockiert. Bitte prüfe sofort die IP-Adressen!",
                 'action_label' => 'Sicherheit prüfen',
                 'action_route' => 'admin.user-management',
-                'icon' => '🛑',
-                'instruction' => 'SOFORT HANDELN:'
+                'icon' => '🛑'
             ];
         }
 
         // ------------------------------------------------------------------
-        // LEVEL 2: KALENDER & TERMINE (Geht vor Routine)
+        // 2. TERMINE (Score 500)
         // ------------------------------------------------------------------
+        $upcomingEvent = \App\Models\CalendarEvent::whereDate('start_date', $now->toDateString())
+            ->where('start_date', '>', $now)
+            ->orderBy('start_date', 'asc')
+            ->first();
 
-        // Termine laden (Einmalig & Wiederkehrend)
-        $calendarEvents = CalendarEvent::whereNull('recurrence')
-            ->whereDate('start_date', $now->toDateString())
-            ->get();
-
-        $recurringEvents = CalendarEvent::whereNotNull('recurrence')->get();
-        $allRelevantEvents = $calendarEvents->merge($recurringEvents);
-
-        $activeAppointment = null;
-        $appointmentState = ''; // 'active', 'upcoming_urgent', 'upcoming_reminder'
-
-        foreach ($allRelevantEvents as $event) {
-            $effectiveStart = $event->start_date->copy();
-            $effectiveEnd = $event->end_date ? $event->end_date->copy() : $effectiveStart->copy()->addHour();
-
-            // Wiederholung berechnen
-            if ($event->recurrence) {
-                $matchesToday = false;
-                $startOfToday = $now->copy()->startOfDay();
-
-                if ($event->recurrence_end_date && $event->recurrence_end_date < $startOfToday) continue;
-
-                switch ($event->recurrence) {
-                    case 'daily': $matchesToday = true; break;
-                    case 'weekly': $matchesToday = $event->start_date->isSameDayOfWeek($now); break;
-                    case 'monthly': $matchesToday = $event->start_date->day === $now->day; break;
-                    case 'yearly': $matchesToday = $event->start_date->format('m-d') === $now->format('m-d'); break;
-                }
-
-                if (!$matchesToday) continue;
-
-                $effectiveStart->setDate($now->year, $now->month, $now->day);
-                $effectiveEnd->setDate($now->year, $now->month, $now->day);
-            }
-
-            // Ganztagstermine abfangen, damit sie nicht den ganzen Tag blockieren!
-            // Wir sammeln sie und reihen sie später weicher im System ein.
-            if ($event->is_all_day) {
-                $allDayEvents[] = $event;
-                continue; // Überspringt die harten Check 1 & 2 Blockaden
-            }
-
-            // CHECK 1: Läuft der Termin gerade?
-            if ($now->between($effectiveStart, $effectiveEnd)) {
-                $activeAppointment = $event;
-                $appointmentState = 'active';
-                break; // Top Prio, Schleife abbrechen
-            }
-
-            // CHECK 2: Baldiger Start (Erinnerung)
-            if ($effectiveStart->isFuture()) {
-                $minutesToStart = $now->diffInMinutes($effectiveStart);
-
-                // Hat der Termin eine eigene Erinnerung? Wenn nein, Standard 45 Min.
-                $reminderThreshold = $event->reminder_minutes ?? 45;
-
-                if ($minutesToStart <= 15) {
-                    $activeAppointment = $event;
-                    $appointmentState = 'upcoming_urgent'; // Rot
-                } elseif ($minutesToStart <= $reminderThreshold) {
-                    // Nur überschreiben, wenn wir nicht schon was Dringenderes (Urgent) haben
-                    if ($appointmentState !== 'upcoming_urgent') {
-                        $activeAppointment = $event;
-                        $appointmentState = 'upcoming_reminder'; // Gelb
-                    }
-                }
-            }
-        }
-
-        if ($activeAppointment) {
-            $effectiveStart = $activeAppointment->start_date->copy();
-            if ($activeAppointment->recurrence) {
-                $effectiveStart->setDate($now->year, $now->month, $now->day);
-            }
-
-            $message = "";
-            $score = 500;
-            $instruction = "Fokus setzen:";
-
-            if ($appointmentState === 'active') {
-                $message = "Dein Termin '{$activeAppointment->title}' läuft bereits (seit " . $effectiveStart->format('H:i') . " Uhr). Ich halte hier die Stellung, viel Erfolg!";
-                $score = 600;
-                $instruction = "Termin läuft:";
-            } elseif ($appointmentState === 'upcoming_urgent') {
-                $message = "Gleich geht's los! '{$activeAppointment->title}' startet um " . $effectiveStart->format('H:i') . " Uhr. Schnapp dir noch schnell einen Kaffee und mach dich bereit.";
-                $score = 550;
-                $instruction = "Kurz vor Start:";
-            } else {
-                // Reminder Phase (nach Config oder 45 min Standard)
-                $diff = $now->diffInMinutes($effectiveStart);
-                $message = "Behalte die Uhr im Blick: In {$diff} Minuten (um " . $effectiveStart->format('H:i') . " Uhr) steht '{$activeAppointment->title}' an. Zeit, die aktuelle Aufgabe langsam abzuschließen.";
-                $score = 500;
-            }
-
-            $baustellen[] = [
-                'score' => $score,
-                'title' => ($appointmentState === 'active' ? 'Im Termin' : 'Termin steht an'),
-                'message' => $message,
+        if ($upcomingEvent && $now->diffInMinutes($upcomingEvent->start_date) <= 45) {
+            $options[] = [
+                'score' => 500,
+                'title' => 'Termin rückt näher',
+                'message' => "Um " . \Carbon\Carbon::parse($upcomingEvent->start_date)->format('H:i') . " Uhr steht '{$upcomingEvent->title}' an. Zeit, sich vorzubereiten.",
                 'action_label' => 'Kalender öffnen',
                 'action_route' => 'admin.funki-kalender',
-                'icon' => '📅',
-                'instruction' => $instruction
+                'icon' => '📅'
             ];
         }
 
-        // Wenn ein Termin aktiv/warnend ist, geben wir ihn sofort zurück (unterbricht Routine)
-        if (!empty($baustellen)) {
-            return $baustellen[0];
+        // ------------------------------------------------------------------
+        // 3. BUSINESS (Score 200) - Namespace korrigiert!
+        // ------------------------------------------------------------------
+        $prioOrder = \App\Models\Order\Order::whereIn('status', ['pending', 'processing'])
+            ->orderBy('is_express', 'desc')
+            ->first();
+
+        if ($prioOrder) {
+            $options[] = [
+                'score' => $prioOrder->is_express ? 250 : 200,
+                'title' => 'Produktion starten',
+                'message' => "Bestellung #{$prioOrder->order_number} wartet auf Fertigung. " . ($prioOrder->is_express ? "🚨 Express!" : "Lass die Laser glühen!"),
+                'action_label' => 'Jetzt fertigen',
+                'action_route' => 'admin.orders',
+                'icon' => '🚀'
+            ];
         }
 
         // ------------------------------------------------------------------
-        // LEVEL 3: BIO-RHYTHMUS (ROUTINE)
+        // 4. VERWALTUNG (Score 100) - Namespace korrigiert!
         // ------------------------------------------------------------------
+        $overdueInvoices = \App\Models\Invoice::where('status', 'open')->where('due_date', '<', now())->count();
+        if ($overdueInvoices > 0) {
+            $options[] = [
+                'score' => 110,
+                'title' => 'Zahlungseingänge',
+                'message' => "Da lässt sich jemand Zeit: {$overdueInvoices} Rechnung(en) sind überfällig. Ein Reminder wäre gut.",
+                'action_label' => 'Rechnungen prüfen',
+                'action_route' => 'admin.invoices',
+                'icon' => '💸'
+            ];
+        }
 
-        // Kernarbeitszeit definieren (09:00 - 22:00)
-        $isWorkTime = $now->between(
-            Carbon::createFromTime(9, 0, 0),
-            Carbon::createFromTime(22, 0, 0)
-        );
+        $missingReceipt = \App\Models\Financial\FinanceSpecialIssue::whereNull('file_paths')->first();
+        if ($missingReceipt) {
+            $options[] = [
+                'score' => 100,
+                'title' => 'Beleg fehlt',
+                'message' => "Uns fehlt noch der Beleg für '{$missingReceipt->title}'. Gleich hochladen, dann ist es erledigt.",
+                'action_label' => 'Beleg hochladen',
+                'action_route' => 'admin.financial-categories-special-editions',
+                'icon' => '📸'
+            ];
+        }
 
-        $activeRoutine = DayRoutine::with('steps')->where('is_active', true)->get()->filter(function ($routine) use ($now) {
-            $start = Carbon::parse($routine->start_time);
-            if ($routine->type === 'sleep') {
-                $end = $start->copy()->addHours(8);
-            } else {
-                $end = $start->copy()->addMinutes($routine->duration_minutes);
-            }
-            return $now->between($start, $end);
-        })->first();
+        // ------------------------------------------------------------------
+        // 5. TODOS (Score 10)
+        // ------------------------------------------------------------------
+        $nextTodo = \App\Models\Todo::where('is_completed', false)
+            ->whereNull('parent_id')
+            ->orderByRaw("CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END")
+            ->orderBy('position', 'asc')
+            ->first();
 
-        if ($activeRoutine) {
-            // Schritt-Berechnung der Routine
-            $startTime = Carbon::parse($activeRoutine->start_time);
-            $minutesPassed = $startTime->diffInMinutes($now);
-
-            $currentStepName = $activeRoutine->title; // Standard-Fallback
-            $currentStepIndex = 1;
-            $accumulatedMinutes = 0;
-            $nextStepName = null;
-
-            foreach ($activeRoutine->steps as $step) {
-                $stepDuration = $step->duration_minutes;
-                if ($minutesPassed >= $accumulatedMinutes && $minutesPassed < ($accumulatedMinutes + $stepDuration)) {
-                    $currentStepName = $step->title;
-                    $currentStepIndex = $step->position;
-                    $nextStep = $activeRoutine->steps->where('position', $step->position + 1)->first();
-                    $nextStepName = $nextStep ? $nextStep->title : null; // Hier haben wir das harte "Abschluss" entfernt
-                    break;
-                }
-                $accumulatedMinutes += $stepDuration;
-            }
-
-            if ($minutesPassed >= $accumulatedMinutes && $activeRoutine->steps->count() > 0) {
-                // Wenn alle detaillierten Schritte der Routine durch sind, es aber zeitlich noch im Block liegt
-                $currentStepName = "Nachmittagsarbeit";
-            }
-
-            // Smarter Tipp passend zum aktuellen Routine-Typ
-            $routineTip = match($activeRoutine->type) {
-                'work'    => '💡 Tipp: Handy außer Sichtweite legen, das steigert die Produktivität massiv.',
-                'break'   => '💡 Tipp: Schau vom Bildschirm weg in die Ferne, das entspannt die Augen.',
-                'food'    => '💡 Tipp: Nimm dir Zeit zum Genießen. Wer gut isst, arbeitet danach besser.',
-                'sport'   => '💡 Tipp: Kopf aus, Körper an – du wirst dich danach großartig fühlen!',
-                'hygiene' => '💡 Tipp: Ein bisschen Self-Care wirkt oft wahre Wunder für die Seele.',
-                'sleep'   => '💡 Tipp: Der Shop läuft auch ohne dich weiter. Gönn dir die Ruhe.',
-                default   => '💡 Tipp: Ein bewusster, tiefer Atemzug zwischendurch tut immer gut.'
+        if ($nextTodo) {
+            $prioScore = match($nextTodo->priority) {
+                'high' => 25,
+                'medium' => 15,
+                default => 10
             };
 
-            // Nur anzeigen, wenn es auch wirklich einen nächsten Schritt gibt
-            $nextStepText = $nextStepName ? "\n\n(Als Nächstes: $nextStepName)" : "";
-
-            $baustellen[] = [
-                'score' => 300,
-                'title' => $activeRoutine->title,
-                'message' => "Du bist gut in der Zeit! Aktuell steht 👉 **$currentStepName** auf deinem Plan.\n\n$routineTip$nextStepText",
-                'action_label' => 'Routine ansehen',
-                'action_route' => 'admin.funki-routine',
-                'icon' => $this->getIconForType($activeRoutine->type),
-                'instruction' => 'Dein Flow:'
+            $options[] = [
+                'score' => $prioScore,
+                'title' => 'ToDo abhaken',
+                'message' => "Wenn du gerade Luft hast: Nächster Punkt auf der Liste ist '{$nextTodo->title}'.",
+                'action_label' => 'Zur Liste',
+                'action_route' => 'admin.funki-todos',
+                'icon' => '✅'
             ];
         }
 
-        // Wenn Routine aktiv ist -> Routine ausgeben
-        if (!empty($baustellen)) {
-            return $baustellen[0];
-        }
+        // ------------------------------------------------------------------
+        // AUSWERTUNG & SORTIERUNG
+        // ------------------------------------------------------------------
+        usort($options, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        // ------------------------------------------------------------------
-        // BREAKPOINT: RUHEZEIT
-        // ------------------------------------------------------------------
-        if (!$isWorkTime) {
-            return [
-                'score' => 1000,
-                'title' => 'Feierabend!',
-                'message' => "Es ist " . $now->format('H:i') . " Uhr. Der Shop ist gesichert, die Technik läuft. Leg die Beine hoch und tanke neue Energie für morgen!",
-                'action_label' => 'Gute Nacht',
+        if (empty($options)) {
+            $options[] = [
+                'score' => 0,
+                'title' => 'Freie Bahn!',
+                'message' => "Der Shop schnurrt, die ToDos sind leer. Klapp den Laptop zu oder gönn dir was Schönes!",
+                'action_label' => 'Dashboard öffnen',
                 'action_route' => 'admin.dashboard',
-                'icon' => '🌙',
-                'instruction' => 'Ruhemodus aktiv'
+                'icon' => '🏆'
             ];
-        }
-
-        // ------------------------------------------------------------------
-        // LEVEL 4: OPERATIVES GESCHÄFT (Lückenfüller)
-        // ------------------------------------------------------------------
-
-        if ($isWorkTime) {
-            // 1. BESTELLUNGEN
-            $prioOrder = Order::whereIn('status', ['pending', 'processing'])
-                ->orderBy('is_express', 'desc')
-                ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
-                ->orderBy('deadline', 'asc')
-                ->first();
-
-            if ($prioOrder) {
-                $score = $prioOrder->is_express ? 220 : 200;
-                if ($prioOrder->deadline && $prioOrder->deadline->isPast()) $score += 100;
-
-                $baustellen[] = [
-                    'score' => $score,
-                    'title' => 'Produktion starten',
-                    'message' => "Es gibt was zu tun! Eine Bestellung (#{$prioOrder->order_number}) von {$prioOrder->billing_address['first_name']} wartet auf dich." . ($prioOrder->is_express ? " 🚀 Prio: Express!" : "") . " Schnapp dir den Laser und leg los!",
-                    'action_label' => 'Jetzt fertigen',
-                    'action_route' => 'admin.orders',
-                    'icon' => '🚀'
-                ];
-            }
-
-            // 2. BELEGE
-            $missingReceipt = FinanceSpecialIssue::where(function($q) {
-                $q->whereNull('file_paths')->orWhere('file_paths', '[]')->orWhere('file_paths', '');
-            })->orderBy('execution_date', 'desc')->first();
-
-            if ($missingReceipt) {
-                $baustellen[] = [
-                    'score' => 110,
-                    'title' => 'Beleg fehlt!',
-                    'message' => "Kleine Fleißarbeit: Uns fehlt noch der Beleg für '{$missingReceipt->title}' (" . number_format($missingReceipt->amount, 2, ',', '.') . "€). Gleich hochladen, dann hast du es aus dem Kopf!",
-                    'action_label' => 'Beleg hochladen',
-                    'action_route' => 'admin.financial-categories-special-editions',
-                    'icon' => '📸'
-                ];
-            }
-
-            // 3. RECHNUNGEN
-            $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
-            if ($overdueInvoices > 0) {
-                $baustellen[] = [
-                    'score' => 105,
-                    'title' => 'Zahlungseingänge',
-                    'message' => "Da lässt sich jemand Zeit: {$overdueInvoices} Rechnung(en) sind überfällig. Ein freundlicher Reminder an die Kunden bewirkt oft Wunder.",
-                    'action_label' => 'Rechnungen prüfen',
-                    'action_route' => 'admin.invoices',
-                    'icon' => '💸'
-                ];
-            }
-
-            // 4. VERTRAG
-            $missingContract = FinanceCostItem::whereNull('contract_file_path')->first();
-            if ($missingContract) {
-                $baustellen[] = [
-                    'score' => 85,
-                    'title' => 'Ablage checken',
-                    'message' => "Papierkram nicht vergessen: Der Vertrag für '{$missingContract->name}' fehlt noch in der digitalen Akte. Einfach abfotografieren und abhaken!",
-                    'action_label' => 'Vertrag hochladen',
-                    'action_route' => 'admin.financial-contracts-groups',
-                    'icon' => '📄'
-                ];
-            }
-
-            // 5. LAGER
-            $lowStock = Product::where('track_quantity', true)
-                ->where('quantity', '<=', (int)shop_setting('inventory_low_stock_threshold', 5))
-                ->where('status', 'active')->first();
-            if ($lowStock) {
-                $baustellen[] = [
-                    'score' => 80,
-                    'title' => 'Lager auffüllen',
-                    'message' => "Dein Bestseller geht zur Neige! Wir haben nur noch {$lowStock->quantity}x '{$lowStock->name}' auf Lager. Tipp: Rechtzeitig nachbestellen.",
-                    'action_label' => 'Lager verwalten',
-                    'action_route' => 'admin.products',
-                    'icon' => '📦'
-                ];
-            }
-
-            // 6. BLOG
-            $lastBlog = BlogPost::where('status', 'published')->latest('published_at')->first();
-            if (!$lastBlog || $lastBlog->published_at->diffInDays(now()) > 30) {
-                $baustellen[] = [
-                    'score' => 30,
-                    'title' => 'Content erstellen',
-                    'message' => "Lust auf etwas Kreativität? Der letzte Blogpost ist schon ein Weilchen her. Erzähl deinen Kunden doch eine neue, funkelnde Geschichte aus der Manufaktur!",
-                    'action_label' => 'Beitrag schreiben',
-                    'action_route' => 'admin.blog',
-                    'icon' => '✍️'
-                ];
-            }
-
-            // 7. GANZTAGS-TERMINE (Score 150)
-            // Steht als weicher Reminder unter wichtigen Bestellungen, blockiert aber nichts.
-            foreach ($allDayEvents as $allDayEvent) {
-                $baustellen[] = [
-                    'score' => 150,
-                    'title' => 'Tagesereignis',
-                    'message' => "Kurze Info für heute: {$allDayEvent->title}" . ($allDayEvent->category ? " ({$allDayEvent->category})" : "") . ". Behalte das einfach ganz entspannt im Hinterkopf.",
-                    'action_label' => 'Kalender prüfen',
-                    'action_route' => 'admin.funki-kalender',
-                    'icon' => '📅',
-                    'instruction' => 'Zur Erinnerung:'
-                ];
-            }
-        }
-
-        // ENTSCHEIDUNG LEVEL 4
-        if (!empty($baustellen)) {
-            usort($baustellen, fn($a, $b) => $b['score'] <=> $a['score']);
-            $winner = $baustellen[0];
-            $winner['instruction'] = $winner['instruction'] ?? "Freie Zeit klug nutzen:";
-            return $winner;
-        }
-
-        // ------------------------------------------------------------------
-        // LEVEL 5: TODOS
-        // ------------------------------------------------------------------
-        if ($isWorkTime) {
-            $nextTodo = Todo::where('is_completed', false)
-                ->whereNull('parent_id')
-                ->orderBy('position', 'asc')
-                ->orderBy('created_at', 'asc')
-                ->first();
-
-            if ($nextTodo) {
-                $openCount = Todo::where('is_completed', false)->whereNull('parent_id')->count();
-                return [
-                    'score' => 10,
-                    'title' => 'Todo abarbeiten',
-                    'message' => "Das operative Geschäft glänzt! Ein perfekter Moment, um ein ToDo von der Liste zu streichen ({$openCount} noch offen). Nächster Schritt: '{$nextTodo->title}'.",
-                    'action_label' => 'Zur ToDo Liste',
-                    'action_route' => 'admin.funki-todos', // <-- ANGEPASSTE ROUTE
-                    'icon' => '✅',
-                    'instruction' => 'Nächstes Ziel:'
-                ];
-            }
-        }
-
-        // ------------------------------------------------------------------
-        // LEVEL 6: FREIZEIT
-        // ------------------------------------------------------------------
-
-        // Versuche den User zu ermitteln (Fallback für CLI/Bot Context)
-        $name = 'Du';
-
-        // Prüfen, ob wir im Web-Context sind
-        $guard = (new \App\Models\User)->getGuard();
-        if ($guard) {
-            $user = Auth::guard($guard)->user();
-            if ($user) {
-                $name = $user->first_name;
-            }
         }
 
         return [
-            'score' => 0,
-            'title' => 'Freie Bahn!',
-            'message' => "Wahnsinn, {$name}! Der Shop schnurrt, die ToDos sind leer und alles ist erledigt. Klapp den Laptop zu, schnapp frische Luft oder gönn dir was Schönes! ☀️",
-            'action_label' => 'Dashboard öffnen',
-            'action_route' => 'admin.dashboard',
-            'icon' => '🏆',
-            'instruction' => 'Status: Perfekt'
+            'flow' => $currentFlow,
+            'recommendation' => $options[0],
+            'alternatives' => array_slice($options, 1, 2),
+            'routines' => $sliderRoutines // Array für den Blade Slider
         ];
     }
 
