@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use App\Models\Financial\FinanceGroup;
 use App\Models\Financial\FinanceCostItem;
@@ -80,13 +81,7 @@ Route::delete('/funki/financials/categories/{name}', function (Request $request,
 });
 
 Route::post('/funki/financials/quick-entry', function (Request $request) {
-    // 1. LOGGING: Wir schauen uns an, was wirklich ankommt
-    Log::info('Quick-Entry Upload Versuch:', [
-        'all_input' => $request->all(),
-        'has_file_file' => $request->hasFile('file'),
-        'has_file_specialFiles' => $request->hasFile('specialFiles'),
-        'file_names' => array_keys($request->allFiles())
-    ]);
+    Log::info('Quick-Entry Request received', ['files_count' => count($request->allFiles())]);
 
     $data = $request->validate([
         'title' => 'required|string',
@@ -111,30 +106,17 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         'file_paths' => []
     ]);
 
-    // 2. DATEI-LOGIK: Wir prüfen beide gängigen Keys (file und specialFiles)
-    // Und wir nutzen den von dir gewünschten Pfad: financial/receipts
-    $paths = [];
-
-    // Check für Einzeldatei (Key: 'file')
+    // Mehrere Dateien verarbeiten (Array Key 'file')
     if ($request->hasFile('file')) {
-        $path = $request->file('file')->store('financial/receipts', 'public');
-        $paths[] = $path;
-        Log::info('Datei über "file" empfangen:', ['path' => $path]);
-    }
+        $paths = [];
+        $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
 
-    // Check für Array (Key: 'specialFiles' oder 'specialFiles[]')
-    if ($request->hasFile('specialFiles')) {
-        foreach ($request->file('specialFiles') as $file) {
+        foreach ($files as $file) {
             $path = $file->store('financial/receipts', 'public');
             $paths[] = $path;
         }
-        Log::info('Dateien über "specialFiles" empfangen:', ['count' => count($paths)]);
-    }
-
-    if (!empty($paths)) {
         $issue->update(['file_paths' => $paths]);
-    } else {
-        Log::warning('Quick-Entry angelegt, aber KEINE Datei im Request gefunden.');
+        Log::info('Files stored', ['paths' => $paths]);
     }
 
     if (!empty($data['category'])) {
