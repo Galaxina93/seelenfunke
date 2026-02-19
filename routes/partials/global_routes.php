@@ -10,11 +10,13 @@ use App\Livewire\Shop\Offer\QuoteAcceptance;
 use App\Livewire\Shop\Product\ProductIndex;
 use App\Livewire\Shop\Product\ProductShow;
 use App\Models\PageVisit;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Request; // Fassade für Request::ip()
 use Illuminate\Support\Facades\Route;
 use App\Livewire\Shop\Blog\BlogFrontendIndex;
 use App\Livewire\Shop\Blog\BlogFrontendShow;
+use Illuminate\Auth\Events\Verified;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,7 +29,6 @@ Route::get('/system/cronjob/run-secret-847294', function () {
     Artisan::call('schedule:run');
     return 'Cronjob erfolgreich ausgeführt.';
 });
-
 
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
@@ -55,7 +56,8 @@ Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::cl
 Route::get('auth/{guard}/google', [GoogleAuthController::class, 'redirectToGoogle'])->name('auth.google');
 Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']);
 
-// --- 1. Hauptseiten ---
+
+// --- 2. Hauptseiten ---
 
 // Startseite
 Route::get('/', function () {
@@ -77,9 +79,8 @@ Route::get('/', function () {
         // (Ignoriere Fehler beim Tracking)
     }
 
-    // 2. Die View zurückgeben
+    // Die View zurückgeben
     return view('frontend.pages.welcome');
-
 })->name('home');
 
 // Produkt-Detailseite
@@ -104,7 +105,8 @@ Route::get('/kontakt', function () {
     return view('frontend.pages.contact');
 })->name('contact');
 
-// --- 2. Tools ---
+
+// --- 3. Tools ---
 
 // Kalkulator
 Route::get('/calculator', function () {
@@ -116,7 +118,7 @@ Route::get('/application', function () {
 })->name('application');
 
 
-// --- 3. Rechtliches & Weiteres ---
+// --- 4. Rechtliches & Weiteres ---
 
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');
@@ -146,13 +148,49 @@ Route::get('/barrierefreiheit', function () {
 Route::redirect('/datenschutzerklaerung', '/datenschutz');
 
 
-
+// --- 5. Authentifizierung & Kundenbereich ---
 
 Route::get('/login', function () {
     return view('global/pages/auth/login');
 })->middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->name('login');
 
+
+// REGISTRATIONS ROUTE
 Route::get('/register', App\Livewire\Global\Auth\Register::class)->name('register');
+
+// Zeigt den Hinweis an, dass der User seine E-Mail bestätigen muss (nur wenn eingeloggter User unbestätigt ist)
+Route::get('/email/verify', function () {
+    return view('auth.verify-email');
+})->middleware('auth')->name('verification.notice');
+
+
+// NEU: Unsere maßgeschneiderte, ungeschützte Gast-Route für die E-Mail-Verifizierung
+Route::get('/email/verify-customer/{id}/{hash}', function (\Illuminate\Http\Request $request, $id, $hash) {
+
+    $user = \App\Models\Customer\Customer::findOrFail($id);
+
+    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+        abort(403, 'Ungültiger oder abgelaufener Link.');
+    }
+
+    // SICHERHEITS-FIX: Wir updaten gezielt alle Profile dieses Kunden, falls durch alte Tests Duplikate in der Datenbank hängen!
+    \App\Models\Customer\CustomerProfile::where('customer_id', $user->id)
+        ->update(['email_verified_at' => now()]);
+
+    if (! $user->hasVerifiedEmail()) {
+        event(new Verified($user));
+    }
+
+    return redirect()->route('login')->with('status', 'Deine E-Mail-Adresse wurde erfolgreich bestätigt! Du kannst dich jetzt einloggen. ✨');
+
+})->middleware(['signed'])->name('customer.verification.verify');
+
+
+// Resend-Link, falls die E-Mail nicht ankam (erfordert eingeloggten Zustand)
+Route::post('/email/verification-notification', function (\Illuminate\Http\Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+    return back()->with('message', 'Verifizierungs-Link gesendet!');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
 
 
 Route::get('/forgot-password', function () {
@@ -160,7 +198,7 @@ Route::get('/forgot-password', function () {
 })->name('forgot-password');
 
 
-// Rechnungsdownload Route
+// --- 6. Rechnungsdownload Route ---
 Route::get('/invoice/{invoice}/download', function (App\Models\Invoice $invoice) {
 
     // Security Gate: Darf der User das sehen?
@@ -179,4 +217,3 @@ Route::get('/invoice/{invoice}/download', function (App\Models\Invoice $invoice)
     return $pdf->download('Rechnung_' . $invoice->invoice_number . '.pdf');
 
 })->name('invoice.download');
-

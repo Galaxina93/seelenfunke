@@ -39,6 +39,7 @@ class FunkiBotService
     public function getUltimateCommand(): array
     {
         $baustellen = [];
+        $allDayEvents = []; // Sammler für Ganztagstermine, damit diese nicht blockieren
         $now = Carbon::now();
 
         // ------------------------------------------------------------------
@@ -52,7 +53,7 @@ class FunkiBotService
             return [
                 'score' => 1000,
                 'title' => 'Sicherheits-Alarm!',
-                'message' => "ALARM! {$failedLogins} Fehlversuche registriert. Lass alles stehen und liegen. Prüfe die IP-Adressen!",
+                'message' => "Achtung Alina! Ich habe {$failedLogins} verdächtige Login-Versuche blockiert. Bitte wirf kurz einen Blick auf die IP-Adressen, um auf Nummer sicher zu gehen.",
                 'action_label' => 'Sicherheit prüfen',
                 'action_route' => 'admin.user-management',
                 'icon' => '🛑',
@@ -99,6 +100,13 @@ class FunkiBotService
                 $effectiveEnd->setDate($now->year, $now->month, $now->day);
             }
 
+            // Ganztagstermine abfangen, damit sie nicht den ganzen Tag blockieren!
+            // Wir sammeln sie und reihen sie später weicher im System ein.
+            if ($event->is_all_day) {
+                $allDayEvents[] = $event;
+                continue; // Überspringt die harten Check 1 & 2 Blockaden
+            }
+
             // CHECK 1: Läuft der Termin gerade?
             if ($now->between($effectiveStart, $effectiveEnd)) {
                 $activeAppointment = $event;
@@ -112,10 +120,6 @@ class FunkiBotService
 
                 // Hat der Termin eine eigene Erinnerung? Wenn nein, Standard 45 Min.
                 $reminderThreshold = $event->reminder_minutes ?? 45;
-
-                // Logik:
-                // 1. Sehr dringend (< 15 min): Immer warnen (höchste Prio bei Upcoming)
-                // 2. Erinnerung (< Threshold): Warnen
 
                 if ($minutesToStart <= 15) {
                     $activeAppointment = $event;
@@ -138,28 +142,29 @@ class FunkiBotService
 
             $message = "";
             $score = 500;
-            $instruction = "Termin wahrnehmen:";
+            $instruction = "Fokus setzen:";
 
             if ($appointmentState === 'active') {
-                $message = "Der Termin '{$activeAppointment->title}' läuft seit " . $effectiveStart->format('H:i') . " Uhr. Fokus!";
+                $message = "Dein Termin '{$activeAppointment->title}' läuft bereits (seit " . $effectiveStart->format('H:i') . " Uhr). Ich halte hier die Stellung, viel Erfolg!";
                 $score = 600;
+                $instruction = "Termin läuft:";
             } elseif ($appointmentState === 'upcoming_urgent') {
-                $message = "Achtung! In weniger als 15 Minuten startet '{$activeAppointment->title}' ({$effectiveStart->format('H:i')}). Mach dich bereit!";
+                $message = "Gleich geht's los! '{$activeAppointment->title}' startet um " . $effectiveStart->format('H:i') . " Uhr. Schnapp dir noch schnell einen Kaffee und mach dich bereit.";
                 $score = 550;
-                $instruction = "Gleich geht's los:";
+                $instruction = "Kurz vor Start:";
             } else {
                 // Reminder Phase (nach Config oder 45 min Standard)
                 $diff = $now->diffInMinutes($effectiveStart);
-                $message = "Erinnerung: In {$diff} Minuten ({$effectiveStart->format('H:i')}) ist '{$activeAppointment->title}'. Bereite dich vor.";
+                $message = "Behalte die Uhr im Blick: In {$diff} Minuten (um " . $effectiveStart->format('H:i') . " Uhr) steht '{$activeAppointment->title}' an. Zeit, die aktuelle Aufgabe langsam abzuschließen.";
                 $score = 500;
             }
 
             $baustellen[] = [
                 'score' => $score,
-                'title' => ($appointmentState === 'active' ? 'Termin läuft' : 'Termin steht an'),
+                'title' => ($appointmentState === 'active' ? 'Im Termin' : 'Termin steht an'),
                 'message' => $message,
                 'action_label' => 'Kalender öffnen',
-                'action_route' => 'admin.funki-kalender', // <-- ANGEPASSTE ROUTE
+                'action_route' => 'admin.funki-kalender',
                 'icon' => '📅',
                 'instruction' => $instruction
             ];
@@ -195,7 +200,7 @@ class FunkiBotService
             $startTime = Carbon::parse($activeRoutine->start_time);
             $minutesPassed = $startTime->diffInMinutes($now);
 
-            $currentStepName = "Fokus halten";
+            $currentStepName = $activeRoutine->title; // Standard-Fallback
             $currentStepIndex = 1;
             $accumulatedMinutes = 0;
             $nextStepName = null;
@@ -206,24 +211,39 @@ class FunkiBotService
                     $currentStepName = $step->title;
                     $currentStepIndex = $step->position;
                     $nextStep = $activeRoutine->steps->where('position', $step->position + 1)->first();
-                    $nextStepName = $nextStep ? $nextStep->title : 'Abschluss';
+                    $nextStepName = $nextStep ? $nextStep->title : null; // Hier haben wir das harte "Abschluss" entfernt
                     break;
                 }
                 $accumulatedMinutes += $stepDuration;
             }
 
             if ($minutesPassed >= $accumulatedMinutes && $activeRoutine->steps->count() > 0) {
-                $currentStepName = "Pufferzeit / Abschluss";
+                // Wenn alle detaillierten Schritte der Routine durch sind, es aber zeitlich noch im Block liegt
+                $currentStepName = "Nachmittagsarbeit";
             }
+
+            // Smarter Tipp passend zum aktuellen Routine-Typ
+            $routineTip = match($activeRoutine->type) {
+                'work'    => '💡 Tipp: Handy außer Sichtweite legen, das steigert die Produktivität massiv.',
+                'break'   => '💡 Tipp: Schau vom Bildschirm weg in die Ferne, das entspannt die Augen.',
+                'food'    => '💡 Tipp: Nimm dir Zeit zum Genießen. Wer gut isst, arbeitet danach besser.',
+                'sport'   => '💡 Tipp: Kopf aus, Körper an – du wirst dich danach großartig fühlen!',
+                'hygiene' => '💡 Tipp: Ein bisschen Self-Care wirkt oft wahre Wunder für die Seele.',
+                'sleep'   => '💡 Tipp: Der Shop läuft auch ohne dich weiter. Gönn dir die Ruhe.',
+                default   => '💡 Tipp: Ein bewusster, tiefer Atemzug zwischendurch tut immer gut.'
+            };
+
+            // Nur anzeigen, wenn es auch wirklich einen nächsten Schritt gibt
+            $nextStepText = $nextStepName ? "\n\n(Als Nächstes: $nextStepName)" : "";
 
             $baustellen[] = [
                 'score' => 300,
                 'title' => $activeRoutine->title,
-                'message' => "Es ist " . $now->format('H:i') . ". Kein Termin liegt an, also folge deiner Routine:\n\n👉 **$currentStepName**\n\n(Danach: " . ($nextStepName ?? 'Fertig') . ")",
+                'message' => "Du bist gut in der Zeit! Aktuell steht 👉 **$currentStepName** auf deinem Plan.\n\n$routineTip$nextStepText",
                 'action_label' => 'Routine ansehen',
-                'action_route' => 'admin.funki-routine', // <-- ANGEPASSTE ROUTE
+                'action_route' => 'admin.funki-routine',
                 'icon' => $this->getIconForType($activeRoutine->type),
-                'instruction' => 'Bio-Rhythmus:'
+                'instruction' => 'Dein Flow:'
             ];
         }
 
@@ -238,12 +258,12 @@ class FunkiBotService
         if (!$isWorkTime) {
             return [
                 'score' => 1000,
-                'title' => 'Ruhemodus',
-                'message' => "Es ist " . $now->format('H:i') . " Uhr. Keine Termine, keine Routine. Ruh dich aus!",
+                'title' => 'Feierabend!',
+                'message' => "Es ist " . $now->format('H:i') . " Uhr. Der Shop ist gesichert, die Technik läuft. Leg die Beine hoch und tanke neue Energie für morgen!",
                 'action_label' => 'Gute Nacht',
                 'action_route' => 'admin.dashboard',
                 'icon' => '🌙',
-                'instruction' => 'System schläft'
+                'instruction' => 'Ruhemodus aktiv'
             ];
         }
 
@@ -266,7 +286,7 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => $score,
                     'title' => 'Produktion starten',
-                    'message' => "Freie Zeit nutzen! Bestellung #{$prioOrder->order_number} wartet. " . ($prioOrder->is_express ? "EXPRESS! " : "") . "Kunde: {$prioOrder->billing_address['first_name']} {$prioOrder->billing_address['last_name']}.",
+                    'message' => "Es gibt was zu tun! Eine Bestellung (#{$prioOrder->order_number}) von {$prioOrder->billing_address['first_name']} wartet auf dich." . ($prioOrder->is_express ? " 🚀 Prio: Express!" : "") . " Schnapp dir den Laser und leg los!",
                     'action_label' => 'Jetzt fertigen',
                     'action_route' => 'admin.orders',
                     'icon' => '🚀'
@@ -282,7 +302,7 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => 110,
                     'title' => 'Beleg fehlt!',
-                    'message' => "Buchhaltung machen: Für '{$missingReceipt->title}' ({{ number_format($missingReceipt->amount, 2) }}€) fehlt der Beleg.",
+                    'message' => "Kleine Fleißarbeit: Uns fehlt noch der Beleg für '{$missingReceipt->title}' (" . number_format($missingReceipt->amount, 2, ',', '.') . "€). Gleich hochladen, dann hast du es aus dem Kopf!",
                     'action_label' => 'Beleg hochladen',
                     'action_route' => 'admin.financial-categories-special-editions',
                     'icon' => '📸'
@@ -294,8 +314,8 @@ class FunkiBotService
             if ($overdueInvoices > 0) {
                 $baustellen[] = [
                     'score' => 105,
-                    'title' => 'Zahlungseingänge prüfen',
-                    'message' => "Wir haben {$overdueInvoices} überfällige Rechnungen. Schau nach dem Geld.",
+                    'title' => 'Zahlungseingänge',
+                    'message' => "Da lässt sich jemand Zeit: {$overdueInvoices} Rechnung(en) sind überfällig. Ein freundlicher Reminder an die Kunden bewirkt oft Wunder.",
                     'action_label' => 'Rechnungen prüfen',
                     'action_route' => 'admin.invoices',
                     'icon' => '💸'
@@ -307,8 +327,8 @@ class FunkiBotService
             if ($missingContract) {
                 $baustellen[] = [
                     'score' => 85,
-                    'title' => 'Vertrag hinterlegen',
-                    'message' => "Für '{$missingContract->name}' fehlt der Vertrag im System.",
+                    'title' => 'Ablage checken',
+                    'message' => "Papierkram nicht vergessen: Der Vertrag für '{$missingContract->name}' fehlt noch in der digitalen Akte. Einfach abfotografieren und abhaken!",
                     'action_label' => 'Vertrag hochladen',
                     'action_route' => 'admin.financial-contracts-groups',
                     'icon' => '📄'
@@ -323,7 +343,7 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => 80,
                     'title' => 'Lager auffüllen',
-                    'message' => "Bestand niedrig: Nur noch {$lowStock->quantity}x '{$lowStock->name}'.",
+                    'message' => "Dein Bestseller geht zur Neige! Wir haben nur noch {$lowStock->quantity}x '{$lowStock->name}' auf Lager. Tipp: Rechtzeitig nachbestellen.",
                     'action_label' => 'Lager verwalten',
                     'action_route' => 'admin.products',
                     'icon' => '📦'
@@ -336,10 +356,24 @@ class FunkiBotService
                 $baustellen[] = [
                     'score' => 30,
                     'title' => 'Content erstellen',
-                    'message' => "Dein letzter Blogpost ist lange her. Zeit für neue Inspiration!",
+                    'message' => "Lust auf etwas Kreativität? Der letzte Blogpost ist schon ein Weilchen her. Erzähl deinen Kunden doch eine neue, funkelnde Geschichte aus der Manufaktur!",
                     'action_label' => 'Beitrag schreiben',
                     'action_route' => 'admin.blog',
                     'icon' => '✍️'
+                ];
+            }
+
+            // 7. GANZTAGS-TERMINE (Score 150)
+            // Steht als weicher Reminder unter wichtigen Bestellungen, blockiert aber nichts.
+            foreach ($allDayEvents as $allDayEvent) {
+                $baustellen[] = [
+                    'score' => 150,
+                    'title' => 'Tagesereignis',
+                    'message' => "Kurze Info für heute: {$allDayEvent->title}" . ($allDayEvent->category ? " ({$allDayEvent->category})" : "") . ". Behalte das einfach ganz entspannt im Hinterkopf.",
+                    'action_label' => 'Kalender prüfen',
+                    'action_route' => 'admin.funki-kalender',
+                    'icon' => '📅',
+                    'instruction' => 'Zur Erinnerung:'
                 ];
             }
         }
@@ -348,7 +382,7 @@ class FunkiBotService
         if (!empty($baustellen)) {
             usort($baustellen, fn($a, $b) => $b['score'] <=> $a['score']);
             $winner = $baustellen[0];
-            $winner['instruction'] = $winner['instruction'] ?? "Freie Zeit nutzen:";
+            $winner['instruction'] = $winner['instruction'] ?? "Freie Zeit klug nutzen:";
             return $winner;
         }
 
@@ -367,11 +401,11 @@ class FunkiBotService
                 return [
                     'score' => 10,
                     'title' => 'Todo abarbeiten',
-                    'message' => "Alles sauber im Shop! Zeit für die Warteschlange ({$openCount} offen). Nächste Aufgabe: '{$nextTodo->title}'.",
+                    'message' => "Das operative Geschäft glänzt! Ein perfekter Moment, um ein ToDo von der Liste zu streichen ({$openCount} noch offen). Nächster Schritt: '{$nextTodo->title}'.",
                     'action_label' => 'Zur ToDo Liste',
                     'action_route' => 'admin.funki-todos', // <-- ANGEPASSTE ROUTE
                     'icon' => '✅',
-                    'instruction' => 'Jetzt erledigen:'
+                    'instruction' => 'Nächstes Ziel:'
                 ];
             }
         }
@@ -394,8 +428,8 @@ class FunkiBotService
 
         return [
             'score' => 0,
-            'title' => 'Mach Sport!',
-            'message' => "Unglaublich, {$name}! Keine Termine, Routine durch, Shop leer, Todos erledigt. Geh raus und mach Sport! 🏋️‍♀️",
+            'title' => 'Freie Bahn!',
+            'message' => "Wahnsinn, {$name}! Der Shop schnurrt, die ToDos sind leer und alles ist erledigt. Klapp den Laptop zu, schnapp frische Luft oder gönn dir was Schönes! ☀️",
             'action_label' => 'Dashboard öffnen',
             'action_route' => 'admin.dashboard',
             'icon' => '🏆',

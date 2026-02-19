@@ -3,7 +3,11 @@
 namespace App\Providers;
 
 use App\Models\ShopSetting;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
@@ -71,5 +75,32 @@ class AppServiceProvider extends ServiceProvider
                 Config::set('services.stripe.webhook.secret', $settings['stripe_webhook_secret']);
             }
         }
+
+        // Überschreibt die Standard-Verifizierungsmail von Laravel
+        VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
+            return (new MailMessage)
+                ->subject('Willkommen! Bitte bestätige deine E-Mail-Adresse ✨')
+                // Hier verweist du auf deine neue Blade-Datei aus Schritt 1:
+                ->view('global.mails.auth.new_register_mail_to_customer', [
+                    'url' => $url,
+                    'name' => $notifiable->first_name
+                ]);
+        });
+
+        // 2. [NEU] Zwingt Laravel, eine eigene Route für Kunden zu nutzen!
+        VerifyEmail::createUrlUsing(function ($notifiable) {
+            return URL::temporarySignedRoute(
+                'customer.verification.verify', // Unser eigener, neuer Routen-Name
+                Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
+                [
+                    'id' => $notifiable->getKey(),
+                    'hash' => sha1($notifiable->getEmailForVerification()),
+                ]
+            );
+        });
+
+
+
+
     }
 }

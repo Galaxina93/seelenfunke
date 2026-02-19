@@ -173,6 +173,15 @@
                             <span>Weiter mit Google</span>
                         </a>
                     </div>
+
+                    {{-- HIER IST DER NEUE REGISTRIERUNGS-BLOCK --}}
+                    <div class="mt-8 text-center text-sm text-gray-600">
+                        Noch kein Teil unserer Reise?
+                        <a href="/register" class="font-semibold text-primary hover:text-primary-dark hover:underline transition duration-150">
+                            Entfache deinen Seelenfunken und registriere dich hier ✨
+                        </a>
+                    </div>
+
                 </div>
 
             @endif

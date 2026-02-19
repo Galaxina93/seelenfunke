@@ -30,18 +30,11 @@ class Login extends Component
     public bool $remember = false;
 
     public $user;
-
-    // Propertys für die Logik
-    // Default auf customer setzen, damit Links im View funktionieren,
-    // aber die Logik überschreibt dies beim Login.
     public string $guard = 'customer';
     public string $activeView = 'login';
 
     public function mount()
     {
-        // Wir nehmen keinen Guard mehr im Mount entgegen, da er dynamisch ermittelt wird.
-
-        // Hole 2FA-User aus der Session, wenn vorhanden (falls Reload während 2FA)
         if (session()->has('2fa_user_id') && session()->has('guard')) {
             $this->guard = session('guard');
             $userModel = (new \App\Models\User)->getUserModelByGuard($this->guard);
@@ -70,32 +63,26 @@ class Login extends Component
 
         $this->validate();
 
-        // Wir definieren die Reihenfolge, in der geprüft wird.
-        // Sicherheitshalber Admin zuerst, dann Mitarbeiter, dann Kunde.
         $guardsToCheck = ['admin', 'employee', 'customer'];
         $foundGuard = null;
         $foundUser = null;
 
         foreach ($guardsToCheck as $guard) {
-            // 1. Prüfen ob Credentials für diesen Guard stimmen
             if (Auth::guard($guard)->validate([
                 'email' => $this->email,
                 'password' => $this->password
             ])) {
-
-                // 2. User Model holen, um auf SoftDeletes etc. zu prüfen
                 $userModelClass = (new \App\Models\User)->getUserModelByGuard($guard);
                 $candidate = $userModelClass::withTrashed()->where('email', $this->email)->first();
 
                 if ($candidate) {
                     $foundGuard = $guard;
                     $foundUser = $candidate;
-                    break; // Wir haben den User gefunden, Schleife abbrechen
+                    break;
                 }
             }
         }
 
-        // Wenn kein User in irgendeinem Guard gefunden wurde
         if (!$foundUser || !$foundGuard) {
             $this->logLoginAttempt($this->email, false);
             throw ValidationException::withMessages([
@@ -103,11 +90,9 @@ class Login extends Component
             ]);
         }
 
-        // Guard für die Klasse setzen
         $this->guard = $foundGuard;
         $this->user = $foundUser;
 
-        // Prüfen auf Soft-Delete (Deaktivierter Account)
         if ($this->user->trashed()) {
             $this->logLoginAttempt($this->email, false);
             throw ValidationException::withMessages([
@@ -115,24 +100,29 @@ class Login extends Component
             ]);
         }
 
+        // HIER WIRD DIE METHODE GENUTZT:
+        // Wir prüfen, ob der Kunde seine E-Mail bereits verifiziert hat
+        if ($this->guard === 'customer' && !$this->user->hasVerifiedEmail()) {
+            $this->logLoginAttempt($this->email, false);
+            throw ValidationException::withMessages([
+                'email' => 'Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.',
+            ]);
+        }
+
         $this->logLoginAttempt($this->email, true);
 
-        // Zwei-Faktor aktiv?
         if ($this->user->profile && $this->user->profile->two_factor_is_active) {
             session(['2fa_user_id' => $this->user->id, 'guard' => $this->guard]);
             $this->activeView = 'twoFactor';
             return;
         }
 
-        // Login durchführen
         if (Auth::guard($this->guard)->attempt([
             'email' => $this->email,
             'password' => $this->password,
         ], $this->remember)) {
-
             $loggedInUser = Auth::guard($this->guard)->user();
 
-            // Rollenberechtigungen in Session speichern
             $permissions = [];
             if(method_exists($loggedInUser, 'roles')) {
                 $permissions = $loggedInUser->roles->flatMap(fn ($role) => $role->permissions)
@@ -142,16 +132,13 @@ class Login extends Component
             session(['permissions' => $permissions]);
 
             $this->setBrowserSession($loggedInUser);
-
             return redirect()->to(route($this->guard . '.dashboard'));
         }
 
-        // Fallback Fehler
         throw ValidationException::withMessages([
             'email' => 'Ein unbekannter Fehler ist beim Login aufgetreten.',
         ]);
     }
-
 
     protected function logLoginAttempt(string $email, bool $success): void
     {
@@ -167,6 +154,7 @@ class Login extends Component
     {
         $sessionId = session()->getId();
         $payload = base64_encode(serialize(session()->all()));
+
         list($shortenedUserAgent, $deviceType) = $this->getShortenedUserAgent(request()->userAgent());
 
         $sessionData = [
@@ -221,5 +209,4 @@ class Login extends Component
     {
         $this->activeView = 'login';
     }
-
 }

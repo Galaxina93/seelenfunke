@@ -8,14 +8,14 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
 use Ramsey\Uuid\Uuid;
 use Laravel\Sanctum\HasApiTokens;
 
-
-class Customer extends Model implements Authenticatable
+class Customer extends Model implements Authenticatable, MustVerifyEmail
 {
     use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
 
@@ -37,18 +37,22 @@ class Customer extends Model implements Authenticatable
             $model->{$model->getKeyName()} = (string) Uuid::uuid4();
         });
 
-        // Event-Listener für das erstellen eines Customer Profiles
+        // Event-Listener für das Erstellen eines Customer Profiles
         static::created(function (Customer $customer) {
             $customerProfile = new CustomerProfile();
             $customer->profile()->save($customerProfile);
 
             $customerRole = Role::where('name', 'customer')->first();
-            $customer->roles()->attach($customerRole->id);
+            if ($customerRole) {
+                $customer->roles()->attach($customerRole->id);
+            }
         });
 
         // Event-Listener für das Löschen eines Customer Profiles
         static::deleting(function (Customer $customer) {
-            $customer->profile()->delete();
+            if ($customer->profile) {
+                $customer->profile()->delete();
+            }
         });
     }
 
@@ -67,4 +71,36 @@ class Customer extends Model implements Authenticatable
         return $this->hasOne(CustomerProfile::class);
     }
 
+    // -------------------------------------------------------------------------
+    // MUST VERIFY EMAIL IMPLEMENTIERUNG (Angepasst für CustomerProfile)
+    // -------------------------------------------------------------------------
+
+    public function hasVerifiedEmail()
+    {
+        // Prüft, ob im zugehörigen Profil das Verifizierungsdatum gesetzt ist
+        return ! is_null($this->profile->email_verified_at ?? null);
+    }
+
+    public function markEmailAsVerified()
+    {
+        // Speichert den aktuellen Zeitstempel im Profil ab
+        if ($this->profile) {
+            $this->profile->email_verified_at = $this->freshTimestamp();
+            return $this->profile->save();
+        }
+        return false;
+    }
+
+    public function sendEmailVerificationNotification()
+    {
+        // Nutzt das Standard-Benachrichtigungssystem von Laravel für die Verifizierungs-Mail.
+        // Das funktioniert, weil wir oben den "Notifiable" Trait eingebunden haben.
+        $this->notify(new \Illuminate\Auth\Notifications\VerifyEmail);
+    }
+
+    public function getEmailForVerification()
+    {
+        // Gibt zurück, an welche E-Mail-Adresse die Verifizierung gesendet werden soll
+        return $this->email;
+    }
 }

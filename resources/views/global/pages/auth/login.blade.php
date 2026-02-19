@@ -32,14 +32,6 @@
 
             {{-- Wrapper für konsistente Breite --}}
             <div>
-
-                {{-- Status / Errors (außerhalb der Component, schwebend) --}}
-                @if (session('status'))
-                    <div class="bg-green-500/10 backdrop-blur-md border border-green-500/20 text-green-400 px-4 py-3 rounded-xl text-sm shadow-lg mb-2">
-                        {{ session('status') }}
-                    </div>
-                @endif
-
                 @if ($errors->any())
                     <div class="bg-red-500/10 backdrop-blur-md border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm shadow-lg mb-2">
                         <ul class="list-disc pl-5 space-y-1">

@@ -5,53 +5,42 @@ namespace App\Livewire\Global\Auth;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerProfile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Auth\Events\Registered;
 use Livewire\Component;
 
 class Register extends Component
 {
-    // --- KUNDEN DATEN (Tabelle: customers) ---
     public $firstname = '';
     public $lastname = '';
     public $email = '';
     public $password = '';
     public $password_confirmation = '';
-
-    // --- PROFIL DATEN (Tabelle: customer_profiles) ---
     public $street = '';
     public $house_number = '';
     public $postal = '';
     public $city = '';
-    public $country = 'DE'; // Standardmäßig Deutschland
-
-    // --- RECHTLICHES ---
+    public $country = 'DE';
     public $terms = false;
 
-    // --- UI STATUS (Passwort Live-Check) ---
     public $passwordRules = [
-        'min' => false,    // min 8 Zeichen
-        'number' => false, // enthält Zahl
-        'upper' => false,  // enthält Großbuchstabe
-        'match' => false,  // Passwörter stimmen überein
+        'min' => false,
+        'number' => false,
+        'upper' => false,
+        'match' => false,
     ];
 
-    // --- VALIDIERUNGS REGELN ---
     protected function rules()
     {
         return [
-            // Customer Tabelle
             'firstname' => 'required|string|max:255',
             'lastname' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:customers',
             'password' => ['required', 'string', 'min:8'],
-
-            // Profile Tabelle
             'street' => 'required|string|max:255',
             'house_number' => 'required|string|max:20',
             'postal' => 'required|string|max:10',
             'city' => 'required|string|max:255',
-            'country' => 'required|string|size:2', // Validierung für Länder-Code (z.B. DE)
-
-            // Checkbox
+            'country' => 'required|string|size:2',
             'terms' => 'accepted'
         ];
     }
@@ -81,7 +70,6 @@ class Register extends Component
         $this->passwordRules['match'] = !empty($this->password) && ($this->password === $this->password_confirmation);
     }
 
-    // --- COMPUTED PROPERTY: BUTTON STATUS ---
     public function getCanRegisterProperty()
     {
         $pwOk = $this->passwordRules['min']
@@ -109,7 +97,6 @@ class Register extends Component
             return;
         }
 
-        // 1. Kunde erstellen
         $customer = Customer::create([
             'first_name' => $this->firstname,
             'last_name' => $this->lastname,
@@ -117,27 +104,24 @@ class Register extends Component
             'password' => Hash::make($this->password),
         ]);
 
-        // 2. Profil erstellen mit Land
-        CustomerProfile::create([
-            'customer_id' => $customer->id,
+        $customer->profile()->update([
             'street' => $this->street,
             'house_number' => $this->house_number,
             'postal' => $this->postal,
             'city' => $this->city,
-            'country' => $this->country, // NEU: Speicherung des gewählten Landes
+            'country' => $this->country,
         ]);
 
-        // 3. Login & Redirect
-        auth()->guard('customer')->login($customer);
+        event(new Registered($customer));
 
-        session()->flash('status', 'Willkommen bei Mein Seelenfunke! Ihr Konto wurde erfolgreich erstellt.');
+        session()->flash('status', 'Willkommen bei Mein Seelenfunke! Wir haben dir eine E-Mail gesendet. Bitte bestätige deine Adresse, um dich einzuloggen.');
+
         return redirect()->route('login');
     }
 
     public function render()
     {
         return view('livewire.auth.register', [
-            // Wir laden nur die Länder, die du in der Shop-Konfiguration aktiviert hast
             'activeCountries' => shop_setting('active_countries', ['DE' => 'Deutschland'])
         ]);
     }
