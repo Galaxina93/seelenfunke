@@ -148,6 +148,7 @@ Route::get('/funki/financials/fixed', function (Request $request) {
         ->get();
 });
 
+// NEU: Gruppe erstellen
 Route::post('/funki/financials/groups', function (Request $request) {
     $data = $request->validate([
         'name' => 'required|string',
@@ -166,32 +167,7 @@ Route::post('/funki/financials/groups', function (Request $request) {
     return response()->json(['success' => true, 'group' => $group]);
 });
 
-// NEU: Gruppe löschen (Nur wenn leer)
-Route::delete('/funki/financials/groups/{id}', function (Request $request, $id) {
-    $group = FinanceGroup::with('items')->where('admin_id', $request->user()->id)->findOrFail($id);
-    if ($group->items->count() > 0) {
-        return response()->json(['error' => 'Gruppe enthält noch Kostenstellen.'], 400);
-    }
-    $group->delete();
-    return response()->json(['success' => true]);
-});
-
-// NEU: Gruppen neu anordnen
-Route::put('/funki/financials/groups/reorder', function (Request $request) {
-    $data = $request->validate([
-        'groups' => 'required|array',
-        'groups.*.id' => 'required|string',
-        'groups.*.position' => 'required|integer'
-    ]);
-
-    foreach ($data['groups'] as $groupData) {
-        FinanceGroup::where('id', $groupData['id'])
-            ->where('admin_id', $request->user()->id)
-            ->update(['position' => $groupData['position']]);
-    }
-    return response()->json(['success' => true]);
-});
-
+// NEU: Kostenstelle hinzufügen
 Route::post('/funki/financials/fixed-item', function (Request $request) {
     $data = $request->validate([
         'finance_group_id' => 'required',
@@ -218,35 +194,28 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
     return response()->json(['success' => true, 'item' => $item]);
 });
 
+// ERWEITERT: Kostenstelle updaten (jetzt mit Datum, Intervall & Gewerbe Checkbox)
 Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id) {
     $item = FinanceCostItem::findOrFail($id);
-    // Erweitert um finance_group_id für Drag & Drop
     $data = $request->validate([
         'name' => 'required',
         'amount' => 'required',
         'interval_months' => 'required|integer',
         'first_payment_date' => 'required|date',
         'description' => 'nullable|string',
-        'is_business' => 'required',
-        'finance_group_id' => 'nullable|string'
+        'is_business' => 'required'
     ]);
 
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
 
-    $updateData = [
+    $item->update([
         'name' => $data['name'],
         'amount' => $amount,
         'interval_months' => (int)$data['interval_months'],
         'first_payment_date' => $data['first_payment_date'],
         'description' => $data['description'],
         'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN)
-    ];
-
-    if (!empty($data['finance_group_id'])) {
-        $updateData['finance_group_id'] = $data['finance_group_id'];
-    }
-
-    $item->update($updateData);
+    ]);
     return response()->json(['success' => true]);
 });
 
