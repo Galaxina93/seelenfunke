@@ -103,6 +103,16 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         'location' => $data['location'] ?? 'App QuickEntry'
     ]);
 
+    // NEU: Verarbeitung der hochgeladenen Dateien aus der App (Foto/Galerie)
+    if ($request->hasFile('specialFiles')) {
+        $paths = [];
+        foreach ($request->file('specialFiles') as $file) {
+            $path = $file->store('financials/special', 'public');
+            $paths[] = $path;
+        }
+        $issue->update(['file_paths' => $paths]);
+    }
+
     if (!empty($data['category'])) {
         $cat = FinanceCategory::firstOrCreate(
             ['admin_id' => $request->user()->id, 'name' => $data['category']],

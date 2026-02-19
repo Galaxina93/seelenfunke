@@ -109,11 +109,6 @@
                         <x-heroicon-o-globe-asia-australia class="cursor-pointer hover:text-primary w-6 h-6 text-gray-500 transform hover:scale-110 duration-100" />
                     </a>
 
-                    <button type="button" class="text-gray-400 hover:text-gray-500">
-                        <span class="sr-only">Benachrichtigungen</span>
-                        <x-heroicon-o-bell class="cursor-pointer hover:text-primary w-6 h-6 text-gray-500 transform hover:scale-110 duration-100" />
-                    </button>
-
                     <div class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-900/10" aria-hidden="true"></div>
 
                     @livewire('global.profile.profile-dropdown')
