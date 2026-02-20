@@ -99,7 +99,7 @@ class FunkiBotService
                     $currentFlow['step'] = 'Fokus-Phase';
                 }
 
-                // Wenn es Pause/Sport/Essen ist, pushen wir es als aktive Handlungsoption
+                // Wenn es Pause/Sport/Essen ist, pushen wir es als aktive Handlungsoption (Score 300)
                 if (in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
                     $options[] = [
                         'score' => 300,
@@ -142,16 +142,27 @@ class FunkiBotService
         // ------------------------------------------------------------------
         // 2. TERMINE (Score 500)
         // ------------------------------------------------------------------
-        $upcomingEvent = \App\Models\CalendarEvent::whereDate('start_date', $now->toDateString())
-            ->where('start_date', '>', $now)
+        // Erkennt Termine, die in den nächsten 45 Min starten ODER gerade laufen
+        $activeEvent = \App\Models\CalendarEvent::whereDate('start_date', $now->toDateString())
+            ->where(function($query) use ($now) {
+                $query->where('start_date', '>', $now) // Zukünftig
+                ->where('start_date', '<=', $now->copy()->addMinutes(45))
+                    ->orWhere(function($q) use ($now) {
+                        $q->where('start_date', '<=', $now) // Läuft bereits
+                        ->where('end_date', '>=', $now);
+                    });
+            })
             ->orderBy('start_date', 'asc')
             ->first();
 
-        if ($upcomingEvent && $now->diffInMinutes($upcomingEvent->start_date) <= 45) {
+        if ($activeEvent) {
+            $isRunning = $now->greaterThanOrEqualTo($activeEvent->start_date);
             $options[] = [
                 'score' => 500,
-                'title' => 'Termin rückt näher',
-                'message' => "Um " . \Carbon\Carbon::parse($upcomingEvent->start_date)->format('H:i') . " Uhr steht '{$upcomingEvent->title}' an. Zeit, sich vorzubereiten.",
+                'title' => $isRunning ? 'Termin läuft gerade' : 'Termin rückt näher',
+                'message' => $isRunning
+                    ? "Du solltest jetzt bei '{$activeEvent->title}' sein (bis " . \Carbon\Carbon::parse($activeEvent->end_date)->format('H:i') . " Uhr)."
+                    : "Um " . \Carbon\Carbon::parse($activeEvent->start_date)->format('H:i') . " Uhr steht '{$activeEvent->title}' an. Zeit, sich vorzubereiten.",
                 'action_label' => 'Kalender öffnen',
                 'action_route' => 'admin.funki-kalender',
                 'icon' => '📅'
@@ -159,7 +170,7 @@ class FunkiBotService
         }
 
         // ------------------------------------------------------------------
-        // 3. BUSINESS (Score 200) - Namespace korrigiert!
+        // 3. BUSINESS (Score 200)
         // ------------------------------------------------------------------
         $prioOrder = \App\Models\Order\Order::whereIn('status', ['pending', 'processing'])
             ->orderBy('is_express', 'desc')
@@ -177,7 +188,7 @@ class FunkiBotService
         }
 
         // ------------------------------------------------------------------
-        // 4. VERWALTUNG (Score 100) - Namespace korrigiert!
+        // 4. VERWALTUNG (Score 100)
         // ------------------------------------------------------------------
         $overdueInvoices = \App\Models\Invoice::where('status', 'open')->where('due_date', '<', now())->count();
         if ($overdueInvoices > 0) {
@@ -234,6 +245,7 @@ class FunkiBotService
         // ------------------------------------------------------------------
         usort($options, fn($a, $b) => $b['score'] <=> $a['score']);
 
+        // FALLBACK bei leeren Optionen
         if (empty($options)) {
             $options[] = [
                 'score' => 0,
@@ -245,11 +257,34 @@ class FunkiBotService
             ];
         }
 
+        // --- DYNAMISCHE FLOW-ANPASSUNG ---
+        // Wenn die Top-Empfehlung eine hohe Priorität hat (z.B. Termin oder Sicherheit),
+        // überschreiben wir den Header-Flow, damit Anzeige und Empfehlung zusammenpassen.
+        if (!empty($options)) {
+            $topOption = $options[0];
+
+            // Bei Terminen (Score 500) passen wir den Header an
+            if ($topOption['score'] === 500) {
+                $currentFlow['title'] = 'Termin-Fokus';
+                $currentFlow['step'] = $topOption['title'];
+                $currentFlow['icon'] = 'calendar';
+                $currentFlow['type'] = 'event';
+            }
+
+            // Bei Sicherheitsalarmen überschreiben wir ebenfalls
+            if ($topOption['score'] >= 1000) {
+                $currentFlow['title'] = 'SYSTEM KRITISCH';
+                $currentFlow['step'] = 'Sicherheit prüfen';
+                $currentFlow['icon'] = 'shield-exclamation';
+                $currentFlow['type'] = 'emergency';
+            }
+        }
+
         return [
             'flow' => $currentFlow,
             'recommendation' => $options[0],
             'alternatives' => array_slice($options, 1, 2),
-            'routines' => $sliderRoutines // Array für den Blade Slider
+            'routines' => $sliderRoutines
         ];
     }
 
