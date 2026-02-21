@@ -22,14 +22,17 @@
                 </div>
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">2. Hosting & Content Delivery Networks (CDN)</h2>
-                    <p><strong>Externes Hosting (ALL-INKL.COM)</strong><br>
-                        Diese Website wird bei ALL-INKL.COM - Neue Medien Münnich, Hauptstraße 68, 02742 Friedersdorf gehostet. Wenn Sie unsere Website aufrufen, erfassen die Server von ALL-INKL.COM Logfiles (u.a. Ihre IP-Adresse, Browsertyp, Referrer-URL).
-                        Dies ist technisch notwendig, um Ihnen die Seite sicher und stabil anzuzeigen.
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">2. Hosting</h2>
+                    <p><strong>Externes Hosting (Mittwald)</strong><br>
+                        Diese Website wird bei der <strong>Mittwald CM Service GmbH & Co. KG</strong>, Königsberger Straße 4-6, 32339 Espelkamp (nachfolgend Mittwald) gehostet.
+                    </p>
+                    <p class="mt-2">
+                        Wenn Sie unsere Website besuchen, erfasst Mittwald verschiedene personenbezogene Daten (insbesondere IP-Adressen in Form von Server-Logfiles). Mittwald speichert diese Daten, um den Betrieb der Website technisch zu ermöglichen, die Sicherheit zu gewährleisten und die Stabilität unseres Online-Angebots zu verbessern.
                     </p>
                     <p class="mt-2 text-sm text-gray-500">
-                        Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer sicheren Website).<br>
-                        <strong>Auftragsverarbeitung:</strong> Wir haben einen Vertrag über Auftragsverarbeitung (AVV) mit dem Anbieter geschlossen. Dieser stellt sicher, dass der Anbieter Ihre Daten nur nach unseren Weisungen und unter Einhaltung der DSGVO verarbeitet.
+                        <strong>Rechtsgrundlage:</strong> Die Verwendung von Mittwald erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO. Wir haben ein berechtigtes Interesse an einer möglichst zuverlässigen und sicheren Darstellung unserer Website.
+                        <br><br>
+                        <strong>Auftragsverarbeitung:</strong> Wir haben mit Mittwald einen Vertrag über Auftragsverarbeitung (AVV) geschlossen. Dies ist ein datenschutzrechtlich vorgeschriebener Vertrag, der gewährleistet, dass Mittwald die personenbezogenen Daten unserer Websitebesucher nur nach unseren Weisungen und unter Einhaltung der DSGVO verarbeitet.
                     </p>
                 </div>
 
