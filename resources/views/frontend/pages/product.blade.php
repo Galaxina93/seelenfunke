@@ -140,7 +140,7 @@
                     {{-- Linke Seite: Bild --}}
                     <div class="relative">
                         <div class="absolute inset-0 bg-gray-100 rounded-3xl transform rotate-3 scale-95 origin-bottom-right -z-10" aria-hidden="true"></div>
-                        <img src="{{ asset('images/projekt/other/appreciation.png') }}"
+                        <img src="{{ asset('images/projekt/products/seelen-kristall-spec.png') }}"
                              alt="Detailaufnahme des Seelen-Kristalls: Facettenschliff und Lasergravur"
                              loading="lazy"
                              class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
