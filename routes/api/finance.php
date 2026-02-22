@@ -297,9 +297,9 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
 
 Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id) {
     $item = FinanceCostItem::findOrFail($id);
-    // Erweitert um finance_group_id für Drag & Drop
+
     $data = $request->validate([
-        'name' => 'required',
+        'name' => 'required|string',
         'amount' => 'required',
         'interval_months' => 'required|integer',
         'first_payment_date' => 'required|date',
@@ -308,22 +308,28 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
         'finance_group_id' => 'nullable|string'
     ]);
 
-    $amount = (float)str_replace(',', '.', (string)$data['amount']);
-
-    $updateData = [
+    $item->update([
         'name' => $data['name'],
-        'amount' => $amount,
+        'amount' => (float)str_replace(',', '.', $data['amount']),
         'interval_months' => (int)$data['interval_months'],
         'first_payment_date' => $data['first_payment_date'],
         'description' => $data['description'],
-        'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN)
-    ];
+        'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
+        'finance_group_id' => $data['finance_group_id'] ?? $item->finance_group_id
+    ]);
 
-    if (!empty($data['finance_group_id'])) {
-        $updateData['finance_group_id'] = $data['finance_group_id'];
+    // Datei-Update Logik
+    if ($request->hasFile('file')) {
+        // Alte Datei löschen, falls vorhanden
+        if ($item->contract_file_path) {
+            Storage::disk('public')->delete($item->contract_file_path);
+        }
+
+        $file = is_array($request->file('file')) ? $request->file('file')[0] : $request->file('file');
+        $path = $file->store('financial/contracts', 'public');
+        $item->update(['contract_file_path' => $path]);
     }
 
-    $item->update($updateData);
     return response()->json(['success' => true]);
 });
 
