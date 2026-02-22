@@ -231,7 +231,7 @@
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
 
                         // KORREKTUR: Zurück zur 500er Skalierung deines 2D-Editors!
-                        const scale = ((logo.size || 100) / 200) * cw;
+                        const scale = ((logo.size || 100) / 250) * cw;
 
                         const aspect = img.width / img.height;
                         let drawW = scale;
