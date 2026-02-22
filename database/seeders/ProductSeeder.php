@@ -93,10 +93,10 @@ class ProductSeeder extends Seeder
                 'model_rot_z' => -53.13,
 
                 // 3D Overlay (Gravur Ebene)
-                'engraving_scale' => 101,8,
+                'engraving_scale' => 101,
                 'engraving_pos_x' => -0,05,
-                'engraving_pos_y' => 0,53,
-                'engraving_pos_z' => -4,94,
+                'engraving_pos_y' => 0,57,
+                'engraving_pos_z' => -4,98,
                 'engraving_rot_x' => -175,
                 'engraving_rot_y' => -88.63,
                 'engraving_rot_z' => -175.57,
