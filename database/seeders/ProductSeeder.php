@@ -66,7 +66,7 @@ class ProductSeeder extends Seeder
 
             'shipping_class' => 'paket_s',
             'preview_image_path' => 'testdata/seelenkristall/overlay.png',
-            'three_d_model_path' => 'testdata/seelenkristall/t_seelenk.glb',
+            'three_d_model_path' => 'testdata/seelenkristall/t_seelenk_.glb',
             'three_d_background_path' => 'testdata/seelenkristall/header_bg.png',
             'media_gallery' => [
                 ['type' => 'image', 'path' => 'testdata/seelenkristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
@@ -94,10 +94,10 @@ class ProductSeeder extends Seeder
 
                 // 3D Overlay (Gravur Ebene)
                 'engraving_scale' => 101.8,
-                'engraving_pos_x' => -0.16,
-                'engraving_pos_y' => 0.42,
-                'engraving_pos_z' => -5.11,
-                'engraving_rot_x' => -175.42,
+                'engraving_pos_x' => -0,17,
+                'engraving_pos_y' => 0,52,
+                'engraving_pos_z' => -4,93,
+                'engraving_rot_x' => -175,42,
                 'engraving_rot_y' => -88.63,
                 'engraving_rot_z' => -175.57,
 
