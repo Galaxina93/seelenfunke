@@ -633,7 +633,17 @@ class Checkout extends Component
      */
     public function validateCheckoutData()
     {
-        $this->validate();
+        // Wir validieren hier NUR die rechtlichen Checkboxen.
+        // Die Adresse kommt später direkt von Apple/Google Pay.
+        $this->validate([
+            'terms_accepted' => 'accepted',
+            'privacy_accepted' => 'accepted',
+            'country' => 'required', // Land brauchen wir für die Versandkostenberechnung
+        ], [
+            'terms_accepted.accepted' => 'Bitte bestätige die AGB.',
+            'privacy_accepted.accepted' => 'Bitte bestätige den Datenschutz.',
+        ]);
+
         return true;
     }
 

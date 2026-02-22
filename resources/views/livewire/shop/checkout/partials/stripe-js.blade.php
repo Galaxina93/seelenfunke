@@ -58,6 +58,24 @@
 
                 // B) Der Kunde hat via Apple/Google Pay authentifiziert und bestätigt
                 expressCheckoutElement.on('confirm', async (event) => {
+
+                    const {billingDetails, shippingAddress} = event; // Daten aus dem Wallet
+
+                    // Wir füllen die Livewire Variablen automatisch mit den Daten von Apple/Google Pay
+                    if (billingDetails) {
+                    @this.set('email', billingDetails.email, false);
+                        const nameParts = billingDetails.name.split(' ');
+                    @this.set('first_name', nameParts[0], false);
+                    @this.set('last_name', nameParts.slice(1).join(' '), false);
+                    }
+
+                    if (shippingAddress) {
+                    @this.set('address', shippingAddress.line1 + (shippingAddress.line2 ? ' ' + shippingAddress.line2 : ''), false);
+                    @this.set('postal_code', shippingAddress.postalCode, false);
+                    @this.set('city', shippingAddress.city, false);
+                    @this.set('country', shippingAddress.country, false);
+                    }
+
                     setLoading(true);
                     const msgBox = document.getElementById('express-message');
                     msgBox.classList.add("hidden");
