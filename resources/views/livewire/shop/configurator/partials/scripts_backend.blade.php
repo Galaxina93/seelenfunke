@@ -231,20 +231,17 @@
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
 
                         // NEU: Seitenverhältnis des Bildes berechnen
-                        const scale = ((logo.size || 100) / 500) * cw;
+                        const scale = ((logo.size || 100) / 500) * cw; // <-- HIER WAR DER FEHLER
                         const aspect = img.width / img.height;
                         let drawW = scale;
                         let drawH = scale;
 
                         if (aspect > 1) {
-                            // Bild ist im Querformat (breiter als hoch)
                             drawH = scale / aspect;
                         } else {
-                            // Bild ist im Hochformat (höher als breit)
                             drawW = scale * aspect;
                         }
 
-                        // Bild mit den berechneten Maßen zeichnen (nicht mehr quetschen!)
                         this.textureCtx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
                         this.textureCtx.restore();
                         if(this.texture) this.texture.needsUpdate = true;
