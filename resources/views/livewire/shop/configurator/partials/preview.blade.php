@@ -22,87 +22,117 @@
                 <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-60">
             </template>
 
-            <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none"
-                 :style="`top:${config.area_top || 0}%; left:${config.area_left || 0}%; width:${config.area_width || 100}%; height:${config.area_height || 100}%; border-radius:${config.area_shape === 'circle' ? '50%' : '0'}; box-shadow: 0 0 0 9999px rgba(255, 255, 255, 0.5)`"></div>
+            <div class="absolute border-2 border-green-500 bg-green-500/10 pointer-events-none transition-all duration-300"
+                 :style="`
+                    top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
+                    left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
+                    width: ${config.area_shape === 'custom' ? 100 : config.area_width || 100}%;
+                    height: ${config.area_shape === 'custom' ? 100 : config.area_height || 100}%;
+                    border-radius: ${config.area_shape === 'circle' ? '50%' : '0'};
+                    clip-path: ${
+                        config.area_shape === 'custom' && config.custom_points && config.custom_points.length > 0
+                        ? 'polygon(' + config.custom_points.map(p => p.x + '% ' + p.y + '%').join(', ') + ')'
+                        : 'none'
+                    };
+                    box-shadow: ${config.area_shape === 'custom' ? 'none' : '0 0 0 9999px rgba(255,255,255,0.5)'};
+                 `">
+            </div>
 
             {{-- Hilfslinien fürs Snapping --}}
             <div x-show="showGuideX" class="absolute top-0 bottom-0 border-l border-primary/50 border-dashed pointer-events-none" style="left: 50%; z-index: 10;"></div>
             <div x-show="showGuideY" class="absolute left-0 right-0 border-t border-primary/50 border-dashed pointer-events-none" style="top: 50%; z-index: 10;"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
-            <div class="absolute overflow-hidden pointer-events-none" :style="`top:${config.area_top || 0}%; left:${config.area_left || 0}%; width:${config.area_width || 100}%; height:${config.area_height || 100}%; border-radius:${config.area_shape === 'circle' ? '50%' : '0'}`">
+            <div class="absolute overflow-hidden pointer-events-none transition-all duration-300"
+                 :style="`
+                        top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
+                        left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
+                        width: ${config.area_shape === 'custom' ? 100 : config.area_width || 100}%;
+                        height: ${config.area_shape === 'custom' ? 100 : config.area_height || 100}%;
+                        border-radius: ${config.area_shape === 'circle' ? '50%' : '0'};
+                        clip-path: ${
+                            config.area_shape === 'custom' && config.custom_points && config.custom_points.length > 0
+                            ? 'polygon(' + config.custom_points.map(p => p.x + '% ' + p.y + '%').join(', ') + ')'
+                            : 'none'
+                        };
+                     `">
 
-                {{-- TEXTE --}}
-                <template x-for="(textItem, index) in texts" :key="'content-text-'+textItem.id">
+                <template x-for="(textItem,index) in texts" :key="'content-text-'+textItem.id">
                     <div class="absolute touch-none pointer-events-auto group"
                          :style="`
-                            left: ${((textItem.x || 50) - (config.area_left || 0)) / (config.area_width || 100) * 100}%;
-                            top: ${((textItem.y || 50) - (config.area_top || 0)) / (config.area_height || 100) * 100}%;
-                            transform-origin: ${textItem.align === 'left' ? '0% 50%' : (textItem.align === 'right' ? '100% 50%' : '50% 50%')};
-                            transform: translate(${textItem.align === 'left' ? '0%' : (textItem.align === 'right' ? '-100%' : '-50%')}, -50%) rotate(${textItem.rotation || 0}deg);
-                            z-index: ${selectedIndex === index ? 100 : 10}
-                         `"
-                         @mousedown.stop="startAction($event, 'text', index, 'drag')" @touchstart.stop="startAction($event, 'text', index, 'drag')">
+                    left: ${config.area_shape === 'custom' ? (textItem.x || 50) : ((textItem.x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
+                    top: ${config.area_shape === 'custom' ? (textItem.y || 50) : ((textItem.y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                    transform-origin: ${textItem.align==='left'?'0% 50%':(textItem.align==='right'?'100% 50%':'50% 50%')};
+                    transform: translate(${textItem.align==='left'?'0%':(textItem.align==='right'?'-100%':'-50%')},-50%) rotate(${textItem.rotation || 0}deg);
+                    z-index: ${selectedIndex===index?100:10}
+                 `"
+                         @mousedown.stop="startAction($event,'text',index,'drag')"
+                         @touchstart.stop="startAction($event,'text',index,'drag')">
 
-                        <div class="relative transition-all rounded p-1" :class="selectedIndex === index && context !== 'preview' ? 'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm' : 'border-2 border-transparent'">
+                        <div class="relative transition-all rounded p-1" :class="selectedIndex===index && context!=='preview'?'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm':'border-2 border-transparent'">
+
                             <template x-if="texts[index]">
-                                <textarea x-model="texts[index].text"
-                                          :data-id="texts[index]?.id"
-                                          :rows="(texts[index]?.text?.match(/\n/g) || []).length + 1"
-                                          x-init="
-                                        $watch('texts[index].text', () => texts[index] && fitTextarea(texts[index].id, $el));
-                                        $watch('texts[index].size', () => texts[index] && $nextTick(() => fitTextarea(texts[index].id, $el)));
-                                        $watch('texts[index].font', () => texts[index] && setTimeout(() => fitTextarea(texts[index].id, $el), 50));
-                                        $nextTick(() => texts[index] && fitTextarea(texts[index].id, $el));
-                                    "
-                                          @input="texts[index] && fitTextarea(texts[index].id, $el)"
-                                          wrap="off"
-                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none text-center"
-                                          :class="alignMap[texts[index]?.align || 'center']"
-                                          :style="`
-                                        width: ${texts[index] && textDims[texts[index].id]?.width || 'auto'};
-                                        height: ${texts[index] && textDims[texts[index].id]?.height || 'auto'};
-                                        font-size: ${(20 * (texts[index]?.size || 1)) * scaleFactor}px;
-                                        font-family: ${texts[index] && fontMap[texts[index].font] || 'Arial'};
-                                        line-height: 1.15;
-                                        color: rgba(255, 255, 255, 0.85);
-                                        text-shadow: 0 0 1px rgba(255,255,255,0.3), 0 0 2px rgba(255,255,255,0.2);
-                                        filter: drop-shadow(0px 0px 1px rgba(0,0,0,0.1));
-                                        mix-blend-mode: overlay;
-                                    `"
-                                          placeholder="Text eingeben...">
-                                </textarea>
+                        <textarea x-model="texts[index].text"
+                                  :data-id="texts[index]?.id"
+                                  :rows="(texts[index]?.text?.match(/\n/g) || []).length + 1"
+                                  x-init="
+                                $watch('texts[index].text', () => texts[index] && fitTextarea(texts[index].id, $el));
+                                $watch('texts[index].size', () => texts[index] && $nextTick(() => fitTextarea(texts[index].id, $el)));
+                                $watch('texts[index].font', () => texts[index] && setTimeout(() => fitTextarea(texts[index].id, $el), 50));
+                                $nextTick(() => texts[index] && fitTextarea(texts[index].id, $el));
+                            "
+                                  @input="texts[index] && fitTextarea(texts[index].id, $el)"
+                                  wrap="off"
+                                  class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none text-center"
+                                  :class="alignMap[texts[index]?.align || 'center']"
+                                  :style="`
+                                width: ${texts[index] && textDims[texts[index].id]?.width || 'auto'};
+                                height: ${texts[index] && textDims[texts[index].id]?.height || 'auto'};
+                                font-size: ${(20 * (texts[index]?.size || 1)) * scaleFactor}px;
+                                font-family: ${texts[index] && fontMap[texts[index].font] || 'Arial'};
+                                line-height: 1.15;
+                                color: rgba(255, 255, 255, 0.85);
+                                text-shadow: 0 0 1px rgba(255,255,255,0.3), 0 0 2px rgba(255,255,255,0.2);
+                                filter: drop-shadow(0px 0px 1px rgba(0,0,0,0.1));
+                                mix-blend-mode: overlay;
+                            `"
+                                  placeholder="Text eingeben...">
+                        </textarea>
                             </template>
 
-                            {{-- Die 4 Ecken-Icons --}}
-                            <template x-if="selectedIndex === index && context !== 'preview'">
+                            <template x-if="selectedIndex===index && context!=='preview'">
                                 <div>
-                                    <div @mousedown.stop="startAction($event, 'text', index, 'drag')" @touchstart.stop.prevent="startAction($event, 'text', index, 'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-move text-slate-600" style="z-index: 200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
-                                    <div @mousedown.stop="startAction($event, 'text', index, 'rotate')" @touchstart.stop.prevent="startAction($event, 'text', index, 'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-alias text-primary" style="z-index: 200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
-                                    <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-pointer text-red-500" style="z-index: 200;"><x-heroicon-m-trash class="w-4 h-4" /></div>
-                                    <div @mousedown.stop="startAction($event, 'text', index, 'resize')" @touchstart.stop.prevent="startAction($event, 'text', index, 'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-se-resize text-primary" style="z-index: 200;"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                                    <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-move text-slate-600" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
+                                    <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-alias text-primary" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
+                                    <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-pointer text-red-500" style="z-index:200;"><x-heroicon-m-trash class="w-4 h-4" /></div>
+                                    <div @mousedown.stop="startAction($event,'text',index,'resize')" @touchstart.stop.prevent="startAction($event,'text',index,'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-se-resize text-primary" style="z-index:200;"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
                                 </div>
                             </template>
                         </div>
                     </div>
                 </template>
 
-                {{-- LOGOS --}}
-                <template x-for="(logoItem, index) in logos" :key="'content-logo-'+logoItem.id">
-                    <div class="absolute touch-none pointer-events-auto group" style="transform: translate(-50%, -50%);"
-                         :style="`left: ${((logoItem.x || 50) - (config.area_left || 0)) / (config.area_width || 100) * 100}%; top: ${((logoItem.y || 50) - (config.area_top || 0)) / (config.area_height || 100) * 100}%; width: ${(logoItem.size * scaleFactor)}px; transform: translate(-50%, -50%) rotate(${logoItem.rotation || 0}deg); z-index: ${selectedIndex === index ? 100 : 10}`"
-                         @mousedown.stop="startAction($event, 'logo', index, 'drag')" @touchstart.stop="startAction($event, 'logo', index, 'drag')">
+                <template x-for="(logoItem,index) in logos" :key="'content-logo-'+logoItem.id">
+                    <div class="absolute touch-none pointer-events-auto group"
+                         :style="`
+                    left: ${config.area_shape === 'custom' ? (logoItem.x || 50) : ((logoItem.x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
+                    top: ${config.area_shape === 'custom' ? (logoItem.y || 50) : ((logoItem.y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                    width: ${(logoItem.size * scaleFactor)}px;
+                    transform: translate(-50%,-50%) rotate(${logoItem.rotation || 0}deg);
+                    z-index: ${selectedIndex===index?100:10}
+                 `"
+                         @mousedown.stop="startAction($event,'logo',index,'drag')"
+                         @touchstart.stop="startAction($event,'logo',index,'drag')">
 
-                        <div class="relative transition-all rounded p-1" :class="selectedIndex === index && context !== 'preview' ? 'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm' : 'border-2 border-transparent'">
+                        <div class="relative transition-all rounded p-1" :class="selectedIndex===index && context!=='preview'?'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm':'border-2 border-transparent'">
                             <img :src="logoItem.url" class="w-full h-auto pointer-events-none opacity-80 mix-blend-multiply">
 
-                            {{-- Die Ecken-Icons --}}
-                            <template x-if="selectedIndex === index && context !== 'preview'">
+                            <template x-if="selectedIndex===index && context!=='preview'">
                                 <div>
-                                    <div @mousedown.stop="startAction($event, 'logo', index, 'drag')" @touchstart.stop.prevent="startAction($event, 'logo', index, 'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-move text-slate-600" style="z-index: 200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
-                                    <div @mousedown.stop="startAction($event, 'logo', index, 'rotate')" @touchstart.stop.prevent="startAction($event, 'logo', index, 'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-alias text-primary" style="z-index: 200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
-                                    <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-pointer text-red-500" style="z-index: 200;"><x-heroicon-m-trash class="w-4 h-4" /></div>
-                                    <div @mousedown.stop="startAction($event, 'logo', index, 'resize')" @touchstart.stop.prevent="startAction($event, 'logo', index, 'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-se-resize text-primary" style="z-index: 200;"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                                    <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-move text-slate-600" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
+                                    <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-alias text-primary" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
+                                    <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()" class="active-control-corner absolute -bottom-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-pointer text-red-500" style="z-index:200;"><x-heroicon-m-trash class="w-4 h-4" /></div>
+                                    <div @mousedown.stop="startAction($event,'logo',index,'resize')" @touchstart.stop.prevent="startAction($event,'logo',index,'resize')" class="active-control-corner absolute -bottom-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-se-resize text-primary" style="z-index:200;"><svg class="w-4 h-4 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
                                 </div>
                             </template>
                         </div>
