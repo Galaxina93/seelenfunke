@@ -22,7 +22,7 @@ class FunkiToDo extends Component
     public function mount()
     {
         // Wähle standardmäßig die erste Liste, falls vorhanden
-        $firstList = TodoList::first();
+        $firstList = TodoList::orderBy('created_at', 'asc')->first();
         if ($firstList) {
             $this->selectedListId = $firstList->id;
         }
@@ -68,7 +68,7 @@ class FunkiToDo extends Component
             'id' => (string) Str::uuid(),
             'todo_list_id' => $this->selectedListId,
             'title' => $this->newTask_title,
-            'priority' => 'low', // NEU: Default Prio
+            'priority' => 'low',
         ]);
 
         $this->reset('newTask_title');
@@ -87,7 +87,6 @@ class FunkiToDo extends Component
         ]);
     }
 
-    // Methode zum Aktualisieren des Titels (Inline Edit)
     public function updateTodoTitle($id, $newTitle)
     {
         if(empty(trim($newTitle))) return;
@@ -98,7 +97,6 @@ class FunkiToDo extends Component
         }
     }
 
-    // NEU: Methode zum Aktualisieren der Priorität (Inline Edit)
     public function updateTodoPriority($id, $priority)
     {
         if(empty($priority)) return;
@@ -127,7 +125,6 @@ class FunkiToDo extends Component
 
     public function deleteTodo($id)
     {
-        // Löscht auch Subtasks via Cascade in DB (oder hier im Model Event)
         Todo::destroy($id);
     }
 
@@ -136,7 +133,6 @@ class FunkiToDo extends Component
         $list = TodoList::find($id);
         if($list) {
             $list->delete();
-            // Neue Liste selektieren
             $first = TodoList::first();
             $this->selectedListId = $first ? $first->id : null;
         }
@@ -151,13 +147,13 @@ class FunkiToDo extends Component
         $todos = collect();
         if ($this->selectedListId) {
             $todos = Todo::where('todo_list_id', $this->selectedListId)
-                ->whereNull('parent_id') // Nur Hauptaufgaben
+                ->whereNull('parent_id')
                 ->with(['subtasks' => function($q) {
                     $q->orderBy('is_completed', 'asc')->orderBy('created_at', 'asc');
                 }])
                 ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
                 ->orderBy('is_completed', 'asc')
-                ->orderByRaw("FIELD(COALESCE(priority, 'low'), 'high', 'medium', 'low')") // NEU: Prio Sortierung
+                ->orderByRaw("FIELD(COALESCE(priority, 'low'), 'high', 'medium', 'low')")
                 ->orderBy('created_at', 'desc')
                 ->get();
         }

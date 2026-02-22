@@ -4,7 +4,6 @@
     <div class="bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row justify-between items-center py-4 gap-4">
-                {{-- Logo & Titel --}}
                 <div class="flex items-center gap-4">
                     <div class="relative">
                         <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" class="w-12 h-12 object-contain" alt="Funki">
@@ -24,17 +23,13 @@
                     <x-heroicon-o-magnifying-glass class="w-4 h-4" />
                 </div>
             </div>
-
         </div>
     </div>
 
-    {{-- ZWEISPALTIGES LAYOUT (Ab Desktop) --}}
     <div class="flex flex-col lg:flex-row flex-1 overflow-hidden">
 
-        {{-- 1. SIDEBAR: LISTEN (Mobil: Oben horizontal / Desktop: Links vertikal) --}}
+        {{-- SIDEBAR: LISTEN --}}
         <div class="w-full lg:w-72 bg-slate-50/50 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-row lg:flex-col overflow-x-auto lg:overflow-y-auto custom-scrollbar p-3 gap-2 shrink-0">
-
-            {{-- LISTE DER VORHANDENEN LISTEN --}}
             @foreach($lists as $list)
                 <button wire:click="$set('selectedListId', '{{ $list->id }}')"
                     @class([
@@ -43,7 +38,6 @@
                         'hover:bg-white/60 hover:shadow-sm text-slate-500' => $selectedListId !== $list->id
                     ])>
 
-                    {{-- Icon Box --}}
                     <div @class([
                         'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors',
                         'bg-slate-900 text-white' => $selectedListId === $list->id,
@@ -52,7 +46,6 @@
                         <x-dynamic-component :component="'heroicon-o-' . $list->icon" class="w-4 h-4" />
                     </div>
 
-                    {{-- Name & Count --}}
                     <div class="flex-1 min-w-0">
                         <div class="text-xs font-bold truncate {{ $selectedListId === $list->id ? 'text-slate-900' : 'text-slate-600' }}">
                             {{ $list->name }}
@@ -64,17 +57,14 @@
                         @endif
                     </div>
 
-                    {{-- Active Indicator (Desktop only visible mainly) --}}
                     @if($selectedListId === $list->id)
                         <div class="absolute right-2 w-1.5 h-1.5 rounded-full bg-primary"></div>
                     @endif
                 </button>
             @endforeach
 
-            {{-- TRENNLINIE --}}
             <div class="hidden lg:block h-px w-full bg-slate-200/50 my-2"></div>
 
-            {{-- 2. NEUE LISTE ERSTELLEN (INLINE) --}}
             <div class="p-1 min-w-[200px] lg:min-w-0">
                 @if(!$isAddingList)
                     <button wire:click="$set('isAddingList', true)"
@@ -85,13 +75,11 @@
                         <span class="text-xs font-bold uppercase tracking-wide">Neue Liste</span>
                     </button>
                 @else
-                    {{-- Inline Formular --}}
                     <div class="bg-white p-3 rounded-2xl shadow-lg border border-slate-100 animate-fade-in-up">
                         <input wire:model="newList_name" type="text" placeholder="Listen-Name..."
                                class="w-full text-xs font-bold bg-slate-50 border-none rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary/20 mb-3 text-slate-900"
                                autofocus>
 
-                        {{-- Icon Grid --}}
                         <div class="grid grid-cols-5 gap-1 mb-3">
                             @foreach(['bookmark', 'star', 'heart', 'bolt', 'home', 'briefcase', 'shopping-bag', 'trophy', 'sun', 'moon', 'computer-desktop', 'wrench', 'rocket-launch', 'tag', 'flag'] as $icon)
                                 <button wire:click="$set('newList_icon', '{{ $icon }}')"
@@ -114,10 +102,9 @@
             </div>
         </div>
 
-        {{-- 3. MAIN CONTENT: TASKS --}}
+        {{-- MAIN CONTENT: TASKS --}}
         <div class="flex-1 flex flex-col bg-white min-w-0 relative">
 
-            {{-- Input Area --}}
             <div class="p-6 border-b border-slate-50 bg-white/80 backdrop-blur-sm z-10">
                 <form wire:submit.prevent="createTask" class="relative group">
                     <div class="absolute inset-0 bg-primary/5 rounded-2xl transform scale-95 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500"></div>
@@ -133,7 +120,6 @@
                 </form>
             </div>
 
-            {{-- Tasks List Scrollable --}}
             <div class="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
                 @if(!$selectedListId)
                     <div class="flex flex-col items-center justify-center h-full text-center p-10 opacity-50">
@@ -145,7 +131,6 @@
                     @forelse($todos as $todo)
                         <div class="group/task" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }">
 
-                            {{-- Hauptaufgabe Karte - DYNAMISCHE FARBEN --}}
                             <div @class([
                                 'relative flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 group-hover/task:shadow-md',
                                 'bg-slate-50/50 border-slate-100 opacity-60' => $todo->is_completed,
@@ -154,22 +139,22 @@
                                 'bg-orange-50/50 border-orange-200' => !$todo->is_completed && ($todo->priority ?? 'low') === 'medium',
                                 'bg-red-50/50 border-red-200' => !$todo->is_completed && ($todo->priority ?? 'low') === 'high',
                             ])>
-                                {{-- Checkbox --}}
                                 <button wire:click="toggleComplete('{{ $todo->id }}')"
                                         class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 {{ $todo->is_completed ? 'bg-green-500 border-green-500 text-white rotate-0' : 'border-slate-200 text-transparent hover:border-primary hover:rotate-6 bg-white' }}">
                                     <x-heroicon-m-check class="w-3.5 h-3.5" />
                                 </button>
 
-                                {{-- Text mit Inline Edit --}}
                                 <div class="flex-1 min-w-0 pt-0.5" x-data="{ isEditing: false, updatedTitle: '{{ $todo->title }}' }">
-                                    {{-- Anzeige Modus --}}
                                     <p x-show="!isEditing"
-                                       @click="isEditing = true; $nextTick(() => $refs.editInput.focus())"
+                                       @click.self="isEditing = true; $nextTick(() => $refs.editInput.focus())"
                                         @class(['text-sm font-bold leading-snug break-words cursor-text hover:text-primary transition-colors', 'line-through text-slate-400' => $todo->is_completed, 'text-slate-700' => !$todo->is_completed])>
-                                        {{ $todo->title }}
+                                        {!! preg_replace(
+                                              '/((?:https?|ftp|file):\/\/|www\.)[a-z0-9+&@#\/%?=~_|!:,.;\*\-]*[a-z0-9+&@#\/%=~_|]/i',
+                                              '<a href="$0" target="_blank" class="text-primary underline hover:text-primary-dark decoration-primary/30" @click.stop>$0</a>',
+                                              e($todo->title)
+                                          ) !!}
                                     </p>
 
-                                    {{-- Bearbeitungs Modus --}}
                                     <input x-ref="editInput"
                                            x-show="isEditing"
                                            x-model="updatedTitle"
@@ -179,13 +164,11 @@
                                            x-cloak
                                     >
 
-                                    {{-- Subtasks Counter if collapsed (optional) --}}
                                     @if($todo->subtasks->count() > 0 && $todo->is_completed)
                                         <div class="text-[10px] text-slate-400 mt-1 font-medium">{{ $todo->subtasks->count() }} Unterschritte erledigt</div>
                                     @endif
                                 </div>
 
-                                {{-- Context Menu & Prio Dropdown --}}
                                 <div class="relative flex items-center gap-2">
                                     @if(!$todo->is_completed)
                                         <select wire:change="updateTodoPriority('{{ $todo->id }}', $event.target.value)"
@@ -217,61 +200,59 @@
                                 </div>
                             </div>
 
-                            {{-- Unterschritte --}}
-                            @if(!$todo->is_completed || $todo->subtasks->where('is_completed', false)->count() > 0)
-                                <div class="ml-7 pl-4 border-l-2 border-slate-100 space-y-1 mt-2">
-                                    @foreach($todo->subtasks as $sub)
-                                        <div class="group/sub flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors relative">
-                                            <button wire:click="toggleComplete('{{ $sub->id }}')"
-                                                    class="w-4 h-4 rounded border flex items-center justify-center transition-all {{ $sub->is_completed ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 text-transparent hover:border-primary bg-white' }}">
-                                                <x-heroicon-m-check class="w-3 h-3" />
-                                            </button>
+                            <div class="ml-7 pl-4 border-l-2 border-slate-100 space-y-1 mt-2">
+                                @foreach($todo->subtasks as $sub)
+                                    <div class="group/sub flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors relative">
+                                        <button wire:click="toggleComplete('{{ $sub->id }}')"
+                                                class="w-4 h-4 rounded border flex items-center justify-center transition-all {{ $sub->is_completed ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 text-transparent hover:border-primary bg-white' }}">
+                                            <x-heroicon-m-check class="w-3 h-3" />
+                                        </button>
 
-                                            {{-- Inline Edit für Subtasks --}}
-                                            <div class="flex-1 min-w-0" x-data="{ isEditingSub: false, updatedSubTitle: '{{ $sub->title }}' }">
-                                                <span x-show="!isEditingSub"
-                                                      @click="isEditingSub = true; $nextTick(() => $refs.editSubInput.focus())"
-                                                      @class(['flex-1 text-xs font-medium truncate cursor-text hover:text-primary transition-colors', 'line-through text-slate-400' => $sub->is_completed, 'text-slate-600' => !$sub->is_completed])>
-                                                    {{ $sub->title }}
-                                                </span>
-                                                <input x-ref="editSubInput"
-                                                       x-show="isEditingSub"
-                                                       x-model="updatedSubTitle"
-                                                       @blur="isEditingSub = false; $wire.updateTodoTitle('{{ $sub->id }}', updatedSubTitle)"
-                                                       @keydown.enter="$el.blur()"
-                                                       class="w-full text-xs font-medium bg-white border border-primary/30 rounded px-2 py-0 focus:outline-none focus:ring-1 focus:ring-primary/20 -ml-2 text-slate-900"
-                                                       x-cloak
-                                                >
-                                            </div>
-
-                                            {{-- Sub Menu Hover --}}
-                                            <div class="flex opacity-0 group-hover/sub:opacity-100 transition-opacity" x-data="{ openSub: false }">
-                                                <button @click="openSub = !openSub" class="text-slate-300 hover:text-slate-600 p-0.5 rounded">
-                                                    <x-heroicon-m-ellipsis-horizontal class="w-4 h-4" />
-                                                </button>
-                                                <div x-show="openSub" @click.away="openSub = false" x-cloak class="absolute right-0 top-6 w-32 bg-white rounded-lg shadow-lg border border-slate-100 z-40 py-1">
-                                                    <button wire:click="promoteToTask('{{ $sub->id }}')" class="w-full text-left px-3 py-1.5 text-[10px] font-bold text-primary hover:bg-slate-50">Zu Aufgabe</button>
-                                                    <button wire:click="deleteTodo('{{ $sub->id }}')" class="w-full text-left px-3 py-1.5 text-[10px] font-bold text-red-500 hover:bg-red-50">Löschen</button>
-                                                </div>
-                                            </div>
+                                        <div class="flex-1 min-w-0" x-data="{ isEditingSub: false, updatedSubTitle: '{{ $sub->title }}' }">
+                                            <span x-show="!isEditingSub"
+                                                  @click.self="isEditingSub = true; $nextTick(() => $refs.editSubInput.focus())"
+                                                  @class(['flex-1 text-xs font-medium truncate cursor-text hover:text-primary transition-colors', 'line-through text-slate-400' => $sub->is_completed, 'text-slate-600' => !$sub->is_completed])>
+                                                    {!! preg_replace(
+                                                        '/((?:https?|ftp|file):\/\/|www\.)[a-z0-9+&@#\/%?=~_|!:,.;\*\-]*[a-z0-9+&@#\/%=~_|]/i',
+                                                        '<a href="$0" target="_blank" class="text-primary underline hover:text-primary-dark decoration-primary/30" @click.stop>$0</a>',
+                                                        e($sub->title)
+                                                    ) !!}
+                                            </span>
+                                            <input x-ref="editSubInput"
+                                                   x-show="isEditingSub"
+                                                   x-model="updatedSubTitle"
+                                                   @blur="isEditingSub = false; $wire.updateTodoTitle('{{ $sub->id }}', updatedSubTitle)"
+                                                   @keydown.enter="$el.blur()"
+                                                   class="w-full text-xs font-medium bg-white border border-primary/30 rounded px-2 py-0 focus:outline-none focus:ring-1 focus:ring-primary/20 -ml-2 text-slate-900"
+                                                   x-cloak
+                                            >
                                         </div>
-                                    @endforeach
 
-                                    {{-- Subtask Input --}}
-                                    <div x-show="isAddingSub" x-cloak class="pt-1 animate-fade-in">
-                                        <div class="flex gap-2 items-center bg-white border border-primary/30 rounded-xl p-1 shadow-sm ring-2 ring-primary/5">
-                                            <input type="text" x-model="subTitle"
-                                                   @keydown.enter="$wire.addSubTask('{{ $todo->id }}', subTitle); subTitle = ''; isAddingSub = false"
-                                                   placeholder="Nächster Schritt..."
-                                                   class="flex-1 bg-transparent border-none px-3 py-1 text-xs font-bold focus:ring-0 placeholder:text-slate-300"
-                                                   autofocus>
-                                            <button @click="isAddingSub = false" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-50">
-                                                <x-heroicon-m-x-mark class="w-3.5 h-3.5"/>
+                                        <div class="flex opacity-0 group-hover/sub:opacity-100 transition-opacity" x-data="{ openSub: false }">
+                                            <button @click="openSub = !openSub" class="text-slate-300 hover:text-slate-600 p-0.5 rounded">
+                                                <x-heroicon-m-ellipsis-horizontal class="w-4 h-4" />
                                             </button>
+                                            <div x-show="openSub" @click.away="openSub = false" x-cloak class="absolute right-0 top-6 w-32 bg-white rounded-lg shadow-lg border border-slate-100 z-40 py-1">
+                                                <button wire:click="promoteToTask('{{ $sub->id }}')" class="w-full text-left px-3 py-1.5 text-[10px] font-bold text-primary hover:bg-slate-50">Zu Aufgabe</button>
+                                                <button wire:click="deleteTodo('{{ $sub->id }}')" class="w-full text-left px-3 py-1.5 text-[10px] font-bold text-red-500 hover:bg-red-50">Löschen</button>
+                                            </div>
                                         </div>
                                     </div>
+                                @endforeach
+
+                                <div x-show="isAddingSub" x-cloak class="pt-1 animate-fade-in">
+                                    <div class="flex gap-2 items-center bg-white border border-primary/30 rounded-xl p-1 shadow-sm ring-2 ring-primary/5">
+                                        <input type="text" x-model="subTitle"
+                                               @keydown.enter="$wire.addSubTask('{{ $todo->id }}', subTitle); subTitle = ''; isAddingSub = false"
+                                               placeholder="Nächster Schritt..."
+                                               class="flex-1 bg-transparent border-none px-3 py-1 text-xs font-bold focus:ring-0 placeholder:text-slate-300"
+                                               autofocus>
+                                        <button @click="isAddingSub = false" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-slate-50">
+                                            <x-heroicon-m-x-mark class="w-3.5 h-3.5"/>
+                                        </button>
+                                    </div>
                                 </div>
-                            @endif
+                            </div>
                         </div>
                     @empty
                         <div class="flex flex-col items-center justify-center h-64 text-center">

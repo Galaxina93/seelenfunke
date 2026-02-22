@@ -130,6 +130,37 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     return response()->json(['success' => true, 'entry' => $issue]);
 });
 
+Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
+    $issue = FinanceSpecialIssue::findOrFail($id);
+
+    $data = $request->validate([
+        'title' => 'required|string',
+        'amount' => 'required',
+        'category' => 'required|string',
+        'execution_date' => 'required|date',
+        'is_business' => 'required'
+    ]);
+
+    $issue->update([
+        'title' => $data['title'],
+        'amount' => (float)str_replace(',', '.', $data['amount']),
+        'category' => $data['category'],
+        'execution_date' => $data['execution_date'],
+        'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
+    ]);
+
+    // Wenn neue Dateien im Multipart-Request hochgeladen wurden
+    if ($request->hasFile('file')) {
+        $existingPaths = $issue->file_paths ?? [];
+        foreach ($request->file('file') as $file) {
+            $existingPaths[] = $file->store('financial/receipts', 'public');
+        }
+        $issue->update(['file_paths' => $existingPaths]);
+    }
+
+    return response()->json(['success' => true]);
+});
+
 Route::get('/funki/financials/variable', function (Request $request) {
     return FinanceSpecialIssue::where('admin_id', $request->user()->id)
         ->orderBy('execution_date', 'desc')
