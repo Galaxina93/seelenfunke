@@ -162,25 +162,54 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
 });
 
 Route::get('/funki/financials/variable', function (Request $request) {
+    // Wir lesen das Limit aus der URL, Standard ist 50
+    $limit = $request->query('limit', 50);
+
     return FinanceSpecialIssue::where('admin_id', $request->user()->id)
         ->orderBy('execution_date', 'desc')
-        ->take(50)
+        ->take($limit)
         ->get();
 });
 
 Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
     $issue = FinanceSpecialIssue::findOrFail($id);
-    $data = $request->validate([
-        'title' => 'required',
-        'amount' => 'required'
-    ]);
-    $rawAmount = str_replace(',', '.', (string)$data['amount']);
-    $amount = (float)$rawAmount;
 
+    $data = $request->validate([
+        'title' => 'required|string',
+        'amount' => 'required',
+        'category' => 'required|string',
+        'execution_date' => 'required|date',
+        'is_business' => 'required'
+    ]);
+
+    // Basis-Daten aktualisieren
     $issue->update([
         'title' => $data['title'],
-        'amount' => $amount
+        'amount' => (float)str_replace(',', '.', $data['amount']),
+        'category' => $data['category'],
+        'execution_date' => $data['execution_date'],
+        'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
     ]);
+
+    // DATEI-LOGIK FIX:
+    // Wir prüfen auf 'file', da Laravel bei Multipart-Arrays das Key-Handling übernimmt
+    if ($request->hasFile('file')) {
+        $existingPaths = $issue->file_paths ?? [];
+        $files = $request->file('file');
+
+        // Sicherstellen, dass wir immer ein Array haben
+        if (!is_array($files)) {
+            $files = [$files];
+        }
+
+        foreach ($files as $file) {
+            $existingPaths[] = $file->store('financial/receipts', 'public');
+        }
+
+        $issue->update(['file_paths' => $existingPaths]);
+        Log::info('Update: Neue Dateien hinzugefügt', ['count' => count($files)]);
+    }
+
     return response()->json(['success' => true]);
 });
 
