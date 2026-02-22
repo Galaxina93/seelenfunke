@@ -265,7 +265,7 @@
                     this.textureCtx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
                     this.textureCtx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50, 30, 20, 0.9)' : 'rgba(255, 255, 255, 0.95)';
                     this.textureCtx.textAlign = item.align || 'center';
-                    this.textureCtx.textBaseline = 'middle';
+                    this.textureCtx.textBaseline = 'top';
 
                     if(this.config.material_type === 'glass') {
                         this.textureCtx.shadowColor = "rgba(255,255,255,0.8)";
