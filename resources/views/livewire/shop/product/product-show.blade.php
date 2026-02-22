@@ -63,25 +63,63 @@
                     </div>
                 </div>
 
-                {{-- Thumbnails --}}
+                {{-- Thumbnails Slider --}}
                 @if(count($product->media_gallery ?? []) > 1)
-                    <div class="grid grid-cols-5 gap-4">
-                        @foreach($product->media_gallery as $media)
-                            <button @click="activeMedia = '{{ asset('storage/'.$media['path']) }}'; activeType = '{{ $media['type'] ?? 'image' }}'"
-                                    class="aspect-square rounded-lg overflow-hidden border-2 transition-all"
-                                    :class="activeMedia === '{{ asset('storage/'.$media['path']) }}' ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-gray-300'">
-                                @if(isset($media['type']) && $media['type'] === 'video')
-                                    <div class="w-full h-full bg-gray-900 flex items-center justify-center text-white relative">
-                                        <video src="{{ asset('storage/'.$media['path']) }}" class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
-                                        <svg class="w-6 h-6 relative z-10" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
-                                    </div>
-                                @else
-                                    <img src="{{ asset('storage/'.$media['path']) }}" class="w-full h-full object-cover">
-                                @endif
-                            </button>
-                        @endforeach
+                    <div class="relative group/slider mt-4"
+                         x-data="{
+            scroll(direction) {
+                const container = this.$refs.thumbnailContainer;
+                const scrollAmount = container.offsetWidth / 2;
+                container.scrollBy({
+                    left: direction === 'left' ? -scrollAmount : scrollAmount,
+                    behavior: 'smooth'
+                });
+            }
+         }">
+
+                        {{-- Linker Pfeil --}}
+                        <button @click="scroll('left')"
+                                class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-primary hover:border-primary transition-all opacity-0 group-hover/slider:opacity-100 -translate-x-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+
+                        {{-- Container für Thumbnails --}}
+                        <div x-ref="thumbnailContainer"
+                             class="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x no-scrollbar"
+                             style="scrollbar-width: none; -ms-overflow-style: none;">
+
+                            @foreach($product->media_gallery as $media)
+                                <div class="snap-start shrink-0" style="width: calc(20% - 13px);"> {{-- Berechnet für genau 5 Spalten inkl. Gap --}}
+                                    <button @click="activeMedia = '{{ asset('storage/'.$media['path']) }}'; activeType = '{{ $media['type'] ?? 'image' }}'"
+                                            class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative"
+                                            :class="activeMedia === '{{ asset('storage/'.$media['path']) }}' ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-gray-300'">
+
+                                        @if(isset($media['type']) && $media['type'] === 'video')
+                                            <div class="w-full h-full bg-gray-900 flex items-center justify-center text-white">
+                                                <video src="{{ asset('storage/'.$media['path']) }}" class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
+                                                <svg class="w-6 h-6 relative z-10" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+                                            </div>
+                                        @else
+                                            <img src="{{ asset('storage/'.$media['path']) }}" class="w-full h-full object-cover">
+                                        @endif
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        {{-- Rechter Pfeil --}}
+                        <button @click="scroll('right')"
+                                class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md flex items-center justify-center text-gray-600 hover:text-primary hover:border-primary transition-all opacity-0 group-hover/slider:opacity-100 translate-x-2">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7" /></svg>
+                        </button>
                     </div>
                 @endif
+
+                <style>
+                    /* Hilfsklasse zum Verstecken der Scrollbar falls nicht global vorhanden */
+                    .no-scrollbar::-webkit-scrollbar { display: none; }
+                    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                </style>
 
                 {{-- Desktop Beschreibung (SEO Text) --}}
                 <div class="hidden lg:block pt-8 border-t border-gray-100 prose prose-stone text-gray-600">

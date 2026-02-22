@@ -28,6 +28,6 @@ class ProductShow extends Component
             ->title($this->product->seo_title ?? $this->product->name)
             ->with([
                 'meta_description' => $this->product->seo_description ?? Str::limit($this->product->short_description, 160)
-            ]);
+            ])->layout('components.layouts.frontend_layout');
     }
 }
