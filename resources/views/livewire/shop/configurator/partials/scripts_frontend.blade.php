@@ -88,6 +88,11 @@
 
                     if (this.texts && this.texts.length > 0) this.selectItem('text', 0);
                     else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
+
+                    // Wartet, bis alle externen Web-Fonts vom Browser heruntergeladen wurden
+                    document.fonts.ready.then(() => {
+                        this.updateTexture();
+                    });
                 });
             },
 

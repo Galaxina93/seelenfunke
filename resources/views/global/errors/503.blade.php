@@ -9,8 +9,45 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400;700&display=swap');
-        body { font-family: 'Lato', sans-serif; }
+        /* Lokale Fonts einbinden (DSGVO konform) */
+        @font-face {
+            font-family: 'Playfair Display';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/fonts/playfair-display-v40-latin-regular.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Playfair Display';
+            font-style: italic;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/fonts/playfair-display-v40-latin-italic.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Playfair Display';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('/fonts/playfair-display-v40-latin-700.woff2') format('woff2');
+        }
+
+        @font-face {
+            font-family: 'Montserrat';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/fonts/montserrat-v31-latin-regular.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Montserrat';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('/fonts/montserrat-v31-latin-700.woff2') format('woff2');
+        }
+
+        body { font-family: 'Montserrat', sans-serif; }
         h1 { font-family: 'Playfair Display', serif; }
 
         .sparkle-bg {

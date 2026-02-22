@@ -399,51 +399,501 @@ video {
 } /* Make elements with the HTML hidden attribute stay hidden by default */
 [hidden]:where(:not([hidden="until-found"])) {
   display: none;
+} /* =========================================
+       GOOGLE FONTS (LOKAL DSGVO-KONFORM)
+       ========================================= */ /* --- ABeeZee --- */
+@font-face {
+        font-family: 'ABeeZee';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/abeezee-v23-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'ABeeZee';
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/abeezee-v23-latin-italic.woff2') format('woff2');
+    } /* --- Alex Brush --- */
+@font-face {
+        font-family: 'Alex Brush';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/alex-brush-v23-latin-regular.woff2') format('woff2');
+    } /* --- Bebas Neue --- */
+@font-face {
+        font-family: 'Bebas Neue';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/bebas-neue-v16-latin-regular.woff2') format('woff2');
+    } /* --- Caveat --- */
+@font-face {
+        font-family: 'Caveat';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/caveat-v23-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Caveat';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/caveat-v23-latin-500.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Caveat';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/caveat-v23-latin-600.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Caveat';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/caveat-v23-latin-700.woff2') format('woff2');
+    } /* --- Cinzel --- */
+@font-face {
+        font-family: 'Cinzel';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/cinzel-v26-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Cinzel';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/cinzel-v26-latin-500.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Cinzel';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/cinzel-v26-latin-600.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Cinzel';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/cinzel-v26-latin-700.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Cinzel';
+        font-style: normal;
+        font-weight: 800;
+        font-display: swap;
+        src: url('/fonts/cinzel-v26-latin-800.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Cinzel';
+        font-style: normal;
+        font-weight: 900;
+        font-display: swap;
+        src: url('/fonts/cinzel-v26-latin-900.woff2') format('woff2');
+    } /* --- Comfortaa --- */
+@font-face {
+        font-family: 'Comfortaa';
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url('/fonts/comfortaa-v47-latin-300.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Comfortaa';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/comfortaa-v47-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Comfortaa';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/comfortaa-v47-latin-500.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Comfortaa';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/comfortaa-v47-latin-600.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Comfortaa';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/comfortaa-v47-latin-700.woff2') format('woff2');
+    } /* --- Dancing Script --- */
+@font-face {
+        font-family: 'Dancing Script';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/dancing-script-v29-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Dancing Script';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/dancing-script-v29-latin-500.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Dancing Script';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/dancing-script-v29-latin-600.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Dancing Script';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/dancing-script-v29-latin-700.woff2') format('woff2');
+    } /* --- Great Vibes --- */
+@font-face {
+        font-family: 'Great Vibes';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/great-vibes-v21-latin-regular.woff2') format('woff2');
+    } /* --- Lobster / Lobster Two --- */
+@font-face {
+        font-family: 'Lobster';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/lobster-v32-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Lobster Two';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/lobster-two-v22-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Lobster Two';
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/lobster-two-v22-latin-italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Lobster Two';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/lobster-two-v22-latin-700.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Lobster Two';
+        font-style: italic;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/lobster-two-v22-latin-700italic.woff2') format('woff2');
+    } /* --- Marck Script --- */
+@font-face {
+        font-family: 'Marck Script';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/marck-script-v22-latin-regular.woff2') format('woff2');
+    } /* --- Montserrat --- */
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 100;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-100.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 100;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-100italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 200;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-200.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 200;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-200italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 300;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-300.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 300;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-300italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-500.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-500italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-600.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-600italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-700.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-700italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 800;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-800.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 800;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-800italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: normal;
+        font-weight: 900;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-900.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Montserrat';
+        font-style: italic;
+        font-weight: 900;
+        font-display: swap;
+        src: url('/fonts/montserrat-v31-latin-900italic.woff2') format('woff2');
+    } /* --- Pacifico --- */
+@font-face {
+        font-family: 'Pacifico';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/pacifico-v23-latin-regular.woff2') format('woff2');
+    } /* --- Playfair Display --- */
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-regular.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: italic;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-500.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: italic;
+        font-weight: 500;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-500italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-600.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: italic;
+        font-weight: 600;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-600italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-700.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: italic;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-700italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 800;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-800.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: italic;
+        font-weight: 800;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-800italic.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: normal;
+        font-weight: 900;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-900.woff2') format('woff2');
+    }
+@font-face {
+        font-family: 'Playfair Display';
+        font-style: italic;
+        font-weight: 900;
+        font-display: swap;
+        src: url('/fonts/playfair-display-v40-latin-900italic.woff2') format('woff2');
+    } /* --- Righteous --- */
+@font-face {
+        font-family: 'Righteous';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/righteous-v18-latin-regular.woff2') format('woff2');
+    } /* --- Sacramento --- */
+@font-face {
+        font-family: 'Sacramento';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/sacramento-v17-latin-regular.woff2') format('woff2');
+    } /* --- Satisfy --- */
+@font-face {
+        font-family: 'Satisfy';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/satisfy-v22-latin-regular.woff2') format('woff2');
+    }
+.\!container {
+  width: 100% !important;
 }
 .container {
   width: 100%;
 }
-.\!container {
-  width: 100% !important;
-}
 @media (min-width: 640px) {
-  .container {
-    max-width: 640px;
-  }
   .\!container {
     max-width: 640px !important;
   }
+  .container {
+    max-width: 640px;
+  }
 }
 @media (min-width: 768px) {
-  .container {
-    max-width: 768px;
-  }
   .\!container {
     max-width: 768px !important;
   }
+  .container {
+    max-width: 768px;
+  }
 }
 @media (min-width: 1024px) {
-  .container {
-    max-width: 1024px;
-  }
   .\!container {
     max-width: 1024px !important;
   }
+  .container {
+    max-width: 1024px;
+  }
 }
 @media (min-width: 1280px) {
-  .container {
-    max-width: 1280px;
-  }
   .\!container {
     max-width: 1280px !important;
   }
+  .container {
+    max-width: 1280px;
+  }
 }
 @media (min-width: 1536px) {
-  .container {
-    max-width: 1536px;
-  }
   .\!container {
     max-width: 1536px !important;
+  }
+  .container {
+    max-width: 1536px;
   }
 }
 .sr-only {
@@ -490,11 +940,11 @@ video {
 .-inset-4 {
   inset: -1rem;
 }
-.inset-0 {
-  inset: 0px;
-}
 .-inset-6 {
   inset: -1.5rem;
+}
+.inset-0 {
+  inset: 0px;
 }
 .inset-y-0 {
   top: 0px;
@@ -515,8 +965,14 @@ video {
 .-bottom-3 {
   bottom: -0.75rem;
 }
+.-bottom-4 {
+  bottom: -1rem;
+}
 .-bottom-5 {
   bottom: -1.25rem;
+}
+.-bottom-6 {
+  bottom: -1.5rem;
 }
 .-bottom-8 {
   bottom: -2rem;
@@ -530,11 +986,17 @@ video {
 .-left-3 {
   left: -0.75rem;
 }
+.-left-4 {
+  left: -1rem;
+}
 .-left-\[9px\] {
   left: -9px;
 }
 .-right-1 {
   right: -0.25rem;
+}
+.-right-10 {
+  right: -2.5rem;
 }
 .-right-12 {
   right: -3rem;
@@ -547,6 +1009,12 @@ video {
 }
 .-right-3 {
   right: -0.75rem;
+}
+.-right-4 {
+  right: -1rem;
+}
+.-right-6 {
+  right: -1.5rem;
 }
 .-right-8 {
   right: -2rem;
@@ -616,9 +1084,6 @@ video {
 }
 .left-5 {
   left: 1.25rem;
-}
-.left-6 {
-  left: 1.5rem;
 }
 .left-\[20\%\] {
   left: 20%;
@@ -716,6 +1181,9 @@ video {
 .top-8 {
   top: 2rem;
 }
+.top-9 {
+  top: 2.25rem;
+}
 .top-\[10\%\] {
   top: 10%;
 }
@@ -730,24 +1198,6 @@ video {
 }
 .top-full {
   top: 100%;
-}
-.-bottom-6 {
-  bottom: -1.5rem;
-}
-.-right-6 {
-  right: -1.5rem;
-}
-.-bottom-4 {
-  bottom: -1rem;
-}
-.-left-4 {
-  left: -1rem;
-}
-.-right-4 {
-  right: -1rem;
-}
-.top-9 {
-  top: 2.25rem;
 }
 .-z-10 {
   z-index: -10;
@@ -773,17 +1223,14 @@ video {
 .z-\[100\] {
   z-index: 100;
 }
-.z-\[60\] {
-  z-index: 60;
+.z-\[200\] {
+  z-index: 200;
 }
 .z-\[9999\] {
   z-index: 9999;
 }
 .z-\[999\] {
   z-index: 999;
-}
-.z-\[200\] {
-  z-index: 200;
 }
 .order-1 {
   order: 1;
@@ -1048,6 +1495,9 @@ video {
 .mt-20 {
   margin-top: 5rem;
 }
+.mt-24 {
+  margin-top: 6rem;
+}
 .mt-3 {
   margin-top: 0.75rem;
 }
@@ -1063,14 +1513,11 @@ video {
 .mt-8 {
   margin-top: 2rem;
 }
-.mt-auto {
-  margin-top: auto;
-}
-.mt-24 {
-  margin-top: 6rem;
-}
 .mt-\[26px\] {
   margin-top: 26px;
+}
+.mt-auto {
+  margin-top: auto;
 }
 .line-clamp-1 {
   overflow: hidden;
@@ -1128,9 +1575,6 @@ video {
 }
 .aspect-square {
   aspect-ratio: 1 / 1;
-}
-.h-0\.5 {
-  height: 0.125rem;
 }
 .h-1 {
   height: 0.25rem;
@@ -1326,9 +1770,6 @@ video {
 }
 .min-h-screen {
   min-height: 100vh;
-}
-.w-0\.5 {
-  width: 0.125rem;
 }
 .w-1 {
   width: 0.25rem;
@@ -1697,10 +2138,6 @@ video {
   --tw-translate-y: 0.25rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
-.translate-y-1\/2 {
-  --tw-translate-y: 50%;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
 .translate-y-1\/3 {
   --tw-translate-y: 33.333333%;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
@@ -1723,10 +2160,6 @@ video {
 }
 .-rotate-2 {
   --tw-rotate: -2deg;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-.-rotate-3 {
-  --tw-rotate: -3deg;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 .-rotate-45 {
@@ -2867,6 +3300,9 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(59 130 246 / var(--tw-bg-opacity, 1));
 }
+.bg-blue-500\/10 {
+  background-color: rgb(59 130 246 / 0.1);
+}
 .bg-blue-500\/50 {
   background-color: rgb(59 130 246 / 0.5);
 }
@@ -3115,9 +3551,19 @@ video {
 .bg-purple-50\/10 {
   background-color: rgb(250 245 255 / 0.1);
 }
+.bg-purple-50\/50 {
+  background-color: rgb(250 245 255 / 0.5);
+}
 .bg-purple-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(168 85 247 / var(--tw-bg-opacity, 1));
+}
+.bg-purple-500\/10 {
+  background-color: rgb(168 85 247 / 0.1);
+}
+.bg-purple-600 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(147 51 234 / var(--tw-bg-opacity, 1));
 }
 .bg-purple-700 {
   --tw-bg-opacity: 1;
@@ -3184,6 +3630,10 @@ video {
 }
 .bg-slate-200\/50 {
   background-color: rgb(226 232 240 / 0.5);
+}
+.bg-slate-300 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(203 213 225 / var(--tw-bg-opacity, 1));
 }
 .bg-slate-400 {
   --tw-bg-opacity: 1;
@@ -3288,23 +3738,6 @@ video {
 }
 .bg-yellow-50\/50 {
   background-color: rgb(254 252 232 / 0.5);
-}
-.bg-blue-500\/10 {
-  background-color: rgb(59 130 246 / 0.1);
-}
-.bg-purple-50\/50 {
-  background-color: rgb(250 245 255 / 0.5);
-}
-.bg-purple-500\/10 {
-  background-color: rgb(168 85 247 / 0.1);
-}
-.bg-purple-600 {
-  --tw-bg-opacity: 1;
-  background-color: rgb(147 51 234 / var(--tw-bg-opacity, 1));
-}
-.bg-slate-300 {
-  --tw-bg-opacity: 1;
-  background-color: rgb(203 213 225 / var(--tw-bg-opacity, 1));
 }
 .bg-opacity-60 {
   --tw-bg-opacity: 0.6;
@@ -3700,6 +4133,9 @@ video {
 .pb-1 {
   padding-bottom: 0.25rem;
 }
+.pb-1\.5 {
+  padding-bottom: 0.375rem;
+}
 .pb-12 {
   padding-bottom: 3rem;
 }
@@ -3828,9 +4264,6 @@ video {
 }
 .pt-8 {
   padding-top: 2rem;
-}
-.pb-1\.5 {
-  padding-bottom: 0.375rem;
 }
 .text-left {
   text-align: left;
@@ -4083,12 +4516,12 @@ video {
   --tw-text-opacity: 1;
   color: rgb(29 78 216 / var(--tw-text-opacity, 1));
 }
+.text-blue-700\/80 {
+  color: rgb(29 78 216 / 0.8);
+}
 .text-blue-800 {
   --tw-text-opacity: 1;
   color: rgb(30 64 175 / var(--tw-text-opacity, 1));
-}
-.text-blue-800\/70 {
-  color: rgb(30 64 175 / 0.7);
 }
 .text-blue-800\/80 {
   color: rgb(30 64 175 / 0.8);
@@ -4258,9 +4691,16 @@ video {
   --tw-text-opacity: 1;
   color: rgb(126 34 206 / var(--tw-text-opacity, 1));
 }
+.text-purple-700\/80 {
+  color: rgb(126 34 206 / 0.8);
+}
 .text-purple-800 {
   --tw-text-opacity: 1;
   color: rgb(107 33 168 / var(--tw-text-opacity, 1));
+}
+.text-purple-900 {
+  --tw-text-opacity: 1;
+  color: rgb(88 28 135 / var(--tw-text-opacity, 1));
 }
 .text-red-300 {
   --tw-text-opacity: 1;
@@ -4369,16 +4809,6 @@ video {
   --tw-text-opacity: 1;
   color: rgb(133 77 14 / var(--tw-text-opacity, 1));
 }
-.text-blue-700\/80 {
-  color: rgb(29 78 216 / 0.8);
-}
-.text-purple-700\/80 {
-  color: rgb(126 34 206 / 0.8);
-}
-.text-purple-900 {
-  --tw-text-opacity: 1;
-  color: rgb(88 28 135 / var(--tw-text-opacity, 1));
-}
 .underline {
   text-decoration-line: underline;
 }
@@ -4442,11 +4872,11 @@ video {
   --tw-placeholder-opacity: 1;
   color: rgb(148 163 184 / var(--tw-placeholder-opacity, 1));
 }
-.accent-primary {
-  accent-color: #C9A66B;
-}
 .accent-blue-600 {
   accent-color: #2563eb;
+}
+.accent-primary {
+  accent-color: #C9A66B;
 }
 .opacity-0 {
   opacity: 0;
@@ -4844,6 +5274,10 @@ video {
   --tw-blur: blur(24px);
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
+.drop-shadow {
+  --tw-drop-shadow: drop-shadow(0 1px 2px rgb(0 0 0 / 0.1)) drop-shadow(0 1px 1px rgb(0 0 0 / 0.06));
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
 .drop-shadow-2xl {
   --tw-drop-shadow: drop-shadow(0 25px 25px rgb(0 0 0 / 0.15));
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
@@ -4858,10 +5292,6 @@ video {
 }
 .drop-shadow-xl {
   --tw-drop-shadow: drop-shadow(0 20px 13px rgb(0 0 0 / 0.03)) drop-shadow(0 8px 5px rgb(0 0 0 / 0.08));
-  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
-}
-.drop-shadow {
-  --tw-drop-shadow: drop-shadow(0 1px 2px rgb(0 0 0 / 0.1)) drop-shadow(0 1px 1px rgb(0 0 0 / 0.06));
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 .grayscale {
@@ -5403,6 +5833,10 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(37 99 235 / var(--tw-bg-opacity, 1));
 }
+.hover\:bg-blue-700:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(29 78 216 / var(--tw-bg-opacity, 1));
+}
 .hover\:bg-gray-100:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(243 244 246 / var(--tw-bg-opacity, 1));
@@ -5497,6 +5931,10 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(147 51 234 / var(--tw-bg-opacity, 1));
 }
+.hover\:bg-purple-700:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(126 34 206 / var(--tw-bg-opacity, 1));
+}
 .hover\:bg-red-100:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(254 226 226 / var(--tw-bg-opacity, 1));
@@ -5558,14 +5996,6 @@ video {
 }
 .hover\:bg-white\/60:hover {
   background-color: rgb(255 255 255 / 0.6);
-}
-.hover\:bg-blue-700:hover {
-  --tw-bg-opacity: 1;
-  background-color: rgb(29 78 216 / var(--tw-bg-opacity, 1));
-}
-.hover\:bg-purple-700:hover {
-  --tw-bg-opacity: 1;
-  background-color: rgb(126 34 206 / var(--tw-bg-opacity, 1));
 }
 .hover\:px-3:hover {
   padding-left: 0.75rem;
@@ -5805,9 +6235,6 @@ video {
 .hover\:file\:bg-slate-100::file-selector-button:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(241 245 249 / var(--tw-bg-opacity, 1));
-}
-.focus\:border-none:focus {
-  border-style: none;
 }
 .focus\:\!border-\[\#C5A059\]:focus {
   --tw-border-opacity: 1 !important;
@@ -6163,10 +6590,6 @@ video {
   --tw-rotate: -3deg;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
-.group:hover .group-hover\:rotate-0 {
-  --tw-rotate: 0deg;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
 .group:hover .group-hover\:rotate-1 {
   --tw-rotate: 1deg;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
@@ -6230,11 +6653,6 @@ video {
 .group:hover .group-hover\:scale-\[1\.03\] {
   --tw-scale-x: 1.03;
   --tw-scale-y: 1.03;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-.group:hover .group-hover\:scale-150 {
-  --tw-scale-x: 1.5;
-  --tw-scale-y: 1.5;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 .group:hover .group-hover\:border-blue-200 {
@@ -6770,14 +7188,14 @@ video {
   .sm\:gap-10 {
     gap: 2.5rem;
   }
+  .sm\:gap-2 {
+    gap: 0.5rem;
+  }
   .sm\:gap-3 {
     gap: 0.75rem;
   }
   .sm\:gap-4 {
     gap: 1rem;
-  }
-  .sm\:gap-2 {
-    gap: 0.5rem;
   }
   .sm\:rounded-2xl {
     border-radius: 1rem;
@@ -6800,8 +7218,8 @@ video {
   .sm\:p-10 {
     padding: 2.5rem;
   }
-  .sm\:p-2 {
-    padding: 0.5rem;
+  .sm\:p-3 {
+    padding: 0.75rem;
   }
   .sm\:p-4 {
     padding: 1rem;
@@ -6814,9 +7232,6 @@ video {
   }
   .sm\:p-8 {
     padding: 2rem;
-  }
-  .sm\:p-3 {
-    padding: 0.75rem;
   }
   .sm\:px-0 {
     padding-left: 0px;

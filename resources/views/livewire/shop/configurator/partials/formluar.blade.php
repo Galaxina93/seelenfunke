@@ -133,17 +133,20 @@
                         </div>
                     @endif
 
-                    <div wire:loading wire:target="new_files"
-                         class="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-[2rem] flex items-center justify-center z-20 border border-slate-100">
-                        <div class="flex flex-col items-center gap-3">
-                            <svg class="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                            </svg>
-                            <span class="text-xs font-black text-slate-800 uppercase tracking-wide">Wird verarbeitet...</span>
+                        <div wire:loading wire:target="new_files"
+                             class="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-[2rem] border border-slate-100 z-20 flex items-center justify-center">
+                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 text-center">
+                                <svg class="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor"
+                                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                                <span class="text-xs font-black text-slate-800 uppercase tracking-wide">
+                                    Wird verarbeitet...
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                @else
+                    @else
                     <div class="border-2 border-red-100 bg-red-50 rounded-[2rem] p-6 text-center">
                         <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center mx-auto mb-2 text-red-500 shadow-sm">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

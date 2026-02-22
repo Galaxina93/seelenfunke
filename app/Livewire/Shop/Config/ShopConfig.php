@@ -60,7 +60,7 @@ class ShopConfig extends Component
         'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
         'express_surcharge' => 'Zusätzliche Gebühr, wenn der Kunde die Express-Option im Checkout wählt (Eingabe in Euro).',
         'order_quote_validity_days' => 'Legt fest, wie viele Tage ein generiertes PDF-Angebot rechtlich bindend ist.',
-        'maintenance_mode' => 'Sperrt den Zugang zum Frontend für Kunden. Nur Admins können den Shop sehen.',
+        'maintenance_mode' => 'Sperrt den Zugang zum Frontend & Backend. Nur Admins können per Console Wartungen durchführen.',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
         'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
         'stripe_publishable_key' => 'Der öffentliche Schlüssel von Stripe (pk_test_... oder pk_live_...).',

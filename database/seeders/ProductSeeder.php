@@ -49,7 +49,7 @@ class ProductSeeder extends Seeder
             'short_description' => 'Personalisiertes 3D-Glasgeschenk inkl. Geschenkbox.',
             'status' => 'active',
             'price' => 3990,
-            'compare_at_price' => 4990,
+            'compare_at_price' => '',
             'cost_per_item' => 1250,
             'sku' => 'CRYSTAL-001-CLR',
             'barcode' => '',

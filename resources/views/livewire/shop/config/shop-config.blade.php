@@ -80,7 +80,7 @@
                                 <input type="checkbox" wire:model="settings.maintenance_mode" class="w-5 h-5 text-red-600 rounded border-gray-300 focus:ring-red-500">
                                 <div>
                                     <span class="block font-bold text-gray-900 text-sm">Shop offline schalten</span>
-                                    <span class="text-xs text-gray-500">Frontend für Kunden sperren (Maintenance)</span>
+                                    <span class="text-xs text-gray-500">Frontend & Backend für alle sperren (Maintenance)</span>
                                 </div>
                             </label>
                         </div>

@@ -1,0 +1,17 @@
+Local Server für App starten
+php artisan serve --host 0.0.0.0 --port 8000
+
+Backend Projekt Export:
+php artisan project:export
+php artisan project:export --short
+
+
+App Projekt export:
+dart run export_project.dart
+
+App live aufs Handy releasen:
+flutter run --release
+
+
+Wartungsmodus per Befehl deaktivieren:
+php artisan tinker --execute="\App\Models\ShopSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'false']); \Illuminate\Support\Facades\Cache::forget('global_shop_settings');"

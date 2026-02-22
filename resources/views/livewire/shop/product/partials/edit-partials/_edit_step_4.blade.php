@@ -12,7 +12,7 @@
 
             <h2 class="text-2xl font-serif text-gray-900 border-b border-gray-100 pb-4">4. Live-Konfigurator & 3D-Ansicht</h2>
 
-            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+            <div class="grid grid-cols-1 gap-8 mb-8">
                 {{-- Datei Uploads --}}
                 @include('livewire.shop.product.partials.edit-partials.step_4_partials.file_uploads')
 

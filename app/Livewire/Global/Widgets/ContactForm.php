@@ -39,7 +39,7 @@ class ContactForm extends Component
     public function sending(): void
     {
         $emailData = [
-            'to' => env('MAIL_FROM_ADDRESS', 'kontakt@alina-steinhauer.de'),
+            'to' => env('MAIL_FROM_ADDRESS', 'kontakt@mein-seelenfunke.de'),
             'subject' => 'Kontaktanfrage über Webseite',
             'viewTemplate' => 'global.mails.contact-form',
             'first_name' => $this->first_name,

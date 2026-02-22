@@ -24,8 +24,8 @@
         "openai-php/laravel": "^0.18.0",
         "pragmarx/google2fa-laravel": "^2.3",
         "ramsey/uuid": "^4.7",
-        "stripe/stripe-php": "^19.2"
-
+        "stripe/stripe-php": "^19.2",
+        "ext-gd": "*"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.13",
