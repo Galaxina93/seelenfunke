@@ -627,6 +627,16 @@ class Checkout extends Component
         return $order->id;
     }
 
+    /**
+     * Wird von Stripe Express Checkout (JS) aufgerufen, BEVOR das Wallet öffnet.
+     * So verhindern wir, dass der Kunde Apple Pay nutzt, obwohl er z.B. die AGB nicht akzeptiert hat.
+     */
+    public function validateCheckoutData()
+    {
+        $this->validate();
+        return true;
+    }
+
     public function render()
     {
         if ($this->isFinished) {

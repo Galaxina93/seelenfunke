@@ -48,20 +48,35 @@
         </div>
     @endif
 
+    {{-- EXPRESS CHECKOUT (Apple Pay / Google Pay / Link) --}}
+    <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm" wire:ignore>
+        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center mb-4">Express Checkout</h3>
+
+        <div id="express-checkout-element">
+            {{-- Stripe injiziert hier automatisch Apple Pay oder Google Pay je nach Endgerät --}}
+        </div>
+
+        <div id="express-message" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs font-bold rounded-lg text-center"></div>
+    </div>
+
+    {{-- VISUELLER TRENNER --}}
+    <div class="relative flex items-center py-2">
+        <div class="flex-grow border-t border-gray-200"></div>
+        <span class="flex-shrink-0 mx-4 text-gray-400 text-[10px] font-bold uppercase tracking-widest">Oder klassisch zur Kasse</span>
+        <div class="flex-grow border-t border-gray-200"></div>
+    </div>
+
     {{-- Kontakt & Rechnung mit FIXED Auto-Collapse Logik --}}
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
          wire:key="checkout-address-section"
          x-data="{
             isOpen: true,
 
-            // Hilfsfunktion: Prüft ob ein Wert existiert und nicht leer ist
             isValid(val) {
                 return val && typeof val === 'string' && val.trim().length > 0;
             },
 
-            // Hauptprüfung
             checkCompletion() {
-                // 1. Rechnungsdaten prüfen
                 let e = $wire.email;
                 let f = $wire.first_name;
                 let l = $wire.last_name;
@@ -71,7 +86,6 @@
 
                 let billingComplete = this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c);
 
-                // 2. Lieferdaten prüfen (wenn aktiv)
                 let hasShipping = $wire.has_separate_shipping;
                 let sf = $wire.shipping_first_name;
                 let sl = $wire.shipping_last_name;
@@ -79,10 +93,8 @@
                 let sp = $wire.shipping_postal_code;
                 let sc = $wire.shipping_city;
 
-                // Lieferadresse ist 'complete', wenn sie entweder NICHT aktiv ist, ODER wenn sie aktiv UND ausgefüllt ist
                 let shippingComplete = !hasShipping || (this.isValid(sf) && this.isValid(sl) && this.isValid(sa) && this.isValid(sp) && this.isValid(sc));
 
-                // Nur zuklappen, wenn BEIDES vollständig ist
                 if (billingComplete && shippingComplete) {
                     this.isOpen = false;
                 } else {
@@ -99,7 +111,6 @@
                 Rechnungsdetails
             </h2>
             <div class="flex items-center gap-3">
-                {{-- Anzeige 'Vollständig' nur wenn zugeklappt --}}
                 <template x-if="!isOpen">
                     <div class="text-right mr-2 animate-fade-in">
                         <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>
@@ -242,22 +253,31 @@
         </div>
     </div>
 
-    {{-- Zahlung (Stripe Element) --}}
+    {{-- Zahlung (Stripe Element - KLASSISCH) --}}
     <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm" wire:ignore wire:key="stripe-payment-container">
-        <h2 class="text-xl font-serif font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold">2</span>
-            Zahlungsmethode
-        </h2>
 
-        <div class="mb-4 text-sm text-gray-500 bg-gray-50 p-4 rounded-lg border border-gray-200">
-            <p class="flex items-center gap-2">
-                <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                Sichere SSL-Verschlüsselung. Wähle unten deine bevorzugte Zahlungsart.
-            </p>
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
+                <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm font-bold">2</span>
+                Klassische Zahlungsmethoden
+            </h2>
+
+            {{-- Trust Badges / Icons der Zahlungsmittel --}}
+            <div class="hidden sm:flex flex-wrap justify-end gap-2 opacity-70">
+                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                    <img src="{{ asset('images/projekt/payments/mastercard.svg') }}" class="h-4">
+                </div>
+                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                    <img src="{{ asset('images/projekt/payments/paypal.svg') }}" class="h-4">
+                </div>
+                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
+                    <img src="{{ asset('images/projekt/payments/klarna.svg') }}" class="h-4">
+                </div>
+            </div>
         </div>
 
         <div id="payment-element">
-            {{-- Stripe injiziert hier das Iframe --}}
+            {{-- Stripe injiziert hier das klassische Iframe --}}
         </div>
 
         <div id="payment-message" class="hidden mt-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg"></div>
