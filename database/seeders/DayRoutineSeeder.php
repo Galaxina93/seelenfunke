@@ -14,10 +14,11 @@ class DayRoutineSeeder extends Seeder
         $routines = [
             [
                 'time' => '09:00',
-                'title' => 'Morgenroutine',
+                'title' => 'Morgenroutine & Vorbereitung',
                 'icon' => 'sparkles',
                 'type' => 'hygiene',
                 'duration' => 30,
+                'message' => 'Ein erfolgreicher Tag beginnt mit einer starken Basis. Keine Kompromisse bei der eigenen Pflege. Richte dich her, nimm deine Medikamente und mach dich mental bereit für den Tag. Wer sich gut fühlt, arbeitet auch so!',
                 'steps' => [
                     ['title' => 'Haare hoch machen', 'min' => 1],
                     ['title' => 'Aufs Klo gehen', 'min' => 4],
@@ -34,10 +35,11 @@ class DayRoutineSeeder extends Seeder
             ],
             [
                 'time' => '09:30',
-                'title' => 'Frühstück',
+                'title' => 'Frühstück & Fokus',
                 'icon' => 'cake',
                 'type' => 'food',
                 'duration' => 30,
+                'message' => 'Treibstoff für deinen Körper und deinen Kopf. Nimm dir diese 30 Minuten, um in Ruhe anzukommen. Leg das Handy weg, atme tief durch und fokussiere dich auf dein wichtigstes Tagesziel.',
                 'steps' => [
                     ['title' => 'In die Küche gehen / Hinsetzen', 'min' => 5],
                     ['title' => 'Shake trinken', 'min' => 10],
@@ -50,26 +52,29 @@ class DayRoutineSeeder extends Seeder
                 'icon' => 'briefcase',
                 'type' => 'work',
                 'duration' => 165, // Bis 12:45
+                'message' => 'Jetzt wird abgeliefert! Keine Ausreden, keine Ablenkungen, kein Social Media. Das ist der wichtigste Block des Tages. Erledige die härtesten und wichtigsten Aufgaben (Eat the Frog). In dieser Zeit wächst dein Unternehmen.',
                 'steps' => [
                     ['title' => 'Fokus-Arbeit: Das Wichtigste zuerst', 'min' => 165],
                 ]
             ],
             [
                 'time' => '12:45',
-                'title' => 'Frische Luft Pause',
+                'title' => 'Frische Luft & Reset',
                 'icon' => 'sun',
                 'type' => 'break',
                 'duration' => 15,
+                'message' => 'Cut! Steh sofort auf, verlass den Schreibtisch und geh kurz an die frische Luft. Dein Gehirn braucht jetzt zwingend Sauerstoff, um am Nachmittag wieder auf 100% laufen zu können.',
                 'steps' => [
                     ['title' => 'Rausgehen, Atmen, Bewegen', 'min' => 15],
                 ]
             ],
             [
                 'time' => '13:00',
-                'title' => 'Mittagessen',
+                'title' => 'Mittagspause & Regeneration',
                 'icon' => 'fire',
                 'type' => 'food',
                 'duration' => 60,
+                'message' => 'Mahlzeit! Koche dir etwas Vernünftiges. Du bist eine Maschine, die gute Energie braucht. Und ganz wichtig: Nimm dir bewusst die Zeit, Gloria eine Runde Aufmerksamkeit zu schenken. Das erdet dich.',
                 'steps' => [
                     ['title' => 'Essen kochen', 'min' => 20],
                     ['title' => 'Tisch decken', 'min' => 5],
@@ -81,20 +86,22 @@ class DayRoutineSeeder extends Seeder
             ],
             [
                 'time' => '14:00',
-                'title' => 'Work Session II',
+                'title' => 'Work Session II (Operations)',
                 'icon' => 'computer-desktop',
                 'type' => 'work',
                 'duration' => 300, // Bis 19:00
+                'message' => 'Der zweite große Block gehört dem Tagesgeschäft. Abarbeiten von Bestellungen, E-Mails beantworten, Kundensupport und operative Projekte vorantreiben. Bleib diszipliniert – die saubere Arbeit von heute verhindert das Chaos von morgen.',
                 'steps' => [
-                    ['title' => 'Produktivität: Bestellungen & Mails', 'min' => 300],
+                    ['title' => 'Produktivität: Bestellungen, Mails & Laser-Arbeiten', 'min' => 300],
                 ]
             ],
             [
                 'time' => '19:00',
-                'title' => 'Sport',
+                'title' => 'Sport & Ausgleich',
                 'icon' => 'trophy',
                 'type' => 'sport',
                 'duration' => 60,
+                'message' => 'Dein Körper ist dein wertvollstes Kapital. Keine Diskussionen jetzt, zieh dein Workout durch! Der physische Stress baut den mentalen Stress ab. Schweiß ist Schwäche, die den Körper verlässt.',
                 'steps' => [
                     ['title' => 'Dehnübungen (Warmup)', 'min' => 10],
                     ['title' => 'Untere Rückenübungen', 'min' => 10],
@@ -105,10 +112,11 @@ class DayRoutineSeeder extends Seeder
             ],
             [
                 'time' => '20:00',
-                'title' => 'Abendbrot',
+                'title' => 'Abendessen & Feierabend',
                 'icon' => 'moon',
                 'type' => 'food',
                 'duration' => 90, // Bis 21:30
+                'message' => 'Der anstrengende Teil des Tages ist geschafft. Mach dir dein Essen, fahr das System in deinem Kopf langsam herunter und genieße deinen absolut wohlverdienten Feierabend. Arbeit ist jetzt tabu!',
                 'steps' => [
                     ['title' => 'Brot mit Aufstrich zubereiten', 'min' => 15],
                     ['title' => 'Essen & Feierabend genießen', 'min' => 75],
@@ -116,36 +124,42 @@ class DayRoutineSeeder extends Seeder
             ],
             [
                 'time' => '21:30',
-                'title' => 'Abendroutine',
+                'title' => 'Abendroutine & Pflege',
                 'icon' => 'star',
                 'type' => 'hygiene',
                 'duration' => 30,
+                'message' => 'Der Tag neigt sich dem Ende zu. Wasch den Stress des Tages im Bad ab, pflege deine Haut und bereite dich mental und körperlich auf eine tiefe Ruhephase vor.',
                 'steps' => [
                     ['title' => 'Duschen (waschen)', 'min' => 10],
                     ['title' => 'Zähne putzen', 'min' => 3],
                     ['title' => 'Hormone drauf machen', 'min' => 2],
                     ['title' => 'Schlafanzug anziehen', 'min' => 5],
-                    ['title' => 'Abschminken', 'min' => 10],
+                    ['title' => 'Abschminken & Pflege', 'min' => 10],
                 ]
             ],
             [
                 'time' => '22:00',
-                'title' => 'Nachtruhe',
+                'title' => 'Nachtruhe & Regeneration',
                 'icon' => 'moon',
                 'type' => 'sleep',
-                'duration' => 0, // Open End
+                'duration' => 660, // 11 Stunden (Bis 09:00 Uhr)
+                'message' => 'Schlaf ist nicht verhandelbar! Er ist deine absolut wichtigste Regenerationsquelle. Leg das Handy sofort weit weg, mach die Augen zu. Nur wer tief schläft, kann morgen wieder auf Hochtouren performen. Gute Nacht!',
                 'steps' => [
-                    ['title' => 'Handy weg, Augen zu, Träumen', 'min' => 0],
+                    ['title' => 'Handy weg, Augen zu, Träumen', 'min' => 660],
                 ]
             ],
         ];
+
+        // Tabelle vorher leeren für sauberen Neu-Seed
+        DayRoutineStep::truncate();
+        DayRoutine::truncate();
 
         foreach ($routines as $r) {
             $routine = DayRoutine::create([
                 'id' => Str::uuid(),
                 'start_time' => $r['time'],
                 'title' => $r['title'],
-                'message' => 'Folge dem Plan.',
+                'message' => $r['message'],
                 'icon' => $r['icon'],
                 'type' => $r['type'],
                 'duration_minutes' => $r['duration'],

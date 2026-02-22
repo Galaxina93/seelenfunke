@@ -123,6 +123,6 @@ class Register extends Component
     {
         return view('livewire.auth.register', [
             'activeCountries' => shop_setting('active_countries', ['DE' => 'Deutschland'])
-        ]);
+        ])->layout('components.layouts.frontend_layout');
     }
 }

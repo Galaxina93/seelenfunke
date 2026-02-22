@@ -10,7 +10,7 @@ return new class extends Migration {
             $table->uuid('id')->primary();
             $table->time('start_time'); // z.B. 13:00:00
             $table->string('title');
-            $table->string('message')->nullable(); // Der Spruch dazu
+            $table->text('message')->nullable(); // Der Spruch dazu
             $table->string('icon')->default('clock');
             $table->string('type')->default('general'); // food, hygiene, sport, work, sleep
             $table->integer('duration_minutes')->default(30); // Wie lange dauert das?

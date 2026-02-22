@@ -566,6 +566,13 @@ class Calculator extends Component
 
     public function render()
     {
-        return view('livewire.shop.calculator.calculator', ['dbProducts' => $this->dbProducts]);
+        // Wartungsmodus Check
+        if (shop_setting('maintenance_mode', false)) {
+            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
+        }
+
+        return view('livewire.shop.calculator.calculator', [
+            'dbProducts' => $this->dbProducts
+        ]);
     }
 }

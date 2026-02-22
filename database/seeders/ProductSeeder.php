@@ -85,12 +85,12 @@ class ProductSeeder extends Seeder
                 // 3D Modell Einstellungen
                 'material_type' => 'glass',
                 'model_scale' => 100,
-                'model_pos_x' => 0,
-                'model_pos_y' => 0,
-                'model_pos_z' => 0,
-                'model_rot_x' => 49.92,
-                'model_rot_y' => 88,79,
-                'model_rot_z' => -53.13,
+                'model_pos_x' => -0.15,
+                'model_pos_y' => 1.04,
+                'model_pos_z' => 3.37,
+                'model_rot_x' => 50.1,
+                'model_rot_y' => 88,01,
+                'model_rot_z' => -53.31,
 
                 // 3D Overlay (Gravur Ebene)
                 'engraving_scale' => 101,

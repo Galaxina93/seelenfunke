@@ -11,7 +11,3 @@ dart run export_project.dart
 
 App live aufs Handy releasen:
 flutter run --release
-
-
-Wartungsmodus per Befehl deaktivieren:
-php artisan tinker --execute="\App\Models\ShopSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'false']); \Illuminate\Support\Facades\Cache::forget('global_shop_settings');"

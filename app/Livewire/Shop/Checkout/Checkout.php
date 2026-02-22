@@ -643,6 +643,6 @@ class Checkout extends Component
             'cart' => $cart,
             'totals' => $totals,
             'countries' => shop_setting('active_countries', ['DE' => 'Deutschland'])
-        ]);
+        ])->layout('components.layouts.frontend_layout');
     }
 }

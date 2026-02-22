@@ -116,6 +116,6 @@ class Cart extends Component
             'cart' => $cart,
             'items' => $items,
             'totals' => $totals
-        ]);
+        ])->layout('components.layouts.frontend_layout');
     }
 }

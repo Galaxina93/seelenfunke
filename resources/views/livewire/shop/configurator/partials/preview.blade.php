@@ -57,50 +57,51 @@
                         };
                      `">
 
-                <template x-for="(textItem,index) in texts" :key="'content-text-'+textItem.id">
-                    <div class="absolute touch-none pointer-events-auto group"
-                         :style="`
-                    left: ${config.area_shape === 'custom' ? (textItem.x || 50) : ((textItem.x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
-                    top: ${config.area_shape === 'custom' ? (textItem.y || 50) : ((textItem.y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
-                    transform-origin: ${textItem.align==='left'?'0% 50%':(textItem.align==='right'?'100% 50%':'50% 50%')};
-                    transform: translate(${textItem.align==='left'?'0%':(textItem.align==='right'?'-100%':'-50%')},-50%) rotate(${textItem.rotation || 0}deg);
-                    z-index: ${selectedIndex===index?100:10}
-                 `"
+                <template x-for="(textItem,index) in texts" :key="'content-text-'+(textItem.id || index)">
+                    {{-- Absicherung: Block nur rendern, wenn Element existiert --}}
+                    <div x-show="texts[index] !== undefined" class="absolute touch-none pointer-events-auto group"
+                         :style="texts[index] ? `
+                            left: ${config.area_shape === 'custom' ? (texts[index].x || 50) : ((texts[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
+                            top: ${config.area_shape === 'custom' ? (texts[index].y || 50) : ((texts[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                            transform-origin: ${texts[index].align==='left'?'0% 50%':(texts[index].align==='right'?'100% 50%':'50% 50%')};
+                            transform: translate(${texts[index].align==='left'?'0%':(texts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${texts[index].rotation || 0}deg);
+                            z-index: ${selectedIndex===index?100:10}
+                         ` : 'display:none;'"
                          @mousedown.stop="startAction($event,'text',index,'drag')"
                          @touchstart.stop="startAction($event,'text',index,'drag')">
 
                         <div class="relative transition-all rounded p-1" :class="selectedIndex===index && context!=='preview'?'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm':'border-2 border-transparent'">
 
-                            <template x-if="texts[index]">
-                        <textarea x-model="texts[index].text"
-                                  :data-id="texts[index]?.id"
-                                  :rows="(texts[index]?.text?.match(/\n/g) || []).length + 1"
-                                  x-init="
-                                $watch('texts[index].text', () => texts[index] && fitTextarea(texts[index].id, $el));
-                                $watch('texts[index].size', () => texts[index] && $nextTick(() => fitTextarea(texts[index].id, $el)));
-                                $watch('texts[index].font', () => texts[index] && setTimeout(() => fitTextarea(texts[index].id, $el), 50));
-                                $nextTick(() => texts[index] && fitTextarea(texts[index].id, $el));
-                            "
-                                  @input="texts[index] && fitTextarea(texts[index].id, $el)"
-                                  wrap="off"
-                                  class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none text-center"
-                                  :class="alignMap[texts[index]?.align || 'center']"
-                                  :style="`
-                                width: ${texts[index] && textDims[texts[index].id]?.width || 'auto'};
-                                height: ${texts[index] && textDims[texts[index].id]?.height || 'auto'};
-                                font-size: ${(20 * (texts[index]?.size || 1)) * scaleFactor}px;
-                                font-family: ${texts[index] && fontMap[texts[index].font] || 'Arial'};
-                                line-height: 1.15;
-                                color: rgba(255, 255, 255, 0.85);
-                                text-shadow: 0 0 1px rgba(255,255,255,0.3), 0 0 2px rgba(255,255,255,0.2);
-                                filter: drop-shadow(0px 0px 1px rgba(0,0,0,0.1));
-                                mix-blend-mode: overlay;
-                            `"
-                                  placeholder="Text eingeben...">
-                        </textarea>
+                            <template x-if="texts[index] !== undefined">
+                                <textarea x-model="textItem.text"
+                                          :data-id="textItem.id"
+                                          :rows="(textItem.text?.match(/\n/g) || []).length + 1"
+                                          x-init="
+                                                $watch('textItem.text', () => fitTextarea(textItem.id, $el));
+                                                $watch('textItem.size', () => $nextTick(() => fitTextarea(textItem.id, $el)));
+                                                $watch('textItem.font', () => setTimeout(() => fitTextarea(textItem.id, $el), 50));
+                                                $nextTick(() => fitTextarea(textItem.id, $el));
+                                          "
+                                          @input="fitTextarea(textItem.id, $el)"
+                                          wrap="off"
+                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none text-center"
+                                          :class="alignMap[textItem.align || 'center']"
+                                          :style="`
+                                                width: ${textDims[textItem.id]?.width || 'auto'};
+                                                height: ${textDims[textItem.id]?.height || 'auto'};
+                                                font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
+                                                font-family: ${fontMap[textItem.font] || 'Arial'};
+                                                line-height: 1.15;
+                                                color: rgba(255, 255, 255, 0.85);
+                                                text-shadow: 0 0 1px rgba(255,255,255,0.3), 0 0 2px rgba(255,255,255,0.2);
+                                                filter: drop-shadow(0px 0px 1px rgba(0,0,0,0.1));
+                                                mix-blend-mode: overlay;
+                                          `"
+                                          placeholder="Text eingeben...">
+                                </textarea>
                             </template>
 
-                            <template x-if="selectedIndex===index && context!=='preview'">
+                            <template x-if="selectedIndex===index && context!=='preview' && texts[index] !== undefined">
                                 <div>
                                     <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-move text-slate-600" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-alias text-primary" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
@@ -112,22 +113,25 @@
                     </div>
                 </template>
 
-                <template x-for="(logoItem,index) in logos" :key="'content-logo-'+logoItem.id">
-                    <div class="absolute touch-none pointer-events-auto group"
-                         :style="`
-                    left: ${config.area_shape === 'custom' ? (logoItem.x || 50) : ((logoItem.x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
-                    top: ${config.area_shape === 'custom' ? (logoItem.y || 50) : ((logoItem.y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
-                    width: ${(logoItem.size * scaleFactor)}px;
-                    transform: translate(-50%,-50%) rotate(${logoItem.rotation || 0}deg);
-                    z-index: ${selectedIndex===index?100:10}
-                 `"
+                <template x-for="(logoItem,index) in logos" :key="'content-logo-'+(logoItem.id || index)">
+                    {{-- Absicherung: Block nur rendern, wenn logos[index] existiert --}}
+                    <div x-show="logos[index] !== undefined" class="absolute touch-none pointer-events-auto group"
+                         :style="logos[index] ? `
+                            left: ${config.area_shape === 'custom' ? (logos[index].x || 50) : ((logos[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
+                            top: ${config.area_shape === 'custom' ? (logos[index].y || 50) : ((logos[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                            width: ${(logos[index].size * scaleFactor)}px;
+                            transform: translate(-50%,-50%) rotate(${logos[index].rotation || 0}deg);
+                            z-index: ${selectedIndex===index?100:10}
+                         ` : 'display:none;'"
                          @mousedown.stop="startAction($event,'logo',index,'drag')"
                          @touchstart.stop="startAction($event,'logo',index,'drag')">
 
                         <div class="relative transition-all rounded p-1" :class="selectedIndex===index && context!=='preview'?'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm':'border-2 border-transparent'">
-                            <img :src="logoItem.url" class="w-full h-auto pointer-events-none opacity-80 mix-blend-multiply">
+                            <template x-if="logos[index] !== undefined">
+                                <img :src="logos[index].url" class="w-full h-auto pointer-events-none opacity-80 mix-blend-multiply">
+                            </template>
 
-                            <template x-if="selectedIndex===index && context!=='preview'">
+                            <template x-if="selectedIndex===index && context!=='preview' && logos[index] !== undefined">
                                 <div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-move text-slate-600" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center cursor-alias text-primary" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
@@ -168,11 +172,12 @@
                 </div>
             </div>
         </div>
+
     </div>
 
     {{-- GLOBALE EINSTELLUNGEN (Toolbar darunter) --}}
     <div x-show="selectedIndex !== null && showDrawingBoard && context !== 'preview'" class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-4 bg-white shadow-xl border border-slate-100 p-2 sm:p-3 rounded-2xl animate-fade-in-up relative z-50 w-full max-w-[98vw] md:max-w-xl mx-auto" x-cloak>
-        <template x-if="selectedType === 'text' && texts[selectedIndex]">
+        <template x-if="selectedType === 'text'">
             <div class="flex items-center gap-1 sm:gap-2">
                 <div class="relative">
                     <button @click="showFontMenu = !showFontMenu; showSizeMenu = false; showAlignMenu = false; showPosMenu = false" class="flex flex-col items-center px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors group relative" :class="showFontMenu ? 'bg-slate-100 text-primary' : 'text-slate-500'">
@@ -211,7 +216,7 @@
         </template>
 
         <div class="relative">
-            <template x-if="((selectedType === 'text' && texts[selectedIndex]) || (selectedType === 'logo' && logos[selectedIndex]))">
+            <template x-if="selectedType !== null">
                 <button @click="showSizeMenu = !showSizeMenu; showFontMenu = false; showAlignMenu = false; showPosMenu = false" class="flex flex-col items-center px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors group" :class="showSizeMenu ? 'bg-slate-100 text-primary' : 'text-slate-500'">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     <span class="text-[9px] font-bold uppercase mt-1 text-slate-500">Größe</span>
@@ -219,10 +224,10 @@
             </template>
             <div x-show="showSizeMenu" @click.outside="showSizeMenu = false" class="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 p-4 z-[100]" x-cloak>
                 <div class="flex justify-between text-[10px] font-bold text-slate-400 uppercase mb-2"><span>Klein</span><span>Groß</span></div>
-                <template x-if="selectedType === 'text' && texts[selectedIndex]">
+                <template x-if="selectedType === 'text'">
                     <input type="range" min="0.1" max="5" step="0.05" x-model="texts[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer">
                 </template>
-                <template x-if="selectedType === 'logo' && logos[selectedIndex]">
+                <template x-if="selectedType === 'logo'">
                     <input type="range" min="10" max="500" step="1" x-model="logos[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer">
                 </template>
             </div>
@@ -250,4 +255,36 @@
             <span class="text-[9px] font-bold uppercase mt-1 text-primary">Mitte</span>
         </button>
     </div>
+
+    {{-- STORAGE BUTTONS (Laden & Speichern) --}}
+    <div class="mt-6 pt-6 border-t border-gray-200 w-full max-w-[98vw] md:max-w-xl mx-auto flex flex-col gap-4 configurator-storage-ui" x-show="context !== 'preview'">
+
+        {{-- Blaue Info-Box --}}
+        <div class="bg-blue-50/80 border border-blue-100 rounded-xl p-4 flex gap-4 items-start shadow-sm mx-2 sm:mx-6">
+            <div class="shrink-0 text-blue-500 mt-0.5">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="flex-1">
+                <p class="text-xs text-blue-800/80 leading-relaxed">
+                    <strong>Zwischenspeichern:</strong> Sichern Sie Ihren aktuellen Fortschritt lokal in Ihrem Browser. So können Sie später genau hier weiterarbeiten, ohne von vorne zu beginnen.
+                </p>
+                <span x-show="showMessage" x-transition.opacity x-text="messageText" class="inline-block mt-2 text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-1 rounded border border-emerald-100" style="display:none;"></span>
+            </div>
+        </div>
+
+        {{-- Buttons --}}
+        <div class="flex flex-wrap gap-4 px-2 sm:px-6">
+            <button type="button" @click="saveDesign()" class="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white text-xs font-bold uppercase tracking-widest rounded-xl hover:bg-primary transition-colors shadow-sm">
+                <x-heroicon-o-bookmark class="w-5 h-5" /> Design sichern
+            </button>
+
+            <button type="button" x-show="hasSavedDesign" @click="loadDesign()" x-cloak class="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-white border-2 border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-widest rounded-xl hover:border-primary hover:text-primary transition-colors shadow-sm">
+                <x-heroicon-o-arrow-path class="w-5 h-5" /> Design laden
+            </button>
+        </div>
+
+    </div>
+
 </div>

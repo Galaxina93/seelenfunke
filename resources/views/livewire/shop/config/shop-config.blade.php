@@ -156,7 +156,7 @@
                             <svg class="h-5 w-5 text-amber-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <p class="text-sm text-amber-700">Länder werden zentral in der <span class="font-bold">Versandverwaltung</span> aktiviert.</p>
                         </div>
-                        <a href="{{ route('admin.shipping') }}" class="text-xs font-bold bg-amber-200 text-amber-800 px-3 py-1 rounded-full hover:bg-amber-300 transition shadow-sm">Verwalten →</a>
+                        <a href="{{ route('admin.shipping') }}" class="text-xs font-bold bg-amber-200 text-amber-800 px-3 py-1 rounded-full hover:bg-amber-300 transition shadow-sm">Verwalten</a>
                     </div>
                 </div>
 

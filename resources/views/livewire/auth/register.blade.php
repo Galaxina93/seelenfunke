@@ -14,7 +14,7 @@
                 <div class="flex flex-col justify-center h-full space-y-10 lg:sticky lg:top-24">
 
                     <div>
-                        <div class="text-primary font-bold tracking-widest uppercase text-sm mb-2">Mein-Seelenfunken</div>
+                        <div class="text-primary font-bold tracking-widest uppercase text-sm mb-2">Mein-Seelenfunke</div>
                         <h2 class="text-4xl md:text-5xl font-serif font-bold text-white mb-6 leading-tight">
                             Werde Teil <br>
                             <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary-light to-primary">unserer Reise.</span>

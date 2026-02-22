@@ -14,10 +14,14 @@ class ProductIndex extends Component
     #[Title('Unsere Kollektion - Mein Seelenfunke')]
     public function render()
     {
-        // Wir zeigen nur aktive Produkte an, sortiert nach dem Neuesten
+        // Wartungsmodus Check
+        if (shop_setting('maintenance_mode', false)) {
+            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
+        }
+
         $products = Product::where('status', 'active')
             ->latest()
-            ->paginate(12); // 12 Produkte pro Seite
+            ->paginate(12);
 
         return view('livewire.shop.product.product-index', [
             'products' => $products

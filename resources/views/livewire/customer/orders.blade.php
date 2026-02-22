@@ -207,7 +207,7 @@
 
             <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-10 gap-4 animate-fade-in">
                 <div>
-                    <h1 class="text-3xl font-serif font-bold text-gray-900">Meine Bestellungen</h1>
+                    <h1 class="text-3xl font-serif font-bold text-gray-900">Deine Bestellungen</h1>
                     <p class="mt-2 text-sm text-gray-500">Alle deine Seelenstücke auf einen Blick.</p>
                 </div>
                 <div class="relative w-full sm:w-72">
