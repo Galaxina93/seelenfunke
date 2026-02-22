@@ -230,8 +230,8 @@
                         this.textureCtx.translate(toPx(logo.x || 50), toPx(logo.y || 50));
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
 
-                        // Korrigierte Skalierung: 100 im Editor entsprechen jetzt 100% der Berechnungsgröße
-                        const scale = ((logo.size || 100) / 100) * ((this.config.area_width || 100) / 100) * cw;
+                        // KORREKTUR: Zurück zur 500er Skalierung deines 2D-Editors!
+                        const scale = ((logo.size || 100) / 500) * cw;
 
                         const aspect = img.width / img.height;
                         let drawW = scale;
