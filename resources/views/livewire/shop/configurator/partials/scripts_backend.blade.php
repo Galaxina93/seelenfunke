@@ -230,21 +230,13 @@
                         this.textureCtx.translate(toPx(logo.x || 50), toPx(logo.y || 50));
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
 
-                        // KORREKTUR: Zurück zur 500er Skalierung deines 2D-Editors!
+                        // Deine korrekte Basis-Skalierung
                         const scale = ((logo.size || 100) / 500) * cw;
 
+                        // Wir skalieren IMMER anhand der Breite (wie HTML/CSS es bei <img> macht)
                         const aspect = img.width / img.height;
-                        let drawW = scale;
-                        let drawH = scale;
-
-                        // Verhindert Quetschen und respektiert Hoch-/Querformat exakt
-                        if (aspect > 1) {
-                            // Querformat
-                            drawH = scale / aspect;
-                        } else {
-                            // Hochformat
-                            drawW = scale * aspect;
-                        }
+                        const drawW = scale;
+                        const drawH = scale / aspect; // Höhe berechnet sich automatisch
 
                         this.textureCtx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
                         this.textureCtx.restore();
@@ -278,8 +270,14 @@
                     const totalHeight = (lines.length - 1) * lineHeight;
                     let startY = -totalHeight / 2;
 
+                    // Berechne den Schubs nach unten EINMAL direkt vor der Schleife (spart Rechenleistung)
+                    const yOffset = fontSize * 0.12;
+
                     lines.forEach(line => {
-                        this.textureCtx.fillText(line, 0, startY);
+                        // Zeichne nur die aktuelle Zeile ('line') und addiere den Offset auf startY
+                        this.textureCtx.fillText(line, 0, startY + yOffset);
+
+                        // Erhöhe startY für die nächste Zeile
                         startY += lineHeight;
                     });
 
