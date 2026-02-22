@@ -9,6 +9,9 @@
             context: params.context || 'add',
             config: params.config || {},
 
+            // NEU: Hier merken wir uns die Maße der Textareas!
+            textDims: {},
+
             alignMap: { 'left': 'text-left', 'center': 'text-center', 'right': 'text-right' },
 
             showDrawingBoard: true,
@@ -25,6 +28,10 @@
 
             showImageEditor: false,
             fileRobotInstance: null,
+
+            // Für Performance Throttling
+            _isRendering: false,
+            _needsAnotherRender: false,
 
             init() {
                 if (typeof this.config.area_left === 'undefined') this.config.area_left = 10;
@@ -85,9 +92,28 @@
             },
 
             updateTexture() {
-                if(window._threeEngineInstance && window._threeEngineInstance.isReady) {
-                    window._threeEngineInstance.renderCanvas(Alpine.raw(this.texts), Alpine.raw(this.logos), Alpine.raw(this.fontMap));
+                if(!window._threeEngineInstance || !window._threeEngineInstance.isReady) return;
+
+                // OPTIMIERUNG: Throttling der Textur-Updates. Verhindert, dass der Main-Thread
+                // auf Mobile beim Draggen von Elementen blockiert.
+                if (this._isRendering) {
+                    this._needsAnotherRender = true;
+                    return;
                 }
+
+                this._isRendering = true;
+                requestAnimationFrame(() => {
+                    window._threeEngineInstance.renderCanvas(Alpine.raw(this.texts), Alpine.raw(this.logos), Alpine.raw(this.fontMap));
+
+                    // Limit auf ca. 25-30 FPS während intensiver Änderungen (z.B. dragging)
+                    setTimeout(() => {
+                        this._isRendering = false;
+                        if (this._needsAnotherRender) {
+                            this._needsAnotherRender = false;
+                            this.updateTexture();
+                        }
+                    }, 40);
+                });
             },
 
             updateScaleFactor(width = null) {
@@ -95,7 +121,16 @@
                     width = this.$refs.container.getBoundingClientRect().width;
                 }
                 if (width && width > 0) this.scaleFactor = width / this.baseWidth;
-                this.$nextTick(() => { document.querySelectorAll('textarea[x-model]').forEach(el => this.fitTextarea(el)); });
+
+                this.$nextTick(() => {
+                    document.querySelectorAll('textarea[x-model]').forEach(el => {
+                        // Die ID aus dem HTML-Element auslesen
+                        const textId = el.getAttribute('data-id');
+                        if (textId) {
+                            this.fitTextarea(textId, el);
+                        }
+                    });
+                });
             },
 
             onWindowResize() {
@@ -264,17 +299,39 @@
                 this.showGuideY = false;
             },
 
-            fitTextarea(el) {
+            fitTextarea(id, el) {
                 if (!el) return;
-                const lines = el.value.split('\n').length;
-                el.rows = lines;
-                el.style.height = 'auto';
-                el.style.width = 'auto';
 
-                setTimeout(() => {
-                    el.style.height = el.scrollHeight + 'px';
-                    el.style.width = (el.scrollWidth + 5) + 'px';
-                }, 0);
+                const scrollPos = window.scrollY;
+
+                // 1. Temporär für die Neumessung zurücksetzen
+                el.style.width = '0px';
+                el.style.height = 'auto';
+
+                const lines = el.value.split('\n').length || 1;
+                el.rows = lines;
+
+                const newWidth = el.scrollWidth;
+                const newHeight = el.scrollHeight;
+
+                // 2. Werte berechnen
+                const finalWidth = (newWidth + 10) + 'px';
+                const finalHeight = newHeight + 'px';
+
+                // 3. Sofort ins DOM schreiben (verhindert Flackern im aktuellen Frame)
+                el.style.width = finalWidth;
+                el.style.height = finalHeight;
+
+                // 4. In Alpine speichern (Das verhindert das Zurücksetzen durch Livewire!)
+                this.textDims[id] = {
+                    width: finalWidth,
+                    height: finalHeight
+                };
+
+                el.scrollTop = 0;
+                el.scrollLeft = 0;
+
+                window.scrollTo(0, scrollPos);
             },
 
             openImageEditor() {

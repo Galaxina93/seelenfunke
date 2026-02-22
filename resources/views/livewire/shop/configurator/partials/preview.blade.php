@@ -45,28 +45,32 @@
                          @mousedown.stop="startAction($event, 'text', index, 'drag')" @touchstart.stop="startAction($event, 'text', index, 'drag')">
 
                         <div class="relative transition-all rounded p-1" :class="selectedIndex === index && context !== 'preview' ? 'border-2 border-primary border-dashed ring-4 ring-primary/20 bg-white/50 backdrop-blur-sm shadow-sm' : 'border-2 border-transparent'">
-                            <textarea
-                                        x-model="texts[index].text"
-                                        x-init="$watch('texts[index].text', () => fitTextarea($el)); fitTextarea($el)"
-                                        @input="fitTextarea($el)"
-                                        wrap="off"
-                                        class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none"
-                                        :class="alignMap[textItem.align || 'center']"
-                                        :style="`
-                                font-size: ${(20 * textItem.size) * scaleFactor}px;
-                                font-family: ${fontMap[textItem.font] || 'Arial'};
-                                line-height: 1.15;
-                                height: auto;
-                                /* LASER-GRAVUR EFFEKT HIER */
-                                color: rgba(255, 255, 255, 0.85);
-                                text-shadow:
-                                    0 0 1px rgba(255,255,255,0.3),
-                                    0 0 2px rgba(255,255,255,0.2);
-                                filter: drop-shadow(0px 0px 1px rgba(0,0,0,0.1));
-                                mix-blend-mode: overlay;
-                            `"
-                                        placeholder="Text eingeben..."
-                            ></textarea>
+                            <textarea x-model="texts[index].text"
+                                      :data-id="textItem.id"
+                                      :rows="(texts[index].text.match(/\n/g) || []).length + 1"
+                                      x-init="
+                                    $watch('texts[index].text', () => fitTextarea(textItem.id, $el));
+                                    $watch('texts[index].size', () => $nextTick(() => fitTextarea(textItem.id, $el)));
+                                    $watch('texts[index].font', () => setTimeout(() => fitTextarea(textItem.id, $el), 50));
+                                    $nextTick(() => fitTextarea(textItem.id, $el));
+                                "
+                                      @input="fitTextarea(textItem.id, $el)"
+                                      wrap="off"
+                                      class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none text-center"
+                                      :class="alignMap[textItem.align || 'center']"
+                                      :style="`
+                                    width: ${textDims[textItem.id]?.width || 'auto'};
+                                    height: ${textDims[textItem.id]?.height || 'auto'};
+                                    font-size: ${(20 * textItem.size) * scaleFactor}px;
+                                    font-family: ${fontMap[textItem.font] || 'Arial'};
+                                    line-height: 1.15;
+                                    color: rgba(255, 255, 255, 0.85);
+                                    text-shadow: 0 0 1px rgba(255,255,255,0.3), 0 0 2px rgba(255,255,255,0.2);
+                                    filter: drop-shadow(0px 0px 1px rgba(0,0,0,0.1));
+                                    mix-blend-mode: overlay;
+                                `"
+                                      placeholder="Text eingeben...">
+                            </textarea>
 
                             {{-- Die 4 Ecken-Icons --}}
                             <template x-if="selectedIndex === index && context !== 'preview'">

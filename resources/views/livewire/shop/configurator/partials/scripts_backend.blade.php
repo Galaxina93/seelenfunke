@@ -30,6 +30,8 @@
         }
 
         init(onLoadedCallback) {
+            const isMobile = window.innerWidth < 768;
+
             this.scene = new window.THREE.Scene();
             this.scene.background = null;
 
@@ -37,7 +39,9 @@
 
             this.renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // OPTIMIERUNG: Pixel-Ratio auf Mobilgeräten auf 1 limitieren (spart massiv GPU-Leistung)
+            this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
 
             this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
@@ -62,14 +66,17 @@
                 });
             }
 
+            // OPTIMIERUNG: Canvas-Größe für Mobile halbieren (1024 statt 2048 -> 4x weniger Pixel)
+            const texSize = isMobile ? 1024 : 2048;
             this.textureCanvas = document.createElement('canvas');
-            this.textureCanvas.width = 2048;
-            this.textureCanvas.height = 2048;
+            this.textureCanvas.width = texSize;
+            this.textureCanvas.height = texSize;
             this.textureCtx = this.textureCanvas.getContext('2d');
 
             this.texture = new window.THREE.CanvasTexture(this.textureCanvas);
             this.texture.flipY = true;
-            this.texture.anisotropy = 16;
+            // OPTIMIERUNG: Anisotropie für Mobile senken
+            this.texture.anisotropy = isMobile ? 4 : 16;
 
             const gltfLoader = new window.GLTFLoader();
             gltfLoader.load(this.modelPath, (gltf) => {
@@ -181,15 +188,16 @@
         renderCanvas(texts, logos, fontMap) {
             if(!this.isReady || !this.textureCtx) return;
 
-            this.textureCtx.clearRect(0, 0, 2048, 2048);
-            const toPx = (p) => (p / 100) * 2048;
+            const cw = this.textureCanvas.width;
+            this.textureCtx.clearRect(0, 0, cw, cw);
+            const toPx = (p) => (p / 100) * cw;
 
             const applyClipping = (ctx) => {
                 ctx.beginPath();
-                let x = (this.config.area_left || 0) / 100 * 2048;
-                let y = (this.config.area_top || 0) / 100 * 2048;
-                let w = (this.config.area_width || 100) / 100 * 2048;
-                let h = (this.config.area_height || 100) / 100 * 2048;
+                let x = (this.config.area_left || 0) / 100 * cw;
+                let y = (this.config.area_top || 0) / 100 * cw;
+                let w = (this.config.area_width || 100) / 100 * cw;
+                let h = (this.config.area_height || 100) / 100 * cw;
                 let shape = this.config.area_shape || 'rect';
 
                 if (shape === 'rect') {
@@ -200,8 +208,8 @@
                     let pts = this.config.custom_points;
                     if (pts && pts.length > 0) {
                         pts.forEach((p, i) => {
-                            let px = (p.x || 0) / 100 * 2048;
-                            let py = (p.y || 0) / 100 * 2048;
+                            let px = (p.x || 0) / 100 * cw;
+                            let py = (p.y || 0) / 100 * cw;
                             if (i === 0) ctx.moveTo(px, py);
                             else ctx.lineTo(px, py);
                         });
@@ -221,7 +229,7 @@
                         applyClipping(this.textureCtx);
                         this.textureCtx.translate(toPx(logo.x || 50), toPx(logo.y || 50));
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
-                        const scale = ((logo.size || 100) / 500) * 2048;
+                        const scale = ((logo.size || 100) / 500) * cw;
                         this.textureCtx.drawImage(img, -scale/2, -scale/2, scale, scale);
                         this.textureCtx.restore();
                         if(this.texture) this.texture.needsUpdate = true;
@@ -237,7 +245,7 @@
                     this.textureCtx.translate(toPx(item.x || 50), toPx(item.y || 50));
                     this.textureCtx.rotate((item.rotation || 0) * Math.PI / 180);
 
-                    const fontSize = (item.size || 1) * 81.92;
+                    const fontSize = (item.size || 1) * (cw / 25); // Relativ zur Canvas-Breite
                     this.textureCtx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
                     this.textureCtx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50, 30, 20, 0.9)' : 'rgba(255, 255, 255, 0.95)';
                     this.textureCtx.textAlign = item.align || 'center';
@@ -245,7 +253,8 @@
 
                     if(this.config.material_type === 'glass') {
                         this.textureCtx.shadowColor = "rgba(255,255,255,0.8)";
-                        this.textureCtx.shadowBlur = 15;
+                        // OPTIMIERUNG: Blur-Größe reduzieren, wenn die Canvas-Größe für Mobile reduziert wurde
+                        this.textureCtx.shadowBlur = cw <= 1024 ? 5 : 15;
                     }
 
                     const lines = item.text.split('\n');
