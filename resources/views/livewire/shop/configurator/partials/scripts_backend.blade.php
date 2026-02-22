@@ -231,7 +231,7 @@
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
 
                         // KORREKTUR: Zurück zur 500er Skalierung deines 2D-Editors!
-                        const scale = ((logo.size || 100) / 300) * cw;
+                        const scale = ((logo.size || 100) / 500) * cw;
 
                         const aspect = img.width / img.height;
                         let drawW = scale;
@@ -265,7 +265,7 @@
                     this.textureCtx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
                     this.textureCtx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50, 30, 20, 0.9)' : 'rgba(255, 255, 255, 0.95)';
                     this.textureCtx.textAlign = item.align || 'center';
-                    this.textureCtx.textBaseline = 'top';
+                    this.textureCtx.textBaseline = 'middle';
 
                     if(this.config.material_type === 'glass') {
                         this.textureCtx.shadowColor = "rgba(255,255,255,0.8)";
