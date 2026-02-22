@@ -1,14 +1,55 @@
 {{-- FORMULAR (UNTERER BEREICH) --}}
 <div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
+    {{-- SYMBOL BIBLIOTHEK (Automatisch aus Ordner) --}}
+    @if($context !== 'preview')
+        <div class="space-y-4">
+        <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+            <span class="w-8 h-px bg-slate-200"></span>
+            Symbol-Bibliothek
+        </h3>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-[2rem] p-5">
+            <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                @php
+                    $vectorPath = public_path('images/configurator/vectors');
+                    $vectors = [];
+                    if(\Illuminate\Support\Facades\File::exists($vectorPath)) {
+                        $files = \Illuminate\Support\Facades\File::files($vectorPath);
+                        foreach($files as $file) {
+                            if(strtolower($file->getExtension()) === 'svg') {
+                                $filename = $file->getFilename();
+                                $name = str_replace('.svg', '', $filename);
+                                $name = ucwords(str_replace(['-', '_'], ' ', $name));
+                                $vectors[] = ['file' => $filename, 'name' => $name];
+                            }
+                        }
+                    }
+                @endphp
+
+                @forelse($vectors as $v)
+                    <button wire:click="addStandardVector('{{ $v['file'] }}')"
+                            class="aspect-square bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-primary hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group">
+                        <img src="{{ asset('images/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-60 group-hover:opacity-100 transition-opacity">
+                        <span class="text-[8px] font-bold text-slate-400 uppercase mt-2 group-hover:text-primary truncate w-full text-center">{{ $v['name'] }}</span>
+                    </button>
+                @empty
+                    <div class="col-span-full text-center text-xs text-slate-400 py-4">
+                        Keine SVG-Dateien im Ordner "images/configurator/vectors" gefunden.
+                    </div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+    @endif
+
     {{-- MEDIEN (Bilder & PDFs) --}}
     @if($configSettings['allow_logo'])
         <div class="space-y-4">
-            {{-- Header mit Zähler --}}
             <div class="flex justify-between items-center">
                 <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
                     <span class="w-8 h-px bg-slate-200"></span>
-                    Logos & Bilder
+                    Eigene Logos & Bilder
                 </h3>
                 <span class="text-[10px] font-bold px-2 py-1 rounded-md {{ count($uploaded_files) >= 10 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-500' }}">
                     {{ count($uploaded_files) }} / 10 Dateien
@@ -32,7 +73,6 @@
                     isDropping: false,
                     currentCount: {{ count($uploaded_files) }},
                     uploadError: null,
-                    imageDetails: {},
 
                     handleDrop(e) {
                         this.isDropping = false;
@@ -55,7 +95,7 @@
                     validateFiles(files) {
                         let newCount = files.length;
                         if ((this.currentCount + newCount) > 10) {
-                            this.uploadError = 'Limit erreicht! Maximal 10 Dateien erlaubt (Vorhanden: ' + this.currentCount + ', Neu: ' + newCount + ').';
+                            this.uploadError = 'Limit erreicht! Maximal 10 Dateien erlaubt.';
                             return false;
                         }
                         return true;
@@ -81,13 +121,7 @@
                              class="group border-2 border-dashed rounded-[2rem] p-10 transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer hover:border-primary/50 relative overflow-hidden"
                              @click="$refs.fileInput.click()">
 
-                            <input type="file"
-                                   x-ref="fileInput"
-                                   wire:model.live="new_files"
-                                   multiple
-                                   accept=".jpg,.jpeg,.png,.webp,.svg,.pdf"
-                                   class="hidden"
-                                   x-on:change="handleInput($event)">
+                            <input type="file" x-ref="fileInput" wire:model.live="new_files" multiple accept=".jpg,.jpeg,.png,.webp,.svg,.pdf" class="hidden" x-on:change="handleInput($event)">
 
                             <div class="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-primary transition-all mb-3 relative z-10">
                                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -130,8 +164,7 @@
                         $isActive = $this->isLogoActive($path);
                     @endphp
                     <div x-data="{
-                            width: 0,
-                            height: 0,
+                            width: 0, height: 0,
                             init() {
                                 if ('{{ $isImage }}') {
                                     let img = new Image();

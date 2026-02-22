@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
+use App\Services\ConfiguratorService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
@@ -57,6 +58,10 @@ class ProductCreate extends Component
     public $new_video;
     public $new_preview_image;
 
+    // NEU: Für den 3D Upload
+    public $new_3d_model;
+    public $new_3d_background;
+
     // NEU: Für den Digital-Upload
     public $new_digital_file;
 
@@ -101,21 +106,8 @@ class ProductCreate extends Component
         'Technik' => 'Herstellungsverfahren (z.B. Lasergravur, 3D-Druck).',
     ];
 
-    // --- Konfigurator Settings ---
-    public $configSettings = [
-        'allow_text_pos' => true,
-        'allow_logo' => true,
-        'allow_logo_pos' => true,
-        'default_text_pos' => 'center-center',
-        'default_logo_pos' => 'top-center',
-        'default_text_align' => 'center',
-        'area_top' => 10,
-        'area_left' => 10,
-        'area_width' => 80,
-        'area_height' => 80,
-        'area_shape' => 'rect',
-        'allowed_align' => ['left', 'center', 'right']
-    ];
+    // --- Konfigurator Settings (ERWEITERT UM CUSTOM POINTS) ---
+    public $configSettings = [];
 
     protected function rules()
     {
@@ -127,6 +119,11 @@ class ProductCreate extends Component
             'slug_input' => 'nullable', // Slug wird automatisch generiert, muss hier nicht strict sein
             'type' => 'required|in:physical,digital,service',
         ];
+    }
+
+    public function mount(ConfiguratorService $configService) {
+        // Wenn es ein neues Produkt ist oder ein bestehendes geladen wird:
+        $this->configSettings = $configService->mergeWithDefaults($this->product->config_settings ?? []);
     }
 
     #[On('product-updated')]
@@ -259,7 +256,14 @@ class ProductCreate extends Component
 
         // Arrays Mergen
         $this->productAttributes = array_merge($this->productAttributes, $this->product->attributes ?? []);
+
         $savedConfig = $this->product->configurator_settings ?? [];
+
+        // Sicherstellen, dass custom_points immer existiert (Fallout-Schutz)
+        if(!isset($savedConfig['custom_points'])) {
+            $savedConfig['custom_points'] = $this->configSettings['custom_points'];
+        }
+
         $this->configSettings = array_merge($this->configSettings, $savedConfig);
 
         $this->viewMode = 'edit';
@@ -449,7 +453,7 @@ class ProductCreate extends Component
             $this->product->compare_at_price = null;
         }
 
-        // 7. Versanddaten (Nur speichern wenn Typ physical ist)
+        // 7. Versanddaten & physische Maße (Nur speichern wenn Typ physical ist)
         if ($this->type === 'physical') {
             $this->product->weight = (int) $this->weight;
             $this->product->height = (int) $this->height;
@@ -477,7 +481,7 @@ class ProductCreate extends Component
         if($notify) session()->flash('success', 'Produkt gespeichert.');
     }
 
-    // --- MEDIA HANDLING (Bleibt gleich) ---
+    // --- MEDIA HANDLING ---
 
     public function updatedNewMedia()
     {
@@ -560,6 +564,8 @@ class ProductCreate extends Component
         $this->product->save();
     }
 
+    // --- NEU: 3D MODEL & VORSCHAU ---
+
     public function updatedNewPreviewImage()
     {
         $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
@@ -576,6 +582,49 @@ class ProductCreate extends Component
             $this->product->preview_image_path = null;
             $this->product->save();
         }
+    }
+
+    public function updatedNew3dModel()
+    {
+        // Max 50MB
+        $this->validate(['new_3d_model' => 'file|max:51200']);
+
+        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
+
+        // Lösche altes Modell, falls vorhanden
+        if ($this->product->three_d_model_path) {
+            Storage::disk('public')->delete($this->product->three_d_model_path);
+        }
+
+        $path = $this->new_3d_model->storeAs($folder, time() . '_' . Str::slug($this->product->name) . '.glb', 'public');
+
+        $this->product->three_d_model_path = $path;
+        $this->product->save();
+        $this->new_3d_model = null;
+
+        session()->flash('success', '3D-Modell erfolgreich hochgeladen!');
+    }
+
+    public function remove3dModel()
+    {
+        if($this->product->three_d_model_path) {
+            Storage::disk('public')->delete($this->product->three_d_model_path);
+            $this->product->three_d_model_path = null;
+            $this->product->save();
+            session()->flash('success', '3D-Modell entfernt.');
+        }
+    }
+
+    // NEU: Hintergrund Upload Logik
+    public function updatedNew3dBackground()
+    {
+        $this->validate(['new_3d_background' => 'image|max:10240']);
+        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
+        if ($this->product->three_d_background_path) Storage::disk('public')->delete($this->product->three_d_background_path);
+        $path = $this->new_3d_background->storeAs($folder, time() . '_bg_' . Str::slug($this->product->name) . '.' . $this->new_3d_background->getClientOriginalExtension(), 'public');
+        $this->product->three_d_background_path = $path;
+        $this->product->save();
+        $this->new_3d_background = null;
     }
 
     // --- QUICK ACTIONS ---

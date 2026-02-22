@@ -16,11 +16,25 @@
                 <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
 
                     {{-- Funki --}}
-                    <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="bolt" />
-                    <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="bolt" />
-                    <x-forms.list-item route="/admin/funki-todos" title="Todos" pageName="funki-todos" icon="bolt" />
-                    <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="bolt" />
+                    <x-forms.list-item route="/admin/funki"
+                                       title="Funki"
+                                       pageName="funki"
+                                       icon="bolt" />
 
+                    <x-forms.list-item route="/admin/funki-routine"
+                                       title="Routine"
+                                       pageName="funki-routine"
+                                       icon="arrow-path" />
+
+                    <x-forms.list-item route="/admin/funki-todos"
+                                       title="Todos"
+                                       pageName="funki-todos"
+                                       icon="check-circle" />
+
+                    <x-forms.list-item route="/admin/funki-kalender"
+                                       title="Kalender"
+                                       pageName="funki-kalender"
+                                       icon="calendar-days" />
                 </ul>
             </li>
 
@@ -33,7 +47,7 @@
         <div class="text-xs font-semibold leading-6 text-gray-200 uppercase tracking-wider mb-2">Shopverwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
             {{-- Produkte & Marketing Dropdown --}}
-            <li x-data="{ open: false }">
+            <li x-data="{ open: true }">
                 <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
                     <x-heroicon-o-wrench-screwdriver class="h-6 w-6 shrink-0 text-white" />
                     <span>Produkte & Marketing</span>
@@ -47,7 +61,7 @@
             </li>
 
             {{-- Bestellungen Dropdown --}}
-            <li x-data="{ open: false }">
+            <li x-data="{ open: true }">
                 <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
                     <x-heroicon-o-shopping-bag class="h-6 w-6 shrink-0 text-white" />
                     <span>Bestellungen</span>
@@ -62,7 +76,7 @@
             </li>
 
             {{-- Finanzmanager Dropdown --}}
-            <li x-data="{ open: false }">
+            <li x-data="{ open: true }">
                 <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
                     <x-heroicon-o-currency-dollar class="h-6 w-6 shrink-0 text-white" />
                     <span>Finanzen</span>

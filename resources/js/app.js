@@ -1,6 +1,43 @@
 import './bootstrap';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
-/*Felix Machts JS*/
+window.THREE = THREE;
+window.GLTFLoader = GLTFLoader;
+window.OrbitControls = OrbitControls;
+window.TransformControls = TransformControls;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Smooth scrolling for navigation links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {

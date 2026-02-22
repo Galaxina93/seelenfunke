@@ -8,6 +8,10 @@ use App\Livewire\Shop\Configurator\Traits\HandlesConfiguratorLogic;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use App\Services\ConfiguratorService;
+
+
+
 
 class Configurator extends Component
 {
@@ -30,19 +34,17 @@ class Configurator extends Component
     public $totalPrice = 0;
     public $config_confirmed = false;
 
-    public $fonts = [
-        'Arial' => 'Arial, sans-serif',
-        'Times New Roman' => 'Times New Roman, serif',
-        'Verdana' => 'Verdana, sans-serif',
-        'Courier New' => 'Courier New, monospace',
-        'Georgia' => 'Georgia, serif',
-        'Great Vibes' => '"Great Vibes", cursive',
-    ];
+    public array $fonts = [];
+    public array $vectors = [];
 
     public $alignmentOptions = ['left' => 'Links', 'center' => 'Zentriert', 'right' => 'Rechts'];
 
-    public function mount($product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
+    public function mount(ConfiguratorService $configService, $product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
     {
+        $this->fonts = $configService->getFonts();
+        $this->vectors = $configService->getStandardVectors();
+        $this->configSettings = $configService->mergeWithDefaults($this->product->config_settings ?? []);
+
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
         $this->context = $context;
         $this->cartItem = $cartItem;
@@ -55,7 +57,13 @@ class Configurator extends Component
 
         $this->configSettings = array_merge([
             'allow_logo' => true,
-            'area_top' => 10, 'area_left' => 10, 'area_width' => 80, 'area_height' => 80, 'area_shape' => 'rect'
+            'area_top' => 10, 'area_left' => 10, 'area_width' => 80, 'area_height' => 80, 'area_shape' => 'rect',
+            'custom_points' => [ // Standard-Viereck als Startpunkte für Polygon
+                ['x' => 10, 'y' => 10],
+                ['x' => 90, 'y' => 10],
+                ['x' => 90, 'y' => 90],
+                ['x' => 10, 'y' => 90]
+            ]
         ], $dbSettings ?? []);
 
         if ($this->isDigital) {
@@ -112,7 +120,11 @@ class Configurator extends Component
 
         foreach ($this->logos as &$logo) {
             if (!isset($logo['url']) && isset($logo['value'])) {
-                $logo['url'] = asset('storage/' . $logo['value']);
+                if (Str::startsWith($logo['value'], 'vectors/')) {
+                    $logo['url'] = asset('images/configurator/' . $logo['value']);
+                } else {
+                    $logo['url'] = asset('storage/' . $logo['value']);
+                }
             }
         }
 
@@ -128,26 +140,21 @@ class Configurator extends Component
             $this->calculatePrice();
         }
 
-        // === DATEI UPLOAD LOGIK ===
         if ($propertyName === 'new_files') {
-
-            // 1. LIMIT PRÜFUNG (Max 10 Dateien)
             $currentCount = count($this->uploaded_files);
             $newCount = count($this->new_files);
 
             if (($currentCount + $newCount) > 10) {
                 $this->addError('new_files', 'Limit erreicht: Maximal 10 Dateien erlaubt.');
-                $this->reset('new_files'); // Upload abbrechen
+                $this->reset('new_files');
                 return;
             }
 
-            // 2. Grösse Validierung
             $this->validate([
-                'new_files.*' => 'required|max:20480', // Max 20MB
+                'new_files.*' => 'required|max:20480',
             ]);
 
             foreach ($this->new_files as $key => $file) {
-                // 3. Typ Prüfung (PDF & Bilder)
                 $filename = $file->getClientOriginalName();
                 $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
                 $mime = $file->getMimeType();
@@ -165,7 +172,6 @@ class Configurator extends Component
                     continue;
                 }
 
-                // Speichern
                 $path = $file->store('cart-uploads', 'public');
                 $this->uploaded_files[] = $path;
             }
@@ -185,7 +191,6 @@ class Configurator extends Component
 
         $this->validate(['qty' => 'required|integer|min:1']);
 
-        // Die Logos (Stage-Ebenen) enthalten bereits die Pfade aus uploaded_files
         $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
         $mainText = collect($this->texts)->firstWhere('text', '!=', '')['text'] ?? '';
 

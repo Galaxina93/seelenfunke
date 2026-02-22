@@ -67,6 +67,9 @@ return new class extends Migration
             $table->integer('completion_step')->default(1);
             $table->string('preview_image_path')->nullable();
 
+            $table->string('three_d_model_path')->nullable();
+            $table->string('three_d_background_path')->nullable();
+
             // Speichert den internen Pfad zur geschützten Datei
             $table->string('digital_download_path')->nullable();
             // Optional: Originaler Dateiname für den Download (z.B. "Mein-Ebook.pdf")

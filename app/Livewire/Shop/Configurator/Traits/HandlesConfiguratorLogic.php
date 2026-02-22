@@ -64,6 +64,24 @@ trait HandlesConfiguratorLogic
         if (count($this->texts) === 0 && !$this->isDigital) $this->addText();
     }
 
+    public function addStandardVector($filename)
+    {
+        if ($this->context === 'preview') return;
+        $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
+        $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
+
+        $this->logos[] = [
+            'id' => Str::uuid()->toString(),
+            'type' => 'vector',
+            'value' => 'vectors/' . $filename,
+            'url' => asset('images/configurator/vectors/' . $filename),
+            'x' => $centerX,
+            'y' => $centerY,
+            'size' => 100,
+            'rotation' => 0
+        ];
+    }
+
     public function toggleLogo($type, $value)
     {
         if ($this->context === 'preview') return;
@@ -81,7 +99,7 @@ trait HandlesConfiguratorLogic
             'id' => Str::uuid()->toString(),
             'type' => 'saved',
             'value' => $value,
-            'url' => asset('storage/' . $value), // <--- HIER REIN
+            'url' => asset('storage/' . $value),
             'x' => $centerX,
             'y' => $centerY,
             'size' => 130,
@@ -96,13 +114,8 @@ trait HandlesConfiguratorLogic
 
         foreach($this->uploaded_files as $path) {
             $ext = pathinfo($path, PATHINFO_EXTENSION);
-
-            // WICHTIG: Nur Bilder kommen in die Vorschau (Stage)
             if (in_array(strtolower($ext), ['jpg', 'jpeg', 'png', 'webp'])) {
-
-                // Prüfen ob schon auf der Stage
                 $exists = collect($this->logos)->contains('value', $path);
-
                 if (!$exists) {
                     $this->logos[] = [
                         'id' => Str::uuid()->toString(),
@@ -116,30 +129,23 @@ trait HandlesConfiguratorLogic
                     ];
                 }
             }
-            // PDFs werden ignoriert für die Stage, bleiben aber in $uploaded_files erhalten
         }
     }
 
     public function removeFile($index)
     {
         if ($this->context === 'preview') return;
-
-        // 1. Pfad holen
         $path = $this->uploaded_files[$index] ?? null;
         if (!$path) return;
 
-        // 2. Aus den aktiven Logos auf der Stage entfernen
-        // WICHTIG: Wir nutzen collect()->values(), um den Index neu zu ordnen
         $this->logos = collect($this->logos)
             ->filter(fn($l) => $l['value'] !== $path)
             ->values()
             ->toArray();
 
-        // 3. Aus den hochgeladenen Dateien löschen
         unset($this->uploaded_files[$index]);
         $this->uploaded_files = array_values($this->uploaded_files);
 
-        // 4. Physisch vom Speicher löschen
         if (Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
@@ -154,7 +160,7 @@ trait HandlesConfiguratorLogic
     {
         $rendered = [];
         foreach ($this->logos as $logo) {
-            $url = asset('storage/' . $logo['value']);
+            $url = Str::startsWith($logo['value'], 'vectors/') ? asset('images/configurator/' . $logo['value']) : asset('storage/' . $logo['value']);
             $rendered[] = array_merge($logo, ['url' => $url]);
         }
         return $rendered;

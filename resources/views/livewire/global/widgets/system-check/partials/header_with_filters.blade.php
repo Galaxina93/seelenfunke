@@ -2,7 +2,7 @@
     <div>
         <h1 class="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             <i class="solar-pulse-bold-duotone text-indigo-500"></i>
-            BI Intelligence Center
+            Datenanalysezentrum
         </h1>
         <p class="text-slate-500 mt-2 text-sm">Echtzeitanalyse von Systemstatus, Finanzen und Performance.</p>
     </div>

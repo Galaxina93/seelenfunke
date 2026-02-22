@@ -35,15 +35,11 @@
             {{-- Dynamische Progress Bar --}}
             <div class="flex items-start gap-3 mb-10">
                 @php
-                    // Basis-Steps
                     $stepLabels = [
                         1 => 'Basisdaten',
                         2 => 'Medien',
-                        3 => 'Details', // Umbenannt, da Attribute/Versand variieren
+                        3 => 'Details',
                     ];
-
-                    // Step 4 nur bei Physisch (Konfigurator) anzeigen
-                    // (Kannst du anpassen, falls Digital auch Konfigurator braucht)
                     if ($type === 'physical') {
                         $stepLabels[4] = 'Konfigurator';
                     }
@@ -71,8 +67,11 @@
             @include('livewire.shop.product.partials.edit-partials._edit_step_2')
             @include('livewire.shop.product.partials.edit-partials._edit_step_3')
 
+            {{-- WICHTIG: Das wire:ignore umschließt den Konfigurator-Step! --}}
             @if($type === 'physical')
-                @include('livewire.shop.product.partials.edit-partials._edit_step_4')
+                <div x-show="$wire.currentStep === 4" wire:ignore>
+                    @include('livewire.shop.product.partials.edit-partials._edit_step_4')
+                </div>
             @endif
 
             {{-- FOOTER NAVIGATION --}}
@@ -81,7 +80,6 @@
                     &larr; Zurück
                 </button>
 
-                {{-- Logik für Finish Button abhängig von Steps --}}
                 @php $isLastStep = ($type === 'physical' && $currentStep === 4) || ($type !== 'physical' && $currentStep === 3); @endphp
 
                 @if($isLastStep)
@@ -110,7 +108,6 @@
                             </div>
                         @endif
 
-                        {{-- Typ Badge in Vorschau --}}
                         <div class="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold shadow-sm uppercase tracking-wide">
                             @if($type === 'physical') Physisch @elseif($type === 'digital') Digital @else Service @endif
                         </div>
@@ -124,7 +121,6 @@
                             </span>
                         </div>
 
-                        {{-- Vorschau Attribute abhängig vom Typ --}}
                         <div class="grid grid-cols-2 gap-y-4 gap-x-8 text-sm text-gray-500 mb-8 pt-6 border-t border-gray-100">
                             @if($type === 'physical')
                                 <div><span class="font-bold text-gray-900 block mb-1">Material</span>{{ $productAttributes['Material'] ?? '-' }}</div>
@@ -146,6 +142,5 @@
                 </div>
             </div>
         </div>
-
     </div>
 </div>

@@ -1,36 +1,58 @@
-@include('livewire.shop.configurator.partials.scripts')
+{{-- resources/views/livewire/shop/configurator/configurator.blade.php --}}
+<div class="relative w-full h-full bg-white">
+    <div class="h-full flex flex-col"
+         x-data="window.frontendConfiguratorData({
+            wireModels: {
+                texts: $wire.entangle('texts').live,
+                logos: $wire.entangle('logos').live
+            },
+            fonts: @js($fonts),
+            context: '{{ $context }}',
+            config: {
+                modelPath: '{{ $product->three_d_model_path ? asset("storage/".$product->three_d_model_path) : "" }}',
+                bgPath: '{{ $product->three_d_background_path ? asset("storage/".$product->three_d_background_path) : "" }}',
+                fallbackImg: '{{ $product->preview_image_path ? asset("storage/".$product->preview_image_path) : "" }}',
+                area_top: {{ $configSettings['area_top'] ?? 10 }},
+                area_left: {{ $configSettings['area_left'] ?? 10 }},
+                area_width: {{ $configSettings['area_width'] ?? 80 }},
+                area_height: {{ $configSettings['area_height'] ?? 80 }},
+                area_shape: '{{ $configSettings['area_shape'] ?? "rect" }}',
+                material_type: '{{ $configSettings['material_type'] ?? "glass" }}',
+                model_scale: {{ $configSettings['model_scale'] ?? 100 }},
+                model_pos_x: {{ $configSettings['model_pos_x'] ?? 0 }},
+                model_pos_y: {{ $configSettings['model_pos_y'] ?? 0 }},
+                model_pos_z: {{ $configSettings['model_pos_z'] ?? 0 }},
+                model_rot_x: {{ $configSettings['model_rot_x'] ?? 0 }},
+                model_rot_y: {{ $configSettings['model_rot_y'] ?? 0 }},
+                model_rot_z: {{ $configSettings['model_rot_z'] ?? 0 }},
+                engraving_scale: {{ $configSettings['engraving_scale'] ?? 100 }},
+                engraving_pos_x: {{ $configSettings['engraving_pos_x'] ?? 0 }},
+                engraving_pos_y: {{ $configSettings['engraving_pos_y'] ?? 0 }},
+                engraving_pos_z: {{ $configSettings['engraving_pos_z'] ?? 0 }},
+                engraving_rot_x: {{ $configSettings['engraving_rot_x'] ?? 0 }},
+                engraving_rot_y: {{ $configSettings['engraving_rot_y'] ?? 0 }},
+                engraving_rot_z: {{ $configSettings['engraving_rot_z'] ?? 0 }},
+                custom_points: @js($configSettings['custom_points'] ?? [])
+            }
+         })"
+         @mousemove.window="handleMouseMove($event)"
+         @mouseup.window="handleMouseUp($event)"
+         @touchmove.window="handleMouseMove($event)"
+         @touchend.window="handleMouseUp($event)">
 
-<div class="h-full flex flex-col bg-white"
-     x-data="window.universalConfigurator({
-        wireModels: {
-            texts: @entangle('texts').live,
-            logos: @entangle('logos').live
-        },
-        config: {{ Js::from($configSettings) }},
-        fonts: {{ Js::from($fonts) }},
-        context: '{{ $context }}'
-     })">
+        <div class="flex-1 custom-scrollbar pb-20">
+            @if(!$isDigital)
+                @include('livewire.shop.configurator.partials.preview')
+                @include('livewire.shop.configurator.partials.formluar')
+            @else
+                {{-- Digitaler Download View... --}}
+            @endif
+        </div>
 
-    <div class="flex-1 custom-scrollbar pb-20">
-        @if(!$isDigital)
-            @include('livewire.shop.configurator.partials.preview')
-            @include('livewire.shop.configurator.partials.formluar')
-        @else
-            {{-- Digital View... --}}
-            <div class="p-8 space-y-8 max-w-2xl mx-auto">
-                <div class="bg-blue-50 rounded-2xl p-6 flex gap-5 items-start border border-blue-100">
-                    <div class="bg-blue-600 text-white p-3 rounded-xl shadow-lg">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-blue-900">Digitaler Inhalt</h3>
-                        <p class="text-sm text-blue-800/70 mt-1">Sofortiger Download nach Zahlung.</p>
-                    </div>
-                </div>
-                <textarea wire:model="notes" rows="4" class="w-full p-4 rounded-xl border border-gray-200 text-sm focus:ring-primary" placeholder="Anmerkung zur Bestellung..."></textarea>
-            </div>
-        @endif
+        @include('livewire.shop.configurator.partials.footer')
     </div>
 
-    @include('livewire.shop.configurator.partials.footer')
+    {{-- Hier binden wir die aufgeteilten Scripte ein --}}
+    @include('livewire.shop.configurator.partials.scripts_backend')
+    @include('livewire.shop.configurator.partials.scripts_frontend')
 </div>
