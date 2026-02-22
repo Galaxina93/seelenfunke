@@ -66,7 +66,7 @@ class ProductSeeder extends Seeder
 
             'shipping_class' => 'paket_s',
             'preview_image_path' => 'testdata/seelenkristall/overlay.png',
-            'three_d_model_path' => 'testdata/seelenkristall/t_seelenk_.glb',
+            'three_d_model_path' => 'testdata/seelenkristall/t_seelenk.glb',
             'three_d_background_path' => 'testdata/seelenkristall/header_bg.png',
             'media_gallery' => [
                 ['type' => 'image', 'path' => 'testdata/seelenkristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
