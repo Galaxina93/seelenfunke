@@ -508,7 +508,7 @@ class ProductCreate extends Component
 
     public function updatedNewVideo()
     {
-        $this->validate(['new_video' => 'mimetypes:video/mp4,video/quicktime|max:51200']);
+        $this->validate(['new_video' => 'file|mimes:mp4,mov,qt|max:51200']);
         $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
         $path = $this->new_video->store($folder, 'public');
         $gallery = $this->product->media_gallery ?? [];

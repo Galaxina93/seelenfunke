@@ -39,7 +39,7 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                    {{-- 3. UMSATZSTEUER --}}
+                    {{-- 3. UMSATZSTEUER & IDENTIFIKATION --}}
                     <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
                         <h2 class="text-xl font-serif font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">Umsatzsteuer-ID</h2>
                         <p class="mt-2">
@@ -47,18 +47,24 @@
                             @if(shop_setting('owner_ust_id'))
                                 <strong class="text-gray-900">{{ shop_setting('owner_ust_id') }}</strong>
                             @else
-                                <em class="text-gray-400">USt-IdNr. folgt...</em>
+                                <em class="text-gray-400">Wird nachgereicht</em>
                             @endif
                         </p>
+                        @if(shop_setting('owner_economic_ident_nr'))
+                            <p class="text-sm mt-2">
+                                Wirtschafts-Identifikationsnummer gemäß § 139c Abgabenordnung:<br>
+                                <strong>{{ shop_setting('owner_economic_ident_nr') }}</strong>
+                            </p>
+                        @endif
                         <p class="text-sm mt-3 text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-100">
                             Steuernummer: <strong>{{ shop_setting('owner_tax_id') }}</strong>
                         </p>
                     </div>
 
-                    {{-- 4. VERANTWORTLICH FÜR INHALT --}}
+                    {{-- 4. VERANTWORTLICH FÜR INHALT (MStV - Wichtig für Blog) --}}
                     <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-                        <h2 class="text-xl font-serif font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">Verantwortlich für den Inhalt</h2>
-                        <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">nach § 55 Abs. 2 RStV</p>
+                        <h2 class="text-xl font-serif font-bold text-gray-900 mb-4 border-b border-gray-100 pb-2">Redaktionell verantwortlich</h2>
+                        <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">gemäß § 18 Abs. 2 MStV</p>
                         <p class="mt-2">
                             <strong class="text-gray-900">{{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</strong><br>
                             {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
@@ -67,16 +73,16 @@
                     </div>
                 </div>
 
-                {{-- 5. GELTUNGSBEREICH (WICHTIG FÜR ETSY & SOCIAL MEDIA) --}}
+                {{-- 5. GELTUNGSBEREICH --}}
                 <div class="bg-primary/5 p-8 rounded-2xl border border-primary/20 shadow-sm relative overflow-hidden">
                     <div class="absolute -right-10 -top-10 w-40 h-40 bg-primary/10 rounded-full blur-2xl pointer-events-none"></div>
-                    <h2 class="text-xl font-serif font-bold text-gray-900 mb-4">Weitere Online-Präsenzen</h2>
-                    <p class="mb-4">Dieses Impressum gilt auch für folgende Plattformen:</p>
+                    <h2 class="text-xl font-serif font-bold text-gray-900 mb-4">Social Media & Präsenzen</h2>
+                    <p class="mb-4">Dieses Impressum gilt auch für folgende Social-Media-Profile und externe Plattformen:</p>
                     <ul class="space-y-3">
                         <li class="flex items-center gap-3">
                             <span class="w-2 h-2 bg-primary rounded-full"></span>
                             <strong>Etsy Shop:</strong>
-                            <a href="https://www.etsy.com/de/shop/DEIN_SHOPNAME" target="_blank" class="text-primary hover:text-primary-dark transition-colors">etsy.com/de/shop/DEIN_SHOPNAME</a>
+                            <a href="https://www.etsy.com/de/shop/MeinSeelenfunke" target="_blank" class="text-primary hover:text-primary-dark transition-colors">etsy.com/de/shop/MeinSeelenfunke</a>
                         </li>
                         <li class="flex items-center gap-3">
                             <span class="w-2 h-2 bg-primary rounded-full"></span>
@@ -97,18 +103,19 @@
                         <h3 class="font-serif font-bold text-lg text-gray-900 mb-3">EU-Streitschlichtung</h3>
                         <p class="text-sm">
                             Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
-                            <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline block mt-1">https://ec.europa.eu/consumers/odr/</a>
+                            <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline block mt-1">https://ec.europa.eu/consumers/odr/</a>.
+                            Unsere E-Mail-Adresse finden Sie oben im Impressum.
                         </p>
                     </div>
                     <div>
                         <h3 class="font-serif font-bold text-lg text-gray-900 mb-3">Verbraucherstreitbeilegung</h3>
-                        <p class="text-sm">
+                        <p class="text-sm italic">
                             Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
                         </p>
                     </div>
                 </div>
 
-                {{-- 7. HAFTUNGSAUSSCHLUSS --}}
+                {{-- 7. VOLLSTÄNDIGER HAFTUNGSAUSSCHLUSS --}}
                 <div class="space-y-8 mt-12 bg-gray-50 p-8 md:p-10 rounded-3xl border border-gray-200">
                     <div>
                         <h3 class="text-xl font-serif font-bold text-gray-900 mb-3">Haftung für Inhalte</h3>
@@ -149,14 +156,13 @@
                     </div>
                 </div>
 
-                <div class="flex justify-between items-center text-xs text-gray-400 mt-12 pt-6 border-t border-gray-200">
+                <div class="flex justify-between items-center text-[10px] text-gray-400 mt-12 pt-6 border-t border-gray-200 uppercase tracking-widest">
                     <p>Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}</p>
-                    <p>Quelle: <a href="https://www.e-recht24.de" target="_blank" class="hover:text-primary transition-colors">e-recht24.de</a></p>
+                    <p>Quelle: e-recht24.de</p>
                 </div>
 
             </div>
         </section>
 
     </x-sections.page-container>
-
 </x-layouts.frontend_layout>

@@ -21,6 +21,6 @@ class ProductIndex extends Component
 
         return view('livewire.shop.product.product-index', [
             'products' => $products
-        ]);
+        ])->layout('components.layouts.frontend_layout');
     }
 }
