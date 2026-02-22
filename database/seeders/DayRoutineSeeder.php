@@ -6,6 +6,7 @@ use App\Models\DayRoutine;
 use App\Models\DayRoutineStep;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema; // WICHTIG: Diesen Import hinzufügen!
 
 class DayRoutineSeeder extends Seeder
 {
@@ -150,9 +151,15 @@ class DayRoutineSeeder extends Seeder
             ],
         ];
 
-        // Tabelle vorher leeren für sauberen Neu-Seed
+        // --- HIER IST DER FIX ---
+        // FK Checks aus, leeren, FK Checks wieder an
+        Schema::disableForeignKeyConstraints();
+
         DayRoutineStep::truncate();
         DayRoutine::truncate();
+
+        Schema::enableForeignKeyConstraints();
+        // -------------------------
 
         foreach ($routines as $r) {
             $routine = DayRoutine::create([
