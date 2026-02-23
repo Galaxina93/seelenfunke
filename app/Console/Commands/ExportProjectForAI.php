@@ -8,7 +8,7 @@ use Symfony\Component\Finder\Finder;
 
 class ExportProjectForAI extends Command
 {
-    protected $signature = 'project:export {--output=project_context.txt} {--migrations : Exportiert nur die Datenbank-Migrationen} {--short : Exportiert nur Kern-Logik-Ordner (app/Http, routes, resources, Livewire, Commands)}';
+    protected $signature = 'project:export {--output=project_context.txt} {--migrations : Exportiert nur die Datenbank-Migrationen} {--short : Exportiert nur Kern-Logik-Ordner (app/Http, routes, resources, Livewire, Commands)} {--importants : Exportiert nur die absolut wichtigsten Projektdateien (Models, Services, Livewire, Routes)}';
     protected $description = 'Radikal verschlankter Export: Fokus auf Logik, Extreme Minification ohne Leerzeichen.';
 
     /**
@@ -35,17 +35,38 @@ class ExportProjectForAI extends Command
             return $this->exportMigrations();
         }
 
-        // 2. STANDARD ODER SHORT LOGIK
+        // 2. STANDARD, SHORT ODER IMPORTANTS LOGIK
         $outputFile = $this->option('output');
         $startTime = microtime(true);
         $isShort = $this->option('short');
+        $isImportants = $this->option('importants');
 
-        $this->info($isShort ? "Funki startet den SHORT Export (Extreme Minification)..." : "Funki startet den Ultra-Slim Export (Extreme Minification)...");
+        if ($isImportants) {
+            $this->info("Funki startet den IMPORTANTS Export (Fokus auf Models, Services, Livewire, Routes)...");
+        } elseif ($isShort) {
+            $this->info("Funki startet den SHORT Export (Extreme Minification)...");
+        } else {
+            $this->info("Funki startet den Ultra-Slim Export (Extreme Minification)...");
+        }
 
         $finder = new Finder();
         $finder->ignoreDotFiles(true);
 
-        if ($isShort) {
+        if ($isImportants) {
+            // Die absolut wichtigsten Backend-Kern-Ordner für eine fehlerfreie KI-Analyse
+            $importantPaths = [
+                base_path('app/Models'),
+                base_path('app/Livewire'),
+                base_path('app/Services'),
+                base_path('routes'),
+            ];
+
+            foreach ($importantPaths as $path) {
+                if (File::exists($path)) {
+                    $finder->in($path);
+                }
+            }
+        } elseif ($isShort) {
             // Nur die definierten Ordner (ohne 'public')
             $shortPaths = [
                 base_path('app/Http'),
@@ -76,10 +97,16 @@ class ExportProjectForAI extends Command
             return in_array($extension, $this->allowedExtensions);
         });
 
-        $content = $isShort ? "PROJECT LOGIC (SHORT)\n====================\n" : "PROJECT LOGIC SUMMARY\n=====================\n";
+        if ($isImportants) {
+            $content = "PROJECT LOGIC (IMPORTANTS ONLY)\n====================\n";
+        } elseif ($isShort) {
+            $content = "PROJECT LOGIC (SHORT)\n====================\n";
+        } else {
+            $content = "PROJECT LOGIC SUMMARY\n=====================\n";
+        }
 
         foreach ($finder as $file) {
-            $relativePath = $isShort ? str_replace(base_path() . DIRECTORY_SEPARATOR, '', $file->getRealPath()) : $file->getRelativePathname();
+            $relativePath = ($isShort || $isImportants) ? str_replace(base_path() . DIRECTORY_SEPARATOR, '', $file->getRealPath()) : $file->getRelativePathname();
             $fileContent = $file->getContents();
             $isBlade = str_contains($file->getBasename(), '.blade.php');
 

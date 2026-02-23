@@ -35,6 +35,10 @@
                                        title="Kalender"
                                        pageName="funki-kalender"
                                        icon="calendar-days" />
+                    <x-forms.list-item route="/admin/funki-company-map"
+                                       title="Map"
+                                       pageName="funki-company-map"
+                                       icon="map" />
                 </ul>
             </li>
 

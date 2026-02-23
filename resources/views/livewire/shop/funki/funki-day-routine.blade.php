@@ -66,7 +66,7 @@
                                 <span class="absolute inline-flex h-6 w-6 rounded-full bg-primary opacity-30 animate-ping"></span>
                                 <div class="w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/20 shadow-[0_0_10px_rgba(197,160,89,0.6)] z-10"></div>
                             @else
-                                <div class="w-3 h-3 rounded-full border-2 border-slate-200 bg-white group-hover:border-primary group-hover:scale-125 transition-all z-10"></div>
+                                <div class="w-3 h-3 rounded-full border-2 border-slate-200 bg-white group-hover:border-primary group-hover:scale-125 transition-all duration-300 z-10"></div>
                             @endif
                             {{-- Verbindungslinie --}}
                             @if(!$loop->last)
@@ -75,7 +75,7 @@
                         </div>
 
                         {{-- Routine Karte --}}
-                        <div class="flex-1 relative transition-all duration-300 cursor-pointer
+                        <div class="flex-1 relative transition-all duration-300 ease-in-out cursor-pointer
                             {{ $isActive
                                 ? 'bg-primary/5 border-primary ring-1 ring-primary/30 shadow-lg scale-[1.02] z-20 rounded-2xl p-5'
                                 : 'bg-slate-50 border-slate-100 rounded-2xl p-4 hover:bg-white hover:shadow-md hover:border-primary/30' }}"
@@ -88,13 +88,18 @@
                             @endif
 
                             <div class="flex justify-between items-start gap-4">
-                                <div class="flex-1">
+                                <div class="flex-1 min-w-0">
                                     <h4 class="font-bold {{ $isActive ? 'text-primary-dark text-base' : 'text-slate-800 text-sm' }}">
                                         {{ $r->title }}
                                     </h4>
-                                    <p class="mt-1.5 leading-relaxed {{ $isActive ? 'text-slate-700 text-xs font-medium' : 'text-slate-500 text-xs line-clamp-1 group-hover:line-clamp-none transition-all' }}">
-                                        {{ $r->message }}
-                                    </p>
+
+                                    {{-- FIX: max-height Transition statt line-clamp toggle --}}
+                                    <div class="mt-1.5 overflow-hidden transition-all duration-500 ease-in-out
+                                        {{ $isActive ? 'max-h-40' : 'max-h-5 group-hover:max-h-40' }}">
+                                        <p class="leading-relaxed {{ $isActive ? 'text-slate-700 text-xs font-medium' : 'text-slate-500 text-xs' }}">
+                                            {{ $r->message }}
+                                        </p>
+                                    </div>
                                 </div>
                                 <div class="shrink-0 text-[10px] font-black px-2 py-1 rounded border
                                     {{ $isActive ? 'bg-white text-primary border-primary/20 shadow-sm' : 'bg-white border-slate-100 text-slate-400' }}">
@@ -104,7 +109,7 @@
                         </div>
 
                         {{-- Löschen Button --}}
-                        <button wire:click="delete('{{ $r->id }}')" wire:confirm="Routine löschen?" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-opacity p-2 shrink-0">
+                        <button wire:click="delete('{{ $r->id }}')" wire:confirm="Routine löschen?" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-opacity duration-300 p-2 shrink-0">
                             <x-heroicon-m-trash class="w-4 h-4" />
                         </button>
                     </div>
