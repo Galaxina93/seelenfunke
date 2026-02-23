@@ -76,7 +76,7 @@
         @if($expressGross > 0)
             <tr>
                 <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-weight: bold; font-size: 13px; text-align: right;">
-                    🔥 Express-Service:
+                    Express-Service:
                 </td>
                 <td class="text-right" style="padding-bottom: 5px; color: #dc2626; font-weight: bold; font-size: 13px; text-align: right;">
                     +{{ number_format($expressGross, 2, ',', '.') }} €
