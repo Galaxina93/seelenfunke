@@ -5,14 +5,19 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Funki\FunkiMapNode;
 use App\Models\Funki\FunkiMapEdge;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class FunkiMapSeeder extends Seeder
 {
     public function run(): void
     {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
         FunkiMapEdge::truncate();
         FunkiMapNode::truncate();
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // ZENTRUM
         $core = FunkiMapNode::create([
