@@ -1,17 +1,16 @@
 @php
-    // Dynamische Farben basierend auf Modus
+    // Dynamische Farben basierend auf Modus für Tailwind JIT Compiler
     $isAuto = $voucherSectionMode === 'auto';
-    $sectionBorderColor = $isAuto ? 'border-purple-500' : 'border-orange-500'; // Linke Kante
-    $themeColor = $isAuto ? 'purple' : 'orange';
+    $bgClass = $isAuto ? 'bg-purple-500' : 'bg-orange-500';
 @endphp
 
 <section class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10 relative overflow-hidden transition-all duration-500 pt-4 mt-6">
-    <div class="absolute top-0 left-0 w-2 h-full bg-{{ $themeColor }}-500 transition-colors duration-500"></div>
+    <div class="absolute top-0 left-0 w-2 h-full {{ $bgClass }} transition-colors duration-500"></div>
 
-    <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 relative z-10">
+    <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4 relative z-10 mt-6">
         <div>
             <h3 class="text-2xl font-serif font-bold text-slate-900 transition-all">
-                {{ $isAuto ? 'Gutschein Automatisierung (Saisonal)' : 'Manuelle Gutscheine' }}
+                {{ $isAuto ? 'Gutschein Automatisierung' : 'Manuelle Gutscheine' }}
             </h3>
             <p class="text-xs font-mono text-slate-400 mt-1 uppercase tracking-tighter">
                 {{ $isAuto ? 'Command: funki:send-vouchers' : 'Manuelle Verwaltung & Erstellung' }}
@@ -352,4 +351,5 @@
                 </table>
             </div>
         </div>
-@endif
+    @endif
+</section>

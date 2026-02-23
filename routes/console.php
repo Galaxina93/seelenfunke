@@ -26,3 +26,6 @@ Schedule::command('marketing:send-newsletters')->dailyAt('08:00');
 Schedule::command('marketing:send-vouchers')->dailyAt('09:00');
 
 Schedule::command('funki:notify')->everyMinute();
+
+// UStVA Autopilot - Läuft am 5. jeden Monats und generiert den Steuer-Export des Vormonats
+Schedule::command('funki:generate-tax-export')->monthlyOn(5, '02:00');
