@@ -10,7 +10,7 @@
     <div class="content-body" style="font-family: sans-serif; color: #333333; line-height: 1.6; font-size: 15px;">
         <p>Hallo <strong>{{ $data['contact']['vorname'] }} {{ $data['contact']['nachname'] }}</strong>,</p>
 
-        <p>vielen Dank für dein Interesse! Wir haben deine Konfiguration geprüft und freuen uns, dir heute dein persönliches Angebot für deine Wunschartikel senden zu dürfen.</p>
+        <p>vielen Dank für dein Interesse! Auf Basis deiner übermittelten Konfiguration erhältst du heute dein persönliches Angebot für deine Wunschartikel.</p>
 
         <div class="info-notice" style="background-color: #f9f9f9; border-left: 3px solid #C5A059; padding: 15px; margin: 25px 0;">
             <span style="color: #C5A059; font-weight: bold; text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">Wichtiger Hinweis zu deinen Dateien</span><br>
@@ -18,7 +18,7 @@
         </div>
 
         <p style="margin-top: 30px;">
-            Nachfolgend findest du die Zusammenfassung deiner Anfrage. Das detaillierte Angebot haben wir dir zudem als <strong>PDF im Anhang</strong> beigefügt.
+            Nachfolgend findest du die Zusammenfassung deiner Anfrage. Das detaillierte Angebot haben wir dir zusätzlich als <strong>PDF im Anhang</strong> beigefügt.
         </p>
     </div>
 
