@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Order\OrderItem;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:admin'])->group(function () {
@@ -79,6 +80,99 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');
     })->name('admin.blog');
+
+    Route::get('/admin/orders/laser-file/{itemId}', function ($itemId) {
+        $item = OrderItem::findOrFail($itemId);
+        $product = $item->product;
+        $config = $item->configuration;
+
+        // Physische Maße des Glases holen (Fallback auf 100x100mm)
+        $widthMm = floatval($product->width ?? 100);
+        $heightMm = floatval($product->height ?? 100);
+
+        // SVG Header initialisieren
+        $svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' . "\n";
+        $svg .= '<svg width="'.$widthMm.'mm" height="'.$heightMm.'mm" viewBox="0 0 '.$widthMm.' '.$heightMm.'" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n";
+
+        // HILFSLINIE: Äußerer Rahmen (hilft der Laserschutzbeauftragten beim Framing / Einmessen)
+        // Wird in der Laser-Software auf "Ignorieren" oder "Framing" gesetzt
+        $svg .= '  ' . "\n";
+        $svg .= '  <rect x="0" y="0" width="'.$widthMm.'" height="'.$heightMm.'" fill="none" stroke="#FF0000" stroke-width="0.1" />' . "\n";
+
+        // BILDER & LOGOS RENDER (Base64)
+        if (!empty($config['logos'])) {
+            foreach ($config['logos'] as $logo) {
+                $x = ($logo['x'] / 100) * $widthMm;
+                $y = ($logo['y'] / 100) * $heightMm;
+                $rot = $logo['rotation'] ?? 0;
+                // Skalierungs-Logik identisch zum JS Canvas
+                $logoWidth = (($logo['size'] ?? 100) / 500) * $widthMm;
+
+                $url = $logo['url'];
+
+                // Falls es keine Base64-URL ist, sondern ein lokaler Pfad, wandeln wir es für die SVG um
+                if (!str_starts_with($url, 'data:image')) {
+                    $path = storage_path('app/public/' . str_replace('storage/', '', parse_url($url, PHP_URL_PATH)));
+                    if (file_exists($path)) {
+                        $type = pathinfo($path, PATHINFO_EXTENSION);
+                        $data = file_get_contents($path);
+                        $url = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                    }
+                }
+
+                $svg .= '  <g transform="translate('.$x.', '.$y.') rotate('.$rot.')">' . "\n";
+                // Bild um 50% der eigenen Größe verschieben, da x,y im Konfigurator der Mittelpunkt ist
+                $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
+                $svg .= '  </g>' . "\n";
+            }
+        }
+
+        // TEXTE RENDER (Als Text-Vektor)
+        if (!empty($config['texts'])) {
+            foreach ($config['texts'] as $textItem) {
+                $x = ($textItem['x'] / 100) * $widthMm;
+                $y = ($textItem['y'] / 100) * $heightMm;
+                $rot = $textItem['rotation'] ?? 0;
+                $fontFamily = $textItem['font'] ?? 'Arial';
+                $align = $textItem['align'] ?? 'center';
+
+                // Berechnung der Schriftgröße identisch zum Frontend Canvas
+                $fontSizeMm = ($textItem['size'] ?? 1) * ($widthMm / 25);
+
+                // Alignment auf SVG Anchor mappen
+                $textAnchor = match($align) {
+                    'left' => 'start',
+                    'right' => 'end',
+                    default => 'middle'
+                };
+
+                $svg .= '  <g transform="translate('.$x.', '.$y.') rotate('.$rot.')">' . "\n";
+
+                $lines = explode("\n", $textItem['text'] ?? '');
+                $lineHeight = $fontSizeMm * 1.15;
+                $totalHeight = (count($lines) - 1) * $lineHeight;
+                $startY = -$totalHeight / 2;
+
+                foreach ($lines as $line) {
+                    // Y-Offset (+0.35 * fontSize), damit die Baseline optisch mittig zentriert ist wie im HTML Canvas
+                    $svg .= '    <text x="0" y="'.($startY + ($fontSizeMm * 0.35)).'" font-family="'.$fontFamily.'" font-size="'.$fontSizeMm.'" font-weight="bold" fill="#000000" text-anchor="'.$textAnchor.'">'.htmlspecialchars($line).'</text>' . "\n";
+                    $startY += $lineHeight;
+                }
+
+                $svg .= '  </g>' . "\n";
+            }
+        }
+
+        $svg .= '</svg>';
+
+        $filename = 'xTool-F2-Druckdatei-' . ($item->order->order_number ?? 'Angebot') . '-Pos-' . $item->id . '.svg';
+
+        return response()->streamDownload(function() use ($svg) {
+            echo $svg;
+        }, $filename, ['Content-Type' => 'image/svg+xml']);
+
+    })->name('admin.orders.laserfile');
+
 
 });
 

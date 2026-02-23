@@ -202,9 +202,23 @@
                     @endforelse
                 </div>
             </div>
+
+            {{-- xTool Download (Neu hinzugefügt) --}}
+            @if(isset($previewItem->configuration['texts']) || isset($previewItem->configuration['logos']))
+                <div class="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                    <a href="{{ route('admin.orders.laserfile', $previewItem->id) }}" target="_blank" class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 text-white text-sm font-bold uppercase tracking-widest rounded-xl shadow-lg hover:bg-black hover:-translate-y-0.5 transition-all duration-300">
+                        <svg class="w-5 h-5 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        xTool Laser-Datei laden (.svg)
+                    </a>
+                    <p class="text-[10px] text-gray-400 mt-2 text-center">Generiert automatisch eine maßstabsgetreue Vektordatei aus der Konfiguration für die XCS Software.</p>
+                </div>
+            @endif
+
         </div>
 
-        {{-- 3. BESONDERE KUNDENWÜNSCHE (NEU) --}}
+        {{-- 5. BESONDERE KUNDENWÜNSCHE (NEU) --}}
         @if(!empty($previewItem->configuration['notes']))
             <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
                 <div class="bg-amber-50 px-6 py-3 border-b border-amber-100">
@@ -221,12 +235,12 @@
             </div>
         @endif
 
-        {{-- 5. COST SUMMARY --}}
+        {{-- 6. COST SUMMARY --}}
         <div>
             <x-shop.cost-summary :model="$model" />
         </div>
 
-        {{-- 6. LÖSCHEN --}}
+        {{-- 7. LÖSCHEN --}}
         @if($isOrder)
             <div class="pt-8 border-t border-gray-100 flex justify-center">
                 <button wire:click="delete('{{ $model->id }}')" wire:confirm="Wirklich löschen?" class="text-xs font-bold text-red-400 hover:text-red-600 uppercase tracking-widest hover:underline transition-colors">
