@@ -11,6 +11,8 @@ use App\Models\Order\Order;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
+/*<!--das ist die Datei unter: routes/api/finance.php-->*/
+
 Route::get('/funki/financials/kpis', function (Request $request) {
     $adminId = $request->user()->id;
     $now = Carbon::now();
