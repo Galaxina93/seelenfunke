@@ -1,10 +1,5 @@
-{{-- resources/views/livewire/shop/configurator/partials/scripts_backend.blade.php --}}
 @script
 <script>
-    /**
-     * ENGINE-ID: Diese Instanz wird außerhalb des reaktiven Alpine-Scopes gespeichert,
-     * um TypeError: 'get' on proxy Fehlermeldungen bei Three.js Objekten zu vermeiden.
-     */
     window._threeEngineInstance = null;
 
     window.Configurator3DEngine = class Configurator3DEngine {
@@ -18,10 +13,10 @@
             this.camera = null;
             this.renderer = null;
             this.controls = null;
+
             this.model = null;
             this.modelContainer = null;
             this.texturePlane = null;
-
             this.textureCanvas = null;
             this.textureCtx = null;
             this.texture = null;
@@ -39,10 +34,7 @@
 
             this.renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
-
-            // OPTIMIERUNG: Pixel-Ratio auf Mobilgeräten auf 1 limitieren (spart massiv GPU-Leistung)
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
-
             this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
 
@@ -54,9 +46,12 @@
             mainLight.position.set(5, 10, 7.5);
             this.scene.add(mainLight);
 
+            // OPTIMIERTE KAMERA-KONTROLLEN
             this.controls = new window.OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
-            this.controls.enablePan = false;
+            this.controls.dampingFactor = 0.08; // Sanfteres, schwereres Gefühl
+            this.controls.enablePan = false;    // Verhindert das Wegschieben aus dem Bild
+            this.controls.maxPolarAngle = Math.PI / 1.6; // Verhindert, dass man unter das Objekt schauen kann (Kippen)
 
             if(this.config.bgPath) {
                 const loader = new window.THREE.TextureLoader();
@@ -66,7 +61,6 @@
                 });
             }
 
-            // OPTIMIERUNG: Canvas-Größe für Mobile halbieren (1024 statt 2048 -> 4x weniger Pixel)
             const texSize = isMobile ? 1024 : 2048;
             this.textureCanvas = document.createElement('canvas');
             this.textureCanvas.width = texSize;
@@ -75,55 +69,65 @@
 
             this.texture = new window.THREE.CanvasTexture(this.textureCanvas);
             this.texture.flipY = true;
-            // OPTIMIERUNG: Anisotropie für Mobile senken
             this.texture.anisotropy = isMobile ? 4 : 16;
 
             const gltfLoader = new window.GLTFLoader();
-            gltfLoader.load(this.modelPath, (gltf) => {
-                this.model = gltf.scene;
+            gltfLoader.load(
+                this.modelPath,
+                (gltf) => {
+                    this.model = gltf.scene;
 
-                const box = new window.THREE.Box3().setFromObject(this.model);
-                const size = box.getSize(new window.THREE.Vector3());
-                const center = box.getCenter(new window.THREE.Vector3());
+                    // Modell zentrieren
+                    const box = new window.THREE.Box3().setFromObject(this.model);
+                    const size = box.getSize(new window.THREE.Vector3());
+                    const center = box.getCenter(new window.THREE.Vector3());
+                    this.model.position.sub(center);
 
-                this.model.position.sub(center);
-                this.modelContainer = new window.THREE.Group();
-                this.modelContainer.add(this.model);
+                    this.modelContainer = new window.THREE.Group();
+                    this.modelContainer.add(this.model);
 
-                const maxPlaneSize = Math.max(size.x, size.y);
-                const planeGeo = new window.THREE.PlaneGeometry(maxPlaneSize, maxPlaneSize);
-                const planeMat = new window.THREE.MeshBasicMaterial({
-                    map: this.texture,
-                    transparent: true,
-                    depthWrite: false,
-                    side: window.THREE.DoubleSide
-                });
-                this.texturePlane = new window.THREE.Mesh(planeGeo, planeMat);
-                this.texturePlane.userData.baseZ = (size.z / 2) + 0.05;
-                this.texturePlane.position.z = this.texturePlane.userData.baseZ;
+                    // Gravur-Ebene
+                    const maxPlaneSize = Math.max(size.x, size.y);
+                    const planeGeo = new window.THREE.PlaneGeometry(maxPlaneSize, maxPlaneSize);
+                    const planeMat = new window.THREE.MeshBasicMaterial({
+                        map: this.texture,
+                        transparent: true,
+                        depthWrite: false,
+                        side: window.THREE.DoubleSide
+                    });
 
-                this.modelContainer.add(this.texturePlane);
+                    this.texturePlane = new window.THREE.Mesh(planeGeo, planeMat);
+                    this.texturePlane.userData.baseZ = (size.z / 2) + 0.05;
+                    this.texturePlane.position.z = this.texturePlane.userData.baseZ;
+                    this.modelContainer.add(this.texturePlane);
 
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const fov = this.camera.fov * (Math.PI / 180);
-                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+                    // Dynamische Kamera & Zoom Limits
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const fov = this.camera.fov * (Math.PI / 180);
+                    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
 
-                this.camera.position.set(0, maxDim * 0.2, cameraZ * 1.5);
-                this.controls.target.set(0, 0, 0);
-                this.camera.updateProjectionMatrix();
+                    this.controls.minDistance = maxDim * 0.7; // Nicht ins Objekt reinzoomen
+                    this.controls.maxDistance = maxDim * 3.0; // Nicht endlos rauszoomen
 
-                this.scene.add(this.modelContainer);
+                    this.camera.position.set(0, maxDim * 0.2, cameraZ * 1.5);
+                    this.camera.updateProjectionMatrix();
 
-                this.applyMaterial();
-                this.applyTransforms();
+                    this.scene.add(this.modelContainer);
 
-                this.isReady = true;
-                if(onLoadedCallback) onLoadedCallback();
-                this.animate();
-            }, undefined, (err) => {
-                console.error("GLB Error", err);
-                if(onLoadedCallback) onLoadedCallback();
-            });
+                    this.applyMaterial();
+                    this.applyTransforms();
+
+                    this.isReady = true;
+                    if(onLoadedCallback) onLoadedCallback();
+
+                    this.animate();
+                },
+                undefined,
+                (err) => {
+                    console.error("GLB Error", err);
+                    if(onLoadedCallback) onLoadedCallback();
+                }
+            );
         }
 
         applyMaterial() {
@@ -131,29 +135,25 @@
             const matType = this.config.material_type || 'glass';
 
             this.model.traverse((child) => {
-                if (child.isMesh && child.material) {
+                if(child.isMesh && child.material) {
                     const oldMap = child.material.map;
-
-                    if (matType === 'glass') {
+                    if(matType === 'glass') {
                         child.material = new window.THREE.MeshPhysicalMaterial({
                             map: oldMap,
                             color: 0xffffff,
-                            metalness: 0.3, roughness: 0.05,
-                            transparent: true, opacity: 0.80,
-                            depthWrite: false, side: window.THREE.FrontSide
+                            metalness: 0.3,
+                            roughness: 0.05,
+                            transparent: true,
+                            opacity: 0.80,
+                            depthWrite: false,
+                            side: window.THREE.FrontSide
                         });
-                    } else if (matType === 'wood') {
-                        child.material = new window.THREE.MeshStandardMaterial({
-                            map: oldMap, color: 0xffffff, roughness: 0.9, metalness: 0.0
-                        });
-                    } else if (matType === 'metal') {
-                        child.material = new window.THREE.MeshStandardMaterial({
-                            map: oldMap, color: 0xffffff, roughness: 0.2, metalness: 0.9
-                        });
+                    } else if(matType === 'wood') {
+                        child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: 0xffffff, roughness: 0.9, metalness: 0.0 });
+                    } else if(matType === 'metal') {
+                        child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: 0xffffff, roughness: 0.2, metalness: 0.9 });
                     } else {
-                        child.material = new window.THREE.MeshStandardMaterial({
-                            map: oldMap, color: 0xffffff, roughness: 0.5, metalness: 0.1
-                        });
+                        child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: 0xffffff, roughness: 0.5, metalness: 0.1 });
                     }
                     child.material.needsUpdate = true;
                 }
@@ -162,12 +162,28 @@
 
         applyTransforms() {
             if(!this.modelContainer) return;
-            const c = this.config;
 
+            const c = this.config;
             const s = (c.model_scale || 100) / 100;
             this.modelContainer.scale.set(s, s, s);
-            this.modelContainer.position.set((c.model_pos_x || 0) * 0.1, (c.model_pos_y || 0) * 0.1, (c.model_pos_z || 0) * 0.1);
-            this.modelContainer.rotation.set((c.model_rot_x || 0) * (Math.PI / 180), (c.model_rot_y || 0) * (Math.PI / 180), (c.model_rot_z || 0) * (Math.PI / 180));
+
+            const posX = (c.model_pos_x || 0) * 0.1;
+            const posY = (c.model_pos_y || 0) * 0.1;
+            const posZ = (c.model_pos_z || 0) * 0.1;
+
+            this.modelContainer.position.set(posX, posY, posZ);
+
+            // FIX: Die Kamera schaut jetzt immer exakt auf den Mittelpunkt der Trophäe!
+            if (this.controls) {
+                this.controls.target.set(posX, posY, posZ);
+                this.controls.update();
+            }
+
+            this.modelContainer.rotation.set(
+                (c.model_rot_x || 0) * (Math.PI / 180),
+                (c.model_rot_y || 0) * (Math.PI / 180),
+                (c.model_rot_z || 0) * (Math.PI / 180)
+            );
 
             if(this.texturePlane) {
                 const s_eng = (c.engraving_scale || 100) / 100;
@@ -190,6 +206,7 @@
 
             const cw = this.textureCanvas.width;
             this.textureCtx.clearRect(0, 0, cw, cw);
+
             const toPx = (p) => (p / 100) * cw;
 
             const applyClipping = (ctx) => {
@@ -200,17 +217,17 @@
                 let h = (this.config.area_height || 100) / 100 * cw;
                 let shape = this.config.area_shape || 'rect';
 
-                if (shape === 'rect') {
+                if(shape === 'rect') {
                     ctx.rect(x, y, w, h);
-                } else if (shape === 'circle') {
+                } else if(shape === 'circle') {
                     ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI * 2);
-                } else if (shape === 'custom') {
+                } else if(shape === 'custom') {
                     let pts = this.config.custom_points;
-                    if (pts && pts.length > 0) {
+                    if(pts && pts.length > 0) {
                         pts.forEach((p, i) => {
                             let px = (p.x || 0) / 100 * cw;
                             let py = (p.y || 0) / 100 * cw;
-                            if (i === 0) ctx.moveTo(px, py);
+                            if(i === 0) ctx.moveTo(px, py);
                             else ctx.lineTo(px, py);
                         });
                     }
@@ -219,7 +236,7 @@
                 ctx.clip();
             };
 
-            if (logos) {
+            if(logos) {
                 logos.forEach(logo => {
                     const img = new Image();
                     img.crossOrigin = "anonymous";
@@ -230,13 +247,10 @@
                         this.textureCtx.translate(toPx(logo.x || 50), toPx(logo.y || 50));
                         this.textureCtx.rotate((logo.rotation || 0) * Math.PI / 180);
 
-                        // Deine korrekte Basis-Skalierung
                         const scale = ((logo.size || 100) / 500) * cw;
-
-                        // Wir skalieren IMMER anhand der Breite (wie HTML/CSS es bei <img> macht)
                         const aspect = img.width / img.height;
                         const drawW = scale;
-                        const drawH = scale / aspect; // Höhe berechnet sich automatisch
+                        const drawH = scale / aspect;
 
                         this.textureCtx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
                         this.textureCtx.restore();
@@ -245,23 +259,25 @@
                 });
             }
 
-            if (texts) {
+            if(texts) {
                 texts.forEach(item => {
                     if(!item.text) return;
+
                     this.textureCtx.save();
                     applyClipping(this.textureCtx);
+
                     this.textureCtx.translate(toPx(item.x || 50), toPx(item.y || 50));
                     this.textureCtx.rotate((item.rotation || 0) * Math.PI / 180);
 
-                    const fontSize = (item.size || 1) * (cw / 25); // Relativ zur Canvas-Breite
+                    const fontSize = (item.size || 1) * (cw / 25);
                     this.textureCtx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
-                    this.textureCtx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50, 30, 20, 0.9)' : 'rgba(255, 255, 255, 0.95)';
+
+                    this.textureCtx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(255,255,255,0.95)';
                     this.textureCtx.textAlign = item.align || 'center';
                     this.textureCtx.textBaseline = 'middle';
 
                     if(this.config.material_type === 'glass') {
                         this.textureCtx.shadowColor = "rgba(255,255,255,0.8)";
-                        // OPTIMIERUNG: Blur-Größe reduzieren, wenn die Canvas-Größe für Mobile reduziert wurde
                         this.textureCtx.shadowBlur = cw <= 1024 ? 5 : 15;
                     }
 
@@ -270,14 +286,10 @@
                     const totalHeight = (lines.length - 1) * lineHeight;
                     let startY = -totalHeight / 2;
 
-                    // Berechne den Schubs nach unten EINMAL direkt vor der Schleife (spart Rechenleistung)
                     const yOffset = fontSize * 0.12;
 
                     lines.forEach(line => {
-                        // Zeichne nur die aktuelle Zeile ('line') und addiere den Offset auf startY
                         this.textureCtx.fillText(line, 0, startY + yOffset);
-
-                        // Erhöhe startY für die nächste Zeile
                         startY += lineHeight;
                     });
 
@@ -297,8 +309,8 @@
 
         animate() {
             requestAnimationFrame(() => this.animate());
-            if (this.controls) this.controls.update();
-            if (this.renderer && this.scene && this.camera) {
+            if(this.controls) this.controls.update();
+            if(this.renderer && this.scene && this.camera) {
                 this.renderer.render(this.scene, this.camera);
             }
         }
