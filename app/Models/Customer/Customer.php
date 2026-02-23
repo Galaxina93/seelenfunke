@@ -103,4 +103,9 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         // Gibt zurück, an welche E-Mail-Adresse die Verifizierung gesendet werden soll
         return $this->email;
     }
+
+    public function productReviews()
+    {
+        return $this->hasMany(\App\Models\Product\ProductReview::class);
+    }
 }

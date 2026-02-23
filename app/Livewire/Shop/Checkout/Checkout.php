@@ -435,7 +435,6 @@ class Checkout extends Component
 
         $cartService = app(CartService::class);
         $guestCart = $cartService->getCart();
-
         $wasExpress = $guestCart->is_express;
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
@@ -502,8 +501,6 @@ class Checkout extends Component
                 $cart->update(['coupon_code' => null]);
 
                 // Exception werfen, damit der Checkout abbricht und Livewire den Fehler anzeigt
-                // Du müsstest im Frontend ggf. ein try-catch um validateAndCreateOrder bauen oder
-                // einfach ValidationException nutzen, die Livewire automatisch handhabt.
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'coupon' => 'Der verwendete Gutschein ist leider nicht mehr gültig oder aufgebraucht.'
                 ]);
@@ -570,19 +567,15 @@ class Checkout extends Component
             'country'    => $this->country,
         ];
 
-        $order = Order::create([
-            'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
+        // DATEN FÜR DIE BESTELLUNG ZUSAMMENSTELLEN
+        $orderData = [
             'customer_id' => $customerId,
             'email' => $this->email,
             'status' => 'pending',
             'is_express' => $cart->is_express,
             'deadline' => $cart->deadline,
-
             'payment_status' => 'unpaid',
             'payment_method' => 'stripe',
-
-            'stripe_payment_intent_id' => $finalIntentId,
-
             'billing_address' => [
                 'first_name' => $this->first_name,
                 'last_name' => $this->last_name,
@@ -593,16 +586,30 @@ class Checkout extends Component
                 'country' => $this->country,
             ],
             'shipping_address' => $shipping_data,
-
             'volume_discount' => $totals['volume_discount'] ?? 0,
             'coupon_code' => $totals['coupon_code'] ?? null,
             'discount_amount' => $totals['discount_amount'] ?? 0,
-
             'subtotal_price' => $totals['subtotal_gross'],
             'tax_amount' => $totals['tax'],
             'shipping_price' => $totals['shipping'],
             'total_price' => $totals['total'],
-        ]);
+        ];
+
+        // VERHINDERE DOPPELTE BESTELLUNGEN WENN DER USER MEHRFACH KLICKT
+        $order = Order::where('stripe_payment_intent_id', $finalIntentId)
+            ->where('payment_status', 'unpaid')
+            ->first();
+
+        if ($order) {
+            // Bestellung aktualisieren, falls sie schon existiert (z.B. nach einem fehlgeschlagenen Payment-Versuch)
+            $order->update($orderData);
+            $order->items()->delete(); // Alte Items verwerfen
+        } else {
+            // Neue Bestellung erstellen
+            $orderData['order_number'] = 'ORD-' . date('Y'). '-' . strtoupper(Str::random(6));
+            $orderData['stripe_payment_intent_id'] = $finalIntentId;
+            $order = Order::create($orderData);
+        }
 
         foreach($cart->items as $item) {
 
@@ -621,8 +628,9 @@ class Checkout extends Component
             ]);
         }
 
-        $cart->items()->delete();
-        $cart->delete();
+        // FEHLERBEHEBUNG:
+        // Der Warenkorb darf hier NICHT gelöscht werden ($cart->delete() wurde entfernt).
+        // Das geschieht erst, wenn Stripe den erfolgreichen Kauf zurückmeldet.
 
         return $order->id;
     }

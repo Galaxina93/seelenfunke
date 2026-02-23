@@ -28,7 +28,6 @@ class Login extends Component
     public string $password = '';
 
     public bool $remember = false;
-
     public $user;
     public string $guard = 'customer';
     public string $activeView = 'login';
@@ -39,8 +38,7 @@ class Login extends Component
             $this->guard = session('guard');
             $userModel = (new \App\Models\User)->getUserModelByGuard($this->guard);
             $this->user = $userModel::find(session('2fa_user_id'));
-
-            if($this->user) {
+            if ($this->user) {
                 $this->activeView = 'twoFactor';
             }
         }
@@ -68,13 +66,9 @@ class Login extends Component
         $foundUser = null;
 
         foreach ($guardsToCheck as $guard) {
-            if (Auth::guard($guard)->validate([
-                'email' => $this->email,
-                'password' => $this->password
-            ])) {
+            if (Auth::guard($guard)->validate(['email' => $this->email, 'password' => $this->password])) {
                 $userModelClass = (new \App\Models\User)->getUserModelByGuard($guard);
                 $candidate = $userModelClass::withTrashed()->where('email', $this->email)->first();
-
                 if ($candidate) {
                     $foundGuard = $guard;
                     $foundUser = $candidate;
@@ -93,16 +87,14 @@ class Login extends Component
         $this->guard = $foundGuard;
         $this->user = $foundUser;
 
-        if ($this->user->trashed()) {
+        if (method_exists($this->user, 'trashed') && $this->user->trashed()) {
             $this->logLoginAttempt($this->email, false);
             throw ValidationException::withMessages([
                 'email' => 'Dieser Account wurde deaktiviert.',
             ]);
         }
 
-        // HIER WIRD DIE METHODE GENUTZT:
-        // Wir prüfen, ob der Kunde seine E-Mail bereits verifiziert hat
-        if ($this->guard === 'customer' && !$this->user->hasVerifiedEmail()) {
+        if ($this->guard === 'customer' && method_exists($this->user, 'hasVerifiedEmail') && !$this->user->hasVerifiedEmail()) {
             $this->logLoginAttempt($this->email, false);
             throw ValidationException::withMessages([
                 'email' => 'Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.',
@@ -117,27 +109,34 @@ class Login extends Component
             return;
         }
 
-        if (Auth::guard($this->guard)->attempt([
-            'email' => $this->email,
-            'password' => $this->password,
-        ], $this->remember)) {
-            $loggedInUser = Auth::guard($this->guard)->user();
+        if (Auth::guard($this->guard)->attempt(['email' => $this->email, 'password' => $this->password], $this->remember)) {
+            session()->regenerate();
 
+            $loggedInUser = Auth::guard($this->guard)->user();
             $permissions = [];
-            if(method_exists($loggedInUser, 'roles')) {
-                $permissions = $loggedInUser->roles->flatMap(fn ($role) => $role->permissions)
-                    ->pluck('name', 'name')
-                    ->all();
+
+            if (method_exists($loggedInUser, 'roles')) {
+                $permissions = $loggedInUser->roles->flatMap(fn($role) => $role->permissions)->pluck('name', 'name')->all();
             }
+
             session(['permissions' => $permissions]);
 
-            $this->setBrowserSession($loggedInUser);
-            return redirect()->to(route($this->guard . '.dashboard'));
+            if (class_exists(Session::class)) {
+                $this->setBrowserSession($loggedInUser);
+            }
+
+            $this->redirect(route($this->guard . '.dashboard'));
+            return;
         }
 
         throw ValidationException::withMessages([
             'email' => 'Ein unbekannter Fehler ist beim Login aufgetreten.',
         ]);
+    }
+
+    public function twoFactorVerify()
+    {
+        // Wird durch den entsprechenden Trait abgewickelt
     }
 
     protected function logLoginAttempt(string $email, bool $success): void
@@ -155,7 +154,27 @@ class Login extends Component
         $sessionId = session()->getId();
         $payload = base64_encode(serialize(session()->all()));
 
-        list($shortenedUserAgent, $deviceType) = $this->getShortenedUserAgent(request()->userAgent());
+        $userAgent = request()->userAgent();
+        $browser = 'Unknown';
+        $os = 'Unknown';
+        $deviceType = 'Desktop';
+
+        if (preg_match('/(Windows|Mac|Linux)/i', $userAgent, $osMatches)) {
+            $os = $osMatches[1];
+            $deviceType = 'Desktop';
+        } elseif (preg_match('/(Android|iPhone|iPad)/i', $userAgent, $osMatches)) {
+            $os = $osMatches[1];
+            $deviceType = 'Mobile';
+        }
+
+        if (preg_match('/(Chrome|Firefox|Safari|Opera|MSIE|Edg|Trident)/i', $userAgent, $browserMatches)) {
+            $browser = $browserMatches[1];
+        }
+
+        if ($browser == 'MSIE' || $browser == 'Trident') $browser = 'Internet Explorer';
+        elseif ($browser == 'Edg') $browser = 'Edge';
+
+        $shortenedUserAgent = $os . ' - ' . $browser;
 
         $sessionData = [
             'id' => $sessionId,
@@ -167,37 +186,7 @@ class Login extends Component
             'last_activity' => time(),
         ];
 
-        Session::updateOrInsert(
-            ['user_id' => $user->id, 'ip_address' => request()->ip()],
-            $sessionData
-        );
-    }
-
-    public function getShortenedUserAgent($userAgent): array
-    {
-        $browser = '';
-        $os = '';
-        $device = '';
-
-        if (preg_match('/(Windows|Mac|Linux)/i', $userAgent, $osMatches)) {
-            $os = $osMatches[1];
-            $device = 'Desktop';
-        } elseif (preg_match('/(Android|iPhone)/i', $userAgent, $osMatches)) {
-            $os = $osMatches[1];
-            $device = 'Mobile';
-        }
-
-        if (preg_match('/(Chrome|Firefox|Safari|Opera|MSIE|Edg|Trident)/i', $userAgent, $browserMatches)) {
-            $browser = $browserMatches[1];
-        }
-
-        if ($browser == 'MSIE' || $browser == 'Trident') {
-            $browser = 'Internet Explorer';
-        } elseif ($browser == 'Edg') {
-            $browser = 'Edge';
-        }
-
-        return [$os . ' - ' . $browser, $device];
+        Session::updateOrInsert(['user_id' => $user->id, 'ip_address' => request()->ip()], $sessionData);
     }
 
     public function setPasswordResetView(): void

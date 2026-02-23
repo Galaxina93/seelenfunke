@@ -60,6 +60,7 @@
                 <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
                     {{-- HIER WAREN DIE FEHLER: Icons wieder hinzugefügt --}}
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
+                    <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="document-check" />
                     <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
                 </ul>
             </li>

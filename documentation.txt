@@ -1,4 +1,0 @@
-# Modus manuell über die Konsole in der DB deaktivieren
-php artisan tinker
-> App\Models\ShopSetting::where('key', 'maintenance_mode')->update(['value' => 'false']);
-> Cache::forget('global_shop_settings');

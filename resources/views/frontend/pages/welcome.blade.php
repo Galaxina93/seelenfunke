@@ -813,8 +813,8 @@
                                 [
                                     'video' => 'sicherer_versand',
                                     'image' => '/images/projekt/process/sicherer_versand.png',
-                                    'title' => 'Sicherer Versand',
-                                    'text' => 'Wir verpacken bruchsicher in speziellen Kartonagen. Ihr Paket wird versichert an unseren Logistikpartner übergeben.'
+                                    'title' => 'Sorgfältiger Versand',
+                                    'text' => 'Wir verpacken bruchsicher in speziellen Kartonagen. Ihr Paket wird sicher und gut gepolstert an unseren Logistikpartner übergeben.'
                                 ]
                             ];
                         @endphp
@@ -935,8 +935,7 @@
                             <li class="flex items-start">
                                 <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 <div>
-                                    <strong class="font-semibold text-gray-900">Qualitätsgarantie:</strong>
-                                    Bevor ein Paket unser Haus verlässt, wird es streng kontrolliert. Keine Kratzer, keine Fingerabdrücke. Nur reines Glas und eine perfekte Gravur.
+                                    <strong class="font-semibold text-gray-900">Qualitätsversprechen:</strong> Bevor ein Paket unser Haus verlässt, wird es streng kontrolliert. Keine Kratzer, keine Fingerabdrücke. Nur reines Glas und eine perfekte Gravur.
                                 </div>
                             </li>
 

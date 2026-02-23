@@ -65,6 +65,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'city' => 'Gifhorn',
                 'country' => 'DE',
                 'phone_number' => '+49 1590 1966864',
+                'email_verified_at' => now(), // <-- Hier hinzugefügt
             ]
         );
 
@@ -89,6 +90,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'city' => 'Berlin',
                 'country' => 'DE',
                 'phone_number' => '+49 176 99887766',
+                'email_verified_at' => now(), // <-- Hier hinzugefügt
             ]
         );
 
@@ -109,6 +111,7 @@ class RolesAndPermissionsSeeder extends Seeder
             [
                 'city' => 'Wolfsburg',
                 'country' => 'DE',
+                'email_verified_at' => now(), // <-- Hier hinzugefügt
             ]
         );
     }

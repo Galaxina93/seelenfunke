@@ -80,6 +80,10 @@
                             <div class="absolute top-8 right-8 bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-4 text-center border border-white/50">
                                 <span class="block text-gray-400 text-[10px] uppercase font-bold tracking-wider">Ab</span>
                                 <span class="block text-3xl font-serif font-bold text-gray-900">39<span class="text-lg">,90€</span></span>
+                                <span class="block text-[9px] text-gray-500 font-normal mt-1 uppercase tracking-wider leading-tight">
+                                    inkl. MwSt.<br>
+                                    <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-700">zzgl. Versand</a>
+                                </span>
                             </div>
                         </div>
                     </div>

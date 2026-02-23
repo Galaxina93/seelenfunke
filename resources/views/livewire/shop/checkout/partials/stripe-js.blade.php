@@ -1,6 +1,8 @@
 <script src="https://js.stripe.com/v3/"></script>
+
 <script>
     document.addEventListener('livewire:initialized', () => {
+
         let stripe, elements, paymentElement, expressCheckoutElement;
         let lastClientSecret = null;
         const stripeKey = "{{ $stripeKey }}";
@@ -77,6 +79,7 @@
                     }
 
                     setLoading(true);
+                    window.dispatchEvent(new CustomEvent('checkout-processing'));
                     const msgBox = document.getElementById('express-message');
                     msgBox.classList.add("hidden");
 
@@ -86,6 +89,7 @@
 
                         if (!orderId) {
                             setLoading(false);
+                            window.dispatchEvent(new CustomEvent('checkout-processing-done'));
                             return;
                         }
 
@@ -103,6 +107,7 @@
                             msgBox.textContent = error.message;
                             msgBox.classList.remove("hidden");
                             setLoading(false);
+                            window.dispatchEvent(new CustomEvent('checkout-processing-done'));
                         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
                             await @this.handlePaymentSuccess(orderId);
                         }
@@ -111,6 +116,7 @@
                         msgBox.textContent = "Verbindungsfehler bei der Express-Zahlung.";
                         msgBox.classList.remove("hidden");
                         setLoading(false);
+                        window.dispatchEvent(new CustomEvent('checkout-processing-done'));
                     }
                 });
             }
@@ -139,30 +145,45 @@
             e.preventDefault();
             if (submitButton.disabled) return;
 
-            setLoading(true);
             messageContainer.classList.add("hidden");
 
+            // 1. ZUERST STRIPE FELDER PRÜFEN (Ohne das Backend zu berühren!)
+            const {error: submitError} = await elements.submit();
+            if (submitError) {
+                // Wenn z.B. die Kreditkartennummer fehlt, brechen wir hier sofort ab
+                showMessage(submitError.message);
+                return;
+            }
+
+            // Erst jetzt wird das Lade-UI getriggert
+            setLoading(true);
+            window.dispatchEvent(new CustomEvent('checkout-processing'));
+
             try {
+                // 2. ERST JETZT die Bestellung im Backend validieren und anlegen
                 const orderId = await @this.validateAndCreateOrder();
                 if (!orderId) {
                     setLoading(false);
+                    window.dispatchEvent(new CustomEvent('checkout-processing-done'));
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     return;
                 }
 
+                // 3. Wenn alles erfolgreich war, die Zahlung bei Stripe auslösen
                 const { error, paymentIntent } = await stripe.confirmPayment({
                     elements,
+                    clientSecret: lastClientSecret, // clientSecret muss hier übergeben werden, wenn elements.submit() genutzt wird
                     confirmParams: {
                         return_url: "{{ route('checkout.success') }}",
                         payment_method_data: {
                             billing_details: {
-                                name: @this.get('first_name') + ' ' + @this.get('last_name'),
-                                email: @this.get('email'),
+                                name: await @this.get('first_name') + ' ' + await @this.get('last_name'),
+                                email: await @this.get('email'),
                                 address: {
-                                    city: @this.get('city'),
-                                    country: @this.get('country'),
-                                    line1: @this.get('address'),
-                                    postal_code: @this.get('postal_code')
+                                    city: await @this.get('city'),
+                                    country: await @this.get('country'),
+                                    line1: await @this.get('address'),
+                                    postal_code: await @this.get('postal_code')
                                 }
                             }
                         }
@@ -173,13 +194,16 @@
                 if (error) {
                     showMessage(error.type === "card_error" || error.type === "validation_error" ? error.message : "Ein unerwarteter Fehler ist aufgetreten.");
                     setLoading(false);
+                    window.dispatchEvent(new CustomEvent('checkout-processing-done'));
                 } else if (paymentIntent && paymentIntent.status === 'succeeded') {
                     await @this.handlePaymentSuccess(orderId);
                 }
             } catch (error) {
                 console.error("System Error:", error);
-                showMessage("Verbindungsfehler. Bitte versuche es erneut.");
+                showMessage("Bitte fülle alle Pflichtfelder korrekt aus!");
                 setLoading(false);
+                window.dispatchEvent(new CustomEvent('checkout-processing-done'));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         });
 

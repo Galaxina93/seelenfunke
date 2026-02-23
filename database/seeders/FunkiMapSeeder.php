@@ -21,26 +21,24 @@ class FunkiMapSeeder extends Seeder
 
         // ZENTRUM
         $core = FunkiMapNode::create([
-            'id' => Str::uuid(), 'label' => 'Mein-Seelenfunke', 'description' => 'Das Herzstück / ERP', 'icon' => 'sparkles', 'type' => 'core', 'status' => 'active', 'link' => 'https://mein-seelenfunke.de', 'pos_x' => 50, 'pos_y' => 50
+            'id' => Str::uuid(), 'label' => 'Mein-Seelenfunke', 'description' => 'Das Herzstück / ERP', 'icon' => 'sparkles', 'type' => 'core', 'status' => 'active', 'link' => 'https://mein-seelenfunke.de',                                          'pos_x' => 47.76, 'pos_y' => 51.7
         ]);
 
         // VERTRIEB
-        $shop = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Eigener Shop', 'description' => 'Hauptumsatz & Konfigurator', 'icon' => 'shopping-bag', 'type' => 'sales', 'status' => 'active', 'link' => 'https://mein-seelenfunke.de/shop', 'pos_x' => 30, 'pos_y' => 20]);
-        $etsy = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Etsy', 'description' => 'Digitale Downloads & Traffic', 'icon' => 'etsy', 'type' => 'sales', 'status' => 'planned', 'link' => 'https://etsy.com', 'pos_x' => 70, 'pos_y' => 20]);
+        $etsy = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Etsy', 'description' => 'Digitale Downloads & Traffic', 'icon' => 'etsy', 'type' => 'sales', 'status' => 'planned', 'link' => 'https://etsy.com',                                'pos_x' => 36.97, 'pos_y' => 7.03]);
 
         // FINANZEN & STEUERN
-        $stripe = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Stripe API', 'description' => 'Kreditkarten, Apple Pay, Klarna', 'icon' => 'stripe', 'type' => 'finance', 'status' => 'active', 'link' => 'https://dashboard.stripe.com', 'pos_x' => 20, 'pos_y' => 80]);
-        $bank = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Bank Finom', 'description' => 'Geschäftskonto & Kreditkarten', 'icon' => 'finom', 'type' => 'finance', 'status' => 'active', 'link' => 'https://finom.co', 'pos_x' => 50, 'pos_y' => 85]);
-        $datev = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'DATEV', 'description' => 'Steuer Export & Schnittstelle', 'icon' => 'datev', 'type' => 'api', 'status' => 'inactive', 'link' => 'https://datev.de', 'pos_x' => 80, 'pos_y' => 80]);
+        $stripe = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Stripe API', 'description' => 'Kreditkarten, Apple Pay, Klarna', 'icon' => 'stripe', 'type' => 'finance', 'status' => 'active', 'link' => 'https://dashboard.stripe.com',      'pos_x' => 93.8, 'pos_y' => 55.05]);
+        $bank = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Bank Finom', 'description' => 'Geschäftskonto & Kreditkarten', 'icon' => 'finom', 'type' => 'finance', 'status' => 'active', 'link' => 'https://finom.co',                       'pos_x' => 87.6, 'pos_y' => 75.14]);
+        $datev = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'DATEV API', 'description' => 'Steuer Export & Schnittstelle', 'icon' => 'datev', 'type' => 'api', 'status' => 'inactive', 'link' => 'https://datev.de',                         'pos_x' => 61.36, 'pos_y' => 5.72]);
 
         // API & INFRASTRUKTUR (Korrekt positioniert)
-        $mittwald = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Mittwald', 'description' => 'Server & Hosting', 'icon' => 'mittwald', 'type' => 'api', 'status' => 'active', 'link' => 'https://mittwald.de', 'pos_x' => 10, 'pos_y' => 50]);
-        $firebase = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Firebase API', 'description' => 'Push Notifications', 'icon' => 'firebase', 'type' => 'api', 'status' => 'active', 'link' => 'https://console.firebase.google.com', 'pos_x' => 90, 'pos_y' => 50]);
-        $google = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Google API', 'description' => 'Maps, Fonts, Analytics, Auth', 'icon' => 'google', 'type' => 'api', 'status' => 'active', 'link' => 'https://console.cloud.google.com', 'pos_x' => 85, 'pos_y' => 30]);
-        $dhl = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'DHL API', 'description' => 'Automatischer Label-Druck', 'icon' => 'dhl', 'type' => 'api', 'status' => 'planned', 'link' => 'https://developer.dhl.com', 'pos_x' => 15, 'pos_y' => 30]);
+        $mittwald = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Mittwald', 'description' => 'Server & Hosting', 'icon' => 'mittwald', 'type' => 'api', 'status' => 'active', 'link' => 'https://mittwald.de',                                'pos_x' => 21.28, 'pos_y' => 33.3]);
+        $firebase = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Firebase API', 'description' => 'Push Notifications', 'icon' => 'firebase', 'type' => 'api', 'status' => 'active', 'link' => 'https://console.firebase.google.com',          'pos_x' => 85.56, 'pos_y' => 26.61]);
+        $google = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'Google API', 'description' => 'Maps, Fonts, Analytics, Auth', 'icon' => 'google', 'type' => 'api', 'status' => 'active', 'link' => 'https://console.cloud.google.com',         'pos_x' => 77.59, 'pos_y' => 19.01]);
+        $dhl = FunkiMapNode::create(['id' => Str::uuid(), 'label' => 'DHL API', 'description' => 'Automatischer Label-Druck', 'icon' => 'dhl', 'type' => 'api', 'status' => 'planned', 'link' => 'https://developer.dhl.com',                           'pos_x' => 69.15, 'pos_y' => 12.17]);
 
         // VERBINDUNGEN (EDGES) mit Beschreibungen
-        FunkiMapEdge::create(['id' => Str::uuid(), 'source_id' => $core->id, 'target_id' => $shop->id, 'label' => 'Bestellungen', 'description' => 'Verarbeitet Kundenbestellungen inkl. 3D-Konfiguration', 'status' => 'active']);
         FunkiMapEdge::create(['id' => Str::uuid(), 'source_id' => $core->id, 'target_id' => $etsy->id, 'label' => 'Sync API', 'description' => 'Importiert Etsy JSON zu internen Orders', 'status' => 'planned']);
 
         FunkiMapEdge::create(['id' => Str::uuid(), 'source_id' => $stripe->id, 'target_id' => $core->id, 'label' => 'Webhooks', 'description' => 'Bestätigt Zahlungen in Echtzeit und ändert Status', 'status' => 'active']);

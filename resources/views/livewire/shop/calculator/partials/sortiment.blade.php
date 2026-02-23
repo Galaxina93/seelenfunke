@@ -34,11 +34,12 @@
                         </div>
                         <div class="mt-3">
                             <div class="flex flex-wrap items-baseline gap-x-1 justify-between items-end">
-                                <div>
-                                    <div class="flex flex-wrap items-baseline gap-x-1">
-                                        <span class="text-sm font-bold text-primary">ab {{ number_format($product['display_price'], 2, ',', '.') }} €</span>
-                                        <span class="text-[10px] uppercase tracking-wide text-gray-400">{{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.</span>
-                                    </div>
+                                <div class="flex flex-wrap items-baseline gap-x-1">
+                                    <span class="text-sm font-bold text-primary">ab {{ number_format($product['display_price'], 2, ',', '.') }} €</span>
+                                    <span class="text-[10px] uppercase tracking-wide text-gray-400">
+                                        {{ $product['tax_included'] ? 'inkl.' : 'zzgl.' }} MwSt.
+                                        <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
+                                    </span>
                                 </div>
                                 <div class="hidden md:flex w-8 h-8 rounded-full bg-white/90 backdrop-blur border border-gray-200 text-gray-400 items-center justify-center shadow-sm transition-all duration-200 group-hover:border-primary/60 group-hover:text-primary group-hover:shadow-md group-hover:scale-[1.03]">
                                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>

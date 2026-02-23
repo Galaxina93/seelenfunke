@@ -1,32 +1,21 @@
-{{-- RECHTE SPALTE: Zusammenfassung --}}
 <div class="mt-10 lg:mt-0 lg:col-span-5 h-full"
      x-data="{
-        {{-- Status für den Bestellvorgang (Neu) --}}
         isProcessing: false,
-
-        {{-- Wir binden die Checkboxen an Alpine --}}
         terms: @entangle('terms_accepted'),
         privacy: @entangle('privacy_accepted'),
-
-        {{-- Die Logik für das anzuzeigende Bild --}}
         get funkiState() {
-            {{-- Wenn beide Haken gesetzt sind -> Party --}}
             if (this.terms && this.privacy) return 'party';
-            {{-- Sonst -> Standard --}}
             return 'normal';
         }
-     }">
+     }"
+     @checkout-processing-done.window="isProcessing = false"
+     @checkout-processing.window="isProcessing = true">
 
     <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg sticky top-24 transition-all duration-300">
 
-        {{-- NEU: LADE-ANIMATION (Wird angezeigt, sobald geklickt wurde) --}}
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
-            <div x-data
-                 x-init="window.scrollTo({ top: 0, behavior: 'smooth' })"
-                class="relative w-40 h-40">
-                <img src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}"
-                     class="w-full h-full object-contain animate-bounce-slow"
-                     alt="Verarbeite Bestellung">
+            <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-40 h-40">
+                <img src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
             </div>
             <div class="text-center space-y-2">
                 <h3 class="text-xl font-bold text-gray-900 flex items-center justify-center gap-3">
@@ -40,27 +29,20 @@
             </div>
         </div>
 
-        {{-- BESTEHENDER INHALT (Wird ausgeblendet bei Klick) --}}
         <div x-show="!isProcessing" class="animate-fade-in">
             <h2 class="text-lg font-medium text-gray-900 mb-6">Bestellübersicht</h2>
 
             @php
                 $threshold = (int) shop_setting('shipping_free_threshold', 5000);
                 $currentValue = $totals['subtotal_gross'];
-
-                // Logik: Haben wir physische Produkte?
-                // Wir greifen auf die Cart-Relation zu, die im Checkout Component geladen wurde
                 $hasPhysical = $cart->items->contains(fn($i) => ($i->product->type ?? 'physical') === 'physical');
-
                 $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
                 $missing = $totals['missing_for_free_shipping'];
                 $isFree = $totals['is_free_shipping'];
 
-                // Wenn nur Digital -> kein Shipping-Balken nötig
                 if (!$hasPhysical) $percent = 100;
             @endphp
 
-            {{-- 1. Versandkostenfrei-Balken (Nur bei DE und Physisch) --}}
             @if($country === 'DE' && $hasPhysical)
                 <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
                     @if($isFree)
@@ -84,7 +66,6 @@
                 </div>
             @endif
 
-            {{-- 2. Artikelliste --}}
             <div class="max-h-96 overflow-y-auto pr-2 overscroll-contain custom-scrollbar">
                 <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
                     @foreach($cart->items as $item)
@@ -99,7 +80,6 @@
                                         }
                                     }
                                 }
-                                // Fallback auf Preview Image
                                 if (!$displayImage && !empty($item->product->preview_image_path)) {
                                     $displayImage = $item->product->preview_image_path;
                                 }
@@ -134,22 +114,16 @@
                 </ul>
             </div>
 
-            {{-- 3. Zahlen / Summen via Master Component --}}
             <div class="mt-6 pt-6 border-t border-gray-100">
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>
 
-            {{-- NEU: FUNKI MASCOTT --}}
             <div class="flex justify-center items-center py-6">
                 <div class="relative w-32 h-32 transition-transform duration-300" :class="funkiState === 'party' ? 'scale-110' : 'scale-100'">
-
-                    {{-- 1. Startbild (Standard) --}}
                     <img x-show="funkiState === 'normal'"
                          src="{{ asset('images/projekt/funki/checkout/funki_l_n.png') }}"
                          class="absolute inset-0 w-full h-full object-contain animate-fade-in"
                          alt="Funki wartet">
-
-                    {{-- 2. Haken gesetzt (Party) --}}
                     <img x-show="funkiState === 'party'"
                          src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}"
                          class="absolute inset-0 w-full h-full object-contain animate-fade-in"
@@ -157,7 +131,6 @@
                 </div>
             </div>
 
-            {{-- 4. Checkboxen --}}
             <div class="space-y-4 bg-gray-50 p-4 rounded-xl">
                 <div class="flex items-start">
                     <div class="flex h-5 items-center">
@@ -184,11 +157,9 @@
                 @endif
             </div>
 
-            {{-- 5. Button --}}
             <div class="mt-8">
                 <button id="submit-button"
                         type="submit"
-                        @click="isProcessing = true"
                         @disabled(!$terms_accepted || !$privacy_accepted)
                         class="w-full rounded-full border border-transparent bg-gray-900 py-4 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-1">
                     <span id="button-text">Zahlungspflichtig bestellen</span>

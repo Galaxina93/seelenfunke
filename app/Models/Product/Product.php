@@ -178,4 +178,21 @@ class Product extends Model
     {
         return $this->belongsToMany(Category::class);
     }
+
+    public function reviews()
+    {
+        return $this->hasMany(ProductReview::class);
+    }
+
+    public function getAverageRatingAttribute()
+    {
+        // Nur freigegebene Bewertungen zählen!
+        return round($this->reviews()->where('status', 'approved')->avg('rating') ?? 0, 1);
+    }
+
+    public function getReviewCountAttribute()
+    {
+        // Nur freigegebene Bewertungen zählen!
+        return $this->reviews()->where('status', 'approved')->count();
+    }
 }

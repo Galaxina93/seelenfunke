@@ -29,7 +29,7 @@
 
                 @forelse($vectors as $v)
                     <button wire:click="addStandardVector('{{ $v['file'] }}')"
-                            class="aspect-square bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-primary hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group">
+                            class="aspect-square bg-black rounded-2xl border border-slate-100 shadow-sm hover:border-primary hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group">
                         <img src="{{ asset('images/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-60 group-hover:opacity-100 transition-opacity">
                         <span class="text-[8px] font-bold text-slate-400 uppercase mt-2 group-hover:text-primary truncate w-full text-center">{{ $v['name'] }}</span>
                     </button>
@@ -212,7 +212,7 @@
                             @endif
                         </div>
 
-                        <template x-if="{{ $isActive ? 'true' : 'false' }} && (width > 0 && (width < 877 || height < 877))">
+                        <template x-if="{{ $isActive ? 'true' : 'false' }} && '{{ $ext }}' !== 'svg' && (width > 0 && (width < 877 || height < 877))">
                             <div class="mt-2 bg-amber-50 border border-amber-100 text-amber-700 p-2 rounded-xl text-[9px] font-bold flex items-center gap-2">
                                 <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                 <span>Optimale Ergebnisse ab 877x877px. Aktuell: <span x-text="width + 'x' + height"></span>px.</span>
