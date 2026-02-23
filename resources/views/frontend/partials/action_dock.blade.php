@@ -34,7 +34,7 @@
             <div class="absolute text-gray-900 transition-transform duration-500"
                  :class="dockOpen ? 'rotate-0' : 'rotate-180'">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4">
-                    <path d="M9 5l7 7-7 7" />
+                    <path d="M9 5l7 7-7 7"/>
                 </svg>
             </div>
         </div>
@@ -49,7 +49,7 @@
                 title="Gutscheine">
 
             {{-- Prüfe direkt gegen das Model, ob aktive Gutscheine im Zeitraum existieren --}}
-            @if(\App\Models\FunkiVoucher::current()->exists())
+            @if(\App\Models\Funki\FunkiVoucher::current()->exists())
                 <div class="absolute -top-1 -right-1 flex h-3 w-3">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
@@ -57,8 +57,10 @@
             @endif
 
             {{-- NEU: Heroicon "gift" (outline) --}}
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 transition-transform group-hover/icon:scale-110">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                 stroke="currentColor" class="w-6 h-6 transition-transform group-hover/icon:scale-110">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
             </svg>
 
             {{-- Hover Label --}}
@@ -74,14 +76,15 @@
             <button x-show="!atTop" x-transition @click="window.scrollTo({top: 0, behavior: 'smooth'})"
                     class="p-2 text-white/40 hover:text-white transition-colors" title="Nach oben">
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path d="M5 15l7-7 7 7" />
+                    <path d="M5 15l7-7 7 7"/>
                 </svg>
             </button>
 
-            <button x-show="!atBottom" x-transition @click="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})"
+            <button x-show="!atBottom" x-transition
+                    @click="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})"
                     class="p-2 text-white/40 hover:text-white transition-colors" title="Nach unten">
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path d="M19 9l-7 7-7-7" />
+                    <path d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
         </div>
@@ -93,9 +96,9 @@
                 class="group/icon relative p-2 text-white/30 hover:text-primary transition-all hover:scale-110"
                 title="Cookie-Einstellungen">
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
-                <path d="M9 8h.01M12 12h.01M15 10h.01M11 16h.01M14 15h.01" stroke-linecap="round" stroke-width="3" />
-                <path d="M18.5 12c-1 0-2-1-2-2s1-2 2-2" />
+                <path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/>
+                <path d="M9 8h.01M12 12h.01M15 10h.01M11 16h.01M14 15h.01" stroke-linecap="round" stroke-width="3"/>
+                <path d="M18.5 12c-1 0-2-1-2-2s1-2 2-2"/>
             </svg>
             <span class="absolute right-full mr-4 px-2 py-1 bg-gray-900 text-white text-[10px] font-black rounded opacity-0 group-hover/icon:opacity-100 transition-opacity whitespace-nowrap pointer-events-none tracking-widest uppercase">Cookies</span>
         </button>

@@ -2,15 +2,15 @@
 
 namespace App\Livewire\Shop\Funki;
 
-use App\Models\FunkiNewsletter;
+use App\Models\Funki\FunkiNewsletter;
+use App\Models\Funki\FunkiVoucher;
 use App\Models\NewsletterSubscriber;
-use App\Models\FunkiVoucher;
 use App\Services\FunkiBotService;
-use Livewire\Component;
-use Livewire\WithPagination;
-use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Livewire\Component;
+use Livewire\WithPagination;
 
 class FunkiBot extends Component
 {

@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\FunkiNewsletter;
+use App\Models\Funki\FunkiNewsletter;
 use App\Models\NewsletterSubscriber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

@@ -3,14 +3,15 @@
 namespace Tests\Feature\Services;
 
 use App\Mail\AutomaticNewsletterMail;
+use App\Models\Funki\FunkiNewsletter;
 use App\Models\NewsletterSubscriber;
-use App\Models\FunkiNewsletter;
 use App\Services\NewsletterService;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use PHPUnit\Framework\Attributes\Test; // <--- WICHTIG: Neuer Import
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+
+// <--- WICHTIG: Neuer Import
 
 class NewsletterServiceTest extends TestCase
 {

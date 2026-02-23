@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Frontend;
 
-use App\Models\FunkiVoucher;
+use App\Models\Funki\FunkiVoucher;
 use Livewire\Component;
 
 class VoucherSlider extends Component

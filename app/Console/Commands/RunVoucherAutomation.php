@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\FunkiVoucher;
-use App\Models\FunkiLog;
+use App\Models\Funki\FunkiLog;
+use App\Models\Funki\FunkiVoucher;
 use Illuminate\Console\Command;
 
 class RunVoucherAutomation extends Command

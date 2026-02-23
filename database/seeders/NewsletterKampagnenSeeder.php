@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\FunkiNewsletter;
+use App\Models\Funki\FunkiNewsletter;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 

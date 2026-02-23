@@ -26,7 +26,7 @@ class DatabaseSeeder extends Seeder
             MonthlyVoucherSeeder::class,            // Für den Livegang notwendig
 
             TodoSeeder::class,                      // DEAKTIVIEREN BEI LIVEGANG
-            DayRoutineSeeder::class,                // Für den Livegang notwendig
+            FunkiDayRoutineSeeder::class,                // Für den Livegang notwendig
         ]);
 
     }

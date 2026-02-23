@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\FunkiVoucher;
-use Illuminate\Database\Seeder;
+use App\Models\Funki\FunkiVoucher;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
 
 class MonthlyVoucherSeeder extends Seeder
 {

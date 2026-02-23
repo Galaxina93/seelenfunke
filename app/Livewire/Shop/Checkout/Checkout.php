@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Checkout;
 
 use App\Models\Cart\Cart;
 use App\Models\Customer\Customer;
-use App\Models\FunkiVoucher;
+use App\Models\Funki\FunkiVoucher;
 use App\Models\Order\Order;
 use App\Models\Quote\QuoteRequest;
 use App\Services\CartService;

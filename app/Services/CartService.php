@@ -4,12 +4,10 @@ namespace App\Services;
 
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
-use App\Models\Coupon;
-use App\Models\FunkiVoucher;
+use App\Models\Funki\FunkiVoucher;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use App\Services\ShippingCalculatorService;
 
 class CartService
 {

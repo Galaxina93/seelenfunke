@@ -2,11 +2,11 @@
 
 namespace App\Livewire\Shop\Funki;
 
-use App\Models\DayRoutine as RoutineModel;
-use Livewire\Component;
+use App\Models\Funki\FunkiDayRoutine as RoutineModel;
 use Illuminate\Support\Str;
+use Livewire\Component;
 
-class DayRoutine extends Component
+class FunkiDayRoutine extends Component
 {
     public $routines;
     public $isEditing = false;
@@ -17,7 +17,7 @@ class DayRoutine extends Component
     public function render()
     {
         $this->routines = RoutineModel::orderBy('start_time')->get();
-        return view('livewire.shop.funki.day-routine');
+        return view('livewire.shop.funki.funki-day-routine');
     }
 
     public function create()

@@ -23,7 +23,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 
-            @livewire('shop.funki.day-routine')
+            @livewire('shop.funki.funki-day-routine')
 
             {{-- Rechts: Motivation & Status --}}
             <div class="bg-gradient-to-br from-indigo-50 to-white rounded-[2.5rem] p-10 border border-indigo-100 flex flex-col justify-center items-center text-center shadow-sm relative overflow-hidden">

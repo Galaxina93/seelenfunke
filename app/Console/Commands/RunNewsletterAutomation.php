@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\FunkiLog;
-use App\Models\FunkiNewsletter;
+use App\Models\Funki\FunkiLog;
+use App\Models\Funki\FunkiNewsletter;
 use App\Services\FunkiBotService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;

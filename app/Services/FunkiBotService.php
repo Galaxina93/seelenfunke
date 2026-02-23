@@ -4,25 +4,17 @@ namespace App\Services;
 use App\Mail\AutomaticNewsletterMail;
 use App\Mail\AutomaticVoucherMail;
 use App\Models\Blog\BlogPost;
-use App\Models\CalendarEvent;
-use App\Models\Coupon;
-use App\Models\DayRoutine;
-use App\Models\Financial\FinanceCostItem;
-use App\Models\FunkiVoucher;
 use App\Models\Customer\Customer;
-use App\Models\Financial\FinanceSpecialIssue;
-use App\Models\FunkiLog;
+use App\Models\Funki\FunkiLog;
+use App\Models\Funki\FunkiNewsletter;
+use App\Models\Funki\FunkiVoucher;
 use App\Models\Invoice;
 use App\Models\LoginAttempt;
 use App\Models\NewsletterSubscriber;
-use App\Models\FunkiNewsletter;
 use App\Models\Order\Order;
 use App\Models\Product\Product;
 use App\Models\Quote\QuoteRequest;
-use App\Models\ShopSetting;
-use App\Models\Todo;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -53,7 +45,7 @@ class FunkiBotService
         ];
 
         // Alle Routinen für den Slider aufbereiten
-        $allRoutines = \App\Models\DayRoutine::with('steps')
+        $allRoutines = \App\Models\Funki\FunkiDayRoutine::with('steps')
             ->where('is_active', true)
             ->orderBy('start_time', 'asc')
             ->get();

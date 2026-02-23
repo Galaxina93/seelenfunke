@@ -2,13 +2,15 @@
 
 namespace Database\Seeders;
 
-use App\Models\DayRoutine;
-use App\Models\DayRoutineStep;
+use App\Models\Funki\FunkiDayRoutine;
+use App\Models\Funki\FunkiDayRoutineStep;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Schema; // WICHTIG: Diesen Import hinzufügen!
 
-class DayRoutineSeeder extends Seeder
+// WICHTIG: Diesen Import hinzufügen!
+
+class FunkiDayRoutineSeeder extends Seeder
 {
     public function run(): void
     {
@@ -155,14 +157,14 @@ class DayRoutineSeeder extends Seeder
         // FK Checks aus, leeren, FK Checks wieder an
         Schema::disableForeignKeyConstraints();
 
-        DayRoutineStep::truncate();
-        DayRoutine::truncate();
+        FunkiDayRoutineStep::truncate();
+        FunkiDayRoutine::truncate();
 
         Schema::enableForeignKeyConstraints();
         // -------------------------
 
         foreach ($routines as $r) {
-            $routine = DayRoutine::create([
+            $routine = FunkiDayRoutine::create([
                 'id' => Str::uuid(),
                 'start_time' => $r['time'],
                 'title' => $r['title'],
@@ -174,9 +176,9 @@ class DayRoutineSeeder extends Seeder
             ]);
 
             foreach ($r['steps'] as $index => $step) {
-                DayRoutineStep::create([
+                FunkiDayRoutineStep::create([
                     'id' => Str::uuid(),
-                    'day_routine_id' => $routine->id,
+                    'funki_day_routine_id' => $routine->id,
                     'title' => $step['title'],
                     'position' => $index + 1,
                     'duration_minutes' => $step['min']

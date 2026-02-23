@@ -2,9 +2,9 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\Funki\FunkiLog;
 use App\Models\Permission;
 use App\Models\Role;
-use App\Models\FunkiLog;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 

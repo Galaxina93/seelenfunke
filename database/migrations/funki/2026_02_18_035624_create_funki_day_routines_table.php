@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('day_routines', function (Blueprint $table) {
+        Schema::create('funki_day_routines', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->time('start_time'); // z.B. 13:00:00
             $table->string('title');
@@ -20,6 +20,6 @@ return new class extends Migration {
     }
 
     public function down(): void {
-        Schema::dropIfExists('day_routines');
+        Schema::dropIfExists('funki_day_routines');
     }
 };

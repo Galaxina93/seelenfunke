@@ -4,13 +4,13 @@ namespace App\Providers;
 
 use App\Models\ShopSetting;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -41,7 +41,7 @@ class AppServiceProvider extends ServiceProvider
             'financial_special_issue' => 'App\Models\Financial\FinanceSpecialIssue',
             'order' => 'App\Models\Order\Order',
             'order_item' => 'App\Models\Order\OrderItem',
-            'day_routine' => 'App\Models\DayRoutine',
+            'day_routine' => 'App\Models\Funki\FunkiDayRoutine',
             // Füge hier bei Bedarf weitere Models hinzu
         ]);
 

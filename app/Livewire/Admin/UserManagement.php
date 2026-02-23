@@ -5,7 +5,7 @@ namespace App\Livewire\Admin;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\FunkiLog;
+use App\Models\Funki\FunkiLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;

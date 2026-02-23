@@ -2,13 +2,15 @@
 
 namespace App\Livewire\Global\Widgets;
 
-use App\Models\FunkiLog;
+use App\Models\Funki\FunkiLog;
+use App\Models\User as UserHelper;
 use App\Services\AiSupportService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\On; // Neu hinzugefügt
+use Livewire\Attributes\On;
 use Livewire\Component;
-use App\Models\User as UserHelper;
+
+// Neu hinzugefügt
 
 class FunkiChat extends Component
 {

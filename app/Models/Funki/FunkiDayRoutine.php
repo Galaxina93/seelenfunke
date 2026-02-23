@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Funki;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Funki\FunkiDayRoutineStep;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class DayRoutine extends Model
+class FunkiDayRoutine extends Model
 {
     use HasUuids;
 
@@ -21,6 +22,6 @@ class DayRoutine extends Model
 
     public function steps(): HasMany
     {
-        return $this->hasMany(DayRoutineStep::class)->orderBy('position');
+        return $this->hasMany(FunkiDayRoutineStep::class)->orderBy('position');
     }
 }
