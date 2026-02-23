@@ -46,7 +46,7 @@ class AutoGenerateUStVA extends Component
         $startDate = Carbon::createFromDate($this->selectedYear, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
         $now = Carbon::now();
-        $isFutureMonth = $startDate->isFuture(); // Check ob Monat in der Zukunft liegt
+        $isFutureMonth = $startDate->isFuture(); // NEU: Check ob Monat in der Zukunft liegt
 
         // Frist: 10. des Folgemonats
         $deadline = Carbon::createFromDate($this->selectedYear, $month, 10)->addMonth();
@@ -63,20 +63,29 @@ class AutoGenerateUStVA extends Component
 
         // 2. AUSGABEN (Gewerblich)
         $businessSpecials = FinanceSpecialIssue::where('admin_id', $adminId)
-            ->where('is_business', true)
+            ->where('is_business', true) // Auf DB-Ebene funktioniert "true" einwandfrei
             ->whereBetween('execution_date', [$startDate, $endDate])
             ->get();
 
         $businessFixed = collect();
         $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
-            foreach ($group->items->where('is_business', true) as $item) {
-                $startMonth = $item->first_payment_date->month;
-                $interval = $item->interval_months ?: 1;
+            foreach ($group->items as $item) {
+                // FIX: Robuste Prüfung, ob gewerblich (fängt 1, '1' und true ab)
+                if ($item->is_business == 1 || $item->is_business === true) {
 
-                $diff = ($month - $startMonth) + (($this->selectedYear - $item->first_payment_date->year) * 12);
-                if ($diff >= 0 && ($diff % $interval) === 0) {
-                    $businessFixed->push($item);
+                    // FIX: Datum sicher in Carbon Objekt umwandeln
+                    $paymentDate = Carbon::parse($item->first_payment_date);
+                    $startMonth = $paymentDate->month;
+                    $startYear = $paymentDate->year;
+
+                    $interval = $item->interval_months ?: 1;
+
+                    // Prüfen ob in diesem Monat abgebucht wird
+                    $diff = ($month - $startMonth) + (($this->selectedYear - $startYear) * 12);
+                    if ($diff >= 0 && ($diff % $interval) === 0) {
+                        $businessFixed->push($item);
+                    }
                 }
             }
         }
@@ -118,7 +127,7 @@ class AutoGenerateUStVA extends Component
             if (empty($f->contract_file_path)) $missingReceipts++;
         }
 
-        // Logik für Readiness korrigiert
+        // Logik für Readiness
         if ($isFutureMonth) {
             // Zukünftige Monate sind nie fertig
             $progress = 0;
