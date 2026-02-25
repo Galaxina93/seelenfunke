@@ -1,117 +1,87 @@
+{{-- FILE: resources\views\backend\admin\livewire\admin-navigation.blade.php --}}
 <x-sections.vertical-nav>
+    @php
+        $currentPage = basename(request()->path());
+        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender', 'funki-company-map']);
+        $isShopActive = in_array($currentPage, ['products', 'reviews', 'blog']);
+        $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
+        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-categories-special-editions', 'financial-contracts-groups']);
+    @endphp
 
-    {{-- GRUPPE 1: Dashboard --}}
     <li>
         <ul role="list" class="-mx-2 space-y-1">
-
             <x-forms.list-item route="/admin/dashboard" title="Dashboard" pageName="dashboard" icon="home" />
 
-            {{-- Funki Dropdown --}}
-            <li x-data="{ open: true }">
-                <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
-                    <x-heroicon-o-bolt class="h-6 w-6 shrink-0 text-white" />
-                    <span>Funkis Zentrale</span>
-                    <x-heroicon-m-chevron-right class="ml-auto h-5 w-5 transform transition-transform duration-200 text-white" ::class="open ? 'rotate-90' : ''" />
+            <li x-data="{ open: {{ $isFunkiActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isFunkiActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-bolt class="h-5 w-5 shrink-0 transition-colors {{ $isFunkiActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Funkis Zentrale</span>
+                    <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
-                <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
-
-                    {{-- Funki --}}
-                    <x-forms.list-item route="/admin/funki"
-                                       title="Funki"
-                                       pageName="funki"
-                                       icon="bolt" />
-
-                    <x-forms.list-item route="/admin/funki-routine"
-                                       title="Routine"
-                                       pageName="funki-routine"
-                                       icon="arrow-path" />
-
-                    <x-forms.list-item route="/admin/funki-todos"
-                                       title="Todos"
-                                       pageName="funki-todos"
-                                       icon="check-circle" />
-
-                    <x-forms.list-item route="/admin/funki-kalender"
-                                       title="Kalender"
-                                       pageName="funki-kalender"
-                                       icon="calendar-days" />
-                    <x-forms.list-item route="/admin/funki-company-map"
-                                       title="Map"
-                                       pageName="funki-company-map"
-                                       icon="map" />
+                <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="sparkles" />
+                    <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="arrow-path" />
+                    <x-forms.list-item route="/admin/funki-todos" title="Todos" pageName="funki-todos" icon="check-circle" />
+                    <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
+                    <x-forms.list-item route="/admin/funki-company-map" title="Map" pageName="funki-company-map" icon="map" />
                 </ul>
             </li>
-
-
         </ul>
     </li>
 
-    {{-- GRUPPE 2: Shopverwaltung --}}
     <li>
-        <div class="text-xs font-semibold leading-6 text-gray-200 uppercase tracking-wider mb-2">Shopverwaltung</div>
+        <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">Shopverwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
-            {{-- Produkte & Marketing Dropdown --}}
-            <li x-data="{ open: true }">
-                <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
-                    <x-heroicon-o-wrench-screwdriver class="h-6 w-6 shrink-0 text-white" />
-                    <span>Produkte & Marketing</span>
-                    <x-heroicon-m-chevron-right class="ml-auto h-5 w-5 transform transition-transform duration-200 text-white" ::class="open ? 'rotate-90' : ''" />
+            <li x-data="{ open: {{ $isShopActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isShopActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-wrench-screwdriver class="h-5 w-5 shrink-0 transition-colors {{ $isShopActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Produkte & Marketing</span>
+                    <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
-                <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
-                    {{-- HIER WAREN DIE FEHLER: Icons wieder hinzugefügt --}}
+                <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
-                    <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="document-check" />
+                    <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="star" />
                     <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
                 </ul>
             </li>
 
-            {{-- Bestellungen Dropdown --}}
-            <li x-data="{ open: true }">
-                <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
-                    <x-heroicon-o-shopping-bag class="h-6 w-6 shrink-0 text-white" />
-                    <span>Bestellungen</span>
-                    <x-heroicon-m-chevron-right class="ml-auto h-5 w-5 transform transition-transform duration-200 text-white" ::class="open ? 'rotate-90' : ''" />
+            <li x-data="{ open: {{ $isOrderActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isOrderActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-shopping-bag class="h-5 w-5 shrink-0 transition-colors {{ $isOrderActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Bestellungen</span>
+                    <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
-                <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
-                    {{-- HIER WAREN DIE FEHLER: Icons wieder hinzugefügt --}}
-                    <x-forms.list-item route="/admin/orders" title="Alle Bestellungen" pageName="orders" icon="shopping-bag" />
+                <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/orders" title="Alle Bestellungen" pageName="orders" icon="shopping-cart" />
                     <x-forms.list-item route="/admin/quote-requests" title="Angebote" pageName="quote-requests" icon="clipboard-document-list" />
                     <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoices" icon="document-text" />
                 </ul>
             </li>
 
-            {{-- Finanzmanager Dropdown --}}
-            <li x-data="{ open: true }">
-                <button @click="open = !open" class="flex items-center w-full text-left gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold text-white hover:bg-white/10 transition">
-                    <x-heroicon-o-currency-dollar class="h-6 w-6 shrink-0 text-white" />
-                    <span>Finanzen</span>
-                    <x-heroicon-m-chevron-right class="ml-auto h-5 w-5 transform transition-transform duration-200 text-white" ::class="open ? 'rotate-90' : ''" />
+            <li x-data="{ open: {{ $isFinanceActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isFinanceActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-currency-dollar class="h-5 w-5 shrink-0 transition-colors {{ $isFinanceActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Finanzen</span>
+                    <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
-                <ul x-show="open" x-collapse class="mt-1 px-2 space-y-1">
-                    {{-- HIER WAREN DIE FEHLER: Icons wieder hinzugefügt --}}
-                    <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="calculator" />
+                <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
                     <x-forms.list-item route="/admin/financial-categories-special-editions" title="Variable Kosten" pageName="financial-categories-special-editions" icon="rectangle-stack" />
                     <x-forms.list-item route="/admin/financial-contracts-groups" title="Fixkosten" pageName="financial-contracts-groups" icon="document-check" />
                 </ul>
             </li>
 
-            {{-- Versand --}}
             <x-forms.list-item route="/admin/shipping" title="Versand & Logistik" pageName="shipping" icon="truck" />
-
-            {{-- Shop Einstellungen --}}
-            <x-forms.list-item route="/admin/configuration" title="Einstellungen" pageName="configuration" icon="cog" />
-
+            <x-forms.list-item route="/admin/configuration" title="Einstellungen" pageName="configuration" icon="cog-8-tooth" />
         </ul>
     </li>
 
-    {{-- GRUPPE 3: System --}}
     <li>
-        <div class="text-xs font-semibold leading-6 text-gray-200 uppercase tracking-wider mb-2 mt-6">System</div>
+        <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">System</div>
         <ul role="list" class="-mx-2 space-y-1">
-            <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="users" icon="users" />
-            <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="rights" icon="shield-check" />
+            <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />
+            <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="right-management" icon="shield-check" />
             <x-forms.list-item route="/admin/profile" title="Mein Profil" pageName="profile" icon="user-circle" />
         </ul>
     </li>
-
 </x-sections.vertical-nav>

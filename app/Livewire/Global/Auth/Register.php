@@ -15,11 +15,16 @@ class Register extends Component
     public $email = '';
     public $password = '';
     public $password_confirmation = '';
+
     public $street = '';
     public $house_number = '';
     public $postal = '';
     public $city = '';
     public $country = 'DE';
+
+    public $is_business = 0;
+    public $birthday = '';
+
     public $terms = false;
 
     public $passwordRules = [
@@ -41,6 +46,8 @@ class Register extends Component
             'postal' => 'required|string|max:10',
             'city' => 'required|string|max:255',
             'country' => 'required|string|size:2',
+            'is_business' => 'required|boolean',
+            'birthday' => 'required|date',
             'terms' => 'accepted'
         ];
     }
@@ -65,26 +72,18 @@ class Register extends Component
     private function validatePasswordRules()
     {
         $this->passwordRules['min'] = strlen($this->password) >= 8;
-        $this->passwordRules['number'] = (bool)preg_match('/[0-9]/', $this->password);
-        $this->passwordRules['upper'] = (bool)preg_match('/[A-Z]/', $this->password);
+        $this->passwordRules['number'] = (bool) preg_match('/[0-9]/', $this->password);
+        $this->passwordRules['upper'] = (bool) preg_match('/[A-Z]/', $this->password);
         $this->passwordRules['match'] = !empty($this->password) && ($this->password === $this->password_confirmation);
     }
 
     public function getCanRegisterProperty()
     {
-        $pwOk = $this->passwordRules['min']
-            && $this->passwordRules['number']
-            && $this->passwordRules['upper']
-            && $this->passwordRules['match'];
-
-        $fieldsOk = !empty($this->firstname)
-            && !empty($this->lastname)
-            && !empty($this->email)
-            && !empty($this->street)
-            && !empty($this->house_number)
-            && !empty($this->postal)
-            && !empty($this->city)
-            && !empty($this->country);
+        $pwOk = $this->passwordRules['min'] && $this->passwordRules['number'] && $this->passwordRules['upper'] && $this->passwordRules['match'];
+        $fieldsOk = !empty($this->firstname) && !empty($this->lastname) && !empty($this->email)
+            && !empty($this->street) && !empty($this->house_number) && !empty($this->postal)
+            && !empty($this->city) && !empty($this->country) && !empty($this->birthday)
+            && $this->is_business !== null;
 
         return $pwOk && $fieldsOk && $this->terms;
     }
@@ -110,6 +109,8 @@ class Register extends Component
             'postal' => $this->postal,
             'city' => $this->city,
             'country' => $this->country,
+            'is_business' => $this->is_business,
+            'birthday' => $this->birthday,
         ]);
 
         event(new Registered($customer));

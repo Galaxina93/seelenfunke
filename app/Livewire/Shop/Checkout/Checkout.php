@@ -2,23 +2,19 @@
 
 namespace App\Livewire\Shop\Checkout;
 
+use App\Livewire\Shop\Checkout\Traits\HandlesOrderCreation;
+use App\Livewire\Shop\Checkout\Traits\HandlesStripePayment;
 use App\Models\Cart\Cart;
-use App\Models\Customer\Customer;
-use App\Models\Funki\FunkiVoucher;
-use App\Models\Order\Order;
 use App\Models\Quote\QuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Str;
 use Livewire\Component;
-use Stripe\PaymentIntent;
-use Stripe\Stripe;
-
-// [NEU] Wichtig für Debugging
 
 class Checkout extends Component
 {
+    use HandlesStripePayment, HandlesOrderCreation;
+
     // --- BESTELLDATEN ---
     public $email;
     public $first_name;
@@ -29,7 +25,7 @@ class Checkout extends Component
     public $country = 'DE'; // Standardland
     public $postal_code;
 
-    // --- LIEFERDATEN (NEU) ---
+    // --- LIEFERDATEN ---
     public $has_separate_shipping = false;
     public $shipping_first_name;
     public $shipping_last_name;
@@ -43,7 +39,7 @@ class Checkout extends Component
     public $terms_accepted = false;
     public $privacy_accepted = false;
 
-    // --- LOGIN (für Gäste die sich im Checkout einloggen wollen) ---
+    // --- LOGIN ---
     public $loginEmail = '';
     public $loginPassword = '';
     public $loginError = '';
@@ -51,11 +47,9 @@ class Checkout extends Component
     // --- STRIPE & CONFIG ---
     public $clientSecret;
     public $stripeKey;
-
-    // [FIX] Neue Variable, um die ID (pi_...) explizit zu speichern
     public $currentPaymentIntentId;
 
-    // [NEU] State für die Erfolgsmeldung
+    // --- UI STATE ---
     public $isFinished = false;
     public $finalOrderNumber = '';
 
@@ -167,10 +161,6 @@ class Checkout extends Component
                 if (!empty($user->profile->country) && array_key_exists($user->profile->country, $activeCountries)) {
                     $this->country = $user->profile->country;
                 } else {
-                    /** * Fallback-Strategie:
-                     * 1. Deutschland, falls du es belieferst (da Seelenfunke in DE sitzt)
-                     * 2. Sonst einfach das erste Land deiner aktiven Liste
-                     */
                     $this->country = array_key_exists('DE', $activeCountries) ? 'DE' : array_key_first($activeCountries);
                 }
             }
@@ -187,8 +177,6 @@ class Checkout extends Component
                 if($quote->customer) {
                     $this->first_name = $quote->customer->first_name;
                     $this->last_name = $quote->customer->last_name;
-                } else {
-                    // Fallback falls Name im Quote Objekt anders gespeichert ist
                 }
                 $this->company = $quote->company;
             }
@@ -245,185 +233,6 @@ class Checkout extends Component
     }
 
     /**
-     * Erstellt oder aktualisiert den PaymentIntent bei Stripe
-     */
-    public function createPaymentIntent()
-    {
-        $cartService = app(CartService::class);
-        $cart = $cartService->getCart();
-
-        // WICHTIG: Versandkosten basieren IMMER auf dem Lieferland
-        $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
-        $totals = $cartService->calculateTotals($cart, $targetCountry);
-
-        $amount = $totals['total']; // Betrag in Cent
-
-        if ($amount > 0) {
-            $stripeSecret = config('services.stripe.secret');
-            if($stripeSecret) {
-                Stripe::setApiKey($stripeSecret);
-
-                // Metadaten vorbereiten
-                $metadata = [
-                    'cart_id' => $cart->id,
-                    'session_id' => Session::getId(),
-                    'customer_email' => $this->email,
-                    'shipping_country' => $targetCountry
-                ];
-
-                $intentData = [
-                    'amount' => $amount,
-                    'currency' => 'eur',
-                    'automatic_payment_methods' => ['enabled' => true],
-                    'metadata' => $metadata
-                ];
-
-                // OPTIONAL: Wenn wir schon einen Intent haben, könnten wir ihn updaten.
-                // Der Einfachheit halber erstellen wir hier einen neuen.
-                $intent = PaymentIntent::create($intentData);
-
-                $this->clientSecret = $intent->client_secret;
-
-                // [FIX] Hier speichern wir die ID sofort in die Variable
-                $this->currentPaymentIntentId = $intent->id;
-
-                return $this->clientSecret;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Wird vom Frontend aufgerufen, wenn Stripe die Zahlung bestätigt hat.
-     */
-    public function handlePaymentSuccess($orderId = null)
-    {
-        // 1. Die richtige Order finden
-        $order = $orderId ? Order::with('items.product')->find($orderId) : null;
-
-        if (!$order) {
-            $order = Order::with('items.product')
-                ->where('stripe_payment_intent_id', $this->currentPaymentIntentId)
-                ->where('status', 'pending')
-                ->latest()
-                ->first();
-        }
-
-        if ($order) {
-            // 2. Status & Zahlung der Bestellung aktualisieren
-            $order->update([
-                'payment_status' => 'paid',
-                'status' => 'pending'
-            ]);
-
-            // --- LAGERBESTAND REDUZIEREN ---
-            foreach ($order->items as $item) {
-                if ($item->product) {
-                    $item->product->reduceStock($item->quantity);
-                }
-            }
-
-            // GUTSCHEIN VERBRAUCHEN (Counter hochzählen)
-            if ($order->coupon_code) {
-                // Wir nutzen increment(), das ist atomar und sicher bei gleichzeitigen Zugriffen
-                FunkiVoucher::where('code', $order->coupon_code)->increment('used_count');
-            }
-
-            $this->finalOrderNumber = $order->order_number;
-
-            // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
-            if (Session::has('checkout_from_quote_id')) {
-                $quoteId = Session::get('checkout_from_quote_id');
-                $quote = QuoteRequest::find($quoteId);
-
-                if ($quote) {
-                    $quote->update([
-                        'status' => 'converted',
-                        'converted_order_id' => $order->id
-                    ]);
-
-                    Session::forget('checkout_from_quote_id');
-
-                    \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
-                }
-            }
-
-            // 3. Rechnung & Dokumente zentral erstellen
-            $pdfPath = null;
-            $xmlPath = null; // [NEU] Variable für XML Pfad
-            try {
-                $invoiceService = app(\App\Services\InvoiceService::class);
-
-                // Invoice Model in DB erstellen
-                $invoice = $invoiceService->createFromOrder($order);
-
-                // A) PDF Generieren
-                $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
-
-                if ($invoice && !file_exists($pdfPath)) {
-                    $pdf = $invoiceService->generatePdf($invoice);
-                    if (!file_exists(dirname($pdfPath))) {
-                        mkdir(dirname($pdfPath), 0755, true);
-                    }
-                    file_put_contents($pdfPath, $pdf->output());
-                }
-
-                // B) [NEU] XML Generieren (ZUGFeRD/XRechnung)
-                // Wir machen das immer, damit jeder Kunde (auch B2B) versorgt ist.
-                if ($invoice) {
-                    try {
-                        $xmlService = app(\App\Services\NativeXmlInvoiceService::class);
-
-                        // Der Service gibt den relativen Pfad zurück (z.B. 'invoices/xml/RE-123.xml')
-                        $relativePath = $xmlService->generate($invoice);
-
-                        // Wir brauchen den absoluten Pfad für den Mail-Anhang
-                        $xmlPath = storage_path("app/{$relativePath}");
-
-                    } catch (\Exception $e) {
-                        // XML Fehler loggen, aber Checkout nicht abbrechen!
-                        \Illuminate\Support\Facades\Log::error("XML-Generierung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
-                    }
-                }
-
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
-            }
-
-            // 4. Mails versenden mit zentralisierten Daten
-            try {
-                $mailData = $order->toFormattedArray();
-
-                // A) Bestätigung an Kunden (JETZT MIT PDF UND XML)
-                // WICHTIG: Du musst deine Mail-Klasse anpassen (siehe unten), damit sie das 3. Argument nimmt!
-                \Illuminate\Support\Facades\Mail::to($order->email)
-                    ->send(new \App\Mail\OrderMailToCustomer($mailData, $pdfPath, $xmlPath));
-
-                // B) Arbeits-Anfrage an Admin (Dich)
-                // Admin braucht XML meist nicht zwingend per Mail, sonst auch hier hinzufügen
-                \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
-                    ->send(new \App\Mail\OrderMailToAdmin($mailData, $pdfPath, $xmlPath));
-
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());
-            }
-        }
-
-        // 5. UI umschalten & Cleanup
-        $this->isFinished = true;
-
-        $cartService = app(CartService::class);
-        $cart = $cartService->getCart();
-        if ($cart) {
-            $cart->items()->delete();
-            $cart->delete();
-        }
-
-        $this->dispatch('cart-updated');
-        $this->dispatch('payment-processed');
-    }
-
-    /**
      * Login direkt im Checkout
      */
     public function loginUser()
@@ -471,188 +280,6 @@ class Checkout extends Component
         } else {
             $this->loginError = 'Zugangsdaten nicht korrekt.';
         }
-    }
-
-    /**
-     * Wird vom Frontend aufgerufen, BEVOR Stripe bestätigt wird.
-     */
-    public function validateAndCreateOrder()
-    {
-        $this->validate();
-        $orderId = $this->createOrderInDb();
-        return $orderId;
-    }
-
-    /**
-     * Private Helper: Die eigentliche Order-Erstellung inkl. User-Logik
-     */
-    private function createOrderInDb()
-    {
-        $cartService = app(CartService::class);
-        $cart = $cartService->getCart();
-
-        // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
-        if ($cart->coupon_code) {
-            $coupon = FunkiVoucher::where('code', $cart->coupon_code)->first();
-
-            // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
-            if (!$coupon || !$coupon->isValid()) {
-                // Gutschein aus Cart entfernen
-                $cart->update(['coupon_code' => null]);
-
-                // Exception werfen, damit der Checkout abbricht und Livewire den Fehler anzeigt
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'coupon' => 'Der verwendete Gutschein ist leider nicht mehr gültig oder aufgebraucht.'
-                ]);
-            }
-        }
-
-        $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
-        $totals = $cartService->calculateTotals($cart, $targetCountry);
-
-        $finalIntentId = $this->currentPaymentIntentId;
-
-        if (empty($finalIntentId) && !empty($this->clientSecret)) {
-            $parts = explode('_secret_', $this->clientSecret);
-            $finalIntentId = $parts[0] ?? null;
-        }
-
-        $customer = null;
-
-        if (Auth::guard('customer')->check()) {
-            $customer = Auth::guard('customer')->user();
-            if ($customer && !Customer::where('id', $customer->id)->exists()) {
-                $customer = null;
-                Auth::guard('customer')->logout();
-            }
-        }
-
-        if (!$customer) {
-            $customer = Customer::where('email', $this->email)->first();
-        }
-
-        if (!$customer) {
-            $customer = Customer::create([
-                'email' => $this->email,
-                'first_name' => $this->first_name,
-                'last_name' => $this->last_name,
-                'password' => bcrypt(Str::random(16)),
-            ]);
-
-            $customer->profile()->create([
-                'street' => $this->address,
-                'city' => $this->city,
-                'postal' => $this->postal_code,
-                'country' => $this->country,
-            ]);
-        }
-
-        $customerId = $customer->id;
-
-        $shipping_data = $this->has_separate_shipping ? [
-            'first_name' => $this->shipping_first_name,
-            'last_name'  => $this->shipping_last_name,
-            'company'    => $this->shipping_company,
-            'address'    => $this->shipping_address,
-            'postal_code'=> $this->shipping_postal_code,
-            'city'       => $this->shipping_city,
-            'country'    => $this->shipping_country,
-        ] : [
-            'first_name' => $this->first_name,
-            'last_name'  => $this->last_name,
-            'company'    => $this->company,
-            'address'    => $this->address,
-            'postal_code'=> $this->postal_code,
-            'city'       => $this->city,
-            'country'    => $this->country,
-        ];
-
-        // DATEN FÜR DIE BESTELLUNG ZUSAMMENSTELLEN
-        $orderData = [
-            'customer_id' => $customerId,
-            'email' => $this->email,
-            'status' => 'pending',
-            'is_express' => $cart->is_express,
-            'deadline' => $cart->deadline,
-            'payment_status' => 'unpaid',
-            'payment_method' => 'stripe',
-            'billing_address' => [
-                'first_name' => $this->first_name,
-                'last_name' => $this->last_name,
-                'company' => $this->company,
-                'address' => $this->address,
-                'postal_code' => $this->postal_code,
-                'city' => $this->city,
-                'country' => $this->country,
-            ],
-            'shipping_address' => $shipping_data,
-            'volume_discount' => $totals['volume_discount'] ?? 0,
-            'coupon_code' => $totals['coupon_code'] ?? null,
-            'discount_amount' => $totals['discount_amount'] ?? 0,
-            'subtotal_price' => $totals['subtotal_gross'],
-            'tax_amount' => $totals['tax'],
-            'shipping_price' => $totals['shipping'],
-            'total_price' => $totals['total'],
-        ];
-
-        // VERHINDERE DOPPELTE BESTELLUNGEN WENN DER USER MEHRFACH KLICKT
-        $order = Order::where('stripe_payment_intent_id', $finalIntentId)
-            ->where('payment_status', 'unpaid')
-            ->first();
-
-        if ($order) {
-            // Bestellung aktualisieren, falls sie schon existiert (z.B. nach einem fehlgeschlagenen Payment-Versuch)
-            $order->update($orderData);
-            $order->items()->delete(); // Alte Items verwerfen
-        } else {
-            // Neue Bestellung erstellen
-            $orderData['order_number'] = 'ORD-' . date('Y'). '-' . strtoupper(Str::random(6));
-            $orderData['stripe_payment_intent_id'] = $finalIntentId;
-            $order = Order::create($orderData);
-        }
-
-        foreach($cart->items as $item) {
-
-            $configFingerprint = !empty($item->configuration)
-                ? hash('sha256', json_encode($item->configuration))
-                : null;
-
-            $order->items()->create([
-                'product_id' => $item->product_id,
-                'product_name' => $item->product->name,
-                'quantity' => $item->quantity,
-                'unit_price' => $item->unit_price,
-                'total_price' => $item->unit_price * $item->quantity,
-                'configuration' => $item->configuration,
-                'config_fingerprint' => $configFingerprint
-            ]);
-        }
-
-        // FEHLERBEHEBUNG:
-        // Der Warenkorb darf hier NICHT gelöscht werden ($cart->delete() wurde entfernt).
-        // Das geschieht erst, wenn Stripe den erfolgreichen Kauf zurückmeldet.
-
-        return $order->id;
-    }
-
-    /**
-     * Wird von Stripe Express Checkout (JS) aufgerufen, BEVOR das Wallet öffnet.
-     * So verhindern wir, dass der Kunde Apple Pay nutzt, obwohl er z.B. die AGB nicht akzeptiert hat.
-     */
-    public function validateCheckoutData()
-    {
-        // Wir validieren hier NUR die rechtlichen Checkboxen.
-        // Die Adresse kommt später direkt von Apple/Google Pay.
-        $this->validate([
-            'terms_accepted' => 'accepted',
-            'privacy_accepted' => 'accepted',
-            'country' => 'required', // Land brauchen wir für die Versandkostenberechnung
-        ], [
-            'terms_accepted.accepted' => 'Bitte bestätige die AGB.',
-            'privacy_accepted.accepted' => 'Bitte bestätige den Datenschutz.',
-        ]);
-
-        return true;
     }
 
     public function render()

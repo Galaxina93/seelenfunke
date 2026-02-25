@@ -44,7 +44,8 @@ class FinancialSeeder extends Seeder
             // Gewerbliche Kategorien aus den Daten
             'Arbeitsmaterial',
             'Rohmaterial',
-            'Verpackungen'
+            'Verpackungen',
+            'Software & Lizenzen'
         ];
 
         foreach ($categories as $catName) {
@@ -89,14 +90,14 @@ class FinancialSeeder extends Seeder
                 'start_date' => '2021-09-08',
                 'description' => null,
             ],
-/*            [
-                'group' => 'Einnahmen',
-                'name' => 'Garage',
-                'amount' => 200.00,
-                'interval' => 1, // monthly
-                'start_date' => '2021-09-14',
-                'description' => null,
-            ],*/
+            /* [
+                            'group' => 'Einnahmen',
+                            'name' => 'Garage',
+                            'amount' => 200.00,
+                            'interval' => 1, // monthly
+                            'start_date' => '2021-09-14',
+                            'description' => null,
+                        ],*/
             [
                 'group' => 'Einnahmen',
                 'name' => 'Miete',
@@ -332,6 +333,13 @@ class FinancialSeeder extends Seeder
         // --- 3. Sonderausgaben erstellen (Gewerblich) ---
 
         $specialIssues = [
+            [
+                'title' => 'Gemini Ultra',
+                'location' => 'Online',
+                'amount' => -139.99,
+                'date' => '2026-02-25',
+                'category' => 'Arbeitsmaterial',
+            ],
             [
                 'title' => 'Laserschutzbrille',
                 'location' => 'Amazon',

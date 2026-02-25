@@ -128,7 +128,7 @@
                                         @if($type === 'physical')
                                             @if($editingItemId == $item->id)
                                                 <button wire:click="closeModal" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-gray-900 border border-gray-900 rounded-lg text-xs font-bold text-white shadow-sm hover:bg-black transition">
-                                                    Fertig
+                                                    Ansicht ohne speichern schließen
                                                 </button>
                                             @else
                                                 <button wire:click="edit('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary hover:border-primary transition">

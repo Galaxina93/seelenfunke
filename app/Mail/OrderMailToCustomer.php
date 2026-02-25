@@ -16,7 +16,7 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
 
     public array $data;
     protected ?string $pdfPath;
-    public ?string $xmlPath; //
+    public ?string $xmlPath;
 
     /**
      * Create a new message instance.

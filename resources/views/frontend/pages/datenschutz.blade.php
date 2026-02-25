@@ -142,6 +142,17 @@
                         <br>
                         Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung).
                     </p>
+
+                    <h3 class="font-bold text-lg mt-6">Erfassung von Geburtsdatum und Kundentyp</h3>
+                    <p>
+                        Bei der Erstellung eines Kundenkontos erheben wir Ihr Geburtsdatum sowie den Kundentyp (Privat- oder Geschäftskunde).
+                    </p>
+                    <p class="mt-2">
+                        Das Geburtsdatum dient der Verifikation Ihrer Volljährigkeit sowie der Bereitstellung von möglichen Geburtstagsüberraschungen (z.B. Rabattcodes) im Rahmen unseres interaktiven Kundenbereichs. Den Kundentyp benötigen wir, um Ihnen die entsprechenden rechtlichen und steuerlichen Rahmenbedingungen (z.B. korrekte Rechnungsstellung, B2B-Konditionen) zuordnen zu können.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer zielgruppengerechten Ansprache).
+                    </p>
                 </div>
 
                 <div>

@@ -134,10 +134,8 @@ class Login extends Component
         ]);
     }
 
-    public function twoFactorVerify()
-    {
-        // Wird durch den entsprechenden Trait abgewickelt
-    }
+    // ACHTUNG: twoFactorVerify() WURDE HIER ENTFERNT!
+    // Dadurch wird nun automatisch die echte verify-Methode aus dem eingebundenen Trait (handleTwoFactorTrait) genutzt.
 
     protected function logLoginAttempt(string $email, bool $success): void
     {

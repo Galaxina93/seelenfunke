@@ -13,15 +13,10 @@ class Cart extends Model
 {
     use HasFactory, HasUuids;
 
-    /**
-     * Die Attribute, die per Mass Assignment gesetzt werden dürfen.
-     * Wichtig für cart::firstOrCreate(['session_id' => ...])
-     */
     protected $fillable = [
         'session_id',
         'customer_id',
         'coupon_code',
-        'customer_id',
         'is_express',
         'deadline'
     ];
@@ -31,19 +26,14 @@ class Cart extends Model
         'deadline' => 'date'
     ];
 
-    /**
-     * Ein Warenkorb hat viele Positionen (Items).
-     */
     public function items(): HasMany
     {
         return $this->hasMany(CartItem::class);
     }
 
-    /**
-     * Ein Warenkorb gehört optional zu einem User.
-     */
-    public function user(): BelongsTo
+    // GEÄNDERT: Heißt jetzt customer() und referenziert den Customer
+    public function customer(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Customer::class, 'customer_id');
     }
 }

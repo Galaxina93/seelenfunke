@@ -1,0 +1,34 @@
+So nächstes Konzept für den Shop:
+
+Ich möchte ein Punktesystem einrichten und Funki soll dabei eine Zentrale Rolle spielen. Ich möchte das jeder Kunde eine Art "eigenen" Funki auf seinen Dashboard sieht und dieser zum Start nur Lumpen an hat (Die Bilder dafür würde ich 3D generieren und dann könnten wir ihn in Three JS anzeigen).
+
+Der Kunde bekommt genau soviel Punkte "Fuken" gut geschrieben, wie er auch einkauft. Das heißt wenn er für 39,90€ ein Produkt einkauft bekommt er gerundet 40 Punkte (Funken).
+
+
+Funki wird also auf seinen Dashboard oben angezeigt und unter ihm ist ein Button "Aufrüsten". Das erste Aufrüsten kostet zum Beispiel nur 10 Funken, das zweite dann schon 20 Funken usw. mit jedem Aufrüsten Steigt Funkis Level um "1". Ab Level 2 bekommt er direkt ein neues Aussehen.
+
+Danach bekommt er immer alle 5 Level ein anderes aussehen.
+Also -> Level 2 anders
+level 5 anders
+Level 10 anders usw.
+
+Das Maximal Level ist 80. Dann ist er optisch voll ausgerüstet.
+
+
+Jetzt die Belohnungen für den Kunden. Es gibt einen 20% Gutschein wenn er jeweils das Level 5, 10, 15 usw. erreicht hat. Genau beim erreichen des levels, wird automatisch ein Gutschein generiert.
+
+Weiterhin wird es Titel geben, die man im System erreichen kann.
+
+1. Funken Sammler (Überall werden versteckt auf der Webseite Funken für den Kunden generiert, die er einsammeln kann (Maximal 20 am Tag) damit das nicht missbraucht wird.
+
+Aufbau des Titels Sammler:
+Sammler 0/100 (Grau)
+XX  100/500 (Silber)
+XX 500/1000 (Gold)
+XX 1000/2000 (Diamant)
+
+
+Hier müssen wir noch mindestens 4 Weitere Titel anbieten.
+
+Wenn alle Titel auf Maximal sind, wird im Profil beim User angezeigt "Seelengott". Der Kunde kann in seinem Dashboard angeben ob das in seinem Profil angezeigt werden soll oder nicht.
+

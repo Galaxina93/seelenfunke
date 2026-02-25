@@ -3,7 +3,7 @@
 namespace App\Models\Order;
 
 use App\Models\Invoice;
-use App\Models\User;
+use App\Models\Customer\Customer; // GEÄNDERT: Customer statt User
 use App\Traits\FormatsECommerceData;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -61,9 +61,10 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    // GEÄNDERT: Zeigt nun auf Customer::class
     public function customer()
     {
-        return $this->belongsTo(User::class, 'customer_id');
+        return $this->belongsTo(Customer::class, 'customer_id');
     }
 
     public function getStatusColorAttribute()
@@ -103,9 +104,9 @@ class Order extends Model
         if ($this->shipping_price <= 0 || shop_setting('is_small_business', false)) {
             return 0;
         }
-        $taxRate = (float) shop_setting('default_tax_rate', 19.00);
+        $taxRate = (float)shop_setting('default_tax_rate', 19.00);
         $divisor = 1 + ($taxRate / 100);
-        return (int) round($this->shipping_price - ($this->shipping_price / $divisor));
+        return (int)round($this->shipping_price - ($this->shipping_price / $divisor));
     }
 
     public function getShippingNetPriceAttribute()
@@ -126,7 +127,8 @@ class Order extends Model
         ]);
     }
 
-    public function invoices() {
+    public function invoices()
+    {
         return $this->hasMany(Invoice::class);
     }
 }

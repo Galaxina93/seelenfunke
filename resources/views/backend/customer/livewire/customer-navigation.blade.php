@@ -1,3 +1,10 @@
+{{-- FILE: resources\views\backend\customer\livewire\customer-navigation.blade.php --}}
 <x-sections.vertical-nav>
-    <x-forms.list-item route="/customer/dashboard" title="Dashboard" pageName="dashboard" icon="home"/>
+    <li>
+        <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-2">Kundenbereich</div>
+        <ul role="list" class="-mx-2 space-y-1">
+            <x-forms.list-item route="/customer/dashboard" title="Dashboard" pageName="dashboard" icon="home"/>
+            <x-forms.list-item route="/customer/profile" title="Mein Profil" pageName="profile" icon="user-circle"/>
+        </ul>
+    </li>
 </x-sections.vertical-nav>

@@ -8,19 +8,21 @@ use Symfony\Component\Finder\Finder;
 
 class ExportProjectForAI extends Command
 {
-    protected $signature = 'project:export {--output=project_context.txt} {--migrations : Exportiert nur die Datenbank-Migrationen} {--short : Exportiert nur Kern-Logik-Ordner (app/Http, routes, resources, Livewire, Commands)} {--importants : Exportiert nur die absolut wichtigsten Projektdateien (Models, Services, Livewire, Routes)}';
-    protected $description = 'Radikal verschlankter Export: Fokus auf Logik, Extreme Minification ohne Leerzeichen.';
+    protected $signature = 'project:export
+                            {--output=project_context.txt : Name der Zieldatei}
+                            {--migrations : Exportiert nur die Datenbank-Migrationen}
+                            {--short : Exportiert nur Kern-Logik-Ordner}
+                            {--importants : Exportiert nur die absolut wichtigsten Projektdateien}';
 
-    /**
-     * Erweitert: Wir ignorieren irrelevante Ordner. 'public' bleibt hier ignoriert.
-     */
+    protected $description = 'Radikaler Export: Extreme Minification auf Token-Ebene für maximale Token-Ersparnis.';
+
     protected $ignoredDirectories = [
         'vendor', 'node_modules', 'storage', 'public', '.git', '.idea', '.vscode',
-        'bootstrap', 'tests', 'database/migrations', 'database/factories', 'database/seeders',
+        'bootstrap', 'tests', 'database/factories', 'database/seeders',
         'app/Providers', 'app/Console', 'config', 'lang', 'resources/lang'
     ];
 
-    protected $allowedExtensions = ['php', 'blade.php', 'js'];
+    protected $allowedExtensions = ['php', 'js'];
 
     protected $ignoredFiles = [
         'composer.lock', 'package-lock.json', 'yarn.lock', 'phpunit.xml',
@@ -30,182 +32,153 @@ class ExportProjectForAI extends Command
 
     public function handle()
     {
-        // 1. CHECK: Sollen nur Migrationen exportiert werden?
-        if ($this->option('migrations')) {
-            return $this->exportMigrations();
-        }
-
-        // 2. STANDARD, SHORT ODER IMPORTANTS LOGIK
-        $outputFile = $this->option('output');
         $startTime = microtime(true);
-        $isShort = $this->option('short');
-        $isImportants = $this->option('importants');
+        $outputFile = $this->option('output');
 
-        if ($isImportants) {
-            $this->info("Funki startet den IMPORTANTS Export (Fokus auf Models, Services, Livewire, Routes)...");
-        } elseif ($isShort) {
-            $this->info("Funki startet den SHORT Export (Extreme Minification)...");
-        } else {
-            $this->info("Funki startet den Ultra-Slim Export (Extreme Minification)...");
-        }
-
-        $finder = new Finder();
-        $finder->ignoreDotFiles(true);
-
-        if ($isImportants) {
-            // Die absolut wichtigsten Backend-Kern-Ordner für eine fehlerfreie KI-Analyse
-            $importantPaths = [
+        if ($this->option('migrations')) {
+            $outputFile = $outputFile === 'project_context.txt' ? 'migrations.txt' : $outputFile;
+            $paths = [base_path('database/migrations')];
+            $this->ignoredDirectories = [];
+        } elseif ($this->option('importants')) {
+            $paths = [
                 base_path('app/Models'),
                 base_path('app/Livewire'),
                 base_path('app/Services'),
                 base_path('routes'),
             ];
-
-            foreach ($importantPaths as $path) {
-                if (File::exists($path)) {
-                    $finder->in($path);
-                }
-            }
-        } elseif ($isShort) {
-            // Nur die definierten Ordner (ohne 'public')
-            $shortPaths = [
+        } elseif ($this->option('short')) {
+            $paths = [
                 base_path('app/Http'),
                 base_path('routes'),
                 base_path('resources'),
                 base_path('app/Livewire'),
                 base_path('app/Console/Commands'),
             ];
-
-            // Nur existierende Pfade hinzufügen
-            foreach ($shortPaths as $path) {
-                if (File::exists($path)) {
-                    $finder->in($path);
-                }
-            }
         } else {
-            // Standard: Das gesamte Projektverzeichnis minus die ignoredDirectories
-            $finder->in(base_path())
-                ->exclude($this->ignoredDirectories);
+            $paths = [base_path()];
+            $this->ignoredDirectories[] = 'database/migrations';
         }
 
-        // Dateien filtern
-        $finder->filter(function (\SplFileInfo $file) {
-            if (in_array($file->getBasename(), $this->ignoredFiles)) return false;
+        $validPaths = array_filter($paths, fn($path) => File::exists($path));
 
-            $extension = $file->getExtension();
-            if (str_contains($file->getBasename(), '.blade.php')) return true;
-            return in_array($extension, $this->allowedExtensions);
-        });
-
-        if ($isImportants) {
-            $content = "PROJECT LOGIC (IMPORTANTS ONLY)\n====================\n";
-        } elseif ($isShort) {
-            $content = "PROJECT LOGIC (SHORT)\n====================\n";
-        } else {
-            $content = "PROJECT LOGIC SUMMARY\n=====================\n";
+        if (empty($validPaths)) {
+            $this->error("Keine gültigen Pfade zum Exportieren gefunden.");
+            return Command::FAILURE;
         }
-
-        foreach ($finder as $file) {
-            $relativePath = ($isShort || $isImportants) ? str_replace(base_path() . DIRECTORY_SEPARATOR, '', $file->getRealPath()) : $file->getRelativePathname();
-            $fileContent = $file->getContents();
-            $isBlade = str_contains($file->getBasename(), '.blade.php');
-
-            // Radikale Bereinigung / Minifizierung
-            $fileContent = $this->cleanContent($fileContent, $file->getExtension(), $isBlade);
-
-            // Nur hinzufügen, wenn die Datei nicht komplett leer ist
-            if (!empty($fileContent)) {
-                // Einzeiler pro Datei spart enorm Platz
-                $content .= "--- FILE: {$relativePath} ---\n{$fileContent}\n\n";
-                $this->line("Minifiziert: <comment>{$relativePath}</comment>");
-            }
-        }
-
-        File::put(base_path($outputFile), $content);
-
-        $this->finishExport($startTime, $outputFile);
-
-        return Command::SUCCESS;
-    }
-
-    protected function exportMigrations()
-    {
-        $outputFile = $this->option('output') === 'project_context.txt'
-            ? 'migrations.txt'
-            : $this->option('output');
-
-        $startTime = microtime(true);
-        $this->info("Exportiere nur Datenbank-Migrationen...");
 
         $finder = new Finder();
-        $finder->files()
-            ->in(base_path('database/migrations'))
-            ->name('*.php')
-            ->sortByName();
+        $finder->ignoreDotFiles(true)
+            ->in($validPaths)
+            ->exclude($this->ignoredDirectories);
 
-        $content = "DATABASE MIGRATIONS ONLY\n========================\n";
+        $finder->filter(function (\SplFileInfo $file) {
+            if ($file->isDir()) return false;
+            if (in_array($file->getBasename(), $this->ignoredFiles)) return false;
+
+            $isBlade = str_ends_with($file->getBasename(), '.blade.php');
+            if ($isBlade) return true;
+
+            return in_array($file->getExtension(), $this->allowedExtensions);
+        });
+
+        // Speicherschonendes Schreiben direkt in die Datei
+        $handle = fopen(base_path($outputFile), 'w');
+        if (!$handle) {
+            $this->error("Konnte Zieldatei nicht öffnen.");
+            return Command::FAILURE;
+        }
+
+        $exportType = $this->option('migrations') ? 'DATABASE MIGRATIONS' : 'PROJECT LOGIC';
+        fwrite($handle, "{$exportType}\n====================\n");
+
+        $fileCount = 0;
 
         foreach ($finder as $file) {
-            $relativePath = $file->getRelativePathname();
-            $fileContent = $file->getContents();
+            $relativePath = str_replace(base_path() . DIRECTORY_SEPARATOR, '', $file->getRealPath());
+            $isBlade = str_ends_with($file->getBasename(), '.blade.php');
 
-            $fileContent = $this->cleanContent($fileContent, 'php', false);
+            $fileContent = $this->cleanContent($file->getRealPath(), $file->getContents(), $file->getExtension(), $isBlade);
 
             if (!empty($fileContent)) {
-                $content .= "--- MIGR: {$relativePath} ---\n{$fileContent}\n\n";
+                // Keine extra Leerzeilen, kompakteste Darstellung
+                fwrite($handle, "---FILE:{$relativePath}---\n{$fileContent}\n");
                 $this->line("Minifiziert: <comment>{$relativePath}</comment>");
+                $fileCount++;
             }
         }
 
-        File::put(base_path($outputFile), $content);
-
-        $this->finishExport($startTime, $outputFile);
+        fclose($handle);
+        $this->finishExport($startTime, $outputFile, $fileCount);
 
         return Command::SUCCESS;
     }
 
     /**
-     * Extreme Minifizierung: Entfernt Kommentare, alle Zeilenumbrüche und quetscht den Code zusammen.
+     * Radikale Minifizierung auf Token-Basis.
+     * Entfernt alle Leerzeichen sicher, ohne Strings zu zerstören.
      */
-    protected function cleanContent($content, $extension, $isBlade = false)
+    protected function cleanContent($filePath, $content, $extension, $isBlade = false)
     {
-        // 1. Blade & HTML Kommentare entfernen
+        // 1. Extreme Komprimierung für reine PHP Dateien (Kein Blade)
+        if ($extension === 'php' && !$isBlade) {
+            $tokens = token_get_all(file_get_contents($filePath));
+            $output = '';
+
+            foreach ($tokens as $token) {
+                if (is_string($token)) {
+                    $output .= $token;
+                } else {
+                    $id = $token[0];
+                    $text = $token[1];
+
+                    // Kommentare und Whitespaces komplett ignorieren
+                    if (in_array($id, [T_COMMENT, T_DOC_COMMENT, T_WHITESPACE])) continue;
+
+                    // Ein Leerzeichen nur dann einfügen, wenn zwei Buchstaben/Zahlen/Variablen direkt aufeinandertreffen
+                    if ($output !== '') {
+                        $lastChar = substr($output, -1);
+                        $firstChar = substr($text, 0, 1);
+                        if (preg_match('/[a-zA-Z0-9_]/', $lastChar) && preg_match('/[a-zA-Z0-9_\$]/', $firstChar)) {
+                            $output .= ' ';
+                        }
+                    }
+                    $output .= $text;
+                }
+            }
+            return trim($output);
+        }
+
+        // 2. Blade & JS (Hier bleibt Regex, aber optimiert)
         if ($isBlade) {
             $content = preg_replace('/\{\{--.*?--\}\}/s', '', $content);
             $content = preg_replace('//s', '', $content);
         }
 
-        // 2. PHP/JS Kommentare entfernen
-        if ($extension === 'php' || $extension === 'js' || $isBlade) {
+        if ($extension === 'js') {
             $content = preg_replace('!/\*.*?\*/!s', '', $content);
-            $content = preg_replace('/(?<!:)\/\/.*$/m', '', $content);
+            $content = preg_replace('/^(?:(?!\/\/).)*\K\/\/.*$/m', '', $content);
         }
 
-        // 3. Alle Zeilenumbrüche, Tabs und mehrfachen Leerzeichen zu einem einzigen Leerzeichen machen
+        // Whitespaces zusammenziehen
         $content = preg_replace('/\s+/', ' ', $content);
-
-        // 4. Leerzeichen um syntaktische Zeichen entfernen ({, }, (, ), =, ;, ,, <, >, etc.)
-        // Das quetscht den Code extrem zusammen, ist für eine KI aber problemlos lesbar.
-        $content = preg_replace('/\s*([{}()\[\];,=><!?:]+)\s*/', '$1', $content);
-
-        // 5. Sicherstellen, dass das PHP-Start-Tag ein Leerzeichen danach hat (wichtig für den Parser)
-        $content = preg_replace('/<\?php/', '<?php ', $content);
+        // Sicheres Entfernen von Leerzeichen um syntaktische Klammern
+        $content = preg_replace('/\s*([{}()\[\];])\s*/', '$1', $content);
 
         return trim($content);
     }
 
-    protected function finishExport($startTime, $outputFile)
+    protected function finishExport($startTime, $outputFile, $fileCount)
     {
         $duration = round(microtime(true) - $startTime, 2);
         $size = round(File::size(base_path($outputFile)) / 1024, 2);
 
-        $this->info("Export abgeschlossen!");
+        $this->info("Export erfolgreich!");
         $this->table(
             ['Metrik', 'Wert'],
             [
+                ['Dateien', $fileCount],
                 ['Dauer', $duration . ' Sek.'],
-                ['Größe neu', $size . ' KB'],
-                ['Speicherort', base_path($outputFile)],
+                ['Größe', $size . ' KB'],
             ]
         );
     }
