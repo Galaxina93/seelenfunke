@@ -20,6 +20,10 @@ return new class extends Migration
             $table->json('titles_progress')->nullable(); // Speichert den Fortschritt der Titel
             $table->boolean('show_seelengott_badge')->default(false);
 
+            // NEU: Energie-System für Spiele
+            $table->integer('energy_balance')->default(5); // Aktuelle Leben/Energie
+            $table->timestamp('last_energy_refill_at')->nullable(); // Wann wurde zuletzt aufgefüllt?
+
             $table->timestamps();
         });
     }

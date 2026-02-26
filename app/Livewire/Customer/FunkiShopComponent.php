@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Carbon\Carbon;
 
 class FunkiShopComponent extends Component
 {
@@ -42,6 +43,12 @@ class FunkiShopComponent extends Component
 
     public object $user;
 
+    // NEU: Energie und Gutschein Eigenschaften
+    public int $energyBalance = 5;
+    public int $maxEnergy = 5;
+    public int $nextVoucherLevel = 5; // Startwert
+    public array $voucherMilestones = [5, 10, 15, 20, 30, 40, 50, 60, 80];
+
     public function updatingSearchOrder()
     {
         $this->resetPage();
@@ -59,7 +66,63 @@ class FunkiShopComponent extends Component
         $this->hasOptedIn = $profile->is_active;
 
         if ($this->hasOptedIn) {
+            $this->checkEnergyRefill($profile);
             $this->loadGamificationData($gameService, $profile);
+        }
+    }
+
+    // NEU: Methode zum Prüfen und Auffüllen der Energie (z.B. täglich)
+    private function checkEnergyRefill($profile)
+    {
+        $now = Carbon::now();
+        $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
+
+        // Wenn noch nie aufgefüllt wurde oder der letzte Refill vor Mitternacht war
+        if (!$lastRefill || !$lastRefill->isSameDay($now)) {
+            $profile->energy_balance = $this->maxEnergy;
+            $profile->last_energy_refill_at = $now;
+            $profile->save();
+        }
+    }
+
+    // NEU: Methode zum Verbrauchen von Energie vor einem Spiel
+    public function consumeEnergy()
+    {
+        $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->first();
+
+        if ($profile && $profile->energy_balance > 0) {
+            $profile->energy_balance -= 1;
+            $profile->save();
+            $this->energyBalance = $profile->energy_balance;
+            return true;
+        }
+
+        $this->dispatch('notify', ['type' => 'error', 'message' => 'Nicht genug Seelen-Energie!']);
+        return false;
+    }
+
+    // NEU: Methode zum Hinzufügen von erspielten Funken
+    public function rewardGameSparks($amount)
+    {
+        // Sicherheits-Check: Maximal 50 Funken pro Spielrunde erlauben, um Missbrauch zu verhindern
+        $safeAmount = min(intval($amount), 50);
+
+        if ($safeAmount > 0) {
+            $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->first();
+            if($profile) {
+                $profile->funken_balance += $safeAmount;
+                $profile->funken_total_earned += $safeAmount;
+                $profile->save();
+
+                $this->balance = $profile->funken_balance;
+                $this->canUpgrade = !$this->isMaxLevel && ($this->balance >= $this->upgradeCost);
+
+                if ($this->isMaxLevel) {
+                    $this->progressPercentage = 100;
+                } else {
+                    $this->progressPercentage = min(100, round(($this->balance / $this->upgradeCost) * 100));
+                }
+            }
         }
     }
 
@@ -70,6 +133,8 @@ class FunkiShopComponent extends Component
 
         if ($profile->funken_balance === 0 && $profile->level === 1) {
             $profile->funken_balance = 15;
+            $profile->energy_balance = 5;
+            $profile->last_energy_refill_at = Carbon::now();
         }
         $profile->save();
         $this->hasOptedIn = true;
@@ -86,6 +151,8 @@ class FunkiShopComponent extends Component
 
         $this->level = $profile->level ?? 1;
         $this->balance = $profile->funken_balance;
+        $this->energyBalance = $profile->energy_balance ?? 5; // Energie laden
+
         $this->isMaxLevel = $this->level >= GameConfig::MAX_LEVEL;
         $this->upgradeCost = $gameService->getUpgradeCost($this->level);
         $this->canUpgrade = !$this->isMaxLevel && ($this->balance >= $this->upgradeCost);
@@ -113,6 +180,20 @@ class FunkiShopComponent extends Component
         $evaluation = $gameService->evaluateTitles($profile);
         $this->titlesData = $evaluation['titles'];
         $this->isSeelengott = $evaluation['is_seelengott'];
+
+        // Berechne nächstes Gutschein-Level
+        $this->calculateNextVoucherLevel();
+    }
+
+    private function calculateNextVoucherLevel()
+    {
+        foreach($this->voucherMilestones as $milestone) {
+            if ($this->level < $milestone) {
+                $this->nextVoucherLevel = $milestone;
+                return;
+            }
+        }
+        $this->nextVoucherLevel = end($this->voucherMilestones); // Maximales Level erreicht
     }
 
     private function getRankName(int $level): string
@@ -132,6 +213,12 @@ class FunkiShopComponent extends Component
             $this->loadGamificationData($gameService);
             $this->dispatch('funki-level-up', ['level' => $result['new_level'], 'reward' => $result['reward'], 'newModelPath' => $this->modelPath, 'newImagePath' => $this->imagePath]);
             $this->dispatch('notify', ['type' => 'success', 'message' => 'Level Up!']);
+
+            // Gutschein Check
+            if (in_array($result['new_level'], $this->voucherMilestones)) {
+                // HIER LOGIK EINFÜGEN UM GUTSCHEIN ZU GENERIEREN
+                $this->dispatch('notify', ['type' => 'success', 'message' => 'Du hast einen neuen Rabatt-Gutschein freigeschaltet!']);
+            }
         }
     }
 
@@ -220,8 +307,7 @@ class FunkiShopComponent extends Component
         $p = $this->user->profile;
 
         $needsProfileInfo = empty($this->user->first_name) || empty($this->user->last_name) ||
-            empty($p->street) || empty($p->city) || empty($p->postal) ||
-            $p->is_business === null || empty($p->birthday);
+            empty($p->street) || empty($p->city) || empty($p->house_number) || empty($p->postal);
 
         if ($needsProfileInfo) {
             $profileSteps[] = ['label' => 'Profil Informationen', 'action' => "\$dispatch('open-profile-modal', {tab: 'profile'})"];
