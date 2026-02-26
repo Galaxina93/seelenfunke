@@ -11,3 +11,32 @@ dart run export_project.dart
 
 App live aufs Handy releasen:
 flutter run --release
+
+
+
+DOCKER:
+
+Container neu starten:
+docker compose up -d
+
+Alten Container stoppen:
+docker compose down
+
+Container neu bauen:
+docker compose up -d --build
+
+Container neu bauen ohne (Cache):
+docker compose build --no-cache web
+
+Container restlos löschen:
+docker compose down -v
+
+Artisan Migrate:
+docker exec -it mein_php_server php artisan migrate
+docker exec -it mein_php_server php artisan migrate:fresh --seed
+
+Schreibrechte unter Linux:
+chmod -R 777 storage bootstrap/cache
+
+Host Datei:
+C:\Windows\System32\drivers\etc

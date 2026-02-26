@@ -1,0 +1,32 @@
+#!/bin/bash
+
+case "$1" in
+    start)
+        echo "🚀 Starte Funki..."
+        docker compose up -d
+        ;;
+    stop)
+        echo "🛑 Stoppe Funki..."
+        docker compose down
+        ;;
+    bauen)
+        echo "🏗️ Baue Funki neu..."
+        docker compose up -d --build
+        ;;
+    löschen)
+        echo "💥 Lösche Funki (inkl. Volumes)..."
+        docker compose down -v
+        ;;
+    migrate)
+        echo "🗄️ Führe Migrationen und Seeder aus..."
+        docker compose exec web php artisan migrate:fresh --seed
+        ;;
+    key)
+        echo "🗄️ Führe Key Generate aus..."
+        docker compose exec web php artisan key:generate
+        ;;
+    *)
+        echo "💥 Funki ist bereit! Nutze: funki start, stop, bauen, löschen oder migrate"
+        exit 1
+        ;;
+esac
