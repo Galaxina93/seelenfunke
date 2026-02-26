@@ -11,7 +11,6 @@ configSettings: @entangle('configSettings'),
 isDraggingPoint: null,
 isInitialized: false,
 
-// 1. ENGINE ZU 100% VON ALPINE ISOLIEREN
 getEngine() {
 if (!window._adminThreeEngine) {
 window._adminThreeEngine = {
@@ -23,7 +22,6 @@ textureCtx: null, texture: null
 return window._adminThreeEngine;
 },
 
-// 2. RAW HELPER: Entfernt garantiert alle Alpine.js / Vue Proxies!
 getRaw(obj) {
 if (!obj) return obj;
 if (typeof Alpine !== 'undefined' && Alpine.raw) return Alpine.raw(obj);
@@ -115,8 +113,8 @@ eng.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 container.innerHTML = '';
 container.appendChild(eng.renderer.domElement);
 
-eng.scene.add(new window.THREE.AmbientLight(0xffffff, 0.9));
-const light = new window.THREE.DirectionalLight(0xffffff, 1.5);
+eng.scene.add(new window.THREE.AmbientLight(0xffffff, 0.6));
+const light = new window.THREE.DirectionalLight(0xffffff, 1.2);
 light.position.set(5, 10, 7.5);
 eng.scene.add(light);
 
@@ -131,10 +129,9 @@ eng.controls.enabled = !event.value;
 if (!event.value) this.syncTransformsToConfig();
 });
 
-// 3. FIX: TransformControls Object3D Kompatibilität herstellen
 let controlObj = eng.tControls.getHelper ? eng.tControls.getHelper() : eng.tControls;
 if (typeof controlObj.isObject3D === 'undefined') {
-controlObj.isObject3D = true; // Zwingt ThreeJS das Objekt zu akzeptieren
+controlObj.isObject3D = true;
 }
 eng.scene.add(this.getRaw(controlObj));
 }
@@ -156,8 +153,6 @@ const center = box.getCenter(new window.THREE.Vector3());
 eng.model.position.sub(center);
 
 eng.modelContainer = new window.THREE.Group();
-
-// Raw-Versionen verwenden, um Proxy-Abstürze beim .add() zu vermeiden
 eng.modelContainer.add(this.getRaw(eng.model));
 
 const maxPlaneSize = Math.max(size.x, size.y);
@@ -328,9 +323,9 @@ if(!eng.textureCtx || !this.configSettings) return;
 
 eng.textureCtx.clearRect(0, 0, 2048, 2048);
 
-eng.textureCtx.fillStyle = 'rgba(16, 185, 129, 0.4)';
+eng.textureCtx.fillStyle = 'rgba(16, 185, 129, 0.2)';
 eng.textureCtx.strokeStyle = '#10b981';
-eng.textureCtx.lineWidth = 10;
+eng.textureCtx.lineWidth = 15;
 
 const shape = this.configSettings.area_shape || 'rect';
 
@@ -381,14 +376,12 @@ if (!rect.width || !rect.height) return;
 const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
 const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
 
-// Klone das Array sauber, um Reaktivitäts-Konflikte zu vermeiden
 let pts = JSON.parse(JSON.stringify(this.configSettings.custom_points)).filter(p => p !== null);
 
 if(pts[this.isDraggingPoint]) {
 pts[this.isDraggingPoint].x = parseFloat(x.toFixed(2));
 pts[this.isDraggingPoint].y = parseFloat(y.toFixed(2));
 
-// Zuweisung löst Alpine/Livewire Sync aus
 this.configSettings.custom_points = pts;
 this.updateTexture();
 }
@@ -399,27 +392,19 @@ this.isDraggingPoint = null;
 },
 
 addPoint(e) {
-// 1. Nur ausführen, wenn die Form auf 'custom' steht
 if(this.configSettings.area_shape !== 'custom') return;
-
-// 2. Nur ausführen, wenn das Zeichenbrett aktiv ist (verhindert Infinity-Fehler)
 if(!this.showDrawingBoard) return;
 
 const rect = this.$refs.adminContainer2d.getBoundingClientRect();
 
-// 3. Sicherheitscheck: Wenn das Element keine Maße hat (z.B. ausgeblendet), Abbruch
 if (!rect.width || !rect.height) return;
-
-// 4. Verhindern, dass Klicks auf existierende Punkte neue Punkte erzeugen
 if(e.target.closest('.point-handle')) return;
 
 const x = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
 const y = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
 
-// 5. Validierung der Werte
 if (isNaN(x) || isNaN(y) || !isFinite(x) || !isFinite(y)) return;
 
-// 6. Sauberes Update des Arrays
 let pts = JSON.parse(JSON.stringify(this.configSettings.custom_points || [])).filter(p => p !== null);
 pts.push({x: x, y: y});
 

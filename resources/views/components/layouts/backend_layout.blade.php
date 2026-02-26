@@ -12,10 +12,10 @@
 
     @livewireStyles
 </head>
-<body class="min-h-screen bg-gray-950 font-sans text-gray-300 antialiased relative overflow-x-hidden" x-data="goldDustLayout()" x-init="init()">
+<body class="min-h-screen bg-gray-950 font-sans text-gray-300 antialiased relative overflow-x-hidden" x-data="universeLayout()" x-init="init()">
 
-{{-- HINTERGRUND FUNKEN --}}
-<canvas id="global-gold-dust-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
+{{-- HINTERGRUND UNIVERSUM --}}
+<canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
 
 <div x-data="{ open: false }" class="relative z-10">
     @if($guard !== 'customer')
@@ -119,95 +119,217 @@
 </style>
 
 <script>
-    if (typeof window.goldDustLayout === 'undefined') {
-        window.goldDustLayout = function() {
+    if (typeof window.universeLayout === 'undefined') {
+        window.universeLayout = function() {
             return {
-                maxMeteors: 60, // Auf 60 Meteoriten erhöht
-
                 init() {
-                    const canvas = document.getElementById('global-gold-dust-canvas');
+                    const canvas = document.getElementById('global-universe-canvas');
                     if (!canvas) return;
                     const ctx = canvas.getContext('2d');
-                    let meteors = [];
 
-                    const resize = () => {
-                        canvas.width = document.body.clientWidth;
-                        canvas.height = window.innerHeight;
+                    let width, height;
+                    let stars = [];
+                    let planets = [];
+                    let meteors = [];
+                    let dust = [];
+
+                    // Einstellungen für das gechillte Universum
+                    const config = {
+                        starsCount: 250,
+                        planetsCount: 3, // Sonnen/Monde
+                        dustCount: 40,
+                        meteorsCount: 12,
+                        colors: {
+                            gold: 'rgba(197, 160, 89,',
+                            white: 'rgba(255, 255, 255,',
+                            blue: 'rgba(100, 150, 255,',
+                            copper: 'rgba(217, 119, 83,'
+                        }
                     };
 
+                    const resize = () => {
+                        width = canvas.width = window.innerWidth;
+                        height = canvas.height = window.innerHeight;
+                    };
                     window.addEventListener('resize', resize);
                     resize();
 
-                    // Funktion zum Erstellen eines Meteoriten
-                    const spawnMeteor = (initialSpawn = false) => {
-                        // 50/50 Chance: links nach rechts ODER rechts nach links
-                        const goRight = Math.random() > 0.5;
+                    // Hilfsfunktion für Zufallszahlen
+                    const random = (min, max) => Math.random() * (max - min) + min;
 
-                        // EXTREM langsam: 0.05 bis 0.15 Pixel pro Frame.
-                        let vx = (Math.random() * 0.1 + 0.05);
-                        if (!goRight) vx = -vx;
+                    // 1. STERNE (Funkeln im Hintergrund)
+                    for (let i = 0; i < config.starsCount; i++) {
+                        stars.push({
+                            x: random(0, width),
+                            y: random(0, height),
+                            r: random(0.3, 1.2),
+                            baseAlpha: random(0.1, 0.5),
+                            angle: random(0, Math.PI * 2),
+                            speed: random(0.005, 0.02),
+                            color: Math.random() > 0.8 ? config.colors.gold : config.colors.white
+                        });
+                    }
 
-                        // Leichtes vertikales Absinken/Aufsteigen
-                        let vy = (Math.random() - 0.5) * 0.05;
+                    // 2. MONDE / SONNEN (Tief im Hintergrund, riesig, fast unsichtbar)
+                    for (let i = 0; i < config.planetsCount; i++) {
+                        planets.push({
+                            x: random(0, width),
+                            y: random(0, height),
+                            r: random(150, 400),
+                            vx: random(-0.02, 0.02), // Extrem langsam
+                            vy: random(-0.02, 0.02),
+                            color: [config.colors.gold, config.colors.blue, config.colors.copper][Math.floor(Math.random() * 3)],
+                            maxAlpha: random(0.03, 0.08) // Geisterhaft transparent
+                        });
+                    }
+
+                    // 3. STERNENSTAUB (Sanftes Schweben)
+                    for (let i = 0; i < config.dustCount; i++) {
+                        dust.push({
+                            x: random(0, width),
+                            y: random(0, height),
+                            r: random(1, 3),
+                            vx: random(-0.05, 0.05),
+                            angle: random(0, Math.PI * 2),
+                            floatSpeed: random(0.005, 0.015),
+                            floatRange: random(10, 30),
+                            baseY: random(0, height),
+                            alpha: random(0.1, 0.3)
+                        });
+                    }
+
+                    // 4. METEORITEN (Zufällige flache Winkel)
+                    const spawnMeteor = (isInitial = false) => {
+                        // Spawnt entweder links, rechts, oben oder unten
+                        const edge = Math.floor(random(0, 4));
+                        let x, y, vx, vy;
+
+                        // Extrem langsame Geschwindigkeit für den "Chill" Faktor
+                        const speed = random(0.1, 0.3);
+                        const angle = random(0, Math.PI * 2);
+
+                        if (isInitial) {
+                            x = random(0, width);
+                            y = random(0, height);
+                        } else {
+                            if (edge === 0) { x = -50; y = random(0, height); } // Links
+                            if (edge === 1) { x = width + 50; y = random(0, height); } // Rechts
+                            if (edge === 2) { x = random(0, width); y = -50; } // Oben
+                            if (edge === 3) { x = random(0, width); y = height + 50; } // Unten
+                        }
+
+                        // Bewegung in Richtung Zentrum der Map (grob)
+                        vx = Math.cos(angle) * speed;
+                        vy = Math.sin(angle) * speed;
 
                         meteors.push({
-                            // Beim Initialen Start verteilen wir sie zufällig im Bild,
-                            // danach spawnen sie immer ganz außen am Rand.
-                            x: initialSpawn ? (Math.random() * canvas.width) : (goRight ? -50 : canvas.width + 50),
-                            y: Math.random() * canvas.height,
-                            vx: vx,
-                            vy: vy,
-                            // Deutlich größer (zwischen 1.5 und 4.0 Radius)
-                            size: Math.random() * 2.5 + 1.5,
-                            // Transparenz (Distanzeffekt)
-                            alpha: Math.random() * 0.3 + 0.1,
-                            // Länge des Schweifs an die neue Größe angepasst
-                            tailLength: Math.random() * 60 + 30
+                            x: x, y: y, vx: vx, vy: vy,
+                            size: random(0.8, 2.5),
+                            alpha: random(0.1, 0.6),
+                            length: random(30, 100),
+                            color: Math.random() > 0.5 ? config.colors.gold : config.colors.white
                         });
                     };
 
-                    // 60 Meteoriten initial erschaffen
-                    for (let i = 0; i < this.maxMeteors; i++) {
+                    for (let i = 0; i < config.meteorsCount; i++) {
                         spawnMeteor(true);
                     }
 
+                    // ==========================================
+                    // RENDER LOOP
+                    // ==========================================
                     const loop = () => {
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.clearRect(0, 0, width, height);
 
+                        // 1. Monde & Sonnen zeichnen
+                        planets.forEach(p => {
+                            p.x += p.vx;
+                            p.y += p.vy;
+
+                            // Endlos-Loop an den Rändern
+                            if (p.x - p.r > width) p.x = -p.r;
+                            if (p.x + p.r < 0) p.x = width + p.r;
+                            if (p.y - p.r > height) p.y = -p.r;
+                            if (p.y + p.r < 0) p.y = height + p.r;
+
+                            let grad = ctx.createRadialGradient(p.x - p.r * 0.2, p.y - p.r * 0.2, 0, p.x, p.y, p.r);
+                            grad.addColorStop(0, `${p.color}${p.maxAlpha})`);
+                            grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                            ctx.fillStyle = grad;
+                            ctx.fill();
+                        });
+
+                        // 2. Sterne zeichnen (Funkeln)
+                        stars.forEach(s => {
+                            s.angle += s.speed;
+                            // Pulsierender Alpha-Wert
+                            let currentAlpha = s.baseAlpha + Math.sin(s.angle) * 0.3;
+                            if (currentAlpha < 0) currentAlpha = 0;
+
+                            ctx.beginPath();
+                            ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                            ctx.fillStyle = `${s.color}${currentAlpha})`;
+                            ctx.fill();
+                        });
+
+                        // 3. Sternenstaub (Schweben)
+                        dust.forEach(d => {
+                            d.x += d.vx;
+                            d.angle += d.floatSpeed;
+                            d.y = d.baseY + Math.sin(d.angle) * d.floatRange;
+
+                            if (d.x > width + 10) d.x = -10;
+                            if (d.x < -10) d.x = width + 10;
+
+                            ctx.beginPath();
+                            ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+                            ctx.fillStyle = `${config.colors.gold}${d.alpha})`;
+                            ctx.shadowBlur = d.r * 3;
+                            ctx.shadowColor = `${config.colors.gold}${d.alpha})`;
+                            ctx.fill();
+                            ctx.shadowBlur = 0; // Reset
+                        });
+
+                        // 4. Meteoriten zeichnen
                         for (let i = meteors.length - 1; i >= 0; i--) {
                             let m = meteors[i];
 
-                            // Position aktualisieren
                             m.x += m.vx;
                             m.y += m.vy;
 
-                            // Wenn der Meteorit den Bildschirm komplett verlassen hat -> löschen & neu spawnen
-                            if ((m.vx > 0 && m.x > canvas.width + 100) ||
-                                (m.vx < 0 && m.x < -100) ||
-                                m.y > canvas.height + 100 ||
-                                m.y < -100) {
+                            // Entfernen und Neu-Spawnen wenn außerhalb
+                            if (m.x > width + 150 || m.x < -150 || m.y > height + 150 || m.y < -150) {
                                 meteors.splice(i, 1);
-                                spawnMeteor(); // Neu am Rand spawnen
+                                spawnMeteor();
                                 continue;
                             }
 
-                            // 1. Den feinen Schweif zeichnen
+                            // Schweif
                             ctx.beginPath();
                             ctx.moveTo(m.x, m.y);
-                            // Der Schweif zeigt in die entgegengesetzte Flugrichtung
-                            ctx.lineTo(m.x - (m.vx * m.tailLength), m.y - (m.vy * m.tailLength));
-                            ctx.strokeStyle = `rgba(197, 160, 89, ${m.alpha * 0.4})`; // Primärfarbe Gold (sehr transparent)
-                            ctx.lineWidth = m.size * 0.8;
+                            ctx.lineTo(m.x - (m.vx * m.length), m.y - (m.vy * m.length));
+                            let grad = ctx.createLinearGradient(m.x, m.y, m.x - (m.vx * m.length), m.y - (m.vy * m.length));
+                            grad.addColorStop(0, `${m.color}${m.alpha})`);
+                            grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+                            ctx.strokeStyle = grad;
+                            ctx.lineWidth = m.size * 0.6;
+                            ctx.lineCap = 'round';
                             ctx.stroke();
 
-                            // 2. Den "Kopf" des Meteoriten zeichnen
+                            // Leuchtender Kopf
                             ctx.beginPath();
                             ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
-                            ctx.fillStyle = `rgba(212, 175, 55, ${m.alpha + 0.2})`;
-                            ctx.shadowBlur = m.size * 4;
-                            ctx.shadowColor = `rgba(197, 160, 89, ${m.alpha})`;
+                            ctx.fillStyle = `${m.color}${m.alpha + 0.3})`;
+                            ctx.shadowBlur = m.size * 5;
+                            ctx.shadowColor = `${m.color}${m.alpha})`;
                             ctx.fill();
+                            ctx.shadowBlur = 0; // Reset
                         }
+
                         requestAnimationFrame(loop);
                     };
                     loop();

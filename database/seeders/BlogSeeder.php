@@ -81,7 +81,7 @@ class BlogSeeder extends Seeder
                     <p>Es wird Zeit, das bestgehütete Geheimnis unseres Teams zu lüften. Wir haben Zuwachs bekommen, und er ist... nun ja, ziemlich strahlend!</p>
 
                     <h3>Wer ist Funki?</h3>
-                    <p>Sein voller Name ist <strong>Funki Funke</strong> (ja, der Nachname ist purer Zufall 😉). Funki ist nicht nur unser Maskottchen, das gut auf Bildern aussieht. Er spielt eine zentrale Rolle in unserem System.</p>
+                    <p>Funki ist ein zum leben erwecktes Lasergerät. Sein voller Name ist <strong>Funki Funke</strong> (ja, der Nachname ist purer Zufall 😉). Funki ist nicht nur unser Maskottchen, das gut auf Bildern aussieht. Er spielt eine zentrale Rolle in unserem System.</p>
 
                     <p>Funki liebt Effizienz. In Zukunft werdet ihr ihm öfter begegnen:</p>
                     <ul>

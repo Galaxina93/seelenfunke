@@ -1,21 +1,21 @@
 <div>
-    <div class="min-h-screen bg-gray-50 pb-20 font-sans text-gray-800">
+    <div class="min-h-screen bg-transparent pb-20 font-sans text-gray-300">
         {{-- Success Notification --}}
         @if (session()->has('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
-                 class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2 animate-fade-in-up">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 class="fixed bottom-6 right-6 bg-emerald-500/10 border border-emerald-500/30 backdrop-blur-md text-emerald-400 px-6 py-4 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.2)] z-50 flex items-center gap-3 animate-fade-in-up">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
-                <span class="font-bold">{{ session('success') }}</span>
+                <span class="font-black uppercase tracking-widest text-[10px]">{{ session('success') }}</span>
             </div>
         @endif
 
         {{-- Header --}}
-        <div class="bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-100 sticky top-0 z-30 transition-all duration-300">
-            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-3 tracking-tight">
-                    <div class="p-2 bg-orange-100 rounded-lg text-orange-500">
+        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
+            <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
+                    <div class="p-2.5 bg-orange-500/10 border border-orange-500/20 shadow-inner rounded-xl text-orange-400 shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
@@ -24,36 +24,31 @@
                 </h1>
 
                 {{-- Datumsauswahl --}}
-                <div class="flex bg-gray-100 rounded-lg p-1 shadow-inner">
-                    <select wire:model.live="selectedMonth" class="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-gray-700 py-1 pl-3 pr-8">
+                <div class="flex items-center gap-2 sm:gap-3 bg-gray-950 p-1.5 rounded-2xl border border-gray-800 shadow-inner w-full sm:w-auto">
+                    <select wire:model.live="selectedMonth" class="appearance-none w-full bg-transparent pl-4 pr-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-900 hover:text-white focus:bg-black focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer border-none outline-none sm:w-40 text-center shadow-inner">
                         @foreach(range(1, 12) as $m)
-                            <option value="{{ $m }}">{{ date('F', mktime(0, 0, 0, $m, 1)) }}</option>
+                            <option value="{{ $m }}" class="bg-gray-900">{{ date('F', mktime(0, 0, 0, $m, 1)) }}</option>
                         @endforeach
                     </select>
-                    <div class="w-px bg-gray-300 my-1"></div>
-                    <select wire:model.live="selectedYear" class="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-gray-700 py-1 pl-3 pr-8">
+                    <div class="w-px h-8 bg-gray-800 shrink-0"></div>
+                    <select wire:model.live="selectedYear" class="appearance-none w-full bg-transparent pl-4 pr-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-900 hover:text-white focus:bg-black focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer border-none outline-none sm:w-32 text-center shadow-inner">
                         @foreach(range(date('Y')-2, date('Y')+1) as $y)
-                            <option value="{{ $y }}">{{ $y }}</option>
+                            <option value="{{ $y }}" class="bg-gray-900">{{ $y }}</option>
                         @endforeach
                     </select>
                 </div>
             </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <div class="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
 
             {{--
-                1. BELEG-CHECK / VALIDIERUNG (Eingeklappt & Statusfarben)
-            --}}
-            @include('livewire.shop.financial.partials.bill_check')
-
-            {{--
-                2. KATEGORIEN VERWALTEN (Eingeklappt)
+                1. KATEGORIEN VERWALTEN (Eingeklappt)
             --}}
             @include('livewire.shop.financial.partials.category_management')
 
             {{--
-                3. LISTE DER SONDERAUSGABEN (Tabelle & Chart)
+                2. LISTE DER SONDERAUSGABEN (Tabelle & Chart)
             --}}
             @include('livewire.shop.financial.partials.special_issue_list')
 
@@ -62,34 +57,34 @@
 
     {{-- Delete Modal für Kategorien --}}
     @if($showCategoryDeleteModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-                <div class="p-6">
-                    <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-500 mb-4 mx-auto">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+            <div class="bg-gray-900/90 backdrop-blur-xl border border-gray-800 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-md w-full overflow-hidden">
+                <div class="p-8">
+                    <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-6 mx-auto shadow-inner drop-shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                     </div>
-                    <h3 class="text-lg font-bold text-center text-gray-900 mb-2">Kategorie löschen?</h3>
-                    <p class="text-center text-gray-500 text-sm mb-6">
-                        Die Kategorie <strong>"{{ $categoryToDeleteName }}"</strong> enthält noch Buchungen.
+                    <h3 class="text-xl font-serif font-bold text-center text-white mb-3 tracking-wide">Kategorie löschen?</h3>
+                    <p class="text-center text-gray-400 text-sm mb-8 leading-relaxed">
+                        Die Kategorie <strong class="text-white">"{{ $categoryToDeleteName }}"</strong> enthält noch Buchungen.
                         Bitte wählen Sie eine Ersatz-Kategorie, auf die diese Buchungen übertragen werden sollen.
                     </p>
 
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-2">Neue Kategorie</label>
-                        <select wire:model="targetCategoryId" class="w-full text-sm rounded-lg border-gray-300 focus:ring-orange-400">
-                            <option value="">Bitte wählen...</option>
+                    <div class="mb-8">
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Neue Kategorie</label>
+                        <select wire:model="targetCategoryId" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl text-sm p-3.5 focus:bg-black focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all shadow-inner outline-none cursor-pointer">
+                            <option value="" class="bg-gray-900">Bitte wählen...</option>
                             @foreach($this->manageableCategories as $cat)
                                 @if($cat->id !== $categoryToDeleteId)
-                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                    <option value="{{ $cat->id }}" class="bg-gray-900">{{ $cat->name }}</option>
                                 @endif
                             @endforeach
                         </select>
-                        @error('targetCategoryId') <span class="text-xs text-red-500 mt-1">{{ $message }}</span> @enderror
+                        @error('targetCategoryId') <span class="text-[10px] font-bold text-red-400 uppercase tracking-widest mt-2 block ml-1">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="flex justify-end gap-3">
-                        <button wire:click="cancelDeleteCategory" class="px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">Abbrechen</button>
-                        <button wire:click="confirmDeleteCategory" class="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-md">Jetzt übertragen & Löschen</button>
+                    <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 mt-8 pt-6 border-t border-gray-800">
+                        <button wire:click="cancelDeleteCategory" class="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-colors w-full sm:w-auto text-center">Abbrechen</button>
+                        <button wire:click="confirmDeleteCategory" class="px-5 py-3.5 text-[10px] font-black uppercase tracking-widest text-gray-900 bg-red-500 hover:bg-red-400 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:scale-[1.02] transition-all w-full sm:w-auto text-center">Löschen & Übertragen</button>
                     </div>
                 </div>
             </div>

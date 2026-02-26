@@ -37,10 +37,7 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.right-management');
     })->name('admin.right-management');
 
-    // Profile
-    Route::get('/admin/profile', function () {
-    return view('backend.admin.pages.profile');
-    })->name('admin.profile');
+
 
     // Shop
     Route::get('/admin/products', function () {

@@ -155,8 +155,8 @@ Route::get('/login', function () {
 })->middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->name('login');
 
 
-// REGISTRATIONS ROUTE
-Route::get('/register', App\Livewire\Global\Auth\Register::class)->name('register');
+// REGISTRATIONS ROUTE (Name korrigiert zu 'livewire.auth.register')
+Route::get('/register', App\Livewire\Global\Auth\Register::class)->name('livewire.global.auth.register');
 
 // Zeigt den Hinweis an, dass der User seine E-Mail bestätigen muss (nur wenn eingeloggter User unbestätigt ist)
 Route::get('/email/verify', function () {

@@ -81,7 +81,6 @@
         <ul role="list" class="-mx-2 space-y-1">
             <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />
             <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="right-management" icon="shield-check" />
-            <x-forms.list-item route="/admin/profile" title="Mein Profil" pageName="profile" icon="user-circle" />
         </ul>
     </li>
 </x-sections.vertical-nav>

@@ -1,10 +1,11 @@
-<div class="min-h-screen bg-gray-50 font-sans text-gray-900" x-data>
+<div class="min-h-screen bg-transparent font-sans text-gray-300" x-data>
 
     {{-- ========================================== --}}
     {{-- ANSICHT: LISTE (Übersicht aller Produkte)  --}}
     {{-- ========================================== --}}
     @if($viewMode === 'list')
         @include('livewire.shop.product.partials._list')
+
         {{-- ========================================== --}}
         {{-- ANSICHT: EDIT (Bearbeitungsmodus)          --}}
         {{-- ========================================== --}}

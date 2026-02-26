@@ -53,11 +53,6 @@
                 Mein Dashboard
             </a>
 
-            {{-- Optional: Profil Route --}}
-            <a href="{{ route($guard . '.profile') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-primary cursor-pointer" role="menuitem" tabindex="-1">
-                Profil
-            </a>
-
             <div class="border-t border-gray-100 mt-1">
                 <button wire:click="logout" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer font-medium" role="menuitem" tabindex="-1">
                     Ausloggen
@@ -75,7 +70,7 @@
                 </a>
 
                 <div class="text-xs text-gray-500">
-                    Neu? <a href="{{ route('register') }}" class="text-primary hover:underline font-bold">Registrieren</a>
+                    Neu? <a href="{{ route('livewire.global.auth.register') }}" class="text-primary hover:underline font-bold">Registrieren</a>
                 </div>
             </div>
         @endif
