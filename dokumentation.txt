@@ -38,5 +38,22 @@ docker exec -it mein_php_server php artisan migrate:fresh --seed
 Schreibrechte unter Linux:
 chmod -R 777 storage bootstrap/cache
 
+Mach den aktuellen Benutzer zu dem Besitzer von allen Dateien und Ordnern:
+sudo chown -R $USER:$USER .
+
+
 Host Datei:
 C:\Windows\System32\drivers\etc
+
+NPM RUN WATCH:
+installieren:               curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+Konfig laden:               source ~/.bashrc
+aktuelle nvm Version:       nvm install 20
+rm -rf node_modules
+rm package-lock.json
+npm install
+npm run watch
+
+
+LIVEWIRE:
+docker compose exec web php artisan make:livewire Customer.Game.CristallGame

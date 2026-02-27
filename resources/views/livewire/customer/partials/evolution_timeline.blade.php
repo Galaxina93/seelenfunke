@@ -1,3 +1,4 @@
+{{--
 <div x-show="show3DModal" style="display: none;" class="fixed inset-0 z-[2000] flex items-start justify-center pt-10 sm:pt-16 p-4 sm:px-10">
     <div class="absolute inset-0 bg-black/98 backdrop-blur-3xl" @click="close3DModal()" x-transition.opacity></div>
 
@@ -26,7 +27,9 @@
             </div>
         </div>
 
-        {{-- TITLE BOX: Auf Mobile nach unten verschoben (top-20), damit Platz für das Schließen-Kreuz bleibt --}}
+        --}}
+{{-- TITLE BOX: Auf Mobile nach unten verschoben (top-20), damit Platz für das Schließen-Kreuz bleibt --}}{{--
+
         <div class="absolute top-20 sm:top-10 left-4 right-4 sm:left-10 sm:right-auto z-[2020] flex justify-between items-start pointer-events-none">
             <div class="bg-gray-900/95 backdrop-blur-2xl border border-gray-700 rounded-[2rem] sm:rounded-[2.5rem] p-4 sm:p-6 flex items-center gap-4 sm:gap-8 shadow-2xl w-full max-w-lg pointer-events-auto">
                 <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-gradient-to-b from-primary to-primary-dark border-2 border-gray-900 flex items-center justify-center shadow-[0_0_20px_rgba(197,160,89,0.6)] shrink-0">
@@ -65,9 +68,12 @@
             </div>
         </div>
 
-        {{-- CLOSE BUTTON: Oben rechts separiert --}}
+        --}}
+{{-- CLOSE BUTTON: Oben rechts separiert --}}{{--
+
         <button @click="close3DModal()" class="absolute top-4 right-4 sm:top-10 sm:right-10 z-[2050] p-2.5 sm:p-4 bg-gray-800 border-2 border-gray-700 rounded-full text-gray-400 hover:text-white hover:bg-red-500 hover:border-red-500 transition-all shadow-[0_0_30px_rgba(0,0,0,0.8)] hover:scale-110 cursor-pointer">
             <svg class="w-5 h-5 sm:w-8 sm:h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
     </div>
 </div>
+--}}

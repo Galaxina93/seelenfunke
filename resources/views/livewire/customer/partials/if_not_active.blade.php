@@ -1,3 +1,4 @@
+{{--
 @if(!$hasOptedIn)
     <div class="w-full min-h-screen overflow-y-auto bg-gray-950 pb-24 relative scroll-smooth">
         <div class="relative w-full bg-gray-950/80 backdrop-blur-xl flex flex-col xl:flex-row items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-800 z-[250] gap-4 md:gap-6 shadow-lg">
@@ -7,7 +8,9 @@
                 </a>
             </div>
 
-            {{-- GLOBALE PROFIL NAVIGATION (Zentralisiert) --}}
+            --}}
+{{-- GLOBALE PROFIL NAVIGATION (Zentralisiert) --}}{{--
+
             @livewire('global.profile.profile-dropdown')
         </div>
 
@@ -91,3 +94,4 @@
         </div>
     </div>
 @endif
+--}}

@@ -1,7 +1,6 @@
 <div class="relative w-full bg-gray-950 flex flex-col xl:flex-row items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-800 z-20 gap-4 md:gap-6">
 
     <div class="flex flex-col xl:flex-row items-center w-full xl:w-auto xl:pr-6 xl:border-r border-gray-800 shrink-0 gap-3 xl:gap-4">
-
         <a href="/" target="_blank" class="shrink-0 mb-1 xl:mb-0 relative z-30">
             <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
         </a>
@@ -16,7 +15,6 @@
                 <button wire:click="upgrade" wire:loading.attr="disabled" @disabled(!$canUpgrade) class="group relative px-4 py-2.5 sm:px-5 sm:py-3 md:px-8 md:py-4 rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest transition-all overflow-hidden shrink-0 {{ $canUpgrade ? 'bg-primary text-gray-900 shadow-[0_0_40px_rgba(197,160,89,1)] hover:bg-white hover:scale-110 animate-[pulse_1.5s_infinite]' : 'bg-gray-800 text-gray-500 cursor-not-allowed' }}">
                     <span wire:loading.remove wire:target="upgrade" class="relative z-10 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap">
                         @if($canUpgrade)
-                            {{-- Arrow Up (Up Vote) Icon anstatt dem alten --}}
                             <svg class="w-4 h-4 md:w-5 md:h-5 transition-transform animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
                             Upgraden
                         @else
@@ -30,12 +28,20 @@
                 </button>
             @endif
         </div>
-
     </div>
 
     <div class="flex-1 max-w-xl mx-4 hidden xl:flex flex-col">
-        <div class="flex justify-between text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-            <span>Fortschritt zu Level {{ $level + 1 }}</span>
+        <div class="flex justify-between items-end text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
+            <span>Level {{ $level }}</span>
+
+            @if(!$isMaxLevel)
+                <span class="text-primary drop-shadow-[0_0_8px_currentColor] animate-pulse">
+                    Noch {{ $missingSparks ?? 0 }} Funken bis Level {{ $level + 1 }}
+                </span>
+            @else
+                <span class="text-emerald-400">Maximales Level erreicht</span>
+            @endif
+
             <span>{{ $progressPercentage }}%</span>
         </div>
         <div class="h-3 bg-gray-900 rounded-full overflow-hidden border border-gray-800 shadow-inner w-full">
@@ -43,7 +49,6 @@
         </div>
     </div>
 
-    {{-- GLOBALE PROFIL NAVIGATION (Zentralisiert) --}}
     <div class="w-full xl:w-auto flex justify-center xl:justify-end mt-1 xl:mt-0 relative z-30">
         @livewire('global.profile.profile-dropdown')
     </div>

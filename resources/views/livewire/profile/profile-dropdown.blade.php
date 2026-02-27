@@ -8,7 +8,7 @@
         showPasswordSuccess: false
     }"
      @open-profile-modal.window="showProfileModal = true; activeProfileTab = $event.detail.tab"
-     class="flex flex-nowrap items-center justify-start xl:justify-end gap-2 md:gap-3 bg-gray-900/80 backdrop-blur-xl p-2 rounded-2xl border border-gray-800 shadow-inner overflow-x-auto no-scrollbar w-full xl:w-auto shrink-0 z-[999] snap-x snap-mandatory touch-pan-x"
+     class="flex flex-nowrap items-center justify-start xl:justify-end gap-2 md:gap-3 bg-gray-900/80 backdrop-blur-xl p-2 rounded-2xl border border-gray-800 shadow-inner overflow-x-auto no-scrollbar w-full xl:w-auto z-[999] snap-x snap-mandatory touch-pan-x"
      style="-webkit-overflow-scrolling: touch;">
 
     {{-- DESKTOP ICON DOCK (Mit Beschriftung) --}}

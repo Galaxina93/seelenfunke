@@ -21,3 +21,12 @@ services:
             MYSQL_DATABASE: seelenfunke  # Hier den Namen deiner DB eintragen
         ports:
             - "3306:3306"
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        ports:
+            - "8080:80"
+        environment:
+            PMA_HOST: db
+            PMA_PORT: 3306
+        depends_on:
+            - db

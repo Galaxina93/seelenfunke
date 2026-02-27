@@ -16,7 +16,7 @@
         <form wire:submit.prevent="updatePassword" class="max-w-2xl space-y-6">
             <div x-data="{ show: false }" class="relative">
                 <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Aktuelles Passwort</label>
-                <input :type="show ? 'text' : 'password'" wire:model="currentPassword" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">
+                <input :type="show ? 'text' : 'password'" wire:model="currentPassword" autocomplete="current-password" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">
                 <button type="button" @click="show = !show" class="absolute right-4 top-[38px] focus:outline-none flex items-center justify-center group/eye">
                     <x-heroicon-o-eye-slash x-show="!show" class="w-5 h-5 text-gray-600 hover:text-primary transition-colors" />
                     <div x-show="show" style="display: none;" class="relative">
@@ -28,7 +28,7 @@
             </div>
             <div x-data="{ show: false }" class="relative">
                 <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Neues Passwort</label>
-                <input :type="show ? 'text' : 'password'" wire:model="newPassword" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">
+                <input :type="show ? 'text' : 'password'" wire:model="newPassword" autocomplete="new-password" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">
                 <button type="button" @click="show = !show" class="absolute right-4 top-[38px] focus:outline-none flex items-center justify-center group/eye">
                     <x-heroicon-o-eye-slash x-show="!show" class="w-5 h-5 text-gray-600 hover:text-primary transition-colors" />
                     <div x-show="show" style="display: none;" class="relative">
@@ -40,7 +40,7 @@
             </div>
             <div x-data="{ show: false }" class="relative">
                 <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Neues Passwort Wiederholen</label>
-                <input :type="show ? 'text' : 'password'" wire:model="repeatNewPassword" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">
+                <input :type="show ? 'text' : 'password'" wire:model="repeatNewPassword" autocomplete="new-password" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">
                 <button type="button" @click="show = !show" class="absolute right-4 top-[38px] focus:outline-none flex items-center justify-center group/eye">
                     <x-heroicon-o-eye-slash x-show="!show" class="w-5 h-5 text-gray-600 hover:text-primary transition-colors" />
                     <div x-show="show" style="display: none;" class="relative">

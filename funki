@@ -25,6 +25,24 @@ case "$1" in
         echo "🗄️ Führe Key Generate aus..."
         docker compose exec web php artisan key:generate
         ;;
+    storage)
+        echo "🗂️ Lösche alten Storage-Link restlos..."
+        docker compose exec web rm -rf public/storage
+        echo "🔗 Erstelle neuen Storage-Link..."
+        docker compose exec web php artisan storage:link
+        echo "✅ Storage-Link erfolgreich erneuert!"
+        ;;
+    export)
+        echo "🗄️ Exportiere Projektdateien..."
+        docker compose exec web php artisan project:export
+        ;;
+    artisan)
+        shift
+        # Zwingt Docker, deine lokale Ubuntu-ID anstelle von 'root' zu nutzen
+        docker compose exec --user "$(id -u):$(id -g)" web php artisan "$@"
+        ;;
+
+
     *)
         echo "💥 Funki ist bereit! Nutze: funki start, stop, bauen, löschen oder migrate"
         exit 1
