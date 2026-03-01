@@ -16,29 +16,31 @@
 
             {{-- Inline Login Form --}}
             <div x-show="showLogin" x-collapse class="mt-4 pt-4 border-t border-gray-100" style="display: none;">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
-                        <input type="email" wire:model="loginEmail" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm">
-                        @error('loginEmail') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                <form wire:submit.prevent="loginUser">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
+                            <input type="email" wire:model="loginEmail" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm">
+                            @error('loginEmail') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Passwort</label>
+                            <input type="password" wire:model="loginPassword" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm">
+                            @error('loginPassword') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Passwort</label>
-                        <input type="password" wire:model="loginPassword" class="block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm">
-                        @error('loginPassword') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+
+                    @if($loginError)
+                        <div class="mt-2 text-red-500 text-sm font-bold">{{ $loginError }}</div>
+                    @endif
+
+                    <div class="mt-4 flex justify-end">
+                        <button type="button" wire:click="loginUser" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
+                            <span wire:loading.remove wire:target="loginUser">Anmelden & Daten laden</span>
+                            <span wire:loading wire:target="loginUser">Lade...</span>
+                        </button>
                     </div>
-                </div>
-
-                @if($loginError)
-                    <div class="mt-2 text-red-500 text-sm font-bold">{{ $loginError }}</div>
-                @endif
-
-                <div class="mt-4 flex justify-end">
-                    <button type="button" wire:click="loginUser" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black transition">
-                        <span wire:loading.remove wire:target="loginUser">Anmelden & Daten laden</span>
-                        <span wire:loading wire:target="loginUser">Lade...</span>
-                    </button>
-                </div>
+                </form>
             </div>
         </div>
     @else

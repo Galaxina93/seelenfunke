@@ -42,13 +42,15 @@
             messageText: '',
 
             init() {
-                // Standardwerte setzen, falls nicht vorhanden
+                // 1. Instanz global registrieren
+                window._frontendConfiguratorDataInstance = this;
+
+                // Standardwerte setzen
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
                 if(typeof this.config.area_width === 'undefined') this.config.area_width = 80;
                 if(typeof this.config.area_height === 'undefined') this.config.area_height = 80;
 
-                // Prüfen, ob bereits ein Design für dieses Produkt im Browser liegt
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
                 this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
 
@@ -61,6 +63,11 @@
                             window._threeEngineInstance.init(() => {
                                 this.modelLoaded = true;
                                 this.updateTexture();
+
+                                // KRITISCH: Starte die Animation NUR, wenn wir NICHT im Board sind
+                                if (this.showDrawingBoard === false) {
+                                    window._threeEngineInstance.animate();
+                                }
                             });
                         } else {
                             this.modelLoaded = true;
@@ -70,15 +77,16 @@
 
                     const checkDependencies = () => {
                         if (window.THREE && window.GLTFLoader && window.Configurator3DEngine) {
-                            startConfigurator();
+                            // Gib dem Browser 100ms extra Zeit, um den Login-UI-Wechsel zu verarbeiten
+                            setTimeout(() => startConfigurator(), 100);
                         } else {
-                            setTimeout(checkDependencies, 50);
+                            setTimeout(checkDependencies, 100); // 100ms statt 50ms ist CPU-schonender
                         }
                     };
 
                     checkDependencies();
 
-                    // Livewire-Daten beobachten und UI/Canvas aktualisieren
+                    // Watchers für Daten
                     this.$watch('texts', () => {
                         if(this.selectedType === 'text' && !this.texts[this.selectedIndex]){
                             this.selectedType = null;
@@ -103,9 +111,34 @@
                     if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
                     else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
 
+                    // In der init() Methode am Ende:
                     document.fonts.ready.then(() => {
-                        this.updateTexture();
+                        // Statt sofort updateTexture() rufen wir es mit einer kleinen
+                        // Verzögerung auf, wenn der Browser "Zeit hat"
+                        if (window.requestIdleCallback) {
+                            window.requestIdleCallback(() => this.updateTexture());
+                        } else {
+                            setTimeout(() => this.updateTexture(), 200);
+                        }
                     });
+                });
+
+                // 2. Überwache den Wechsel zwischen 2D und 3D
+                this.$watch('showDrawingBoard', (value) => {
+                    if (value === false) {
+                        // User wechselt zu 3D: Starte Render-Loop neu
+                        if (window._threeEngineInstance) {
+                            // Falls die Engine noch nicht bereit war, init() rufen, sonst animate()
+                            if (!window._threeEngineInstance.isReady) {
+                                window._threeEngineInstance.init();
+                            } else {
+                                window._threeEngineInstance.animate();
+                            }
+                            setTimeout(() => window._threeEngineInstance.resize(), 50);
+                        }
+                    }
+                    // Wenn value === true (Wechsel zu 2D), stoppt die animate() Methode
+                    // in der Configurator3DEngine automatisch durch unsere neue Bedingung.
                 });
             },
 
@@ -188,22 +221,54 @@
             // --- Bestehende Funktionen ---
 
             updateTexture() {
-                if(!window._threeEngineInstance || !window._threeEngineInstance.isReady) return;
-                if(this._isRendering) {
-                    this._needsAnotherRender = true;
-                    return;
-                }
-                this._isRendering = true;
-                requestAnimationFrame(() => {
-                    window._threeEngineInstance.renderCanvas(Alpine.raw(this.texts), Alpine.raw(this.logos), Alpine.raw(this.fontMap));
-                    setTimeout(() => {
-                        this._isRendering = false;
-                        if(this._needsAnotherRender) {
-                            this._needsAnotherRender = false;
-                            this.updateTexture();
-                        }
-                    }, 40);
-                });
+                if (!window._threeEngineInstance || !window._threeEngineInstance.isReady) return;
+
+                // Bestehende Timeouts löschen, um "Debouncing" zu ermöglichen
+                if (this._renderTimeout) clearTimeout(this._renderTimeout);
+
+                // Ein kleiner Delay von 10ms fängt schnelle Tastaturanschläge ab
+                this._renderTimeout = setTimeout(() => {
+
+                    // Falls wir bereits rendern, markieren wir, dass danach noch ein Durchlauf nötig ist
+                    if (this._isRendering) {
+                        this._needsAnotherRender = true;
+                        return;
+                    }
+
+                    // Der Kern der Optimierung: Warte, bis der Browser "Idle" (leerlaufend) ist
+                    const startRender = () => {
+                        this._isRendering = true;
+
+                        requestAnimationFrame(() => {
+                            try {
+                                window._threeEngineInstance.renderCanvas(
+                                    Alpine.raw(this.texts),
+                                    Alpine.raw(this.logos),
+                                    Alpine.raw(this.fontMap)
+                                );
+                            } finally {
+                                // Sicherheits-Timeout, um die Sperre wieder freizugeben
+                                // 60ms gibt dem Browser genug Zeit für einen Frame-Cycle
+                                setTimeout(() => {
+                                    this._isRendering = false;
+                                    if (this._needsAnotherRender) {
+                                        this._needsAnotherRender = false;
+                                        this.updateTexture();
+                                    }
+                                }, 60);
+                            }
+                        });
+                    };
+
+                    // Nutze requestIdleCallback für die niedrigste Priorität (ideal für Mobile)
+                    if (window.requestIdleCallback) {
+                        window.requestIdleCallback(() => startRender(), { timeout: 200 });
+                    } else {
+                        // Fallback für Browser ohne Idle-Support (z.B. älteres Safari)
+                        startRender();
+                    }
+
+                }, 20); // Erhöht auf 20ms für stabilere Performance auf Mobilgeräten
             },
 
             updateScaleFactor(width = null) {

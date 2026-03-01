@@ -23,7 +23,7 @@
                             </h2>
                             <p class="text-gray-400 text-lg leading-relaxed max-w-md">
                                 Du hast eine spezielle Idee für eine Lasergravur, Fragen zu einem Unikat oder möchtest einfach Hallo sagen?
-                                Wir beraten dich persönlich und individuell mit Herz aus unserer Manufaktur in Gifhorn.
+                                Nutze das Kontaktformular oder schreibe uns eine E-Mail.
                             </p>
                         </div>
 

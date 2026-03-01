@@ -23,7 +23,7 @@
                     {{-- Unterüberschrift --}}
                     <p class="text-lg md:text-2xl mb-12 opacity-90 font-light max-w-3xl mx-auto">
                         Handveredelte Geschenke aus Glas, Schiefer & Metall. <br class="hidden md:block">
-                        Erschaffe jetzt dein persönliches Leucht-Unikat.
+                        Erschaffe jetzt dein persönliches Unikat.
                     </p>
 
                     {{-- Buttons --}}
@@ -564,7 +564,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                                         </svg>
                                     </div>
-                                    <h4 class="text-lg font-bold text-gray-900 ml-4">Persönlicher Ansprechpartner</h4>
+                                    <h4 class="text-lg font-bold text-gray-900 ml-4">Ansprechpartner</h4>
                                 </div>
                                 <p class="text-gray-600 text-sm">Wir beraten dich gerne schnell und direkt per Mail.</p>
                             </div>
@@ -596,7 +596,7 @@
                             <h3 class="text-3xl font-bold mb-4 font-serif">Das Herz der Manufaktur</h3>
                             <p class="max-w-2xl mx-auto text-lg text-gray-600 leading-relaxed">
                                 Hinter <em>Mein Seelenfunke</em> steht eine klare Vision: Hochwertiges Kristallglas mit modernster Veredelungstechnik zu verbinden.
-                                Wir sind kein anonymer Großkonzern, sondern eine spezialisierte Manufaktur in Gifhorn, die für Qualität, persönlichen Service und echte Werte steht.
+                                Wir sind kein anonymer Großkonzern, sondern eine spezialisierte Manufaktur in Gifhorn, die für Qualität, Service und echte Werte steht.
                             </p>
                         </div>
 
@@ -952,8 +952,8 @@
                             <li class="flex items-start">
                                 <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                                 <div>
-                                    <strong class="font-semibold text-gray-900">Persönlicher Service:</strong>
-                                    Haben Sie Sonderwünsche? Sie landen in keinem Callcenter, sondern sprechen direkt mit unseren Experten. Wir finden für fast jede Anforderung eine Lösung.
+                                    <strong class="font-semibold text-gray-900">Service:</strong>
+                                    Haben Sie Sonderwünsche? Wir finden für fast jede Anforderung eine Lösung.
                                 </div>
                             </li>
 

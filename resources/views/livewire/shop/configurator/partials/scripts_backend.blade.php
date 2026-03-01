@@ -61,7 +61,7 @@
                 });
             }
 
-            const texSize = isMobile ? 1024 : 2048;
+            const texSize = isMobile ? 512 : 2048;
             this.textureCanvas = document.createElement('canvas');
             this.textureCanvas.width = texSize;
             this.textureCanvas.height = texSize;
@@ -308,9 +308,18 @@
         }
 
         animate() {
+            // Wenn der 2D Editor aktiv ist (showDrawingBoard === true),
+            // stoppen wir die Animations-Schleife komplett.
+            if (window._frontendConfiguratorDataInstance && window._frontendConfiguratorDataInstance.showDrawingBoard) {
+                this._isAnimating = false;
+                return;
+            }
+
+            this._isAnimating = true;
             requestAnimationFrame(() => this.animate());
-            if(this.controls) this.controls.update();
-            if(this.renderer && this.scene && this.camera) {
+
+            if (this.controls) this.controls.update();
+            if (this.renderer && this.scene && this.camera) {
                 this.renderer.render(this.scene, this.camera);
             }
         }

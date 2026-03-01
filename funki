@@ -42,7 +42,6 @@ case "$1" in
         docker compose exec --user "$(id -u):$(id -g)" web php artisan "$@"
         ;;
 
-
     *)
         echo "💥 Funki ist bereit! Nutze: funki start, stop, bauen, löschen oder migrate"
         exit 1
