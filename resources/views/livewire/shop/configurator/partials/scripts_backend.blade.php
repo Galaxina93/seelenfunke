@@ -25,34 +25,50 @@
         }
 
         init(onLoadedCallback) {
+            if (this.isReady) return; // Verhindert doppelte Initialisierung
+
             const isMobile = window.innerWidth < 768;
 
+            // 1. Scene & Camera Setup
             this.scene = new window.THREE.Scene();
             this.scene.background = null;
 
-            this.camera = new window.THREE.PerspectiveCamera(45, this.container.offsetWidth / this.container.offsetHeight, 0.1, 1000);
+            const aspect = this.container.offsetWidth / this.container.offsetHeight;
+            this.camera = new window.THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
 
-            this.renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
+            // 2. Renderer Setup (Optimiert für Mobile/Performance)
+            this.renderer = new window.THREE.WebGLRenderer({
+                antialias: false,             // Spart massiv Leistung auf Mobile
+                alpha: true,
+                precision: isMobile ? 'lowp' : 'mediump', // Schnellere Shader-Kompilierung auf Mobile
+                powerPreference: "low-power",  // Ressourcen-schonend
+                stencil: false,
+                depth: true
+            });
+
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
             this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
 
+            // DOM-Element einhängen
             this.container.innerHTML = '';
             this.container.appendChild(this.renderer.domElement);
 
+            // 3. Lighting
             this.scene.add(new window.THREE.AmbientLight(0xffffff, 0.9));
             const mainLight = new window.THREE.DirectionalLight(0xffffff, 1.5);
             mainLight.position.set(5, 10, 7.5);
             this.scene.add(mainLight);
 
-            // OPTIMIERTE KAMERA-KONTROLLEN
+            // 4. Controls (Optimiert)
             this.controls = new window.OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
-            this.controls.dampingFactor = 0.08; // Sanfteres, schwereres Gefühl
-            this.controls.enablePan = false;    // Verhindert das Wegschieben aus dem Bild
-            this.controls.maxPolarAngle = Math.PI / 1.6; // Verhindert, dass man unter das Objekt schauen kann (Kippen)
+            this.controls.dampingFactor = 0.08;
+            this.controls.enablePan = false;
+            this.controls.maxPolarAngle = Math.PI / 1.6;
 
+            // 5. Environment (Background/Reflections)
             if(this.config.bgPath) {
                 const loader = new window.THREE.TextureLoader();
                 loader.load(this.config.bgPath, (t) => {
@@ -61,16 +77,35 @@
                 });
             }
 
-            const texSize = isMobile ? 512 : 2048;
+            // 6. Textur & Canvas Initialisierung
+            const texSize = isMobile ? 512 : 2048; // Reduzierte Auflösung auf Mobile
             this.textureCanvas = document.createElement('canvas');
             this.textureCanvas.width = texSize;
             this.textureCanvas.height = texSize;
             this.textureCtx = this.textureCanvas.getContext('2d');
 
-            this.texture = new window.THREE.CanvasTexture(this.textureCanvas);
-            this.texture.flipY = true;
-            this.texture.anisotropy = isMobile ? 4 : 16;
+            try {
+                // Textur-Instanz erstellen
+                this.texture = new window.THREE.CanvasTexture(this.textureCanvas);
 
+                // Erst wenn das Objekt existiert, Properties sicher setzen
+                if (this.texture) {
+                    this.texture.flipY = true;
+                    this.texture.generateMipmaps = false;
+                    this.texture.minFilter = window.THREE.LinearFilter;
+
+                    // Anisotropy sicher setzen (1 auf Mobile für Speed, 4 auf Desktop)
+                    if (typeof this.texture.anisotropy !== 'undefined') {
+                        this.texture.anisotropy = isMobile ? 1 : 4;
+                    }
+                    this.texture.needsUpdate = true;
+                }
+            } catch (e) {
+                console.error("Failsafe: Textur-Initialisierung fehlgeschlagen", e);
+                this.texture = new window.THREE.Texture(); // Minimaler Fallback gegen Crashes
+            }
+
+            // 7. GLB Modell laden
             const gltfLoader = new window.GLTFLoader();
             gltfLoader.load(
                 this.modelPath,
@@ -86,7 +121,7 @@
                     this.modelContainer = new window.THREE.Group();
                     this.modelContainer.add(this.model);
 
-                    // Gravur-Ebene
+                    // Gravur-Ebene (Plane)
                     const maxPlaneSize = Math.max(size.x, size.y);
                     const planeGeo = new window.THREE.PlaneGeometry(maxPlaneSize, maxPlaneSize);
                     const planeMat = new window.THREE.MeshBasicMaterial({
@@ -101,30 +136,34 @@
                     this.texturePlane.position.z = this.texturePlane.userData.baseZ;
                     this.modelContainer.add(this.texturePlane);
 
-                    // Dynamische Kamera & Zoom Limits
+                    // Kamera-Positionierung berechnen
                     const maxDim = Math.max(size.x, size.y, size.z);
                     const fov = this.camera.fov * (Math.PI / 180);
                     let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
 
-                    this.controls.minDistance = maxDim * 0.7; // Nicht ins Objekt reinzoomen
-                    this.controls.maxDistance = maxDim * 3.0; // Nicht endlos rauszoomen
+                    this.controls.minDistance = maxDim * 0.7;
+                    this.controls.maxDistance = maxDim * 3.0;
 
                     this.camera.position.set(0, maxDim * 0.2, cameraZ * 1.5);
                     this.camera.updateProjectionMatrix();
 
                     this.scene.add(this.modelContainer);
 
+                    // Materialien und Transformationen aus der Config anwenden
                     this.applyMaterial();
                     this.applyTransforms();
 
+                    // Status setzen
                     this.isReady = true;
+
                     if(onLoadedCallback) onLoadedCallback();
 
+                    // Render-Loop starten
                     this.animate();
                 },
                 undefined,
                 (err) => {
-                    console.error("GLB Error", err);
+                    console.error("GLB Loading Error:", err);
                     if(onLoadedCallback) onLoadedCallback();
                 }
             );
@@ -202,7 +241,8 @@
         }
 
         renderCanvas(texts, logos, fontMap) {
-            if(!this.isReady || !this.textureCtx) return;
+            // Failsafe: Wenn die Textur noch nicht da ist (wegen delayedInit), abbrechen
+            if(!this.isReady || !this.textureCtx || !this.texture) return;
 
             const cw = this.textureCanvas.width;
             this.textureCtx.clearRect(0, 0, cw, cw);
@@ -272,6 +312,8 @@
                     const fontSize = (item.size || 1) * (cw / 25);
                     this.textureCtx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
 
+                    this.textureCtx.filter = 'grayscale(100%) brightness(1.5)';
+
                     this.textureCtx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(255,255,255,0.95)';
                     this.textureCtx.textAlign = item.align || 'center';
                     this.textureCtx.textBaseline = 'middle';
@@ -294,6 +336,9 @@
                     });
 
                     this.textureCtx.restore();
+
+                    // WICHTIG: Filter nach dem Zeichnen des Textes wieder zurücksetzen
+                    this.textureCtx.filter = 'none';
                 });
             }
 
@@ -308,8 +353,7 @@
         }
 
         animate() {
-            // Wenn der 2D Editor aktiv ist (showDrawingBoard === true),
-            // stoppen wir die Animations-Schleife komplett.
+            // Wenn wir zurück im 2D-Editor sind, stoppen wir die Schleife
             if (window._frontendConfiguratorDataInstance && window._frontendConfiguratorDataInstance.showDrawingBoard) {
                 this._isAnimating = false;
                 return;

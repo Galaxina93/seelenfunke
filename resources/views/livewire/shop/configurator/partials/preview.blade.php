@@ -93,9 +93,10 @@
                                                 font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
                                                 font-family: ${fontMap[textItem.font] || 'Arial'};
                                                 line-height: 1.15;
-                                                color: rgba(0, 0, 0, 0.85); /* Auf hellem Grund schwarz */
-                                                filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.1));
-                                          `"
+                                                color: rgba(255, 255, 255, 1); /* Text auf Weiss gesetzt für Gravur-Optik */
+                                                filter: drop-shadow(0px 0px 3px rgba(0,0,0,0.3)) grayscale(100%) brightness(1.5);
+                                                -webkit-text-fill-color: white; /* Erzwingt Weiß auch bei manchen mobilen Browsern */
+                                            `"
                                           placeholder="Text eingeben...">
                                 </textarea>
                             </template>

@@ -42,15 +42,17 @@
             messageText: '',
 
             init() {
-                // 1. Instanz global registrieren
+                // 1. Instanz global registrieren für Zugriff aus der Three.js Engine
                 window._frontendConfiguratorDataInstance = this;
+                this.isInitializing = false;
 
-                // Standardwerte setzen
+                // Standardwerte setzen, falls nicht vorhanden
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
                 if(typeof this.config.area_width === 'undefined') this.config.area_width = 80;
                 if(typeof this.config.area_height === 'undefined') this.config.area_height = 80;
 
+                // Prüfen, ob bereits ein Design für dieses Produkt im Browser liegt
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
                 this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
 
@@ -59,16 +61,46 @@
 
                     const startConfigurator = () => {
                         if (this.config.modelPath) {
+                            // Instanz erstellen, aber noch kein WebGL-Kontext (init) triggern
                             window._threeEngineInstance = new window.Configurator3DEngine(this.$refs.container3d, this.config.modelPath, this.config.bgPath, this.config);
-                            window._threeEngineInstance.init(() => {
-                                this.modelLoaded = true;
-                                this.updateTexture();
 
-                                // KRITISCH: Starte die Animation NUR, wenn wir NICHT im Board sind
-                                if (this.showDrawingBoard === false) {
-                                    window._threeEngineInstance.animate();
+                            // Diese Funktion erzwingt den Start (wird vom Watcher oder Idle-Timer gerufen)
+                            const forceStart3D = () => {
+                                if (this.modelLoaded || this.isInitializing) return;
+                                this.isInitializing = true;
+
+                                window._threeEngineInstance.init(() => {
+                                    this.modelLoaded = true;
+                                    this.isInitializing = false;
+                                    this.updateTexture();
+
+                                    // Nur animieren, wenn der User gerade tatsächlich die 3D-Ansicht offen hat
+                                    if (this.showDrawingBoard === false) {
+                                        window._threeEngineInstance.animate();
+                                    }
+                                });
+                            };
+
+                            // Interne Referenz für den Watcher speichern
+                            this._forceStart3D = forceStart3D;
+
+                            // Sanfter Hintergrund-Start: Erst wenn der Browser wirklich "Idle" ist
+                            const requestStart = () => {
+                                if (window.requestIdleCallback) {
+                                    window.requestIdleCallback((deadline) => {
+                                        // Wenn weniger als 10ms Zeit im Frame sind, lieber nochmal warten
+                                        if (deadline.timeRemaining() < 10 && !this.isInitializing) {
+                                            setTimeout(requestStart, 500);
+                                            return;
+                                        }
+                                        forceStart3D();
+                                    }, { timeout: 3000 });
+                                } else {
+                                    setTimeout(() => forceStart3D(), 1500);
                                 }
-                            });
+                            };
+                            requestStart();
+
                         } else {
                             this.modelLoaded = true;
                             this.showDrawingBoard = true;
@@ -77,10 +109,10 @@
 
                     const checkDependencies = () => {
                         if (window.THREE && window.GLTFLoader && window.Configurator3DEngine) {
-                            // Gib dem Browser 100ms extra Zeit, um den Login-UI-Wechsel zu verarbeiten
-                            setTimeout(() => startConfigurator(), 100);
+                            startConfigurator();
                         } else {
-                            setTimeout(checkDependencies, 100); // 100ms statt 50ms ist CPU-schonender
+                            // Intervall auf 250ms erhöht, um den Main-Thread beim Laden nicht zu fluten
+                            setTimeout(checkDependencies, 250);
                         }
                     };
 
@@ -111,34 +143,42 @@
                     if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
                     else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
 
-                    // In der init() Methode am Ende:
+                    // Textur erst rendern, wenn Schriften bereit sind
                     document.fonts.ready.then(() => {
-                        // Statt sofort updateTexture() rufen wir es mit einer kleinen
-                        // Verzögerung auf, wenn der Browser "Zeit hat"
-                        if (window.requestIdleCallback) {
-                            window.requestIdleCallback(() => this.updateTexture());
-                        } else {
-                            setTimeout(() => this.updateTexture(), 200);
-                        }
+                        const initialUpdate = () => {
+                            if (window.requestIdleCallback) {
+                                window.requestIdleCallback(() => this.updateTexture());
+                            } else {
+                                setTimeout(() => this.updateTexture(), 300);
+                            }
+                        };
+                        initialUpdate();
                     });
                 });
 
                 // 2. Überwache den Wechsel zwischen 2D und 3D
                 this.$watch('showDrawingBoard', (value) => {
                     if (value === false) {
-                        // User wechselt zu 3D: Starte Render-Loop neu
-                        if (window._threeEngineInstance) {
-                            // Falls die Engine noch nicht bereit war, init() rufen, sonst animate()
-                            if (!window._threeEngineInstance.isReady) {
-                                window._threeEngineInstance.init();
-                            } else {
-                                window._threeEngineInstance.animate();
+                        // WICHTIG: Den Klick-Handler sofort beenden lassen (entkoppeln)
+                        // Das löst die "click handler took...ms" Violation
+                        setTimeout(() => {
+                            if (window._threeEngineInstance) {
+                                if (!this.modelLoaded) {
+                                    // Startet die Engine entkoppelt vom Klick-Event
+                                    if (typeof this._forceStart3D === 'function') this._forceStart3D();
+                                } else {
+                                    // Engine ist bereit, Animation wecken
+                                    window._threeEngineInstance.animate();
+                                    this.updateTexture();
+                                }
+
+                                // Resize entkoppelt im nächsten Animations-Frame
+                                requestAnimationFrame(() => {
+                                    if(window._threeEngineInstance) window._threeEngineInstance.resize();
+                                });
                             }
-                            setTimeout(() => window._threeEngineInstance.resize(), 50);
-                        }
+                        }, 10);
                     }
-                    // Wenn value === true (Wechsel zu 2D), stoppt die animate() Methode
-                    // in der Configurator3DEngine automatisch durch unsere neue Bedingung.
                 });
             },
 
@@ -221,54 +261,59 @@
             // --- Bestehende Funktionen ---
 
             updateTexture() {
-                if (!window._threeEngineInstance || !window._threeEngineInstance.isReady) return;
+                // 1. Abbruch, wenn die Engine noch nicht bereit ist
+                if (!window._threeEngineInstance || !window._threeEngineInstance.isReady || !window._threeEngineInstance.texture) return;
 
-                // Bestehende Timeouts löschen, um "Debouncing" zu ermöglichen
+                // 2. Debouncing: Bestehende Render-Anforderung löschen
                 if (this._renderTimeout) clearTimeout(this._renderTimeout);
 
-                // Ein kleiner Delay von 10ms fängt schnelle Tastaturanschläge ab
+                // 3. Sicherheits-Delay: 100ms warten nach der letzten Änderung (Tippen/Verschieben)
+                // Das verhindert 'Violation'-Meldungen während der User noch aktiv interagiert.
                 this._renderTimeout = setTimeout(() => {
 
-                    // Falls wir bereits rendern, markieren wir, dass danach noch ein Durchlauf nötig ist
+                    // 4. Re-Entrancy Schutz: Falls ein Render-Vorgang noch läuft, Merker setzen
                     if (this._isRendering) {
                         this._needsAnotherRender = true;
                         return;
                     }
 
-                    // Der Kern der Optimierung: Warte, bis der Browser "Idle" (leerlaufend) ist
-                    const startRender = () => {
+                    const executeCanvasRender = () => {
                         this._isRendering = true;
 
+                        // 5. In den nächsten Grafik-Frame einplanen
                         requestAnimationFrame(() => {
                             try {
+                                // Der eigentliche schwere Prozess (Canvas-Zeichnen + Textur-Upload)
                                 window._threeEngineInstance.renderCanvas(
                                     Alpine.raw(this.texts),
                                     Alpine.raw(this.logos),
                                     Alpine.raw(this.fontMap)
                                 );
+                            } catch (e) {
+                                console.error("Render-Fehler in updateTexture:", e);
                             } finally {
-                                // Sicherheits-Timeout, um die Sperre wieder freizugeben
-                                // 60ms gibt dem Browser genug Zeit für einen Frame-Cycle
+                                // 6. Sperre nach 100ms wieder freigeben (Zeit für UI-Updates lassen)
                                 setTimeout(() => {
                                     this._isRendering = false;
+
+                                    // Falls während des Renders neue Daten kamen -> sofort nachholen
                                     if (this._needsAnotherRender) {
                                         this._needsAnotherRender = false;
                                         this.updateTexture();
                                     }
-                                }, 60);
+                                }, 100);
                             }
                         });
                     };
 
-                    // Nutze requestIdleCallback für die niedrigste Priorität (ideal für Mobile)
+                    // 7. Niedrigste Priorität: Nur rendern, wenn der Browser im Leerlauf ist
                     if (window.requestIdleCallback) {
-                        window.requestIdleCallback(() => startRender(), { timeout: 200 });
+                        window.requestIdleCallback(() => executeCanvasRender(), { timeout: 500 });
                     } else {
-                        // Fallback für Browser ohne Idle-Support (z.B. älteres Safari)
-                        startRender();
+                        executeCanvasRender();
                     }
 
-                }, 20); // Erhöht auf 20ms für stabilere Performance auf Mobilgeräten
+                }, 100); // 100ms Delay für maximale Stabilität auf Stage/Mobile
             },
 
             updateScaleFactor(width = null) {
