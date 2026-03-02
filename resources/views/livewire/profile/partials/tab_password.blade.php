@@ -14,6 +14,10 @@
         </div>
 
         <form wire:submit.prevent="updatePassword" class="max-w-2xl space-y-6">
+
+            {{-- Unsichtbares Feld für Passwort-Manager (behebt die Chrome DOM-Warnung) --}}
+            <input type="text" autocomplete="username" class="hidden" value="{{ auth()->user()->email ?? '' }}">
+
             <div x-data="{ show: false }" class="relative">
                 <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-2">Aktuelles Passwort</label>
                 <input :type="show ? 'text' : 'password'" wire:model="currentPassword" autocomplete="current-password" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-5 py-3 text-white focus:ring-primary focus:border-primary transition-all shadow-inner pr-12">

@@ -30,7 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
 
-        // 2. Füge die Morph Map hinzu
+        // 1. Füge die Morph Map hinzu
         Relation::enforceMorphMap([
             'admin'    => 'App\Models\Admin\Admin',
             'customer' => 'App\Models\Customer\Customer',
@@ -46,49 +46,58 @@ class AppServiceProvider extends ServiceProvider
             // Füge hier bei Bedarf weitere Models hinzu
         ]);
 
-        // Dein Code zum Laden der Migrationen kann hier bleiben
+        // 2. Migrationen aus Unterordnern laden
         $migrationsPath = database_path('migrations');
         $directories    = glob($migrationsPath.'/*', GLOB_ONLYDIR);
         $paths          = array_merge([$migrationsPath], $directories);
 
         $this->loadMigrationsFrom($paths);
 
-        // WICHTIG: Prüfen, ob die Tabelle existiert, sonst crashen Migrations beim Deployment
-        if (Schema::hasTable('shop-settings')) {
+        // 3. Shop-Settings & Stripe Config laden
+        // WICHTIG: Verhindert, dass Konsolen-Befehle (wie artisan) versuchen die DB abzufragen,
+        // bevor Treiber/Datenbank überhaupt existieren!
+        if (!app()->runningInConsole()) {
+            try {
+                // Prüfen, ob die Tabelle existiert, sonst crashen Migrations beim Deployment
+                if (Schema::hasTable('shop-settings')) {
 
-            // 1. Settings aus dem Cache laden (oder aus DB holen und cachen)
-            // Wir nutzen den gleichen Cache-Key wie in deiner ShopConfig beim Speichern
-            $settings = Cache::rememberForever('global_shop_settings', function () {
-                return ShopSetting::pluck('value', 'key')->toArray();
-            });
+                    // Settings aus dem Cache laden (oder aus DB holen und cachen)
+                    $settings = Cache::rememberForever('global_shop_settings', function () {
+                        return ShopSetting::pluck('value', 'key')->toArray();
+                    });
 
-            // 2. Stripe Konfiguration zur Laufzeit überschreiben
-            if (!empty($settings['stripe_publishable_key'])) {
-                Config::set('services.stripe.key', $settings['stripe_publishable_key']);
-            }
+                    // Stripe Konfiguration zur Laufzeit überschreiben
+                    if (!empty($settings['stripe_publishable_key'])) {
+                        Config::set('services.stripe.key', $settings['stripe_publishable_key']);
+                    }
 
-            if (!empty($settings['stripe_secret_key'])) {
-                Config::set('services.stripe.secret', $settings['stripe_secret_key']);
-            }
+                    if (!empty($settings['stripe_secret_key'])) {
+                        Config::set('services.stripe.secret', $settings['stripe_secret_key']);
+                    }
 
-            if (!empty($settings['stripe_webhook_secret'])) {
-                // Hier wird der verschachtelte Pfad gesetzt: services -> stripe -> webhook -> secret
-                Config::set('services.stripe.webhook.secret', $settings['stripe_webhook_secret']);
+                    if (!empty($settings['stripe_webhook_secret'])) {
+                        // Hier wird der verschachtelte Pfad gesetzt: services -> stripe -> webhook -> secret
+                        Config::set('services.stripe.webhook.secret', $settings['stripe_webhook_secret']);
+                    }
+                }
+            } catch (\Exception $e) {
+                // Falls die Datenbank noch gar nicht konfiguriert ist, failen wir hier leise,
+                // damit die Anwendung / Konsole weiterhin erreichbar bleibt.
             }
         }
 
-        // Überschreibt die Standard-Verifizierungsmail von Laravel
+        // 4. Überschreibt die Standard-Verifizierungsmail von Laravel
         VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
             return (new MailMessage)
                 ->subject('Willkommen! Bitte bestätige deine E-Mail-Adresse ✨')
-                // Hier verweist du auf deine neue Blade-Datei aus Schritt 1:
+                // Hier verweist du auf deine neue Blade-Datei:
                 ->view('global.mails.auth.new_register_mail_to_customer', [
                     'url' => $url,
                     'name' => $notifiable->first_name
                 ]);
         });
 
-        // 2. [NEU] Zwingt Laravel, eine eigene Route für Kunden zu nutzen!
+        // 5. Zwingt Laravel, eine eigene Route für Kunden zu nutzen!
         VerifyEmail::createUrlUsing(function ($notifiable) {
             return URL::temporarySignedRoute(
                 'customer.verification.verify', // Unser eigener, neuer Routen-Name
@@ -99,9 +108,5 @@ class AppServiceProvider extends ServiceProvider
                 ]
             );
         });
-
-
-
-
     }
 }

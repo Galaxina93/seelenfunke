@@ -4,6 +4,8 @@
         return {
             texts: params.wireModels.texts || [],
             logos: params.wireModels.logos || [],
+            texts_back: params.wireModels.texts_back || [],
+            logos_back: params.wireModels.logos_back || [],
             fontMap: params.fonts || {},
             context: params.context || 'add',
             config: params.config || {},
@@ -15,6 +17,9 @@
             },
             showDrawingBoard: true,
             modelLoaded: false,
+
+            activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
+
             selectedIndex: null,
             selectedType: null,
             showFontMenu: false,
@@ -36,23 +41,22 @@
             _isRendering: false,
             _needsAnotherRender: false,
 
-            // --- NEU: Lokaler Speicher (Storage) ---
             hasSavedDesign: false,
             showMessage: false,
             messageText: '',
 
+            get currentTexts() { return this.activeSide === 'front' ? this.texts : this.texts_back; },
+            get currentLogos() { return this.activeSide === 'front' ? this.logos : this.logos_back; },
+
             init() {
-                // 1. Instanz global registrieren für Zugriff aus der Three.js Engine
                 window._frontendConfiguratorDataInstance = this;
                 this.isInitializing = false;
 
-                // Standardwerte setzen, falls nicht vorhanden
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
                 if(typeof this.config.area_width === 'undefined') this.config.area_width = 80;
                 if(typeof this.config.area_height === 'undefined') this.config.area_height = 80;
 
-                // Prüfen, ob bereits ein Design für dieses Produkt im Browser liegt
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
                 this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
 
@@ -61,10 +65,8 @@
 
                     const startConfigurator = () => {
                         if (this.config.modelPath) {
-                            // Instanz erstellen, aber noch kein WebGL-Kontext (init) triggern
                             window._threeEngineInstance = new window.Configurator3DEngine(this.$refs.container3d, this.config.modelPath, this.config.bgPath, this.config);
 
-                            // Diese Funktion erzwingt den Start (wird vom Watcher oder Idle-Timer gerufen)
                             const forceStart3D = () => {
                                 if (this.modelLoaded || this.isInitializing) return;
                                 this.isInitializing = true;
@@ -74,21 +76,17 @@
                                     this.isInitializing = false;
                                     this.updateTexture();
 
-                                    // Nur animieren, wenn der User gerade tatsächlich die 3D-Ansicht offen hat
                                     if (this.showDrawingBoard === false) {
                                         window._threeEngineInstance.animate();
                                     }
                                 });
                             };
 
-                            // Interne Referenz für den Watcher speichern
                             this._forceStart3D = forceStart3D;
 
-                            // Sanfter Hintergrund-Start: Erst wenn der Browser wirklich "Idle" ist
                             const requestStart = () => {
                                 if (window.requestIdleCallback) {
                                     window.requestIdleCallback((deadline) => {
-                                        // Wenn weniger als 10ms Zeit im Frame sind, lieber nochmal warten
                                         if (deadline.timeRemaining() < 10 && !this.isInitializing) {
                                             setTimeout(requestStart, 500);
                                             return;
@@ -111,29 +109,57 @@
                         if (window.THREE && window.GLTFLoader && window.Configurator3DEngine) {
                             startConfigurator();
                         } else {
-                            // Intervall auf 250ms erhöht, um den Main-Thread beim Laden nicht zu fluten
                             setTimeout(checkDependencies, 250);
                         }
                     };
 
                     checkDependencies();
 
-                    // Watchers für Daten
                     this.$watch('texts', () => {
                         if(this.selectedType === 'text' && !this.texts[this.selectedIndex]){
-                            this.selectedType = null;
-                            this.selectedIndex = null;
+                            this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
                     }, {deep: true});
 
                     this.$watch('logos', () => {
                         if(this.selectedType === 'logo' && !this.logos[this.selectedIndex]){
-                            this.selectedType = null;
-                            this.selectedIndex = null;
+                            this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
                     }, {deep: true});
+
+                    this.$watch('texts_back', () => {
+                        if(this.selectedType === 'text' && !this.texts_back[this.selectedIndex]){
+                            this.selectedType = null; this.selectedIndex = null;
+                        }
+                        this.updateTexture();
+                    }, {deep: true});
+
+                    this.$watch('logos_back', () => {
+                        if(this.selectedType === 'logo' && !this.logos_back[this.selectedIndex]){
+                            this.selectedType = null; this.selectedIndex = null;
+                        }
+                        this.updateTexture();
+                    }, {deep: true});
+
+                    this.$watch('activeSide', (val) => {
+                        this.selectedType = null;
+                        this.selectedIndex = null;
+                        if (window._threeEngineInstance && window._threeEngineInstance.camera) {
+                            window._threeEngineInstance.camera.position.z *= -1;
+                            window._threeEngineInstance.camera.position.x *= -1;
+                            window._threeEngineInstance.controls.update();
+                            window._threeEngineInstance.applyTransforms(val);
+                        }
+                        this.updateTexture();
+
+                        if (this.showDrawingBoard) {
+                            this.$nextTick(() => {
+                                setTimeout(() => { this.updateScaleFactor(); }, 50);
+                            });
+                        }
+                    });
 
                     window.addEventListener('resize', () => {
                         this.onWindowResize();
@@ -143,7 +169,6 @@
                     if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
                     else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
 
-                    // Textur erst rendern, wenn Schriften bereit sind
                     document.fonts.ready.then(() => {
                         const initialUpdate = () => {
                             if (window.requestIdleCallback) {
@@ -156,23 +181,20 @@
                     });
                 });
 
-                // 2. Überwache den Wechsel zwischen 2D und 3D
                 this.$watch('showDrawingBoard', (value) => {
-                    if (value === false) {
-                        // WICHTIG: Den Klick-Handler sofort beenden lassen (entkoppeln)
-                        // Das löst die "click handler took...ms" Violation
+                    if (value === true) {
+                        setTimeout(() => {
+                            this.updateScaleFactor();
+                        }, 50);
+                    } else {
                         setTimeout(() => {
                             if (window._threeEngineInstance) {
                                 if (!this.modelLoaded) {
-                                    // Startet die Engine entkoppelt vom Klick-Event
                                     if (typeof this._forceStart3D === 'function') this._forceStart3D();
                                 } else {
-                                    // Engine ist bereit, Animation wecken
                                     window._threeEngineInstance.animate();
                                     this.updateTexture();
                                 }
-
-                                // Resize entkoppelt im nächsten Animations-Frame
                                 requestAnimationFrame(() => {
                                     if(window._threeEngineInstance) window._threeEngineInstance.resize();
                                 });
@@ -182,15 +204,26 @@
                 });
             },
 
-            // --- NEU: Funktionen für Speichern / Laden / Teilen ---
+            addFallbackText() {
+                const newItem = {id: Math.random().toString(36).substr(2, 9), text: 'Neuer Text', size: 1, x: 50, y: 50, rotation: 0, align: 'center', font: 'Arial'};
+                if (this.activeSide === 'front') {
+                    this.texts.push(newItem);
+                    this.selectItem('text', this.texts.length - 1);
+                } else {
+                    this.texts_back.push(newItem);
+                    this.selectItem('text', this.texts_back.length - 1);
+                }
+                this.updateTexture();
+            },
 
             saveDesign() {
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
 
-                // Sammle die aktuellen Konfigurator-Daten
                 const designData = {
-                    texts: Alpine.raw(this.texts),
-                    logos: Alpine.raw(this.logos)
+                    texts: JSON.parse(JSON.stringify(this.texts)),
+                    logos: JSON.parse(JSON.stringify(this.logos)),
+                    texts_back: JSON.parse(JSON.stringify(this.texts_back)),
+                    logos_back: JSON.parse(JSON.stringify(this.logos_back))
                 };
 
                 try {
@@ -211,37 +244,25 @@
                     try {
                         const parsedData = JSON.parse(savedData);
 
-                        // 1. Auswahl aufheben, um Fehler zu vermeiden
                         this.selectedType = null;
                         this.selectedIndex = null;
 
-                        // 2. WICHTIG: Arrays komplett leeren (zwingt Alpine.js zum Neuaufbau des HTMLs)
                         this.texts = [];
                         this.logos = [];
+                        this.texts_back = [];
+                        this.logos_back = [];
 
-                        // 3. Einen Takt warten, bis das HTML wirklich leer ist
                         this.$nextTick(() => {
-
-                            // 4. Die gespeicherten Daten einfüllen
                             if (parsedData.texts) this.texts = parsedData.texts;
                             if (parsedData.logos) this.logos = parsedData.logos;
+                            if (parsedData.texts_back) this.texts_back = parsedData.texts_back;
+                            if (parsedData.logos_back) this.logos_back = parsedData.logos_back;
 
-                            // 5. Warten, bis die neuen Textfelder im HTML gerendert wurden
                             this.$nextTick(() => {
-                                // Größen neu kalkulieren lassen
                                 this.updateScaleFactor();
-
-                                // 6. Die Grafik auf das Canvas stempeln
-                                // Wir nutzen gestaffelte Timeouts als absoluten Fallback
-                                setTimeout(() => {
-                                    this.updateTexture();
-                                }, 100);
-
-                                setTimeout(() => {
-                                    this.updateTexture();
-                                }, 300); // 2. Durchlauf, falls Fonts/Bilder minimal länger brauchten
+                                setTimeout(() => { this.updateTexture(); }, 100);
+                                setTimeout(() => { this.updateTexture(); }, 300);
                             });
-
                         });
 
                         this.triggerMessage('Gesichertes Design wurde geladen!');
@@ -258,20 +279,13 @@
                 setTimeout(() => { this.showMessage = false; }, 3500);
             },
 
-            // --- Bestehende Funktionen ---
-
             updateTexture() {
-                // 1. Abbruch, wenn die Engine noch nicht bereit ist
-                if (!window._threeEngineInstance || !window._threeEngineInstance.isReady || !window._threeEngineInstance.texture) return;
+                if (!window._threeEngineInstance || !window._threeEngineInstance.isReady || !window._threeEngineInstance.textureFront) return;
 
-                // 2. Debouncing: Bestehende Render-Anforderung löschen
                 if (this._renderTimeout) clearTimeout(this._renderTimeout);
 
-                // 3. Sicherheits-Delay: 100ms warten nach der letzten Änderung (Tippen/Verschieben)
-                // Das verhindert 'Violation'-Meldungen während der User noch aktiv interagiert.
                 this._renderTimeout = setTimeout(() => {
 
-                    // 4. Re-Entrancy Schutz: Falls ein Render-Vorgang noch läuft, Merker setzen
                     if (this._isRendering) {
                         this._needsAnotherRender = true;
                         return;
@@ -280,23 +294,20 @@
                     const executeCanvasRender = () => {
                         this._isRendering = true;
 
-                        // 5. In den nächsten Grafik-Frame einplanen
                         requestAnimationFrame(() => {
                             try {
-                                // Der eigentliche schwere Prozess (Canvas-Zeichnen + Textur-Upload)
-                                window._threeEngineInstance.renderCanvas(
+                                window._threeEngineInstance.renderBothCanvases(
                                     Alpine.raw(this.texts),
                                     Alpine.raw(this.logos),
+                                    Alpine.raw(this.texts_back),
+                                    Alpine.raw(this.logos_back),
                                     Alpine.raw(this.fontMap)
                                 );
                             } catch (e) {
                                 console.error("Render-Fehler in updateTexture:", e);
                             } finally {
-                                // 6. Sperre nach 100ms wieder freigeben (Zeit für UI-Updates lassen)
                                 setTimeout(() => {
                                     this._isRendering = false;
-
-                                    // Falls während des Renders neue Daten kamen -> sofort nachholen
                                     if (this._needsAnotherRender) {
                                         this._needsAnotherRender = false;
                                         this.updateTexture();
@@ -306,14 +317,13 @@
                         });
                     };
 
-                    // 7. Niedrigste Priorität: Nur rendern, wenn der Browser im Leerlauf ist
                     if (window.requestIdleCallback) {
                         window.requestIdleCallback(() => executeCanvasRender(), { timeout: 500 });
                     } else {
                         executeCanvasRender();
                     }
 
-                }, 100); // 100ms Delay für maximale Stabilität auf Stage/Mobile
+                }, 100);
             },
 
             updateScaleFactor(width = null) {
@@ -344,7 +354,7 @@
                     e.target.closest('.schwebender-werkzeugkasten') ||
                     e.target.closest('textarea') ||
                     e.target.closest('#image-editor-modal') ||
-                    e.target.closest('.configurator-storage-ui')) // Klicks auf die neuen Buttons ignorieren
+                    e.target.closest('.configurator-storage-ui'))
                     return;
 
                 this.selectedType = null;
@@ -362,21 +372,29 @@
             deleteSelectedItem() {
                 if(this.selectedIndex === null) return;
 
+                let tName = this.activeSide === 'front' ? 'texts' : 'texts_back';
+                let lName = this.activeSide === 'front' ? 'logos' : 'logos_back';
+
+                // FIX: Vor dem Löschen alle Menüs hart schließen, damit Alpine.js keine x-models mehr berechnet!
+                this.showFontMenu = false;
+                this.showSizeMenu = false;
+                this.showAlignMenu = false;
+                this.showPosMenu = false;
+
                 if(this.selectedType === 'text') {
-                    let newTexts = JSON.parse(JSON.stringify(this.texts));
+                    let newTexts = JSON.parse(JSON.stringify(this[tName]));
                     newTexts.splice(this.selectedIndex, 1);
 
-                    // Fallback, damit immer ein leeres Feld bleibt
                     if (newTexts.length === 0) {
                         newTexts.push({id: Math.random().toString(36).substr(2, 9), text: '', size: 1, x: 50, y: 50, rotation: 0, align: 'center', font: 'Arial'});
                     }
 
-                    this.texts = newTexts;
-                    this.selectItem('text', this.texts.length - 1);
+                    this[tName] = newTexts;
+                    this.selectItem('text', this[tName].length - 1);
                 } else if(this.selectedType === 'logo') {
-                    let newLogos = JSON.parse(JSON.stringify(this.logos));
+                    let newLogos = JSON.parse(JSON.stringify(this[lName]));
                     newLogos.splice(this.selectedIndex, 1);
-                    this.logos = newLogos;
+                    this[lName] = newLogos;
                     this.selectedType = null;
                     this.selectedIndex = null;
                 }
@@ -386,7 +404,10 @@
             duplicateElement() {
                 if(this.selectedIndex === null) return;
 
-                const target = (this.selectedType === 'text') ? this.texts : this.logos;
+                let tName = this.activeSide === 'front' ? 'texts' : 'texts_back';
+                let lName = this.activeSide === 'front' ? 'logos' : 'logos_back';
+
+                const target = (this.selectedType === 'text') ? this[tName] : this[lName];
                 let clone = JSON.parse(JSON.stringify(target[this.selectedIndex]));
 
                 clone.id = Math.random().toString(36).substr(2, 9);
@@ -400,14 +421,14 @@
 
             centerHorizontal() {
                 if(this.selectedIndex === null) return;
-                const target = (this.selectedType === 'text') ? this.texts : this.logos;
+                const target = (this.selectedType === 'text') ? this.currentTexts : this.currentLogos;
                 target[this.selectedIndex].x = 50;
                 this.updateTexture();
             },
 
             centerVertical() {
                 if(this.selectedIndex === null) return;
-                const target = (this.selectedType === 'text') ? this.texts : this.logos;
+                const target = (this.selectedType === 'text') ? this.currentTexts : this.currentLogos;
                 target[this.selectedIndex].y = 50;
                 this.updateTexture();
             },
@@ -426,7 +447,7 @@
                     return;
                 }
 
-                let item = (type === 'text') ? this.texts[index] : this.logos[index];
+                let item = (type === 'text') ? this.currentTexts[index] : this.currentLogos[index];
                 if(!item) return;
 
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
@@ -464,7 +485,7 @@
                 const clientX = event.touches ? event.touches[0].clientX : event.clientX;
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const rect = this.$refs.container.getBoundingClientRect();
-                const item = this.currentElement.type === 'text' ? this.texts[this.currentElement.index] : this.logos[this.currentElement.index];
+                const item = this.currentElement.type === 'text' ? this.currentTexts[this.currentElement.index] : this.currentLogos[this.currentElement.index];
 
                 if(this.isDragging) {
                     let pX = ((clientX - rect.left - this.dragOffsetX) / rect.width) * 100;
@@ -473,12 +494,44 @@
                     this.showGuideX = false;
                     this.showGuideY = false;
 
-                    // Snap to center
                     if(Math.abs(pX - 50) < 2) { pX = 50; this.showGuideX = true; }
                     if(Math.abs(pY - 50) < 2) { pY = 50; this.showGuideY = true; }
 
-                    item.x = Math.max(0, Math.min(100, pX));
-                    item.y = Math.max(0, Math.min(100, pY));
+                    const clampToBoundaries = (nx, ny, c) => {
+                        let res = { x: nx, y: ny };
+                        if (c.area_shape === 'rect') {
+                            const minX = c.area_left || 0; const maxX = minX + (c.area_width || 100);
+                            const minY = c.area_top || 0; const maxY = minY + (c.area_height || 100);
+                            res.x = Math.max(minX, Math.min(maxX, nx));
+                            res.y = Math.max(minY, Math.min(maxY, ny));
+                        } else if (c.area_shape === 'circle') {
+                            const cx = (c.area_left || 0) + (c.area_width || 100) / 2;
+                            const cy = (c.area_top || 0) + (c.area_height || 100) / 2;
+                            const rX = (c.area_width || 100) / 2; const rY = (c.area_height || 100) / 2;
+                            const dx = (nx - cx) / rX; const dy = (ny - cy) / rY;
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            if (dist > 1) {
+                                res.x = cx + (dx / dist) * rX; res.y = cy + (dy / dist) * rY;
+                            }
+                        } else if (c.area_shape === 'custom') {
+                            const pts = c.custom_points || [];
+                            if (pts.length > 2) {
+                                let inside = false;
+                                for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+                                    let xi = pts[i].x, yi = pts[i].y;
+                                    let xj = pts[j].x, yj = pts[j].y;
+                                    let intersect = ((yi > ny) != (yj > ny)) && (nx < (xj - xi) * (ny - yi) / (yj - yi) + xi);
+                                    if (intersect) inside = !inside;
+                                }
+                                if (!inside) { return { x: item.x, y: item.y }; }
+                            }
+                        }
+                        return res;
+                    };
+
+                    let clamped = clampToBoundaries(pX, pY, this.config);
+                    item.x = Math.max(0, Math.min(100, clamped.x));
+                    item.y = Math.max(0, Math.min(100, clamped.y));
 
                 } else if (this.isResizing) {
                     const dist = Math.max(1, Math.hypot(
@@ -495,7 +548,6 @@
 
                     let newRot = this.initialRotation + (angle - this.initialAngle) * (180 / Math.PI);
 
-                    // Snap an 90 Grad Winkel
                     let snapTol = 5;
                     let modAngle = newRot % 90;
                     if(modAngle < 0) modAngle += 90;
@@ -548,7 +600,7 @@
 
             openImageEditor() {
                 if(this.selectedType !== 'logo' || this.selectedIndex === null) return;
-                const logo = this.logos[this.selectedIndex];
+                const logo = this.currentLogos[this.selectedIndex];
 
                 if(!logo || !logo.url) return;
                 if(logo.url.toLowerCase().includes('.svg')) {

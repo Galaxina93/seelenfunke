@@ -1,10 +1,12 @@
-{{-- resources/views/livewire/shop/configurator/configurator.blade.php --}}
 <div class="relative w-full h-full bg-white">
     <div class="h-full flex flex-col"
          x-data="window.frontendConfiguratorData({
             wireModels: {
                 texts: $wire.entangle('texts').live,
-                logos: $wire.entangle('logos').live
+                logos: $wire.entangle('logos').live,
+                texts_back: $wire.entangle('texts_back').live,
+                logos_back: $wire.entangle('logos_back').live,
+                activeSide: $wire.entangle('activeSide').live
             },
             fonts: @js($fonts),
             context: '{{ $context }}',
@@ -12,12 +14,17 @@
                 modelPath: '{{ $product->three_d_model_path ? asset("storage/".$product->three_d_model_path) : "" }}',
                 bgPath: '{{ $product->three_d_background_path ? asset("storage/".$product->three_d_background_path) : "" }}',
                 fallbackImg: '{{ $product->preview_image_path ? asset("storage/".$product->preview_image_path) : "" }}',
+                has_back_side: {{ !empty($configSettings['has_back_side']) && $configSettings['has_back_side'] ? 'true' : 'false' }},
+
                 area_top: {{ $configSettings['area_top'] ?? 10 }},
                 area_left: {{ $configSettings['area_left'] ?? 10 }},
                 area_width: {{ $configSettings['area_width'] ?? 80 }},
                 area_height: {{ $configSettings['area_height'] ?? 80 }},
                 area_shape: '{{ $configSettings['area_shape'] ?? "rect" }}',
+                overlay_type: '{{ $configSettings['overlay_type'] ?? "plane" }}',
+                cylinder_radius: {{ $configSettings['cylinder_radius'] ?? 50 }},
                 material_type: '{{ $configSettings['material_type'] ?? "glass" }}',
+
                 model_scale: {{ $configSettings['model_scale'] ?? 100 }},
                 model_pos_x: {{ $configSettings['model_pos_x'] ?? 0 }},
                 model_pos_y: {{ $configSettings['model_pos_y'] ?? 0 }},
@@ -25,6 +32,7 @@
                 model_rot_x: {{ $configSettings['model_rot_x'] ?? 0 }},
                 model_rot_y: {{ $configSettings['model_rot_y'] ?? 0 }},
                 model_rot_z: {{ $configSettings['model_rot_z'] ?? 0 }},
+
                 engraving_scale: {{ $configSettings['engraving_scale'] ?? 100 }},
                 engraving_pos_x: {{ $configSettings['engraving_pos_x'] ?? 0 }},
                 engraving_pos_y: {{ $configSettings['engraving_pos_y'] ?? 0 }},
@@ -32,6 +40,15 @@
                 engraving_rot_x: {{ $configSettings['engraving_rot_x'] ?? 0 }},
                 engraving_rot_y: {{ $configSettings['engraving_rot_y'] ?? 0 }},
                 engraving_rot_z: {{ $configSettings['engraving_rot_z'] ?? 0 }},
+
+                back_engraving_scale: {{ $configSettings['back_engraving_scale'] ?? 100 }},
+                back_engraving_pos_x: {{ $configSettings['back_engraving_pos_x'] ?? 0 }},
+                back_engraving_pos_y: {{ $configSettings['back_engraving_pos_y'] ?? 0 }},
+                back_engraving_pos_z: {{ $configSettings['back_engraving_pos_z'] ?? 0 }},
+                back_engraving_rot_x: {{ $configSettings['back_engraving_rot_x'] ?? 0 }},
+                back_engraving_rot_y: {{ $configSettings['back_engraving_rot_y'] ?? 0 }},
+                back_engraving_rot_z: {{ $configSettings['back_engraving_rot_z'] ?? 0 }},
+
                 custom_points: @js($configSettings['custom_points'] ?? [])
             }
          })"
@@ -52,7 +69,6 @@
         @include('livewire.shop.configurator.partials.footer')
     </div>
 
-    {{-- Hier binden wir die aufgeteilten Scripte ein --}}
-    @include('livewire.shop.configurator.partials.scripts_backend')
-    @include('livewire.shop.configurator.partials.scripts_frontend')
+    @include('livewire.shop.configurator.partials.scripts_frontend_2')
+    @include('livewire.shop.configurator.partials.scripts_frontend_1')
 </div>

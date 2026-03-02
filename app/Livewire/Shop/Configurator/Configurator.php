@@ -11,24 +11,23 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Services\ConfiguratorService;
 
-
-
-
 class Configurator extends Component
 {
     use WithFileUploads, HandlesConfiguratorLogic;
 
-    // Komponenteneigenschaften
     public $product;
     public $cartItem = null;
     public $context = 'add';
     public $type = 'physical';
     public $isDigital = false;
     public $qty = 1;
+    public $activeSide = 'front';
     public $texts = [];
     public $logos = [];
+    public $texts_back = [];
+    public $logos_back = [];
     public $new_files = [];
-    public $uploaded_files = []; // Hier landen die Pfade nach dem Temp-Upload
+    public $uploaded_files = [];
     public $notes = '';
     public $configSettings = [];
     public $currentPrice = 0;
@@ -58,8 +57,10 @@ class Configurator extends Component
 
         $this->configSettings = array_merge([
             'allow_logo' => true,
+            'overlay_type' => 'plane',     // NEU: plane (Flach) oder cylinder (Rund/Wicklung)
+            'cylinder_radius' => 50,       // NEU: Wölbung/Radius für zylindrische Projektion
             'area_top' => 10, 'area_left' => 10, 'area_width' => 80, 'area_height' => 80, 'area_shape' => 'rect',
-            'custom_points' => [ // Standard-Viereck als Startpunkte für Polygon
+            'custom_points' => [
                 ['x' => 10, 'y' => 10],
                 ['x' => 90, 'y' => 10],
                 ['x' => 90, 'y' => 90],
@@ -175,11 +176,9 @@ class Configurator extends Component
 
                 $path = $file->store('cart-uploads', 'public');
 
-                // Bildverarbeitung für Laser-Optik aufrufen
                 if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])) {
                     $newFileName = $this->applyLaserEffect(Storage::disk('public')->path($path), $extension);
                     if ($newFileName) {
-                        // Da wir aus JPGs immer PNGs machen (wegen Transparenz), Pfad updaten!
                         $path = dirname($path) . '/' . $newFileName;
                     }
                 }
@@ -192,10 +191,6 @@ class Configurator extends Component
         }
     }
 
-    /**
-     * Verwandelt das Bild in eine Laser-Gravur (Transparenz bleibt erhalten,
-     * weißer Hintergrund wird ebenfalls transparent).
-     */
     protected function applyLaserEffect($filePath, $extension)
     {
         $image = null;
@@ -211,7 +206,6 @@ class Configurator extends Component
         $width = imagesx($image);
         $height = imagesy($image);
 
-        // Um Server-Ressourcen zu sparen, verkleinern wir riesige Bilder auf max 800px
         $maxDim = 800;
         if ($width > $maxDim || $height > $maxDim) {
             $ratio = min($maxDim / $width, $maxDim / $height);
@@ -231,14 +225,12 @@ class Configurator extends Component
             $height = $newH;
         }
 
-        // Neues transparentes Bild für den finalen Laser-Effekt erstellen
         $laserImage = imagecreatetruecolor($width, $height);
         imagealphablending($laserImage, false);
         imagesavealpha($laserImage, true);
         $transparent = imagecolorallocatealpha($laserImage, 0, 0, 0, 127);
         imagefill($laserImage, 0, 0, $transparent);
 
-        // Jeden Pixel auslesen und in einen Laser-Punkt verwandeln
         for ($x = 0; $x < $width; $x++) {
             for ($y = 0; $y < $height; $y++) {
                 $color = imagecolorat($image, $x, $y);
@@ -246,29 +238,19 @@ class Configurator extends Component
 
                 $alpha = $colors['alpha'];
                 if ($alpha == 127) {
-                    continue; // Vorhandene Transparenz komplett in Ruhe lassen
+                    continue;
                 }
 
-                // Helligkeit berechnen (Graustufen-Wert)
                 $luminance = ($colors['red'] * 0.299) + ($colors['green'] * 0.587) + ($colors['blue'] * 0.114);
-
-                // Je dunkler das Original (luminance nah an 0), desto stärker die Laser-Gravur (deckend).
-                // Je heller das Original (luminance nah an 255), desto unsichtbarer (transparent) wird der Pixel.
                 $engravingIntensity = 255 - $luminance;
-
-                // Alpha in PHP GD geht von 0 (deckend) bis 127 (transparent)
                 $targetAlpha = 127 - ($engravingIntensity / 2);
-
-                // Vorhandene Teil-Transparenz mit der neuen Laser-Transparenz mischen
                 $finalAlpha = max($alpha, $targetAlpha);
 
-                // Der Pixel wird IMMER Weiß gemalt, nur die Deckkraft ändert sich!
                 $white = imagecolorallocatealpha($laserImage, 255, 255, 255, (int)$finalAlpha);
                 imagesetpixel($laserImage, $x, $y, $white);
             }
         }
 
-        // Altes Bild löschen, da wir es immer als PNG neu speichern
         unlink($filePath);
         $newPath = preg_replace('/\.(jpg|jpeg|webp)$/i', '.png', $filePath);
         imagepng($laserImage, $newPath, 9);
@@ -276,7 +258,7 @@ class Configurator extends Component
         imagedestroy($image);
         imagedestroy($laserImage);
 
-        return basename($newPath); // Den neuen Dateinamen (.png) ans System zurückmelden
+        return basename($newPath);
     }
 
     public function save(CartService $cartService)

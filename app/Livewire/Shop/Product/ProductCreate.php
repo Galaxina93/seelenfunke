@@ -568,11 +568,25 @@ class ProductCreate extends Component
 
     public function updatedNewPreviewImage()
     {
+        $this->validate(['new_preview_image' => 'image|max:10240']);
         $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
-        $path = $this->new_preview_image->store($folder, 'public');
+
+        if ($this->product->preview_image_path) {
+            Storage::disk('public')->delete($this->product->preview_image_path);
+        }
+
+        // Originalen Dateinamen verwenden
+        $originalName = $this->new_preview_image->getClientOriginalName();
+        $filename = time() . '_2d_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.' . $this->new_preview_image->getClientOriginalExtension();
+
+        $path = $this->new_preview_image->storeAs($folder, $filename, 'public');
         $this->product->preview_image_path = $path;
         $this->product->save();
+        $this->product->refresh(); // Erzwingt das sofortige Neuladen der Variable im HTML
         $this->new_preview_image = null;
+
+        $this->dispatch('2d-preview-updated', url: asset('storage/' . $path));
+        session()->flash('success', '2D Vorschau erfolgreich hochgeladen!');
     }
 
     public function removePreviewImage()
@@ -581,13 +595,17 @@ class ProductCreate extends Component
             Storage::disk('public')->delete($this->product->preview_image_path);
             $this->product->preview_image_path = null;
             $this->product->save();
+            $this->product->refresh();
+
+            $this->dispatch('2d-preview-updated', url: '');
+            session()->flash('success', '2D Vorschau entfernt.');
         }
     }
 
     public function updatedNew3dModel()
     {
-        // Max 50MB
-        $this->validate(['new_3d_model' => 'file|max:51200']);
+        // Max 100MB
+        $this->validate(['new_3d_model' => 'file|max:102400']);
 
         $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
@@ -596,12 +614,18 @@ class ProductCreate extends Component
             Storage::disk('public')->delete($this->product->three_d_model_path);
         }
 
-        $path = $this->new_3d_model->storeAs($folder, time() . '_' . Str::slug($this->product->name) . '.glb', 'public');
+        // Originalen Dateinamen verwenden
+        $originalName = $this->new_3d_model->getClientOriginalName();
+        $filename = time() . '_3d_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.glb';
+
+        $path = $this->new_3d_model->storeAs($folder, $filename, 'public');
 
         $this->product->three_d_model_path = $path;
         $this->product->save();
+        $this->product->refresh(); // Erzwingt das sofortige Neuladen der Variable im HTML
         $this->new_3d_model = null;
 
+        $this->dispatch('3d-model-updated', url: asset('storage/' . $path));
         session()->flash('success', '3D-Modell erfolgreich hochgeladen!');
     }
 
@@ -611,6 +635,9 @@ class ProductCreate extends Component
             Storage::disk('public')->delete($this->product->three_d_model_path);
             $this->product->three_d_model_path = null;
             $this->product->save();
+            $this->product->refresh();
+
+            $this->dispatch('3d-model-updated', url: '');
             session()->flash('success', '3D-Modell entfernt.');
         }
     }
@@ -620,11 +647,36 @@ class ProductCreate extends Component
     {
         $this->validate(['new_3d_background' => 'image|max:10240']);
         $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
-        if ($this->product->three_d_background_path) Storage::disk('public')->delete($this->product->three_d_background_path);
-        $path = $this->new_3d_background->storeAs($folder, time() . '_bg_' . Str::slug($this->product->name) . '.' . $this->new_3d_background->getClientOriginalExtension(), 'public');
+
+        if ($this->product->three_d_background_path) {
+            Storage::disk('public')->delete($this->product->three_d_background_path);
+        }
+
+        // Originalen Dateinamen verwenden
+        $originalName = $this->new_3d_background->getClientOriginalName();
+        $filename = time() . '_bg_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.' . $this->new_3d_background->getClientOriginalExtension();
+
+        $path = $this->new_3d_background->storeAs($folder, $filename, 'public');
         $this->product->three_d_background_path = $path;
         $this->product->save();
+        $this->product->refresh(); // Erzwingt das sofortige Neuladen der Variable im HTML
         $this->new_3d_background = null;
+
+        $this->dispatch('3d-bg-updated', url: asset('storage/' . $path));
+        session()->flash('success', 'Hintergrund erfolgreich hochgeladen!');
+    }
+
+    public function remove3dBackground()
+    {
+        if($this->product->three_d_background_path) {
+            Storage::disk('public')->delete($this->product->three_d_background_path);
+            $this->product->three_d_background_path = null;
+            $this->product->save();
+            $this->product->refresh();
+
+            $this->dispatch('3d-bg-updated', url: '');
+            session()->flash('success', 'Hintergrund entfernt.');
+        }
     }
 
     // --- QUICK ACTIONS ---

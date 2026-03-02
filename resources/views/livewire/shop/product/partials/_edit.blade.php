@@ -19,7 +19,7 @@
         </div>
     </div>
     <div class="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-end">
-        <span wire:loading class="text-[10px] font-black uppercase tracking-widest text-primary animate-pulse">Speichere...</span>
+        <span wire:loading wire:target="save" class="text-[10px] font-black uppercase tracking-widest text-primary animate-pulse">Speichere...</span>
         @if (session()->has('success'))
             <span class="text-[10px] font-black uppercase tracking-widest text-emerald-400 animate-pulse drop-shadow-[0_0_8px_currentColor]">{{ session('success') }}</span>
         @endif
@@ -30,8 +30,9 @@
 <div class="max-w-[1800px] mx-auto p-6 lg:p-10 font-sans antialiased text-gray-300">
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12 items-start">
 
-        {{-- LINKE SPALTE: FORMULARE --}}
-        <div class="xl:col-span-7 space-y-8 lg:space-y-10">
+        {{-- LINKE SPALTE: FORMULARE & EDITOR --}}
+        {{-- Wenn currentStep == 4 ist, nimmt diese Spalte die volle Breite ein --}}
+        <div class="{{ $currentStep === 4 ? 'xl:col-span-12' : 'xl:col-span-7' }} space-y-8 lg:space-y-10 transition-all duration-500">
 
             {{-- Dynamische Progress Bar --}}
             <div class="flex items-start gap-2 sm:gap-4 mb-10 overflow-x-auto no-scrollbar pb-2">
@@ -69,7 +70,6 @@
                 @include('livewire.shop.product.partials.edit-partials._edit_step_2')
                 @include('livewire.shop.product.partials.edit-partials._edit_step_3')
 
-                {{-- WICHTIG: Das wire:ignore umschließt den Konfigurator-Step! --}}
                 @if($type === 'physical')
                     <div x-show="$wire.currentStep === 4" wire:ignore>
                         @include('livewire.shop.product.partials.edit-partials._edit_step_4')
@@ -78,27 +78,37 @@
             </div>
 
             {{-- FOOTER NAVIGATION --}}
-            <div class="flex justify-between items-center pt-10 border-t border-gray-800 mt-10">
-                <button @if($currentStep === 1) disabled @else wire:click="prevStep" @endif class="px-5 sm:px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white bg-gray-900 border border-gray-800 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-inner">
+            <div class="flex flex-col sm:flex-row justify-between items-center pt-10 border-t border-gray-800 mt-10 gap-4 sm:gap-0">
+                <button @if($currentStep === 1) disabled @else wire:click="prevStep" @endif class="w-full sm:w-auto px-5 sm:px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white bg-gray-900 border border-gray-800 hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-inner">
                     &larr; Zurück
                 </button>
 
-                @php $isLastStep = ($type === 'physical' && $currentStep === 4) || ($type !== 'physical' && $currentStep === 3); @endphp
+                <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                    {{-- NEU: Speichern Button im Footer --}}
+                    <button wire:click="save" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 sm:px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white bg-gray-900/50 border border-gray-700 hover:border-gray-500 hover:bg-gray-800 transition-all shadow-inner">
+                        <svg wire:loading wire:target="save" class="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        <span wire:loading.remove wire:target="save">Zwischenspeichern</span>
+                        <span wire:loading wire:target="save">Speichert...</span>
+                    </button>
 
-                @if($isLastStep)
-                    <button wire:click="finish" @if(!$canProceed) disabled @endif class="bg-primary text-gray-900 px-6 sm:px-10 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all">
-                        Fertigstellen & Veröffentlichen
-                    </button>
-                @else
-                    <button wire:click="nextStep" @if(!$canProceed) disabled @endif class="px-6 sm:px-8 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all transform {{ $canProceed ? 'bg-gray-800 text-white border border-gray-600 hover:bg-gray-700 hover:-translate-y-0.5' : 'bg-gray-950 text-gray-600 border border-gray-800 cursor-not-allowed' }}">
-                        Weiter &rarr;
-                    </button>
-                @endif
+                    @php $isLastStep = ($type === 'physical' && $currentStep === 4) || ($type !== 'physical' && $currentStep === 3); @endphp
+
+                    @if($isLastStep)
+                        <button wire:click="finish" @if(!$canProceed) disabled @endif class="w-full sm:w-auto bg-primary text-gray-900 px-6 sm:px-10 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all">
+                            Fertigstellen & Veröffentlichen
+                        </button>
+                    @else
+                        <button wire:click="nextStep" @if(!$canProceed) disabled @endif class="w-full sm:w-auto px-6 sm:px-8 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all transform {{ $canProceed ? 'bg-gray-800 text-white border border-gray-600 hover:bg-gray-700 hover:-translate-y-0.5' : 'bg-gray-950 text-gray-600 border border-gray-800 cursor-not-allowed' }}">
+                            Weiter &rarr;
+                        </button>
+                    @endif
+                </div>
             </div>
         </div>
 
         {{-- RECHTE SPALTE: PREVIEW --}}
-        <div class="xl:col-span-5 relative hidden xl:block">
+        {{-- Wenn currentStep == 4 ist, wird diese Sidebar komplett versteckt --}}
+        <div class="xl:col-span-5 relative hidden xl:block {{ $currentStep === 4 ? '!hidden' : '' }}">
             <div class="sticky top-32 space-y-6">
                 <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] text-center flex items-center justify-center gap-3">
                     <span class="w-8 h-px bg-gray-800"></span>

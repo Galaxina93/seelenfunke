@@ -5,8 +5,17 @@
             <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-300 mb-2 drop-shadow-[0_0_8px_currentColor]">2D Vorschau Overlay (PNG)</label>
             <p class="text-xs text-gray-500 mb-3 font-medium">Dient als Zeichenbrett für den Arbeitsbereich.</p>
             @if($product->preview_image_path)
-                <div class="mt-2 text-emerald-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 drop-shadow-[0_0_8px_currentColor]">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Overlay aktiv
+                <div class="mt-3 flex flex-col gap-1.5">
+                    <span class="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 drop-shadow-[0_0_8px_currentColor]">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        Erfolgreich hochgeladen
+                    </span>
+                    <div class="inline-flex items-center bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 w-fit max-w-full">
+                        <svg class="w-3.5 h-3.5 text-gray-500 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <span class="text-gray-400 text-[9px] font-mono truncate" title="{{ basename($product->preview_image_path) }}">
+                            {{ basename($product->preview_image_path) }}
+                        </span>
+                    </div>
                 </div>
             @endif
         </div>
@@ -32,8 +41,17 @@
             <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 mb-2 drop-shadow-[0_0_8px_currentColor]">3D-Modell (.glb)</label>
             <p class="text-xs text-blue-200/50 mb-3 font-medium">Interaktive 360° Ansicht.</p>
             @if($product->three_d_model_path)
-                <div class="mt-2 text-emerald-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 drop-shadow-[0_0_8px_currentColor]">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Geladen
+                <div class="mt-3 flex flex-col gap-1.5">
+                    <span class="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 drop-shadow-[0_0_8px_currentColor]">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        Erfolgreich hochgeladen
+                    </span>
+                    <div class="inline-flex items-center bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 w-fit max-w-full">
+                        <svg class="w-3.5 h-3.5 text-gray-500 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
+                        <span class="text-gray-400 text-[9px] font-mono truncate" title="{{ basename($product->three_d_model_path) }}">
+                            {{ basename($product->three_d_model_path) }}
+                        </span>
+                    </div>
                 </div>
             @endif
         </div>
@@ -57,8 +75,17 @@
             <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-purple-400 mb-2 drop-shadow-[0_0_8px_currentColor]">3D Hintergrund (.jpg/.png)</label>
             <p class="text-xs text-purple-200/50 mb-3 font-medium">Wird als echter CSS Hintergrund geladen.</p>
             @if($product->three_d_background_path)
-                <div class="mt-2 text-emerald-400 text-[9px] font-black uppercase tracking-widest flex items-center gap-2 drop-shadow-[0_0_8px_currentColor]">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Geladen
+                <div class="mt-3 flex flex-col gap-1.5">
+                    <span class="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 drop-shadow-[0_0_8px_currentColor]">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        Erfolgreich hochgeladen
+                    </span>
+                    <div class="inline-flex items-center bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 w-fit max-w-full">
+                        <svg class="w-3.5 h-3.5 text-gray-500 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-gray-400 text-[9px] font-mono truncate" title="{{ basename($product->three_d_background_path) }}">
+                            {{ basename($product->three_d_background_path) }}
+                        </span>
+                    </div>
                 </div>
             @endif
         </div>

@@ -58,14 +58,19 @@
                         };
                      `">
 
-                <template x-for="(textItem,index) in texts" :key="'content-text-'+(textItem.id || index)">
-                    {{-- Absicherung: Block nur rendern, wenn Element existiert --}}
-                    <div x-show="texts[index] !== undefined" class="absolute touch-none pointer-events-auto group/item"
-                         :style="texts[index] ? `
-                            left: ${config.area_shape === 'custom' ? (texts[index].x || 50) : ((texts[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
-                            top: ${config.area_shape === 'custom' ? (texts[index].y || 50) : ((texts[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
-                            transform-origin: ${texts[index].align==='left'?'0% 50%':(texts[index].align==='right'?'100% 50%':'50% 50%')};
-                            transform: translate(${texts[index].align==='left'?'0%':(texts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${texts[index].rotation || 0}deg);
+                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview'" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                    <button @click="addFallbackText()" class="px-6 py-3 bg-white/90 backdrop-blur-sm text-gray-800 border border-gray-200 rounded-2xl shadow-lg text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-white hover:border-primary transition-all">
+                        + Text hinzufügen
+                    </button>
+                </div>
+
+                <template x-for="(textItem,index) in currentTexts" :key="'content-text-' + activeSide + '-' + (textItem.id || index)">
+                    <div x-show="currentTexts[index] !== undefined" class="absolute touch-none pointer-events-auto group/item"
+                         :style="currentTexts[index] ? `
+                            left: ${config.area_shape === 'custom' ? (currentTexts[index].x || 50) : ((currentTexts[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
+                            top: ${config.area_shape === 'custom' ? (currentTexts[index].y || 50) : ((currentTexts[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                            transform-origin: ${currentTexts[index].align==='left'?'0% 50%':(currentTexts[index].align==='right'?'100% 50%':'50% 50%')};
+                            transform: translate(${currentTexts[index].align==='left'?'0%':(currentTexts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${currentTexts[index].rotation || 0}deg);
                             z-index: ${selectedIndex===index?100:10}
                          ` : 'display:none;'"
                          @mousedown.stop="startAction($event,'text',index,'drag')"
@@ -73,7 +78,7 @@
 
                         <div class="relative transition-all rounded-lg p-1.5" :class="selectedIndex===index && context!=='preview'?'border-[1.5px] border-primary border-dashed bg-white/40 backdrop-blur-sm shadow-lg':'border-[1.5px] border-transparent hover:border-gray-300 hover:bg-white/10'">
 
-                            <template x-if="texts[index] !== undefined">
+                            <template x-if="currentTexts[index] !== undefined">
                                 <textarea x-model="textItem.text"
                                           :data-id="textItem.id"
                                           :rows="(textItem.text?.match(/\n/g) || []).length + 1"
@@ -93,15 +98,15 @@
                                                 font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
                                                 font-family: ${fontMap[textItem.font] || 'Arial'};
                                                 line-height: 1.15;
-                                                color: rgba(255, 255, 255, 1); /* Text auf Weiss gesetzt für Gravur-Optik */
+                                                color: rgba(255, 255, 255, 1);
                                                 filter: drop-shadow(0px 0px 3px rgba(0,0,0,0.3)) grayscale(100%) brightness(1.5);
-                                                -webkit-text-fill-color: white; /* Erzwingt Weiß auch bei manchen mobilen Browsern */
+                                                -webkit-text-fill-color: white;
                                             `"
                                           placeholder="Text eingeben...">
                                 </textarea>
                             </template>
 
-                            <template x-if="selectedIndex===index && context!=='preview' && texts[index] !== undefined">
+                            <template x-if="selectedIndex===index && context!=='preview' && currentTexts[index] !== undefined">
                                 <div>
                                     <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-md border border-gray-100 flex items-center justify-center cursor-move text-gray-500 hover:text-primary transition-colors" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-md border border-gray-100 flex items-center justify-center cursor-alias text-primary hover:text-primary-dark transition-colors" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
@@ -113,25 +118,24 @@
                     </div>
                 </template>
 
-                <template x-for="(logoItem,index) in logos" :key="'content-logo-'+(logoItem.id || index)">
-                    {{-- Absicherung: Block nur rendern, wenn logos[index] existiert --}}
-                    <div x-show="logos[index] !== undefined" class="absolute touch-none pointer-events-auto group/item"
-                         :style="logos[index] ? `
-                            left: ${config.area_shape === 'custom' ? (logos[index].x || 50) : ((logos[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
-                            top: ${config.area_shape === 'custom' ? (logos[index].y || 50) : ((logos[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
-                            width: ${(logos[index].size * scaleFactor)}px;
-                            transform: translate(-50%,-50%) rotate(${logos[index].rotation || 0}deg);
+                <template x-for="(logoItem,index) in currentLogos" :key="'content-logo-' + activeSide + '-' + (logoItem.id || index)">
+                    <div x-show="currentLogos[index] !== undefined" class="absolute touch-none pointer-events-auto group/item"
+                         :style="currentLogos[index] ? `
+                            left: ${config.area_shape === 'custom' ? (currentLogos[index].x || 50) : ((currentLogos[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
+                            top: ${config.area_shape === 'custom' ? (currentLogos[index].y || 50) : ((currentLogos[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                            width: ${((currentLogos[index].size || 100) * scaleFactor)}px;
+                            transform: translate(-50%,-50%) rotate(${currentLogos[index].rotation || 0}deg);
                             z-index: ${selectedIndex===index?100:10}
                          ` : 'display:none;'"
                          @mousedown.stop="startAction($event,'logo',index,'drag')"
                          @touchstart.stop="startAction($event,'logo',index,'drag')">
 
-                        <div class="relative transition-all rounded-lg p-1.5" :class="selectedIndex===index && context!=='preview'?'border-[1.5px] border-primary border-dashed bg-white/40 backdrop-blur-sm shadow-lg':'border-[1.5px] border-transparent hover:border-gray-300 hover:bg-white/10'">
-                            <template x-if="logos[index] !== undefined">
-                                <img :src="logos[index].url" class="w-full h-auto pointer-events-none opacity-90 drop-shadow-md">
+                        <div class="relative transition-all rounded-lg ring-2" :class="selectedIndex===index && context!=='preview'?'ring-primary bg-white/40 backdrop-blur-sm shadow-lg':'ring-transparent hover:ring-gray-300 hover:bg-white/10'">
+                            <template x-if="currentLogos[index] !== undefined">
+                                <img :src="currentLogos[index].url" class="w-full h-auto pointer-events-none opacity-90 drop-shadow-md rounded-lg">
                             </template>
 
-                            <template x-if="selectedIndex===index && context!=='preview' && logos[index] !== undefined">
+                            <template x-if="selectedIndex===index && context!=='preview' && currentLogos[index] !== undefined">
                                 <div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 bg-white rounded-full shadow-md border border-gray-100 flex items-center justify-center cursor-move text-gray-500 hover:text-primary transition-colors" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 bg-white rounded-full shadow-md border border-gray-100 flex items-center justify-center cursor-alias text-primary hover:text-primary-dark transition-colors" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
@@ -175,9 +179,25 @@
 
     </div>
 
+    {{-- VORDERSEITE / RÜCKSEITE SWITCH (Direkt unter dem Rahmen) --}}
+    <div x-show="config.has_back_side" x-cloak class="mt-6 bg-white shadow-sm border border-gray-100 rounded-full p-1 flex items-center justify-center relative z-50">
+        <button @click="activeSide = 'front'"
+                :class="activeSide === 'front' ? 'bg-primary text-white shadow-md' : 'text-gray-500 hover:text-gray-800'"
+                class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center">
+            Vorderseite
+        </button>
+        <button @click="activeSide = 'back'"
+                :class="activeSide === 'back' ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500 hover:text-gray-800'"
+                class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center">
+            Rückseite
+        </button>
+    </div>
+
     {{-- GLOBALE EINSTELLUNGEN (Toolbar darunter) --}}
     <div x-show="selectedIndex !== null && showDrawingBoard && context !== 'preview'" class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-6 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.05)] border border-gray-100 p-2 sm:p-3 rounded-[1.5rem] animate-fade-in-up relative z-50 w-full max-w-[98vw] md:max-w-xl mx-auto" x-cloak>
-        <template x-if="selectedType === 'text'">
+
+        {{-- FIX: Sicherheitsüberprüfung durch x-if auf currentTexts --}}
+        <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
             <div class="flex items-center gap-1 sm:gap-2">
                 <div class="relative">
                     <button @click="showFontMenu = !showFontMenu; showSizeMenu = false; showAlignMenu = false; showPosMenu = false" class="flex flex-col items-center px-4 py-2 hover:bg-gray-50 rounded-xl transition-colors group relative" :class="showFontMenu ? 'bg-gray-100 text-primary' : 'text-gray-500'">
@@ -187,7 +207,7 @@
                     <div x-show="showFontMenu" @click.outside="showFontMenu = false" class="absolute bottom-[calc(100%+12px)] left-0 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-[100] flex flex-col max-h-64">
                         <div class="overflow-y-auto p-2 custom-scrollbar space-y-1">
                             <template x-for="(fontName, fontKey) in fontMap">
-                                <button @click="texts[selectedIndex].font = fontKey; showFontMenu = false; updateTexture()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 rounded-xl truncate transition-colors" :style="{ fontFamily: fontName }" :class="texts[selectedIndex].font === fontKey ? 'text-primary font-bold bg-primary/5' : 'text-gray-700'"><span x-text="fontKey"></span></button>
+                                <button @click="currentTexts[selectedIndex].font = fontKey; showFontMenu = false; updateTexture()" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 rounded-xl truncate transition-colors" :style="{ fontFamily: fontName }" :class="currentTexts[selectedIndex].font === fontKey ? 'text-primary font-bold bg-primary/5' : 'text-gray-700'"><span x-text="fontKey"></span></button>
                             </template>
                         </div>
                     </div>
@@ -196,27 +216,27 @@
                 <div class="relative">
                     <button @click="showAlignMenu = !showAlignMenu; showFontMenu = false; showSizeMenu = false; showPosMenu = false" class="flex flex-col items-center px-4 py-2 hover:bg-gray-50 rounded-xl transition-colors group relative" :class="showAlignMenu ? 'bg-gray-100 text-primary' : 'text-gray-500'">
                         <div class="w-6 h-6 flex items-center justify-center">
-                            <template x-if="texts[selectedIndex].align === 'left'"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></template>
-                            <template x-if="texts[selectedIndex].align === 'center' || !texts[selectedIndex].align"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></template>
-                            <template x-if="texts[selectedIndex].align === 'right'"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></template>
+                            <template x-if="currentTexts[selectedIndex].align === 'left'"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></template>
+                            <template x-if="currentTexts[selectedIndex].align === 'center' || !currentTexts[selectedIndex].align"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></template>
+                            <template x-if="currentTexts[selectedIndex].align === 'right'"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></template>
                         </div>
                         <span class="text-[9px] font-black uppercase tracking-widest mt-1">Format</span>
                     </button>
                     <div x-show="showAlignMenu" @click.outside="showAlignMenu = false" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 z-[100] flex gap-1">
-                        <button @click="texts[selectedIndex].align = 'left'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-primary transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
-                        <button @click="texts[selectedIndex].align = 'center'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-primary transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
-                        <button @click="texts[selectedIndex].align = 'right'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-primary transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
+                        <button @click="currentTexts[selectedIndex].align = 'left'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-primary transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
+                        <button @click="currentTexts[selectedIndex].align = 'center'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-primary transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
+                        <button @click="currentTexts[selectedIndex].align = 'right'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:bg-gray-50 text-gray-500 hover:text-primary transition-colors"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
                     </div>
                 </div>
             </div>
         </template>
 
-        <template x-if="selectedType === 'text'">
+        <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
             <div class="w-px h-10 bg-gray-200 mx-1 sm:mx-2"></div>
         </template>
 
         <div class="relative">
-            <template x-if="selectedType !== null">
+            <template x-if="selectedType !== null && ((selectedType === 'text' && currentTexts[selectedIndex] !== undefined) || (selectedType === 'logo' && currentLogos[selectedIndex] !== undefined))">
                 <button @click="showSizeMenu = !showSizeMenu; showFontMenu = false; showAlignMenu = false; showPosMenu = false" class="flex flex-col items-center px-4 py-2 hover:bg-gray-50 rounded-xl transition-colors group" :class="showSizeMenu ? 'bg-gray-100 text-primary' : 'text-gray-500'">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     <span class="text-[9px] font-black uppercase tracking-widest mt-1">Größe</span>
@@ -224,11 +244,13 @@
             </template>
             <div x-show="showSizeMenu" @click.outside="showSizeMenu = false" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 z-[100]" x-cloak>
                 <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-3"><span>Klein</span><span>Groß</span></div>
-                <template x-if="selectedType === 'text'">
-                    <input type="range" min="0.1" max="5" step="0.05" x-model="texts[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer">
+
+                {{-- FIX: Sicherheitsüberprüfung durch x-if auf currentTexts & currentLogos --}}
+                <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
+                    <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer">
                 </template>
-                <template x-if="selectedType === 'logo'">
-                    <input type="range" min="10" max="500" step="1" x-model="logos[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer">
+                <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
+                    <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer">
                 </template>
             </div>
         </div>

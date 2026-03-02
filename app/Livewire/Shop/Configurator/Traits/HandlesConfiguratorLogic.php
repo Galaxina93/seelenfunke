@@ -44,7 +44,7 @@ trait HandlesConfiguratorLogic
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
-        $this->texts[] = [
+        $newItem = [
             'id' => Str::uuid()->toString(),
             'text' => '',
             'font' => 'Arial',
@@ -54,14 +54,29 @@ trait HandlesConfiguratorLogic
             'size' => 1.0,
             'rotation' => 0
         ];
+
+        // Prüft, welche Seite aktiv ist
+        if ($this->activeSide === 'back') {
+            $this->texts_back[] = $newItem;
+        } else {
+            $this->texts[] = $newItem;
+        }
     }
 
     public function removeText($index)
     {
         if ($this->context === 'preview') return;
-        unset($this->texts[$index]);
-        $this->texts = array_values($this->texts);
-        if (count($this->texts) === 0 && !$this->isDigital) $this->addText();
+
+        // Array dynamisch ansteuern
+        if ($this->activeSide === 'back') {
+            unset($this->texts_back[$index]);
+            $this->texts_back = array_values($this->texts_back);
+            if (count($this->texts_back) === 0 && !$this->isDigital) $this->addText();
+        } else {
+            unset($this->texts[$index]);
+            $this->texts = array_values($this->texts);
+            if (count($this->texts) === 0 && !$this->isDigital) $this->addText();
+        }
     }
 
     public function addStandardVector($filename)
@@ -70,7 +85,7 @@ trait HandlesConfiguratorLogic
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
-        $this->logos[] = [
+        $newItem = [
             'id' => Str::uuid()->toString(),
             'type' => 'vector',
             'value' => 'vectors/' . $filename,
@@ -80,22 +95,35 @@ trait HandlesConfiguratorLogic
             'size' => 100,
             'rotation' => 0
         ];
+
+        if ($this->activeSide === 'back') {
+            $this->logos_back[] = $newItem;
+        } else {
+            $this->logos[] = $newItem;
+        }
     }
 
     public function toggleLogo($type, $value)
     {
         if ($this->context === 'preview') return;
-        foreach ($this->logos as $key => $logo) {
+
+        // Bestimme das aktive Array
+        $targetProperty = $this->activeSide === 'back' ? 'logos_back' : 'logos';
+
+        // Existiert das Logo auf der AKTUELLEN Seite schon? Dann entfernen.
+        foreach ($this->$targetProperty as $key => $logo) {
             if ($logo['value'] == $value) {
-                unset($this->logos[$key]);
-                $this->logos = array_values($this->logos);
+                unset($this->$targetProperty[$key]);
+                $this->$targetProperty = array_values($this->$targetProperty);
                 return;
             }
         }
+
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
-        $this->logos[] = [
+        // Ansonsten zur aktuellen Seite hinzufügen
+        $this->$targetProperty[] = [
             'id' => Str::uuid()->toString(),
             'type' => 'saved',
             'value' => $value,
@@ -112,12 +140,17 @@ trait HandlesConfiguratorLogic
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
+        $targetProperty = $this->activeSide === 'back' ? 'logos_back' : 'logos';
+
         foreach($this->uploaded_files as $path) {
             $ext = pathinfo($path, PATHINFO_EXTENSION);
             if (in_array(strtolower($ext), ['jpg', 'jpeg', 'png', 'webp'])) {
-                $exists = collect($this->logos)->contains('value', $path);
+
+                // Nur auf der aktuellen Seite prüfen
+                $exists = collect($this->$targetProperty)->contains('value', $path);
+
                 if (!$exists) {
-                    $this->logos[] = [
+                    $this->$targetProperty[] = [
                         'id' => Str::uuid()->toString(),
                         'type' => 'saved',
                         'value' => $path,
@@ -138,7 +171,13 @@ trait HandlesConfiguratorLogic
         $path = $this->uploaded_files[$index] ?? null;
         if (!$path) return;
 
+        // WICHTIG: Wenn die Datei gelöscht wird, entfernen wir sie sicherheitshalber von BEIDEN Seiten!
         $this->logos = collect($this->logos)
+            ->filter(fn($l) => $l['value'] !== $path)
+            ->values()
+            ->toArray();
+
+        $this->logos_back = collect($this->logos_back)
             ->filter(fn($l) => $l['value'] !== $path)
             ->values()
             ->toArray();
@@ -153,7 +192,9 @@ trait HandlesConfiguratorLogic
 
     public function isLogoActive($path)
     {
-        return collect($this->logos)->contains('value', $path);
+        // Highlight in der UI nur, wenn es auf der *aktiven* Seite liegt
+        $targetArray = $this->activeSide === 'back' ? $this->logos_back : $this->logos;
+        return collect($targetArray)->contains('value', $path);
     }
 
     public function getRenderedLogosProperty()

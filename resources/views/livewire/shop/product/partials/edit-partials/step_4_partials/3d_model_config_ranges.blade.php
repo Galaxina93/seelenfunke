@@ -6,7 +6,7 @@
         </h4>
 
         <div class="flex items-center gap-3 shrink-0">
-            <button type="button" @click.stop="resetModel()" x-show="open" x-transition class="text-[9px] text-gray-500 font-black uppercase tracking-widest hover:text-red-400 transition-colors bg-gray-900 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-gray-800 hover:border-red-500/30 shadow-inner">Reset</button>
+            <button type="button" @click.stop="resetModel()" x-show="open" x-transition class="text-[9px] text-gray-500 font-black uppercase tracking-widest hover:text-red-400 transition-colors bg-gray-900 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-gray-800 hover:border-red-500/30 shadow-inner">Alle Reset</button>
             <div class="p-1 text-gray-500 group-hover:text-white transition-colors">
                 <svg class="w-4 h-4 transition-transform duration-300" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
             </div>
@@ -21,11 +21,12 @@
                                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
                                 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(197,160,89,0.8)]
                                 hover:[&::-webkit-slider-thumb]:scale-125 transition-all";
+            $resetBtnClass = "p-1.5 text-gray-600 hover:text-primary bg-gray-900 border border-gray-800 hover:border-primary/50 rounded-lg transition-all shadow-inner shrink-0";
         @endphp
 
         <div class="flex flex-col gap-4 pt-5">
 
-            <div class="flex items-center gap-3 w-full">
+            <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Material</span>
                 <select x-model="configSettings.material_type" @change="applyMaterial()" class="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border border-gray-800 bg-gray-900 text-white shadow-inner focus:ring-2 focus:ring-primary/30 focus:border-primary cursor-pointer outline-none appearance-none">
                     <option value="glass" class="bg-gray-950">Glas (Transparent)</option>
@@ -33,48 +34,56 @@
                     <option value="metal" class="bg-gray-950">Metall (Glänzend)</option>
                     <option value="plastic" class="bg-gray-950">Kunststoff</option>
                 </select>
+                <button type="button" @click="configSettings.material_type = 'glass'; applyMaterial()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full mt-2">
+            <div class="flex items-center gap-2 w-full mt-2">
                 <span class="{{ $labelClassModel }}" title="Skalierung">Größe %</span>
                 <input type="range" x-model.number="configSettings.model_scale" @input="applyModelTransforms()" min="1" max="500" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_scale" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_scale = 100; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full">
+            <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Pos X</span>
                 <input type="range" x-model.number="configSettings.model_pos_x" @input="applyModelTransforms()" min="-200" max="200" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_pos_x" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_pos_x = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full">
+            <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Pos Y</span>
                 <input type="range" x-model.number="configSettings.model_pos_y" @input="applyModelTransforms()" min="-200" max="200" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_pos_y" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_pos_y = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full">
+            <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Pos Z</span>
                 <input type="range" x-model.number="configSettings.model_pos_z" @input="applyModelTransforms()" min="-200" max="200" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_pos_z" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_pos_z = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full pt-4 mt-2 border-t border-gray-800">
+            <div class="flex items-center gap-2 w-full pt-4 mt-2 border-t border-gray-800">
                 <span class="{{ $labelClassModel }}">Rot X°</span>
                 <input type="range" x-model.number="configSettings.model_rot_x" @input="applyModelTransforms()" min="-180" max="180" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_rot_x" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_rot_x = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full">
+            <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Rot Y°</span>
                 <input type="range" x-model.number="configSettings.model_rot_y" @input="applyModelTransforms()" min="-180" max="180" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_rot_y" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_rot_y = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-3 w-full">
+            <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Rot Z°</span>
                 <input type="range" x-model.number="configSettings.model_rot_z" @input="applyModelTransforms()" min="-180" max="180" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_rot_z" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">
+                <button type="button" @click="configSettings.model_rot_z = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
         </div>
     </div>
