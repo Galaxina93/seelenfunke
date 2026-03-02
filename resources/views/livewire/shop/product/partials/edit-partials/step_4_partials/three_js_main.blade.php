@@ -5,9 +5,9 @@ showDrawingBoard: true,
 isRaycasting: false,
 transformTarget: 'none',
 transformMode: 'translate',
-modelPath: '{{ $product?->three_d_model_path ? asset('storage/'.$product->three_d_model_path) : '' }}',
-bgPath: '{{ !empty($product?->three_d_background_path) ? asset('storage/'.$product->three_d_background_path) : '' }}',
-fallbackImg: '{{ $product?->preview_image_path ? asset('storage/'.$product->preview_image_path) : '' }}',
+modelPath: '{{ $product?->three_d_model_path ? asset("storage/".$product->three_d_model_path) : "" }}',
+bgPath: '{{ !empty($product?->three_d_background_path) ? asset("storage/".$product->three_d_background_path) : "" }}',
+fallbackImg: '{{ $product?->preview_image_path ? asset("storage/".$product->preview_image_path) : "" }}',
 configSettings: @entangle('configSettings'),
 
 activeSide: 'front',
@@ -129,13 +129,15 @@ if (!container) return;
 let eng = this.getEngine();
 eng.scene = new window.THREE.Scene();
 
+// Zeige einen dunkelgrauen statt pechschwarzen Hintergrund, damit man Kanten besser sieht
 if (!this.bgPath) {
-eng.scene.background = new window.THREE.Color('#0b0f19');
+eng.scene.background = new window.THREE.Color('#222222');
 } else {
 eng.scene.background = null;
 }
 
 eng.camera = new window.THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 1000);
+eng.scene.add(eng.camera);
 
 eng.renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
 eng.renderer.setSize(container.offsetWidth, container.offsetHeight);
@@ -144,20 +146,20 @@ eng.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 container.innerHTML = '';
 container.appendChild(eng.renderer.domElement);
 
-eng.scene.add(new window.THREE.AmbientLight(0xffffff, 1.5));
-const hemiLight = new window.THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
-eng.scene.add(hemiLight);
+// EXTREM STARKES LICHT SETUP, damit niemals etwas unsichtbar bleibt
+const headLamp = new window.THREE.DirectionalLight(0xffffff, 4.0);
+headLamp.position.set(0, 0, 1);
+eng.camera.add(headLamp);
 
-const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
+eng.scene.add(new window.THREE.AmbientLight(0xffffff, 3.0));
+eng.scene.add(new window.THREE.HemisphereLight(0xffffff, 0x444444, 3.0));
+
+const mainLight = new window.THREE.DirectionalLight(0xffffff, 4.0);
 mainLight.position.set(10, 10, 10);
 eng.scene.add(mainLight);
 
-const fillLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-fillLight.position.set(-10, 5, 10);
-eng.scene.add(fillLight);
-
-const backLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
-backLight.position.set(0, 10, -10);
+const backLight = new window.THREE.DirectionalLight(0xffffff, 3.0);
+backLight.position.set(-10, 10, -10);
 eng.scene.add(backLight);
 
 eng.controls = new window.OrbitControls(eng.camera, eng.renderer.domElement);
@@ -322,7 +324,6 @@ if (!eng.modelContainer || !eng.textureFront || !eng.model) return;
 
 const isCylinder = this.configSettings.overlay_type === 'cylinder';
 
-// FIX: Ladebildschirm nur anzeigen, wenn auch wirklich Raycasting nötig ist!
 if (isCylinder) {
 this.isRaycasting = true;
 }
@@ -413,7 +414,6 @@ this.isRaycasting = false;
 }
 };
 
-// Wenn es ein Zylinder ist, warten wir kurz für den Ladescreen, ansonsten sofort bauen!
 if (isCylinder) {
 setTimeout(buildGeometryLogic, 100);
 } else {
@@ -475,25 +475,25 @@ eng.tControls.detach();
 applyMaterial() {
 let eng = this.getEngine();
 if (!eng.model || !this.configSettings) return;
-const matType = this.configSettings.material_type || 'glass';
 
-const hasEnv = (this.bgPath && this.bgPath.trim() !== '' && !this.bgPath.endsWith('/storage/'));
+const matType = this.configSettings.material_type || 'glass';
+const hasEnv = (this.bgPath && this.bgPath.trim() !== '');
 
 eng.model.traverse((child) => {
 if (child.isMesh && child.material) {
-const oldMap = child.material.map;
+const oldMap = child.material.map || null;
+
+// Zwinge Modelle ohne Textur dazu, ein sauberes Grau/Weiß zu haben, damit sie nicht schwarz bleiben
+const baseColor = oldMap ? 0xffffff : 0xcccccc;
+
 if (matType === 'glass') {
-child.material = new window.THREE.MeshPhysicalMaterial({ map: oldMap, color: 0xffffff, metalness: hasEnv ? 0.3 : 0.0, roughness: hasEnv ? 0.05 : 0.1, transparent: true, opacity: 0.80, depthWrite: false, side: window.THREE.FrontSide });
+child.material = new window.THREE.MeshPhysicalMaterial({ map: oldMap, color: baseColor, metalness: hasEnv ? 0.3 : 0.0, roughness: hasEnv ? 0.05 : 0.1, transparent: true, opacity: 0.80, depthWrite: false, side: window.THREE.FrontSide });
 } else if (matType === 'wood') {
-child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: 0xffffff, roughness: 0.9, metalness: 0.0 });
+child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: baseColor, roughness: 0.9, metalness: 0.0 });
 } else if (matType === 'metal') {
-if (hasEnv) {
-child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: 0xffffff, roughness: 0.2, metalness: 0.9 });
+child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: baseColor, roughness: hasEnv ? 0.2 : 0.4, metalness: hasEnv ? 0.9 : 0.1 });
 } else {
-child.material = new window.THREE.MeshPhongMaterial({ map: oldMap, color: 0x888888, specular: 0xffffff, shininess: 150 });
-}
-} else {
-child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: 0xffffff, roughness: 0.5, metalness: 0.0 });
+child.material = new window.THREE.MeshStandardMaterial({ map: oldMap, color: baseColor, roughness: 0.5, metalness: 0.0 });
 }
 child.material.needsUpdate = true;
 }
