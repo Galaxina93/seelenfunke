@@ -44,6 +44,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');
 
+/*    Route::get('/admin/product-templates', function () {
+        return view('backend.admin.pages.product-templates');
+    })->name('admin.product-templates');*/
+
     Route::get('/admin/reviews', function () {
         return view('backend.admin.pages.product-control-reviews');
     })->name('admin.product-control-reviews');

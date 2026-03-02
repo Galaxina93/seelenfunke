@@ -1,4 +1,4 @@
-<div class="mt-10 lg:mt-0 lg:col-span-5 h-full"
+<div class="mt-10 lg:mt-0 lg:col-span-5 sticky top-24 z-20"
      x-data="{
         isProcessing: false,
         terms: @entangle('terms_accepted'),
@@ -11,7 +11,7 @@
      @checkout-processing-done.window="isProcessing = false"
      @checkout-processing.window="isProcessing = true">
 
-    <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg sticky top-24 transition-all duration-300">
+    <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg transition-all duration-300">
 
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
             <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-40 h-40">
@@ -160,7 +160,7 @@
             <div class="mt-8">
                 <button id="submit-button"
                         type="submit"
-                        @disabled(!$terms_accepted || !$privacy_accepted)
+                        x-bind:disabled="!terms || !privacy"
                         class="w-full rounded-full border border-transparent bg-gray-900 py-4 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-1">
                     <span id="button-text">Zahlungspflichtig bestellen</span>
                     <div id="spinner" class="hidden flex items-center justify-center gap-2">

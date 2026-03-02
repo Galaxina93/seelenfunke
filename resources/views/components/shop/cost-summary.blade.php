@@ -71,11 +71,13 @@
     }
 @endphp
 
-<div class="bg-gray-900/50 backdrop-blur-md rounded-3xl border border-gray-800 p-6 sm:p-8 shadow-inner h-full">
+<div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm h-full">
 
     @if($showTitle)
-        <h4 class="font-black text-gray-500 text-[10px] uppercase tracking-[0.2em] mb-5 border-b border-gray-800 pb-3 flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        <h4 class="font-bold text-gray-900 text-sm uppercase tracking-widest mb-6 border-b border-gray-200 pb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
             Kostenübersicht
         </h4>
     @endif
@@ -83,37 +85,35 @@
     <div class="space-y-4 text-sm font-medium">
 
         {{-- 1. Warenwert --}}
-        <div class="flex justify-between text-gray-400">
+        <div class="flex justify-between text-gray-600">
             <span>Warenwert</span>
-            <span class="text-white">{{ number_format($data['subtotal'] / 100, 2, ',', '.') }} €</span>
+            <span class="text-gray-900 whitespace-nowrap">{{ number_format($data['subtotal'] / 100, 2, ',', '.') }}&nbsp;€</span>
         </div>
 
         {{-- 2. Rabatte --}}
         @if($data['volume_discount'] > 0)
-            <div class="flex justify-between text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl -mx-2.5 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+            <div class="flex justify-between text-green-700 font-bold bg-green-50 border border-green-200 p-3 rounded-xl shadow-sm -mx-3">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     <span>Mengenrabatt</span>
                 </div>
-                <span>-{{ number_format($data['volume_discount'] / 100, 2, ',', '.') }} €</span>
+                <span class="whitespace-nowrap">-{{ number_format($data['volume_discount'] / 100, 2, ',', '.') }}&nbsp;€</span>
             </div>
         @endif
 
         @if($data['discount_amount'] > 0)
-            <div class="flex justify-between text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl -mx-2.5 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+            <div class="flex justify-between text-green-700 font-bold bg-green-50 border border-green-200 p-3 rounded-xl shadow-sm -mx-3">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
                     </svg>
                     <span>Gutschein ({{ $data['coupon_code'] }})</span>
                 </div>
                 {{-- Slot für Delete Button im Cart --}}
                 <div class="flex items-center gap-2">
-                    <span>-{{ number_format($data['discount_amount'] / 100, 2, ',', '.') }} €</span>
+                    <span class="whitespace-nowrap">-{{ number_format($data['discount_amount'] / 100, 2, ',', '.') }}&nbsp;€</span>
                     {{ $slot ?? '' }}
                 </div>
             </div>
@@ -121,49 +121,48 @@
 
         {{-- Zwischensumme (Optional anzeigen bei Rabatten) --}}
         @if($data['volume_discount'] > 0 || $data['discount_amount'] > 0)
-            <div class="border-b border-gray-800/50 my-2"></div>
+            <div class="border-b border-gray-200 my-3"></div>
             <div class="flex justify-between text-gray-500 italic text-xs mb-3">
                 <span>Zwischensumme</span>
                 {{-- Berechnung: Subtotal - Rabatte --}}
-                <span>{{ number_format(($data['subtotal'] - $data['volume_discount'] - $data['discount_amount']) / 100, 2, ',', '.') }} €</span>
+                <span class="whitespace-nowrap">{{ number_format(($data['subtotal'] - $data['volume_discount'] - $data['discount_amount']) / 100, 2, ',', '.') }}&nbsp;€</span>
             </div>
         @endif
 
         {{-- 3. Express Service --}}
         @if($data['is_express'])
-            <div class="flex justify-between text-red-400 font-bold bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl -mx-2.5 shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+            <div class="flex justify-between text-red-700 font-bold bg-red-50 border border-red-200 p-3 rounded-xl shadow-sm -mx-3">
                 <span class="flex items-center gap-2">
-                    <span class="relative flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                    </span>
+                    <svg class="w-4 h-4 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                     Express-Service
                 </span>
-                <span>+ {{ number_format($expressSurchargeGross / 100, 2, ',', '.') }} €</span>
+                <span class="whitespace-nowrap">+ {{ number_format($expressSurchargeGross / 100, 2, ',', '.') }}&nbsp;€</span>
             </div>
         @endif
 
         {{-- 4. Versand --}}
-        <div class="flex justify-between text-gray-400">
+        <div class="flex justify-between text-gray-600">
             <span>Versand {{ $country ? "($country)" : '' }}</span>
             @if($data['shipping'] > 0)
-                <span class="text-white">{{ number_format($data['shipping'] / 100, 2, ',', '.') }} €</span>
+                <span class="text-gray-900 whitespace-nowrap">{{ number_format($data['shipping'] / 100, 2, ',', '.') }}&nbsp;€</span>
             @else
                 @if(isset($totals))
                     {{-- Im Cart/Checkout Kontext etwas fetter anzeigen --}}
-                    <div class="bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md -mx-2 text-emerald-400 font-black text-[10px] uppercase tracking-widest shadow-sm">
+                    <div class="bg-green-50 border border-green-200 px-2 py-0.5 rounded-md -mx-2 text-green-700 font-bold text-xs uppercase tracking-widest shadow-sm">
                         Kostenlos
                     </div>
                 @else
-                    <span class="text-emerald-400 font-black text-[10px] uppercase tracking-widest">Kostenlos</span>
+                    <span class="text-green-600 font-bold text-xs uppercase tracking-widest">Kostenlos</span>
                 @endif
             @endif
         </div>
 
         {{-- 5. Gesamt --}}
-        <div class="border-t border-gray-700 pt-5 mt-5 flex justify-between items-end">
-            <span class="font-serif font-bold text-white text-lg uppercase tracking-tight">Gesamtsumme</span>
-            <span class="font-serif font-black text-primary text-3xl tracking-tight drop-shadow-[0_0_15px_rgba(197,160,89,0.3)]">{{ number_format($data['total'] / 100, 2, ',', '.') }} €</span>
+        <div class="border-t border-gray-300 pt-5 mt-6 flex justify-between items-end">
+            <span class="font-serif font-bold text-gray-900 text-xl">Gesamtsumme</span>
+            <span class="font-serif font-black text-primary text-3xl whitespace-nowrap">{{ number_format($data['total'] / 100, 2, ',', '.') }}&nbsp;€</span>
         </div>
 
         {{-- 6. MwSt --}}
@@ -173,20 +172,20 @@
                     {{-- Detaillierte Auflistung (Cart/Checkout) --}}
                     @foreach($data['tax_breakdown'] as $rate => $amount)
                         @if($amount > 0)
-                            <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
-                                inkl. {{ number_format($amount / 100, 2, ',', '.') }} € MwSt. ({{ floatval($rate) }}%)
+                            <div class="text-xs text-gray-500 whitespace-nowrap">
+                                inkl. {{ number_format($amount / 100, 2, ',', '.') }}&nbsp;€ MwSt. ({{ floatval($rate) }}%)
                             </div>
                         @endif
                     @endforeach
                 @else
                     {{-- Einfache Summe (Order/Quote) --}}
-                    <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
-                        inkl. {{ number_format($data['tax_amount'] / 100, 2, ',', '.') }} € MwSt.
+                    <div class="text-xs text-gray-500 whitespace-nowrap">
+                        inkl. {{ number_format($data['tax_amount'] / 100, 2, ',', '.') }}&nbsp;€ MwSt.
                         ({{ number_format($taxRate, 0) }}%)
                     </div>
                 @endif
             @else
-                <div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Steuerfrei gemäß § 19 UStG</div>
+                <div class="text-xs text-gray-500">Steuerfrei gemäß § 19 UStG</div>
             @endif
         </div>
 

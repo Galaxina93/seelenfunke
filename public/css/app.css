@@ -1413,6 +1413,14 @@ video {
   margin-top: 0.375rem;
   margin-bottom: 0.375rem;
 }
+.my-3 {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.-mx-3 {
+  margin-left: -0.75rem;
+  margin-right: -0.75rem;
+}
 .\!mb-0 {
   margin-bottom: 0px !important;
 }
@@ -1818,6 +1826,9 @@ video {
 .h-\[calc\(100vh-140px\)\] {
   height: calc(100vh - 140px);
 }
+.h-\[90vh\] {
+  height: 90vh;
+}
 .max-h-40 {
   max-height: 10rem;
 }
@@ -1865,6 +1876,9 @@ video {
 }
 .max-h-48 {
   max-height: 12rem;
+}
+.max-h-\[500px\] {
+  max-height: 500px;
 }
 .min-h-0 {
   min-height: 0px;
@@ -2935,6 +2949,9 @@ video {
 }
 .gap-y-6 {
   row-gap: 1.5rem;
+}
+.gap-y-10 {
+  row-gap: 2.5rem;
 }
 .-space-x-2 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-x-reverse: 0;
@@ -4385,6 +4402,9 @@ video {
 }
 .bg-yellow-500\/20 {
   background-color: rgb(234 179 8 / 0.2);
+}
+.bg-gray-50\/80 {
+  background-color: rgb(249 250 251 / 0.8);
 }
 .bg-opacity-60 {
   --tw-bg-opacity: 0.6;
@@ -8383,6 +8403,10 @@ video {
   --tw-shadow-color: rgb(255 255 255 / 0.2);
   --tw-shadow: var(--tw-shadow-colored);
 }
+.hover\:shadow-primary\/20:hover {
+  --tw-shadow-color: rgb(201 166 107 / 0.2);
+  --tw-shadow: var(--tw-shadow-colored);
+}
 .hover\:ring-gray-300:hover {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(209 213 219 / var(--tw-ring-opacity, 1));
@@ -9093,6 +9117,12 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(17 24 39 / var(--tw-bg-opacity, 1));
 }
+.group:hover .group-hover\:bg-white\/20 {
+  background-color: rgb(255 255 255 / 0.2);
+}
+.group:hover .group-hover\:bg-white\/10 {
+  background-color: rgb(255 255 255 / 0.1);
+}
 .group\/card:hover .group-hover\/card\:text-gray-900 {
   --tw-text-opacity: 1;
   color: rgb(17 24 39 / var(--tw-text-opacity, 1));
@@ -9235,6 +9265,12 @@ video {
 .group\/link:hover .group-hover\/link\:text-gray-900 {
   --tw-text-opacity: 1;
   color: rgb(17 24 39 / var(--tw-text-opacity, 1));
+}
+.group:hover .group-hover\:text-white\/80 {
+  color: rgb(255 255 255 / 0.8);
+}
+.group:hover .group-hover\:text-white\/90 {
+  color: rgb(255 255 255 / 0.9);
 }
 .group:hover .group-hover\:underline {
   text-decoration-line: underline;
@@ -10006,6 +10042,9 @@ video {
   .sm\:p-8 {
     padding: 2rem;
   }
+  .sm\:p-12 {
+    padding: 3rem;
+  }
   .sm\:px-0 {
     padding-left: 0px;
     padding-right: 0px;
@@ -10675,6 +10714,10 @@ video {
   .md\:py-8 {
     padding-top: 2rem;
     padding-bottom: 2rem;
+  }
+  .md\:py-0 {
+    padding-top: 0px;
+    padding-bottom: 0px;
   }
   .md\:pb-0 {
     padding-bottom: 0px;

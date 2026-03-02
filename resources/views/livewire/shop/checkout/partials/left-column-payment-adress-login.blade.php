@@ -14,9 +14,9 @@
                 </button>
             </div>
 
-            {{-- Inline Login Form --}}
+            {{-- Inline Login Form (FIX: div statt form wegen HTML Verschachtelung) --}}
             <div x-show="showLogin" x-collapse class="mt-4 pt-4 border-t border-gray-100" style="display: none;">
-                <form wire:submit.prevent="loginUser">
+                <div wire:keydown.enter="loginUser">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">E-Mail</label>
@@ -40,7 +40,7 @@
                             <span wire:loading wire:target="loginUser">Lade...</span>
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     @else

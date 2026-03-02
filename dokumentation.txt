@@ -57,3 +57,11 @@ npm run watch
 
 LIVEWIRE:
 docker compose exec web php artisan make:livewire Customer.Game.CristallGame
+
+
+CHECKOUT:
+Worker starten um Jobs zu testen:
+Da wir im Docker Container arbeiten müssen wir den Befehl auch im Container abfeuern:
+1. Berechtigung setzen: chmod +x vendor/bin/sail
+2. Worker starten: ./vendor/bin/sail artisan queue:work
+

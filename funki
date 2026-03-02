@@ -6,15 +6,16 @@ case "$1" in
         echo -e "Hier ist eine Übersicht aller verfügbaren Befehle:\n"
         echo -e "  \033[1;32m🚀 start\033[0m         Startet alle Docker-Container im Hintergrund."
         echo -e "  \033[1;32m🛑 stop\033[0m          Stoppt alle laufenden Container sanft."
-        echo -e "  \033[1;32m🏗️  bauen\033[0m         Baut die Container (Images) komplett neu auf."
+        echo -e "  \033[1;32m🏗️ bauen\033[0m         Baut die Container (Images) komplett neu auf."
         echo -e "  \033[1;32m💥 löschen\033[0m       Löscht alle Container und Volumes (Achtung: Datenbank wird resettet!)."
-        echo -e "  \033[1;32m🗄️  migrate\033[0m       Führt Laravel Migrationen und Datenbank-Seeder aus."
+        echo -e "  \033[1;32m🗄️ migrate\033[0m       Führt Laravel Migrationen und Datenbank-Seeder aus."
         echo -e "  \033[1;32m🔑 key\033[0m           Generiert einen neuen Laravel Application Key."
-        echo -e "  \033[1;32m🗂️  storage\033[0m       Repariert und erneuert den öffentlichen Storage-Link restlos."
+        echo -e "  \033[1;32m🗂️ storage\033[0m       Repariert und erneuert den öffentlichen Storage-Link restlos."
         echo -e "  \033[1;32m📦 export\033[0m        Exportiert deine Projektdateien."
-        echo -e "  \033[1;32m⚙️  uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
-        echo -e "  \033[1;32m🛠️  artisan\033[0m       Führt beliebige Artisan-Befehle mit deinen lokalen User-Rechten aus."
-        echo -e "  \033[1;32mℹ️  info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
+        echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
+        echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
+        echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle mit deinen lokalen User-Rechten aus."
+        echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki uploadlimit 250M\n"
         ;;
@@ -62,6 +63,10 @@ case "$1" in
         echo "🔄 Starte Web-Container neu, damit die Änderungen greifen..."
         docker compose restart web
         echo "✅ Upload-Limit erfolgreich auf $LIMIT gesetzt!"
+        ;;
+    worker)
+        echo "👷 Starte Funki Queue-Worker (lauscht auf Hintergrund-Jobs)..."
+        docker compose exec web php artisan queue:listen
         ;;
     artisan)
         shift

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Shop\Checkout\Traits;
 
+use App\Jobs\ProcessOrderDocumentsAndMails;
 use App\Models\Order\Order;
 use App\Models\Funki\FunkiVoucher;
 use App\Models\Quote\QuoteRequest;
@@ -52,7 +53,7 @@ trait HandlesStripePayment
 
                 $this->clientSecret = $intent->client_secret;
 
-                // [FIX] Hier speichern wir die ID sofort in die Variable
+                // Hier speichern wir die ID sofort in die Variable
                 $this->currentPaymentIntentId = $intent->id;
 
                 return $this->clientSecret;
@@ -116,67 +117,11 @@ trait HandlesStripePayment
                 }
             }
 
-            // 3. Rechnung & Dokumente zentral erstellen
-            $pdfPath = null;
-            $xmlPath = null; // [NEU] Variable für XML Pfad
-
-            try {
-                $invoiceService = app(\App\Services\InvoiceService::class);
-
-                // Invoice Model in DB erstellen
-                $invoice = $invoiceService->createFromOrder($order);
-
-                // A) PDF Generieren
-                $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
-
-                if ($invoice && !file_exists($pdfPath)) {
-                    $pdf = $invoiceService->generatePdf($invoice);
-                    if (!file_exists(dirname($pdfPath))) {
-                        mkdir(dirname($pdfPath), 0755, true);
-                    }
-                    file_put_contents($pdfPath, $pdf->output());
-                }
-
-                // B) XML Generieren (Nur für gewerbliche Kunden)
-                $isBusiness = false;
-                if ($order->customer && $order->customer->profile && $order->customer->profile->is_business) {
-                    $isBusiness = true;
-                } elseif (!empty($order->billing_address['company'])) {
-                    $isBusiness = true;
-                }
-
-                if ($invoice && $isBusiness) {
-                    try {
-                        $xmlService = app(\App\Services\NativeXmlInvoiceService::class);
-                        $relativePath = $xmlService->generate($invoice);
-                        $xmlPath = storage_path("app/{$relativePath}");
-                    } catch (\Exception $e) {
-                        \Illuminate\Support\Facades\Log::error("XML-Generierung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
-                    }
-                }
-
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Rechnungserstellung fehlgeschlagen für {$order->order_number}: " . $e->getMessage());
-            }
-
-            // 4. Mails versenden mit zentralisierten Daten
-            try {
-                $mailData = $order->toFormattedArray();
-
-                // A) Bestätigung an Kunden (JETZT MIT PDF UND XML)
-                \Illuminate\Support\Facades\Mail::to($order->email)
-                    ->send(new \App\Mail\OrderMailToCustomer($mailData, $pdfPath, $xmlPath));
-
-                // B) Arbeits-Anfrage an Admin (Dich)
-                \Illuminate\Support\Facades\Mail::to('kontakt@mein-seelenfunke.de')
-                    ->send(new \App\Mail\OrderMailToAdmin($mailData, $pdfPath, $xmlPath));
-
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Checkout Mail Fehler für {$order->order_number}: " . $e->getMessage());
-            }
+            // --- NEU: DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
+            ProcessOrderDocumentsAndMails::dispatch($order);
         }
 
-        // 5. UI umschalten & Cleanup
+        // 3. UI umschalten & Cleanup
         $this->isFinished = true;
 
         $cartService = app(CartService::class);

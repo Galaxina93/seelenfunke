@@ -40,6 +40,7 @@
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
+                    <x-forms.list-item route="/admin/product-templates" title="Vorlagen" pageName="product-templates" icon="clipboard-document-list" />
                     <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="star" />
                     <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
                 </ul>
