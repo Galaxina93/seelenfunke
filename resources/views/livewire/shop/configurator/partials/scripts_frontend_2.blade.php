@@ -50,7 +50,7 @@
                 antialias: false,
                 alpha: true,
                 precision: isMobile ? 'lowp' : 'mediump',
-                powerPreference: "low-power",
+                powerPreference: 'low-power',
                 stencil: false,
                 depth: true
             });
@@ -63,8 +63,7 @@
             this.container.innerHTML = '';
             this.container.appendChild(this.renderer.domElement);
 
-            // FIX: Extrem starkes 3-Punkt-Studio-Licht + Ambient-Licht.
-            // Verhindert, dass das Modell ohne HDRI in der Dunkelheit verschwindet!
+            // Extrem starkes 3-Punkt-Studio-Licht + Ambient-Licht aus deiner "heilen Datei"
             this.scene.add(new window.THREE.AmbientLight(0xffffff, 1.5));
 
             const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
@@ -106,8 +105,7 @@
                 if (this.textureFront) {
                     this.textureFront.flipY = true;
                     this.textureFront.wrapS = window.THREE.RepeatWrapping;
-                    this.textureFront.repeat.x = -1;
-                    this.textureFront.offset.x = 1;
+                    // FIX: repeat.x = -1 hier gelöscht, da es dynamisch gemacht wird!
                     this.textureFront.generateMipmaps = false;
                     this.textureFront.minFilter = window.THREE.LinearFilter;
                     if (typeof this.textureFront.anisotropy !== 'undefined') this.textureFront.anisotropy = isMobile ? 1 : 4;
@@ -125,8 +123,7 @@
                 if (this.textureBack) {
                     this.textureBack.flipY = true;
                     this.textureBack.wrapS = window.THREE.RepeatWrapping;
-                    this.textureBack.repeat.x = -1;
-                    this.textureBack.offset.x = 1;
+                    // FIX: repeat.x = -1 hier gelöscht, da es dynamisch gemacht wird!
                     this.textureBack.generateMipmaps = false;
                     this.textureBack.minFilter = window.THREE.LinearFilter;
                     if (typeof this.textureBack.anisotropy !== 'undefined') this.textureBack.anisotropy = isMobile ? 1 : 4;
@@ -171,7 +168,7 @@
                 },
                 undefined,
                 (err) => {
-                    console.error("GLB Loading Error:", err);
+                    console.error('GLB Loading Error:', err);
                     if(onLoadedCallback) onLoadedCallback();
                 }
             );
@@ -179,6 +176,20 @@
 
         updateOverlayGeometry() {
             if (!this.modelContainer || !this.model) return;
+
+            const isCylinder = this.config.overlay_type === 'cylinder';
+
+            // DYNAMISCHE SPIEGELUNG: Unterscheidet jetzt zwischen Zylinder (Weizenglas) und Flach (Anhänger)!
+            if (this.textureFront) {
+                this.textureFront.repeat.x = isCylinder ? 1 : -1;
+                this.textureFront.offset.x = isCylinder ? 0 : 1;
+                this.textureFront.needsUpdate = true;
+            }
+            if (this.textureBack) {
+                this.textureBack.repeat.x = isCylinder ? 1 : -1;
+                this.textureBack.offset.x = isCylinder ? 0 : 1;
+                this.textureBack.needsUpdate = true;
+            }
 
             if (this.texturePlaneFront) {
                 if(this.texturePlaneFront.geometry) this.texturePlaneFront.geometry.dispose();
@@ -195,7 +206,7 @@
             let geo;
             let baseZ = 0;
 
-            if (this.config.overlay_type === 'cylinder') {
+            if (isCylinder) {
                 geo = new window.THREE.CylinderGeometry(1, 1, size.y, 32, 16, true);
 
                 const pos = geo.attributes.position;
@@ -256,9 +267,6 @@
                 if(child.isMesh && child.material) {
                     const oldMap = child.material.map;
 
-                    // FIX: Ohne Environment (bgPath) ist metalness zwingend auf nahe 0,
-                    // da echte Metalle schwarz werden, wenn es nichts zum Reflektieren gibt!
-
                     if(matType === 'glass') {
                         child.material = new window.THREE.MeshPhysicalMaterial({
                             map: oldMap,
@@ -282,7 +290,7 @@
                             map: oldMap,
                             color: 0xffffff,
                             roughness: hasEnv ? 0.2 : 0.4,
-                            metalness: hasEnv ? 0.9 : 0.0 // HIER IST DER FIX FÜR DAS SCHWARZE METALL!
+                            metalness: hasEnv ? 0.9 : 0.0
                         });
                     } else {
                         child.material = new window.THREE.MeshStandardMaterial({
@@ -392,7 +400,7 @@
                 if(logos) {
                     logos.forEach(logo => {
                         const img = new Image();
-                        img.crossOrigin = "anonymous";
+                        img.crossOrigin = 'anonymous';
                         img.src = logo.url;
                         img.onload = () => {
                             ctx.save();
@@ -431,7 +439,7 @@
                         ctx.textBaseline = 'middle';
 
                         if(this.config.material_type === 'glass') {
-                            ctx.shadowColor = "rgba(255,255,255,0.8)";
+                            ctx.shadowColor = 'rgba(255,255,255,0.8)';
                             ctx.shadowBlur = cw <= 1024 ? 5 : 15;
                         }
 
