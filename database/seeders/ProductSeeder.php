@@ -140,6 +140,7 @@ class ProductSeeder extends Seeder
 
             'preview_image_path' => 'testdata/seelenanhaenger/overlay.png',
             'three_d_model_path' => 'testdata/seelenanhaenger/seelenanhaenger_3d_.glb',
+            'three_d_background_path' => 'testdata/seelenanhaenger/header_bg.png',
             'media_gallery' => [
                 ['type' => 'image', 'path' => 'testdata/seelenanhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
             ],
