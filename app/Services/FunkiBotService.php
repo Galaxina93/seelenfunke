@@ -543,9 +543,9 @@ class FunkiBotService
             case 'new_year': return Carbon::create($year, 1, 1);
             case 'sale_summer': return Carbon::create($year, 7, 1);
             case 'sale_winter': return Carbon::create($year, 1, 1);
-            case 'easter': return Carbon::createFromDate($year, 3, 21)->addDays(easter_days($year));
+            case 'easter': return $this->getEasterDate($year);
             case 'mothers_day': return Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY);
-            case 'fathers_day': return Carbon::createFromDate($year, 3, 21)->addDays(easter_days($year))->addDays(39);
+            case 'fathers_day': return $this->getEasterDate($year)->addDays(39);
             case 'advent_1': return Carbon::create($year, 11, 26)->next(Carbon::SUNDAY);
             default: return Carbon::now();
         }
@@ -723,5 +723,23 @@ class FunkiBotService
         $cleanName = preg_replace('/[^A-Za-z0-9]/', '', Str::slug($name));
         $code = str_replace('{NAME}', strtoupper(substr($cleanName, 0, 5)), $code);
         return $code;
+    }
+
+    /**
+     * Berechnet den Ostersonntag ohne Abhängigkeit zur PHP-Calendar Extension.
+     */
+    private function getEasterDate($year): Carbon
+    {
+        $K = (int)($year / 100);
+        $M = 15 + (int)((3 * $K + 3) / 4) - (int)((8 * $K + 13) / 25);
+        $S = 2 - (int)((3 * $K + 3) / 4);
+        $A = $year % 19;
+        $D = (19 * $A + $M) % 30;
+        $R = (int)($D / 29) + ((int)($D / 28) - (int)($D / 29)) * (int)($A / 11);
+        $OG = 21 + $D - $R;
+        $SZ = 7 - ($year + (int)($year / 4) + $S) % 7;
+        $OE = 7 - ($OG - $SZ) % 7;
+
+        return Carbon::createFromDate($year, 3, 1)->addDays($OG + $OE - 1);
     }
 }

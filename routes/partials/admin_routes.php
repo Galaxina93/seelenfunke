@@ -177,6 +177,16 @@ Route::middleware(['auth:admin'])->group(function () {
 
     })->name('admin.orders.laserfile');
 
+    Route::get('/admin/funki/tax-export/{filename}', function ($filename) {
+        $path = storage_path('app/tax_exports/' . $filename);
+
+        if (!File::exists($path)) {
+            abort(404, 'Die Datei existiert nicht mehr im Tresor.');
+        }
+
+        return response()->download($path);
+    })->name('admin.tax-export.download'); // Falls du eine auth:admin Middleware nutzt, hänge sie hier noch an ->middleware('auth:admin')
+
 
 });
 

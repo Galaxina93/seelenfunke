@@ -1,115 +1,98 @@
 <div>
-    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 min-h-[600px] flex flex-col relative overflow-hidden">
-        {{-- Dekorativer Hintergrund --}}
-        <div class="absolute top-0 right-0 w-32 h-full bg-gradient-to-l from-amber-50 to-transparent opacity-50 pointer-events-none"></div>
+    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-8 min-h-[600px] flex flex-col relative overflow-hidden transition-all duration-500">
+        {{-- Dekorativer Hintergrund (Gold-Glow passend zum Projekt) --}}
+        <div class="absolute top-0 right-0 w-48 h-full bg-gradient-to-l from-primary/5 to-transparent opacity-50 pointer-events-none"></div>
 
         <div class="flex justify-between items-center mb-8 relative z-10">
             <div>
-                <h3 class="text-2xl font-serif font-bold text-slate-900">Tagesroutine</h3>
-                <p class="text-xs font-mono text-slate-400 mt-1 uppercase tracking-tighter">Dein Bio-Rhythmus</p>
+                <h3 class="text-2xl font-serif font-bold text-white tracking-tight">Tagesroutine</h3>
+                <p class="text-[10px] font-black text-gray-500 mt-1 uppercase tracking-[0.2em]">Dein Bio-Rhythmus</p>
             </div>
-            <button wire:click="create" class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center hover:bg-primary transition-colors shadow-lg active:scale-95">
-                <x-heroicon-m-plus class="w-5 h-5" />
+            <button wire:click="create" class="w-10 h-10 rounded-xl bg-gray-950 text-white flex items-center justify-center border border-gray-800 hover:border-primary hover:text-primary transition-all shadow-inner active:scale-95 group">
+                <x-heroicon-m-plus class="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
             </button>
         </div>
 
         {{-- LISTE --}}
         @if(!$isEditing)
             @php
-                // Ermittle die aktuell aktive Routine
                 $nowFormat = date('H:i');
                 $activeId = null;
                 $sortedRoutines = $routines->sortBy('start_time')->values();
 
                 foreach ($sortedRoutines as $i => $r) {
                     $start = date('H:i', strtotime($r->start_time));
+                    $end = ($r->duration_minutes > 0)
+                        ? date('H:i', strtotime($r->start_time . " +{$r->duration_minutes} minutes"))
+                        : date('H:i', strtotime(($sortedRoutines[$i + 1] ?? $sortedRoutines[0])->start_time));
 
-                    if ($r->duration_minutes > 0) {
-                        $end = date('H:i', strtotime($r->start_time . " +{$r->duration_minutes} minutes"));
-                    } else {
-                        $next = $sortedRoutines[$i + 1] ?? $sortedRoutines[0];
-                        $end = date('H:i', strtotime($next->start_time));
-                    }
-
-                    // Normale Zeitspanne (z.B. 09:00 - 12:00)
                     if ($start <= $end) {
-                        if ($nowFormat >= $start && $nowFormat < $end) {
-                            $activeId = $r->id;
-                            break;
-                        }
-                    }
-                    // Zeitspanne über Mitternacht (z.B. 22:00 - 09:00)
-                    else {
-                        if ($nowFormat >= $start || $nowFormat < $end) {
-                            $activeId = $r->id;
-                            break;
-                        }
+                        if ($nowFormat >= $start && $nowFormat < $end) { $activeId = $r->id; break; }
+                    } else {
+                        if ($nowFormat >= $start || $nowFormat < $end) { $activeId = $r->id; break; }
                     }
                 }
             @endphp
 
-            <div class="space-y-5 overflow-y-auto custom-scrollbar pr-4 flex-1 relative z-10 pt-2 pb-6">
+            <div class="space-y-6 overflow-y-auto custom-scrollbar pr-4 flex-1 relative z-10 pt-2 pb-6">
                 @foreach($sortedRoutines as $r)
-                    @php
-                        $isActive = $r->id === $activeId;
-                    @endphp
+                    @php $isActive = $r->id === $activeId; @endphp
 
                     <div class="flex items-center gap-4 group">
                         {{-- Uhrzeit --}}
-                        <div class="w-12 text-right font-mono text-xs font-bold {{ $isActive ? 'text-primary' : 'text-slate-400' }}">
+                        <div class="w-12 text-right font-mono text-xs font-bold {{ $isActive ? 'text-primary drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]' : 'text-gray-600' }}">
                             {{ \Carbon\Carbon::parse($r->start_time)->format('H:i') }}
                         </div>
 
                         {{-- Timeline Dot --}}
                         <div class="relative flex items-center justify-center">
                             @if($isActive)
-                                <span class="absolute inline-flex h-6 w-6 rounded-full bg-primary opacity-30 animate-ping"></span>
-                                <div class="w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/20 shadow-[0_0_10px_rgba(197,160,89,0.6)] z-10"></div>
+                                <span class="absolute inline-flex h-6 w-6 rounded-full bg-primary opacity-20 animate-ping"></span>
+                                <div class="w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/20 shadow-[0_0_15px_rgba(197,160,89,1)] z-10"></div>
                             @else
-                                <div class="w-3 h-3 rounded-full border-2 border-slate-200 bg-white group-hover:border-primary group-hover:scale-125 transition-all duration-300 z-10"></div>
+                                <div class="w-3 h-3 rounded-full border-2 border-gray-700 bg-gray-950 group-hover:border-primary/50 group-hover:scale-125 transition-all duration-500 z-10"></div>
                             @endif
-                            {{-- Verbindungslinie --}}
+
                             @if(!$loop->last)
-                                <div class="absolute top-3 w-px h-16 bg-slate-100 z-0"></div>
+                                <div class="absolute top-3 w-px h-16 bg-gray-800 z-0"></div>
                             @endif
                         </div>
 
                         {{-- Routine Karte --}}
-                        <div class="flex-1 relative transition-all duration-300 ease-in-out cursor-pointer
+                        <div class="flex-1 relative transition-all duration-500 ease-in-out cursor-pointer rounded-2xl p-4 sm:p-5 border
                             {{ $isActive
-                                ? 'bg-primary/5 border-primary ring-1 ring-primary/30 shadow-lg scale-[1.02] z-20 rounded-2xl p-5'
-                                : 'bg-slate-50 border-slate-100 rounded-2xl p-4 hover:bg-white hover:shadow-md hover:border-primary/30' }}"
+                                ? 'bg-primary/10 border-primary/40 shadow-[0_0_25px_rgba(197,160,89,0.15)] scale-[1.02] z-20'
+                                : 'bg-gray-950/50 border-gray-800 hover:border-gray-600 hover:bg-gray-900 shadow-inner' }}"
                              wire:click="edit('{{ $r->id }}')">
 
                             @if($isActive)
-                                <span class="absolute -top-3 right-4 bg-primary text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
-                                    Jetzt aktiv
+                                <span class="absolute -top-3 right-4 bg-primary text-gray-900 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
+                                    In Aktion
                                 </span>
                             @endif
 
                             <div class="flex justify-between items-start gap-4">
                                 <div class="flex-1 min-w-0">
-                                    <h4 class="font-bold {{ $isActive ? 'text-primary-dark text-base' : 'text-slate-800 text-sm' }}">
+                                    <h4 class="font-bold {{ $isActive ? 'text-white text-base' : 'text-gray-300 text-sm group-hover:text-white' }} transition-colors">
                                         {{ $r->title }}
                                     </h4>
 
-                                    {{-- FIX: max-height Transition statt line-clamp toggle --}}
                                     <div class="mt-1.5 overflow-hidden transition-all duration-500 ease-in-out
                                         {{ $isActive ? 'max-h-40' : 'max-h-5 group-hover:max-h-40' }}">
-                                        <p class="leading-relaxed {{ $isActive ? 'text-slate-700 text-xs font-medium' : 'text-slate-500 text-xs' }}">
+                                        <p class="leading-relaxed {{ $isActive ? 'text-gray-400 text-xs font-medium' : 'text-gray-500 text-[11px]' }}">
                                             {{ $r->message }}
                                         </p>
                                     </div>
                                 </div>
-                                <div class="shrink-0 text-[10px] font-black px-2 py-1 rounded border
-                                    {{ $isActive ? 'bg-white text-primary border-primary/20 shadow-sm' : 'bg-white border-slate-100 text-slate-400' }}">
-                                    {{ $r->duration_minutes }} min
+                                <div class="shrink-0 text-[9px] font-black px-2 py-1 rounded border
+                                    {{ $isActive ? 'bg-gray-900 text-primary border-primary/30' : 'bg-gray-950 border-gray-800 text-gray-600' }} shadow-inner">
+                                    {{ $r->duration_minutes }} MIN
                                 </div>
                             </div>
                         </div>
 
                         {{-- Löschen Button --}}
-                        <button wire:click="delete('{{ $r->id }}')" wire:confirm="Routine löschen?" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-opacity duration-300 p-2 shrink-0">
+                        <button wire:click="delete('{{ $r->id }}')" wire:confirm="Routine löschen?" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-all duration-300 p-2 shrink-0 transform hover:scale-110">
                             <x-heroicon-m-trash class="w-4 h-4" />
                         </button>
                     </div>
@@ -118,31 +101,39 @@
         @else
             {{-- EDITOR --}}
             <div class="flex-1 flex flex-col animate-fade-in relative z-10">
-                <div class="space-y-5 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <div class="space-y-6 bg-gray-950/50 p-6 rounded-3xl border border-gray-800 shadow-inner">
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Uhrzeit Start</label>
-                            <input type="time" wire:model="r_time" class="w-full bg-white border-none rounded-xl font-bold text-slate-800 focus:ring-primary shadow-sm">
+                        <div class="space-y-1.5">
+                            <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Uhrzeit Start</label>
+                            <input type="time" wire:model="r_time" class="w-full bg-gray-900 border-gray-800 rounded-xl font-bold text-white focus:border-primary focus:ring-primary/20 shadow-inner transition-all [color-scheme:dark]">
                         </div>
-                        <div>
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Dauer (Minuten)</label>
-                            <input type="number" wire:model="r_duration" class="w-full bg-white border-none rounded-xl text-sm font-bold focus:ring-primary shadow-sm">
+                        <div class="space-y-1.5">
+                            <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Dauer (Minuten)</label>
+                            <input type="number" wire:model="r_duration" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-primary focus:ring-primary/20 shadow-inner transition-all">
                         </div>
                     </div>
-                    <div>
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Titel der Routine</label>
-                        <input type="text" wire:model="r_title" class="w-full bg-white border-none rounded-xl text-sm font-bold focus:ring-primary shadow-sm" placeholder="z.B. Deep Work Phase">
+                    <div class="space-y-1.5">
+                        <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Titel der Routine</label>
+                        <input type="text" wire:model="r_title" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-primary focus:ring-primary/20 shadow-inner transition-all placeholder-gray-700" placeholder="z.B. Deep Work Phase">
                     </div>
-                    <div>
-                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Funkis Anweisung / Motivation</label>
-                        <textarea wire:model="r_message" class="w-full bg-white border-none rounded-xl text-sm h-32 focus:ring-primary shadow-sm resize-none leading-relaxed" placeholder="Klare Anweisungen für diesen Zeitblock..."></textarea>
+                    <div class="space-y-1.5">
+                        <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Funkis Anweisung</label>
+                        <textarea wire:model="r_message" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm h-32 focus:border-primary focus:ring-primary/20 shadow-inner resize-none leading-relaxed text-white placeholder-gray-700" placeholder="Klare Anweisungen für diesen Zeitblock..."></textarea>
                     </div>
                 </div>
-                <div class="mt-6 flex gap-3">
-                    <button wire:click="cancel" class="flex-1 py-3.5 text-xs font-bold uppercase tracking-widest text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Abbrechen</button>
-                    <button wire:click="save" class="flex-1 py-3.5 text-xs font-bold uppercase tracking-widest text-white bg-slate-900 rounded-xl hover:bg-primary shadow-lg transition-colors">Speichern</button>
+                <div class="mt-8 flex gap-4">
+                    <button wire:click="cancel" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 hover:text-white transition-all shadow-lg">Abbrechen</button>
+                    <button wire:click="save" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-900 bg-primary rounded-xl hover:bg-primary-dark transition-all shadow-[0_0_20px_rgba(197,160,89,0.3)]">Speichern</button>
                 </div>
             </div>
         @endif
     </div>
+
+    {{-- Custom Scrollbar Style für die Card --}}
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(197, 160, 89, 0.4); }
+    </style>
 </div>

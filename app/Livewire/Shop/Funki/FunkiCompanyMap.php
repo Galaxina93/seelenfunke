@@ -5,28 +5,30 @@ namespace App\Livewire\Shop\Funki;
 use Livewire\Component;
 use App\Models\Funki\FunkiMapNode;
 use App\Models\Funki\FunkiMapEdge;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class FunkiCompanyMap extends Component
 {
     public $nodes = [];
     public $edges = [];
+    public $apiStatuses = []; // Speichert den Status der Pings (up/down)
 
-    // Formular-State für neuen Knoten
     public $showNodeForm = false;
     public $newNode = ['label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
 
-    // Formular-State für Knoten bearbeiten
     public $showEditForm = false;
     public $editNode = ['id' => '', 'label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
 
-    // Formular-State für neue Verbindung
     public $showEdgeForm = false;
     public $newEdge = ['source_id' => '', 'target_id' => '', 'label' => '', 'description' => '', 'status' => 'active'];
 
-    // Node Panel (intelligente Datenanzeige)
     public $showNodePanel = false;
     public $activePanelNode = null;
+
+    // Neues Feature: Environment Status für das Panel
+    public $envStatus = [];
 
     public function mount()
     {
@@ -39,37 +41,72 @@ class FunkiCompanyMap extends Component
         $this->edges = FunkiMapEdge::all()->toArray();
     }
 
+    // --- NEU: API PING CHECK & LOGGING ---
+    public function checkApiStatuses()
+    {
+        $this->apiStatuses = [];
+        $errorCount = 0;
+
+        foreach ($this->nodes as $node) {
+            if (!empty($node['link']) && Str::startsWith($node['link'], 'http')) {
+                try {
+                    $response = Http::timeout(3)->get($node['link']);
+                    // 401/403 bedeuten, die API ist da, wir haben nur keine Auth im GET - also "UP"
+                    $isUp = $response->successful() || in_array($response->status(), [401, 403, 404, 405]);
+
+                    $this->apiStatuses[$node['id']] = $isUp ? 'up' : 'down';
+
+                    if (!$isUp) {
+                        $this->writeFunkiLog("API Error: {$node['label']} ist nicht erreichbar (Code: {$response->status()}).", 'error');
+                        $errorCount++;
+                    }
+                } catch (\Exception $e) {
+                    $this->apiStatuses[$node['id']] = 'down';
+                    $this->writeFunkiLog("API Timeout: {$node['label']} antwortet nicht.", 'error');
+                    $errorCount++;
+                }
+            }
+        }
+
+        if ($errorCount === 0) {
+            $this->writeFunkiLog("System-Check: Alle konfigurierten APIs sind erreichbar.", 'success');
+        }
+
+        $this->dispatch('apis-checked');
+    }
+
+    private function writeFunkiLog($message, $type = 'info')
+    {
+        try {
+            // Speichere in DB, falls Model existiert (basiert auf deinen anderen Dateien)
+            if (class_exists(\App\Models\Funki\FunkiLog::class)) {
+                \App\Models\Funki\FunkiLog::create([
+                    'title'   => 'Architektur Monitor',
+                    'message' => $message,
+                    'type'    => $type,
+                    'action_id' => 'api:ping'
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error("FunkiLog Fehler: " . $e->getMessage());
+        }
+        // Toast ans Frontend senden
+        $this->dispatch('funki-toast', message: $message, type: $type);
+    }
+    // -------------------------------------
+
     public function updateNodePosition($nodeId, $x, $y)
     {
         $node = FunkiMapNode::find($nodeId);
         if ($node) {
-            $node->update([
-                'pos_x' => round($x, 2),
-                'pos_y' => round($y, 2)
-            ]);
+            $node->update(['pos_x' => round($x, 2), 'pos_y' => round($y, 2)]);
         }
     }
 
     public function createNode()
     {
-        $this->validate([
-            'newNode.label' => 'required|string|max:255',
-            'newNode.link'  => 'nullable|url',
-        ]);
-
-        FunkiMapNode::create([
-            'id'            => Str::uuid(),
-            'label'         => $this->newNode['label'],
-            'type'          => $this->newNode['type'],
-            'status'        => $this->newNode['status'],
-            'icon'          => $this->newNode['icon'],
-            'description'   => $this->newNode['description'],
-            'link'          => $this->newNode['link'],
-            'component_key' => $this->newNode['component_key'],
-            'pos_x'         => 10,
-            'pos_y'         => 10,
-        ]);
-
+        $this->validate(['newNode.label' => 'required|string|max:255', 'newNode.link' => 'nullable|url']);
+        FunkiMapNode::create(array_merge($this->newNode, ['id' => Str::uuid(), 'pos_x' => 10, 'pos_y' => 10]));
         $this->showNodeForm = false;
         $this->newNode = ['label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
         $this->loadMap();
@@ -79,42 +116,16 @@ class FunkiCompanyMap extends Component
     {
         $node = FunkiMapNode::find($nodeId);
         if (!$node) return;
-
-        $this->editNode = [
-            'id'            => $node->id,
-            'label'         => $node->label,
-            'type'          => $node->type,
-            'status'        => $node->status,
-            'icon'          => $node->icon,
-            'description'   => $node->description,
-            'link'          => $node->link,
-            'component_key' => $node->component_key ?? '',
-        ];
+        $this->editNode = $node->toArray();
         $this->showEditForm = true;
     }
 
     public function updateNode()
     {
-        $this->validate([
-            'editNode.label' => 'required|string|max:255',
-            'editNode.link'  => 'nullable|url',
-        ]);
-
+        $this->validate(['editNode.label' => 'required|string|max:255', 'editNode.link' => 'nullable|url']);
         $node = FunkiMapNode::find($this->editNode['id']);
-        if ($node) {
-            $node->update([
-                'label'         => $this->editNode['label'],
-                'type'          => $this->editNode['type'],
-                'status'        => $this->editNode['status'],
-                'icon'          => $this->editNode['icon'],
-                'description'   => $this->editNode['description'],
-                'link'          => $this->editNode['link'],
-                'component_key' => $this->editNode['component_key'],
-            ]);
-        }
-
+        if ($node) $node->update($this->editNode);
         $this->showEditForm = false;
-        $this->editNode = ['id' => '', 'label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
         $this->loadMap();
     }
 
@@ -124,13 +135,31 @@ class FunkiCompanyMap extends Component
         if (!$node) return;
 
         $this->activePanelNode = $node->toArray();
-        $this->showNodePanel   = true;
+        $this->checkEnvironmentVars($node->icon); // Prüft auf verbundene ENV Keys
+        $this->showNodePanel = true;
     }
 
     public function closeNodePanel()
     {
-        $this->showNodePanel   = false;
+        $this->showNodePanel = false;
         $this->activePanelNode = null;
+    }
+
+    private function checkEnvironmentVars($icon)
+    {
+        // Ein nützliches Feature: Prüft ob die ENV Variablen für den Dienst gesetzt sind.
+        $keys = match($icon) {
+            'stripe' => ['STRIPE_KEY', 'STRIPE_SECRET', 'STRIPE_WEBHOOK_SECRET'],
+            'etsy'   => ['ETSY_API_KEY', 'ETSY_SHOP_ID'],
+            'google' => ['GOOGLE_CLIENT_ID', 'GOOGLE_MAPS_API_KEY'],
+            'dhl'    => ['DHL_API_KEY', 'DHL_USER'],
+            default  => []
+        };
+
+        $this->envStatus = [];
+        foreach($keys as $key) {
+            $this->envStatus[$key] = env($key) ? true : false;
+        }
     }
 
     public function createEdge()
@@ -139,32 +168,14 @@ class FunkiCompanyMap extends Component
             'newEdge.source_id' => 'required|exists:funki_map_nodes,id',
             'newEdge.target_id' => 'required|exists:funki_map_nodes,id|different:newEdge.source_id',
         ]);
-
-        FunkiMapEdge::create([
-            'id'          => Str::uuid(),
-            'source_id'   => $this->newEdge['source_id'],
-            'target_id'   => $this->newEdge['target_id'],
-            'label'       => $this->newEdge['label'],
-            'description' => $this->newEdge['description'],
-            'status'      => $this->newEdge['status'],
-        ]);
-
+        FunkiMapEdge::create(array_merge($this->newEdge, ['id' => Str::uuid()]));
         $this->showEdgeForm = false;
         $this->newEdge = ['source_id' => '', 'target_id' => '', 'label' => '', 'description' => '', 'status' => 'active'];
         $this->loadMap();
     }
 
-    public function deleteNode($id)
-    {
-        FunkiMapNode::destroy($id);
-        $this->loadMap();
-    }
-
-    public function deleteEdge($id)
-    {
-        FunkiMapEdge::destroy($id);
-        $this->loadMap();
-    }
+    public function deleteNode($id) { FunkiMapNode::destroy($id); $this->loadMap(); }
+    public function deleteEdge($id) { FunkiMapEdge::destroy($id); $this->loadMap(); }
 
     public function render()
     {

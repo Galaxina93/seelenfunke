@@ -1,27 +1,33 @@
-<div class="min-h-screen bg-gray-50 pb-20">
+<div class="min-h-screen bg-transparent pb-20 font-sans antialiased text-gray-300">
 
     {{-- HEADER --}}
-    <div class="bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm">
+    <div class="bg-gray-900/90 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-40 shadow-2xl">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center py-4 gap-4">
+            <div class="flex justify-between items-center py-5 gap-4">
                 <div class="flex items-center gap-4">
-                    <div class="relative">
+                    <div class="relative group">
+                        <div class="absolute inset-0 bg-primary/20 rounded-full blur-md group-hover:bg-primary/30 transition-all"></div>
                         <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}"
-                             class="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+                             class="relative w-10 h-10 sm:w-12 sm:h-12 object-contain rounded-xl border border-white/10"
                              alt="Funki">
-                        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-pulse"></div>
+                        <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-gray-900 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
                     </div>
                     <div>
-                        <h1 class="text-lg sm:text-xl font-serif font-bold text-gray-900 leading-tight">Funkis Zentrale</h1>
-                        <p class="text-[10px] sm:text-xs text-gray-500">Dein Autopilot für den Tag.</p>
+                        <h1 class="text-lg sm:text-xl font-serif font-bold text-white leading-none tracking-tight">Funkis Zentrale</h1>
+                        <p class="text-[10px] sm:text-xs text-gray-500 uppercase font-black tracking-widest mt-1">System-Autopilot Aktiv</p>
                     </div>
+                </div>
+                {{-- Status Badge Rechts --}}
+                <div class="hidden sm:flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-gray-800 shadow-inner">
+                    <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Performance:</span>
+                    <span class="text-[10px] font-mono font-bold text-primary">OPTIMAL</span>
                 </div>
             </div>
         </div>
     </div>
 
     {{-- MAIN CONTENT --}}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 animate-fade-in">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 animate-fade-in-up">
 
         @php
             $command = $this->ultimateCommand;
@@ -34,7 +40,6 @@
             $displayRoutines = [];
             $currentIndex = -1;
 
-            // Finde den Index der aktuellen Routine
             foreach ($routines as $index => $r) {
                 if ($r['status'] === 'current') {
                     $currentIndex = $index;
@@ -43,23 +48,17 @@
             }
 
             if ($currentIndex !== -1) {
-                // 1 davor, die aktuelle, 1 danach
                 if (isset($routines[$currentIndex - 1])) $displayRoutines[] = $routines[$currentIndex - 1];
                 $displayRoutines[] = $routines[$currentIndex];
                 if (isset($routines[$currentIndex + 1])) $displayRoutines[] = $routines[$currentIndex + 1];
             } else {
-                // Falls gerade "Freizeit" ist und keine aktiv ist: Letzte vergangene und nächste kommende zeigen
                 $past = array_filter($routines, fn($r) => $r['status'] === 'past');
                 $future = array_filter($routines, fn($r) => $r['status'] === 'future');
-
                 $lastPast = end($past);
                 $firstFuture = reset($future);
-
                 if ($lastPast) $displayRoutines[] = $lastPast;
                 if ($firstFuture) {
                     $displayRoutines[] = $firstFuture;
-
-                    // Noch eine weitere aus der Zukunft holen, um auf 3 zu kommen (falls gewünscht und vorhanden)
                     $nextKeys = array_keys($future);
                     if (count($nextKeys) > 1 && !$lastPast) {
                         $displayRoutines[] = $future[$nextKeys[1]];
@@ -68,158 +67,188 @@
             }
         @endphp
 
-        <div class="max-w-5xl mx-auto mb-12 sm:mb-16">
-            <div class="w-full">
-                <div class="flex flex-col md:flex-row items-center md:items-start gap-6 lg:gap-10">
+        {{-- BEREICH 1: FUNKIS ANSAGE (Die Sprechblase) --}}
+        <div class="max-w-5xl mx-auto mb-16 sm:mb-20">
+            <div class="flex flex-col md:flex-row items-center md:items-start gap-8 lg:gap-12">
 
-                    {{-- Funki Portrait --}}
-                    <div class="shrink-0 relative mt-2 md:mt-4">
-                        <div class="absolute inset-0 bg-primary/20 rounded-full blur-xl md:blur-2xl animate-pulse"></div>
+                {{-- Funki Avatar --}}
+                <div class="shrink-0 relative mt-4">
+                    <div class="absolute inset-0 bg-primary/20 rounded-full blur-[40px] animate-pulse"></div>
+                    <div class="relative w-28 h-28 sm:w-36 sm:h-36 lg:w-48 lg:h-48 transform hover:scale-105 transition-transform duration-700">
                         <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}"
-                             class="relative w-24 h-24 sm:w-32 sm:h-32 lg:w-48 lg:h-48 object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
+                             class="w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
                              alt="Funki">
                     </div>
+                </div>
 
-                    {{-- Die Sprechblase --}}
-                    <div class="relative flex-1 min-w-0 w-full">
+                {{-- Die Dark-Mode Sprechblase --}}
+                <div class="relative flex-1 min-w-0 w-full">
 
-                        {{-- Pfeil Desktop (Links) --}}
-                        <div class="hidden md:block absolute top-12 -left-3 w-6 h-6 bg-white border-l border-b border-slate-100 rotate-45 z-20"></div>
+                    {{-- Pfeile für die Sprechblase --}}
+                    <div class="hidden md:block absolute top-12 -left-3 w-6 h-6 bg-gray-900 border-l border-b border-gray-800 rotate-45 z-20 shadow-[-5px_5px_10px_rgba(0,0,0,0.3)]"></div>
+                    <div class="block md:hidden absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-gray-900 border-l border-t border-gray-800 rotate-45 z-20 shadow-[0_-5px_10px_rgba(0,0,0,0.3)]"></div>
 
-                        {{-- Pfeil Mobile (Oben) --}}
-                        <div class="block md:hidden absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border-l border-t border-slate-100 rotate-45 z-20"></div>
+                    <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.6)] border border-gray-800 p-6 sm:p-10 lg:p-12 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-20 -mt-20 blur-3xl pointer-events-none opacity-50"></div>
 
-                        <div class="bg-white rounded-3xl sm:rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100 p-6 sm:p-8 lg:p-10 relative overflow-hidden">
-                            <div class="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-primary/5 rounded-full -mr-10 -mt-10 sm:-mr-20 sm:-mt-20 blur-2xl sm:blur-3xl pointer-events-none"></div>
+                        <div class="relative z-10 flex flex-col gap-10">
 
-                            <div class="relative z-10 flex flex-col gap-8 sm:gap-10">
+                            {{-- Editor Header & Alternativen --}}
+                            <div class="flex flex-col lg:flex-row gap-10">
 
-                                {{-- OBERER BEREICH: Ansage & Alternativen --}}
-                                <div class="flex flex-col lg:flex-row gap-8">
-                                    {{-- Linke Spalte: Aktueller Flow & Empfehlung --}}
-                                    <div class="flex-1 min-w-0">
-                                        <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-slate-100 border border-slate-200 mb-4 sm:mb-6 max-w-full">
-                                            <x-dynamic-component :component="'heroicon-o-' . $flow['icon']" class="shrink-0 w-4 h-4 text-slate-500" />
-                                            <span class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 truncate">
-                                                Dein Flow: <span class="text-primary">{{ $flow['title'] }}</span>
-                                                <span class="text-slate-400 font-normal hidden sm:inline">({{ $flow['step'] }})</span>
-                                            </span>
-                                        </div>
-
-                                        <h2 class="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-slate-900 leading-tight mb-4 break-words">
-                                            <span class="mr-2">{{ $rec['icon'] }}</span> {{ $rec['title'] }}
-                                        </h2>
-
-                                        <div class="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-100 mb-6">
-                                            <p class="text-base sm:text-lg text-slate-600 leading-relaxed italic font-medium">
-                                                "{{ $rec['message'] }}"
-                                            </p>
-                                        </div>
-
-                                        <a href="{{ route($rec['action_route']) }}"
-                                           class="flex md:inline-flex items-center justify-center gap-3 bg-slate-900 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold uppercase tracking-widest text-[10px] sm:text-xs hover:bg-primary hover:text-white transition-all transform hover:-translate-y-1 shadow-lg shadow-slate-200 w-full md:w-auto text-center">
-                                            <span>Jetzt: {{ $rec['action_label'] }}</span>
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-                                            </svg>
-                                        </a>
+                                {{-- Linke Spalte: Aktueller Flow & Empfehlung --}}
+                                <div class="flex-1 min-w-0">
+                                    <div class="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-black/40 border border-gray-800 mb-8 max-w-full shadow-inner">
+                                        <x-dynamic-component :component="'heroicon-o-' . $flow['icon']" class="shrink-0 w-4 h-4 text-primary animate-pulse" />
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate">
+                                            Status: <span class="text-white">{{ $flow['title'] }}</span>
+                                            <span class="text-primary/60 font-bold hidden sm:inline ml-1">[{{ $flow['step'] }}]</span>
+                                        </span>
                                     </div>
 
-                                    {{-- Rechte Spalte: Alternativen --}}
-                                    @if(count($alts) > 0)
-                                        <div class="w-full lg:w-64 flex flex-col gap-3 border-t lg:border-t-0 lg:border-l border-slate-100 pt-6 lg:pt-0 lg:pl-8">
-                                            <h3 class="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1 sm:mb-2">Alternativ sinnvoll:</h3>
-                                            @foreach($alts as $alt)
-                                                <a href="{{ route($alt['action_route']) }}" class="block p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-100 hover:border-primary/30 hover:bg-primary/5 transition-colors group bg-white lg:bg-transparent">
-                                                    <div class="flex items-center gap-2 mb-1">
-                                                        <span>{{ $alt['icon'] }}</span>
-                                                        <span class="text-xs sm:text-sm font-bold text-slate-800 line-clamp-1">{{ $alt['title'] }}</span>
-                                                    </div>
-                                                    <p class="text-[10px] sm:text-xs text-slate-500 line-clamp-2">{{ $alt['message'] }}</p>
-                                                </a>
-                                            @endforeach
-                                        </div>
-                                    @endif
+                                    <h2 class="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-white leading-tight mb-6 tracking-tight">
+                                        <span class="inline-block hover:scale-125 transition-transform mr-2">{{ $rec['icon'] }}</span>
+                                        {{ $rec['title'] }}
+                                    </h2>
+
+                                    <div class="bg-gray-950/60 rounded-3xl p-6 sm:p-8 border border-gray-800 mb-8 shadow-inner relative group">
+                                        <div class="absolute top-4 right-6 text-5xl text-white/5 font-serif opacity-20 pointer-events-none group-hover:text-primary/10 transition-colors">”</div>
+                                        <p class="text-base sm:text-xl text-gray-300 leading-relaxed italic font-medium relative z-10">
+                                            "{{ $rec['message'] }}"
+                                        </p>
+                                    </div>
+
+                                    <a href="{{ route($rec['action_route']) }}"
+                                       class="group relative flex md:inline-flex items-center justify-center gap-4 bg-primary text-gray-900 px-8 py-4 sm:py-5 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_0_40px_rgba(197,160,89,0.3)] hover:bg-white hover:scale-[1.03] transition-all duration-300 w-full md:w-auto overflow-hidden">
+                                        <div class="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000"></div>
+                                        <span class="relative z-10">Jetzt: {{ $rec['action_label'] }}</span>
+                                        <svg class="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                                        </svg>
+                                    </a>
                                 </div>
 
-                                {{-- UNTERER BEREICH: Die 3-Stationen Timeline --}}
-                                @if(count($displayRoutines) > 0)
-                                    <div class="pt-6 sm:pt-8 border-t border-slate-100 w-full">
-
-                                        <div class="mb-4">
-                                            <h3 class="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">Dein Tages-Fokus</h3>
-                                        </div>
-
-                                        {{-- Desktop: 3-Spalten Grid. Mobile: Horizontaler Scroll mit 85% Breite pro Item --}}
-                                        <div class="flex sm:grid sm:grid-cols-3 gap-3 sm:gap-4 overflow-x-auto pb-2 sm:pb-0 snap-x snap-mandatory w-full" style="scrollbar-width: none;">
-                                            <style> .snap-x::-webkit-scrollbar { display: none; } </style>
-
-                                            @foreach($displayRoutines as $routine)
-                                                <div class="shrink-0 w-[80%] sm:w-auto p-3 m-2 sm:p-4 rounded-xl sm:rounded-2xl border snap-center transition-all
-                                                    {{ $routine['status'] === 'past' ? 'bg-slate-50 border-slate-100 text-slate-400 opacity-60 grayscale' : '' }}
-                                                    {{ $routine['status'] === 'current' ? 'bg-blue-50/60 border-blue-200 shadow-sm ring-1 ring-blue-500/20 scale-100 sm:scale-105 origin-center' : '' }}
-                                                    {{ $routine['status'] === 'future' ? 'bg-white border-slate-100/60 text-slate-400' : '' }}
-                                                ">
-                                                    <div class="flex items-center justify-between mb-1.5 sm:mb-2">
-                                                        <x-dynamic-component :component="'heroicon-o-' . $routine['icon']"
-                                                                             class="w-4 h-4 sm:w-5 sm:h-5 {{ $routine['status'] === 'current' ? 'text-blue-500' : 'text-slate-400' }}" />
-                                                        <span class="text-[9px] sm:text-[10px] font-bold tracking-wider
-                                                            {{ $routine['status'] === 'current' ? 'text-blue-600' : 'text-slate-400' }}">
-                                                            {{ $routine['time_formatted'] }}
-                                                        </span>
-                                                    </div>
-                                                    <h4 class="text-xs sm:text-sm font-bold mt-1 truncate {{ $routine['status'] === 'current' ? 'text-slate-900' : 'text-slate-500' }}">
-                                                        {{ $routine['title'] }}
-                                                    </h4>
+                                {{-- Rechte Spalte: Alternativen --}}
+                                @if(count($alts) > 0)
+                                    <div class="w-full lg:w-72 flex flex-col gap-4 border-t lg:border-t-0 lg:border-l border-gray-800 pt-8 lg:pt-0 lg:pl-10">
+                                        <h3 class="text-[10px] font-black uppercase text-gray-500 tracking-[0.3em] mb-2 flex items-center gap-2">
+                                            <span class="w-6 h-px bg-gray-800"></span>
+                                            Optionen
+                                        </h3>
+                                        @foreach($alts as $alt)
+                                            <a href="{{ route($alt['action_route']) }}" class="block p-4 rounded-2xl border border-gray-800 bg-gray-950/40 hover:border-primary/40 hover:bg-primary/5 transition-all duration-300 group shadow-inner">
+                                                <div class="flex items-center gap-3 mb-2">
+                                                    <span class="text-lg group-hover:scale-110 transition-transform">{{ $alt['icon'] }}</span>
+                                                    <span class="text-xs sm:text-sm font-bold text-gray-200 group-hover:text-white transition-colors line-clamp-1 tracking-wide">{{ $alt['title'] }}</span>
                                                 </div>
-                                            @endforeach
-                                        </div>
+                                                <p class="text-[10px] sm:text-xs text-gray-500 group-hover:text-gray-400 line-clamp-2 leading-relaxed font-medium">{{ $alt['message'] }}</p>
+                                            </a>
+                                        @endforeach
                                     </div>
                                 @endif
-
                             </div>
+
+                            {{-- UNTERER BEREICH: Die Timeline (Radar-Look) --}}
+                            @if(count($displayRoutines) > 0)
+                                <div class="pt-8 border-t border-gray-800 w-full relative">
+                                    <div class="flex items-center justify-between mb-6">
+                                        <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500">Zeitstrahl Fokus</h3>
+                                        <span class="text-[9px] font-mono text-gray-700 uppercase tracking-widest">Realtime Sync</span>
+                                    </div>
+
+                                    <div class="flex sm:grid sm:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto pb-4 sm:pb-0 snap-x snap-mandatory w-full no-scrollbar">
+                                        @foreach($displayRoutines as $routine)
+                                            @php
+                                                $state = $routine['status'];
+                                                $isCurrent = $state === 'current';
+                                                $isPast = $state === 'past';
+                                            @endphp
+                                            <div class="shrink-0 w-[85%] sm:w-auto p-5 rounded-2xl border snap-center transition-all duration-500
+                                                {{ $isPast ? 'bg-gray-950/30 border-gray-800/50 opacity-40 grayscale shadow-inner' : '' }}
+                                                {{ $isCurrent ? 'bg-blue-500/10 border-blue-500/40 shadow-[0_0_30px_rgba(59,130,246,0.15)] ring-1 ring-blue-400/20 scale-[1.02]' : '' }}
+                                                {{ $state === 'future' ? 'bg-gray-900 border-gray-800 shadow-lg' : '' }}
+                                            ">
+                                                <div class="flex items-center justify-between mb-3">
+                                                    <div class="p-2 rounded-lg {{ $isCurrent ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-gray-800 text-gray-500' }}">
+                                                        <x-dynamic-component :component="'heroicon-o-' . $routine['icon']" class="w-4 h-4" />
+                                                    </div>
+                                                    <span class="text-[10px] font-mono font-black {{ $isCurrent ? 'text-blue-400' : 'text-gray-600' }} tracking-tighter">
+                                                        {{ $routine['time_formatted'] }}
+                                                    </span>
+                                                </div>
+                                                <h4 class="text-xs sm:text-sm font-black uppercase tracking-widest truncate {{ $isCurrent ? 'text-white' : 'text-gray-500' }}">
+                                                    {{ $routine['title'] }}
+                                                </h4>
+                                                @if($isCurrent)
+                                                    <div class="mt-3 h-1 w-full bg-gray-800 rounded-full overflow-hidden">
+                                                        <div class="h-full bg-blue-500 w-1/2 animate-pulse"></div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        {{-- BEREICH 2: PRIORITÄTEN LEGENDE --}}
-        <div class="max-w-6xl mx-auto mb-16 sm:mb-24">
-            <div class="text-center mb-6 sm:mb-8">
-                <h3 class="text-[10px] sm:text-xs font-black uppercase text-slate-300 tracking-[0.2em]">Funkis Logik</h3>
+        {{-- BEREICH 2: PRIORITÄTEN LEGENDE (Dashboard-Look) --}}
+        <div class="max-w-6xl mx-auto mb-20 sm:mb-32">
+            <div class="flex items-center gap-4 mb-10">
+                <div class="h-px bg-gray-800 flex-1"></div>
+                <h3 class="text-[10px] font-black uppercase text-gray-600 tracking-[0.5em] shrink-0">Funkis Prioritäten Logik</h3>
+                <div class="h-px bg-gray-800 flex-1"></div>
             </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                 @php
                     $prios = [
-                        ['score' => '1000+', 'title' => 'Sicherheit', 'desc' => 'System brennt', 'color' => 'bg-red-50 text-red-600 border-red-100', 'icon' => 'shield-exclamation'],
-                        ['score' => '500', 'title' => 'Termine', 'desc' => 'Feste Pflicht', 'color' => 'bg-blue-50 text-blue-600 border-blue-100', 'icon' => 'calendar'],
-                        ['score' => '300', 'title' => 'Routine', 'desc' => 'Bio-Rhythmus', 'color' => 'bg-emerald-50 text-emerald-600 border-emerald-100', 'icon' => 'clock'],
-                        ['score' => '200', 'title' => 'Business', 'desc' => 'Geld verdienen', 'color' => 'bg-amber-50 text-amber-600 border-amber-100', 'icon' => 'currency-euro'],
-                        ['score' => '100', 'title' => 'Verwaltung', 'desc' => 'Ordnung halten', 'color' => 'bg-slate-50 text-slate-600 border-slate-200', 'icon' => 'document-text'],
-                        ['score' => '10', 'title' => 'ToDos', 'desc' => 'Lückenfüller', 'color' => 'bg-cyan-50 text-cyan-600 border-cyan-100', 'icon' => 'check-circle'],
-                        ['score' => '0', 'title' => 'Freizeit', 'desc' => 'Erholung', 'color' => 'bg-indigo-50 text-indigo-600 border-indigo-100', 'icon' => 'sun'],
+                        ['score' => '1000+', 'title' => 'Sicherheit', 'desc' => 'Kritisch', 'color' => 'text-red-400 bg-red-500/10 border-red-500/20 shadow-red-900/10', 'icon' => 'shield-exclamation'],
+                        ['score' => '500', 'title' => 'Termine', 'desc' => 'Feste Zeit', 'color' => 'text-blue-400 bg-blue-500/10 border-blue-500/20 shadow-blue-900/10', 'icon' => 'calendar'],
+                        ['score' => '300', 'title' => 'Routine', 'desc' => 'Bio-Fokus', 'color' => 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-emerald-900/10', 'icon' => 'clock'],
+                        ['score' => '200', 'title' => 'Business', 'desc' => 'Revenue', 'color' => 'text-amber-400 bg-amber-500/10 border-amber-500/20 shadow-amber-900/10', 'icon' => 'currency-euro'],
+                        ['score' => '100', 'title' => 'Verwaltung', 'desc' => 'Struktur', 'color' => 'text-gray-400 bg-gray-800/40 border-gray-700 shadow-inner', 'icon' => 'document-text'],
+                        ['score' => '10', 'title' => 'ToDos', 'desc' => 'Aufgaben', 'color' => 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20 shadow-cyan-900/10', 'icon' => 'check-circle'],
+                        ['score' => '0', 'title' => 'Freizeit', 'desc' => 'Erholung', 'color' => 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20 shadow-indigo-900/10', 'icon' => 'sun'],
                     ];
                 @endphp
 
                 @foreach($prios as $p)
-                    <div class="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-sm flex flex-col items-center text-center transition-all hover:-translate-y-1 hover:shadow-md group">
-                        <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center mb-2 sm:mb-3 {{ $p['color'] }} border">
-                            <x-dynamic-component :component="'heroicon-o-' . $p['icon']" class="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <div class="bg-gray-900/60 border border-gray-800 rounded-3xl p-5 flex flex-col items-center text-center transition-all duration-300 hover:border-gray-600 hover:-translate-y-1 shadow-2xl group">
+                        <div class="w-10 h-10 rounded-2xl flex items-center justify-center mb-4 {{ $p['color'] }} border shadow-lg group-hover:scale-110 transition-transform">
+                            <x-dynamic-component :component="'heroicon-o-' . $p['icon']" class="w-5 h-5" />
                         </div>
-                        <span class="text-[8px] sm:text-[9px] font-black uppercase text-slate-300 mb-1">Score {{ $p['score'] }}</span>
-                        <h4 class="text-[11px] sm:text-xs font-bold text-slate-900 mb-0.5 sm:mb-1">{{ $p['title'] }}</h4>
-                        <p class="text-[9px] sm:text-[10px] font-medium text-slate-500 leading-tight">{{ $p['desc'] }}</p>
+                        <span class="text-[9px] font-mono font-black text-gray-600 mb-2 uppercase tracking-widest">Score {{ $p['score'] }}</span>
+                        <h4 class="text-xs font-black text-white mb-1 uppercase tracking-wider">{{ $p['title'] }}</h4>
+                        <p class="text-[10px] font-bold text-gray-500 leading-tight uppercase tracking-tighter opacity-70">{{ $p['desc'] }}</p>
                     </div>
                 @endforeach
             </div>
         </div>
 
         {{-- BEREICH 3: AUTOMATISIERUNG --}}
-        <div class="max-w-7xl mx-auto">
+        <div class="max-w-7xl mx-auto space-y-12">
+            <div class="flex items-center gap-3 px-2 mb-8">
+                <i class="solar-settings-bold-duotone text-primary text-2xl"></i>
+                <h2 class="text-2xl font-serif font-bold text-white tracking-tight">System-Automationen</h2>
+            </div>
             @include('livewire.shop.funki.partials.automation')
         </div>
 
     </div>
+
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .shadow-glow { box-shadow: 0 0 20px rgba(197, 160, 89, 0.2); }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    </style>
 </div>

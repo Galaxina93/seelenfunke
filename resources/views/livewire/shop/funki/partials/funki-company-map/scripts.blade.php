@@ -3,22 +3,21 @@
         Alpine.data('companyMapData', (config) => ({
             nodes: config.nodes,
             edges: config.edges,
+            apiStatuses: @entangle('apiStatuses'), // NEU: Entangled Array für Live Ping Status
 
-            // Drag & Pan State
-            action: 'none', // 'dragNode' | 'pan'
+            action: 'none',
             draggingIndex: null,
-            dragOffsetX: 0,  // Offset der Maus relativ zur Node-Mitte beim Greifen
+            dragOffsetX: 0,
             dragOffsetY: 0,
 
-            // Pan & Zoom
             scale: 1,
             panX: 0,
             panY: 0,
             startX: 0,
             startY: 0,
 
-            canvasWidth: 1200,
-            canvasHeight: 1000,
+            canvasWidth: window.innerWidth,
+            canvasHeight: window.innerHeight,
 
             init() {
                 this.updateCanvasSize();
@@ -26,6 +25,12 @@
                 if (this.$refs.canvas) {
                     new ResizeObserver(() => this.updateCanvasSize()).observe(this.$refs.canvas);
                 }
+
+                // Neu: API Ping Refresh Event abfangen
+                Livewire.on('apis-checked', () => {
+                    // Force Alpine to re-evaluate the DOM when new statuses arrive
+                    this.nodes = [...this.nodes];
+                });
             },
 
             updateCanvasSize() {
@@ -34,19 +39,21 @@
                     if (rect.width > 0 && rect.height > 0) {
                         this.canvasWidth = rect.width;
                         this.canvasHeight = rect.height;
+
+                        // Mobile Auto-Scale (kleiner Screen = Rauszoomen)
+                        if(window.innerWidth < 768 && this.scale === 1) {
+                            this.scale = 0.6;
+                        }
                     }
                 }
             },
 
             resetView() {
-                this.scale = 1;
+                this.scale = window.innerWidth < 768 ? 0.6 : 1;
                 this.panX = 0;
                 this.panY = 0;
             },
 
-            // ========================================================
-            // KNOTEN ZIEHEN — FIX: Offset wird beim Greifen berechnet
-            // ========================================================
             startDragNode(e, index) {
                 e.preventDefault();
                 this.action = 'dragNode';
@@ -54,12 +61,9 @@
 
                 const rect = this.$refs.canvas.getBoundingClientRect();
                 const node = this.nodes[index];
-
-                // Aktuelle Pixel-Position der Node-Mitte auf dem Canvas
                 const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
 
-                // Wo genau IN der Node wurde geklickt? (relativ zur Node-Mitte)
                 const nodeCenterX = (node.pos_x / 100) * this.canvasWidth * this.scale + this.panX + rect.left;
                 const nodeCenterY = (node.pos_y / 100) * this.canvasHeight * this.scale + this.panY + rect.top;
 
@@ -67,23 +71,18 @@
                 this.dragOffsetY = clientY - nodeCenterY;
             },
 
-            // ========================================================
-            // Canvas MouseDown: Pan nur starten wenn nicht auf Node
-            // ========================================================
             onCanvasMouseDown(e) {
-                // Nur panning starten, wenn direkt auf den Canvas geklickt (nicht auf Kind-Elemente)
                 if (e.target === this.$refs.canvas || e.target.classList.contains('absolute') && !e.target.closest('[data-node]')) {
                     this.startPan(e);
                 }
             },
 
             onCanvasTouchStart(e) {
-                if (e.target === this.$refs.canvas) {
+                if (e.target === this.$refs.canvas || e.target.classList.contains('absolute') && !e.target.closest('[data-node]')) {
                     this.startPanTouch(e);
                 }
             },
 
-            // MAP PANNING
             startPan(e) {
                 this.action = 'pan';
                 this.startX = e.clientX - this.panX;
@@ -98,18 +97,12 @@
                 }
             },
 
-            // ========================================================
-            // BEWEGUNG — Node folgt exakt der Maus (Offset-korrigiert)
-            // ========================================================
             onMove(e) {
                 if (this.action === 'dragNode' && this.draggingIndex !== null) {
                     const rect = this.$refs.canvas.getBoundingClientRect();
-
-                    // Zielposition in Canvas-Koordinaten (unter Berücksichtigung von Offset)
                     const canvasX = (e.clientX - rect.left - this.dragOffsetX - this.panX) / this.scale;
                     const canvasY = (e.clientY - rect.top  - this.dragOffsetY - this.panY) / this.scale;
 
-                    // In Prozentwerte umrechnen
                     let x = (canvasX / this.canvasWidth) * 100;
                     let y = (canvasY / this.canvasHeight) * 100;
 
@@ -128,16 +121,14 @@
                 }
             },
 
-            // ZOOMEN
             onZoom(e) {
                 const zoomSensitivity = 0.002;
                 const delta = -e.deltaY * zoomSensitivity;
                 let newScale = this.scale + delta;
-                newScale = Math.max(0.3, Math.min(2.5, newScale));
+                newScale = Math.max(0.2, Math.min(2.5, newScale));
                 this.scale = newScale;
             },
 
-            // AKTION BEENDEN
             stopAction() {
                 if (this.action === 'dragNode' && this.draggingIndex !== null) {
                     const node = this.nodes[this.draggingIndex];
@@ -149,7 +140,6 @@
                 this.dragOffsetY = 0;
             },
 
-            // Doppelklick auf Node
             handleNodeDblClick(node) {
                 if (node.component_key) {
                     this.$wire.openNodePanel(node.id);
@@ -158,14 +148,6 @@
                 }
             },
 
-            // ========================================================
-            // PAN per Mittelklick oder auf leerem Bereich
-            // ========================================================
-            isPanTarget(e) {
-                return e.target === this.$refs.canvas;
-            },
-
-            // LINIEN BERECHNEN
             calculatePath(edge) {
                 if (!edge) return '';
                 const source = this.nodes.find(n => n.id === edge.source_id);
@@ -195,7 +177,6 @@
                 return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
             },
 
-            // FARBEN
             getEdgeColor(status) {
                 if (status === 'inactive') return '#ef4444';
                 if (status === 'planned')  return '#f59e0b';
@@ -206,19 +187,20 @@
                 if (!node) return '';
                 let classes = '';
                 if (node.type === 'core') {
-                    classes += 'bg-slate-900 text-primary border-primary ';
+                    classes += 'bg-gray-950 text-primary border-primary ';
                 } else {
-                    classes += 'text-slate-600 border-slate-200 ';
+                    classes += 'bg-gray-900 text-gray-400 border-gray-700 hover:text-white hover:border-gray-500 ';
                 }
-                if (node.status === 'inactive') classes += 'opacity-50 grayscale ';
+                if (node.status === 'inactive') classes += 'opacity-40 grayscale ';
                 return classes;
             },
 
             getNodeGlow(node) {
                 if (!node) return '';
-                if (node.status === 'active')   return 'box-shadow: 0 0 30px rgba(16, 185, 129, 0.6); border-color: rgba(16, 185, 129, 0.8);';
-                if (node.status === 'planned')  return 'box-shadow: 0 0 30px rgba(245, 158, 11, 0.6); border-color: rgba(245, 158, 11, 0.8);';
-                if (node.status === 'inactive') return 'box-shadow: 0 0 30px rgba(239, 68, 68, 0.6); border-color: rgba(239, 68, 68, 0.8);';
+                if (node.status === 'active')   return 'box-shadow: 0 0 30px rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5);';
+                if (node.status === 'planned')  return 'box-shadow: 0 0 30px rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.5);';
+                if (node.status === 'inactive') return 'box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8); border-color: rgba(239, 68, 68, 0.3);';
+                if (node.type === 'core') return 'box-shadow: 0 0 40px rgba(197, 160, 89, 0.2);';
                 return '';
             },
 

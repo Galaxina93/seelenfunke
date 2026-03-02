@@ -1,17 +1,31 @@
-<div class="px-6 lg:px-10 pt-6 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center relative z-20 bg-white/90 backdrop-blur-md border-b border-slate-100 shrink-0 gap-4">
+<div class="px-4 sm:px-8 py-5 flex flex-col lg:flex-row justify-between items-start lg:items-center relative z-20 bg-gray-950/80 backdrop-blur-md border-b border-gray-800 shrink-0 gap-4 shadow-inner">
     <div>
-        <h3 class="text-xl lg:text-2xl font-serif font-bold text-slate-900">Company Architecture Map</h3>
-        <p class="text-[10px] lg:text-xs font-mono text-slate-400 mt-1 uppercase tracking-tighter">Live Ökosystem & API Schnittstellen</p>
+        <h3 class="text-lg sm:text-2xl font-serif font-bold text-white tracking-tight">System Architektur Map</h3>
+        <p class="text-[9px] sm:text-[10px] font-black text-primary mt-1 uppercase tracking-[0.2em] drop-shadow-[0_0_8px_currentColor]">Live Ökosystem & API Schnittstellen</p>
     </div>
-    <div class="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
-        <button @click="resetView()" class="flex-1 sm:flex-none px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-slate-200 hover:text-slate-900 transition-colors shadow-sm flex items-center justify-center gap-1.5" title="Ansicht zentrieren">
-            <x-heroicon-m-arrows-pointing-in class="w-4 h-4" /> Ansicht zentrieren
+
+    {{-- Button Group: Scrollbar on mobile --}}
+    <div class="flex overflow-x-auto no-scrollbar w-full lg:w-auto gap-2 sm:gap-3 pb-1 lg:pb-0">
+        <button wire:click="checkApiStatuses" wire:loading.attr="disabled" class="shrink-0 px-4 py-3 bg-gray-900 border border-gray-800 text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all shadow-inner flex items-center justify-center gap-2 active:scale-95 group">
+            <span wire:loading.remove wire:target="checkApiStatuses" class="flex items-center gap-2">
+                <x-heroicon-m-signal class="w-4 h-4 group-hover:animate-pulse" /> Live Ping
+            </span>
+            <span wire:loading wire:target="checkApiStatuses" class="flex items-center gap-2 text-gray-500">
+                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                Prüfe...
+            </span>
         </button>
-        <button wire:click="$toggle('showEdgeForm')" class="flex-1 sm:flex-none px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-widest hover:border-primary hover:text-primary transition-colors bg-white shadow-sm flex items-center justify-center gap-1.5">
+
+        <button @click="resetView()" class="shrink-0 px-4 py-3 bg-gray-900 border border-gray-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-gray-800 hover:text-white transition-all shadow-inner flex items-center justify-center gap-2 active:scale-95">
+            <x-heroicon-m-arrows-pointing-in class="w-4 h-4" /> Reset Ansicht
+        </button>
+
+        <button wire:click="$toggle('showEdgeForm')" class="shrink-0 px-4 py-3 bg-gray-900 border border-gray-700 text-gray-300 rounded-xl text-[9px] font-black uppercase tracking-widest hover:border-primary/50 hover:text-primary transition-all shadow-inner flex items-center justify-center gap-2 active:scale-95">
             <x-heroicon-m-arrows-right-left class="w-4 h-4" /> Verbindung
         </button>
-        <button wire:click="$toggle('showNodeForm')" class="w-full sm:w-auto px-6 py-2.5 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-primary-dark transition-colors shadow-lg shadow-primary/30 flex items-center justify-center gap-1.5">
-            <x-heroicon-m-plus class="w-4 h-4" /> Knotenpunkt erstellen
+
+        <button wire:click="$toggle('showNodeForm')" class="shrink-0 px-5 py-3 bg-primary text-gray-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary-dark transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-[1.02] flex items-center justify-center gap-2">
+            <x-heroicon-m-plus class="w-4 h-4 stroke-2" /> Knoten
         </button>
     </div>
 </div>
