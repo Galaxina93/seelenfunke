@@ -93,6 +93,10 @@ class QuoteRequests extends Component
      * Neue Signatur: Wir übergeben den gewünschten Typ direkt beim Klick.
      * $type kann sein: 'invoice' oder 'stripe_link'
      */
+    /**
+     * Neue Signatur: Wir übergeben den gewünschten Typ direkt beim Klick.
+     * $type kann sein: 'invoice' oder 'stripe_link'
+     */
     public function convertToOrder($quoteId, $type = 'invoice')
     {
         $quote = QuoteRequest::with('items')->find($quoteId);
@@ -141,7 +145,7 @@ class QuoteRequests extends Component
             'payment_status' => 'unpaid',
 
             // Wir setzen 'stripe_link', damit wir wissen: Hier wurde ein Link gesendet
-            'payment_method' => $methodDbString, // <--- Hier setzen wir den Typ
+            'payment_method' => $methodDbString,
 
             // WICHTIG: Express Daten & Versandkosten übernehmen!
             'is_express' => $quote->is_express,
@@ -168,11 +172,10 @@ class QuoteRequests extends Component
                 'country' => $quote->country ?? 'DE'
             ],
 
-            // [FIX] DIESE ZEILEN FEHLTEN:
-            'volume_discount' => 0,  // Standardmäßig 0, da im Kalkulator-Preis schon drin oder nicht separat ausgewiesen
-            'discount_amount' => 0,  // Standardmäßig 0
-            'coupon_code'     => null,
-            // -----------------------
+            // Rabatte exakt aus dem Angebot übernehmen
+            'volume_discount' => $quote->volume_discount ?? 0,
+            'discount_amount' => $quote->discount_amount ?? 0,
+            'coupon_code'     => $quote->coupon_code ?? null,
 
             'subtotal_price' => $quote->net_total,
             'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
@@ -195,12 +198,12 @@ class QuoteRequests extends Component
         }
 
         // ---------------------------------------------------------
-        // 4. STRIPE PAYMENT LINK GENERIEREN (Der Profi-Weg)
+        // 4. STRIPE PAYMENT LINK GENERIEREN
         // ---------------------------------------------------------
         $paymentUrl = null;
         try {
             $stripeSecret = config('services.stripe.secret');
-            if($stripeSecret) {
+            if($stripeSecret && $type === 'stripe_link') {
                 Stripe::setApiKey($stripeSecret);
 
                 $session = StripeSession::create([
@@ -217,11 +220,9 @@ class QuoteRequests extends Component
                         'quantity' => 1,
                     ]],
                     'mode' => 'payment',
-                    // Wohin nach der Zahlung?
                     'success_url' => route('shop') . '?payment_success=true',
                     'cancel_url' => route('shop'),
                     'customer_email' => $order->email,
-                    // Metadata für Webhook
                     'metadata' => [
                         'order_id' => $order->id,
                         'quote_number' => $quote->quote_number
@@ -230,12 +231,11 @@ class QuoteRequests extends Component
 
                 $paymentUrl = $session->url;
 
-                // Link in der Order speichern (falls DB Spalte existiert, siehe Migration)
+                // Link in der Order speichern (Der Job zieht sich den später da raus)
                 $order->update(['payment_url' => $paymentUrl]);
             }
         } catch (\Exception $e) {
             Log::error("Stripe Link Fehler bei Umwandlung: " . $e->getMessage());
-            // Wir brechen nicht ab, Bestellung wurde ja erstellt. Kunde zahlt dann per Überweisung.
         }
 
         // ---------------------------------------------------------
@@ -247,67 +247,13 @@ class QuoteRequests extends Component
         ]);
 
         // ---------------------------------------------------------
-        // 6. DOKUMENTE GENERIEREN (PDF & XML)
+        // 6. JOB FÜR DOKUMENTE & MAILS ANSTOSSEN (NEU!)
         // ---------------------------------------------------------
-        $pdfPath = null;
-        $xmlPath = null;
+        // Anstatt hier alles blockierend selbst zu bauen, übergeben wir
+        // die frische Order an den Background-Job.
+        \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
 
-        try {
-            $invoiceService = app(InvoiceService::class);
-
-            // Rechnung in DB anlegen
-            $invoice = $invoiceService->createFromOrder($order);
-
-            // A) PDF erstellen
-            $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
-
-            // Prüfen und Ordner erstellen
-            if (!file_exists(dirname($pdfPath))) {
-                mkdir(dirname($pdfPath), 0755, true);
-            }
-
-            // PDF generieren und speichern
-            if (!file_exists($pdfPath)) {
-                $pdf = $invoiceService->generatePdf($invoice);
-                file_put_contents($pdfPath, $pdf->output());
-            }
-
-            // B) XML erstellen (ZUGFeRD)
-            try {
-                $xmlService = app(NativeXmlInvoiceService::class);
-                $relativePath = $xmlService->generate($invoice);
-                // Absoluter Pfad für den Mail-Versand
-                $xmlPath = storage_path("app/{$relativePath}");
-            } catch (\Exception $e) {
-                Log::error("XML Fehler bei Umwandlung: " . $e->getMessage());
-            }
-
-        } catch (\Exception $e) {
-            Log::error("Rechnung Fehler bei Umwandlung: " . $e->getMessage());
-        }
-
-        // ---------------------------------------------------------
-        // 7. BESTÄTIGUNGSMAIL SENDEN
-        // ---------------------------------------------------------
-        try {
-            // Daten für Mail vorbereiten (Array Format!)
-            $mailData = $order->toFormattedArray();
-
-            // Den generierten Zahlungslink hinzufügen, damit er im Template genutzt werden kann
-            if ($paymentUrl) {
-                $mailData['payment_url'] = $paymentUrl;
-            }
-
-            // Mail mit PDF und XML Anhang versenden
-            // WICHTIG: OrderMailToCustomer erwartet (__construct(array $data, ?string $pdf, ?string $xml))
-            Mail::to($order->email)->send(new OrderMailToCustomer($mailData, $pdfPath, $xmlPath));
-
-            session()->flash('success', 'Angebot erfolgreich in Bestellung umgewandelt und Mail mit Zahlungslink versendet! ✨');
-
-        } catch (\Exception $e) {
-            session()->flash('warning', 'Bestellung erstellt, aber Mail-Versand fehlgeschlagen: ' . $e->getMessage());
-            Log::error("Mail Versand Fehler: " . $e->getMessage());
-        }
+        session()->flash('success', 'Angebot erfolgreich in Bestellung umgewandelt! Dokumente und E-Mails werden im Hintergrund versendet. ✨');
 
         $this->closeDetail();
     }

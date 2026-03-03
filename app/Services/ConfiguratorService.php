@@ -87,6 +87,7 @@ class ConfiguratorService
             ],
 
             // 3D Model
+            'overlay_type' => 'plane',
             'material_type'=> 'glass',
             'model_scale'  => 100,
             'model_pos_x'  => 0,

@@ -1,6 +1,6 @@
-<div class="w-full">
+<div class="w-full" @scroll-to-config.window="document.getElementById('configurator-start').scrollIntoView({ behavior: 'smooth', block: 'start' })">
 
-    <div class="lg:sticky lg:top-24 w-full">
+    <div id="configurator-start" class="lg:sticky lg:top-24 w-full scroll-mt-24">
         <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-2 leading-tight">
             {{ $this->product->name }}
         </h1>
@@ -157,8 +157,81 @@
                 </div>
             </div>
         @else
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all hover:shadow-2xl w-full">
-                @livewire('shop.configurator.configurator', ['product' => $product, 'context' => 'add'])
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all hover:shadow-2xl w-full min-h-[400px] flex flex-col relative">
+
+                @if($showTemplateSelection)
+                    {{-- 1. STARTBILDSCHIRM: VORLAGE ODER SELBER MACHEN --}}
+                    <div class="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50/50">
+                        <h2 class="text-2xl font-serif font-bold text-gray-900 mb-6 text-center">Wie möchtest du starten?</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                            <button type="button" wire:click="openTemplatesList" class="bg-white border border-gray-200 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group text-left flex flex-col items-center text-center">
+                                <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
+                                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                                </div>
+                                <h3 class="text-lg font-bold text-gray-900 mb-2">Vorlage nutzen</h3>
+                                <p class="text-gray-500 text-xs">Wähle aus unseren Vorlagen und passe nur noch die Texte an.</p>
+                            </button>
+
+                            <button type="button" wire:click="startCustomConfig" class="bg-white border border-gray-200 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-gray-400 transition-all group text-left flex flex-col items-center text-center">
+                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-4 group-hover:scale-110 transition-transform">
+                                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                </div>
+                                <h3 class="text-lg font-bold text-gray-900 mb-2">Selber Konfigurieren</h3>
+                                <p class="text-gray-500 text-xs">Starte mit einem leeren Produkt und werde kreativ.</p>
+                            </button>
+                        </div>
+                    </div>
+
+                @elseif($showTemplatesList)
+                    {{-- 2. LISTE DER VORLAGEN --}}
+                    <div class="flex-1 p-6 bg-gray-50/50">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-serif font-bold text-gray-900">Design Vorlagen</h2>
+                            <button type="button" wire:click="$set('showTemplatesList', false); $set('showTemplateSelection', true)" class="text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                                Zurück
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            @foreach($productTemplates as $tpl)
+                                <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-primary transition-all cursor-pointer group">
+                                    <div class="h-40 bg-gray-100 relative overflow-hidden flex items-center justify-center">
+                                        @if(!empty($tpl['preview_image']))
+                                            <img src="{{ asset('storage/'.$tpl['preview_image']) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                        @else
+                                            <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        @endif
+                                        <div class="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors"></div>
+                                    </div>
+                                    <div class="p-4 text-center">
+                                        <h3 class="font-bold text-gray-900 text-sm group-hover:text-primary transition-colors">{{ $tpl['name'] }}</h3>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                @else
+                    {{-- 3. DER EIGENTLICHE KONFIGURATOR --}}
+                    @if(!empty($productTemplates))
+                        <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center shrink-0">
+                            <span class="text-sm font-medium text-gray-600">Gestaltung</span>
+                            <button type="button" wire:click="cancelConfig" class="text-xs text-gray-500 hover:text-red-500 transition-colors">
+                                Andere Vorlage wählen
+                            </button>
+                        </div>
+                    @endif
+
+                    <div class="p-0">
+                        @livewire('shop.configurator.configurator', [
+                            'product' => $product,
+                            'context' => 'add',
+                            'initialData' => $currentConfig
+                        ], key('conf-'.$product->id.'-'.microtime(true)))
+                    </div>
+                @endif
+
             </div>
         @endif
 

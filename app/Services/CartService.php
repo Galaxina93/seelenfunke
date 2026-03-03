@@ -209,6 +209,7 @@ class CartService
 
         $subtotalGross = 0;
         $originalSubtotal = 0;
+        $physicalSubtotalGross = 0;
         $taxesBreakdown = [];
         $itemCount = 0;
         $totalWeight = 0;
@@ -239,6 +240,11 @@ class CartService
 
             $lineGross = $freshUnitPrice * $qty;
             $subtotalGross += $lineGross;
+
+            // NEU: Wir addieren den Betrag nur zur physischen Summe, wenn es Versand erfordert
+            if ($product->type === 'physical') {
+                $physicalSubtotalGross += $lineGross;
+            }
 
             // Originalpreis (für Streichpreise/Mengenrabatt-Anzeige)
             $basePrice = $product->price;
@@ -289,10 +295,10 @@ class CartService
          * Wir nutzen jetzt den ShippingCalculatorService
          */
         $shippingResult = $this->shippingService->calculateShippingCost(
-            $cart->items,        // Die Items für die "Digital Check" Logik
-            $subtotalGross,      // Warenwert VOR Rabatt für Freigrenze
-            $totalWeight,        // Gewicht für Zonen
-            $countryCode         // Land für Zonen
+            $cart->items,               // Die Items für die "Digital Check" Logik
+            $physicalSubtotalGross,     // Warenwert VOR Rabatt für Freigrenze
+            $totalWeight,               // Gewicht für Zonen
+            $countryCode                // Land für Zonen
         );
 
         $shippingGross = $shippingResult['cost'];

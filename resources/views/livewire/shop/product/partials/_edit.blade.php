@@ -71,7 +71,7 @@
                 @include('livewire.shop.product.partials.edit-partials._edit_step_3')
 
                 @if($type === 'physical')
-                    <div x-show="$wire.currentStep === 4" wire:ignore>
+                    <div x-show="$wire.currentStep === 4">
                         @include('livewire.shop.product.partials.edit-partials._edit_step_4')
                     </div>
                 @endif

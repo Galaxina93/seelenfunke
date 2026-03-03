@@ -41,6 +41,7 @@ return new class extends Migration
             $table->integer('gross_total');
 
             $table->integer('shipping_price')->default(0);
+            $table->integer('volume_discount')->default(0);
 
             // Flags
             $table->boolean('is_express')->default(false);

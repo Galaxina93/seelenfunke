@@ -233,8 +233,17 @@
                 {{-- Warenwert Brutto Anzeige (Items Brutto) --}}
                 @php
                     $warenwertItemsBrutto = collect($cartItems)->sum('calculated_total');
+                    // Warenwert VOR Abzug des Rabatts berechnen
+                    $warenwertOriginal = $warenwertItemsBrutto + $volumeDiscount;
                 @endphp
-                <div class="text-sm text-gray-600">Warenwert: {{ number_format($warenwertItemsBrutto, 2, ',', '.') }} €</div>
+                <div class="text-sm text-gray-600">Warenwert: {{ number_format($warenwertOriginal, 2, ',', '.') }} €</div>
+
+                {{-- NEU: Mengenrabatt anzeigen --}}
+                @if($volumeDiscount > 0)
+                    <div class="text-sm text-green-600 font-bold mt-1">
+                        Mengenrabatt: -{{ number_format($volumeDiscount, 2, ',', '.') }} €
+                    </div>
+                @endif
 
                 {{-- Detaillierte Versandanzeige --}}
                 @php

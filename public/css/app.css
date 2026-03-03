@@ -1829,6 +1829,9 @@ video {
 .h-\[90vh\] {
   height: 90vh;
 }
+.h-\[calc\(100vh-12rem\)\] {
+  height: calc(100vh - 12rem);
+}
 .max-h-40 {
   max-height: 10rem;
 }
@@ -1936,6 +1939,9 @@ video {
 }
 .min-h-\[110px\] {
   min-height: 110px;
+}
+.min-h-\[900px\] {
+  min-height: 900px;
 }
 .w-0\.5 {
   width: 0.125rem;
@@ -4405,6 +4411,9 @@ video {
 }
 .bg-gray-50\/80 {
   background-color: rgb(249 250 251 / 0.8);
+}
+.bg-primary\/0 {
+  background-color: rgb(201 166 107 / 0);
 }
 .bg-opacity-60 {
   --tw-bg-opacity: 0.6;
@@ -8089,6 +8098,9 @@ video {
 .hover\:bg-gray-800\/60:hover {
   background-color: rgb(31 41 55 / 0.6);
 }
+.hover\:bg-emerald-500\/20:hover {
+  background-color: rgb(16 185 129 / 0.2);
+}
 .hover\:px-3:hover {
   padding-left: 0.75rem;
   padding-right: 0.75rem;
@@ -8387,6 +8399,11 @@ video {
   --tw-shadow-colored: 0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
+.hover\:shadow-\[0_0_30px_rgba\(197\2c 160\2c 89\2c 0\.15\)\]:hover {
+  --tw-shadow: 0 0 30px rgba(197,160,89,0.15);
+  --tw-shadow-colored: 0 0 30px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
 .hover\:shadow-primary\/30:hover {
   --tw-shadow-color: rgb(201 166 107 / 0.3);
   --tw-shadow: var(--tw-shadow-colored);
@@ -8639,6 +8656,9 @@ video {
 }
 .focus\:ring-offset-gray-900:focus {
   --tw-ring-offset-color: #111827;
+}
+.focus\:ring-offset-gray-950:focus {
+  --tw-ring-offset-color: #030712;
 }
 .active\:scale-90:active {
   --tw-scale-x: .9;
@@ -10045,6 +10065,9 @@ video {
   .sm\:p-12 {
     padding: 3rem;
   }
+  .sm\:p-16 {
+    padding: 4rem;
+  }
   .sm\:px-0 {
     padding-left: 0px;
     padding-right: 0px;
@@ -11202,6 +11225,9 @@ video {
   .xl\:mt-0 {
     margin-top: 0px;
   }
+  .xl\:mt-6 {
+    margin-top: 1.5rem;
+  }
   .xl\:block {
     display: block;
   }
@@ -11219,6 +11245,9 @@ video {
   }
   .xl\:w-auto {
     width: auto;
+  }
+  .xl\:w-96 {
+    width: 24rem;
   }
   .xl\:grid-cols-12 {
     grid-template-columns: repeat(12, minmax(0, 1fr));

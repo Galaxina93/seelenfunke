@@ -6,6 +6,7 @@ use App\Mail\CalcMailToAdmin;
 use App\Mail\CalcMailToCustomer;
 use App\Models\Customer\Customer;
 use App\Models\Product\Product;
+use App\Models\Product\ProductTemplate;
 use App\Models\Quote\QuoteRequest;
 use App\Models\Quote\QuoteRequestItem;
 use App\Models\Shipping\ShippingZone;
@@ -15,8 +16,6 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-
-// Wichtig für die DB-Versandlogik
 
 class Calculator extends Component
 {
@@ -31,13 +30,19 @@ class Calculator extends Component
     public $currentConfig = [];
     public $currentProduct = null;
 
+    // --- VORLAGEN (NEU) ---
+    public $showTemplateSelection = false;
+    public $showTemplatesList = false;
+    public $productTemplates = [];
+
     // --- PREISE & GEWICHT ---
     public $gesamtKosten = 0;
     public $totalNetto = 0;
     public $totalMwst = 0;
     public $totalBrutto = 0;
     public $shippingCost = 0;
-    public $totalWeight = 0; // Neu: Für gewichtsbasierte Berechnung
+    public $totalWeight = 0;
+    public $volumeDiscount = 0;
 
     // --- FORMULAR ---
     public $isExpress = false;
@@ -49,11 +54,10 @@ class Calculator extends Component
         'email' => '',
         'telefon' => '',
         'anmerkung' => '',
-        'country' => 'DE' // Standard: Deutschland
+        'country' => 'DE'
     ];
 
     public $agb_accepted = false;
-
     public $dbProducts = [];
 
     protected $rules = [
@@ -72,7 +76,6 @@ class Calculator extends Component
             $this->cartItems = session('calc_cart');
             $this->validateCartItems();
 
-            // Session Form laden
             if (session()->has('calc_form')) {
                 $this->form = array_merge($this->form, session('calc_form'));
             }
@@ -98,7 +101,6 @@ class Calculator extends Component
 
     public function loadProducts()
     {
-        // ÄNDERUNG: Nur aktive UND physische Produkte laden
         $products = Product::with('tierPrices')
             ->where('status', 'active')
             ->where('type', 'physical')
@@ -141,7 +143,6 @@ class Calculator extends Component
         })->keyBy('id')->toArray();
     }
 
-    // --- NAVIGATION ---
     public function startCalculator()
     {
         if (!$this->agb_accepted) {
@@ -151,15 +152,62 @@ class Calculator extends Component
         $this->step = 1;
     }
 
+    // --- NEU: Vorlagen Logik Start ---
     public function openConfig($productId)
     {
         $this->editingIndex = -1;
         $this->currentProduct = $this->dbProducts[$productId] ?? null;
         if(!$this->currentProduct) return;
+
         $this->currentConfig = [];
-        $this->step = 2;
+
+        // Prüfen, ob es aktive Vorlagen für dieses Produkt gibt
+        $templates = ProductTemplate::where('product_id', $productId)
+            ->where('is_active', true)
+            ->get();
+
+        if ($templates->isNotEmpty()) {
+            $this->productTemplates = $templates->toArray();
+            $this->showTemplateSelection = true;
+            $this->showTemplatesList = false;
+            $this->step = 2;
+        } else {
+            // Keine Vorlagen -> Direkt in den nackten Konfigurator
+            $this->startCustomConfig();
+        }
+
         $this->dispatch('scroll-top');
     }
+
+    public function openTemplatesList()
+    {
+        $this->showTemplateSelection = false;
+        $this->showTemplatesList = true;
+    }
+
+    public function startCustomConfig()
+    {
+        $this->showTemplateSelection = false;
+        $this->showTemplatesList = false;
+        $this->currentConfig = [];
+        $this->step = 2;
+    }
+
+    public function selectTemplate($templateId)
+    {
+        $template = ProductTemplate::find($templateId);
+
+        if ($template) {
+            $this->currentConfig = $template->configuration ?? [];
+        } else {
+            $this->currentConfig = [];
+        }
+
+        $this->showTemplateSelection = false;
+        $this->showTemplatesList = false;
+        $this->step = 2;
+    }
+    // --- Vorlagen Logik Ende ---
 
     public function editItem($index)
     {
@@ -168,14 +216,22 @@ class Calculator extends Component
         $this->editingIndex = $index;
         $this->currentProduct = $this->dbProducts[$item['product_id']] ?? null;
         if(!$this->currentProduct) return;
+
         $this->currentConfig = $item['configuration'] ?? [];
         $this->currentConfig['qty'] = $item['qty'];
+
+        // Beim Bearbeiten eines bestehenden Artikels keine Vorlagenauswahl anzeigen
+        $this->showTemplateSelection = false;
+        $this->showTemplatesList = false;
+
         $this->step = 2;
         $this->dispatch('scroll-top');
     }
 
     public function cancelConfig() {
         $this->currentConfig = [];
+        $this->showTemplateSelection = false;
+        $this->showTemplatesList = false;
         $this->step = 1;
         $this->dispatch('scroll-top');
     }
@@ -216,13 +272,11 @@ class Calculator extends Component
         $this->persist();
     }
 
-    // --- KERNLOGIK: PREIS & VERSAND ---
     public function calculateTotal()
     {
         $quantitiesPerProduct = [];
         $this->totalWeight = 0;
 
-        // 1. Mengen und Gewicht summieren
         foreach ($this->cartItems as $item) {
             $pid = $item['product_id'];
             if (!isset($quantitiesPerProduct[$pid])) $quantitiesPerProduct[$pid] = 0;
@@ -230,16 +284,15 @@ class Calculator extends Component
 
             $product = $this->dbProducts[$pid] ?? null;
             if ($product) {
-                // Gewicht addieren (Menge * Einzelgewicht)
                 $this->totalWeight += ($product['weight'] * $item['qty']);
             }
         }
 
         $sumNetto = 0;
         $sumMwst = 0;
-        $cartSubtotalGross = 0; // Wichtig für 50€ Grenze (DE)
+        $cartSubtotalGross = 0;
+        $originalSubtotalGross = 0; // NEU: Speichert den Original-Bruttowert (ohne Rabatt)
 
-        // 2. Artikelpreise berechnen
         foreach ($this->cartItems as $index => $item) {
             $product = $this->dbProducts[$item['product_id']] ?? null;
 
@@ -250,29 +303,35 @@ class Calculator extends Component
             }
 
             $totalQty = $quantitiesPerProduct[$item['product_id']];
+
+            // Rabattierter Preis und Originalpreis abrufen
             $unitPriceCents = $this->getTierPriceCents($product, $totalQty);
+            $basePriceCents = $product['price_cents']; // NEU: Originalpreis
 
             $rate = $product['tax_rate'];
             $isGross = $product['tax_included'];
 
             $lineTotalCents = $unitPriceCents * $item['qty'];
+            $lineOriginalCents = $basePriceCents * $item['qty']; // NEU: Original Zeilenwert
 
             if ($isGross) {
-                // Brutto -> Netto
                 $lineGross = $lineTotalCents;
                 $lineNet  = $lineGross / (1 + ($rate / 100));
                 $lineTax  = $lineGross - $lineNet;
-                // Für Versandgrenze brauchen wir Brutto in Euro
+
                 $cartSubtotalGross += ($lineGross / 100);
+                $originalSubtotalGross += ($lineOriginalCents / 100); // NEU
             } else {
-                // Netto -> Brutto
                 $lineNet = $lineTotalCents;
                 $lineTax = $lineNet * ($rate / 100);
-                // Brutto berechnen für Versandgrenze
+
                 $cartSubtotalGross += (($lineNet + $lineTax) / 100);
+
+                $origNet = $lineOriginalCents;
+                $origTax = $origNet * ($rate / 100);
+                $originalSubtotalGross += (($origNet + $origTax) / 100); // NEU
             }
 
-            // Speichern für View (Anzeige in Euro)
             $this->cartItems[$index]['calculated_single_price'] = $unitPriceCents / 100;
             $this->cartItems[$index]['calculated_total'] = ($isGross ? $lineTotalCents : round($lineNet + $lineTax)) / 100;
 
@@ -280,33 +339,28 @@ class Calculator extends Component
             $sumMwst += $lineTax;
         }
 
-        // --- 3. VERSANDKOSTEN ---
+        // NEU: Mengenrabatt als Differenz zwischen Originalwert und tatsächlichem Wert berechnen
+        $this->volumeDiscount = max(0, $originalSubtotalGross - $cartSubtotalGross);
+
         $this->shippingCost = 0;
         $countryCode = $this->form['country'];
 
-        // FALL A: DEUTSCHLAND (Pauschal-Regel)
         if ($countryCode === 'DE') {
-            // Regel: Kostenfrei ab 50,00 €, sonst 4,90 €
             if ($cartSubtotalGross >= 50.00 || count($this->cartItems) === 0) {
                 $this->shippingCost = 0;
             } else {
                 $this->shippingCost = 4.90;
             }
-        }
-        // FALL B: AUSLAND (Datenbank-basiert)
-        else {
-            // Zone suchen
-            $zone = ShippingZone::whereHas('countries', function($q) use ($countryCode) {
+        } else {
+            $zone = \App\Models\Shipping\ShippingZone::whereHas('countries', function($q) use ($countryCode) {
                 $q->where('country_code', $countryCode);
             })->with('rates')->first();
 
-            // Fallback: Wenn keine Zone gefunden, versuche "Weltweit"
             if (!$zone) {
-                $zone = ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+                $zone = \App\Models\Shipping\ShippingZone::where('name', 'Weltweit')->with('rates')->first();
             }
 
             if ($zone && count($this->cartItems) > 0) {
-                // Rate finden (Gewicht oder Preis)
                 $shippingRate = $zone->rates()
                     ->where(function($q) {
                         $q->where('min_weight', '<=', $this->totalWeight)
@@ -315,42 +369,31 @@ class Calculator extends Component
                                     ->orWhereNull('max_weight');
                             });
                     })
-                    ->orderBy('price', 'asc') // Günstigste Rate
+                    ->orderBy('price', 'asc')
                     ->first();
 
                 if ($shippingRate) {
                     $this->shippingCost = $shippingRate->price / 100;
                 } else {
-                    // Fallback, wenn zu schwer oder nicht konfiguriert
-                    $this->shippingCost = 29.90; // Standard Auslandspreis Fallback
+                    $this->shippingCost = 29.90;
                 }
             } elseif(count($this->cartItems) > 0) {
-                // Kein Versand möglich oder konfiguriert -> Fallback
                 $this->shippingCost = 29.90;
             }
         }
 
-        // 4. Versandkosten aufaddieren (Steuerlogik)
         if ($this->shippingCost > 0) {
             $shippingCents = $this->shippingCost * 100;
-
-            // Liste der EU-Länder
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
-            // 1. Werte dynamisch aus der Datenbank (shop-settings) laden
             $taxRate = (float)shop_setting('default_tax_rate', 19);
             $isSmallBusiness = (bool)shop_setting('is_small_business', false);
-
-            // 2. Berechne den Divisor (bei 19% -> 1.19, bei 20% -> 1.20)
-            // Falls Kleinunternehmer, ist der Satz 0, also Divisor 1.0
             $divisor = $isSmallBusiness ? 1.0 : (1 + ($taxRate / 100));
 
             if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
-                // EU & kein Kleinunternehmer: Steuer dynamisch basierend auf Datenbank-Wert berechnen
                 $shippingNet = $shippingCents / $divisor;
                 $shippingTax = $shippingCents - $shippingNet;
             } else {
-                // Drittland oder Kleinunternehmer: Keine MwSt (Netto = Brutto)
                 $shippingNet = $shippingCents;
                 $shippingTax = 0;
             }
@@ -359,33 +402,19 @@ class Calculator extends Component
             $sumMwst += $shippingTax;
         }
 
-        // 5. Express-Option
         if ($this->isExpress && count($this->cartItems) > 0) {
-            // 1. Steuerdaten dynamisch aus der Tabelle 'shop-settings' laden
             $defaultTaxRate = (float)shop_setting('default_tax_rate', 19);
             $isSmallBusiness = (bool)shop_setting('is_small_business', false);
-
-            // 2. Divisor dynamisch berechnen (z.B. 1.19 bei 19%)
-            // Der Divisor sorgt dafür, dass die Rückwärtsrechnung vom Brutto zum Netto immer stimmt.
             $divisor = $isSmallBusiness ? 1.0 : (1 + ($defaultTaxRate / 100));
-
-            // Liste der EU-Länder definieren
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
-            // Basis ist 25,00 € Brutto (ausgedrückt in Cent)
-            // Optional: Auch diesen Wert könntest du über shop_setting('express_surcharge', 2500) laden!
             $expressGross = (int)shop_setting('express_surcharge', 2500);
-
-            // 3. Netto-Wert berechnen
-            // Durch den dynamischen Divisor wird hier bei Kleinunternehmern automatisch durch 1.0 geteilt.
             $expressBaseNet = $expressGross / $divisor;
 
             if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
-                // EU & kein Kleinunternehmer: MwSt-Anteil basierend auf aktuellem Steuersatz berechnen
                 $expressNet = $expressBaseNet;
                 $expressTax = $expressGross - $expressNet;
             } else {
-                // Drittland ODER Kleinunternehmer: Keine MwSt ausweisen (Netto entspricht dem Zahlbetrag)
                 $expressNet = $expressBaseNet;
                 $expressTax = 0;
             }
@@ -396,7 +425,7 @@ class Calculator extends Component
 
         $this->totalNetto = round($sumNetto) / 100;
         $this->totalMwst = round($sumMwst) / 100;
-        $this->totalBrutto = round($sumNetto + $sumMwst) / 100; // Gesamtsumme inkl. allem
+        $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
         $this->gesamtKosten = $this->totalBrutto;
     }
 
@@ -406,7 +435,7 @@ class Calculator extends Component
         $tiers = $product['tier_pricing'] ?? [];
 
         if (!empty($tiers) && is_array($tiers)) {
-            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']); // Absteigend sortieren
+            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
             foreach ($tiers as $tier) {
                 if ($qty >= $tier['qty']) {
                     $discount = $basePrice * ($tier['percent'] / 100);
@@ -417,9 +446,7 @@ class Calculator extends Component
         return $basePrice;
     }
 
-    // Wenn Land geändert wird -> Neu berechnen
     public function updatedForm($value, $key) {
-        // Bei Änderung des Landes oder nested Keys
         if($key === 'country' || $key === 'form.country') {
             $this->calculateTotal();
         }
@@ -434,11 +461,9 @@ class Calculator extends Component
             return;
         }
 
-        // [NEU] Validierung für Express-Datum
-        // Wir prüfen nur, wenn Express angehakt ist.
         if ($this->isExpress) {
             $this->validate([
-                'deadline' => 'required|date|after:today', // Muss in der Zukunft liegen
+                'deadline' => 'required|date|after:today',
             ], [
                 'deadline.required' => 'Bitte wählen Sie einen Wunschtermin für die Express-Lieferung.',
                 'deadline.date' => 'Bitte geben Sie ein gültiges Datum ein.',
@@ -467,7 +492,6 @@ class Calculator extends Component
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
         $cleanDeadline = ($this->isExpress && !empty($this->deadline)) ? $this->deadline : null;
 
-        // 1. Das QuoteRequest in der Datenbank erstellen
         $quote = QuoteRequest::create([
             'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
             'email' => $this->form['email'],
@@ -481,12 +505,12 @@ class Calculator extends Component
             'tax_total' => (int) round($this->totalMwst * 100),
             'gross_total' => (int) round($this->totalBrutto * 100),
             'shipping_price' => (int) round($this->shippingCost * 100),
+            'volume_discount' => (int) round($this->volumeDiscount * 100),
             'is_express' => $this->isExpress,
             'deadline' => $cleanDeadline,
             'admin_notes' => $this->form['anmerkung'] ?? null,
         ]);
 
-        // 2. Die einzelnen Items in der Datenbank speichern
         foreach($this->cartItems as $item) {
             $conf = $item['configuration'] ?? [];
             QuoteRequestItem::create([
@@ -500,11 +524,8 @@ class Calculator extends Component
             ]);
         }
 
-        // --- ZENTRALISIERUNG: Wir nutzen die neue Model-Methode ---
-        // Hier stecken jetzt alle display_netto_goods etc. drin!
         $data = $quote->toFormattedArray();
 
-        // 3. PDF Generierung mit den zentralisierten Daten
         $pdf = Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $data]);
         $filename = 'Angebot_' . Str::slug($this->form['firma'] ?: $this->form['nachname']) . '_' . time() . '.pdf';
         $path = storage_path('app/public/tmp/' . $filename);
@@ -514,22 +535,15 @@ class Calculator extends Component
         }
         file_put_contents($path, $pdf->output());
 
-        // 4. Mail-Versand
         try {
-            // Kundenmail mit Angebot
             Mail::to($this->form['email'])->send(new CalcMailToCustomer($data, $path));
-
             $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
-
-            // Adminmail (neue Interne Anfrage)
             Mail::to($owner_mail)->send(new CalcMailToAdmin($data, $path));
-
             \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
         }
 
-        // 5. Aufräumen
         if (file_exists($path)) {
             @unlink($path);
         }
@@ -543,7 +557,7 @@ class Calculator extends Component
 
     public function restartCalculator()
     {
-        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight']);
+        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates']);
         session()->forget(['calc_cart', 'calc_form']);
         $this->step = 1;
     }
@@ -554,19 +568,8 @@ class Calculator extends Component
         session()->put('calc_form', $this->form);
     }
 
-    private function getPositionLabel($x, $y) {
-        $x = (float)$x; $y = (float)$y;
-        $h = ($x < 35) ? 'Links' : (($x > 65) ? 'Rechts' : 'Mitte');
-        $v = ($y < 35) ? 'Oben' : (($y > 65) ? 'Unten' : 'Mitte');
-        if ($h === 'Mitte' && $v === 'Mitte') return 'Zentriert';
-        if ($h === 'Mitte') return $v . ' Zentriert';
-        if ($v === 'Mitte') return 'Mitte ' . $h;
-        return "$v $h";
-    }
-
     public function render()
     {
-        // Wartungsmodus Check
         if (shop_setting('maintenance_mode', false)) {
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }

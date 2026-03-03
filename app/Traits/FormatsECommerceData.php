@@ -84,6 +84,8 @@ trait FormatsECommerceData
             'express'  => (bool)$this->is_express,
             'deadline' => $this->deadline,
 
+            'payment_url' => $this->payment_url ?? null,
+
             // Kontakt & Adressen
             'contact'          => $this->getMailContactData(),
             'billing_address'  => $this->billing_address ?? [],
@@ -96,6 +98,12 @@ trait FormatsECommerceData
             'total_vat'      => number_format($taxAmountCents / 100, 2, ',', '.'),
             'total_gross'    => number_format($grossTotalCents / 100, 2, ',', '.'),
             'shipping_price' => number_format($actualShippingGross / 100, 2, ',', '.'),
+
+            // --- NEU: GUTSCHEINE UND RABATTE ---
+            'volume_discount' => number_format(($this->volume_discount ?? 0) / 100, 2, ',', '.'),
+            'discount_amount' => number_format(($this->discount_amount ?? 0) / 100, 2, ',', '.'),
+            'coupon_code'     => $this->coupon_code ?? null,
+            // -----------------------------------
 
             // Einzel-Netto-Werte für Partials
             'display_netto_goods'    => number_format($goodsNettoCents / 100, 2, ',', '.') . ' €',

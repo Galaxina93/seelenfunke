@@ -11,7 +11,7 @@
             // Stimmung & Bild setzen
             if ($hasPrio && ($prio->is_express || ($prio->deadline && $prio->deadline->isPast()))) {
                 $mood = 'alarm';
-                $funkiImg = 'funki_party.png';
+                $funkiImg = 'funki_selfie.png';
                 $statusText = "HOCHDRUCK";
                 $statusColor = "text-red-400 bg-red-500/10 border-red-500/30";
                 $glowColor = "from-red-500/20";

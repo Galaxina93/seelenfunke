@@ -43,9 +43,11 @@ class Configurator extends Component
     {
         $this->fonts = $configService->getFonts();
         $this->vectors = $configService->getStandardVectors();
-        $this->configSettings = $configService->mergeWithDefaults($this->product->config_settings ?? []);
 
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
+
+        $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
+
         $this->context = $context;
         $this->cartItem = $cartItem;
 
@@ -269,7 +271,9 @@ class Configurator extends Component
             return;
         }
 
-        $this->validate(['qty' => 'required|integer|min:1']);
+        if ($this->context !== 'template_admin') {
+            $this->validate(['qty' => 'required|integer|min:1']);
+        }
 
         $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
         $mainText = collect($this->texts)->firstWhere('text', '!=', '')['text'] ?? '';
@@ -281,10 +285,13 @@ class Configurator extends Component
             'logo_path' => $mainLogo,
             'files' => $this->uploaded_files,
             'notes' => $this->notes,
-            'qty' => $this->qty,
             'type' => $this->type,
             'is_digital' => $this->isDigital
         ];
+
+        if ($this->context !== 'template_admin') {
+            $configData['qty'] = $this->qty;
+        }
 
         if ($this->context === 'add') {
             if (!$this->product->isAvailable()) return $this->addError('qty', 'Nicht verfügbar.');
@@ -303,6 +310,8 @@ class Configurator extends Component
         } elseif ($this->context === 'calculator') {
             $configData['product_id'] = $this->product->id;
             $this->dispatch('calculator-save', data: $configData);
+        } elseif ($this->context === 'template_admin') {
+            $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
         }
     }
 
