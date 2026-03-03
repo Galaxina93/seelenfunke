@@ -8,7 +8,7 @@ use Carbon\CarbonPeriod;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\PageVisit;
+use App\Models\Tracking\PageVisit; // Geändert auf deinen neuen Namespace!
 use App\Models\LoginAttempt;
 use App\Models\Order\Order;
 use App\Models\Order\OrderItem;
@@ -83,32 +83,110 @@ class FunkiAnalyticsService
 
     public function getStats($dateStart, $dateEnd, $filterType, $lastLogins)
     {
-        $startOfWeek = now()->startOfWeek();
-        $endOfWeek = now()->endOfWeek();
-
-        $visitsByDay = PageVisit::whereBetween('created_at', [$startOfWeek, $endOfWeek])
-            ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as total'))
-            ->groupBy('date')
-            ->pluck('total', 'date')
-            ->toArray();
-
-        $visitCounts = [];
-        $visitLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-        $periodTraffic = CarbonPeriod::create($startOfWeek, $endOfWeek);
-        foreach ($periodTraffic as $date) {
-            $visitCounts[] = $visitsByDay[$date->format('Y-m-d')] ?? 0;
-        }
-
         $start = Carbon::parse($dateStart)->startOfDay();
         $end = Carbon::parse($dateEnd)->endOfDay();
+        $diffInDays = $start->diffInDays($end);
+
+        // ==========================================
+        // TRAFFIC & ANALYTICS (Eigene Datenbank)
+        // ==========================================
+        $visitsQuery = PageVisit::whereBetween('created_at', [$start, $end]);
+
+        $totalPageViews = (clone $visitsQuery)->count();
+        $uniqueVisitors = (clone $visitsQuery)->distinct('session_id')->count('session_id');
+
+        // Geräte Analyse (Desktop vs Mobile)
+        $mobileVisits = (clone $visitsQuery)->where(function($q) {
+            $q->where('user_agent', 'LIKE', '%Mobile%')
+                ->orWhere('user_agent', 'LIKE', '%Android%')
+                ->orWhere('user_agent', 'LIKE', '%iPhone%')
+                ->orWhere('user_agent', 'LIKE', '%iPad%');
+        })->count();
+        $desktopVisits = $totalPageViews - $mobileVisits;
+
+        // Top Seiten
+        $topPages = (clone $visitsQuery)
+            ->select('path', DB::raw('count(*) as count'))
+            ->groupBy('path')
+            ->orderByDesc('count')
+            ->limit(6)
+            ->get();
+
+        // Top Referrers (Herkunft) - Gruppiert nach Domain in PHP
+        $rawReferrers = (clone $visitsQuery)
+            ->whereNotNull('referer')
+            ->select('referer', DB::raw('count(*) as count'))
+            ->groupBy('referer')
+            ->orderByDesc('count')
+            ->limit(50) // Hole die Top 50 URLs, um sie dann nach Domain zu filtern
+            ->get();
+
+        $topReferrers = collect();
+        foreach ($rawReferrers as $ref) {
+            $host = parse_url($ref->referer, PHP_URL_HOST);
+            $host = str_replace('www.', '', $host);
+            if (!$host || str_contains($host, request()->getHost())) continue; // Eigene Domain ausschließen
+
+            if ($topReferrers->has($host)) {
+                $topReferrers[$host] += $ref->count;
+            } else {
+                $topReferrers->put($host, $ref->count);
+            }
+        }
+        $topReferrers = $topReferrers->sortDesc()->take(5);
+
+        // Traffic Chart Datenstruktur
+        $visitLabels = [];
+        $visitCounts = [];
+        $uniqueCounts = [];
+
+        if ($diffInDays <= 31) {
+            // Gruppierung nach TAGEN
+            $visitsByDay = (clone $visitsQuery)
+                ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as total'), DB::raw('count(distinct session_id) as unique_total'))
+                ->groupBy('date')
+                ->get()
+                ->keyBy('date');
+
+            $periodTraffic = CarbonPeriod::create($start, $end);
+            foreach ($periodTraffic as $date) {
+                $dateString = $date->format('Y-m-d');
+                $visitLabels[] = $date->format('d.m.');
+                $visitCounts[] = $visitsByDay->has($dateString) ? $visitsByDay[$dateString]->total : 0;
+                $uniqueCounts[] = $visitsByDay->has($dateString) ? $visitsByDay[$dateString]->unique_total : 0;
+            }
+        } else {
+            // Gruppierung nach MONATEN
+            $visitsByMonth = (clone $visitsQuery)
+                ->select(DB::raw('YEAR(created_at) as year'), DB::raw('MONTH(created_at) as month'), DB::raw('count(*) as total'), DB::raw('count(distinct session_id) as unique_total'))
+                ->groupBy('year', 'month')
+                ->get();
+
+            $currentDate = $start->copy()->startOfMonth();
+            $finalDate = $end->copy()->endOfMonth();
+
+            while ($currentDate <= $finalDate) {
+                $y = $currentDate->year;
+                $m = $currentDate->month;
+                $match = $visitsByMonth->first(fn($v) => $v->year == $y && $v->month == $m);
+
+                $visitLabels[] = $currentDate->locale('de')->shortMonthName . ' ' . $currentDate->format('y');
+                $visitCounts[] = $match ? $match->total : 0;
+                $uniqueCounts[] = $match ? $match->unique_total : 0;
+
+                $currentDate->addMonth();
+            }
+        }
+
+        // ==========================================
+        // FINANZEN & SHOP (Dein bestehender Code)
+        // ==========================================
         $chartData = ['labels' => [], 'revenue' => [], 'expenses' => [], 'profit' => []];
 
         $costItemsQuery = FinanceCostItem::query();
         if ($filterType === 'business') $costItemsQuery->where('is_business', true);
         if ($filterType === 'private') $costItemsQuery->where('is_business', false);
         $allCostItems = $costItemsQuery->get();
-
-        $diffInDays = $start->diffInDays($end);
 
         if ($diffInDays <= 31) {
             $period = CarbonPeriod::create($start, $end);
@@ -239,14 +317,24 @@ class FunkiAnalyticsService
         return [
             'total_users' => Admin::count() + Customer::count() + Employee::count(),
             'active_users_today' => collect($lastLogins)->whereBetween('last_seen', [Carbon::today(), Carbon::now()])->count(),
-            'new_registrations_week' => Customer::whereBetween('created_at', [$startOfWeek, $endOfWeek])->count() + Admin::whereBetween('created_at', [$startOfWeek, $endOfWeek])->count() + Employee::whereBetween('created_at', [$startOfWeek, $endOfWeek])->count(),
+            'new_registrations_week' => Customer::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Admin::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Employee::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
             'failed_logins' => LoginAttempt::where('success', false)->count(),
             'active_sessions' => DB::table('sessions')->count(),
             'never_logged_in' => collect($lastLogins)->whereNull('last_seen')->count(),
             'inactive_30_days' => collect($lastLogins)->filter(fn($u) => $u['last_seen'] && Carbon::parse($u['last_seen'])->lt(now()->subDays(30)))->count(),
-            'frontend_visits_today' => PageVisit::whereDate('created_at', now())->count(),
+
+            // NEUE TRAFFIC DATEN
+            'frontend_visits_total' => $totalPageViews,
+            'frontend_unique_total' => $uniqueVisitors,
+            'desktop_visits' => $desktopVisits,
+            'mobile_visits' => $mobileVisits,
+            'top_pages' => $topPages,
+            'top_referrers' => $topReferrers,
             'visit_days' => $visitLabels,
             'visit_counts' => $visitCounts,
+            'unique_counts' => $uniqueCounts,
+
+            // SHOP DATEN
             'chart_data' => $chartData,
             'total_revenue' => $totalRevenuePeriod,
             'total_profit' => $totalRevenuePeriod - $totalExpensesPeriod,
@@ -276,18 +364,11 @@ class FunkiAnalyticsService
     private function calculateShopQualityScore($margin, $growth, $profit, $revenue, $breakEvenTotal)
     {
         $score = 0;
-        if ($profit > 0) {
-            $score += 20;
-        }
-        if ($revenue > $breakEvenTotal && $breakEvenTotal > 0) {
-            $score += 20;
-        }
+        if ($profit > 0) $score += 20;
+        if ($revenue > $breakEvenTotal && $breakEvenTotal > 0) $score += 20;
         $score += min(30, max(0, $margin));
-        if ($growth > 0) {
-            $score += min(30, $growth * 1.5);
-        } else {
-            $score -= min(20, abs($growth));
-        }
+        if ($growth > 0) $score += min(30, $growth * 1.5);
+        else $score -= min(20, abs($growth));
         return max(0, min(100, round($score)));
     }
 

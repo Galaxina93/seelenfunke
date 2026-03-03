@@ -44,6 +44,8 @@ class AppServiceProvider extends ServiceProvider
             'day_routine' => 'App\Models\Funki\FunkiDayRoutine',
             'finance_cost_item' => 'App\Models\Financial\FinanceCostItem',
             'product' => 'App\Models\Product\Product',
+            'page_visit' => 'App\Models\Tracking\PageVisit',
+
             // Füge hier bei Bedarf weitere Models hinzu
         ]);
 

@@ -194,54 +194,63 @@
                 });
             }
 
+            // --- 2. TRAFFIC CHART (NEU) ---
             const vCtx = document.getElementById('visitsChart');
             if(vCtx) {
                 if (visitsChart) visitsChart.destroy();
                 const ctxVisits = vCtx.getContext('2d');
-                const gradVisits = ctxVisits.createLinearGradient(0, 0, 0, 300);
-                gradVisits.addColorStop(0, 'rgba(197, 160, 89, 0.4)'); // primary
-                gradVisits.addColorStop(1, 'rgba(197, 160, 89, 0.0)');
+
+                const gradViews = ctxVisits.createLinearGradient(0, 0, 0, 300);
+                gradViews.addColorStop(0, 'rgba(59, 130, 246, 0.3)'); // blue-500
+                gradViews.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
 
                 visitsChart = new Chart(ctxVisits, {
                     type: 'line',
                     data: {
                         labels: data.visit_days,
-                        datasets: [{
-                            label: 'Seitenaufrufe',
-                            data: data.visit_counts,
-                            borderColor: '#C5A059',
-                            backgroundColor: gradVisits,
-                            borderWidth: 3,
-                            pointBackgroundColor: '#111827',
-                            pointBorderColor: '#C5A059',
-                            pointBorderWidth: 2,
-                            fill: true,
-                            tension: 0.4
-                        }]
+                        datasets: [
+                            {
+                                label: 'Seitenaufrufe',
+                                data: data.visit_counts,
+                                borderColor: '#3b82f6', // blue-500
+                                backgroundColor: gradViews,
+                                borderWidth: 3,
+                                pointBackgroundColor: '#111827',
+                                pointBorderColor: '#3b82f6',
+                                pointBorderWidth: 2,
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Eindeutige Besucher',
+                                data: data.unique_counts,
+                                borderColor: '#34d399', // emerald-400
+                                borderWidth: 2,
+                                borderDash: [4, 4],
+                                pointBackgroundColor: '#111827',
+                                pointBorderColor: '#34d399',
+                                pointBorderWidth: 2,
+                                fill: false,
+                                tension: 0.4
+                            }
+                        ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
                         plugins: {
                             legend: { display: false },
                             tooltip: {
                                 backgroundColor: 'rgba(17, 24, 39, 0.9)',
-                                borderColor: 'rgba(197, 160, 89, 0.3)',
+                                borderColor: 'rgba(59, 130, 246, 0.3)',
                                 borderWidth: 1,
+                                padding: 10
                             }
                         },
                         scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: { display: false },
-                                border: { display: false },
-                                ticks: { color: '#9ca3af' }
-                            },
-                            x: {
-                                grid: { display: false },
-                                border: { display: false },
-                                ticks: { color: '#9ca3af' }
-                            }
+                            y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, border: { display: false }, ticks: { precision: 0 } },
+                            x: { grid: { display: false }, border: { display: false } }
                         }
                     }
                 });

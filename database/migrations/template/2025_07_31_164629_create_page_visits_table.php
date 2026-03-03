@@ -6,23 +6,23 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
+    public function up()
     {
         Schema::create('page_visits', function (Blueprint $table) {
             $table->id();
-            $table->string('page')->index(); // z. B. 'home'
-            $table->ipAddress('ip_address')->nullable();
+            $table->string('session_id')->index(); // Um User-Pfade zu verfolgen (Sitzung)
+            $table->string('ip_hash')->index(); // Gehashte IP für Anonymität!
+            $table->text('url');
+            $table->string('path')->index();
+            $table->string('method', 10);
+            $table->text('user_agent')->nullable();
+            $table->text('referer')->nullable();
+            $table->unsignedBigInteger('customer_id')->nullable()->index(); // Falls eingeloggt
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('page_visits');
     }
