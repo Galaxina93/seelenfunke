@@ -26,6 +26,9 @@
                     <x-forms.list-item route="/admin/funki-company-map" title="Map" pageName="funki-company-map" icon="map" />
                 </ul>
             </li>
+
+            <x-forms.list-item route="/admin/knowledge_base" title="Gehirn" pageName="knowledge_base" icon="book-open" />
+
         </ul>
     </li>
 

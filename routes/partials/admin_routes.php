@@ -27,6 +27,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.funki-company-map');
     })->name('admin.funki-company-map');
 
+    Route::get('/admin/knowledge_base', function () {
+        return view('backend.admin.pages.knowledge-base');
+    })->name('admin.knowledge_base');
+
     // Benutzerverwaltung
     Route::get('/admin/user-management', function () {
         return view('backend.admin.pages.user-management');

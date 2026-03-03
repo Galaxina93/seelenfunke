@@ -30,6 +30,8 @@ class DatabaseSeeder extends Seeder
             FunkiDayRoutineSeeder::class,           // Für den Livegang notwendig
             FunkiMapSeeder::class,                  // Für den Livegang notwendig
             ProductReviewSeeder::class,             // DEAKTIVIEREN BEI LIVEGANG
+
+            KnowledgeBaseSeeder::class,             // Für den Livegang notwendig
         ]);
 
     }
