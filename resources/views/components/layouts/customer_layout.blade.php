@@ -11,11 +11,10 @@
     @livewireStyles
 
     <script>
-        // Wir übergeben die Server-Umgebungsvariablen an das JavaScript
         window.FunkiWsConfig = {
-            host: '{{ env('REVERB_HOST', '127.0.0.1') }}',
-            port: {{ env('REVERB_PORT', 6001) }},
-            scheme: '{{ env('REVERB_SCHEME', 'http') }}',
+            host: '{{ env('PUSHER_HOST', '127.0.0.1') }}',
+            port: {{ env('PUSHER_PORT', 6001) }},
+            scheme: '{{ env('PUSHER_SCHEME', 'http') }}'
         };
     </script>
 </head>
