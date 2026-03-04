@@ -77,3 +77,10 @@ Datei eingebrannt.
 Wenn du Dateien zurückgesetzt hast, ist deine app.js vielleicht noch auf
 dem Stand von unseren Stage-Tests und versucht gerade lokal,
 sich mit wss://ws.mein-seelenfunke.de zu verbinden!
+
+
+Mittwald WORKER neustarten:
+php artisan queue:restart
+
+Bei Env File Änderungen danach immer:
+php artisan optimize:clear
