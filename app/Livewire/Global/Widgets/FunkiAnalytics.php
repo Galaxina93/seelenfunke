@@ -3,26 +3,29 @@
 namespace App\Livewire\Global\Widgets;
 
 use Livewire\Component;
-use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
-use Illuminate\Pagination\LengthAwarePaginator;
 use App\Models\SystemCheckConfig;
 use App\Models\LoginAttempt;
 use App\Models\Product\Product;
 use App\Models\Financial\FinanceCostItem;
 use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Funki\FunkiLog;
 use App\Services\FunkiAnalyticsService;
 
 class FunkiAnalytics extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithFileUploads;
 
     public $stats = [];
     public $healthChecks = [];
+    public $systemHealth = [];
     public $rangeMode = 'year';
-    protected $paginationTheme = 'tailwind';
+
+    // Suchfeld für die Historie
+    public $searchLogins = '';
 
     public $showFailedLogins = false;
     public $showFullLogins = false;
@@ -52,6 +55,145 @@ class FunkiAnalytics extends Component
     {
         $this->loadSettings();
         $this->loadStats($service);
+        $this->systemHealth = [
+            'database' => ['status' => 'checking', 'value' => '...', 'error' => null],
+            'storage' => ['status' => 'checking', 'value' => '...', 'error' => null],
+            'stripe' => ['status' => 'checking', 'value' => '...', 'error' => null],
+            'smtp' => ['status' => 'checking', 'value' => '...', 'error' => null],
+            'redis' => ['status' => 'checking', 'value' => '...', 'error' => null],
+            'queue' => ['status' => 'checking', 'value' => '...', 'error' => null, 'pending' => 0, 'failed' => 0],
+        ];
+    }
+
+    /**
+     * Hilfsfunktion, um System-Ausfälle in den FunkiLog zu schreiben (Max 1x pro Stunde pro Fehler)
+     */
+    private function logSystemFailure($serviceName, $message, $payload = [])
+    {
+        $cacheKey = 'sys_fail_log_' . $serviceName;
+
+        if (!Cache::has($cacheKey)) {
+            FunkiLog::create([
+                'type' => 'system',
+                'action_id' => 'system:health_fail',
+                'title' => 'Infrastruktur-Ausfall: ' . ucfirst($serviceName),
+                'message' => $message,
+                'status' => 'error',
+                'payload' => $payload,
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+
+            // Blockiere weiteres Loggen für diesen Dienst für 60 Minuten
+            Cache::put($cacheKey, true, now()->addMinutes(60));
+        }
+    }
+
+    public function checkSystemHealth()
+    {
+        $health = [];
+
+        // 1. Datenbank Check
+        try {
+            $start = microtime(true);
+            DB::connection()->getPdo();
+            $time = round((microtime(true) - $start) * 1000);
+            $health['database'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['database'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Keine Verbindung zum SQL-Server.'];
+            $this->logSystemFailure('database', 'Die primäre Datenbank ist nicht erreichbar!', ['exception' => $e->getMessage()]);
+        }
+
+        // 2. Speicherplatz (Storage) Check
+        try {
+            $freeSpace = disk_free_space(base_path());
+            $totalSpace = disk_total_space(base_path());
+            if ($totalSpace > 0) {
+                $percentFree = round(($freeSpace / $totalSpace) * 100);
+                $freeGb = round($freeSpace / 1024 / 1024 / 1024, 1);
+                $status = $percentFree < 10 ? 'warning' : 'connected';
+                $health['storage'] = ['status' => $status, 'value' => "{$percentFree}% frei ({$freeGb} GB)", 'error' => $status === 'warning' ? 'Wenig Speicherplatz!' : null];
+
+                if ($status === 'warning') {
+                    $this->logSystemFailure('storage', "Kritisch: Nur noch {$percentFree}% ({$freeGb} GB) Speicherplatz auf der Server-Festplatte verfügbar!");
+                }
+            } else {
+                $health['storage'] = ['status' => 'error', 'value' => 'Unbekannt', 'error' => 'Konnte Speicher nicht auslesen.'];
+            }
+        } catch (\Exception $e) {
+            $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Zugriff auf Dateisystem verweigert.'];
+            $this->logSystemFailure('storage', 'Zugriff auf Dateisystem verweigert oder Festplatte defekt.', ['exception' => $e->getMessage()]);
+        }
+
+        // 3. Stripe API Check
+        try {
+            $start = microtime(true);
+            $response = \Illuminate\Support\Facades\Http::timeout(3)->get('https://api.stripe.com/healthcheck');
+            $time = round((microtime(true) - $start) * 1000);
+            $health['stripe'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['stripe'] = ['status' => 'error', 'value' => 'Timeout', 'error' => 'Stripe API nicht erreichbar. Firewall prüfen!'];
+            $this->logSystemFailure('stripe', 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.', ['exception' => $e->getMessage()]);
+        }
+
+        // 4. SMTP Check
+        try {
+            $host = config('mail.mailers.smtp.host');
+            $port = config('mail.mailers.smtp.port');
+            if ($host && $port && !in_array($host, ['127.0.0.1', 'localhost', 'log', 'array'])) {
+                $start = microtime(true);
+                $fp = @fsockopen($host, $port, $errno, $errstr, 2);
+                if ($fp) {
+                    $time = round((microtime(true) - $start) * 1000);
+                    fclose($fp);
+                    $health['smtp'] = ['status' => 'connected', 'value' => "Port offen ({$time}ms)", 'error' => null];
+                } else {
+                    $health['smtp'] = ['status' => 'error', 'value' => 'Blockiert', 'error' => "Verbindung abgelehnt ($host:$port)"];
+                    $this->logSystemFailure('smtp', "Mail-Server ($host:$port) hat die Verbindung abgelehnt. Mails können nicht gesendet werden.");
+                }
+            } else {
+                $health['smtp'] = ['status' => 'connected', 'value' => 'Lokales Log aktiv', 'error' => null];
+            }
+        } catch (\Exception $e) {
+            $health['smtp'] = ['status' => 'error', 'value' => 'Konfig-Fehler', 'error' => 'Mail-Konfiguration fehlerhaft.'];
+            $this->logSystemFailure('smtp', 'Fehler in der SMTP-Konfiguration oder Netzwerk-Blockade.', ['exception' => $e->getMessage()]);
+        }
+
+        // 5. Redis / Cache Check
+        try {
+            $start = microtime(true);
+            if (extension_loaded('redis') || class_exists(\Predis\Client::class)) {
+                $redis = \Illuminate\Support\Facades\Redis::connection();
+                $redis->ping();
+                $time = round((microtime(true) - $start) * 1000, 1);
+                $health['redis'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+            } else {
+                \Illuminate\Support\Facades\Cache::has('test_ping');
+                $time = round((microtime(true) - $start) * 1000, 1);
+                $health['redis'] = ['status' => 'connected', 'value' => "File-Cache ({$time}ms)", 'error' => null];
+            }
+        } catch (\Exception $e) {
+            $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Cache-Server antwortet nicht.'];
+            $this->logSystemFailure('redis', 'Der Redis-Cache antwortet nicht. Benutzer könnten ausgeloggt werden oder Sessions verlieren.', ['exception' => $e->getMessage()]);
+        }
+
+        // 6. Queue Worker Check
+        try {
+            $pending = \Illuminate\Support\Facades\Queue::size();
+            $failed = \Illuminate\Support\Facades\Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0;
+
+            if ($failed > 0) {
+                $health['queue'] = ['status' => 'warning', 'value' => "{$pending} wartend", 'error' => "Achtung: {$failed} fehlgeschlagene Jobs!", 'pending' => $pending, 'failed' => $failed];
+                // Wir loggen auch fehlerhafte Queue-Jobs
+                $this->logSystemFailure('queue', "Es gibt {$failed} fehlgeschlagene Hintergrund-Jobs (Queue) im System. Überprüfe die Job-Tabelle.", ['failed_count' => $failed]);
+            } else {
+                $health['queue'] = ['status' => 'connected', 'value' => "{$pending} wartend", 'error' => null, 'pending' => $pending, 'failed' => $failed];
+            }
+        } catch (\Exception $e) {
+            $health['queue'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Job-Tabelle nicht erreichbar.', 'pending' => 0, 'failed' => 0];
+        }
+
+        $this->systemHealth = $health;
     }
 
     public function loadSettings()
@@ -114,13 +256,11 @@ class FunkiAnalytics extends Component
         $allLogins = $service->getAllLoginsCollection();
         $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins);
 
-        // Zwinge $stats ein Array zu sein (löst Livewire Dehydration Bugs)
         $this->stats = json_decode(json_encode($rawStats), true);
 
         $rawChecks = $service->getHealthChecks();
         $checks = json_decode(json_encode($rawChecks), true);
 
-        // 1. Offene Tickets laden (Immer einbinden, auch wenn 0)
         if (class_exists(\App\Models\FunkiTicket::class)) {
             $openTickets = \App\Models\FunkiTicket::where('status', 'open')->with('customer')->get();
             $tCount = $openTickets->count();
@@ -142,7 +282,6 @@ class FunkiAnalytics extends Component
             ];
         }
 
-        // 2. Produktbewertungen (Immer einbinden, auch wenn 0)
         if (class_exists(\App\Models\Product\ProductReview::class)) {
             $pendingReviews = \App\Models\Product\ProductReview::where('status', 'pending')->with('product')->get();
             $rCount = $pendingReviews->count();
@@ -243,30 +382,67 @@ class FunkiAnalytics extends Component
         }
     }
 
-    public function getPaginatedLoginsProperty()
+    public function getActiveLoginsProperty()
     {
         $service = app(FunkiAnalyticsService::class);
         $allLogins = $service->getAllLoginsCollection()->sortByDesc('last_seen')->values();
 
-        return new LengthAwarePaginator(
-            $allLogins->forPage(LengthAwarePaginator::resolveCurrentPage('loginsPage'), 8),
-            $allLogins->count(),
-            8,
-            null,
-            ['path' => request()->url(), 'pageName' => 'loginsPage']
-        );
+        if (!empty($this->searchLogins)) {
+            $search = mb_strtolower($this->searchLogins);
+            $allLogins = $allLogins->filter(function($login) use ($search) {
+                $fullName = mb_strtolower(($login['first_name'] ?? '') . ' ' . ($login['last_name'] ?? ''));
+                $type = mb_strtolower($login['type'] ?? '');
+                return str_contains($fullName, $search) || str_contains($type, $search);
+            });
+        }
+
+        return $allLogins->take(30);
     }
 
-    public function getPaginatedFailedLoginsProperty()
+    // Vereinter SystemLog (Zieht FunkiLog und fehlerhafte Logins zusammen)
+    public function getSystemLogsProperty()
     {
-        return LoginAttempt::where('success', false)->orderByDesc('attempted_at')->paginate(5, ['*'], 'failedPage');
+        $logs = collect();
+
+        // 1. Echte Funki Logs holen
+        if (class_exists(FunkiLog::class)) {
+            $funki = FunkiLog::orderByDesc('started_at')->limit(30)->get()->map(function($log) {
+                return [
+                    'id' => 'fl_'.$log->id,
+                    'title' => $log->title,
+                    'message' => $log->message,
+                    'status' => $log->status, // running, success, error, info, warning
+                    'type' => $log->type, // automation, ai, marketing, system
+                    'timestamp' => $log->started_at,
+                ];
+            });
+            $logs = $logs->concat($funki);
+        }
+
+        // 2. Sicherheitswarnungen (Fehlerhafte Logins) als Fake-Logs einfügen
+        if (class_exists(LoginAttempt::class)) {
+            $failedLogins = LoginAttempt::where('success', false)->orderByDesc('attempted_at')->limit(30)->get()->map(function($fail) {
+                return [
+                    'id' => 'la_'.$fail->id,
+                    'title' => 'Fehlgeschlagener Login',
+                    'message' => 'Versuch mit: ' . $fail->email . ' (IP: ' . $fail->ip_address . ')',
+                    'status' => 'error', // Löst rote Formatierung aus
+                    'type' => 'security', // Eigenes Typ-Label
+                    'timestamp' => $fail->attempted_at,
+                ];
+            });
+            $logs = $logs->concat($failedLogins);
+        }
+
+        // 3. Zusammen nach Zeit sortieren und nur die neusten 30 zurückgeben
+        return $logs->sortByDesc('timestamp')->values()->take(30);
     }
 
     public function render()
     {
         return view('livewire.global.widgets.funki-analytics.funki-analytics', [
-            'paginatedLogins' => $this->paginatedLogins,
-            'paginatedFailedLogins' => $this->paginatedFailedLogins,
+            'activeLogins' => $this->activeLogins,
+            'systemLogs' => $this->systemLogs,
         ]);
     }
 }

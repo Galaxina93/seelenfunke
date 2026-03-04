@@ -119,13 +119,20 @@ class UserManagement extends Component
             ]);
         }
 
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+
         FunkiLog::create([
             'type' => 'system',
             'action_id' => 'user:create',
-            'title' => 'Neuer Begleiter',
-            'message' => "Benutzer {$user->email} ({$this->createType}) manuell angelegt.",
+            'title' => 'Neuer Benutzer angelegt',
+            'message' => "Der Benutzer '{$user->email}' wurde als " . strtoupper($this->createType) . " von {$adminEmail} ins System eingefügt.",
             'status' => 'success',
-            'payload' => ['after' => $this->formData],
+            'payload' => [
+                'actor' => $adminEmail,
+                'user_id' => $user->id,
+                'user_type' => $this->createType,
+                'data' => collect($this->formData)->except('password')->toArray()
+            ],
             'started_at' => now(),
             'finished_at' => now(),
         ]);
@@ -177,8 +184,22 @@ class UserManagement extends Component
 
         $model = $this->getModelInstance($this->editingType, $this->editingId);
 
-        $oldData = $model->toArray();
-        $oldProfile = $model->profile ? $model->profile->toArray() : [];
+        // Sammeln der alten Daten für den Delta-Vergleich
+        $oldData = [
+            'first_name' => $model->first_name,
+            'last_name' => $model->last_name,
+            'email' => $model->email,
+            'phone_number' => $model->profile->phone_number ?? '',
+            'street' => $model->profile->street ?? '',
+            'house_number' => $model->profile->house_number ?? '',
+            'postal' => $model->profile->postal ?? '',
+            'city' => $model->profile->city ?? '',
+            'customer_type' => ($model->profile->is_business ?? false) ? 'business' : 'private',
+            'company_name' => $model->profile->company_name ?? '',
+            'vat_id' => $model->profile->vat_id ?? '',
+            'internal_note' => $model->profile->internal_note ?? '',
+            'is_verified' => !is_null($model->profile->email_verified_at ?? null),
+        ];
 
         $model->update([
             'first_name' => $this->formData['first_name'],
@@ -186,8 +207,10 @@ class UserManagement extends Component
             'email' => $this->formData['email'],
         ]);
 
+        $passwordChanged = false;
         if (!empty($this->formData['password'])) {
             $model->update(['password' => Hash::make($this->formData['password'])]);
+            $passwordChanged = true;
         }
 
         if ($model->profile) {
@@ -214,16 +237,39 @@ class UserManagement extends Component
             ]);
         }
 
-        FunkiLog::create([
-            'type' => 'system',
-            'action_id' => 'user:update',
-            'title' => 'Profil-Mutation',
-            'message' => "Datensatz von {$model->email} modifiziert.",
-            'status' => 'success',
-            'payload' => ['before' => array_merge($oldData, $oldProfile), 'after' => $this->formData],
-            'started_at' => now(),
-            'finished_at' => now(),
-        ]);
+        // Berechne die genauen Änderungen (Delta)
+        $changes = [];
+        foreach ($oldData as $key => $oldValue) {
+            if (isset($this->formData[$key]) && $oldValue !== $this->formData[$key]) {
+                $changes[$key] = [
+                    'old' => $oldValue,
+                    'new' => $this->formData[$key]
+                ];
+            }
+        }
+
+        if ($passwordChanged) {
+            $changes['password'] = ['old' => '***', 'new' => 'wurde geändert'];
+        }
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+
+        if (count($changes) > 0) {
+            FunkiLog::create([
+                'type' => 'system',
+                'action_id' => 'user:update',
+                'title' => 'Benutzerprofil modifiziert',
+                'message' => "Das Profil von '{$model->email}' wurde von {$adminEmail} aktualisiert. " . count($changes) . " Felder geändert.",
+                'status' => 'success',
+                'payload' => [
+                    'actor' => $adminEmail,
+                    'target_user' => $model->email,
+                    'changes' => $changes
+                ],
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
 
         $this->editingId = null;
         session()->flash('message', 'Änderungen gespeichert.');
@@ -232,19 +278,57 @@ class UserManagement extends Component
     public function archiveUser($id, $type)
     {
         $model = $this->getModelInstance($type, $id);
+        $email = $model->email;
         $model->delete();
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        FunkiLog::create([
+            'type' => 'system',
+            'action_id' => 'user:archive',
+            'title' => 'Benutzer archiviert',
+            'message' => "Der Benutzer '{$email}' wurde von {$adminEmail} ins Archiv verschoben.",
+            'status' => 'warning',
+            'payload' => ['actor' => $adminEmail, 'target_user' => $email],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
     }
 
     public function restoreUser($id, $type)
     {
         $model = $this->getModelInstance($type, $id, true);
         $model->restore();
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        FunkiLog::create([
+            'type' => 'system',
+            'action_id' => 'user:restore',
+            'title' => 'Benutzer wiederhergestellt',
+            'message' => "Der archivierte Benutzer '{$model->email}' wurde von {$adminEmail} reaktiviert.",
+            'status' => 'success',
+            'payload' => ['actor' => $adminEmail, 'target_user' => $model->email],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
     }
 
     public function forceDelete($id, $type)
     {
         $model = $this->getModelInstance($type, $id, true);
+        $email = $model->email;
         $model->forceDelete();
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        FunkiLog::create([
+            'type' => 'system',
+            'action_id' => 'user:force_delete',
+            'title' => 'Benutzer endgültig gelöscht',
+            'message' => "Achtung: Der Datensatz von '{$email}' wurde von {$adminEmail} dauerhaft aus der Datenbank entfernt.",
+            'status' => 'error', // Error status signalisiert eine destruktive, kritische Aktion
+            'payload' => ['actor' => $adminEmail, 'target_user' => $email],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
     }
 
     protected function getModelInstance($type, $id, $withTrashed = false)

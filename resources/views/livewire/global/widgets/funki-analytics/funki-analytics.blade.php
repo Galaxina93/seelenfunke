@@ -2,7 +2,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     @include('livewire.global.widgets.funki-analytics.partials.header')
-    @include('livewire.global.widgets.funki-analytics.partials.podest')
     @include('livewire.global.widgets.funki-analytics.partials.health')
     @include('livewire.global.widgets.funki-analytics.partials.kpis')
     @include('livewire.global.widgets.funki-analytics.partials.charts')
