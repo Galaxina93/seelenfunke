@@ -30,9 +30,12 @@
                             </div>
                         </td>
                         <td class="px-4 md:px-8 py-4 md:py-6">
-                            <span @class(['px-2 py-1 md:px-4 md:py-1.5 rounded-md md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border shadow-sm whitespace-nowrap', 'bg-purple-500/10 text-purple-400 border-purple-500/30' => $login['type'] === 'Admin', 'bg-primary/10 text-primary border-primary/30' => $login['type'] === 'Customer', 'bg-blue-500/10 text-blue-400 border-blue-500/30' => $login['type'] === 'Employee'])>
-                                {{ $login['type'] }}
-                            </span>
+                                <span @class([
+                                    'px-2 py-1 md:px-4 md:py-1.5 rounded-md md:rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest border shadow-sm whitespace-nowrap',
+                                    'bg-purple-500/10 text-purple-400 border-purple-500/30' => $login['type'] === 'Admin',
+                                    'bg-primary/10 text-primary border-primary/30' => $login['type'] === 'Customer',
+                                    'bg-blue-500/10 text-blue-400 border-blue-500/30' => $login['type'] === 'Employee'
+                                ])>{{ $login['type'] }}</span>
                         </td>
                         <td class="px-4 md:px-8 py-4 md:py-6 text-right">
                             <div class="flex flex-col items-end">
@@ -49,7 +52,10 @@
                 </tbody>
             </table>
         </div>
-        <div class="p-4 md:p-6 bg-gray-950/50 border-t border-gray-800 mt-auto">{{ $paginatedLogins->links() }}</div>
+
+        <div class="p-4 md:p-6 bg-gray-950/50 border-t border-gray-800 mt-auto dark-pagination-override">
+            {{ $paginatedLogins->links() }}
+        </div>
     </div>
 
     <div class="lg:col-span-2 bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden flex flex-col h-full group w-full">
@@ -58,7 +64,11 @@
                 <h3 class="text-lg md:text-xl font-serif font-bold text-white">Sicherheits-Log</h3>
                 <p class="text-[9px] md:text-[10px] text-red-400 mt-1 md:mt-2 uppercase tracking-widest font-black drop-shadow-[0_0_8px_rgba(248,113,113,0.5)]">Abgewiesene Versuche</p>
             </div>
-            <div @class(['p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all shrink-0', 'bg-red-500/10 text-red-500 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse' => $stats['failed_logins'] > 0, 'bg-gray-800/50 text-gray-500 border-gray-700' => $stats['failed_logins'] == 0])>
+            <div @class([
+                'p-3 md:p-4 rounded-xl md:rounded-2xl border transition-all shrink-0',
+                'bg-red-500/10 text-red-500 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse' => (isset($stats['failed_logins']) && $stats['failed_logins'] > 0),
+                'bg-gray-800/50 text-gray-500 border-gray-700' => (!isset($stats['failed_logins']) || $stats['failed_logins'] == 0)
+            ])>
                 <i class="solar-shield-warning-bold-duotone text-xl md:text-2xl"></i>
             </div>
         </div>
@@ -97,6 +107,34 @@
                 </tbody>
             </table>
         </div>
-        <div class="p-4 md:p-6 bg-gray-950/50 border-t border-gray-800 mt-auto">{{ $paginatedFailedLogins->links() }}</div>
+
+        <div class="p-4 md:p-6 bg-gray-950/50 border-t border-gray-800 mt-auto dark-pagination-override">
+            {{ $paginatedFailedLogins->links() }}
+        </div>
     </div>
 </div>
+
+{{-- CSS Zwang für dunkle Tailwind Pagination --}}
+<style>
+    .dark-pagination-override nav[role="navigation"] p {
+        color: #9ca3af !important; /* text-gray-400 */
+    }
+    .dark-pagination-override nav[role="navigation"] > div > div > span > a,
+    .dark-pagination-override nav[role="navigation"] > div > div > span > span[aria-disabled] {
+        background-color: #111827 !important; /* bg-gray-900 */
+        border-color: #1f2937 !important; /* border-gray-800 */
+        color: #9ca3af !important; /* text-gray-400 */
+    }
+    .dark-pagination-override nav[role="navigation"] > div > div > span > a:hover {
+        background-color: #1f2937 !important; /* bg-gray-800 */
+        color: #ffffff !important;
+    }
+    .dark-pagination-override nav[role="navigation"] > div > div > span > span[aria-current="page"] > span {
+        background-color: rgba(197, 160, 89, 0.1) !important; /* Goldener Background */
+        border-color: rgba(197, 160, 89, 0.5) !important; /* Goldener Rahmen */
+        color: #C5A059 !important; /* Text Primary */
+    }
+    .dark-pagination-override nav[role="navigation"] svg {
+        color: #9ca3af !important;
+    }
+</style>

@@ -6,6 +6,7 @@ case "$1" in
         echo -e "Hier ist eine Übersicht aller verfügbaren Befehle:\n"
         echo -e "  \033[1;32m🚀 start\033[0m         Startet alle Docker-Container im Hintergrund."
         echo -e "  \033[1;32m🛑 stop\033[0m          Stoppt alle laufenden Container sanft."
+        echo -e "  \033[1;32m🔄 restart\033[0m       Startet alle Docker-Container neu."
         echo -e "  \033[1;32m🏗️ bauen\033[0m         Baut die Container (Images) komplett neu auf."
         echo -e "  \033[1;32m💥 löschen\033[0m       Löscht alle Container und Volumes (Achtung: Datenbank wird resettet!)."
         echo -e "  \033[1;32m🗄️ migrate\033[0m       Führt Laravel Migrationen und Datenbank-Seeder aus."
@@ -26,6 +27,10 @@ case "$1" in
     stop)
         echo "🛑 Stoppe Funki..."
         docker compose down
+        ;;
+    restart)
+        echo "🔄 Starte Funki neu..."
+        docker compose restart
         ;;
     bauen)
         echo "🏗️ Baue Funki neu..."

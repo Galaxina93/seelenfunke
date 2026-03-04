@@ -18,91 +18,178 @@
 {{-- HINTERGRUND UNIVERSUM --}}
 <canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
 
-<div x-data="{ open: false }" class="relative z-10">
-    @if($guard !== 'customer')
-        <div x-show="open" class="relative z-50 lg:hidden" role="dialog" aria-modal="true" style="display: none;">
-            <div x-show="open" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 bg-black/80 backdrop-blur-sm" @click="open = false" aria-hidden="true"></div>
+@php
+    $adminId = '';
+    $hasUnreadTickets = false;
 
-            <div class="fixed inset-0 flex">
-                <div x-show="open" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative mr-16 flex w-full max-w-xs flex-1">
-                    <div x-show="open" x-transition:enter="ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute left-full top-0 flex w-16 justify-center pt-5">
-                        <button type="button" class="-m-2.5 p-2.5 transition-transform hover:rotate-90 duration-300" @click="open = false">
-                            <span class="sr-only">Menü schließen</span>
-                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/95 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
-                        <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
-                            <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
-                        </div>
-                        <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
-                            @livewire($guard . '.' . $guard . '-navigation')
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    if(auth()->guard('admin')->check()) {
+        $adminId = (string)auth()->guard('admin')->id();
 
-        <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-            <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/80 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
-                <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
-                    <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 shadow-glow drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
+        if(class_exists(\App\Models\FunkiTicketMessage::class)) {
+            // Prüfen ob es ungelesene Nachrichten von Kunden gibt
+            $hasUnreadTickets = \App\Models\FunkiTicketMessage::where('sender_type', 'customer')
+                ->where('is_read_by_admin', false)
+                ->exists();
+        }
+    }
+@endphp
+
+{{-- GLOBALER ALPINE STATE FÜR NAVIGATION UND WEBSOCKETS (Als eigener Wrapper) --}}
+<div x-data="{
+        hasUnreadSupport: {{ $hasUnreadTickets ? 'true' : 'false' }},
+        showToast: false,
+        toastMessage: '',
+        initAdminEcho() {
+            @if($adminId)
+            let attempts = 0;
+            const checkEcho = setInterval(() => {
+                attempts++;
+                if (typeof window.Echo !== 'undefined') {
+                    clearInterval(checkEcho);
+
+                    // Lauschen auf dem Admin-Channel
+                    window.Echo.private('admin.{{$adminId}}').listen('.TicketMessageSent', (e) => {
+                        if (e.message && e.message.sender_type === 'customer') {
+                            this.hasUnreadSupport = true;
+
+                            if (!window.location.pathname.includes('/tickets')) {
+                                let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
+                                let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
+                                this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
+                                this.showToast = true;
+                                setTimeout(() => { this.showToast = false; }, 5000);
+                            }
+                        }
+                    });
+
+                    // Fallback-Channel: Falls die Events generisch auf 'admin' gesendet werden
+                    window.Echo.private('admin.tickets').listen('.TicketMessageSent', (e) => {
+                        if (e.message && e.message.sender_type === 'customer') {
+                            this.hasUnreadSupport = true;
+
+                            if (!window.location.pathname.includes('/tickets')) {
+                                let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
+                                let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
+                                this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
+                                this.showToast = true;
+                                setTimeout(() => { this.showToast = false; }, 5000);
+                            }
+                        }
+                    });
+
+                } else if (attempts > 30) {
+                    clearInterval(checkEcho);
+                }
+            }, 300);
+            @endif
+        }
+    }"
+     x-init="initAdminEcho()"
+     @clear-admin-ticket-badge.window="hasUnreadSupport = false"
+     class="relative w-full min-h-screen flex flex-col">
+
+    @if(auth()->guard('admin')->check())
+        <div class="fixed bottom-6 right-6 z-[100] transition-all duration-500 ease-out"
+             :class="showToast ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'">
+            <div class="bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer" @click="window.location.href='/admin/funki-tickets'">
+                <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
+                    <span class="text-primary text-xl">💌</span>
                 </div>
-                <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
-                    @livewire($guard . '.' . $guard . '-navigation')
+                <div>
+                    <h4 class="text-white text-sm font-bold tracking-wide">Support Desk</h4>
+                    <p class="text-gray-400 text-xs mt-0.5" x-text="toastMessage"></p>
                 </div>
             </div>
         </div>
     @endif
 
-    <div class="{{ $guard !== 'customer' ? 'lg:pl-72' : '' }} transition-all duration-500">
+    <div x-data="{ open: false }" class="relative z-10 flex-1 flex flex-col">
         @if($guard !== 'customer')
-            <div class="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-xl px-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw]">
+            <div x-show="open" class="relative z-50 lg:hidden" role="dialog" aria-modal="true" style="display: none;">
+                <div x-show="open" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 bg-black/80 backdrop-blur-sm" @click="open = false" aria-hidden="true"></div>
 
-                <button @click="open = true" type="button" class="shrink-0 -m-2.5 p-2.5 text-gray-400 lg:hidden hover:text-primary transition-colors">
-                    <span class="sr-only">Menü öffnen</span>
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                    </svg>
-                </button>
-
-                <div class="shrink-0 h-6 w-px bg-gray-700 lg:hidden" aria-hidden="true"></div>
-
-                <div class="flex flex-1 items-center justify-end md:justify-between min-w-0">
-
-                    <div class="hidden md:block shrink-0 pr-4">
-                            <span class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] drop-shadow-sm">
-                                Systemverwaltung <span class="text-primary mx-1">/</span> {{ ucfirst($guard) }}
-                            </span>
+                <div class="fixed inset-0 flex">
+                    <div x-show="open" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative mr-16 flex w-full max-w-xs flex-1">
+                        <div x-show="open" x-transition:enter="ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute left-full top-0 flex w-16 justify-center pt-5">
+                            <button type="button" class="-m-2.5 p-2.5 transition-transform hover:rotate-90 duration-300" @click="open = false">
+                                <span class="sr-only">Menü schließen</span>
+                                <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/95 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+                            <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
+                                <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
+                            </div>
+                            <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
+                                @livewire($guard . '.' . $guard . '-navigation')
+                            </div>
+                        </div>
                     </div>
+                </div>
+            </div>
 
-                    <div class="flex-1 flex justify-end min-w-0">
-                        @livewire('global.profile.profile-dropdown')
+            <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+                <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/80 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+                    <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
+                        <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 shadow-glow drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
                     </div>
-
+                    <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
+                        @livewire($guard . '.' . $guard . '-navigation')
+                    </div>
                 </div>
             </div>
         @endif
 
-        <main class="{{ $guard !== 'customer' ? 'py-8' : '' }}">
+        <div class="{{ $guard !== 'customer' ? 'lg:pl-72' : '' }} transition-all duration-500 flex-1 flex flex-col">
             @if($guard !== 'customer')
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="animate-fade-in-up">
-                        @yield('content')
+                <div class="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-xl px-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw]">
+
+                    <button @click="open = true" type="button" class="shrink-0 -m-2.5 p-2.5 text-gray-400 lg:hidden hover:text-primary transition-colors">
+                        <span class="sr-only">Menü öffnen</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        </svg>
+                    </button>
+
+                    <div class="shrink-0 h-6 w-px bg-gray-700 lg:hidden" aria-hidden="true"></div>
+
+                    <div class="flex flex-1 items-center justify-end md:justify-between min-w-0">
+
+                        <div class="hidden md:block shrink-0 pr-4">
+                                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] drop-shadow-sm">
+                                        Systemverwaltung <span class="text-primary mx-1">/</span> {{ ucfirst($guard) }}
+                                    </span>
+                        </div>
+
+                        <div class="flex-1 flex justify-end min-w-0">
+                            @livewire('global.profile.profile-dropdown')
+                        </div>
+
                     </div>
                 </div>
-            @else
-                @yield('content')
             @endif
-        </main>
-    </div>
-</div>
 
-@if($guard !== 'customer')
-    @livewire('global.widgets.funki-chat')
-@endif
+            <main class="{{ $guard !== 'customer' ? 'py-8 flex-1' : 'flex-1' }}">
+                @if($guard !== 'customer')
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="animate-fade-in-up">
+                            @yield('content')
+                        </div>
+                    </div>
+                @else
+                    @yield('content')
+                @endif
+            </main>
+        </div>
+    </div>
+
+    @if($guard !== 'customer')
+        @livewire('global.widgets.funki-chat')
+    @endif
+
+</div> {{-- ENDE DES GLOBALEN ALPINE STATES --}}
 
 @livewireScripts
 @stack('scripts')

@@ -1,9 +1,8 @@
-{{-- FILE: resources\views\backend\admin\livewire\admin-navigation.blade.php --}}
 <x-sections.vertical-nav>
     @php
         $currentPage = basename(request()->path());
-        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender', 'funki-company-map']);
-        $isShopActive = in_array($currentPage, ['products', 'reviews', 'blog']);
+        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender', 'funki-company-map', 'funki-tickets', 'funki-knowledge_base']);
+        $isShopActive = in_array($currentPage, ['products', 'reviews', 'blog', 'product-templates']);
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-categories-special-editions', 'financial-contracts-groups']);
     @endphp
@@ -24,14 +23,24 @@
                     <x-forms.list-item route="/admin/funki-todos" title="Aufgaben" pageName="funki-todos" icon="check-circle" />
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
                     <x-forms.list-item route="/admin/funki-company-map" title="Karte" pageName="funki-company-map" icon="map" />
-                    <x-forms.list-item route="/admin/funki-tickets" title="Ticketsystem" pageName="funki-tickets" icon="ticket" />
+
+                    {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt (Greift auf den globalen State in backend_layout zu) --}}
+                    <li>
+                        <a href="/admin/funki-tickets" @click="hasUnreadSupport = false" class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $currentPage === 'funki-tickets' ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                            <div class="relative">
+                                <x-heroicon-o-ticket class="w-5 h-5 shrink-0 transition-transform duration-300 {{ $currentPage === 'funki-tickets' ? 'text-primary' : 'text-gray-500 group-hover:text-white group-hover:scale-110' }}" />
+                                <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                                </span>
+                            </div>
+                            <span class="truncate">Ticketsystem</span>
+                        </a>
+                    </li>
+
                     <x-forms.list-item route="/admin/funki-knowledge_base" title="Wissensdatenbank" pageName="funki-knowledge_base" icon="book-open" />
                 </ul>
             </li>
-
-
-
-
         </ul>
     </li>
 

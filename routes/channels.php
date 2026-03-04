@@ -2,8 +2,24 @@
 
 use Illuminate\Support\Facades\Broadcast;
 
-// DAS IST DER MAGISCHE SCHLÜSSEL!
-// Er erlaubt es dem Customer- und Admin-Guard, sich beim WebSocket-Server zu authentifizieren.
+
+// ----------------------------------------------------
+// ADMIN CHANNELS (Wichtig: ['guards' => ['admin']])
+// ----------------------------------------------------
+
+Broadcast::channel('admin.{id}', function ($user, $id) {
+    return (int) $user->id === (int) $id;
+}, ['guards' => ['admin']]);
+
+// Falls du auch den generischen Admin-Channel nutzt:
+Broadcast::channel('admin', function ($user) {
+    return true; // Der Guard-Check reicht hier als Authentifizierung
+}, ['guards' => ['admin']]);
+
+
+// ----------------------------------------------------
+// CUSTOMER CHANNELS (Wichtig: ['guards' => ['customer']])
+// ----------------------------------------------------
 Broadcast::routes(['middleware' => ['web', 'auth:customer,admin,web']]);
 
 // Der Kunden-Kanal

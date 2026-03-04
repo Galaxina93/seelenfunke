@@ -29,7 +29,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
-
         // 1. Füge die Morph Map hinzu
         Relation::enforceMorphMap([
             'admin'    => 'App\Models\Admin\Admin',
@@ -45,6 +44,7 @@ class AppServiceProvider extends ServiceProvider
             'finance_cost_item' => 'App\Models\Financial\FinanceCostItem',
             'product' => 'App\Models\Product\Product',
             'page_visit' => 'App\Models\Tracking\PageVisit',
+            'funki_ticket' => 'App\Models\FunkiTicket',
 
             // Füge hier bei Bedarf weitere Models hinzu
         ]);

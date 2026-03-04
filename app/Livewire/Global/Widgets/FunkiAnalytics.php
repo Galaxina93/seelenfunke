@@ -112,8 +112,58 @@ class FunkiAnalytics extends Component
     public function loadStats(FunkiAnalyticsService $service)
     {
         $allLogins = $service->getAllLoginsCollection();
-        $this->stats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins);
-        $this->healthChecks = $service->getHealthChecks();
+        $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins);
+
+        // Zwinge $stats ein Array zu sein (löst Livewire Dehydration Bugs)
+        $this->stats = json_decode(json_encode($rawStats), true);
+
+        $rawChecks = $service->getHealthChecks();
+        $checks = json_decode(json_encode($rawChecks), true);
+
+        // 1. Offene Tickets laden (Immer einbinden, auch wenn 0)
+        if (class_exists(\App\Models\FunkiTicket::class)) {
+            $openTickets = \App\Models\FunkiTicket::where('status', 'open')->with('customer')->get();
+            $tCount = $openTickets->count();
+
+            $checks['open_tickets'] = [
+                'status' => $tCount > 0 ? 'error' : 'success',
+                'icon' => 'bi-ticket-detailed',
+                'title' => 'Offene Tickets',
+                'message' => $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet',
+                'count' => $tCount,
+                'data' => $openTickets->map(function($t) {
+                    return [
+                        'id' => $t->id,
+                        'ticket_number' => $t->ticket_number,
+                        'subject' => $t->subject,
+                        'customer_name' => $t->customer ? $t->customer->first_name : 'Kunde'
+                    ];
+                })->values()->toArray()
+            ];
+        }
+
+        // 2. Produktbewertungen (Immer einbinden, auch wenn 0)
+        if (class_exists(\App\Models\Product\ProductReview::class)) {
+            $pendingReviews = \App\Models\Product\ProductReview::where('status', 'pending')->with('product')->get();
+            $rCount = $pendingReviews->count();
+
+            $checks['product_reviews'] = [
+                'status' => $rCount > 0 ? 'error' : 'success',
+                'icon' => 'bi-star-half',
+                'title' => 'Produkt-Reviews',
+                'message' => $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft',
+                'count' => $rCount,
+                'data' => $pendingReviews->map(function($r) {
+                    return [
+                        'id' => $r->id,
+                        'product_name' => $r->product ? $r->product->name : 'Produkt',
+                        'rating' => $r->rating
+                    ];
+                })->values()->toArray()
+            ];
+        }
+
+        $this->healthChecks = $checks;
         $this->dispatch('update-charts', stats: $this->stats);
     }
 
@@ -156,6 +206,31 @@ class FunkiAnalytics extends Component
             $this->reset('uploadFile');
             session()->flash('success', 'Beleg erfolgreich hochgeladen.');
             $this->loadStats($service);
+        }
+    }
+
+    public function approveReview($id, FunkiAnalyticsService $service)
+    {
+        if (class_exists(\App\Models\Product\ProductReview::class)) {
+            $review = \App\Models\Product\ProductReview::find($id);
+            if ($review) {
+                $review->status = 'approved';
+                $review->save();
+                session()->flash('success', 'Bewertung erfolgreich freigegeben.');
+                $this->loadStats($service);
+            }
+        }
+    }
+
+    public function rejectReview($id, FunkiAnalyticsService $service)
+    {
+        if (class_exists(\App\Models\Product\ProductReview::class)) {
+            $review = \App\Models\Product\ProductReview::find($id);
+            if ($review) {
+                $review->delete();
+                session()->flash('success', 'Bewertung abgelehnt und gelöscht.');
+                $this->loadStats($service);
+            }
         }
     }
 

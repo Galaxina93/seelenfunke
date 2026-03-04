@@ -1253,6 +1253,9 @@ video {
 .top-full {
   top: 100%;
 }
+.-bottom-1\.5 {
+  bottom: -0.375rem;
+}
 .-z-10 {
   z-index: -10;
 }
@@ -1403,6 +1406,10 @@ video {
 .mx-auto {
   margin-left: auto;
   margin-right: auto;
+}
+.my-1 {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
 }
 .my-1\.5 {
   margin-top: 0.375rem;
@@ -1890,6 +1897,9 @@ video {
 }
 .max-h-full {
   max-height: 100%;
+}
+.max-h-\[250px\] {
+  max-height: 250px;
 }
 .min-h-0 {
   min-height: 0px;
