@@ -10,13 +10,6 @@
 
     @livewireStyles
 
-    <script>
-        window.FunkiWsConfig = {
-            host: '{{ env('PUSHER_HOST', '127.0.0.1') }}',
-            port: {{ env('PUSHER_PORT', 6001) }},
-            scheme: '{{ env('PUSHER_SCHEME', 'http') }}'
-        };
-    </script>
 </head>
 
 @php

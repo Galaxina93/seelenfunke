@@ -1037,6 +1037,9 @@ video {
 .-right-\[35\%\] {
   right: -35%;
 }
+.-top-0\.5 {
+  top: -0.125rem;
+}
 .-top-1 {
   top: -0.25rem;
 }
@@ -1249,9 +1252,6 @@ video {
 }
 .top-full {
   top: 100%;
-}
-.-top-0\.5 {
-  top: -0.125rem;
 }
 .-z-10 {
   z-index: -10;
