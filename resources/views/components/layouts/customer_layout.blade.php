@@ -9,18 +9,75 @@
     <script src="{{ asset('js/app.js') }}" defer></script>
 
     @livewireStyles
+
+    <script>
+        // Wir übergeben die Server-Umgebungsvariablen an das JavaScript
+        window.FunkiWsConfig = {
+            host: '{{ env('REVERB_HOST', '127.0.0.1') }}',
+            port: {{ env('REVERB_PORT', 6001) }},
+            scheme: '{{ env('REVERB_SCHEME', 'http') }}',
+        };
+    </script>
 </head>
-<body class="bg-gray-950 text-white flex h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative">
 
 @php
     $hasOptedIn = false;
+    $hasUnreadTickets = false;
+    $customerId = '';
+
     if(auth()->guard('customer')->check()) {
-        $profile = \App\Models\Customer\CustomerGamification::where('customer_id', auth()->guard('customer')->id())->first();
+        $customerId = (string) auth()->guard('customer')->id();
+
+        $profile = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
         if($profile && $profile->is_active) {
             $hasOptedIn = true;
         }
+
+        // Kugelsichere Abfrage für den roten Punkt
+        $hasUnreadTickets = \App\Models\FunkiTicketMessage::where('sender_type', 'admin')
+            ->where('is_read_by_customer', false)
+            ->whereIn('funki_ticket_id', \App\Models\FunkiTicket::where('customer_id', $customerId)->pluck('id'))
+            ->exists();
     }
 @endphp
+
+{{-- ALPINE.JS GLOBAL STATE (Ersetzt die Livewire-Komponente komplett!) --}}
+<body x-data="{
+        hasUnreadSupport: {{ $hasUnreadTickets ? 'true' : 'false' }},
+        showToast: false,
+        toastMessage: '',
+        initGlobalEcho() {
+            @if($customerId)
+            let attempts = 0;
+            const checkEcho = setInterval(() => {
+                attempts++;
+                if (typeof window.Echo !== 'undefined') {
+                    clearInterval(checkEcho); // Echo ist da, wir können starten!
+
+                    window.Echo.private('customer.{{ $customerId }}')
+                        .listen('.TicketMessageSent', (e) => {
+                            if (e.message && e.message.sender_type === 'admin') {
+                                // 1. Roten Punkt sofort anschalten
+                                this.hasUnreadSupport = true;
+
+                                // 2. Popup zeigen (wenn wir NICHT im Support-Chat sind)
+                                if (!window.location.pathname.includes('/support')) {
+                                    this.toastMessage = 'Der Support hat auf dein Ticket geantwortet.';
+                                    this.showToast = true;
+                                    setTimeout(() => { this.showToast = false; }, 5000);
+                                }
+                            }
+                        });
+                } else if (attempts > 30) {
+                    clearInterval(checkEcho); // Sicherheitsabbruch nach 10 Sekunden
+                }
+            }, 300);
+            @endif
+        }
+      }"
+      x-init="initGlobalEcho()"
+      @clear-ticket-badge.window="hasUnreadSupport = false"
+      class="bg-gray-950 text-white flex h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative">
 
 {{-- HINTERGRUND UNIVERSUM --}}
 <div x-data="goldDust()" x-init="init()" class="fixed inset-0 z-0 pointer-events-none">
@@ -49,8 +106,14 @@
         </a>
 
         {{-- NEU: SUPPORT DESK LINK --}}
-        <a href="{{ route('customer.support') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.support') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{request()->routeIs('customer.support')? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800'}}">
+            <div class="relative">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                </span>
+            </div>
             Support Desk
         </a>
 
@@ -97,8 +160,14 @@
     </a>
 
     {{-- NEU: MOBILE SUPPORT LINK --}}
-    <a href="{{ route('customer.support') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.support') ? 'text-primary' : 'text-gray-500' }}">
-        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+    <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex flex-col items-center gap-1 flex-1 py-1 {{request()->routeIs('customer.support')? 'text-primary' : 'text-gray-500'}}">
+        <div class="relative">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-0.5 -right-1 flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+            </span>
+        </div>
         <span class="text-[9px] font-black uppercase tracking-widest">Support</span>
     </a>
 
@@ -110,9 +179,20 @@
     @endif
 </nav>
 
-{{-- NEU: BACKGROUND EVENT FÜR LIVE NOTIFICATIONS --}}
 @if(auth()->guard('customer')->check())
-    <livewire:customer.funki-ticket-notifier-component />
+    {{-- NATIVES TOAST POPUP OHNE LIVEWIRE --}}
+    <div class="fixed bottom-6 right-6 z-[100] transition-all duration-500 ease-out"
+         :class="showToast ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'">
+        <div class="bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm">
+            <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
+                <span class="text-primary text-xl">💌</span>
+            </div>
+            <div>
+                <h4 class="text-white text-sm font-bold tracking-wide">Support Desk</h4>
+                <p class="text-gray-400 text-xs mt-0.5" x-text="toastMessage"></p>
+            </div>
+        </div>
+    </div>
 @endif
 
 @livewireScripts

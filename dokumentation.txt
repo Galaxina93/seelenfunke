@@ -52,6 +52,7 @@ aktuelle nvm Version:       nvm install 20
 rm -rf node_modules
 rm package-lock.json
 npm install
+npm run dev oder...
 npm run watch
 
 
@@ -68,3 +69,11 @@ Da wir im Docker Container arbeiten müssen wir den Befehl auch im Container abf
 
 Chat Event Starten:
 funki artisan reverb:start
+
+Wenn der Chat mal wieder nicht geht denk dran:
+Das ist der häufigste Fehler bei Reverb und Vite: Die Variablen aus deiner
+.env (wie VITE_REVERB_HOST=127.0.0.1) werden beim Bauen fest in deine app.js
+Datei eingebrannt.
+Wenn du Dateien zurückgesetzt hast, ist deine app.js vielleicht noch auf
+dem Stand von unseren Stage-Tests und versucht gerade lokal,
+sich mit wss://ws.mein-seelenfunke.de zu verbinden!

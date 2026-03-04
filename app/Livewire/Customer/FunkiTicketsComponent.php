@@ -60,6 +60,12 @@ class FunkiTicketsComponent extends Component
         if (isset($event['message']['funki_ticket_id']) && $this->activeTicketId === $event['message']['funki_ticket_id']) {
             $this->markAsRead($this->activeTicketId);
             $this->dispatch('ticket-message-received');
+
+            // NEU: Punkt ausschalten, falls Chat offen ist
+            $this->dispatch('clear-ticket-badge');
+        } else {
+            // NEU: Punkt anschalten, falls User im Listen-Modus ist
+            $this->dispatch('ticket-badge-update', hasUnread: true);
         }
         $this->dispatch('$refresh');
     }
@@ -100,6 +106,9 @@ class FunkiTicketsComponent extends Component
         if ($mode === 'chat' && $ticketId) {
             $this->markAsRead($ticketId);
             $this->dispatch('ticket-message-received');
+
+            // NEU: Punkt ausschalten
+            $this->dispatch('clear-ticket-badge');
         }
     }
 
