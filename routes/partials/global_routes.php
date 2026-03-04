@@ -9,7 +9,7 @@ use App\Livewire\Shop\Newsletter\NewsletterPage;
 use App\Livewire\Shop\Offer\QuoteAcceptance;
 use App\Livewire\Shop\Product\ProductIndex;
 use App\Livewire\Shop\Product\ProductShow;
-use App\Models\PageVisit;
+use App\Models\Tracking\PageVisit;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Request; // Fassade für Request::ip()
