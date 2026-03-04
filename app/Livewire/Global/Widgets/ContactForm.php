@@ -9,35 +9,30 @@ class ContactForm extends Component
 {
     use handleMailsTrait;
 
-    // Public Variablen
-    public string $first_name;
-    public string $last_name;
-    public string $email;
-    public string $phone;
+    // WICHTIG: Variablen initialisieren
+    public string $first_name = '';
+    public string $last_name = '';
+    public string $email = '';
+    public string $phone = '';
     public string $message = '';
-    public bool $data_protection;
+    public bool $data_protection = false;
 
-    public string $message_length;
-
-    public function refresh(): void
-    {
-        $this->message_length = strlen(trim($this->message,'/<\/?[^>]+(>|$)/g'));
-    }
     public function render()
     {
-        $this->refresh();
-        return view('livewire.global.widgets.contact-form', [
-            'message_length' => $this->message_length,
-        ]);
-    }
-
-    public function contactUpdate()
-    {
-        $this->render();
+        return view('livewire.global.widgets.contact-form');
     }
 
     public function sending(): void
     {
+        // Sicherheits-Validierung, bevor Mails gesendet werden
+        $this->validate([
+            'first_name' => 'required',
+            'last_name' => 'required',
+            'email' => 'required|email',
+            'message' => 'required',
+            'data_protection' => 'accepted'
+        ]);
+
         $emailData = [
             'to' => env('MAIL_FROM_ADDRESS', 'kontakt@mein-seelenfunke.de'),
             'subject' => 'Kontaktanfrage über Webseite',
@@ -51,11 +46,8 @@ class ContactForm extends Component
 
         $this->sendMail($emailData);
 
-        $this->first_name = "";
-        $this->last_name = "";
-        $this->email = "";
-        $this->phone = "";
-        $this->message = "";
+        // Sauberes Zurücksetzen aller Werte nach erfolgreichem Versand
+        $this->reset(['first_name', 'last_name', 'email', 'phone', 'message', 'data_protection']);
 
         session()->flash('message', 'Ihre Nachricht wurde erfolgreich versendet.');
     }

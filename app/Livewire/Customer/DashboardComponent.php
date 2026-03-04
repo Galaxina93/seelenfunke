@@ -3,6 +3,7 @@
 namespace App\Livewire\Customer;
 
 use App\Models\Customer\CustomerGamification;
+use App\Models\Funki\FunkiVoucher; // WICHTIG: Für die Status-Prüfung
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;
@@ -23,7 +24,6 @@ class DashboardComponent extends Component
     public $titlesData = [];
     public $profileSteps = [];
 
-    // Neue Eigenschaften für den runden Fortschrittsbalken und Stats
     public $balance = 0;
     public $energyBalance = 5;
     public $maxEnergy = 5;
@@ -32,6 +32,11 @@ class DashboardComponent extends Component
     public $upgradeCost = 0;
     public $canUpgrade = false;
     public $isMaxLevel = false;
+
+    public $activeTitleKey = null;
+
+    public $unlockedCoupons = [];
+    public $milestonesConfig = [];
 
     public function mount(GamificationService $gameService)
     {
@@ -52,12 +57,16 @@ class DashboardComponent extends Component
 
     #[On('sparks-awarded')]
     #[On('energy-updated')]
+    #[On('profile-updated')]
     public function refreshData(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
         if ($user) {
+            $this->checkProfileSteps($user);
             $profile = $gameService->getProfile($user);
-            $this->loadGamificationData($gameService, $profile);
+            if ($this->hasOptedIn) {
+                $this->loadGamificationData($gameService, $profile);
+            }
         }
     }
 
@@ -94,9 +103,20 @@ class DashboardComponent extends Component
         }
     }
 
+    public function selectTitle($titleKey, GamificationService $gameService)
+    {
+        $user = Auth::guard('customer')->user();
+        if ($user) {
+            $profile = $gameService->getProfile($user);
+            $profile->update(['active_title' => $titleKey]);
+
+            $this->loadGamificationData($gameService, $profile);
+            $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
+        }
+    }
+
     public function loadGamificationData(GamificationService $gameService, $profile)
     {
-        // Tägliche Energie Auffüllung
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
         if (!$lastRefill || !$lastRefill->isSameDay($now)) {
@@ -105,14 +125,42 @@ class DashboardComponent extends Component
             $profile->save();
         }
 
-        // Gamification Werte berechnen
+        $gameService->syncUnlockedRewards($profile);
+        $profile->refresh();
+
         $this->level = $profile->level ?? 1;
         $this->balance = $profile->funken_balance;
         $this->energyBalance = $profile->energy_balance ?? 5;
 
+        $this->milestonesConfig = GameConfig::getLevelRewards();
+
+        // Gutschein-Status live aus der Datenbank abrufen
+        $rawCoupons = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
+        $formattedCoupons = [];
+
+        if (!empty($rawCoupons)) {
+            // Alle relevanten Gutscheine auf einmal aus der DB holen um Queries zu sparen
+            $dbVouchers = FunkiVoucher::whereIn('code', array_values($rawCoupons))->get()->keyBy('code');
+
+            foreach ($rawCoupons as $lvl => $code) {
+                $dbVoucher = $dbVouchers->get($code);
+                $isUsed = false;
+
+                // Prüfen ob das Nutzungs-Limit erreicht wurde
+                if ($dbVoucher) {
+                    $isUsed = $dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit;
+                }
+
+                $formattedCoupons['lvl_' . $lvl] = [
+                    'code' => $code,
+                    'is_used' => $isUsed
+                ];
+            }
+        }
+        $this->unlockedCoupons = $formattedCoupons;
+
         $this->isMaxLevel = $this->level >= GameConfig::MAX_LEVEL;
         $this->upgradeCost = $gameService->getUpgradeCost($this->level);
-
         $this->canUpgrade = !$this->isMaxLevel && ($this->balance >= $this->upgradeCost);
 
         if ($this->isMaxLevel) {
@@ -124,7 +172,6 @@ class DashboardComponent extends Component
             $this->progressPercentage = min(100, round(($this->balance / $cost) * 100));
         }
 
-        // Richtiges Modell laden
         $milestones = GameConfig::getAppearanceMilestones();
         $currentModelName = 'funki_lvl_1_rags';
         foreach ($milestones as $milestoneLevel => $modelName) {
@@ -137,10 +184,22 @@ class DashboardComponent extends Component
 
         $this->modelPath = asset('storage/funki/models/' . $currentModelName . '.glb');
         $this->imagePath = asset('storage/funki/models/images/' . $currentModelName . '.png');
-        $this->currentRankName = $this->getRankName($this->level);
 
-        $evaluation = $gameService->evaluateTitles($profile);
-        $this->titlesData = $evaluation['titles'];
+        $this->titlesData = $gameService->evaluateTitles($profile);
+        $this->activeTitleKey = $profile->active_title;
+
+        if ($this->activeTitleKey === 'mega_title') {
+            $this->currentRankName = $this->titlesData['mega_title']['name'] ?? 'Ein Funke im Wind';
+        } elseif ($this->activeTitleKey && isset($this->titlesData['titles'][$this->activeTitleKey])) {
+            $tier = $this->titlesData['titles'][$this->activeTitleKey]['tier'];
+            if ($tier !== 'grau') {
+                $this->currentRankName = $this->titlesData['titles'][$this->activeTitleKey]['tier_name'];
+            } else {
+                $this->currentRankName = $this->getRankName($this->level);
+            }
+        } else {
+            $this->currentRankName = $this->getRankName($this->level);
+        }
     }
 
     public function upgrade(GamificationService $gameService)

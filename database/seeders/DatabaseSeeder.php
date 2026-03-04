@@ -29,9 +29,10 @@ class DatabaseSeeder extends Seeder
             TodoSeeder::class,                      // DEAKTIVIEREN BEI LIVEGANG
             FunkiDayRoutineSeeder::class,           // Für den Livegang notwendig
             FunkiMapSeeder::class,                  // Für den Livegang notwendig
-            ProductReviewSeeder::class,             // DEAKTIVIEREN BEI LIVEGANG
+            /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
 
-            KnowledgeBaseSeeder::class,             // Für den Livegang notwendig
+            FunkiKnowledgeBaseSeeder::class,             // Für den Livegang notwendig
+            GamificationTestSeeder::class,          // DEAKTIVIEREN BEI LIVEGANG
         ]);
 
     }

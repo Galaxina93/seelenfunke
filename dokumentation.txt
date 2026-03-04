@@ -65,3 +65,6 @@ Da wir im Docker Container arbeiten müssen wir den Befehl auch im Container abf
 1. Berechtigung setzen: chmod +x vendor/bin/sail
 2. Worker starten: ./vendor/bin/sail artisan queue:work
 
+
+Chat Event Starten:
+funki artisan reverb:start

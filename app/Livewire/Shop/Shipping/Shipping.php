@@ -15,8 +15,6 @@ class Shipping extends Component
 
     // --- FORM DATA (Zone Edit) ---
     public $zoneName;
-    public $zoneCountries = [];
-    public $availableCountries = [];
 
     // --- FORM DATA (Rate Add) ---
     public $newRate = [
@@ -42,11 +40,6 @@ class Shipping extends Component
 
     protected $listeners = ['refreshComponent' => '$refresh'];
 
-    public function mount()
-    {
-        $this->refreshAvailableCountries();
-    }
-
     public function createZone()
     {
         $this->resetInput();
@@ -57,12 +50,10 @@ class Shipping extends Component
     {
         $this->resetInput();
         $this->activeZoneId = $id;
-        $zone = ShippingZone::with(['countries', 'rates'])->findOrFail($id);
+        $zone = ShippingZone::findOrFail($id);
 
         $this->zoneName = $zone->name;
         $this->view = 'edit';
-
-        $this->refreshAvailableCountries();
     }
 
     public function cancel()
@@ -75,7 +66,6 @@ class Shipping extends Component
     {
         $this->activeZoneId = null;
         $this->zoneName = '';
-        $this->zoneCountries = [];
         $this->selectedCountryToAdd = '';
         $this->newRate = [
             'name' => 'Standard',
@@ -133,7 +123,6 @@ class Shipping extends Component
         ]);
 
         $this->selectedCountryToAdd = '';
-        $this->refreshAvailableCountries();
         session()->flash('success', 'Land hinzugefügt.');
 
         $this->dispatchMapUpdate();
@@ -142,18 +131,26 @@ class Shipping extends Component
     public function removeCountry($id)
     {
         ShippingZoneCountry::destroy($id);
-        $this->refreshAvailableCountries();
         $this->dispatchMapUpdate();
     }
 
-    public function refreshAvailableCountries()
+    /**
+     * Diese Liste ist jetzt die "Wahrheit" für alle verfügbaren Länder
+     */
+    public function getAllCountries()
     {
-        $allCountries = shop_setting('active_countries', []);
-        $assignedCodes = ShippingZoneCountry::pluck('country_code')->toArray();
-
-        $this->availableCountries = array_filter($allCountries, function($code) use ($assignedCodes) {
-            return !in_array($code, $assignedCodes);
-        }, ARRAY_FILTER_USE_KEY);
+        return [
+            'DE' => 'Deutschland', 'AT' => 'Österreich', 'CH' => 'Schweiz',
+            'BE' => 'Belgien', 'BG' => 'Bulgarien', 'DK' => 'Dänemark',
+            'EE' => 'Estland', 'FI' => 'Finnland', 'FR' => 'Frankreich',
+            'GR' => 'Griechenland', 'IE' => 'Irland', 'IT' => 'Italien',
+            'HR' => 'Kroatien', 'LV' => 'Lettland', 'LT' => 'Litauen',
+            'LU' => 'Luxemburg', 'MT' => 'Malta', 'NL' => 'Niederlande',
+            'PL' => 'Polen', 'PT' => 'Portugal', 'RO' => 'Rumänien',
+            'SE' => 'Schweden', 'SK' => 'Slowakei', 'SI' => 'Slowenien',
+            'ES' => 'Spanien', 'CZ' => 'Tschechien', 'HU' => 'Ungarn',
+            'CY' => 'Zypern', 'GB' => 'Großbritannien', 'US' => 'USA'
+        ];
     }
 
     public function addRate()
@@ -191,9 +188,6 @@ class Shipping extends Component
         session()->flash('success', 'Tarif gelöscht.');
     }
 
-    /**
-     * Aktualisiert die Tooltips der Karte ohne Neuladen.
-     */
     private function dispatchMapUpdate()
     {
         $this->dispatch('map-updated', activeCodes: $this->mapVisuals['activeCodes']);
@@ -212,7 +206,6 @@ class Shipping extends Component
 
             foreach ($zone->countries as $country) {
                 $code = strtoupper($country->country_code);
-                // HIER: fill-opacity für die Sterne und ein leichter Glow-Rand
                 $css .= ".jvm-region[data-code='{$code}'] { fill: {$color} !important; fill-opacity: 0.65 !important; stroke: rgba(255,255,255,0.2) !important; stroke-width: 1px !important; } ";
                 $activeCodes[$code] = $zone->name;
             }
@@ -242,11 +235,24 @@ class Shipping extends Component
             }])->find($this->activeZoneId);
         }
 
+        // DYNAMISCHE BERECHNUNG DER VERFÜGBAREN LÄNDER BEI JEDEM RENDER-ZYKLUS
+        $allCountries = $this->getAllCountries();
+        $assignedCodes = ShippingZoneCountry::pluck('country_code')->toArray();
+
+        $availableCountries = array_filter($allCountries, function($code) use ($assignedCodes) {
+            return !in_array(strtoupper($code), array_map('strtoupper', $assignedCodes));
+        }, ARRAY_FILTER_USE_KEY);
+
+        // Alphabetische Sortierung für die Dropdown-Liste
+        asort($availableCountries);
+
         return view('livewire.shop.shipping.shipping', [
             'zones' => $zones,
             'stats' => $stats,
             'activeZoneModel' => $activeZoneData,
-            'mapVisuals' => $this->mapVisuals
+            'mapVisuals' => $this->mapVisuals,
+            'allCountries' => $allCountries,
+            'availableCountries' => $availableCountries // Wird nun direkt frisch übergeben
         ]);
     }
 }

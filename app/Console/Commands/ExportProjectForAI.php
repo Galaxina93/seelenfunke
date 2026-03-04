@@ -12,7 +12,8 @@ class ExportProjectForAI extends Command
                             {--output=project_context.txt : Name der Zieldatei}
                             {--migrations : Exportiert nur die Datenbank-Migrationen}
                             {--short : Exportiert nur Kern-Logik-Ordner}
-                            {--importants : Exportiert nur die absolut wichtigsten Projektdateien}';
+                            {--importants : Exportiert nur die absolut wichtigsten Projektdateien}
+                            {--search= : Exportiert nur Dateien, die dieses Wort im Pfad oder im Inhalt enthalten (z.B. ticket)}';
 
     protected $description = 'Radikaler Export: Extreme Minification auf Token-Ebene für maximale Token-Ersparnis.';
 
@@ -34,6 +35,7 @@ class ExportProjectForAI extends Command
     {
         $startTime = microtime(true);
         $outputFile = $this->option('output');
+        $search = $this->option('search');
 
         if ($this->option('migrations')) {
             $outputFile = $outputFile === 'project_context.txt' ? 'migrations.txt' : $outputFile;
@@ -71,9 +73,21 @@ class ExportProjectForAI extends Command
             ->in($validPaths)
             ->exclude($this->ignoredDirectories);
 
-        $finder->filter(function (\SplFileInfo $file) {
+        $finder->filter(function (\SplFileInfo $file) use ($search) {
             if ($file->isDir()) return false;
             if (in_array($file->getBasename(), $this->ignoredFiles)) return false;
+
+            // NEU: Filtern nach dem Suchbegriff (in Pfad ODER Datei-Inhalt)
+            if (!empty($search)) {
+                $pathMatches = stripos($file->getRealPath(), $search) !== false;
+
+                if (!$pathMatches) {
+                    $contentMatches = stripos(file_get_contents($file->getRealPath()), $search) !== false;
+                    if (!$contentMatches) {
+                        return false; // Weder im Namen noch im Text gefunden -> überspringen
+                    }
+                }
+            }
 
             $isBlade = str_ends_with($file->getBasename(), '.blade.php');
             if ($isBlade) return true;
@@ -89,6 +103,10 @@ class ExportProjectForAI extends Command
         }
 
         $exportType = $this->option('migrations') ? 'DATABASE MIGRATIONS' : 'PROJECT LOGIC';
+        if (!empty($search)) {
+            $exportType .= " (FILTERED BY: {$search})";
+        }
+
         fwrite($handle, "{$exportType}\n====================\n");
 
         $fileCount = 0;
@@ -115,7 +133,6 @@ class ExportProjectForAI extends Command
 
     /**
      * Radikale Minifizierung auf Token-Basis.
-     * Entfernt alle Leerzeichen sicher, ohne Strings zu zerstören.
      */
     protected function cleanContent($filePath, $content, $extension, $isBlade = false)
     {
@@ -131,10 +148,8 @@ class ExportProjectForAI extends Command
                     $id = $token[0];
                     $text = $token[1];
 
-                    // Kommentare und Whitespaces komplett ignorieren
                     if (in_array($id, [T_COMMENT, T_DOC_COMMENT, T_WHITESPACE])) continue;
 
-                    // Ein Leerzeichen nur dann einfügen, wenn zwei Buchstaben/Zahlen/Variablen direkt aufeinandertreffen
                     if ($output !== '') {
                         $lastChar = substr($output, -1);
                         $firstChar = substr($text, 0, 1);
@@ -148,7 +163,7 @@ class ExportProjectForAI extends Command
             return trim($output);
         }
 
-        // 2. Blade & JS (Hier bleibt Regex, aber optimiert)
+        // 2. Blade & JS
         if ($isBlade) {
             $content = preg_replace('/\{\{--.*?--\}\}/s', '', $content);
             $content = preg_replace('//s', '', $content);
@@ -159,9 +174,7 @@ class ExportProjectForAI extends Command
             $content = preg_replace('/^(?:(?!\/\/).)*\K\/\/.*$/m', '', $content);
         }
 
-        // Whitespaces zusammenziehen
         $content = preg_replace('/\s+/', ' ', $content);
-        // Sicheres Entfernen von Leerzeichen um syntaktische Klammern
         $content = preg_replace('/\s*([{}()\[\];])\s*/', '$1', $content);
 
         return trim($content);

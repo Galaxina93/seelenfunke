@@ -34,7 +34,7 @@
             </div>
 
             @if(session()->has('success'))
-                <div class="mb-8 p-4 bg-green-50 text-green-800 rounded-xl text-sm flex items-center shadow-sm w-full">
+                <div class="mb-8 p-4 bg-green-50 text-green-800 rounded-xl text-sm flex items-center shadow-sm w-full border border-green-200">
                     <i class="bi bi-check-circle mr-2 text-lg"></i> {{ session('success') }}
                 </div>
             @endif
@@ -235,7 +235,7 @@
                                     <button wire:click="editReview" class="w-full sm:w-auto text-xs font-bold uppercase tracking-wider text-amber-700 hover:text-amber-900 bg-amber-200/50 hover:bg-amber-200 px-4 py-2 rounded-lg transition-colors flex items-center justify-center">
                                         <i class="bi bi-pencil-square mr-2"></i> Bearbeiten
                                     </button>
-                                    <button wire:click="deleteReview" wire:confirm="Bist du sicher, dass du deine Bewertung dauerhaft löschen willst?" class="w-full sm:w-auto text-xs font-bold uppercase tracking-wider text-red-600 hover:text-red-800 bg-red-100/50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center justify-center">
+                                    <button wire:click="deleteReview" onclick="confirm('Willst du diese Bewertung wirklich dauerhaft löschen?') || event.stopImmediatePropagation()" class="w-full sm:w-auto text-xs font-bold uppercase tracking-wider text-red-600 hover:text-red-800 bg-red-100/50 hover:bg-red-100 px-4 py-2 rounded-lg transition-colors flex items-center justify-center">
                                         <i class="bi bi-trash mr-2"></i> Löschen
                                     </button>
                                 </div>

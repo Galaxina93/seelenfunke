@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
     web:
         build: .
         container_name: mein_php_server
         ports:
             - "80:80"
+            - "6001:6001" # NEU: Macht die WebSockets für deinen Browser erreichbar!
         volumes:
             - ./:/var/www/html/
         # Dieser Befehl ändert das Hauptverzeichnis auf /public und aktiviert mod_rewrite

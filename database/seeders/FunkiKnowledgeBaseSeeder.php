@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\KnowledgeBase;
+use App\Models\FunkiKnowledgeBase;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
-class KnowledgeBaseSeeder extends Seeder
+class FunkiKnowledgeBaseSeeder extends Seeder
 {
     public function run(): void
     {
@@ -85,7 +85,7 @@ class KnowledgeBaseSeeder extends Seeder
         ];
 
         foreach ($articles as $article) {
-            KnowledgeBase::updateOrCreate(
+            FunkiKnowledgeBase::updateOrCreate(
                 ['slug' => Str::slug($article['title'])],
                 [
                     'title' => $article['title'],

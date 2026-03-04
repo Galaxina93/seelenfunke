@@ -23,6 +23,9 @@ class UserManagement extends Component
     public $editingId = null;
     public $editingType = null;
 
+    public $isCreating = false;
+    public $createType = 'customer';
+
     public $formData = [
         'first_name' => '',
         'last_name' => '',
@@ -33,6 +36,11 @@ class UserManagement extends Component
         'house_number' => '',
         'postal' => '',
         'city' => '',
+        'customer_type' => 'private',
+        'company_name' => '',
+        'vat_id' => '',
+        'internal_note' => '',
+        'is_verified' => true,
     ];
 
     protected $queryString = ['search', 'filterRole', 'showArchive', 'activeTab'];
@@ -41,11 +49,94 @@ class UserManagement extends Component
     {
         $this->showArchive = !$this->showArchive;
         $this->editingId = null;
+        $this->isCreating = false;
         $this->resetPage();
+    }
+
+    public function startCreate()
+    {
+        $this->resetErrorBag();
+        $this->editingId = null;
+        $this->editingType = null;
+        $this->isCreating = true;
+        $this->createType = 'customer';
+        $this->formData = [
+            'first_name' => '',
+            'last_name' => '',
+            'email' => '',
+            'password' => '',
+            'phone_number' => '',
+            'street' => '',
+            'house_number' => '',
+            'postal' => '',
+            'city' => '',
+            'customer_type' => 'private',
+            'company_name' => '',
+            'vat_id' => '',
+            'internal_note' => '',
+            'is_verified' => true,
+        ];
+    }
+
+    public function saveNewUser()
+    {
+        $this->validate([
+            'createType' => 'required|in:admin,customer,employee',
+            'formData.first_name' => 'required|string|max:255',
+            'formData.last_name' => 'required|string|max:255',
+            'formData.email' => 'required|email|unique:'.($this->createType === 'admin' ? 'admins' : ($this->createType === 'customer' ? 'customers' : 'employees')).',email',
+            'formData.password' => 'required|string|min:8',
+        ]);
+
+        $class = match($this->createType) {
+            'admin' => Admin::class,
+            'customer' => Customer::class,
+            'employee' => Employee::class,
+        };
+
+        $user = $class::create([
+            'first_name' => $this->formData['first_name'],
+            'last_name' => $this->formData['last_name'],
+            'email' => $this->formData['email'],
+            'password' => Hash::make($this->formData['password']),
+        ]);
+
+        if (method_exists($user, 'profile')) {
+            $profile = $user->profile()->firstOrCreate([]);
+            $isBusiness = $this->formData['customer_type'] === 'business';
+
+            $profile->update([
+                'phone_number' => $this->formData['phone_number'],
+                'street' => $this->formData['street'],
+                'house_number' => $this->formData['house_number'],
+                'postal' => $this->formData['postal'],
+                'city' => $this->formData['city'],
+                'is_business' => $isBusiness,
+                'company_name' => $isBusiness ? $this->formData['company_name'] : null,
+                'vat_id' => $isBusiness ? $this->formData['vat_id'] : null,
+                'internal_note' => $this->formData['internal_note'],
+                'email_verified_at' => $this->formData['is_verified'] ? now() : null,
+            ]);
+        }
+
+        FunkiLog::create([
+            'type' => 'system',
+            'action_id' => 'user:create',
+            'title' => 'Neuer Begleiter',
+            'message' => "Benutzer {$user->email} ({$this->createType}) manuell angelegt.",
+            'status' => 'success',
+            'payload' => ['after' => $this->formData],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $this->isCreating = false;
+        session()->flash('message', 'Neues Seelenlicht erfolgreich erschaffen.');
     }
 
     public function startEdit($id, $type)
     {
+        $this->isCreating = false;
         $this->editingId = $id;
         $this->editingType = $type;
 
@@ -60,6 +151,11 @@ class UserManagement extends Component
             'house_number' => $model->profile->house_number ?? '',
             'postal' => $model->profile->postal ?? '',
             'city' => $model->profile->city ?? '',
+            'customer_type' => ($model->profile->is_business ?? false) ? 'business' : 'private',
+            'company_name' => $model->profile->company_name ?? '',
+            'vat_id' => $model->profile->vat_id ?? '',
+            'internal_note' => $model->profile->internal_note ?? '',
+            'is_verified' => !is_null($model->profile->email_verified_at ?? null),
         ];
     }
 
@@ -67,6 +163,7 @@ class UserManagement extends Component
     {
         $this->editingId = null;
         $this->editingType = null;
+        $this->isCreating = false;
         $this->resetErrorBag();
     }
 
@@ -94,12 +191,26 @@ class UserManagement extends Component
         }
 
         if ($model->profile) {
+            $verifiedAt = $model->profile->email_verified_at;
+            if ($this->formData['is_verified'] && !$verifiedAt) {
+                $verifiedAt = now();
+            } elseif (!$this->formData['is_verified']) {
+                $verifiedAt = null;
+            }
+
+            $isBusiness = $this->formData['customer_type'] === 'business';
+
             $model->profile->update([
                 'phone_number' => $this->formData['phone_number'],
                 'street' => $this->formData['street'],
                 'house_number' => $this->formData['house_number'],
                 'postal' => $this->formData['postal'],
                 'city' => $this->formData['city'],
+                'is_business' => $isBusiness,
+                'company_name' => $isBusiness ? $this->formData['company_name'] : null,
+                'vat_id' => $isBusiness ? $this->formData['vat_id'] : null,
+                'internal_note' => $this->formData['internal_note'],
+                'email_verified_at' => $verifiedAt,
             ]);
         }
 
@@ -107,7 +218,7 @@ class UserManagement extends Component
             'type' => 'system',
             'action_id' => 'user:update',
             'title' => 'Profil-Mutation',
-            'message' => "Datensatz von {$model->email} durch " . Auth::user()->first_name . " modifiziert.",
+            'message' => "Datensatz von {$model->email} modifiziert.",
             'status' => 'success',
             'payload' => ['before' => array_merge($oldData, $oldProfile), 'after' => $this->formData],
             'started_at' => now(),
@@ -115,41 +226,25 @@ class UserManagement extends Component
         ]);
 
         $this->editingId = null;
-        session()->flash('message', 'Änderungen am Seelenlicht gespeichert.');
+        session()->flash('message', 'Änderungen gespeichert.');
     }
 
     public function archiveUser($id, $type)
     {
         $model = $this->getModelInstance($type, $id);
         $model->delete();
-
-        FunkiLog::create([
-            'type' => 'system', 'action_id' => 'user:archive', 'title' => 'User archiviert',
-            'message' => "Begleiter {$model->email} ins Archiv verschoben.", 'status' => 'success', 'started_at' => now(),
-        ]);
     }
 
     public function restoreUser($id, $type)
     {
         $model = $this->getModelInstance($type, $id, true);
         $model->restore();
-
-        FunkiLog::create([
-            'type' => 'system', 'action_id' => 'user:restore', 'title' => 'User reaktiviert',
-            'message' => "Begleiter {$model->email} aus dem Archiv zurückgeholt.", 'status' => 'success', 'started_at' => now(),
-        ]);
     }
 
     public function forceDelete($id, $type)
     {
         $model = $this->getModelInstance($type, $id, true);
-        $email = $model->email;
         $model->forceDelete();
-
-        FunkiLog::create([
-            'type' => 'danger', 'action_id' => 'user:destroy', 'title' => 'User gelöscht',
-            'message' => "Daten von {$email} permanent entfernt.", 'status' => 'success', 'started_at' => now(),
-        ]);
     }
 
     protected function getModelInstance($type, $id, $withTrashed = false)
@@ -169,8 +264,12 @@ class UserManagement extends Component
         if ($this->search) {
             $s = '%' . $this->search . '%';
             $filter = function($q) use ($s) {
-                $q->where('first_name', 'like', $s)->orWhere('last_name', 'like', $s)->orWhere('email', 'like', $s)
-                    ->orWhereHas('profile', function($pq) use ($s) { $pq->where('city', 'like', $s); });
+                $q->where('first_name', 'like', $s)
+                    ->orWhere('last_name', 'like', $s)
+                    ->orWhere('email', 'like', $s)
+                    ->orWhereHas('profile', function($pq) use ($s) {
+                        $pq->where('city', 'like', $s)->orWhere('company_name', 'like', $s);
+                    });
             };
             $queryAdmin->where($filter); $queryCustomer->where($filter); $queryEmployee->where($filter);
         }
@@ -182,7 +281,6 @@ class UserManagement extends Component
 
         $perPage = 15;
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
-        // Sortierung nach Aktivität (Letzter Login)
         $items = $results->sortByDesc('last_seen');
         $pagedResults = new \Illuminate\Pagination\LengthAwarePaginator($items->forPage($currentPage, $perPage)->values(), $items->count(), $perPage, $currentPage, ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]);
 

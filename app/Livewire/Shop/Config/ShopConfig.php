@@ -25,7 +25,13 @@ class ShopConfig extends Component
         'owner_ust_id',
         'owner_website',
         'owner_court',
+
+        // Erweiterte Bankdaten
+        'owner_bank_name',
+        'owner_bank_address',
+        'owner_bic',
         'owner_iban',
+
         'shipping_cost',
         'shipping_free_threshold',
         'express_surcharge',
@@ -55,7 +61,13 @@ class ShopConfig extends Component
         'owner_tax_id' => 'Deine persönliche Steuernummer beim Finanzamt.',
         'owner_ust_id' => 'Umsatzsteuer-Identifikationsnummer für den EU-weiten Handel.',
         'owner_court' => 'Der Gerichtsstand ist bei Streitigkeiten mit gewerblichen Kunden relevant.',
-        'owner_iban' => 'Wird auf Rechnungen für die Zahlungsart Vorkasse/Überweisung ausgegeben.',
+
+        // Info-Texte für Bankdaten
+        'owner_bank_name' => 'Der Name deines Kreditinstituts (z.B. Volksbank BraWo).',
+        'owner_bank_address' => 'Die Adresse deiner Bankfiliale (oft für internationale Überweisungen wichtig).',
+        'owner_bic' => 'Der BIC (Business Identifier Code) bzw. SWIFT-Code deiner Bank.',
+        'owner_iban' => 'Die IBAN, auf die Kunden ihre Vorkasse-Zahlungen überweisen sollen.',
+
         'shipping_cost' => 'Standardversandkosten pro Bestellung (Eingabe in Euro).',
         'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
         'express_surcharge' => 'Zusätzliche Gebühr, wenn der Kunde die Express-Option im Checkout wählt (Eingabe in Euro).',
@@ -114,7 +126,13 @@ class ShopConfig extends Component
             'owner_proprietor'  => 'Alina Steinhauer',
             'owner_website'     => 'www.mein-seelenfunke.de',
             'owner_court'       => 'Gifhorn',
+
+            // Bank Fallbacks
+            'owner_bank_name'   => 'Volksbank',
+            'owner_bank_address'=> '',
+            'owner_bic'         => '',
             'owner_iban'        => 'DE...',
+
             'shipping_cost'     => 490,
             'shipping_free_threshold' => 5000,
             'express_surcharge' => 2500,

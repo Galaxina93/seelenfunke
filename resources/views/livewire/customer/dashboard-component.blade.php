@@ -1,13 +1,9 @@
 <div class="w-full">
     @if(!$hasOptedIn)
-        {{-- ========================================== --}}
         {{-- OPT-IN SCREEN --}}
-        {{-- ========================================== --}}
-        <div x-data="optInScreen()" @mousemove="handleMouse($event)" @mouseleave="resetMouse()"
+        <div x-data="optInScreen()"
              :class="isWarping ? 'opacity-0 scale-95 blur-sm' : 'opacity-100 scale-100 blur-0'"
              class="max-w-6xl mx-auto relative p-6 sm:p-10 lg:p-20 flex flex-col lg:flex-row items-center gap-10 lg:gap-16 transition-all duration-[1500ms] ease-in-out mt-8 lg:mt-12">
-
-            <div class="absolute inset-0 pointer-events-none transition-opacity duration-300 transform-gpu" style="will-change: opacity, background;" :style="`background: radial-gradient(circle 600px at ${mouseX}px ${mouseY}px, rgba(197, 160, 89, 0.12), transparent 40%); opacity: ${isHovering ? 1 : 0};`"></div>
 
             <template x-teleport="body">
                 <div x-show="isActivating" style="display: none;" class="fixed inset-0 z-[9000] pointer-events-none flex items-center justify-center overflow-hidden">
@@ -54,9 +50,9 @@
         <div class="relative animate-fade-in-up z-10 min-h-[85vh] flex flex-col items-center justify-center py-10"
              @funki-level-up.window="handleLevelUp($event.detail[0])"
              x-data="funkiHub('{{ $modelPath }}', '{{ $imagePath }}')"
-             x-init="initShop()">
+             x-init="initFunki()">
 
-            <div wire:ignore x-show="darkFade" x-transition:leave="transition ease-in-out duration-[2000ms]" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[9999] bg-gray-950 pointer-events-none" style="display: none;"></div>
+            <div x-show="darkFade" x-transition:leave="transition ease-in-out duration-[2000ms]" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[9999] bg-gray-950 pointer-events-none" style="display: none;"></div>
 
             <div class="relative z-10 text-center flex flex-col items-center w-full max-w-6xl px-4 sm:px-6">
                 <style>
@@ -68,16 +64,56 @@
                 </style>
 
                 <h2 class="text-3xl sm:text-5xl md:text-7xl font-serif font-bold mb-4 tracking-tight text-white drop-shadow-2xl">Willkommen, {{ auth()->user()->first_name }}</h2>
-                <p class="text-gray-400 text-sm sm:text-xl mb-12 max-w-2xl leading-relaxed drop-shadow-md mx-auto">Deine persönliche Manufaktur. Betrachte deine Evolution, rüste dich im Shop aus oder verdiene Funken in den Spielen.</p>
+                <p class="text-gray-400 text-sm sm:text-xl mb-12 max-w-2xl leading-relaxed drop-shadow-md mx-auto">Deine persönliche Manufaktur. Betrachte deine Evolution, spiele Minispiele oder schalte neue Erfolge frei.</p>
 
                 <div class="relative mb-36 sm:mb-44 flex flex-col items-center mt-8 w-full max-w-[18rem] sm:max-w-md md:max-w-lg lg:max-w-xl mx-auto">
 
-                    <button @click.stop="showTitlesModal=true" class="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 border border-primary px-6 py-2.5 sm:px-10 sm:py-3 rounded-full font-black uppercase tracking-widest text-[10px] sm:text-xs text-white shadow-[0_0_25px_rgba(197,160,89,0.6)] flex items-center gap-2 sm:gap-3 hover:bg-primary hover:text-gray-900 transition-all z-40 hover:scale-110 group cursor-pointer whitespace-nowrap">
-                        {{$currentRankName}}
-                        <svg class="w-3 h-3 sm:w-4 sm:h-4 group-hover:rotate-90 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    @php
+                        $megaRank = $titlesData['mega_title']['rank'] ?? 0;
+
+                        $megaShadow = match(true) {
+                            $megaRank == 1 => 'shadow-[0_0_20px_rgba(255,255,255,0.05)]',
+                            $megaRank == 2 || $megaRank == 3 => 'shadow-[0_0_40px_rgba(59,130,246,0.2)] border-blue-500/30',
+                            $megaRank == 4 || $megaRank == 5 => 'shadow-[0_0_60px_rgba(250,204,21,0.4)] border-amber-500/50',
+                            $megaRank == 6 => 'shadow-[0_0_80px_rgba(34,211,238,0.6)] border-cyan-400 ring-4 ring-cyan-400/30',
+                            default => 'shadow-[0_0_30px_rgba(0,0,0,0.8)]'
+                        };
+
+                        $levelBorder = match(true) {
+                            $level < 4 => 'border-2 border-gray-800',
+                            $level < 7 => 'border-[3px] border-gray-600',
+                            $level < 10 => 'border-[3px] border-primary',
+                            $level == 10 => 'border-[4px] border-amber-400',
+                            default => 'border-2 border-gray-800'
+                        };
+                    @endphp
+
+                    {{-- RANK BADGE BUTTON --}}
+                    <button @click.stop="showTitlesModal=true" class="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 border border-primary px-6 py-2.5 sm:px-10 sm:py-3 rounded-full font-black uppercase tracking-widest text-[10px] sm:text-xs text-white shadow-[0_0_25px_rgba(197,160,89,0.6)] flex flex-col items-center gap-1 hover:bg-primary hover:text-gray-900 transition-all z-40 hover:scale-110 group cursor-pointer whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            {{ $currentRankName }}
+                            <svg class="w-3 h-3 sm:w-4 sm:h-4 group-hover:rotate-90 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                        </div>
                     </button>
 
                     <div class="relative w-64 h-64 sm:w-80 sm:h-80 md:w-[26rem] md:h-[26rem] flex items-center justify-center shrink-0">
+
+                        @if($megaRank >= 4)
+                            <div class="absolute inset-[-4rem] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-400/20 via-transparent to-transparent blur-3xl pointer-events-none animate-pulse"></div>
+                        @endif
+                        @if($megaRank == 6)
+                            <div class="absolute inset-[-6rem] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-400/20 via-transparent to-transparent blur-3xl pointer-events-none animate-pulse duration-75"></div>
+                        @endif
+
+                        @if($level >= 4)
+                            <div class="absolute inset-0 rounded-full border border-gray-600/50 animate-[spin_20s_linear_infinite] pointer-events-none"></div>
+                        @endif
+                        @if($level >= 7)
+                            <div class="absolute inset-[-1rem] rounded-full border-[2px] border-primary/40 border-dashed animate-[spin_15s_linear_reverse_infinite] pointer-events-none"></div>
+                        @endif
+                        @if($level == 10)
+                            <div class="absolute inset-[-2rem] rounded-full border-[3px] border-amber-400/60 border-dotted animate-[spin_10s_linear_infinite] pointer-events-none"></div>
+                        @endif
 
                         <svg class="absolute inset-0 w-full h-full -rotate-90 drop-shadow-[0_0_20px_rgba(197,160,89,0.5)] pointer-events-none z-20" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="48" fill="none" stroke="#1f2937" stroke-width="1.5"></circle>
@@ -87,7 +123,7 @@
                                     class="transition-all duration-1000 ease-out"></circle>
                         </svg>
 
-                        <button @click="open3DModal()" class="absolute inset-3 sm:inset-4 md:inset-5 rounded-full bg-gray-900 border-2 border-gray-800 shadow-[0_30px_60px_rgba(0,0,0,0.8)] flex items-center justify-center overflow-hidden z-10 group transition-transform duration-700 hover:scale-[1.02]">
+                        <button @click="open3DModal()" class="absolute inset-3 sm:inset-4 md:inset-5 rounded-full bg-gray-900 {{ $levelBorder }} {{ $megaShadow }} flex items-center justify-center overflow-hidden z-10 group transition-all duration-700 hover:scale-[1.02]">
                             <div class="absolute inset-0 bg-primary/10 rounded-full blur-[60px] md:blur-[80px] group-hover:bg-primary/30 transition-colors duration-700 pointer-events-none"></div>
                             <img :src="currentImagePath ? currentImagePath : '{{$imagePath}}'" src="{{$imagePath}}" class="w-full h-full object-contain p-4 sm:p-8 animate-subtle-float">
                             <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-sm z-20 pointer-events-none">
@@ -147,17 +183,96 @@
                     </div>
                 </div>
 
+                {{-- Aktionen (Games & Ranking) --}}
                 <div class="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 relative z-50 w-full sm:w-auto mt-4 sm:mt-0">
-                    <a href="{{ route('customer.games') }}" class="w-full sm:w-auto px-6 py-4 sm:px-8 sm:py-4 bg-emerald-500 text-gray-900 rounded-xl font-black text-xs sm:text-sm hover:bg-emerald-400 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:-translate-y-1 flex items-center justify-center gap-2">
-                        <span class="text-lg sm:text-xl">🎮</span> Spielen
+                    <a href="{{ route('customer.games') }}" class="w-full sm:w-auto px-6 py-4 sm:px-8 bg-emerald-500 text-gray-900 rounded-xl font-black text-xs sm:text-sm hover:bg-emerald-400 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:-translate-y-1 flex items-center justify-center gap-2">
+                        <span class="text-lg sm:text-xl">🎮</span> Arcade betreten
                     </a>
-                    <a href="{{ route('customer.funki-shop') }}" class="w-full sm:w-auto px-6 py-4 sm:px-8 sm:py-4 bg-gray-800 text-white rounded-xl font-black text-xs sm:text-sm hover:bg-primary hover:text-gray-900 border border-gray-700 transition-all uppercase tracking-widest shadow-xl hover:-translate-y-1 flex items-center justify-center gap-2">
-                        <span class="text-lg sm:text-xl">💎</span> Shop
+                    <a href="{{ route('customer.ranking') }}" class="w-full sm:w-auto px-6 py-4 sm:px-8 bg-gray-800 border border-amber-500/30 text-amber-400 rounded-xl font-black text-xs sm:text-sm hover:bg-amber-400 hover:text-gray-900 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(251,191,36,0.15)] hover:-translate-y-1 flex items-center justify-center gap-2">
+                        <span class="text-lg sm:text-xl">🏆</span> Halle der Legenden
                     </a>
                 </div>
+
+                {{-- MEILENSTEINE & BELOHNUNGEN --}}
+                <div class="w-full max-w-4xl mx-auto mt-16 sm:mt-24 text-left animate-fade-in-up">
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 border-b border-gray-800 pb-4 gap-2">
+                        <h3 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3">
+                            <span class="text-primary drop-shadow-[0_0_10px_rgba(197,160,89,0.6)]">🎁</span> Pfad zur Legende
+                        </h3>
+                        <p class="text-[10px] sm:text-xs text-gray-500 font-black uppercase tracking-[0.2em]">Meilensteine & Belohnungen</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        @foreach($milestonesConfig as $mLevel => $reward)
+                            @php
+                                $isUnlocked = $level >= $mLevel;
+                                $couponData = $unlockedCoupons['lvl_' . $mLevel] ?? null;
+                                $code = $couponData['code'] ?? null;
+                                $isUsed = $couponData['is_used'] ?? false;
+                            @endphp
+
+                            {{-- Karte ändert sich drastisch, wenn sie genutzt wurde --}}
+                            <div class="relative border rounded-2xl p-5 flex flex-col items-center text-center transition-all duration-500 overflow-hidden group
+                                {{ $isUsed ? 'bg-gray-950 border-red-900/30 opacity-70 shadow-inner' : ($isUnlocked ? 'bg-gray-900 border-primary/50 shadow-[0_0_25px_rgba(197,160,89,0.15)] hover:-translate-y-1' : 'bg-gray-900 border-gray-800 opacity-50 grayscale') }}">
+
+                                @if($isUnlocked && !$isUsed)
+                                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent pointer-events-none"></div>
+                                @endif
+
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center mb-4 font-black text-lg z-10 transition-colors
+                                    {{ $isUsed ? 'bg-gray-900 text-red-500/50 border border-red-900/30' : ($isUnlocked ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.5)]' : 'bg-gray-800 text-gray-500 border border-gray-700') }}">
+                                    {{ $mLevel }}
+                                </div>
+
+                                <h4 class="font-bold text-sm mb-1 z-10 transition-colors {{ $isUsed ? 'text-gray-600 line-through' : 'text-white' }}">{{ $reward['name'] }}</h4>
+                                <p class="text-[10px] font-medium mb-4 z-10 {{ $isUsed ? 'text-gray-600' : 'text-gray-400' }}">Erreiche Level {{ $mLevel }}</p>
+
+                                <div class="w-full mt-auto z-10">
+                                    @if($isUnlocked)
+                                        @if($isUsed)
+                                            {{-- BEREITS EINGELÖST BADGE --}}
+                                            <div class="bg-red-950/20 border border-red-900/50 rounded-lg p-2 text-center">
+                                                <p class="text-red-500/80 font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                                                    Eingelöst
+                                                </p>
+                                            </div>
+                                        @elseif($code)
+                                            {{-- GÜLTIGER CODE MIT COPY BUTTON --}}
+                                            <div x-data="{ copied: false }" class="bg-gray-950 border border-primary/30 rounded-lg p-2 group-hover:border-primary transition-colors flex items-center justify-between gap-2 overflow-hidden">
+                                                <div class="text-left flex-1 min-w-0">
+                                                    <p class="text-[8px] text-gray-500 font-black uppercase tracking-widest mb-0.5 truncate">Code (1x gültig)</p>
+                                                    <p class="text-primary font-mono font-bold text-xs sm:text-sm tracking-wider truncate">{{ $code }}</p>
+                                                </div>
+                                                <button type="button" @click="navigator.clipboard.writeText('{{ $code }}'); copied = true; setTimeout(() => copied = false, 2000)"
+                                                        class="shrink-0 p-2 bg-primary/10 text-primary rounded-md hover:bg-primary hover:text-gray-900 transition-colors focus:outline-none flex items-center justify-center h-full w-10" title="Code kopieren">
+                                                    <svg x-show="!copied" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                                    <svg x-show="copied" style="display: none;" class="w-4 h-4 text-emerald-500 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <div class="bg-gray-950 border border-primary/30 rounded-lg p-2">
+                                                <p class="text-[8px] text-gray-500 font-black uppercase tracking-widest mb-1">Status</p>
+                                                <p class="text-primary font-mono font-bold text-[10px] tracking-wider">WIRD GENERIERT...</p>
+                                            </div>
+                                        @endif
+                                    @else
+                                        <div class="bg-gray-800 rounded-lg p-3">
+                                            <p class="text-gray-500 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Gesperrt
+                                            </p>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+
             </div>
 
-            {{-- 3D EVOLUTION MODAL (Mit Level Up Animation!) --}}
+            {{-- 3D EVOLUTION MODAL --}}
             <template x-teleport="body">
                 <div x-show="show3DModal" style="display: none;" class="fixed inset-0 z-[6000] flex flex-col items-center justify-between p-4 sm:p-10">
                     <div class="absolute inset-0 bg-black/98 backdrop-blur-3xl" @click="close3DModal()" x-transition.opacity></div>
@@ -205,15 +320,119 @@
                     </div>
                 </div>
             </template>
+
+            {{-- DARK EPISCHES TITEL MODAL --}}
+            <template x-teleport="body">
+                <div x-show="showTitlesModal" style="display: none;" class="fixed inset-0 z-[7000] flex items-center justify-center p-4 sm:p-6">
+                    <div class="absolute inset-0 bg-black/90 backdrop-blur-md" @click="showTitlesModal = false" x-transition.opacity></div>
+
+                    <div class="relative w-full max-w-4xl bg-gray-950 border border-gray-800 rounded-[2.5rem] shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col max-h-[90vh] overflow-hidden"
+                         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95 translate-y-10" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100 translate-y-0" x-transition:leave-end="opacity-0 scale-95 translate-y-10">
+
+                        <div class="relative w-full bg-gray-900 border-b border-amber-500/20 p-8 sm:p-10 text-center shrink-0 overflow-hidden shadow-inner flex flex-col items-center">
+                            <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
+
+                            <button @click="showTitlesModal = false" class="absolute top-6 right-6 p-2 bg-gray-800 text-gray-400 rounded-full hover:bg-red-500 hover:text-white transition-colors cursor-pointer focus:outline-none z-20 shadow-lg">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+
+                            <div class="relative z-10 w-full">
+                                <p class="text-[10px] sm:text-xs text-amber-500/70 font-black uppercase tracking-[0.3em] mb-2 drop-shadow-[0_0_8px_currentColor]">Dein aktueller Meta-Rang</p>
+                                <h2 class="text-3xl sm:text-4xl md:text-5xl font-serif font-black text-amber-400 drop-shadow-[0_0_15px_rgba(251,191,36,0.3)] mb-4 uppercase tracking-tight">
+                                    {{ $titlesData['mega_title']['name'] ?? 'Ein Funke im Wind' }}
+                                </h2>
+
+                                <div class="mb-6">
+                                    <button wire:click="selectTitle('mega_title')" class="px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all shadow-md {{ $activeTitleKey === 'mega_title' ? 'bg-amber-500 text-gray-900 shadow-[0_0_15px_rgba(251,191,36,0.6)] cursor-default' : 'bg-gray-900 border border-amber-500/50 text-amber-400 hover:bg-amber-500/20 hover:text-white' }}">
+                                        {{ $activeTitleKey === 'mega_title' ? 'Als Meta-Rang ausgerüstet' : 'Als Meta-Rang ausrüsten' }}
+                                    </button>
+                                </div>
+
+                                <div class="max-w-md mx-auto bg-gray-950 p-4 rounded-2xl border border-gray-800 shadow-inner">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Diamant-Titel</span>
+                                        <span class="text-xs font-black text-amber-400">{{ $titlesData['diamonds_count'] ?? 0 }} <span class="opacity-50 text-gray-600">/ 15</span></span>
+                                    </div>
+                                    <div class="w-full bg-gray-900 rounded-full h-2.5 shadow-inner overflow-hidden border border-gray-800">
+                                        <div class="h-full bg-gradient-to-r from-amber-600 to-yellow-400 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(251,191,36,0.5)]" style="width: {{ min(100, (($titlesData['diamonds_count'] ?? 0) / 15) * 100) }}%"></div>
+                                    </div>
+                                    @if(isset($titlesData['next_mega_title']))
+                                        <p class="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-3 uppercase tracking-widest">Noch <span class="text-white font-bold">{{ $titlesData['next_mega_title']['req'] - ($titlesData['diamonds_count'] ?? 0) }} Diamant-Titel</span> bis: <strong class="text-amber-400">{{ $titlesData['next_mega_title']['name'] }}</strong></p>
+                                    @else
+                                        <p class="text-[9px] sm:text-[10px] text-amber-400 font-black mt-3 uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">Du hast die höchste Stufe erreicht!</p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 sm:p-8 overflow-y-auto custom-scrollbar flex-1 bg-gray-950">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                @foreach($titlesData['titles'] ?? [] as $titleKey => $title)
+                                    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden flex flex-col gap-3 group transition-colors
+                                        {{ $title['tier'] === 'diamant' ? 'border-amber-500/30 shadow-[inset_0_0_20px_rgba(251,191,36,0.05)] bg-amber-900/5' : 'hover:border-gray-600' }}">
+
+                                        <div class="flex items-start gap-4">
+                                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner
+                                                {{ $title['tier'] === 'grau' ? 'bg-gray-950 text-gray-600 border border-gray-800' : '' }}
+                                                {{ $title['tier'] === 'silber' ? 'bg-slate-800 text-slate-300 border border-slate-600/50' : '' }}
+                                                {{ $title['tier'] === 'gold' ? 'bg-yellow-900/20 text-yellow-500 border border-yellow-600/50' : '' }}
+                                                {{ $title['tier'] === 'diamant' ? 'bg-cyan-900/20 text-cyan-400 border border-cyan-500/50 shadow-[0_0_15px_rgba(34,211,238,0.3)]' : '' }}">
+
+                                                @if($title['tier'] === 'diamant')
+                                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                                @else
+                                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                                                @endif
+                                            </div>
+
+                                            <div class="flex-1 min-w-0 pt-0.5">
+                                                <h4 class="text-white font-bold text-sm sm:text-base leading-tight truncate">{{ $title['name'] }}</h4>
+                                                <p class="text-gray-500 text-[10px] sm:text-xs mt-1 leading-snug">{{ $title['description'] }}</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-2 flex items-center justify-between">
+                                            <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap
+                                                {{ $title['tier'] === 'grau' ? 'bg-gray-800 text-gray-500' : '' }}
+                                                {{ $title['tier'] === 'silber' ? 'bg-slate-800 text-slate-300' : '' }}
+                                                {{ $title['tier'] === 'gold' ? 'bg-yellow-900/40 text-yellow-500' : '' }}
+                                                {{ $title['tier'] === 'diamant' ? 'bg-cyan-900/40 text-cyan-400' : '' }}">
+                                                {{ $title['tier_name'] }}
+                                            </span>
+                                            <p class="text-[9px] text-gray-600 font-mono font-bold">{{ $title['current_value'] }} / {{ $title['next_req'] }}</p>
+                                        </div>
+
+                                        <div class="w-full bg-gray-950 rounded-full h-1.5 shadow-inner overflow-hidden">
+                                            <div class="h-1.5 rounded-full transition-all duration-1000
+                                                {{ $title['tier'] === 'grau' ? 'bg-gray-700' : '' }}
+                                                {{ $title['tier'] === 'silber' ? 'bg-slate-400 shadow-[0_0_5px_rgba(148,163,184,0.5)]' : '' }}
+                                                {{ $title['tier'] === 'gold' ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : '' }}
+                                                {{ $title['tier'] === 'diamant' ? 'bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]' : '' }}" style="width: {{ $title['percentage'] }}%"></div>
+                                        </div>
+
+                                        @if($title['tier'] !== 'grau')
+                                            <div class="mt-2 border-t border-gray-800 pt-3">
+                                                <button wire:click="selectTitle('{{ $titleKey }}')" class="w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {{ $activeTitleKey === $titleKey ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50 cursor-default' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-transparent' }}">
+                                                    {{ $activeTitleKey === $titleKey ? 'Ausgerüstet' : 'Als Titel anzeigen' }}
+                                                </button>
+                                            </div>
+                                        @endif
+
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
         </div>
     @endif
 
     <script>
-        function optInScreen() {
+        window.optInScreen = function() {
             return {
-                mouseX: 0, mouseY: 0, isHovering: false, isWarping: false, isActivating: false, phase: 0,
-                handleMouse(e) { this.isHovering = true; const rect = this.$el.getBoundingClientRect(); this.mouseX = e.clientX - rect.left; this.mouseY = e.clientY - rect.top; },
-                resetMouse() { this.isHovering = false; },
+                isWarping: false, isActivating: false, phase: 0,
                 triggerEpicStart() {
                     this.isWarping = true; this.isActivating = true;
                     window.dispatchEvent(new CustomEvent('warp-started'));
@@ -221,9 +440,9 @@
                     setTimeout(() => { window.sessionStorage.setItem('funki_just_activated', 'true'); this.$wire.optIn(); }, 2500);
                 }
             };
-        }
+        };
 
-        function funkiHub(initialModelPath, initialImagePath) {
+        window.funkiHub = function(initialModelPath, initialImagePath) {
             let scene, camera, renderer, controls, currentModel;
             let threeInitialized = false;
             let animationId = null;
@@ -234,9 +453,10 @@
                 currentPath: initialModelPath || '',
                 currentImagePath: initialImagePath || '',
 
-                initShop() {
+                initFunki() {
                     if (window.sessionStorage.getItem('funki_just_activated')) {
-                        this.darkFade = true; window.sessionStorage.removeItem('funki_just_activated');
+                        this.darkFade = true;
+                        window.sessionStorage.removeItem('funki_just_activated');
                         setTimeout(() => { this.darkFade = false; }, 100);
                     }
                 },
@@ -244,20 +464,20 @@
                 handleLevelUp(data) {
                     this.open3DModal();
                     setTimeout(() => {
-                        this.evolutionFlash = true; // Trigger white flash
+                        this.evolutionFlash = true;
                         setTimeout(() => {
                             this.currentPath = data.newModelPath;
                             this.currentImagePath = data.newImagePath;
                             if (threeInitialized && window._funki3DLoader) {
                                 window._funki3DLoader(this.currentPath, () => {
-                                    this.evolutionFlash = false; // Fade out flash
+                                    this.evolutionFlash = false;
                                     this.rewardMessage = data.reward || 'Neue Form freigeschaltet!';
-                                    this.showConfetti = true; // Show Text
+                                    this.showConfetti = true;
                                     setTimeout(() => { this.showConfetti = false; }, 4000);
                                 });
                             }
-                        }, 1000); // Wait for flash peak
-                    }, 500); // Wait for modal to open
+                        }, 1000);
+                    }, 500);
                 },
 
                 open3DModal() {
@@ -336,6 +556,6 @@
                     renderer.setSize(container.offsetWidth, container.offsetHeight);
                 }
             };
-        }
+        };
     </script>
 </div>

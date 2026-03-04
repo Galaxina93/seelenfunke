@@ -85,10 +85,10 @@
                                 (1) Der auf der Website bereitgestellte Produktkonfigurator dient als Visualisierungshilfe zur groben Platzierung von Texten, Bildern und Symbolen auf den angebotenen Waren.
                             </p>
                             <p class="mt-2">
-                                (2) Die im Konfigurator dargestellte Vorschau ist **nicht maßstabsgetreu** und stellt keine millimetergenaue Abbildung des Endprodukts dar. Geringfügige Abweichungen in der Platzierung, Ausrichtung und Größe (im Bereich handwerklicher Toleranzen) sind produktionsbedingt möglich und stellen keinen Mangel dar.
+                                (2) Die im Konfigurator dargestellte Vorschau ist <strong>nicht maßstabsgetreu</strong> und stellt keine millimetergenaue Abbildung des Endprodukts dar. Geringfügige Abweichungen in der Platzierung, Ausrichtung und Größe (im Bereich handwerklicher Toleranzen) sind produktionsbedingt möglich und stellen keinen Mangel dar.
                             </p>
                             <p class="mt-2">
-                                (3) **Technische Umsetzung & Farbwiedergabe:** Der Kunde nimmt zur Kenntnis, dass farbige Bilddateien im Laserverfahren technisch bedingt nicht farbecht wiedergegeben werden können. Die Veredelung erfolgt als dauerhafte Oberflächenveränderung (Gravur), wobei Farben in materialabhängige Kontraststufen (monochrom/Graustufen) umgewandelt werden. Abweichungen zur digitalen RGB-Farbdarstellung am Monitor sind prozessbedingt und stellen keinen Reklamationsgrund dar.
+                                (3) <strong>Technische Umsetzung & Farbwiedergabe:</strong> Der Kunde nimmt zur Kenntnis, dass farbige Bilddateien im Laserverfahren technisch bedingt nicht farbecht wiedergegeben werden können. Die Veredelung erfolgt als dauerhafte Oberflächenveränderung (Gravur), wobei Farben in materialabhängige Kontraststufen (monochrom/Graustufen) umgewandelt werden. Abweichungen zur digitalen RGB-Farbdarstellung am Monitor sind prozessbedingt und stellen keinen Reklamationsgrund dar.
                             </p>
                             <p class="mt-2">
                                 (4) Der Kunde ist dafür verantwortlich, die im Konfigurator eingegebenen Inhalte (insbesondere Rechtschreibung von Namen oder Daten) vor Abschluss der Bestellung auf Richtigkeit zu prüfen. Da es sich um individuell nach Kundenspezifikation angefertigte Waren handelt, ist das Widerrufsrecht gemäß § 312g Abs. 2 Nr. 1 BGB ausgeschlossen.
@@ -106,6 +106,7 @@
                                 <li>Vorkasse (Überweisung)</li>
                                 <li>Kreditkarte (Visa, Mastercard, American Express)</li>
                                 <li>Apple Pay / Google Pay</li>
+                                <li>Amazon Pay / Paypal</li>
                                 <li>Sofortüberweisung / Klarna</li>
                             </ul>
                             <p>
@@ -144,13 +145,13 @@
                             </p>
                         </div>
 
-                        {{-- §7 Streitbeilegung --}}
+                        {{-- §7 Streitbeilegung (AKTUALISIERT 2026 NACH WEGFALL DER OS-PLATTFORM) --}}
                         <div id="streitbeilegung" class="scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-2">7. Streitbeilegung</h3>
                             <p>
-                                Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit, die Sie hier finden: <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline decoration-primary underline-offset-2">https://ec.europa.eu/consumers/odr/</a>.
-                                <br>
-                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
+                                Die Europäische Kommission hat die Online-Streitbeilegungsplattform (OS-Plattform) zum 20. Juli 2025 eingestellt. Informationen und Kontaktmöglichkeiten zu nationalen Verbraucherschlichtungsstellen finden Sie im neuen offiziellen Portal der Europäischen Kommission unter: <a href="https://consumer-redress.ec.europa.eu/dispute-resolution-bodies" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline decoration-primary underline-offset-2">https://consumer-redress.ec.europa.eu/dispute-resolution-bodies</a>.
+                                <br><br>
+                                <strong>Information gemäß § 36 VSBG:</strong> Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
                             </p>
                         </div>
 

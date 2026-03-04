@@ -1,5 +1,5 @@
 <div>
-    <div class="space-y-6 animate-fade-in-up pb-12 w-full">
+    <div class="space-y-8 animate-fade-in-up pb-12 w-full">
         <style>
             .jvm-region:hover { opacity: 0.9; cursor: pointer; filter: brightness(1.3); }
             {!! $mapVisuals['css'] !!}
@@ -84,12 +84,12 @@
                             selector: '#shipping-map',
                             map: 'world',
                             zoomButtons: true,
-                            zoomOnScroll: false,
+                            zoomOnScroll: true,
                             backgroundColor: 'transparent',
                             focusOn: { x: 0.5, y: 0.45, scale: 1.8 },
                             regionStyle: {
                                 initial: {
-                                    fill: 'rgba(31, 41, 55, 0.4)', // Transparentes Dunkelgrau für Sterne
+                                    fill: 'rgba(31, 41, 55, 0.4)',
                                     stroke: 'rgba(255, 255, 255, 0.05)',
                                     strokeWidth: 0.5,
                                 }
@@ -98,14 +98,14 @@
                                 if (activeCodes[code]) {
                                     const zoneName = activeCodes[code];
                                     tooltip.text(`<div class="text-center">
-                                    <span class="font-bold text-white block text-sm mb-1">${tooltip.text()}</span>
-                                    <span class="text-[9px] font-black uppercase tracking-widest bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-md inline-block shadow-[0_0_10px_rgba(197,160,89,0.2)]">${zoneName}</span>
-                                </div>`, true);
+                                        <span class="font-bold text-white block text-sm mb-1">${tooltip.text()}</span>
+                                        <span class="text-[9px] font-black uppercase tracking-widest bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-md inline-block shadow-[0_0_10px_rgba(197,160,89,0.2)]">${zoneName}</span>
+                                    </div>`, true);
                                 } else {
                                     tooltip.text(`<div class="text-center">
-                                    <span class="font-bold text-gray-300 block text-sm mb-1">${tooltip.text()}</span>
-                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-800 px-2 py-0.5 rounded-md inline-block">Kein Versand</span>
-                                </div>`, true);
+                                        <span class="font-bold text-gray-300 block text-sm mb-1">${tooltip.text()}</span>
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-800 px-2 py-0.5 rounded-md inline-block">Kein Versand</span>
+                                    </div>`, true);
                                 }
                             }
                         });
@@ -141,12 +141,12 @@
                                     </button>
                                 </div>
                                 <div class="flex gap-3">
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                    {{$zone->countries_count}} Länder
-                                </span>
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                        {{$zone->countries_count}} Länder
+                                    </span>
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                    {{$zone->rates_count}} Tarife
-                                </span>
+                                        {{$zone->rates_count}} Tarife
+                                    </span>
                                 </div>
                             </div>
                         @empty
@@ -188,17 +188,19 @@
                                 @error('selectedCountryToAdd')<span class="text-[9px] font-bold text-red-400 mb-3 block uppercase tracking-widest ml-1">{{$message}}</span>@enderror
 
                                 <div class="flex flex-wrap gap-2">
-                                    @php $activeCountries = shop_setting('active_countries', []); @endphp
                                     @foreach($activeZoneModel->countries as $country)
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-950 text-gray-300 border border-gray-700 shadow-inner group">
-                                        <img src="https://flagcdn.com/16x12/{{strtolower($country->country_code)}}.png" class="mr-2 h-2.5 w-3.5 object-cover rounded-sm opacity-80" alt="{{$country->country_code}}">
-                                        {{$activeCountries[$country->country_code] ?? $country->country_code}}
-                                        <button wire:click="removeCountry('{{$country->id}}')" class="ml-2 pl-2 border-l border-gray-800 text-gray-500 hover:text-red-400 transition-colors">
-                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                        </button>
-                                    </span>
+                                            <img src="https://flagcdn.com/16x12/{{strtolower($country->country_code)}}.png" class="mr-2 h-2.5 w-3.5 object-cover rounded-sm opacity-80" alt="{{$country->country_code}}">
+                                            {{$allCountries[$country->country_code] ?? $country->country_code}}
+                                            <button wire:click="removeCountry('{{$country->id}}')" class="ml-2 pl-2 border-l border-gray-800 text-gray-500 hover:text-red-400 transition-colors">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
+                                        </span>
                                     @endforeach
                                 </div>
+                                @if($activeZoneModel->countries->isEmpty())
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-600 text-center py-4 bg-gray-950 rounded-xl border border-gray-800 shadow-inner mt-2">Noch keine Länder zugewiesen.</p>
+                                @endif
                             </div>
 
                             <div class="border-t border-gray-800 pt-6">
@@ -259,4 +261,3 @@
         </div>
     </div>
 </div>
-

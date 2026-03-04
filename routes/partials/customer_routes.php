@@ -19,16 +19,17 @@ Route::middleware(['auth:customer'])->group(function () {
     // 1. Übersicht & Opt-In (Hier landet man nach dem Login)
     Route::get('/dashboard', \App\Livewire\Customer\DashboardComponent::class)->name('customer.dashboard');
 
-    // 2. Der Funki Shop
-    Route::get('/funki-shop', \App\Livewire\Customer\FunkiShopComponent::class)->name('customer.funki-shop');
+    // 2. Bestellungen
+    Route::get('/orders', \App\Livewire\Customer\OrdersComponent::class)->name('customer.orders');
 
     // 3. Spiele Bereich
     Route::get('/games', \App\Livewire\Customer\GamesComponent::class)->name('customer.games');
 
-    // 4. Bestellungen
-    Route::get('/orders', \App\Livewire\Customer\OrdersComponent::class)->name('customer.orders');
+    // 4. NEU: Globale Rangliste
+    Route::get('/ranking', \App\Livewire\Customer\GlobalRankingComponent::class)->name('customer.ranking');
 
-
+    // NEU: Support & Tickets
+    Route::get('/support', \App\Livewire\Customer\FunkiTicketsComponent::class)->name('customer.support');
 });
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {

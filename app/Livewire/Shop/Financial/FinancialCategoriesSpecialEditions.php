@@ -326,7 +326,10 @@ class FinancialCategoriesSpecialEditions extends Component
             });
         }
 
-        $specials = $specialsQuery->orderBy('created_at', 'desc')->paginate(10);
+        // KORREKTUR DER SORTIERUNG: Primär nach execution_date, sekundär nach created_at
+        $specials = $specialsQuery->orderBy('execution_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
 
         // Chart Data Update (Only Expenses for Pie)
         $chartDataObj = FinanceSpecialIssue::where('admin_id', $this->getAdminId())

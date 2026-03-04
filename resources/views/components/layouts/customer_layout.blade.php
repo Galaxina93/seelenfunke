@@ -43,20 +43,21 @@
             Zentrale
         </a>
 
-        @if($hasOptedIn)
-            <a href="{{ route('customer.funki-shop') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.funki-shop') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
-                <span class="text-xl">💎</span>
-                Funki Shop
-            </a>
+        <a href="{{ route('customer.orders') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.orders') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+            Bestellungen
+        </a>
 
+        {{-- NEU: SUPPORT DESK LINK --}}
+        <a href="{{ route('customer.support') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.support') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            Support Desk
+        </a>
+
+        @if($hasOptedIn)
             <a href="{{ route('customer.games') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-400 hover:text-emerald-400 hover:bg-gray-800' }}">
                 <span class="text-xl">🎮</span>
                 Spiele
-            </a>
-
-            <a href="{{ route('customer.orders') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.orders') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-                Bestellungen
             </a>
         @endif
     </nav>
@@ -90,21 +91,29 @@
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Home</span>
     </a>
+    <a href="{{ route('customer.orders') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500' }}">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+        <span class="text-[9px] font-black uppercase tracking-widest">Orders</span>
+    </a>
+
+    {{-- NEU: MOBILE SUPPORT LINK --}}
+    <a href="{{ route('customer.support') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.support') ? 'text-primary' : 'text-gray-500' }}">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <span class="text-[9px] font-black uppercase tracking-widest">Support</span>
+    </a>
+
     @if($hasOptedIn)
-        <a href="{{ route('customer.funki-shop') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.funki-shop') ? 'text-primary' : 'text-gray-500' }}">
-            <span class="text-xl leading-none h-6 flex items-center">💎</span>
-            <span class="text-[9px] font-black uppercase tracking-widest">Shop</span>
-        </a>
         <a href="{{ route('customer.games') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') ? 'text-emerald-500' : 'text-gray-500' }}">
             <span class="text-xl leading-none h-6 flex items-center">🎮</span>
             <span class="text-[9px] font-black uppercase tracking-widest">Spiele</span>
         </a>
-        <a href="{{ route('customer.orders') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500' }}">
-            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-            <span class="text-[9px] font-black uppercase tracking-widest">Orders</span>
-        </a>
     @endif
 </nav>
+
+{{-- NEU: BACKGROUND EVENT FÜR LIVE NOTIFICATIONS --}}
+@if(auth()->guard('customer')->check())
+    <livewire:customer.funki-ticket-notifier-component />
+@endif
 
 @livewireScripts
 

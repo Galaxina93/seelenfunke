@@ -22,6 +22,11 @@
             </div>
 
             <div class="flex items-center gap-3 relative z-10">
+                @if(!$showArchive && !$isCreating)
+                    <button wire:click="startCreate" class="inline-flex items-center px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-primary text-gray-900 shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:text-white hover:scale-[1.02]">
+                        <x-heroicon-o-plus class="w-4 h-4 mr-2" /> Neuen Benutzer anlegen
+                    </button>
+                @endif
                 <button wire:click="toggleArchive" class="inline-flex items-center px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $showArchive ? 'bg-primary text-gray-900 shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:text-white hover:scale-[1.02]' : 'bg-gray-950 text-gray-400 hover:text-white border border-gray-800 shadow-inner' }}">
                     <x-heroicon-o-archive-box class="w-4 h-4 mr-2" />
                     {{ $showArchive ? 'Aktive Liste' : 'Archiv' }}
@@ -29,10 +34,18 @@
             </div>
         </div>
 
+        {{-- Success Message --}}
+        @if (session()->has('message'))
+            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)" class="bg-emerald-500/10 border-l-4 border-emerald-500 p-4 text-emerald-400 shadow-inner rounded-r-xl flex items-center gap-3 animate-fade-in text-sm font-bold">
+                <x-heroicon-s-check-circle class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
+                <span>{{ session('message') }}</span>
+            </div>
+        @endif
+
         {{-- Filter & Search --}}
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 shadow-2xl items-center">
             <div class="md:col-span-3 relative group">
-                <input wire:model.live.debounce.300ms="search" type="text" placeholder="Name, E-Mail oder Stadt suchen..."
+                <input wire:model.live.debounce.300ms="search" type="text" placeholder="Name, Firma, E-Mail oder Stadt suchen..."
                        class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner transition-all text-white placeholder-gray-600 outline-none text-sm">
                 <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                     <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-600 group-focus-within:text-primary transition-colors" />
@@ -48,25 +61,144 @@
         </div>
 
         {{-- Table --}}
-        <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden w-full">
-            <div class="overflow-x-auto w-full no-scrollbar">
-                <table class="w-full text-left border-collapse min-w-[900px]">
+        <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden w-full relative">
+            <div class="overflow-x-auto w-full custom-scrollbar">
+                <table class="w-full text-left border-collapse min-w-[1000px]">
                     <thead>
                     <tr class="bg-gray-950/80 border-b border-gray-800 text-[10px] font-black text-gray-500 uppercase tracking-widest shadow-inner">
-                        <th class="px-6 sm:px-8 py-6">Identität</th>
-                        <th class="px-6 sm:px-8 py-6">Standort & Kontakt</th>
-                        <th class="px-6 sm:px-8 py-6">Letzter Login</th>
-                        <th class="px-6 sm:px-8 py-6">Rolle / Status</th>
-                        <th class="px-6 sm:px-8 py-6 text-right">Aktionen</th>
+                        <th class="px-6 sm:px-8 py-6 w-[25%]">Identität</th>
+                        <th class="px-6 sm:px-8 py-6 w-[20%]">Status & Art</th>
+                        <th class="px-6 sm:px-8 py-6 w-[25%]">Standort & Kontakt</th>
+                        <th class="px-6 sm:px-8 py-6 w-[15%]">Intern / Login</th>
+                        <th class="px-6 sm:px-8 py-6 w-[15%] text-right">Aktionen</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-800/50">
+
+                    {{-- CREATE ROW --}}
+                    @if($isCreating)
+                        <tr class="bg-primary/5 shadow-inner transition-all duration-300 group">
+                            <td class="px-6 sm:px-8 py-6 align-top">
+                                <div class="space-y-4 min-w-[200px] animate-fade-in">
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Rolle</label>
+                                        <select wire:model.live="createType" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner p-3 outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all">
+                                            <option value="customer">Kunde</option>
+                                            <option value="employee">Mitarbeiter</option>
+                                            <option value="admin">Administrator</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Vorname & Nachname *</label>
+                                        <div class="flex gap-2">
+                                            <input type="text" wire:model="formData.first_name" placeholder="Vorname" class="w-1/2 text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all p-3 outline-none">
+                                            <input type="text" wire:model="formData.last_name" placeholder="Nachname" class="w-1/2 text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all p-3 outline-none">
+                                        </div>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">E-Mail *</label>
+                                        <input type="email" wire:model="formData.email" placeholder="mail@beispiel.de" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all p-3 outline-none">
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Passwort *</label>
+                                        <div x-data="{ showPw: false }" class="relative">
+                                            <input :type="showPw ? 'text' : 'password'" wire:model="formData.password" placeholder="Mindestens 8 Zeichen" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all p-3 pr-10 outline-none placeholder-gray-600">
+                                            <button type="button" @click="showPw = !showPw" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-primary transition-colors focus:outline-none">
+                                                <x-heroicon-o-eye x-show="!showPw" class="w-5 h-5" />
+                                                <x-heroicon-o-eye-slash x-show="showPw" class="w-5 h-5" style="display: none;" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 sm:px-8 py-6 align-top">
+                                <div class="space-y-4 min-w-[180px] animate-fade-in">
+                                    <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-inner inline-block bg-primary/10 text-primary border-primary/30 mb-2">NEU</span>
+
+                                    <label class="flex items-center gap-3 cursor-pointer group">
+                                        <div class="relative flex items-center shrink-0">
+                                            <input type="checkbox" wire:model="formData.is_verified" class="peer sr-only">
+                                            <div class="w-5 h-5 bg-gray-950 border-2 border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
+                                            <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="text-xs font-bold text-gray-300 group-hover:text-white transition-colors">E-Mail verifiziert</span>
+                                            <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black">Direkt freischalten</span>
+                                        </div>
+                                    </label>
+
+                                    <div class="pt-3 border-t border-gray-800">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor] mb-1.5 block">Kundenart</label>
+                                        <select wire:model.live="formData.customer_type" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner p-3 outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all">
+                                            <option value="private">Privatkunde</option>
+                                            <option value="business">Gewerblich (B2B)</option>
+                                        </select>
+                                    </div>
+                                    @if($formData['customer_type'] === 'business')
+                                        <div class="space-y-1.5 animate-fade-in-up">
+                                            <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Firmenname</label>
+                                            <input type="text" wire:model="formData.company_name" placeholder="GmbH, UG, etc." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                        </div>
+                                        <div class="space-y-1.5 animate-fade-in-up">
+                                            <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">USt-IdNr. (Optional)</label>
+                                            <input type="text" wire:model="formData.vat_id" placeholder="z.B. DE123456789" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner font-mono uppercase">
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="px-6 sm:px-8 py-6 align-top">
+                                <div class="space-y-4 min-w-[200px] animate-fade-in">
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Anschrift</label>
+                                        <div class="flex gap-2">
+                                            <input type="text" wire:model="formData.street" placeholder="Str." class="w-2/3 text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                            <input type="text" wire:model="formData.house_number" placeholder="Nr." class="w-1/3 text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <input type="text" wire:model="formData.postal" placeholder="PLZ" class="w-1/3 text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                        <input type="text" wire:model="formData.city" placeholder="Stadt" class="w-2/3 text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Telefon</label>
+                                        <input type="text" wire:model="formData.phone_number" placeholder="Optional" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 sm:px-8 py-6 align-top">
+                                <div class="min-w-[180px] space-y-1.5">
+                                    <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Interne Notiz</label>
+                                    <textarea wire:model="formData.internal_note" rows="4" placeholder="Infos, Besonderheiten..." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner resize-none"></textarea>
+                                </div>
+                            </td>
+                            <td class="px-6 sm:px-8 py-6 text-right align-top">
+                                <div class="flex flex-col gap-3 min-w-[120px]">
+                                    <button wire:click="saveNewUser" class="w-full flex items-center justify-center gap-2 bg-emerald-500 text-gray-900 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-[1.02]">
+                                        <x-heroicon-m-check class="w-4 h-4" /> Erstellen
+                                    </button>
+                                    <button wire:click="cancelEdit" class="w-full flex items-center justify-center gap-2 bg-gray-900 border border-gray-700 text-gray-400 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-gray-800 transition-all shadow-inner">
+                                        <x-heroicon-m-x-mark class="w-4 h-4" /> Abbrechen
+                                    </button>
+                                    @if($errors->any())
+                                        <div class="text-red-400 text-[10px] font-bold mt-2 text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                                            Bitte alle Pflichtfelder prüfen.
+                                        </div>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @endif
+
+                    {{-- EXISTING ROWS --}}
                     @forelse($users as $user)
-                        @php $isEditing = ($editingId === $user['id'] && $editingType === $user['user_type']); @endphp
+                        @php
+                            $isEditing = ($editingId === $user['id'] && $editingType === $user['user_type']);
+                            $profile = $user['profile'] ?? [];
+                        @endphp
                         <tr @class(['transition-all duration-300 group', 'bg-primary/5 shadow-inner' => $isEditing, 'hover:bg-gray-800/30' => !$isEditing])>
                             <td class="px-6 sm:px-8 py-6 align-top">
                                 @if($isEditing)
-                                    <div class="space-y-4 w-64 animate-fade-in">
+                                    <div class="space-y-4 min-w-[200px] animate-fade-in">
                                         <div class="space-y-1.5">
                                             <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Vorname & Nachname</label>
                                             <div class="flex gap-2">
@@ -80,24 +212,103 @@
                                         </div>
                                         <div class="space-y-1.5">
                                             <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Passwort (Optional)</label>
-                                            <input type="password" wire:model="formData.password" placeholder="Leer = Kein Reset" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all p-3 outline-none placeholder-gray-600">
+                                            <div x-data="{ showPw: false }" class="relative">
+                                                <input :type="showPw ? 'text' : 'password'" wire:model="formData.password" placeholder="Leer = Kein Reset" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all p-3 pr-10 outline-none placeholder-gray-600">
+                                                <button type="button" @click="showPw = !showPw" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-primary transition-colors focus:outline-none">
+                                                    <x-heroicon-o-eye x-show="!showPw" class="w-5 h-5" />
+                                                    <x-heroicon-o-eye-slash x-show="showPw" class="w-5 h-5" style="display: none;" />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 @else
                                     <div class="flex items-center gap-4">
-                                        <div class="h-14 w-14 rounded-[1.2rem] bg-gray-950 border border-gray-800 flex items-center justify-center text-primary font-serif text-2xl font-bold shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_15px_rgba(197,160,89,0.1)] group-hover:shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_20px_rgba(197,160,89,0.3)] transition-shadow">
+                                        <div class="h-14 w-14 rounded-[1.2rem] shrink-0 bg-gray-950 border border-gray-800 flex items-center justify-center text-primary font-serif text-2xl font-bold shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_15px_rgba(197,160,89,0.1)] group-hover:shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_20px_rgba(197,160,89,0.3)] transition-shadow">
                                             {{ substr($user['first_name'], 0, 1) }}
                                         </div>
-                                        <div>
-                                            <div class="font-bold text-white text-base tracking-wide">{{ $user['first_name'] }} {{ $user['last_name'] }}</div>
-                                            <div class="text-[11px] text-gray-500 font-medium tracking-wide mt-0.5 group-hover:text-primary transition-colors">{{ $user['email'] }}</div>
+                                        <div class="min-w-0">
+                                            <div class="font-bold text-white text-base tracking-wide truncate">{{ $user['first_name'] }} {{ $user['last_name'] }}</div>
+                                            <div class="text-[11px] text-gray-500 font-medium tracking-wide mt-0.5 group-hover:text-primary transition-colors truncate">{{ $user['email'] }}</div>
+                                            @if(($profile['is_business'] ?? false) && !empty($profile['company_name']))
+                                                <div class="mt-1 flex flex-col gap-0.5">
+                                                    <div class="flex items-center gap-1 text-[10px] text-amber-400 font-bold uppercase tracking-wider truncate">
+                                                        <x-heroicon-o-building-office class="w-3.5 h-3.5 shrink-0" />
+                                                        {{ $profile['company_name'] }}
+                                                    </div>
+                                                    @if(!empty($profile['vat_id']))
+                                                        <div class="text-[9px] text-gray-500 uppercase tracking-widest font-mono truncate">{{ $profile['vat_id'] }}</div>
+                                                    @endif
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                 @endif
                             </td>
                             <td class="px-6 sm:px-8 py-6 align-top">
                                 @if($isEditing)
-                                    <div class="space-y-4 w-64 animate-fade-in">
+                                    <div class="space-y-4 min-w-[180px] animate-fade-in">
+                                        <span @class(['px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-inner inline-block mb-2',
+                                            'bg-purple-500/10 text-purple-400 border-purple-500/30' => $user['user_type'] === 'admin',
+                                            'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' => $user['user_type'] === 'employee',
+                                            'bg-gray-800 text-gray-400 border-gray-700' => $user['user_type'] === 'customer'])>
+                                            {{ $user['user_type'] }}
+                                        </span>
+
+                                        <label class="flex items-center gap-3 cursor-pointer group">
+                                            <div class="relative flex items-center shrink-0">
+                                                <input type="checkbox" wire:model="formData.is_verified" class="peer sr-only">
+                                                <div class="w-5 h-5 bg-gray-950 border-2 border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
+                                                <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            </div>
+                                            <div class="flex flex-col">
+                                                <span class="text-xs font-bold text-gray-300 group-hover:text-white transition-colors">E-Mail verifiziert</span>
+                                            </div>
+                                        </label>
+
+                                        <div class="pt-3 border-t border-gray-800">
+                                            <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor] mb-1.5 block">Kundenart</label>
+                                            <select wire:model.live="formData.customer_type" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner p-3 outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all">
+                                                <option value="private">Privatkunde</option>
+                                                <option value="business">Gewerblich (B2B)</option>
+                                            </select>
+                                        </div>
+                                        @if($formData['customer_type'] === 'business')
+                                            <div class="space-y-1.5 animate-fade-in-up">
+                                                <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Firmenname</label>
+                                                <input type="text" wire:model="formData.company_name" placeholder="GmbH, UG, etc." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                            </div>
+                                            <div class="space-y-1.5 animate-fade-in-up">
+                                                <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">USt-IdNr. (Optional)</label>
+                                                <input type="text" wire:model="formData.vat_id" placeholder="z.B. DE123456789" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner font-mono uppercase">
+                                            </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <div class="space-y-3">
+                                        <span @class(['px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-inner inline-block',
+                                            'bg-purple-500/10 text-purple-400 border-purple-500/30' => $user['user_type'] === 'admin',
+                                            'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' => $user['user_type'] === 'employee',
+                                            'bg-gray-800 text-gray-400 border-gray-700' => $user['user_type'] === 'customer'])>
+                                            {{ $user['user_type'] }}
+                                        </span>
+                                        <div class="flex items-center text-[9px] font-black uppercase tracking-widest">
+                                            @if(isset($user['deleted_at']))
+                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 shadow-[0_0_8px_currentColor] animate-pulse"></span>
+                                                <span class="text-red-400">Archiviert</span>
+                                            @elseif(!empty($profile['email_verified_at']))
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 shadow-[0_0_8px_currentColor]"></span>
+                                                <span class="text-emerald-400">Verifiziert</span>
+                                            @else
+                                                <span class="w-1.5 h-1.5 rounded-full bg-orange-500 mr-2 shadow-[0_0_8px_currentColor]"></span>
+                                                <span class="text-orange-400">Unverifiziert</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-6 sm:px-8 py-6 align-top">
+                                @if($isEditing)
+                                    <div class="space-y-4 min-w-[200px] animate-fade-in">
                                         <div class="space-y-1.5">
                                             <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Anschrift</label>
                                             <div class="flex gap-2">
@@ -111,86 +322,90 @@
                                         </div>
                                         <div class="space-y-1.5">
                                             <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Telefon</label>
-                                            <input type="text" wire:model="formData.phone_number" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
+                                            <input type="text" wire:model="formData.phone_number" placeholder="Optional" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner">
                                         </div>
                                     </div>
                                 @else
                                     <div class="text-sm space-y-1.5">
                                         <div class="flex items-center gap-2 text-gray-300">
-                                            <x-heroicon-m-map-pin class="w-4 h-4 text-primary drop-shadow-[0_0_8px_currentColor]" />
-                                            <span class="font-bold tracking-wide">{{ $user['profile']['city'] ?? 'Ort unbekannt' }}</span>
+                                            <x-heroicon-m-map-pin class="w-4 h-4 text-primary drop-shadow-[0_0_8px_currentColor] shrink-0" />
+                                            <span class="font-bold tracking-wide truncate">{{ $profile['city'] ?? 'Ort unbekannt' }}</span>
                                         </div>
                                         <div class="text-[11px] text-gray-500 pl-6 leading-relaxed font-medium">
-                                            {{ $user['profile']['street'] ?? '' }} {{ $user['profile']['house_number'] ?? '' }}<br>
-                                            {{ $user['profile']['phone_number'] ?? '' }}
+                                            {{ $profile['street'] ?? '' }} {{ $profile['house_number'] ?? '' }}<br>
+                                            {{ $profile['phone_number'] ?? '' }}
                                         </div>
                                     </div>
                                 @endif
                             </td>
                             <td class="px-6 sm:px-8 py-6 align-top">
-                                @if($user['last_seen'])
-                                    <div class="flex flex-col">
-                                        <span class="text-sm font-bold text-white">{{ \Carbon\Carbon::parse($user['last_seen'])->diffForHumans() }}</span>
-                                        <span class="text-[10px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ \Carbon\Carbon::parse($user['last_seen'])->format('d.m.Y H:i') }}</span>
+                                @if($isEditing)
+                                    <div class="min-w-[180px] space-y-1.5 animate-fade-in">
+                                        <label class="text-[9px] font-black text-primary uppercase tracking-widest ml-1 drop-shadow-[0_0_8px_currentColor]">Interne Notiz</label>
+                                        <textarea wire:model="formData.internal_note" rows="4" placeholder="Infos, Besonderheiten..." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white p-3 outline-none focus:ring-2 focus:ring-primary/50 shadow-inner resize-none"></textarea>
                                     </div>
                                 @else
-                                    <span class="text-xs text-gray-600 italic">Noch nie eingeloggt</span>
+                                    @if($user['last_seen'])
+                                        <div class="flex flex-col mb-4">
+                                            <span class="text-sm font-bold text-white">{{ \Carbon\Carbon::parse($user['last_seen'])->diffForHumans() }}</span>
+                                            <span class="text-[10px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ \Carbon\Carbon::parse($user['last_seen'])->format('d.m.Y H:i') }}</span>
+                                        </div>
+                                    @else
+                                        <span class="text-xs text-gray-600 italic block mb-4">Noch nie eingeloggt</span>
+                                    @endif
+
+                                    @if(!empty($profile['internal_note']))
+                                        <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl shadow-inner relative mt-2 max-w-[200px]">
+                                            <span class="absolute -top-2.5 left-3 bg-gray-900 text-primary border border-gray-700 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest">Notiz</span>
+                                            <p class="text-[11px] text-gray-400 italic leading-relaxed break-words">"{{ Str::limit($profile['internal_note'], 60) }}"</p>
+                                        </div>
+                                    @endif
                                 @endif
                             </td>
-                            <td class="px-6 sm:px-8 py-6 align-top">
-                                <div class="space-y-3">
-                                    <span @class(['px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-inner inline-block',
-                                        'bg-purple-500/10 text-purple-400 border-purple-500/30' => $user['user_type'] === 'admin',
-                                        'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' => $user['user_type'] === 'employee',
-                                        'bg-gray-800 text-gray-400 border-gray-700' => $user['user_type'] === 'customer'])>
-                                        {{ $user['user_type'] }}
-                                    </span>
-                                    <div class="flex items-center text-[9px] font-black uppercase tracking-widest">
-                                        @if(isset($user['deleted_at']))
-                                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-2 shadow-[0_0_8px_currentColor] animate-pulse"></span>
-                                            <span class="text-red-400">Archiviert</span>
+                            <td class="px-6 sm:px-8 py-6 text-right align-top">
+                                <div class="flex flex-col items-end gap-2 min-w-[120px]">
+                                    <div class="flex flex-col gap-3 w-full">
+                                        @if($isEditing)
+                                            <button wire:click="saveInline" class="w-full flex items-center justify-center gap-2 bg-emerald-500 text-gray-900 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-[1.02]">
+                                                <x-heroicon-m-check class="w-4 h-4" /> Speichern
+                                            </button>
+                                            <button wire:click="cancelEdit" class="w-full flex items-center justify-center gap-2 bg-gray-900 border border-gray-700 text-gray-400 px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-gray-800 transition-all shadow-inner">
+                                                <x-heroicon-m-x-mark class="w-4 h-4" /> Abbrechen
+                                            </button>
                                         @else
-                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 shadow-[0_0_8px_currentColor]"></span>
-                                            <span class="text-emerald-400">Aktiv</span>
+                                            @if(!$showArchive)
+                                                <div class="opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-2">
+                                                    <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-primary hover:border-primary/30 rounded-xl transition-all shadow-inner" title="Bearbeiten">
+                                                        <x-heroicon-m-pencil-square class="w-5 h-5" />
+                                                    </button>
+                                                    <button wire:click="archiveUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-orange-400 hover:border-orange-500/30 rounded-xl transition-all shadow-inner" title="Archivieren">
+                                                        <x-heroicon-m-archive-box class="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            @else
+                                                <div class="flex justify-end gap-2">
+                                                    <button wire:click="restoreUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-emerald-400 hover:border-emerald-500/30 rounded-xl transition-all shadow-inner" title="Wiederherstellen">
+                                                        <x-heroicon-m-arrow-path class="w-5 h-5" />
+                                                    </button>
+                                                    <button wire:confirm="Permanent löschen?" wire:click="forceDelete('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-red-400 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Permanent löschen">
+                                                        <x-heroicon-m-trash class="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            @endif
                                         @endif
                                     </div>
-                                </div>
-                            </td>
-                            <td class="px-6 sm:px-8 py-6 text-right align-top">
-                                <div class="flex justify-end items-center gap-3">
-                                    @if($isEditing)
-                                        <button wire:click="saveInline" class="flex items-center gap-2 bg-emerald-500 text-gray-900 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-[1.02]">
-                                            <x-heroicon-m-check class="w-4 h-4" /> Speichern
-                                        </button>
-                                        <button wire:click="cancelEdit" class="p-3 bg-gray-900 border border-gray-700 text-gray-400 rounded-xl hover:text-white hover:bg-gray-800 transition-all shadow-inner">
-                                            <x-heroicon-m-x-mark class="w-5 h-5" />
-                                        </button>
-                                    @else
-                                        @if(!$showArchive)
-                                            <div class="opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                                <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-primary hover:border-primary/30 rounded-xl transition-all shadow-inner" title="Bearbeiten">
-                                                    <x-heroicon-m-pencil-square class="w-5 h-5" />
-                                                </button>
-                                                <button wire:click="archiveUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-orange-400 hover:border-orange-500/30 rounded-xl transition-all shadow-inner" title="Archivieren">
-                                                    <x-heroicon-m-archive-box class="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                        @else
-                                            <div class="flex gap-2">
-                                                <button wire:click="restoreUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-emerald-400 hover:border-emerald-500/30 rounded-xl transition-all shadow-inner" title="Wiederherstellen">
-                                                    <x-heroicon-m-arrow-path class="w-5 h-5" />
-                                                </button>
-                                                <button wire:confirm="Permanent löschen?" wire:click="forceDelete('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-3 bg-gray-950 border border-gray-800 text-gray-500 hover:text-red-400 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Permanent löschen">
-                                                    <x-heroicon-m-trash class="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                        @endif
+                                    @if($isEditing && $errors->any())
+                                        <div class="text-red-400 text-[10px] font-bold mt-2 text-center w-full bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                                            Bitte alle Pflichtfelder prüfen.
+                                        </div>
                                     @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="px-8 py-32 text-center text-gray-500 font-serif text-xl italic">Keine Begleiter gefunden...</td></tr>
+                        @if(!$isCreating)
+                            <tr><td colspan="5" class="px-8 py-32 text-center text-gray-500 font-serif text-xl italic">Keine Begleiter gefunden...</td></tr>
+                        @endif
                     @endforelse
                     </tbody>
                 </table>
@@ -215,6 +430,7 @@
                                 'bg-blue-500/10 text-blue-400 border-blue-500/20' => $log->action_id === 'user:update',
                                 'bg-orange-500/10 text-orange-400 border-orange-500/20' => $log->action_id === 'user:archive',
                                 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' => $log->action_id === 'user:restore',
+                                'bg-primary/10 text-primary border-primary/20' => $log->action_id === 'user:create',
                                 'bg-red-500/10 text-red-400 border-red-500/20' => $log->action_id === 'user:destroy'])>
                                 <x-heroicon-o-finger-print class="w-6 h-6" />
                             </div>
@@ -239,6 +455,18 @@
                                             <div class="bg-emerald-900/10 p-5 rounded-2xl border border-emerald-500/20 shadow-inner">
                                                 <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Aktueller Stand</span>
                                                 <pre class="text-[10px] text-emerald-200/70 font-mono whitespace-pre-wrap leading-relaxed">{{ json_encode($log->payload['after'] ?? $log->payload['before'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @elseif($log->payload && isset($log->payload['after']))
+                                    <div x-data="{ open: false }" class="mt-4 border-t border-gray-800/50 pt-4">
+                                        <button @click="open = !open" class="text-[9px] font-black uppercase tracking-widest text-primary hover:text-white transition-colors flex items-center gap-2">
+                                            Eintrags-Details <x-heroicon-m-chevron-down class="w-3.5 h-3.5 transition-transform" ::class="open ? 'rotate-180' : ''" />
+                                        </button>
+                                        <div x-show="open" x-collapse class="mt-4">
+                                            <div class="bg-emerald-900/10 p-5 rounded-2xl border border-emerald-500/20 shadow-inner">
+                                                <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Eingetragene Daten</span>
+                                                <pre class="text-[10px] text-emerald-200/70 font-mono whitespace-pre-wrap leading-relaxed">{{ json_encode($log->payload['after'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                                             </div>
                                         </div>
                                     </div>

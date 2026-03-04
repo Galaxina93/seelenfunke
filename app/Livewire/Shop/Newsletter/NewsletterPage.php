@@ -90,6 +90,6 @@ class NewsletterPage extends Component
 
     public function render()
     {
-        return view('livewire.shop.newsletter.newsletter-page');
+        return view('livewire.shop.newsletter.newsletter-page')->layout('components.layouts.frontend_layout');
     }
 }

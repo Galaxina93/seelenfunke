@@ -2,17 +2,16 @@
 
 use Illuminate\Support\Facades\Broadcast;
 
-/*
-|--------------------------------------------------------------------------
-| Broadcast Channels
-|--------------------------------------------------------------------------
-|
-| Here you may register all of the event broadcasting channels that your
-| application supports. The given channel authorization callbacks are
-| used to check if an authenticated user can listen to the channel.
-|
-*/
+// DAS IST DER MAGISCHE SCHLÜSSEL!
+// Er erlaubt es dem Customer- und Admin-Guard, sich beim WebSocket-Server zu authentifizieren.
+Broadcast::routes(['middleware' => ['web', 'auth:customer,admin,web']]);
 
-Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
-    return (int) $user->id === (int) $id;
-});
+// Der Kunden-Kanal
+Broadcast::channel('customer.{id}', function ($user, $id) {
+    return (string) $user->id === (string) $id;
+}, ['guards' => ['customer']]);
+
+// Der Admin-Kanal
+Broadcast::channel('admin.tickets', function ($user) {
+    return true;
+}, ['guards' => ['admin']]);

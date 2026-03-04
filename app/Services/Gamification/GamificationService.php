@@ -2,16 +2,15 @@
 
 namespace App\Services\Gamification;
 
+use App\Models\Funki\FunkiVoucher;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Order\Order;
+use App\Models\Product\ProductReview;
 use Illuminate\Support\Str;
 
 class GamificationService
 {
-    /**
-     * Lädt oder erstellt das Gamification-Profil für einen Kunden
-     */
     public function getProfile(Customer $customer): CustomerGamification
     {
         return CustomerGamification::firstOrCreate(
@@ -20,57 +19,101 @@ class GamificationService
         );
     }
 
-    /**
-     * Exponentielle Kostenberechnung für das nächste Level.
-     * Beispiel: Lvl 1->2 (15), Lvl 5->6 (165), Lvl 20->21 (1340)
-     */
     public function getUpgradeCost(?int $currentLevel = 1): int
     {
-        // Fallback, falls null übergeben wird
         $level = $currentLevel ?? 1;
-
-        if ($level >= GameConfig::MAX_LEVEL) {
-            return 0;
-        }
-
-        // Base-Cost = 10, Multiplikator = 1.5 auf das Level
+        if ($level >= GameConfig::MAX_LEVEL) return 0;
         return (int) round(pow($level, 1.5) * 10) + 5;
     }
 
-    /**
-     * Führt das Upgrade durch, wenn genug Funken vorhanden sind.
-     */
     public function upgradeLevel(Customer $customer): array
     {
         $profile = $this->getProfile($customer);
         $cost = $this->getUpgradeCost($profile->level);
 
-        if ($profile->level >= GameConfig::MAX_LEVEL) {
-            return ['success' => false, 'message' => 'Maximales Level erreicht.'];
-        }
+        if ($profile->level >= GameConfig::MAX_LEVEL) return ['success' => false, 'message' => 'Maximales Level erreicht.'];
+        if ($profile->funken_balance < $cost) return ['success' => false, 'message' => 'Nicht genügend Funken.'];
 
-        if ($profile->funken_balance < $cost) {
-            return ['success' => false, 'message' => 'Nicht genügend Funken.'];
-        }
-
-        // Abzug und Level-Up
         $profile->funken_balance -= $cost;
         $profile->level += 1;
         $profile->save();
 
-        // Prüfen ob es eine Belohnung für das neue Level gibt
-        $reward = $this->checkAndIssueReward($customer, $profile->level);
+        $rewardMessage = $this->checkAndIssueCoupon($profile, $profile->level);
 
         return [
             'success' => true,
             'new_level' => $profile->level,
-            'reward' => $reward
+            'reward' => $rewardMessage ?? 'Neue Form freigeschaltet!'
         ];
     }
 
-    /**
-     * Fügt Funken hinzu (durch Kauf oder Suchen)
-     */
+    private function checkAndIssueCoupon(CustomerGamification $profile, int $newLevel): ?string
+    {
+        $rewards = GameConfig::getLevelRewards();
+
+        if (array_key_exists($newLevel, $rewards)) {
+            $rewardConfig = $rewards[$newLevel];
+            $code = 'FUNKI-L' . $newLevel . '-' . strtoupper(Str::random(5));
+            $email = $profile->customer ? $profile->customer->email : 'System';
+
+            FunkiVoucher::create([
+                'title'           => 'Level ' . $newLevel . ' Belohnung (' . $email . ')',
+                'code'            => $code,
+                'type'            => 'percent',
+                'value'           => $rewardConfig['value'],
+                'usage_limit'     => 1,
+                'is_active'       => true,
+                'valid_from'      => now(),
+                'mode'            => 'manual',
+            ]);
+
+            $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
+            $unlocked[(string)$newLevel] = $code; // Als String speichern!
+
+            $profile->unlocked_coupons = $unlocked;
+            $profile->save();
+
+            return $rewardConfig['name'] . ' freigeschaltet!';
+        }
+
+        return null;
+    }
+
+    public function syncUnlockedRewards(CustomerGamification $profile): void
+    {
+        $rewards = GameConfig::getLevelRewards();
+        $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
+        $changed = false;
+
+        for ($i = 1; $i <= $profile->level; $i++) {
+            // Prüfen ob es für dieses Level eine Belohnung gibt und ob sie fehlt
+            if (isset($rewards[$i]) && !isset($unlocked[(string)$i]) && !isset($unlocked[$i])) {
+                $rewardConfig = $rewards[$i];
+                $code = 'FUNKI-L' . $i . '-' . strtoupper(Str::random(5));
+                $email = $profile->customer ? $profile->customer->email : 'System';
+
+                FunkiVoucher::create([
+                    'title'           => 'Nachgereicht: Level ' . $i . ' Belohnung (' . $email . ')',
+                    'code'            => $code,
+                    'type'            => 'percent',
+                    'value'           => $rewardConfig['value'],
+                    'usage_limit'     => 1,
+                    'is_active'       => true,
+                    'valid_from'      => now(),
+                    'mode'            => 'manual',
+                ]);
+
+                $unlocked[(string)$i] = $code;
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $profile->unlocked_coupons = $unlocked;
+            $profile->save();
+        }
+    }
+
     public function addFunken(Customer $customer, int $amount, string $source = 'purchase'): void
     {
         $profile = $this->getProfile($customer);
@@ -79,14 +122,10 @@ class GamificationService
             if ($profile->last_spark_collection_date && !$profile->last_spark_collection_date->isToday()) {
                 $profile->sparks_collected_today = 0;
             }
+            if ($profile->sparks_collected_today >= GameConfig::DAILY_SPARK_LIMIT) return;
 
-            if ($profile->sparks_collected_today >= GameConfig::DAILY_SPARK_LIMIT) {
-                return; // Tageslimit erreicht
-            }
             $profile->sparks_collected_today += 1;
             $profile->last_spark_collection_date = now();
-
-            // Sammler-Titel pushen
             $this->incrementTitleProgress($profile, 'sammler');
         }
 
@@ -95,67 +134,72 @@ class GamificationService
         $profile->save();
     }
 
-    /**
-     * Prüft, ob ein neues Level eine Belohnung freigeschaltet hat
-     */
-    private function checkAndIssueReward(Customer $customer, int $newLevel): ?string
-    {
-        $rewards = GameConfig::getLevelRewards();
-
-        if (array_key_exists($newLevel, $rewards)) {
-            $rewardConfig = $rewards[$newLevel];
-
-            // Echten Gutschein in der Datenbank anlegen
-            $code = 'FUNKI-' . $newLevel . '-' . strtoupper(Str::random(6));
-
-            // Dummy: Hier würdest du dein echtes Gutschein-Model aufrufen
-            // FunkiVoucher::create([...])
-
-            return $rewardConfig['name'] . ' freigeschaltet! (Code: ' . $code . ')';
-        }
-
-        return null;
-    }
-
-    /**
-     * Holt das aktuell anzuzeigende 3D-Modell basierend auf dem Level
-     */
     public function getCurrentModelPath(int $level): string
     {
         $milestones = GameConfig::getAppearanceMilestones();
-        $currentModel = 'funki_lvl_1_rags'; // Fallback
-
+        $currentModel = 'funki_lvl_1_rags';
         foreach ($milestones as $milestoneLevel => $modelName) {
-            if ($level >= $milestoneLevel) {
-                $currentModel = $modelName;
-            } else {
-                break;
-            }
+            if ($level >= $milestoneLevel) $currentModel = $modelName;
+            else break;
         }
-
-        // Rückgabe des öffentlichen Pfads zum GLB Modell
         return asset('storage/funki/models/' . $currentModel . '.glb');
     }
 
-    // --- TITEL LOGIK ---
-
     public function incrementTitleProgress(CustomerGamification $profile, string $titleId, int $amount = 1): void
     {
-        $progress = $profile->titles_progress ?? $this->getInitialTitlesProgress();
-        if (isset($progress[$titleId])) {
-            $progress[$titleId] += $amount;
-            $profile->titles_progress = $progress;
-            $profile->save();
-        }
+        $progress = $profile->titles_progress;
+        if (!is_array($progress) || empty($progress)) $progress = $this->getInitialTitlesProgress();
+        if (!array_key_exists($titleId, $progress)) $progress[$titleId] = 0;
+
+        $progress[$titleId] += $amount;
+        $profile->update(['titles_progress' => $progress]);
+    }
+
+    public function syncDynamicTitles(CustomerGamification $profile): void
+    {
+        $customer = $profile->customer;
+        if (!$customer) return;
+
+        $progress = $profile->titles_progress;
+        if (!is_array($progress)) $progress = $this->getInitialTitlesProgress();
+
+        // REVIEWS
+        $reviews = ProductReview::where('customer_id', $customer->id)->where('status', 'approved')->get();
+        $progress['botschafter'] = $reviews->count();
+        $progress['treuer_bewerter'] = $reviews->where('rating', 5)->count();
+        $progress['bildreporter'] = $reviews->filter(fn($r) => !empty($r->media))->count();
+        $progress['wortgewandt'] = $reviews->filter(fn($r) => strlen($r->content ?? '') >= 100)->count();
+
+        // ORDERS
+        $orders = Order::where('customer_id', $customer->id)->where('payment_status', 'paid')->with('items.product')->get();
+        $progress['schatzhueter'] = $orders->count();
+        $progress['massenkaeufer'] = $orders->flatMap(fn($o) => $o->items)->sum('quantity');
+
+        $progress['freudebringer'] = $orders->filter(function ($order) {
+            if (isset($order->is_different_shipping_address) && $order->is_different_shipping_address) return true;
+            return ($order->shipping_address_id ?? null) && ($order->billing_address_id ?? null) && ($order->shipping_address_id !== $order->billing_address_id);
+        })->count();
+
+        $progress['entdecker'] = $orders->flatMap(fn($o) => $o->items->map(fn($i) => $i->product->category_id ?? null))->filter()->unique()->count();
+        $progress['nachtschwaermer'] = $orders->filter(fn($o) => $o->created_at->hour >= 22 || $o->created_at->hour <= 4)->count();
+        $progress['wochenend_shopper'] = $orders->filter(fn($o) => $o->created_at->isWeekend())->count();
+        $progress['wiederholungstaeter'] = $orders->map(fn($o) => $o->created_at->format('Y-m'))->unique()->count();
+
+        // PROFIL
+        $progress['treue_seele'] = max(0, $customer->created_at ? $customer->created_at->diffInDays(now()) : 0);
+        $progress['funkenkoenig'] = $profile->funken_total_earned ?? 0;
+
+        $profile->update(['titles_progress' => $progress]);
     }
 
     public function evaluateTitles(CustomerGamification $profile): array
     {
-        $configs = GameConfig::getTitles();
-        $progress = $profile->titles_progress ?? $this->getInitialTitlesProgress();
-        $evaluated = [];
+        $this->syncDynamicTitles($profile);
+        $progress = $profile->fresh()->titles_progress ?? $this->getInitialTitlesProgress();
 
-        $allDiamond = true;
+        $configs = GameConfig::getTitles();
+        $evaluated = [];
+        $diamondsCount = 0;
 
         foreach ($configs as $key => $config) {
             $currentValue = $progress[$key] ?? 0;
@@ -163,23 +207,21 @@ class GamificationService
             $nextReq = $config['tiers']['silber']['req'];
             $maxReq = $config['tiers']['diamant']['req'];
 
-            if ($currentValue >= $config['tiers']['diamant']['req']) {
+            if ($currentValue >= $maxReq) {
                 $currentTier = 'diamant';
                 $nextReq = $maxReq;
+                $diamondsCount++;
             } elseif ($currentValue >= $config['tiers']['gold']['req']) {
                 $currentTier = 'gold';
-                $nextReq = $config['tiers']['diamant']['req'];
+                $nextReq = $maxReq;
             } elseif ($currentValue >= $config['tiers']['silber']['req']) {
                 $currentTier = 'silber';
                 $nextReq = $config['tiers']['gold']['req'];
-            } else {
-                $allDiamond = false;
             }
 
             $evaluated[$key] = [
                 'name' => $config['name'],
                 'description' => $config['description'],
-                'icon' => $config['icon'],
                 'current_value' => $currentValue,
                 'tier' => $currentTier,
                 'tier_name' => $config['tiers'][$currentTier]['name'],
@@ -189,20 +231,36 @@ class GamificationService
             ];
         }
 
+        $megaTitles = GameConfig::getMegaTitles();
+        $currentMegaTitle = $megaTitles[0];
+        $currentMegaTitle['rank'] = 0;
+        $nextMegaTitle = $megaTitles[1] ?? null;
+
+        foreach ($megaTitles as $index => $mega) {
+            if ($diamondsCount >= $mega['req']) {
+                $currentMegaTitle = $mega;
+                $currentMegaTitle['rank'] = $index;
+                $nextMegaTitle = $megaTitles[$index + 1] ?? null;
+            }
+        }
+
         return [
             'titles' => $evaluated,
-            'is_seelengott' => $allDiamond
+            'diamonds_count' => $diamondsCount,
+            'mega_title' => $currentMegaTitle,
+            'next_mega_title' => $nextMegaTitle,
+            'is_seelengott' => $diamondsCount >= 15
         ];
     }
 
     private function getInitialTitlesProgress(): array
     {
         return [
-            'sammler' => 0,
-            'botschafter' => 0,
-            'freudebringer' => 0,
-            'schatzhueter' => 0,
-            'entdecker' => 0,
+            'spieler' => 0, 'sammler' => 0, 'botschafter' => 0, 'bildreporter' => 0,
+            'wortgewandt' => 0, 'treuer_bewerter' => 0, 'schatzhueter' => 0,
+            'massenkaeufer' => 0, 'entdecker' => 0, 'freudebringer' => 0,
+            'nachtschwaermer' => 0, 'wochenend_shopper' => 0, 'treue_seele' => 0,
+            'wiederholungstaeter' => 0, 'funkenkoenig' => 0
         ];
     }
 }

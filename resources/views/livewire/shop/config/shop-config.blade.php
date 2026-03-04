@@ -394,26 +394,62 @@
                             </div>
                         </div>
 
-                        {{-- IBAN Box (High Highlight) --}}
+                        {{-- Bankverbindung Box (High Highlight) --}}
                         <div class="md:col-span-2 bg-primary/5 p-6 sm:p-8 rounded-[2rem] border border-primary/20 mt-6 shadow-inner relative z-10 group">
 
-                            {{-- Glanz-Effekt: Hier nutzen wir overflow-hidden auf einer separaten Ebene, damit der Rest nicht beschnitten wird --}}
+                            {{-- Glanz-Effekt --}}
                             <div class="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
                                 <div class="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
                             </div>
 
-                            {{-- Content Wrapper: Durch 'relative z-20' darf der Tooltip jetzt über die Box hinausragen --}}
                             <div class="relative z-20">
-                                <div class="flex items-center gap-2 mb-4 ml-1">
-                                    <label class="text-[10px] font-black text-primary uppercase tracking-[0.2em] drop-shadow-[0_0_8px_currentColor]">Bankverbindung (IBAN)</label>
-                                    @include('components.alerts.info-tooltip', ['key' => 'owner_iban'])
-                                </div>
-                                <input type="text" wire:model="settings.owner_iban"
-                                       class="w-full rounded-xl bg-gray-950/80 border border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20 py-4 px-6 font-mono tracking-[0.2em] text-lg sm:text-xl text-primary shadow-inner outline-none text-center"
-                                       placeholder="DE00 0000 0000 0000 0000 00">
-                                <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 mt-4 text-center">Hinweis: Diese IBAN wird auf Rechnungen für Vorkasse-Zahlungen angezeigt.</p>
-                            </div>
+                                <h4 class="text-sm font-black text-primary uppercase tracking-widest mb-6 flex items-center gap-3 drop-shadow-[0_0_8px_currentColor]">
+                                    <span class="p-2 rounded-lg bg-primary/10 border border-primary/20 shadow-inner">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
+                                    </span>
+                                    Bankverbindung
+                                </h4>
 
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-2 ml-1">
+                                            <label class="{{ $labelClass }} !mb-0 !ml-0 text-primary/80">Name der Bank</label>
+                                            @include('components.alerts.info-tooltip', ['key' => 'owner_bank_name'])
+                                        </div>
+                                        <input type="text" wire:model="settings.owner_bank_name" class="{{ $inputClass }} border-primary/30 focus:border-primary" placeholder="z.B. Volksbank">
+                                    </div>
+
+                                    <div>
+                                        <div class="flex items-center gap-2 mb-2 ml-1">
+                                            <label class="{{ $labelClass }} !mb-0 !ml-0 text-primary/80">BIC / SWIFT</label>
+                                            @include('components.alerts.info-tooltip', ['key' => 'owner_bic'])
+                                        </div>
+                                        <input type="text" wire:model="settings.owner_bic" class="{{ $inputClass }} border-primary/30 focus:border-primary font-mono uppercase" placeholder="GENODE...">
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <div class="flex items-center gap-2 mb-2 ml-1">
+                                            <label class="text-[10px] font-black text-primary uppercase tracking-[0.2em] drop-shadow-[0_0_8px_currentColor]">IBAN</label>
+                                            @include('components.alerts.info-tooltip', ['key' => 'owner_iban'])
+                                        </div>
+                                        <input type="text" wire:model="settings.owner_iban"
+                                               class="w-full rounded-xl bg-gray-950/80 border border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20 py-4 px-6 font-mono tracking-[0.2em] text-lg sm:text-xl text-primary shadow-inner outline-none text-center uppercase"
+                                               placeholder="DE00 0000 0000 0000 0000 00">
+                                    </div>
+
+                                    <div class="md:col-span-2">
+                                        <div class="flex items-center gap-2 mb-2 ml-1">
+                                            <label class="{{ $labelClass }} !mb-0 !ml-0 text-primary/80">Adresse der Bank (Optional)</label>
+                                            @include('components.alerts.info-tooltip', ['key' => 'owner_bank_address'])
+                                        </div>
+                                        <input type="text" wire:model="settings.owner_bank_address" class="{{ $inputClass }} border-primary/30 focus:border-primary" placeholder="Straße, PLZ Ort">
+                                    </div>
+                                </div>
+
+                                <div class="pt-4 border-t border-primary/10">
+                                    <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 text-center">Hinweis: Diese Daten werden auf Rechnungen für Vorkasse-Zahlungen angezeigt.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

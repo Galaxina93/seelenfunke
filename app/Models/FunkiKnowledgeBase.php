@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class KnowledgeBase extends Model
+class FunkiKnowledgeBase extends Model
 {
     protected $fillable = [
         'title',

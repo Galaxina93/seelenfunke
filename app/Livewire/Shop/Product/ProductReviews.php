@@ -7,6 +7,7 @@ use App\Models\Order\Order;
 use App\Models\Product\Product;
 use App\Models\Product\ProductReview;
 use App\Models\Session;
+use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Facades\Image;
@@ -26,15 +27,12 @@ class ProductReviews extends Component
     public $isEditing = false;
     public $userReviewId = null;
 
-    // Filter Eigenschaft für Sterne
     public $filterRating = null;
 
-    // Medien Upload Eigenschaften
     public $newMedia = [];
     public $accumulatedMedia = [];
     public $existingMedia = [];
 
-    // Inline Login Eigenschaften
     public $loginEmail = '';
     public $loginPassword = '';
     public $loginRemember = false;
@@ -62,9 +60,9 @@ class ProductReviews extends Component
     public function filterByRating($rating)
     {
         if ($this->filterRating === $rating) {
-            $this->filterRating = null; // Filter deaktivieren beim erneuten Klick
+            $this->filterRating = null;
         } else {
-            $this->filterRating = $rating; // Filter aktivieren
+            $this->filterRating = $rating;
         }
         $this->resetPage();
     }
@@ -220,22 +218,26 @@ class ProductReviews extends Component
 
     public function deleteReview()
     {
-        if ($this->userReviewId) {
-            $review = ProductReview::where('id', $this->userReviewId)
-                ->where('customer_id', Auth::guard('customer')->id())
-                ->first();
+        $review = ProductReview::where('product_id', $this->product->id)
+            ->where('customer_id', Auth::guard('customer')->id())
+            ->first();
 
-            if ($review) {
-                if (!empty($review->media)) {
-                    foreach ($review->media as $media) {
+        if ($review) {
+            if (!empty($review->media)) {
+                foreach ($review->media as $media) {
+                    if(Storage::disk('public')->exists($media)) {
                         Storage::disk('public')->delete($media);
                     }
                 }
-                $review->delete();
-                session()->flash('success', 'Deine Bewertung wurde gelöscht.');
-                $this->cancelEdit();
-                $this->dispatch('review-added');
             }
+
+            $review->delete();
+
+            $this->cancelEdit();
+            session()->flash('success', 'Deine Bewertung wurde erfolgreich gelöscht.');
+            $this->dispatch('review-added');
+        } else {
+            session()->flash('error', 'Bewertung konnte nicht gefunden werden.');
         }
     }
 
@@ -245,6 +247,7 @@ class ProductReviews extends Component
         $this->rating = 5;
     }
 
+    // Keine Parameter in der Funktion = keine Livewire Inject-Abstürze
     public function submitReview()
     {
         $this->validate();
@@ -341,6 +344,14 @@ class ProductReviews extends Component
                 'status' => $targetStatus,
             ]);
 
+            // TITEL UPDATE: Sicher über den Laravel Service Container auflösen
+            $user = Customer::find($customerId);
+            if ($user) {
+                $gameService = app(GamificationService::class);
+                $profile = $gameService->getProfile($user);
+                $gameService->incrementTitleProgress($profile, 'botschafter', 1);
+            }
+
             $this->reset(['rating', 'title', 'content', 'accumulatedMedia', 'existingMedia', 'newMedia']);
             $this->rating = 5;
 
@@ -376,7 +387,6 @@ class ProductReviews extends Component
                 })->exists();
         }
 
-        // --- BERECHNUNG DER BEWERTUNGSVERTEILUNG (Amazon-Style) ---
         $allApproved = ProductReview::where('product_id', $this->product->id)
             ->where('status', 'approved')
             ->get();
@@ -401,7 +411,6 @@ class ProductReviews extends Component
             }
         }
 
-        // --- FILTER-LOGIK FÜR DIE LISTE ---
         $query = ProductReview::where('product_id', $this->product->id)
             ->where('status', 'approved');
 
@@ -418,7 +427,7 @@ class ProductReviews extends Component
         return view('livewire.shop.product.product-reviews', [
             'reviews' => $reviews,
             'averageRating' => $this->product->average_rating,
-            'totalReviews' => $this->product->review_count, // Overall un-filtered count for header
+            'totalReviews' => $this->product->review_count,
             'breakdown' => $breakdown,
             'hasReviewed' => $hasReviewed,
             'userReview' => $userReview,

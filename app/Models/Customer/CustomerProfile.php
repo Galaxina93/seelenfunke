@@ -13,10 +13,10 @@ class CustomerProfile extends Model
     use HasFactory, HasUuids, softDeletes;
 
     protected $fillable = [
-        'id', 'customer_id', 'is_business', 'birthday', 'photo_path', 'about', 'url',
-        'phone_number', 'street', 'house_number', 'postal', 'city', 'country',
-        'two_factor_is_active', 'two_factor_secret', 'two_factor_recovery_codes',
-        'email_verified_at', 'last_seen'
+        'id', 'customer_id', 'is_business', 'company_name', 'vat_id', 'internal_note',
+        'birthday', 'photo_path', 'about', 'url', 'phone_number', 'street',
+        'house_number', 'postal', 'city', 'country', 'two_factor_is_active',
+        'two_factor_secret', 'two_factor_recovery_codes', 'email_verified_at', 'last_seen'
     ];
 
     public $incrementing = false;

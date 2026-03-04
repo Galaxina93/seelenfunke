@@ -27,15 +27,16 @@
                             </p>
                         </div>
 
-                        {{-- Das Bild "Funki" --}}
-                        <div class="relative w-full flex justify-center lg:justify-start py-6">
-                            {{-- Schein hinter dem Bild --}}
-                            <div class="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent blur-3xl rounded-full opacity-30 transform scale-75"></div>
+                        {{-- Das Bild "Funki" (Dynamisch mit Alpine.js) --}}
+                        <div class="relative w-full flex justify-center lg:justify-start py-6" x-data="{ showRose: @entangle('data_protection') }">
+                            {{-- Schein hinter dem Bild ändert sich leicht, wenn die Rose aktiv ist --}}
+                            <div class="absolute inset-0 bg-gradient-to-r blur-3xl rounded-full opacity-30 transform scale-75 transition-colors duration-500"
+                                 :class="showRose ? 'from-pink-500/20 to-transparent' : 'from-primary/20 to-transparent'"></div>
 
-                            <img src="{{ asset('images/projekt/funki/funki.png') }}"
+                            <img :src="showRose ? '{{ asset('images/projekt/funki/funki_rose.png') }}' : '{{ asset('images/projekt/funki/funki_shy.png') }}'"
                                  alt="Funki Maskottchen hilft bei Kontaktanfragen und Beratung"
                                  loading="lazy"
-                                 class="relative z-10 h-48 sm:h-64 object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500 ease-in-out">
+                                 class="relative z-10 h-48 sm:h-64 object-contain drop-shadow-2xl hover:scale-105 transition-all duration-500 ease-in-out">
                         </div>
 
                         {{-- Kontakt Details --}}
@@ -87,11 +88,13 @@
                                     <label for="first_name" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Vorname</label>
                                     <input wire:model="first_name" type="text" id="first_name" autocomplete="given-name" required aria-required="true"
                                            class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                    @error('first_name') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="space-y-2">
                                     <label for="last_name" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Nachname</label>
                                     <input wire:model="last_name" type="text" id="last_name" autocomplete="family-name" required aria-required="true"
                                            class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                    @error('last_name') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                                 </div>
                             </div>
 
@@ -100,6 +103,7 @@
                                 <label for="email" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">E-Mail Adresse</label>
                                 <input wire:model="email" type="email" id="email" required aria-required="true"
                                        class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                @error('email') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="space-y-2">
@@ -108,23 +112,24 @@
                                        class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
                             </div>
 
-                            {{-- Message --}}
-                            <div class="space-y-2">
+                            {{-- Message (Optimiert: Zählt lokal über Alpine.js ohne Server-Anfragen) --}}
+                            <div class="space-y-2" x-data="{ count: 0 }" x-init="count = $refs.msg.value.length">
                                 <div class="flex items-center justify-between ml-1">
                                     <label for="message" class="text-xs font-bold text-gray-400 uppercase tracking-wider">Deine Nachricht</label>
-                                    <span class="text-xs text-gray-500">{{ strlen($message ?? '') }}/500</span>
+                                    <span class="text-xs text-gray-500"><span x-text="count"></span>/500</span>
                                 </div>
-                                <textarea wire:model="message" id="message" rows="5" maxlength="500" required aria-required="true"
+                                <textarea wire:model="message" x-ref="msg" x-on:input="count = $refs.msg.value.length" id="message" rows="5" maxlength="500" required aria-required="true"
                                           class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none resize-none"></textarea>
+                                @error('message') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                             </div>
 
                             {{-- Checkbox --}}
                             <div class="flex items-start gap-3 pt-2">
                                 <div class="flex items-center h-5">
-                                    <input wire:model="data_protection" type="checkbox" id="checkbox-2" required aria-required="true"
-                                           class="w-5 h-5 rounded border-gray-600 bg-gray-800 text-primary focus:ring-primary focus:ring-offset-gray-900">
+                                    <input wire:model.live="data_protection" type="checkbox" id="checkbox-2" required aria-required="true"
+                                           class="w-5 h-5 rounded border-gray-600 bg-gray-800 text-primary focus:ring-primary focus:ring-offset-gray-900 cursor-pointer">
                                 </div>
-                                <label for="checkbox-2" class="text-sm text-gray-400 leading-relaxed">
+                                <label for="checkbox-2" class="text-sm text-gray-400 leading-relaxed cursor-pointer">
                                     Ich habe die <a href="/datenschutz" target="_blank" title="Datenschutzerklärung lesen" class="text-primary hover:text-white transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzbestimmungen</a> gelesen und erkenne diese ausdrücklich an.
                                 </label>
                             </div>
@@ -132,25 +137,24 @@
                             {{-- Button Area --}}
                             <div class="pt-6">
                                 <button type="submit"
-                                        @if($data_protection != 1) disabled @endif
-                                        class="w-full flex justify-center items-center py-4 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 transform hover:-translate-y-1 shadow-lg
-                                        {{ $data_protection == 1
-                                            ? 'bg-primary text-black hover:bg-white hover:shadow-primary/50 cursor-pointer'
+                                        @if(!$data_protection) disabled @endif
+                                        class="w-full flex justify-center items-center gap-2 py-4 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all duration-300 transform shadow-lg
+                                        {{ $data_protection
+                                            ? 'bg-primary text-black hover:bg-white hover:shadow-[0_0_20px_rgba(197,160,89,0.4)] cursor-pointer hover:-translate-y-1'
                                             : 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50' }}">
 
-                                    <span wire:loading.remove>Nachricht absenden</span>
-                                    <span wire:loading class="flex items-center gap-2">
-                                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                                        </svg>
-                                        Sende...
-                                    </span>
+                                    <svg wire:loading wire:target="sending" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                    </svg>
+
+                                    <span wire:loading.remove wire:target="sending">Nachricht absenden</span>
+                                    <span wire:loading wire:target="sending">Wird gesendet...</span>
                                 </button>
                             </div>
 
                             @if (session()->has('message'))
-                                <div class="mt-4 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center">
+                                <div class="mt-4 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center animate-fade-in-up">
                                     <p class="text-green-400 font-medium flex items-center justify-center gap-2">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                         {{ session('message') }}

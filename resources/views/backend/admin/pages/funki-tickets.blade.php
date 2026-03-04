@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('admin.knowledge-base')
+        @livewire('admin.funki-ticket-system-component')
 
     @endsection
 

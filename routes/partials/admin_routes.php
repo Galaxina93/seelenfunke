@@ -26,10 +26,14 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki-company-map', function () {
         return view('backend.admin.pages.funki-company-map');
     })->name('admin.funki-company-map');
+    Route::get('/admin/funki-tickets', function () {
+        return view('backend.admin.pages.funki-tickets');
+    })->name('admin.funki-tickets');
+    Route::get('/admin/funki-knowledge_base', function () {
+        return view('backend.admin.pages.funki-knowledge-base');
+    })->name('admin.funki-knowledge_base');
 
-    Route::get('/admin/knowledge_base', function () {
-        return view('backend.admin.pages.knowledge-base');
-    })->name('admin.knowledge_base');
+
 
     // Benutzerverwaltung
     Route::get('/admin/user-management', function () {

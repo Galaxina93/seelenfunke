@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.voucher.voucher')
+        @livewire('admin.funki-knowledge-base')
 
     @endsection
 

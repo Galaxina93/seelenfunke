@@ -2,6 +2,7 @@ FROM php:8.4-apache
 
 # Installiere den nötigen MySQL-Treiber für Laravel
 RUN docker-php-ext-install pdo pdo_mysql
+RUN docker-php-ext-install pcntl
 
 # Aktiviere mod_rewrite für die Laravel-Routen
 RUN a2enmod rewrite

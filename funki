@@ -11,13 +11,13 @@ case "$1" in
         echo -e "  \033[1;32m🗄️ migrate\033[0m       Führt Laravel Migrationen und Datenbank-Seeder aus."
         echo -e "  \033[1;32m🔑 key\033[0m           Generiert einen neuen Laravel Application Key."
         echo -e "  \033[1;32m🗂️ storage\033[0m       Repariert und erneuert den öffentlichen Storage-Link restlos."
-        echo -e "  \033[1;32m📦 export\033[0m        Exportiert deine Projektdateien."
+        echo -e "  \033[1;32m📦 export\033[0m        Exportiert Projektdateien (z.B. 'funki export ticket' oder 'funki export search=ticket')."
         echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle mit deinen lokalen User-Rechten aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
-        echo -e "💡 \033[1;33mBeispiel:\033[0m funki uploadlimit 250M\n"
+        echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket --short\n"
         ;;
     start)
         echo "🚀 Starte Funki..."
@@ -51,8 +51,22 @@ case "$1" in
         echo "✅ Storage-Link erfolgreich erneuert!"
         ;;
     export)
+        shift
+        ARGS=()
+        for arg in "$@"; do
+            if [[ "$arg" == search=* ]]; then
+                # Wandelt search="ticket" in --search="ticket" um
+                ARGS+=("--search=${arg#search=}")
+            elif [[ "$arg" != -* ]]; then
+                # Erlaubt die Abkürzung: funki export ticket
+                ARGS+=("--search=$arg")
+            else
+                # Lässt Flags wie --short unangetastet
+                ARGS+=("$arg")
+            fi
+        done
         echo "📦 Exportiere Projektdateien..."
-        docker compose exec web php artisan project:export
+        docker compose exec web php artisan project:export "${ARGS[@]}"
         ;;
     uploadlimit)
         # Nimmt den 2. Parameter (z.B. 100M). Falls keiner angegeben wurde, ist 100M der Standard.

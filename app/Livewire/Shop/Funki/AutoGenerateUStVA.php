@@ -357,7 +357,7 @@ class AutoGenerateUStVA extends Component
         $this->addLog('success', "Datenannahme bestätigt. Transferticket: {$ticketId}");
         $this->addLog('success', "Validierung durch Finanzamt: FEHLERFREI. (Kennzahl 83: {$data['zahllast']} EUR)");
 
-        session()->flash('success', "Test-Übermittlung an ELSTER erfolgreich abgeschlossen (Ticket: {$ticketId}).");
+        session()->flash('success', "Test-Übermittlung an ELSTER erfolgreich abgeschlossen (FunkiTicket: {$ticketId}).");
     }
 
     private function generateElsterXML($data)

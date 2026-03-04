@@ -2,10 +2,10 @@
 
 namespace App\Livewire\Admin;
 
-use App\Models\KnowledgeBase as KB;
+use App\Models\FunkiKnowledgeBase as KB;
 use Livewire\Component;
 
-class KnowledgeBase extends Component
+class FunkiKnowledgeBase extends Component
 {
     public $search = '';
     public $selectedCategory = '';
@@ -64,7 +64,7 @@ class KnowledgeBase extends Component
 
         $activeArticle = $this->activeArticleId ? KB::find($this->activeArticleId) : null;
 
-        return view('livewire.admin.knowledge-base', [
+        return view('livewire.admin.funki-knowledge-base', [
             'categories' => $categories,
             'articles' => $articles,
             'activeArticle' => $activeArticle,

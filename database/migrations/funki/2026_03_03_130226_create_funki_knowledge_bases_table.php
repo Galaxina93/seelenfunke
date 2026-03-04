@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('knowledge_bases', function (Blueprint $table) {
+        Schema::create('funki_knowledge_bases', function (Blueprint $table) {
             $table->id();
             $table->string('title');
             $table->string('slug')->unique();
@@ -22,6 +22,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('knowledge_bases');
+        Schema::dropIfExists('funki_knowledge_bases');
     }
 };

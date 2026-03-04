@@ -21,13 +21,16 @@
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="sparkles" />
                     <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="arrow-path" />
-                    <x-forms.list-item route="/admin/funki-todos" title="Todos" pageName="funki-todos" icon="check-circle" />
+                    <x-forms.list-item route="/admin/funki-todos" title="Aufgaben" pageName="funki-todos" icon="check-circle" />
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
-                    <x-forms.list-item route="/admin/funki-company-map" title="Map" pageName="funki-company-map" icon="map" />
+                    <x-forms.list-item route="/admin/funki-company-map" title="Karte" pageName="funki-company-map" icon="map" />
+                    <x-forms.list-item route="/admin/funki-tickets" title="Ticketsystem" pageName="funki-tickets" icon="ticket" />
+                    <x-forms.list-item route="/admin/funki-knowledge_base" title="Wissensdatenbank" pageName="funki-knowledge_base" icon="book-open" />
                 </ul>
             </li>
 
-            <x-forms.list-item route="/admin/knowledge_base" title="Gehirn" pageName="knowledge_base" icon="book-open" />
+
+
 
         </ul>
     </li>
