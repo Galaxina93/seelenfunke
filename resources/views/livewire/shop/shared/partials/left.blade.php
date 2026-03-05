@@ -243,7 +243,7 @@
 
         {{-- 6. COST SUMMARY --}}
         <div>
-            <x-shop.cost-summary :model="$model" />
+            <x-shop.cost-summary :model="$model" design="dark" />
         </div>
 
         {{-- 7. LÖSCHEN --}}

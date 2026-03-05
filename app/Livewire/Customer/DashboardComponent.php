@@ -3,7 +3,7 @@
 namespace App\Livewire\Customer;
 
 use App\Models\Customer\CustomerGamification;
-use App\Models\Funki\FunkiVoucher; // WICHTIG: Für die Status-Prüfung
+use App\Models\Voucher; // WICHTIG: Für die Status-Prüfung
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;
@@ -140,7 +140,7 @@ class DashboardComponent extends Component
 
         if (!empty($rawCoupons)) {
             // Alle relevanten Gutscheine auf einmal aus der DB holen um Queries zu sparen
-            $dbVouchers = FunkiVoucher::whereIn('code', array_values($rawCoupons))->get()->keyBy('code');
+            $dbVouchers = Voucher::whereIn('code', array_values($rawCoupons))->get()->keyBy('code');
 
             foreach ($rawCoupons as $lvl => $code) {
                 $dbVoucher = $dbVouchers->get($code);

@@ -150,7 +150,7 @@
                                             @endif
                                         </div>
                                         <div class="bg-gray-900 rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl w-full">
-                                            <livewire:shop.configurator.configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" />
+                                            <livewire:shop.configurator.configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" design="dark" />
                                         </div>
                                     </div>
                                 @endif

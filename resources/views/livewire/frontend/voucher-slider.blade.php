@@ -17,7 +17,10 @@
                     </div>
 
                     <div class="flex items-baseline gap-1 mb-4">
-                        <span class="text-4xl font-serif font-bold text-gray-900">{{ $voucher->value }}</span>
+                        {{-- Logik für die Anzeige des Wertes (Fester Betrag durch 100 teilen, Prozent normal) --}}
+                        <span class="text-4xl font-serif font-bold text-gray-900">
+                            {{ $voucher->type === 'fixed' ? number_format($voucher->value / 100, 2, ',', '.') : $voucher->value }}
+                        </span>
                         <span class="text-xl font-serif font-bold text-primary">{{ $voucher->type === 'percent' ? '%' : '€' }}</span>
                         <span class="text-xs font-bold text-gray-400 uppercase ml-2 tracking-tighter">Rabatt</span>
                     </div>

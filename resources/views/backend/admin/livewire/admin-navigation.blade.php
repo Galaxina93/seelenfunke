@@ -2,9 +2,11 @@
     @php
         $currentPage = basename(request()->path());
         $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender', 'funki-company-map', 'funki-tickets', 'funki-knowledge_base']);
-        $isShopActive = in_array($currentPage, ['products', 'reviews', 'blog', 'product-templates']);
+        // GEFIXED: 'voucher' hinzugefügt
+        $isShopActive = in_array($currentPage, ['products', 'reviews', 'blog', 'product-templates', 'voucher']);
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
-        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-categories-special-editions', 'financial-contracts-groups']);
+        // GEFIXED: 'financial-tax' hinzugefügt
+        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-categories-special-editions', 'financial-contracts-groups', 'financial-tax']);
     @endphp
 
     <li>
@@ -24,7 +26,7 @@
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
                     <x-forms.list-item route="/admin/funki-company-map" title="Karte" pageName="funki-company-map" icon="map" />
 
-                    {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt (Greift auf den globalen State in backend_layout zu) --}}
+                    {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt --}}
                     <li>
                         <a href="/admin/funki-tickets" @click="hasUnreadSupport = false" class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $currentPage === 'funki-tickets' ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
                             <div class="relative">
@@ -58,6 +60,7 @@
                     <x-forms.list-item route="/admin/product-templates" title="Vorlagen" pageName="product-templates" icon="clipboard-document-list" />
                     <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="star" />
                     <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
+                    <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="gift" />
                 </ul>
             </li>
 
@@ -84,6 +87,7 @@
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
                     <x-forms.list-item route="/admin/financial-categories-special-editions" title="Variable Kosten" pageName="financial-categories-special-editions" icon="rectangle-stack" />
                     <x-forms.list-item route="/admin/financial-contracts-groups" title="Fixkosten" pageName="financial-contracts-groups" icon="document-check" />
+                    <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="chart-bar" />
                 </ul>
             </li>
 

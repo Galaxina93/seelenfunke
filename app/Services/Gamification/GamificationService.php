@@ -2,7 +2,7 @@
 
 namespace App\Services\Gamification;
 
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Order\Order;
@@ -56,7 +56,7 @@ class GamificationService
             $code = 'FUNKI-L' . $newLevel . '-' . strtoupper(Str::random(5));
             $email = $profile->customer ? $profile->customer->email : 'System';
 
-            FunkiVoucher::create([
+            Voucher::create([
                 'title'           => 'Level ' . $newLevel . ' Belohnung (' . $email . ')',
                 'code'            => $code,
                 'type'            => 'percent',
@@ -92,7 +92,7 @@ class GamificationService
                 $code = 'FUNKI-L' . $i . '-' . strtoupper(Str::random(5));
                 $email = $profile->customer ? $profile->customer->email : 'System';
 
-                FunkiVoucher::create([
+                Voucher::create([
                     'title'           => 'Nachgereicht: Level ' . $i . ' Belohnung (' . $email . ')',
                     'code'            => $code,
                     'type'            => 'percent',

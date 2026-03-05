@@ -186,10 +186,10 @@
                 {{-- Aktionen (Games & Ranking) --}}
                 <div class="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 relative z-50 w-full sm:w-auto mt-4 sm:mt-0">
                     <a href="{{ route('customer.games') }}" class="w-full sm:w-auto px-6 py-4 sm:px-8 bg-emerald-500 text-gray-900 rounded-xl font-black text-xs sm:text-sm hover:bg-emerald-400 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:-translate-y-1 flex items-center justify-center gap-2">
-                        <span class="text-lg sm:text-xl">🎮</span> Arcade betreten
+                        <span class="text-lg sm:text-xl">🎮</span> Jetzt spielen
                     </a>
                     <a href="{{ route('customer.ranking') }}" class="w-full sm:w-auto px-6 py-4 sm:px-8 bg-gray-800 border border-amber-500/30 text-amber-400 rounded-xl font-black text-xs sm:text-sm hover:bg-amber-400 hover:text-gray-900 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(251,191,36,0.15)] hover:-translate-y-1 flex items-center justify-center gap-2">
-                        <span class="text-lg sm:text-xl">🏆</span> Halle der Legenden
+                        <span class="text-lg sm:text-xl">🏆</span> Rangliste
                     </a>
                 </div>
 

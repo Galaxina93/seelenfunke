@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Funki;
 
 use App\Models\Funki\FunkiNewsletter;
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use App\Models\NewsletterSubscriber;
 use App\Services\FunkiBotService;
 use Carbon\Carbon;
@@ -128,8 +128,8 @@ class FunkiBot extends Component
         return [
             'subscribers'       => \App\Models\NewsletterSubscriber::count(), // Passe den Namespace ggf. an
             'active_newsletter' => \App\Models\Funki\FunkiNewsletter::where('is_active', true)->count(), // Passe den Namespace ggf. an
-            'active_vouchers'   => \App\Models\Funki\FunkiVoucher::where('is_active', true)->where('mode', 'auto')->count(), // Passe den Namespace ggf. an
-            'manual_coupons'    => \App\Models\Funki\FunkiVoucher::where('is_active', true)->where('mode', 'manual')->count(), // Passe den Namespace ggf. an
+            'active_vouchers'   => \App\Models\Voucher::where('is_active', true)->where('mode', 'auto')->count(), // Passe den Namespace ggf. an
+            'manual_coupons'    => \App\Models\Voucher::where('is_active', true)->where('mode', 'manual')->count(), // Passe den Namespace ggf. an
 
             // Die neuen Abandoned Carts Werte für das Dashboard
             'abandoned_carts'   => [
@@ -246,7 +246,7 @@ class FunkiBot extends Component
 
     public function toggleVoucherStatus($id)
     {
-        $v = FunkiVoucher::find($id);
+        $v = Voucher::find($id);
         if ($v) {
             $v->is_active = !$v->is_active;
             $v->save();
@@ -260,7 +260,7 @@ class FunkiBot extends Component
         $this->cancelEdit();
         $this->cancelManualCoupon();
 
-        $v = FunkiVoucher::where('mode', 'auto')->findOrFail($id);
+        $v = Voucher::where('mode', 'auto')->findOrFail($id);
         $this->editingVoucherId = $v->id;
         $this->edit_voucher_title = $v->title;
         $this->edit_voucher_code = $v->code;
@@ -288,7 +288,7 @@ class FunkiBot extends Component
         $dbValue = ($this->edit_voucher_type === 'fixed') ? (int)($val * 100) : (int)$val;
         $dbMinOrder = $this->edit_voucher_min_order ? (int)($this->edit_voucher_min_order * 100) : null;
 
-        FunkiVoucher::find($this->editingVoucherId)->update([
+        Voucher::find($this->editingVoucherId)->update([
             'title'           => $this->edit_voucher_title,
             'code'            => strtoupper($this->edit_voucher_code),
             'type'            => $this->edit_voucher_type,
@@ -359,7 +359,7 @@ class FunkiBot extends Component
         $this->cancelEditVoucher();
         $this->cancelEdit();
 
-        $v = FunkiVoucher::where('mode', 'manual')->findOrFail($id);
+        $v = Voucher::where('mode', 'manual')->findOrFail($id);
         $this->manualId = $v->id;
         $this->manual_code = $v->code;
         $this->manual_type = $v->type;
@@ -378,7 +378,7 @@ class FunkiBot extends Component
     public function saveManualCoupon()
     {
         $rules = [
-            'manual_code'  => 'required|min:3|unique:funki_vouchers,code,' . $this->manualId,
+            'manual_code'  => 'required|min:3|unique:voucher,code,' . $this->manualId,
             'manual_type'  => 'required|in:fixed,percent',
             'manual_value' => 'required|numeric|min:1',
         ];
@@ -400,7 +400,7 @@ class FunkiBot extends Component
             'valid_from'      => now(),
         ];
 
-        FunkiVoucher::updateOrCreate(['id' => $this->manualId], $data);
+        Voucher::updateOrCreate(['id' => $this->manualId], $data);
 
         session()->flash('success', $this->isEditingManual ? 'Gutschein aktualisiert.' : 'Gutschein erstellt.');
         $this->cancelManualCoupon();
@@ -408,7 +408,7 @@ class FunkiBot extends Component
 
     public function deleteManualCoupon($id)
     {
-        FunkiVoucher::where('mode', 'manual')->findOrFail($id)->delete();
+        Voucher::where('mode', 'manual')->findOrFail($id)->delete();
         session()->flash('success', 'Gutschein gelöscht.');
     }
 
@@ -435,13 +435,13 @@ class FunkiBot extends Component
        ------------------------------------------------------------------------- */
     public function render(FunkiBotService $service)
     {
-        $autoVouchers = FunkiVoucher::where('mode', 'auto')
+        $autoVouchers = Voucher::where('mode', 'auto')
             ->orderBy('valid_from')
             ->get();
 
         $manualCoupons = [];
         if ($this->voucherSectionMode === 'manual') {
-            $manualCoupons = FunkiVoucher::where('mode', 'manual')
+            $manualCoupons = Voucher::where('mode', 'manual')
                 ->latest()
                 ->paginate(10);
         }

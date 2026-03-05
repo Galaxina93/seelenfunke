@@ -199,17 +199,48 @@ class FunkiAnalytics extends Component
             $health['scheduler'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Cache nicht lesbar.'];
         }
 
-        // 8. NEU: Backup Check (Alter des letzten Backups)
+        // 8. NEU: Backup Check (Zuverlässig direkt über das Dateisystem)
         try {
-            $lastBackup = \Illuminate\Support\Facades\Cache::get('backup_last_run');
-            if ($lastBackup && now()->diffInHours($lastBackup) < 48) {
-                $health['backup'] = ['status' => 'connected', 'value' => "Sicher (" . now()->diffInHours($lastBackup) . "h)", 'error' => null];
+            $diskName = config('backup.backup.destination.disks.0', 'local');
+            // Holt exakt den Namen, den du gerade in der Config gebaut hast
+            $backupName = config('backup.backup.name', config('app.name') . '-db-backup');
+
+            $disk = \Illuminate\Support\Facades\Storage::disk($diskName);
+            $lastRun = null;
+            $pathInfo = "storage/app/" . $backupName; // Für das Tooltip
+
+            if ($disk->exists($backupName)) {
+                $files = $disk->files($backupName);
+                $latestTime = 0;
+
+                // Suche die neueste ZIP-Datei in diesem Ordner
+                foreach ($files as $file) {
+                    if (str_ends_with(strtolower($file), '.zip')) {
+                        $time = $disk->lastModified($file);
+                        if ($time > $latestTime) {
+                            $latestTime = $time;
+                        }
+                    }
+                }
+
+                if ($latestTime > 0) {
+                    $lastRun = \Carbon\Carbon::createFromTimestamp($latestTime);
+                }
+            }
+
+            if ($lastRun) {
+                $hoursAgo = now()->diffInHours($lastRun);
+                if ($hoursAgo < 48) {
+                    $health['backup'] = ['status' => 'connected', 'value' => "Sicher ({$hoursAgo}h)", 'error' => null, 'path' => $pathInfo];
+                } else {
+                    $health['backup'] = ['status' => 'warning', 'value' => "Alt ({$hoursAgo}h)", 'error' => 'Letztes Backup ist älter als 48 Stunden!', 'path' => $pathInfo];
+                    $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!');
+                }
             } else {
-                $health['backup'] = ['status' => 'warning', 'value' => 'Überfällig', 'error' => 'Letztes Backup ist älter als 48 Stunden!'];
-                $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!');
+                $health['backup'] = ['status' => 'warning', 'value' => 'Kein Backup', 'error' => 'Es wurde noch keine ZIP-Datei gefunden!', 'path' => $pathInfo];
             }
         } catch (\Exception $e) {
-            $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler bei Backup-Prüfung.'];
+            $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim Lesen der Festplatte: ' . $e->getMessage(), 'path' => 'Unbekannt'];
         }
 
         $this->systemHealth = $health;

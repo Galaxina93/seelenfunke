@@ -141,7 +141,7 @@
                                                 </div>
                                                 {{-- HIER GEÄNDERT: max-w-[41rem] --}}
                                                 <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm max-w-[41rem] mx-auto w-full">
-                                                    <livewire:shop.configurator.configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" />
+                                                    <livewire:shop.configurator.configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" design="dark" />
                                                 </div>
                                             </div>
                                         @endif
@@ -194,7 +194,7 @@
                         </div>
 
                         <div>
-                            <x-shop.cost-summary :model="$order" />
+                            <x-shop.cost-summary :model="$order" design="dark" />
                         </div>
                     </div>
                 </div>

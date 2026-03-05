@@ -43,22 +43,27 @@ class Handler extends ExceptionHandler
     public function register(): void
     {
         $this->reportable(function (Throwable $e) {
-            // Fange echte System-Fehler ab und schiebe sie direkt ins Funki-Dashboard
-            if (class_exists(FunkiLog::class)) {
-                FunkiLog::create([
-                    'type' => 'system',
-                    'action_id' => 'system:exception',
-                    'title' => 'System-Fehler (Exception)',
-                    'message' => substr($e->getMessage(), 0, 200), // Gekürzt für perfekte Optik in der Kachel
-                    'status' => 'error',
-                    'payload' => [
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                        'code' => $e->getCode()
-                    ],
-                    'started_at' => now(),
-                    'finished_at' => now(),
-                ]);
+            try {
+                // Fange echte System-Fehler ab und schiebe sie direkt ins Funki-Dashboard
+                if (class_exists(FunkiLog::class)) {
+                    FunkiLog::create([
+                        'type' => 'system',
+                        'action_id' => 'system:exception',
+                        'title' => 'System-Fehler (Exception)',
+                        'message' => substr($e->getMessage(), 0, 200),
+                        'status' => 'error',
+                        'payload' => [
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                            'code' => $e->getCode()
+                        ],
+                        'started_at' => now(),
+                        'finished_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $loggingException) {
+                // Wenn das Loggen selbst fehlschlägt (z.B. weil die Datenbank offline ist),
+                // fangen wir das hier stillschweigend ab, damit das System nicht komplett crasht.
             }
         });
     }

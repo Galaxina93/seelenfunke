@@ -16,6 +16,7 @@ use App\Models\Invoice;
 use App\Models\Product\Product;
 use App\Models\Financial\FinanceSpecialIssue;
 use App\Models\Financial\FinanceCostItem;
+use Spatie\Backup\Tasks\Monitor\BackupDestinationStatusFactory;
 
 class FunkiAnalyticsService
 {

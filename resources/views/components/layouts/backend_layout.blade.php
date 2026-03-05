@@ -119,9 +119,14 @@
                             </button>
                         </div>
                         <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/95 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+
+                            {{-- MOBILE LOGO MIT LINK --}}
                             <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
-                                <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
+                                <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
+                                    <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
+                                </a>
                             </div>
+
                             <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
                                 @livewire($guard . '.' . $guard . '-navigation')
                             </div>
@@ -132,9 +137,14 @@
 
             <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
                 <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/80 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+
+                    {{-- DESKTOP LOGO MIT LINK --}}
                     <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
-                        <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 shadow-glow drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
+                        <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
+                            <img class="h-16 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein-Seelenfunke">
+                        </a>
                     </div>
+
                     <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
                         @livewire($guard . '.' . $guard . '-navigation')
                     </div>

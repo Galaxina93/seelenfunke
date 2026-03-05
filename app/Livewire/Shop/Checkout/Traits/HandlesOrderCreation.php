@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Checkout\Traits;
 
 use App\Models\Customer\Customer;
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use App\Models\Order\Order;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
@@ -51,7 +51,7 @@ trait HandlesOrderCreation
 
         // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
         if ($cart->coupon_code) {
-            $coupon = FunkiVoucher::where('code', $cart->coupon_code)->first();
+            $coupon = Voucher::where('code', $cart->coupon_code)->first();
 
             // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
             if (!$coupon || !$coupon->isValid()) {

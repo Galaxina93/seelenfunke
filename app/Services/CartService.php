@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -166,7 +166,7 @@ class CartService
 
     public function applyCoupon(string $code): array
     {
-        $coupon = FunkiVoucher::where('code', $code)->first();
+        $coupon = Voucher::where('code', $code)->first();
 
         if (!$coupon || !$coupon->isValid()) {
             return ['success' => false, 'message' => 'Gutschein ist ungültig oder abgelaufen.'];
@@ -268,7 +268,7 @@ class CartService
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
-            $coupon = FunkiVoucher::where('code', $couponCode)->first();
+            $coupon = Voucher::where('code', $couponCode)->first();
 
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {

@@ -88,6 +88,9 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.financial-contracts-groups');
     })->name('admin.financial-contracts-groups');
 
+    Route::get('/admin/financial-tax', function () {
+        return view('backend.admin.pages.financial-tax');
+    })->name('admin.financial-tax');
 
     Route::get('/admin/configuration', function () {
         return view('backend.admin.pages.configuration');
@@ -96,6 +99,10 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');
     })->name('admin.blog');
+
+    Route::get('/admin/voucher', function () {
+        return view('backend.admin.pages.voucher');
+    })->name('admin.voucher');
 
     Route::get('/admin/orders/laser-file/{itemId}', function ($itemId) {
         $item = OrderItem::findOrFail($itemId);

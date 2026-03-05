@@ -37,6 +37,8 @@ class Configurator extends Component
     public array $fonts = [];
     public array $vectors = [];
 
+    public $design = 'light';
+
     public $alignmentOptions = ['left' => 'Links', 'center' => 'Zentriert', 'right' => 'Rechts'];
 
     public function mount(ConfiguratorService $configService, $product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)

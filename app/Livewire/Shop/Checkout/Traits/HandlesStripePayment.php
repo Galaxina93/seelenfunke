@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Checkout\Traits;
 
 use App\Jobs\ProcessOrderDocumentsAndMails;
 use App\Models\Order\Order;
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use App\Models\Quote\QuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
@@ -95,7 +95,7 @@ trait HandlesStripePayment
             // GUTSCHEIN VERBRAUCHEN (Counter hochzählen)
             if ($order->coupon_code) {
                 // Wir nutzen increment(), das ist atomar und sicher bei gleichzeitigen Zugriffen
-                FunkiVoucher::where('code', $order->coupon_code)->increment('used_count');
+                Voucher::where('code', $order->coupon_code)->increment('used_count');
             }
 
             $this->finalOrderNumber = $order->order_number;

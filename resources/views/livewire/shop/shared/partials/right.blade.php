@@ -23,6 +23,7 @@
                                 :qty="$previewItem->quantity"
                                 context="preview"
                                 :key="'admin-preview-'.$previewItem->id"
+                                design="dark"
                             />
                         </div>
                     @else

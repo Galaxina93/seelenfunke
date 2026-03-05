@@ -7,7 +7,7 @@ use App\Models\Blog\BlogPost;
 use App\Models\Customer\Customer;
 use App\Models\Funki\FunkiLog;
 use App\Models\Funki\FunkiNewsletter;
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use App\Models\Invoice;
 use App\Models\LoginAttempt;
 use App\Models\NewsletterSubscriber;
@@ -631,7 +631,7 @@ class FunkiBotService
 
     public function getVoucherTimeline($year)
     {
-        $automations = FunkiVoucher::where('is_active', true)->get();
+        $automations = Voucher::where('is_active', true)->get();
         $events = [];
         $availableEvents = $this->getAvailableEvents();
 
@@ -662,7 +662,7 @@ class FunkiBotService
         return collect($events)->sortBy('date');
     }
 
-    public function runVoucherAutomation(FunkiVoucher $automation)
+    public function runVoucherAutomation(Voucher $automation)
     {
         if ($automation->isPersonalEvent()) {
             $this->processPersonalVoucherEvent($automation);
@@ -671,7 +671,7 @@ class FunkiBotService
         }
     }
 
-    protected function processGlobalVoucherEvent(FunkiVoucher $automation)
+    protected function processGlobalVoucherEvent(Voucher $automation)
     {
         $year = date('Y');
         $targetDate = $this->getHolidayDate($automation->trigger_event, $year);
@@ -694,7 +694,7 @@ class FunkiBotService
         }
     }
 
-    protected function processPersonalVoucherEvent(FunkiVoucher $automation)
+    protected function processPersonalVoucherEvent(Voucher $automation)
     {
         if ($automation->trigger_event === 'registered_date') {
             $customers = Customer::whereRaw("DATE_FORMAT(created_at, '%m-%d') = ?", [date('m-d')])

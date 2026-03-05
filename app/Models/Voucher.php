@@ -1,15 +1,15 @@
 <?php
-namespace App\Models\Funki;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
-class FunkiVoucher extends Model
+class Voucher extends Model
 {
     use HasFactory;
 
-    protected $table = 'funki_vouchers';
+    protected $table = 'voucher';
     public $incrementing = false;
     protected $keyType = 'string';
 

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Funki\FunkiVoucher;
+use App\Models\Voucher;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 
@@ -35,7 +35,7 @@ class MonthlyVoucherSeeder extends Seeder
             $start = Carbon::create($year, $num, 1)->startOfMonth();
             $end = Carbon::create($year, $num, 1)->endOfMonth();
 
-            FunkiVoucher::updateOrCreate(
+            Voucher::updateOrCreate(
                 [
                     'code' => $data['code'] . '-' . $year,
                     'mode' => 'auto'

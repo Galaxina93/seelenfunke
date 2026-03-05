@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('funki_vouchers', function (Blueprint $table) {
+        Schema::create('voucher', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('title'); // Z.B. "Februar Aktion"
             $table->string('code')->nullable();  // Pattern für Auto
@@ -36,6 +36,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('funki_vouchers');
+        Schema::dropIfExists('voucher');
     }
 };

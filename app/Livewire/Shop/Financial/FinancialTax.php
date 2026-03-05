@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Livewire\Shop\Funki;
+namespace App\Livewire\Shop\Financial;
 
-use Livewire\Component;
-use Carbon\Carbon;
-use App\Models\Order\Order;
-use App\Models\Financial\FinanceSpecialIssue;
 use App\Models\Financial\FinanceGroup;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Order\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
-use ZipArchive;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Component;
+use ZipArchive;
 
-class AutoGenerateUStVA extends Component
+class FinancialTax extends Component
 {
     public $selectedYear;
     public $selectedMonth;
@@ -404,7 +404,7 @@ class AutoGenerateUStVA extends Component
 
         $activeData = $this->getMonthData($this->selectedMonth);
 
-        return view('livewire.shop.funki.auto-generate-u-st-v-a', [
+        return view('livewire.shop.financial.financial-tax', [
             'monthsNav' => $monthsNav,
             'activeData' => $activeData
         ]);

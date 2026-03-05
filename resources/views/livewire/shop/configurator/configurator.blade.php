@@ -1,4 +1,8 @@
-<div class="relative w-full h-full bg-white">
+@php
+    $isDark = ($design ?? 'light') === 'dark';
+@endphp
+
+<div class="relative w-full h-full {{ $isDark ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-900' }}">
     <div class="h-full flex flex-col" x-data="window.frontendConfiguratorData({
         wireModels: {
             texts: $wire.entangle('texts').live,
@@ -53,14 +57,40 @@
 
         <div class="flex-1 custom-scrollbar pb-20">
             @if(!$isDigital)
-                @include('livewire.shop.configurator.partials.preview')
-                @include('livewire.shop.configurator.partials.formluar')
+                @include('livewire.shop.configurator.partials.preview', ['isDark' => $isDark])
+                @include('livewire.shop.configurator.partials.formluar', ['isDark' => $isDark])
             @else
                 {{-- Digitales Produkt Layout --}}
+                <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 relative">
+                    {{-- Glow Background --}}
+                    @if($isDark)
+                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
+                    @endif
+
+                    <div class="relative z-10 w-28 h-28 rounded-full flex items-center justify-center shadow-2xl {{ $isDark ? 'bg-gray-900 border border-primary/30 text-primary shadow-[0_0_30px_rgba(197,160,89,0.2)]' : 'bg-primary/10 border border-primary/20 text-primary' }}">
+                        <x-heroicon-o-cloud-arrow-down class="w-14 h-14" />
+                    </div>
+
+                    <div class="relative z-10 space-y-4">
+                        <h2 class="text-3xl sm:text-4xl font-serif font-bold {{ $isDark ? 'text-white drop-shadow-md' : 'text-gray-900' }}">Digitales Produkt</h2>
+                        <p class="text-sm sm:text-base max-w-lg mx-auto leading-relaxed {{ $isDark ? 'text-gray-400' : 'text-gray-600' }}">
+                            Dieser Artikel ist ein <strong>Sofort-Download</strong>. <br>Nach erfolgreicher Bestellung steht Ihnen die Datei sofort in höchster Qualität zur Verfügung.
+                        </p>
+                    </div>
+
+                    @if($product->description)
+                        <div class="relative z-10 mt-8 p-6 sm:p-8 rounded-[2rem] text-left w-full shadow-inner border {{ $isDark ? 'bg-gray-900/80 backdrop-blur-xl border-gray-800 text-gray-300' : 'bg-gray-50 border-gray-100 text-gray-700' }}">
+                            <h4 class="text-[10px] font-black uppercase tracking-[0.2em] mb-4 {{ $isDark ? 'text-primary' : 'text-gray-500' }}">Beschreibung & Details</h4>
+                            <div class="prose max-w-none text-sm {{ $isDark ? 'prose-invert prose-p:text-gray-400 prose-headings:text-white' : '' }}">
+                                {!! $product->description !!}
+                            </div>
+                        </div>
+                    @endif
+                </div>
             @endif
         </div>
 
-        @include('livewire.shop.configurator.partials.footer')
+        @include('livewire.shop.configurator.partials.footer', ['isDark' => $isDark])
     </div>
 
     @include('livewire.shop.configurator.partials.scripts_frontend_2')
