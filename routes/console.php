@@ -29,3 +29,14 @@ Schedule::command('funki:notify')->everyMinute();
 
 // UStVA Autopilot - Läuft am 5. jeden Monats und generiert den Steuer-Export des Vormonats
 Schedule::command('funki:generate-tax-export')->monthlyOn(5, '02:00');
+
+
+// System-Herzschlag für das Health-Dashboard (jede Minute)
+Schedule::call(function () {
+    Cache::put('scheduler_last_run', now());
+})->everyMinute();
+
+// Dummy für das Backup (Ersetze dies später durch deinen echten Backup-Job)
+Schedule::call(function () {
+    Cache::put('backup_last_run', now());
+})->dailyAt('03:00');

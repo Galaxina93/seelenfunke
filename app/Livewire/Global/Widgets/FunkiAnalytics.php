@@ -113,27 +113,23 @@ class FunkiAnalytics extends Component
                 $freeGb = round($freeSpace / 1024 / 1024 / 1024, 1);
                 $status = $percentFree < 10 ? 'warning' : 'connected';
                 $health['storage'] = ['status' => $status, 'value' => "{$percentFree}% frei ({$freeGb} GB)", 'error' => $status === 'warning' ? 'Wenig Speicherplatz!' : null];
-
-                if ($status === 'warning') {
-                    $this->logSystemFailure('storage', "Kritisch: Nur noch {$percentFree}% ({$freeGb} GB) Speicherplatz auf der Server-Festplatte verfügbar!");
-                }
+                if ($status === 'warning') $this->logSystemFailure('storage', "Kritisch: Nur noch {$percentFree}% ({$freeGb} GB) Speicherplatz auf der Server-Festplatte verfügbar!");
             } else {
                 $health['storage'] = ['status' => 'error', 'value' => 'Unbekannt', 'error' => 'Konnte Speicher nicht auslesen.'];
             }
         } catch (\Exception $e) {
             $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Zugriff auf Dateisystem verweigert.'];
-            $this->logSystemFailure('storage', 'Zugriff auf Dateisystem verweigert oder Festplatte defekt.', ['exception' => $e->getMessage()]);
         }
 
         // 3. Stripe API Check
         try {
             $start = microtime(true);
-            $response = \Illuminate\Support\Facades\Http::timeout(3)->get('https://api.stripe.com/healthcheck');
+            \Illuminate\Support\Facades\Http::timeout(3)->get('https://api.stripe.com/healthcheck');
             $time = round((microtime(true) - $start) * 1000);
             $health['stripe'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
         } catch (\Exception $e) {
             $health['stripe'] = ['status' => 'error', 'value' => 'Timeout', 'error' => 'Stripe API nicht erreichbar. Firewall prüfen!'];
-            $this->logSystemFailure('stripe', 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.', ['exception' => $e->getMessage()]);
+            $this->logSystemFailure('stripe', 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.');
         }
 
         // 4. SMTP Check
@@ -149,14 +145,13 @@ class FunkiAnalytics extends Component
                     $health['smtp'] = ['status' => 'connected', 'value' => "Port offen ({$time}ms)", 'error' => null];
                 } else {
                     $health['smtp'] = ['status' => 'error', 'value' => 'Blockiert', 'error' => "Verbindung abgelehnt ($host:$port)"];
-                    $this->logSystemFailure('smtp', "Mail-Server ($host:$port) hat die Verbindung abgelehnt. Mails können nicht gesendet werden.");
+                    $this->logSystemFailure('smtp', "Mail-Server ($host:$port) hat die Verbindung abgelehnt.");
                 }
             } else {
                 $health['smtp'] = ['status' => 'connected', 'value' => 'Lokales Log aktiv', 'error' => null];
             }
         } catch (\Exception $e) {
             $health['smtp'] = ['status' => 'error', 'value' => 'Konfig-Fehler', 'error' => 'Mail-Konfiguration fehlerhaft.'];
-            $this->logSystemFailure('smtp', 'Fehler in der SMTP-Konfiguration oder Netzwerk-Blockade.', ['exception' => $e->getMessage()]);
         }
 
         // 5. Redis / Cache Check
@@ -174,23 +169,47 @@ class FunkiAnalytics extends Component
             }
         } catch (\Exception $e) {
             $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Cache-Server antwortet nicht.'];
-            $this->logSystemFailure('redis', 'Der Redis-Cache antwortet nicht. Benutzer könnten ausgeloggt werden oder Sessions verlieren.', ['exception' => $e->getMessage()]);
+            $this->logSystemFailure('redis', 'Der Redis-Cache antwortet nicht.');
         }
 
         // 6. Queue Worker Check
         try {
             $pending = \Illuminate\Support\Facades\Queue::size();
             $failed = \Illuminate\Support\Facades\Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0;
-
             if ($failed > 0) {
                 $health['queue'] = ['status' => 'warning', 'value' => "{$pending} wartend", 'error' => "Achtung: {$failed} fehlgeschlagene Jobs!", 'pending' => $pending, 'failed' => $failed];
-                // Wir loggen auch fehlerhafte Queue-Jobs
-                $this->logSystemFailure('queue', "Es gibt {$failed} fehlgeschlagene Hintergrund-Jobs (Queue) im System. Überprüfe die Job-Tabelle.", ['failed_count' => $failed]);
+                $this->logSystemFailure('queue', "Es gibt {$failed} fehlgeschlagene Hintergrund-Jobs.");
             } else {
                 $health['queue'] = ['status' => 'connected', 'value' => "{$pending} wartend", 'error' => null, 'pending' => $pending, 'failed' => $failed];
             }
         } catch (\Exception $e) {
             $health['queue'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Job-Tabelle nicht erreichbar.', 'pending' => 0, 'failed' => 0];
+        }
+
+        // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob)
+        try {
+            $lastRun = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
+            if ($lastRun && now()->diffInMinutes($lastRun) < 10) {
+                $health['scheduler'] = ['status' => 'connected', 'value' => "Aktiv (" . now()->diffInMinutes($lastRun) . "m)", 'error' => null];
+            } else {
+                $health['scheduler'] = ['status' => 'warning', 'value' => 'Inaktiv', 'error' => 'Kein Cronjob in den letzten 10 Minuten gelaufen!'];
+                $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
+            }
+        } catch (\Exception $e) {
+            $health['scheduler'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Cache nicht lesbar.'];
+        }
+
+        // 8. NEU: Backup Check (Alter des letzten Backups)
+        try {
+            $lastBackup = \Illuminate\Support\Facades\Cache::get('backup_last_run');
+            if ($lastBackup && now()->diffInHours($lastBackup) < 48) {
+                $health['backup'] = ['status' => 'connected', 'value' => "Sicher (" . now()->diffInHours($lastBackup) . "h)", 'error' => null];
+            } else {
+                $health['backup'] = ['status' => 'warning', 'value' => 'Überfällig', 'error' => 'Letztes Backup ist älter als 48 Stunden!'];
+                $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!');
+            }
+        } catch (\Exception $e) {
+            $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler bei Backup-Prüfung.'];
         }
 
         $this->systemHealth = $health;

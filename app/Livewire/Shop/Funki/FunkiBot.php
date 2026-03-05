@@ -104,11 +104,38 @@ class FunkiBot extends Component
      */
     public function getStats()
     {
+        // Verlassene Warenkörbe (Abandoned Carts) der letzten 24 Stunden holen.
+        // Wir laden die 'items' Relation direkt mit (Eager Loading), um Performance-Probleme zu vermeiden.
+        $abandonedCarts = \App\Models\Cart\Cart::with('items')
+            ->where('updated_at', '>=', now()->subHours(24))
+            ->where('updated_at', '<=', now()->subHours(2))
+            ->get();
+
+        $potentialRevenueCents = 0;
+
+        // Wir iterieren durch alle verlassenen Warenkörbe und deren Items,
+        // um den potenziellen Umsatz exakt zu berechnen.
+        foreach ($abandonedCarts as $cart) {
+            foreach ($cart->items as $item) {
+                $potentialRevenueCents += ($item->quantity * $item->unit_price);
+            }
+        }
+
+        // Da 'unit_price' als Integer gespeichert ist, gehen wir von Cent aus.
+        // Für die saubere Euro-Darstellung im Frontend teilen wir durch 100.
+        $potentialRevenue = $potentialRevenueCents / 100;
+
         return [
-            'subscribers'       => NewsletterSubscriber::count(),
-            'active_newsletter' => FunkiNewsletter::where('is_active', true)->count(),
-            'active_vouchers'   => FunkiVoucher::where('is_active', true)->where('mode', 'auto')->count(),
-            'manual_coupons'    => FunkiVoucher::where('is_active', true)->where('mode', 'manual')->count(),
+            'subscribers'       => \App\Models\NewsletterSubscriber::count(), // Passe den Namespace ggf. an
+            'active_newsletter' => \App\Models\Funki\FunkiNewsletter::where('is_active', true)->count(), // Passe den Namespace ggf. an
+            'active_vouchers'   => \App\Models\Funki\FunkiVoucher::where('is_active', true)->where('mode', 'auto')->count(), // Passe den Namespace ggf. an
+            'manual_coupons'    => \App\Models\Funki\FunkiVoucher::where('is_active', true)->where('mode', 'manual')->count(), // Passe den Namespace ggf. an
+
+            // Die neuen Abandoned Carts Werte für das Dashboard
+            'abandoned_carts'   => [
+                'count'             => $abandonedCarts->count(),
+                'potential_revenue' => $potentialRevenue,
+            ],
         ];
     }
 

@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use App\Models\Funki\FunkiLog;
 
 class Handler extends ExceptionHandler
 {
@@ -42,7 +43,23 @@ class Handler extends ExceptionHandler
     public function register(): void
     {
         $this->reportable(function (Throwable $e) {
-            //
+            // Fange echte System-Fehler ab und schiebe sie direkt ins Funki-Dashboard
+            if (class_exists(FunkiLog::class)) {
+                FunkiLog::create([
+                    'type' => 'system',
+                    'action_id' => 'system:exception',
+                    'title' => 'System-Fehler (Exception)',
+                    'message' => substr($e->getMessage(), 0, 200), // Gekürzt für perfekte Optik in der Kachel
+                    'status' => 'error',
+                    'payload' => [
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'code' => $e->getCode()
+                    ],
+                    'started_at' => now(),
+                    'finished_at' => now(),
+                ]);
+            }
         });
     }
 }
