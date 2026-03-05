@@ -63,7 +63,8 @@ return [
             ]) : [],
 
             'dump' => [
-                'add_extra_option' => '--skip-ssl',
+                // Holt sich den Befehl aus der .env. Wenn nichts definiert ist, bleibt es leer.
+                'add_extra_option' => env('DB_DUMP_EXTRA_OPTION', ''),
             ],
         ],
 

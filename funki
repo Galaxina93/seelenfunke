@@ -1,8 +1,37 @@
 #!/bin/bash
 
+# ==========================================
+# UMGEBUNGSERKENNUNG (Lokal vs. Stage/Live)
+# ==========================================
+if command -v docker &> /dev/null; then
+    IS_LOCAL=true
+    PREFIX_DEFAULT="docker compose exec web"
+    PREFIX_USER="docker compose exec --user $(id -u):$(id -g) web"
+else
+    IS_LOCAL=false
+    PREFIX_DEFAULT=""
+    PREFIX_USER=""
+fi
+
+# Helper-Funktion: Blockiert Docker-Befehle auf dem Live-Server
+require_local() {
+    if [ "$IS_LOCAL" = false ]; then
+        echo -e "⚠️  \033[1;33mHinweis:\033[0m Der Befehl '\033[1;32m$1\033[0m' steuert die Docker-Container und ist nur auf deinem lokalen Rechner verfügbar."
+        exit 1
+    fi
+}
+
 case "$1" in
     info)
-        echo -e "\n\033[1;34m✨ Funki - Dein treuer Projekt-Assistent ✨\033[0m"
+        echo -e "\n\033[1;34m✨ Funki - Dein intelligenter Projekt-Assistent ✨\033[0m"
+
+        # Zeige an, welche Umgebung erkannt wurde
+        if [ "$IS_LOCAL" = true ]; then
+            echo -e "Status: \033[1;32mLokale Entwicklungsumgebung (Docker erkannt)\033[0m\n"
+        else
+            echo -e "Status: \033[1;36mLive/Stage Server (Direktes PHP erkannt)\033[0m\n"
+        fi
+
         echo -e "Hier ist eine Übersicht aller verfügbaren Befehle:\n"
         echo -e "  \033[1;32m🚀 start\033[0m         Startet alle Docker-Container im Hintergrund."
         echo -e "  \033[1;32m🛑 stop\033[0m          Stoppt alle laufenden Container sanft."
@@ -16,44 +45,57 @@ case "$1" in
         echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
-        echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle mit deinen lokalen User-Rechten aus."
+        echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket --short\n"
         ;;
     start)
+        require_local "start"
         echo "🚀 Starte Funki..."
         docker compose up -d
         ;;
     stop)
+        require_local "stop"
         echo "🛑 Stoppe Funki..."
         docker compose down
         ;;
     restart)
+        require_local "restart"
         echo "🔄 Starte Funki neu..."
         docker compose restart
         ;;
     bauen)
+        require_local "bauen"
         echo "🏗️ Baue Funki neu..."
         docker compose up -d --build
         ;;
     löschen)
+        require_local "löschen"
         echo "💥 Lösche Funki (inkl. Volumes)..."
         docker compose down -v
         ;;
+    uploadlimit)
+        require_local "uploadlimit"
+        LIMIT=${2:-100M}
+        echo "⚙️ Setze PHP Upload-Limit im Container auf $LIMIT..."
+        docker compose exec -u root web bash -c "echo 'upload_max_filesize = $LIMIT' > /usr/local/etc/php/conf.d/99-uploads.ini && echo 'post_max_size = $LIMIT' >> /usr/local/etc/php/conf.d/99-uploads.ini"
+        docker compose restart web
+        echo "✅ Upload-Limit erfolgreich auf $LIMIT gesetzt!"
+        ;;
     migrate)
         echo "🗄️ Führe Migrationen und Seeder aus..."
-        docker compose exec web php artisan migrate:fresh --seed
+        $PREFIX_DEFAULT php artisan migrate:fresh --seed
         ;;
     key)
         echo "🔑 Führe Key Generate aus..."
-        docker compose exec web php artisan key:generate
+        $PREFIX_DEFAULT php artisan key:generate
         ;;
     storage)
         echo "🗂️ Lösche alten Storage-Link restlos..."
-        docker compose exec web rm -rf public/storage
+        $PREFIX_DEFAULT rm -rf public/storage
         echo "🔗 Erstelle neuen Storage-Link..."
-        docker compose exec web php artisan storage:link
+        $PREFIX_DEFAULT php artisan storage:link
         echo "✅ Storage-Link erfolgreich erneuert!"
         ;;
     export)
@@ -61,45 +103,37 @@ case "$1" in
         ARGS=()
         for arg in "$@"; do
             if [[ "$arg" == search=* ]]; then
-                # Wandelt search="ticket" in --search="ticket" um
                 ARGS+=("--search=${arg#search=}")
             elif [[ "$arg" != -* ]]; then
-                # Erlaubt die Abkürzung: funki export ticket
                 ARGS+=("--search=$arg")
             else
-                # Lässt Flags wie --short unangetastet
                 ARGS+=("$arg")
             fi
         done
         echo "📦 Exportiere Projektdateien..."
-        docker compose exec web php artisan project:export "${ARGS[@]}"
-        ;;
-    uploadlimit)
-        # Nimmt den 2. Parameter (z.B. 100M). Falls keiner angegeben wurde, ist 100M der Standard.
-        LIMIT=${2:-100M}
-        echo "⚙️ Setze PHP Upload-Limit im Container auf $LIMIT..."
-        # Führt die Befehle als Root im Web-Container aus
-        docker compose exec -u root web bash -c "echo 'upload_max_filesize = $LIMIT' > /usr/local/etc/php/conf.d/99-uploads.ini && echo 'post_max_size = $LIMIT' >> /usr/local/etc/php/conf.d/99-uploads.ini"
-        echo "🔄 Starte Web-Container neu, damit die Änderungen greifen..."
-        docker compose restart web
-        echo "✅ Upload-Limit erfolgreich auf $LIMIT gesetzt!"
+        $PREFIX_DEFAULT php artisan project:export "${ARGS[@]}"
         ;;
     worker)
         echo "👷 Starte Funki Queue-Worker (lauscht auf Hintergrund-Jobs)..."
-        docker compose exec web php artisan queue:listen
+        $PREFIX_DEFAULT php artisan queue:listen
         ;;
     backup)
         echo "💾 Erstelle sicheres Datenbank-Backup..."
-        docker compose exec web php artisan backup:run --only-db
+        $PREFIX_DEFAULT php artisan backup:run --only-db
         echo "🔧 Repariere Zugriffsrechte für das Dashboard..."
-        # 777 garantiert, dass der Webserver und der Root-User sich auf lokalen Testservern nicht in die Quere kommen
-        docker compose exec -u root web chmod -R 777 storage/
+
+        # Lokal brauchen wir root-Rechte via Docker, Live reichen die Standard-Serverrechte
+        if [ "$IS_LOCAL" = true ]; then
+            docker compose exec -u root web chmod -R 777 storage/
+        else
+            chmod -R 775 storage/
+        fi
+
         echo "✅ Backup erfolgreich abgeschlossen!"
         ;;
     artisan)
         shift
-        # Zwingt Docker, deine lokale Ubuntu-ID anstelle von 'root' zu nutzen
-        docker compose exec --user "$(id -u):$(id -g)" web php artisan "$@"
+        $PREFIX_USER php artisan "$@"
         ;;
     *)
         echo "💥 Funki ist bereit! Nutze 'funki info' für eine Übersicht aller Befehle."
