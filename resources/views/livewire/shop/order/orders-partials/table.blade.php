@@ -107,7 +107,7 @@
                 </td>
 
                 {{-- SPALTE 4: SUMME --}}
-                <td class="px-6 py-5 text-right font-serif font-bold text-primary text-lg align-middle">
+                <td class="px-6 py-5 text-right font-serif font-bold text-primary text-lg align-middle whitespace-nowrap">
                     {{ number_format($order->total_price / 100, 2, ',', '.') }} €
                 </td>
 
