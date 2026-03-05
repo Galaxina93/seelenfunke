@@ -2,32 +2,28 @@
 
 use Illuminate\Support\Facades\Broadcast;
 
-
 // ----------------------------------------------------
-// ADMIN CHANNELS (Wichtig: ['guards' => ['admin']])
+// ADMIN CHANNELS
 // ----------------------------------------------------
 
+// 1. Spezifische Kanäle ZUERST!
+Broadcast::channel('admin.tickets', function ($user) {
+    return true;
+}, ['guards' => ['admin']]);
+
+Broadcast::channel('admin', function ($user) {
+    return true;
+}, ['guards' => ['admin']]);
+
+// 2. Wildcard-Kanäle (mit {id}) GANZ NACH UNTEN!
 Broadcast::channel('admin.{id}', function ($user, $id) {
     return (string) $user->id === (string) $id;
 }, ['guards' => ['admin']]);
 
-// Falls du auch den generischen Admin-Channel nutzt:
-Broadcast::channel('admin', function ($user) {
-    return true; // Der Guard-Check reicht hier als Authentifizierung
-}, ['guards' => ['admin']]);
-
 
 // ----------------------------------------------------
-// CUSTOMER CHANNELS (Wichtig: ['guards' => ['customer']])
+// CUSTOMER CHANNELS
 // ----------------------------------------------------
-Broadcast::routes(['middleware' => ['web', 'auth:customer,admin,web']]);
-
-// Der Kunden-Kanal
 Broadcast::channel('customer.{id}', function ($user, $id) {
     return (string) $user->id === (string) $id;
 }, ['guards' => ['customer']]);
-
-// Der Admin-Kanal
-Broadcast::channel('admin.tickets', function ($user) {
-    return true;
-}, ['guards' => ['admin']]);

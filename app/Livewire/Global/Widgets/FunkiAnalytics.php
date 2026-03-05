@@ -154,22 +154,30 @@ class FunkiAnalytics extends Component
             $health['smtp'] = ['status' => 'error', 'value' => 'Konfig-Fehler', 'error' => 'Mail-Konfiguration fehlerhaft.'];
         }
 
-        // 5. Redis / Cache Check
+        // 5. Redis / Cache Check (Schlau für Lokal vs. Live)
         try {
             $start = microtime(true);
-            if (extension_loaded('redis') || class_exists(\Predis\Client::class)) {
-                $redis = \Illuminate\Support\Facades\Redis::connection();
-                $redis->ping();
-                $time = round((microtime(true) - $start) * 1000, 1);
-                $health['redis'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+            $cacheDriver = config('cache.default');
+
+            if ($cacheDriver === 'redis') {
+                if (extension_loaded('redis') || class_exists(\Predis\Client::class)) {
+                    $redis = \Illuminate\Support\Facades\Redis::connection();
+                    $redis->ping();
+                    $time = round((microtime(true) - $start) * 1000, 1);
+                    $health['redis'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+                } else {
+                    $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Redis-Erweiterung fehlt.'];
+                    $this->logSystemFailure('redis', 'Der Cache-Driver steht auf Redis, aber die PHP-Erweiterung fehlt.');
+                }
             } else {
+                // Wenn wir lokal sind (oder auf File-Cache laufen)
                 \Illuminate\Support\Facades\Cache::has('test_ping');
                 $time = round((microtime(true) - $start) * 1000, 1);
-                $health['redis'] = ['status' => 'connected', 'value' => "File-Cache ({$time}ms)", 'error' => null];
+                $health['redis'] = ['status' => 'connected', 'value' => "{$cacheDriver} ({$time}ms)", 'error' => null];
             }
         } catch (\Exception $e) {
-            $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Cache-Server antwortet nicht.'];
-            $this->logSystemFailure('redis', 'Der Redis-Cache antwortet nicht.');
+            $health['redis'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Cache/Redis antwortet nicht.'];
+            $this->logSystemFailure('redis', 'Cache-Systemausfall: ' . $e->getMessage());
         }
 
         // 6. Queue Worker Check

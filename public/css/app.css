@@ -3628,6 +3628,9 @@ video {
 .border-gray-800\/50 {
   border-color: rgb(31 41 55 / 0.5);
 }
+.border-gray-800\/60 {
+  border-color: rgb(31 41 55 / 0.6);
+}
 .border-gray-900 {
   --tw-border-opacity: 1;
   border-color: rgb(17 24 39 / var(--tw-border-opacity, 1));
@@ -3848,9 +3851,6 @@ video {
 }
 .border-yellow-600\/50 {
   border-color: rgb(202 138 4 / 0.5);
-}
-.border-gray-800\/60 {
-  border-color: rgb(31 41 55 / 0.6);
 }
 .border-b-primary\/20 {
   border-bottom-color: rgb(201 166 107 / 0.2);
