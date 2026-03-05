@@ -62,10 +62,10 @@ return [
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
 
-            'dump' => [
-                // Holt sich den Befehl aus der .env. Wenn nichts definiert ist, bleibt es leer.
-                'add_extra_option' => env('DB_DUMP_EXTRA_OPTION', ''),
-            ],
+            // DYNAMISCHER DUMP BLOCK
+            'dump' => array_filter([
+                'add_extra_option' => env('DB_DUMP_EXTRA_OPTION') ?: null,
+            ]),
         ],
 
         'pgsql' => [
