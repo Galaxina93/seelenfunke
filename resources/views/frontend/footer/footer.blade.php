@@ -52,14 +52,40 @@
                                 <span aria-hidden="true">🛍️</span> Zum Shop
                             </a>
                         </li>
+
+                        {{-- 1. Allgemeine Kontakt-Mail --}}
                         <li>
                             <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}"
                                title="Senden Sie uns eine E-Mail"
-                               class="hover:text-primary transition">
+                               class="hover:text-primary transition flex items-center gap-2">
                                 <span aria-hidden="true">📧</span> {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
                             </a>
                         </li>
+
+                        {{-- 2. Impressum-Mail (nur anzeigen, wenn abweichend) --}}
+                        @if(shop_setting('owner_email_impressum') && shop_setting('owner_email_impressum') !== shop_setting('owner_email'))
+                            <li>
+                                <a href="mailto:{{ shop_setting('owner_email_impressum') }}"
+                                   title="Rechtliche Anfragen"
+                                   class="hover:text-primary transition flex items-center gap-2">
+                                    <span aria-hidden="true">⚖️</span> {{ shop_setting('owner_email_impressum') }}
+                                </a>
+                            </li>
+                        @endif
+
+                        {{-- 3. Rechnungs-Mail (nur anzeigen, wenn abweichend) --}}
+                        @if(shop_setting('owner_email_invoices') && shop_setting('owner_email_invoices') !== shop_setting('owner_email'))
+                            <li>
+                                <a href="mailto:{{ shop_setting('owner_email_invoices') }}"
+                                   title="Buchhaltung & Rechnungen"
+                                   class="hover:text-primary transition flex items-center gap-2">
+                                    <span aria-hidden="true">🧾</span> {{ shop_setting('owner_email_invoices') }}
+                                </a>
+                            </li>
+                        @endif
+
                         <li class="h-px bg-gray-800 w-full my-2" aria-hidden="true"></li>
+
                         <li><a href="/impressum" title="Impressum ansehen" class="hover:text-white transition opacity-80 hover:opacity-100">Impressum</a></li>
                         <li><a href="/datenschutz" title="Datenschutzerklärung lesen" class="hover:text-white transition opacity-80 hover:opacity-100">Datenschutzerklärung</a></li>
                         <li><a href="/agb" title="Allgemeine Geschäftsbedingungen" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerruf</a></li>
