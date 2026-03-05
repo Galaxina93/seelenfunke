@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\NewsletterSubscriber;
-use Illuminate\Http\Request;
+use App\Models\Newsletter\NewsletterSubscriber;
 
 class NewsletterController extends Controller
 {

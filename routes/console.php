@@ -22,8 +22,9 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Täglich um 08:00 Uhr prüfen und Newsletter senden
-Schedule::command('marketing:send-newsletters')->dailyAt('08:00');
+Schedule::command('send-newsletters')->dailyAt('08:00');
 
+// Sendet die ultimative Anweisung an die App
 Schedule::command('funki:notify')->everyMinute();
 
 // UStVA Autopilot - Läuft am 5. jeden Monats und generiert den Steuer-Export des Vormonats

@@ -27,9 +27,9 @@
     if(auth()->guard('admin')->check()) {
         $adminId = (string)auth()->guard('admin')->id();
 
-        if(class_exists(\App\Models\FunkiTicketMessage::class)) {
+        if(class_exists(\App\Models\TicketMessage::class)) {
             // Prüfen ob es ungelesene Nachrichten von Kunden gibt
-            $hasUnreadTickets = \App\Models\FunkiTicketMessage::where('sender_type', 'customer')
+            $hasUnreadTickets = \App\Models\TicketMessage::where('sender_type', 'customer')
                 ->where('is_read_by_admin', false)
                 ->exists();
         }
@@ -42,49 +42,50 @@
         showToast: false,
         toastMessage: '',
         initAdminEcho() {
-            @if($adminId)
-            let attempts = 0;
-            const checkEcho = setInterval(() => {
-                attempts++;
-                if (typeof window.Echo !== 'undefined') {
-                    clearInterval(checkEcho);
+                    @if($adminId)
+                    let attempts = 0;
+                    const checkEcho = setInterval(() => {
+                        attempts++;
+                        if (typeof window.Echo !== 'undefined') {
+                            clearInterval(checkEcho);
 
-                    // Lauschen auf dem Admin-Channel
-                    window.Echo.private('admin.{{$adminId}}').listen('.TicketMessageSent', (e) => {
-                        if (e.message && e.message.sender_type === 'customer') {
-                            this.hasUnreadSupport = true;
+                            // Lauschen auf dem Admin-Channel
+                            window.Echo.private('admin.{{$adminId}}').listen('.TicketMessageSent', (e) => {
+                                if(e.message && e.message.sender_type === 'customer'){
+                                    this.hasUnreadSupport = true;
+                                    window.dispatchEvent(new CustomEvent('admin-ticket-badge-update')); // NEU: Event feuern
 
-                            if (!window.location.pathname.includes('/tickets')) {
-                                let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
-                                let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
-                                this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
-                                this.showToast = true;
-                                setTimeout(() => { this.showToast = false; }, 5000);
-                            }
+                                    if(!window.location.pathname.includes('/tickets')){
+                                        let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
+                                        let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
+                                        this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
+                                        this.showToast = true;
+                                        setTimeout(() => { this.showToast = false; }, 5000);
+                                    }
+                                }
+                            });
+
+                            // Fallback-Channel:
+                            window.Echo.private('admin.tickets').listen('.TicketMessageSent', (e) => {
+                                if(e.message && e.message.sender_type === 'customer'){
+                                    this.hasUnreadSupport = true;
+                                    window.dispatchEvent(new CustomEvent('admin-ticket-badge-update')); // NEU: Event feuern
+
+                                    if(!window.location.pathname.includes('/tickets')){
+                                        let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
+                                        let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
+                                        this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
+                                        this.showToast = true;
+                                        setTimeout(() => { this.showToast = false; }, 5000);
+                                    }
+                                }
+                            });
+                        } else if (attempts > 30) {
+                            clearInterval(checkEcho);
                         }
-                    });
-
-                    // Fallback-Channel: Falls die Events generisch auf 'admin' gesendet werden
-                    window.Echo.private('admin.tickets').listen('.TicketMessageSent', (e) => {
-                        if (e.message && e.message.sender_type === 'customer') {
-                            this.hasUnreadSupport = true;
-
-                            if (!window.location.pathname.includes('/tickets')) {
-                                let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
-                                let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
-                                this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
-                                this.showToast = true;
-                                setTimeout(() => { this.showToast = false; }, 5000);
-                            }
-                        }
-                    });
-
-                } else if (attempts > 30) {
-                    clearInterval(checkEcho);
+                    }, 300);
+                    @endif
                 }
-            }, 300);
-            @endif
-        }
     }"
      x-init="initAdminEcho()"
      @clear-admin-ticket-badge.window="hasUnreadSupport = false"
@@ -93,7 +94,7 @@
     @if(auth()->guard('admin')->check())
         <div class="fixed bottom-6 right-6 z-[100] transition-all duration-500 ease-out"
              :class="showToast ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'">
-            <div class="bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer" @click="window.location.href='/admin/funki-tickets'">
+            <div class="bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer" @click="window.location.href='/admin/tickets'">
                 <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
                     <span class="text-primary text-xl">💌</span>
                 </div>

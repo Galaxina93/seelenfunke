@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\NewsletterSubscriber;
+use App\Models\Newsletter\NewsletterSubscriber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;

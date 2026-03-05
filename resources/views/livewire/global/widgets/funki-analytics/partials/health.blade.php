@@ -92,7 +92,7 @@
                                                     <span class="text-[9px] text-gray-500">{{ $ticket['customer_name'] }}</span>
                                                 </div>
                                                 <div class="flex items-center shrink-0">
-                                                    <a href="/admin/funki-tickets?ticket={{ $ticket['id'] }}" class="bg-primary text-gray-900 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-glow">Öffnen</a>
+                                                    <a href="/admin/tickets?ticket={{ $ticket['id'] }}" class="bg-primary text-gray-900 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-glow">Öffnen</a>
                                                 </div>
                                             </div>
                                         @endforeach

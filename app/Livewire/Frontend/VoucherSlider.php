@@ -3,7 +3,7 @@
 namespace App\Livewire\Frontend;
 
 use App\Models\Voucher;
-use App\Services\FunkiBotService;
+use Illuminate\Support\Str;
 use Livewire\Component;
 
 class VoucherSlider extends Component
@@ -20,7 +20,20 @@ class VoucherSlider extends Component
         $this->dispatch('code-copied', code: $code);
     }
 
-    public function render(FunkiBotService $service)
+    /**
+     * Ersetzt Platzhalter im Gutscheincode durch dynamische Werte.
+     */
+    private function generateCouponCode($pattern, $name = 'Gast')
+    {
+        $code = strtoupper($pattern);
+        $code = str_replace('{YEAR}', date('Y'), $code);
+        $cleanName = preg_replace('/[^A-Za-z0-9]/', '', Str::slug($name));
+        $code = str_replace('{NAME}', strtoupper(substr($cleanName, 0, 5)), $code);
+
+        return $code;
+    }
+
+    public function render()
     {
         // 1. Lade alle normalen, manuellen Gutscheine, die gerade gültig sind
         $manualVouchers = Voucher::where('mode', 'manual')->current()->get();
@@ -33,7 +46,7 @@ class VoucherSlider extends Component
 
         // 3. Verarbeite die Auto-Gutscheine (Platzhalter ersetzen)
         foreach ($activeAutoVouchers as $auto) {
-            $auto->code = $service->generateCouponCode($auto->code, 'Shop');
+            $auto->code = $this->generateCouponCode($auto->code, 'Shop');
             // Da Auto-Gutscheine ihre Werte oft in Cent speichern, passen wir das hier *nicht* an,
             // sondern überlassen die Logik der Blade-Datei, um Konsistenz zu wahren.
         }

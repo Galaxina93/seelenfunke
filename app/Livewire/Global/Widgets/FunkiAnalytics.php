@@ -319,8 +319,8 @@ class FunkiAnalytics extends Component
         $rawChecks = $service->getHealthChecks();
         $checks = json_decode(json_encode($rawChecks), true);
 
-        if (class_exists(\App\Models\FunkiTicket::class)) {
-            $openTickets = \App\Models\FunkiTicket::where('status', 'open')->with('customer')->get();
+        if (class_exists(\App\Models\Ticket::class)) {
+            $openTickets = \App\Models\Ticket::where('status', 'open')->with('customer')->get();
             $tCount = $openTickets->count();
 
             $checks['open_tickets'] = [

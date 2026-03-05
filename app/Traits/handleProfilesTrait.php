@@ -2,15 +2,15 @@
 
 namespace App\Traits;
 
-use App\Models\NewsletterSubscriber;
+use App\Models\Newsletter\NewsletterSubscriber;
 use App\Models\Session;
 use Illuminate\Support\Facades\Auth;
-use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Intervention\Image\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Intervention\Image\Facades\Image;
+use Livewire\WithFileUploads;
 
 trait handleProfilesTrait
 {

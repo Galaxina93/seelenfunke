@@ -1,5 +1,11 @@
-<div>
-    <div class="min-h-screen bg-transparent pb-20 font-sans text-gray-300">
+<div x-data="{ openList: false }"
+     x-init="$watch('openList', value => {
+         if(value) {
+             setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 300);
+         }
+     })">
+
+    <div class="bg-transparent pb-20 font-sans text-gray-300">
         {{-- Success Notification --}}
         @if (session()->has('success'))
             <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 3000)"
@@ -11,47 +17,36 @@
             </div>
         @endif
 
-        {{-- Header --}}
-        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
-            <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        {{-- Header (Anklickbar gemacht, um die Liste auf-/zuzuklappen) --}}
+        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300 cursor-pointer" @click="openList = !openList">
+            <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex justify-between items-center gap-4">
                 <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
                     <div class="p-2.5 bg-orange-500/10 border border-orange-500/20 shadow-inner rounded-xl text-orange-400 shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                     </div>
-                    Sonderausgaben & Kategorien
+                    Variable Ausgaben
                 </h1>
 
-                {{-- Datumsauswahl --}}
-                <div class="flex items-center gap-2 sm:gap-3 bg-gray-950 p-1.5 rounded-2xl border border-gray-800 shadow-inner w-full sm:w-auto">
-                    <select wire:model.live="selectedMonth" class="appearance-none w-full bg-transparent pl-4 pr-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-900 hover:text-white focus:bg-black focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer border-none outline-none sm:w-40 text-center shadow-inner">
-                        @foreach(range(1, 12) as $m)
-                            <option value="{{ $m }}" class="bg-gray-900">{{ date('F', mktime(0, 0, 0, $m, 1)) }}</option>
-                        @endforeach
-                    </select>
-                    <div class="w-px h-8 bg-gray-800 shrink-0"></div>
-                    <select wire:model.live="selectedYear" class="appearance-none w-full bg-transparent pl-4 pr-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-900 hover:text-white focus:bg-black focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all cursor-pointer border-none outline-none sm:w-32 text-center shadow-inner">
-                        @foreach(range(date('Y')-2, date('Y')+1) as $y)
-                            <option value="{{ $y }}" class="bg-gray-900">{{ $y }}</option>
-                        @endforeach
-                    </select>
+                {{-- Pfeil-Indikator --}}
+                <div class="p-2 bg-gray-950 border border-gray-800 rounded-xl text-gray-500 hover:text-orange-400 transition-colors shadow-inner shrink-0">
+                    <svg class="w-5 h-5 transform transition-transform duration-300" :class="openList ? 'rotate-180 text-orange-400' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
                 </div>
             </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
+        {{-- Der einklappbare Inhaltsbereich --}}
+        <div x-show="openList" x-collapse style="display: none;">
+            <div class="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
+                {{-- 1. KATEGORIEN VERWALTEN (Eingeklappt) --}}
+                @include('livewire.shop.financial.partials.category_management')
 
-            {{--
-                1. KATEGORIEN VERWALTEN (Eingeklappt)
-            --}}
-            @include('livewire.shop.financial.partials.category_management')
-
-            {{--
-                2. LISTE DER SONDERAUSGABEN (Tabelle & Chart)
-            --}}
-            @include('livewire.shop.financial.partials.special_issue_list')
-
+                {{-- 2. LISTE DER SONDERAUSGABEN (Tabelle & Chart) --}}
+                @include('livewire.shop.financial.partials.special_issue_list')
+            </div>
         </div>
     </div>
 

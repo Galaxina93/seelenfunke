@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Newsletter;
 
 use App\Mail\NewsletterVerificationMail;
-use App\Models\NewsletterSubscriber;
+use App\Models\Newsletter\NewsletterSubscriber;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;

@@ -26,9 +26,9 @@
         }
 
         // Kugelsichere Abfrage für den roten Punkt
-        $hasUnreadTickets = \App\Models\FunkiTicketMessage::where('sender_type', 'admin')
+        $hasUnreadTickets = \App\Models\TicketMessage::where('sender_type', 'admin')
             ->where('is_read_by_customer', false)
-            ->whereIn('funki_ticket_id', \App\Models\FunkiTicket::where('customer_id', $customerId)->pluck('id'))
+            ->whereIn('ticket_id', \App\Models\Ticket::where('customer_id', $customerId)->pluck('id'))
             ->exists();
     }
 @endphp

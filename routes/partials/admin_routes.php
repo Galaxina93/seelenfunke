@@ -23,15 +23,15 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki-kalender', function () {
         return view('backend.admin.pages.funki-kalender');
     })->name('admin.funki-kalender');
-    Route::get('/admin/funki-company-map', function () {
-        return view('backend.admin.pages.funki-company-map');
-    })->name('admin.funki-company-map');
-    Route::get('/admin/funki-tickets', function () {
-        return view('backend.admin.pages.funki-tickets');
-    })->name('admin.funki-tickets');
-    Route::get('/admin/funki-knowledge_base', function () {
-        return view('backend.admin.pages.funki-knowledge-base');
-    })->name('admin.funki-knowledge_base');
+    Route::get('/admin/company-map', function () {
+        return view('backend.admin.pages.company-map');
+    })->name('admin.partials');
+    Route::get('/admin/tickets', function () {
+        return view('backend.admin.pages.tickets');
+    })->name('admin.tickets');
+    Route::get('/admin/knowledge_base', function () {
+        return view('backend.admin.pages.knowledge-base');
+    })->name('admin.knowledge_base');
 
 
 
@@ -80,13 +80,9 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.financial-evaluation');
     })->name('admin.financial-evaluation');
 
-    Route::get('/admin/financial-categories-special-editions', function () {
-        return view('backend.admin.pages.financial-categories-special-editions');
-    })->name('admin.financial-categories-special-editions');
-
-    Route::get('/admin/financial-contracts-groups', function () {
-        return view('backend.admin.pages.financial-contracts-groups');
-    })->name('admin.financial-contracts-groups');
+    Route::get('/admin/financial-costs', function () {
+        return view('backend.admin.pages.financial-costs');
+    })->name('admin.financial-costs');
 
     Route::get('/admin/financial-tax', function () {
         return view('backend.admin.pages.financial-tax');
@@ -103,6 +99,12 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/voucher', function () {
         return view('backend.admin.pages.voucher');
     })->name('admin.voucher');
+
+    Route::get('/admin/newsletter', function () {
+        return view('backend.admin.pages.newsletter');
+    })->name('admin.newsletter');
+
+
 
     Route::get('/admin/orders/laser-file/{itemId}', function ($itemId) {
         $item = OrderItem::findOrFail($itemId);

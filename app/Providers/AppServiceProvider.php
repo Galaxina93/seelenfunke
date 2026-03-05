@@ -44,7 +44,7 @@ class AppServiceProvider extends ServiceProvider
             'finance_cost_item' => 'App\Models\Financial\FinanceCostItem',
             'product' => 'App\Models\Product\Product',
             'page_visit' => 'App\Models\Tracking\PageVisit',
-            'funki_ticket' => 'App\Models\FunkiTicket',
+            'ticket' => 'App\Models\Ticket',
 
             // Füge hier bei Bedarf weitere Models hinzu
         ]);

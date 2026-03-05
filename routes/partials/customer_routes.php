@@ -29,7 +29,7 @@ Route::middleware(['auth:customer'])->group(function () {
     Route::get('/ranking', \App\Livewire\Customer\GlobalRankingComponent::class)->name('customer.ranking');
 
     // NEU: Support & Tickets
-    Route::get('/support', \App\Livewire\Customer\FunkiTicketsComponent::class)->name('customer.support');
+    Route::get('/support', \App\Livewire\Customer\TicketsComponent::class)->name('customer.support');
 });
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {

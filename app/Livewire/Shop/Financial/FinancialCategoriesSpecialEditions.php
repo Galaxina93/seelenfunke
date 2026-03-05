@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Livewire\Shop\Financial;
 
 use App\Models\Financial\FinanceCategory;
@@ -6,7 +7,6 @@ use App\Models\Financial\FinanceSpecialIssue;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Livewire\Attributes\Url;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
@@ -16,12 +16,6 @@ use Livewire\WithPagination;
 class FinancialCategoriesSpecialEditions extends Component
 {
     use WithFileUploads, WithPagination;
-
-    #[Url]
-    public $selectedYear;
-
-    #[Url]
-    public $selectedMonth;
 
     public $specialSearch = '';
 
@@ -34,23 +28,9 @@ class FinancialCategoriesSpecialEditions extends Component
     public $targetCategoryId = '';
     public $categoryToDeleteName = '';
 
-    // Special Issue Editing
-    public ?string $editingSpecialId = null;
-    public $editSpecialTitle;
-    public $editSpecialCategory;
-    public $editSpecialAmount;
-    public $editSpecialDate;
-    public $editSpecialLocation;
-    public $editSpecialIsBusiness;
-    public $editSpecialTaxRate;
-    public $editSpecialInvoiceNumber;
-    public $editSpecialExistingFiles = [];
-    public $editSpecialFiles = [];
-
-    #[Rule(['newEditFiles.*' => 'max:10240'])]
-    public $newEditFiles = [];
-
+    // File Uploads (Direkt im Beleg-Feld)
     public ?string $uploadingMissingSpecialId = null;
+
     #[Rule('required|file|max:10240')]
     public $quickUploadFile;
 
@@ -59,8 +39,6 @@ class FinancialCategoriesSpecialEditions extends Component
         if (!Auth::guard('admin')->check()) {
             abort(403);
         }
-        $this->selectedYear = $this->selectedYear ?? date('Y');
-        $this->selectedMonth = $this->selectedMonth ?? date('n');
     }
 
     private function getAdminId()
@@ -72,6 +50,7 @@ class FinancialCategoriesSpecialEditions extends Component
     public function refreshList()
     {
         $this->resetPage();
+        $this->refreshChartData();
     }
 
     // --- COMPUTED PROPERTIES ---
@@ -123,7 +102,6 @@ class FinancialCategoriesSpecialEditions extends Component
 
         $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($this->editingCategoryId);
         if ($cat) {
-            // Update associated issues first
             FinanceSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $cat->name)
                 ->update(['category' => $this->editCategoryName]);
@@ -132,6 +110,7 @@ class FinancialCategoriesSpecialEditions extends Component
         }
         $this->editingCategoryId = null;
         session()->flash('success', 'Kategorie aktualisiert.');
+        $this->refreshChartData();
     }
 
     public function deleteCategory($id)
@@ -180,96 +159,54 @@ class FinancialCategoriesSpecialEditions extends Component
             $oldCat->delete();
 
             session()->flash('success', 'Kategorie gelöscht und Einträge verschoben.');
+            $this->refreshChartData();
         }
         $this->cancelDeleteCategory();
     }
 
-    // --- ACTIONS: SPECIAL ISSUES (VARIABLE) ---
+    // --- ACTIONS: SPECIAL ISSUES (INLINE EDITING) ---
 
-    public function editSpecial($id)
+    public function updateSpecialField($id, $field, $value)
     {
         $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
-        if(!$special) return;
+        if ($special) {
+            if ($field === 'amount') {
+                $value = (float) str_replace(',', '.', $value);
+            }
+            if ($field === 'is_business') {
+                $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+            }
 
-        $this->editingSpecialId = $special->id;
-        $this->editSpecialTitle = $special->title;
-        $this->editSpecialCategory = $special->category;
-        // WICHTIG: Hier zeigen wir den echten Wert an (auch wenn er negativ ist),
-        // damit der User sieht, ob es eine Ausgabe oder Einnahme ist.
-        $this->editSpecialAmount = $special->amount;
-        $this->editSpecialDate = \Carbon\Carbon::parse($special->execution_date)->format('Y-m-d');
-        $this->editSpecialLocation = $special->location;
-        $this->editSpecialIsBusiness = $special->is_business;
-        $this->editSpecialTaxRate = $special->tax_rate;
-        $this->editSpecialInvoiceNumber = $special->invoice_number;
+            $special->update([$field => $value]);
 
-        $files = $special->file_paths;
-        if (is_string($files)) {
-            $files = json_decode($files, true);
-        }
-        $this->editSpecialExistingFiles = is_array($files) ? $files : [];
-    }
-
-    public function removeExistingFile($index)
-    {
-        if (isset($this->editSpecialExistingFiles[$index])) {
-            unset($this->editSpecialExistingFiles[$index]);
-            $this->editSpecialExistingFiles = array_values($this->editSpecialExistingFiles);
-        }
-    }
-
-    public function cancelEditSpecial()
-    {
-        $this->editingSpecialId = null;
-        $this->reset(['editSpecialTitle', 'editSpecialCategory', 'editSpecialAmount', 'editSpecialDate', 'editSpecialLocation', 'editSpecialIsBusiness', 'editSpecialTaxRate', 'editSpecialInvoiceNumber', 'newEditFiles']);
-    }
-
-    public function saveSpecial()
-    {
-        if(!$this->editingSpecialId) return;
-
-        $this->validate([
-            'editSpecialTitle' => 'required',
-            'editSpecialAmount' => 'required|numeric',
-            'editSpecialDate' => 'required|date',
-        ]);
-
-        $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($this->editingSpecialId);
-
-        // Handle Files
-        $finalFiles = $this->editSpecialExistingFiles;
-        if (!empty($this->newEditFiles)) {
-            foreach ($this->newEditFiles as $file) {
-                $path = $file->store('financial/receipts', 'public');
-                $finalFiles[] = $path;
+            // Wenn Betrag oder Kategorie geändert wurden, Chart updaten
+            if (in_array($field, ['amount', 'category'])) {
+                $this->refreshChartData();
             }
         }
+    }
 
-        // KORREKTUR: Wir entfernen die pauschale Multiplikation mit -1.
-        // Der User muss das Vorzeichen selbst eingeben (z.B. -20 für Ausgabe, 20 für Einnahme).
-        $amount = str_replace(',', '.', $this->editSpecialAmount);
-
-        $special->update([
-            'title' => $this->editSpecialTitle,
-            'category' => $this->editSpecialCategory ?: 'Sonstiges',
-            'amount' => (float)$amount, // VORZEICHEN WIRD ÜBERNOMMEN
-            'execution_date' => $this->editSpecialDate,
-            'location' => $this->editSpecialLocation,
-            'is_business' => $this->editSpecialIsBusiness,
-            'tax_rate' => $this->editSpecialIsBusiness ? $this->editSpecialTaxRate : null,
-            'invoice_number' => $this->editSpecialIsBusiness ? $this->editSpecialInvoiceNumber : null,
-            'file_paths' => $finalFiles
-        ]);
-
-        $this->cancelEditSpecial();
-        session()->flash('success', 'Eintrag aktualisiert.');
+    public function deleteSpecialFile($id, $fileIndex)
+    {
+        $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+        if ($special) {
+            $files = is_string($special->file_paths) ? json_decode($special->file_paths, true) : $special->file_paths;
+            if (isset($files[$fileIndex])) {
+                $path = $files[$fileIndex];
+                if (Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
+                unset($files[$fileIndex]);
+                $special->update(['file_paths' => array_values($files)]);
+                session()->flash('success', 'Beleg gelöscht.');
+            }
+        }
     }
 
     public function deleteSpecial($id)
     {
         $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
         if ($special) {
-            // Delete files physically? Optional.
             $files = $special->file_paths;
             if (is_string($files)) {
                 $files = json_decode($files, true);
@@ -283,11 +220,12 @@ class FinancialCategoriesSpecialEditions extends Component
             }
 
             $special->delete();
-            session()->flash('success', 'Eintrag und zugehörige Belege wurden gelöscht.');
+            session()->flash('success', 'Eintrag und zugehörige Belege gelöscht.');
+            $this->refreshChartData();
         }
     }
 
-    // --- QUICK UPLOAD FOR MISSING FILES ---
+    // --- FILE UPLOAD (INLINE) ---
 
     public function updatedQuickUploadFile()
     {
@@ -296,10 +234,7 @@ class FinancialCategoriesSpecialEditions extends Component
             if($special) {
                 $path = $this->quickUploadFile->store('financial/receipts', 'public');
 
-                $files = $special->file_paths;
-                if (is_string($files)) {
-                    $files = json_decode($files, true);
-                }
+                $files = is_string($special->file_paths) ? json_decode($special->file_paths, true) : $special->file_paths;
                 if (!is_array($files)) {
                     $files = [];
                 }
@@ -310,6 +245,23 @@ class FinancialCategoriesSpecialEditions extends Component
             }
             $this->reset(['quickUploadFile', 'uploadingMissingSpecialId']);
         }
+    }
+
+    // --- RENDER & HELPER ---
+
+    private function refreshChartData()
+    {
+        $chartDataObj = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+            ->where('amount', '<', 0)
+            ->select('category', DB::raw('SUM(ABS(amount)) as total'))
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->get();
+
+        $chartLabels = $chartDataObj->pluck('category');
+        $chartDataValues = $chartDataObj->pluck('total');
+
+        $this->dispatch('update-category-chart', labels: $chartLabels, data: $chartDataValues);
     }
 
     public function render()
@@ -326,29 +278,22 @@ class FinancialCategoriesSpecialEditions extends Component
             });
         }
 
-        // KORREKTUR DER SORTIERUNG: Primär nach execution_date, sekundär nach created_at
         $specials = $specialsQuery->orderBy('execution_date', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        // Chart Data Update (Only Expenses for Pie)
-        $chartDataObj = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+        // Initiale Chart Data
+        $chartDataObj = FinanceSpecialIssue::where('admin_id', $adminId)
             ->where('amount', '<', 0)
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')
             ->orderByDesc('total')
             ->get();
 
-        $chartLabels = $chartDataObj->pluck('category');
-        $chartDataValues = $chartDataObj->pluck('total');
-
-        // Dispatch Browser Event for Chart.js
-        $this->dispatch('update-category-chart', labels: $chartLabels, data: $chartDataValues);
-
         return view('livewire.shop.financial.financial-categories-special-editions.financial-categories-special-editions', [
             'specials' => $specials,
-            'chartLabels' => $chartLabels,
-            'chartData' => $chartDataValues,
+            'chartLabels' => $chartDataObj->pluck('category'),
+            'chartData' => $chartDataObj->pluck('total'),
         ]);
     }
 }

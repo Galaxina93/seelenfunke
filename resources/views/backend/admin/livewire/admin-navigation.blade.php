@@ -1,12 +1,15 @@
 <x-sections.vertical-nav>
     @php
         $currentPage = basename(request()->path());
-        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender', 'funki-company-map', 'funki-tickets', 'funki-knowledge_base']);
-        // GEFIXED: 'voucher' hinzugefügt
-        $isShopActive = in_array($currentPage, ['products', 'reviews', 'blog', 'product-templates', 'voucher']);
+
+        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender']);
+
+        // Neu aufgeteilt in Produkte und Marketing
+        $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
+        $isMarketingActive = in_array($currentPage, ['newsletter', 'voucher', 'blog']);
+
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
-        // GEFIXED: 'financial-tax' hinzugefügt
-        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-categories-special-editions', 'financial-contracts-groups', 'financial-tax']);
+        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-costs', 'financial-tax']);
     @endphp
 
     <li>
@@ -24,23 +27,6 @@
                     <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="arrow-path" />
                     <x-forms.list-item route="/admin/funki-todos" title="Aufgaben" pageName="funki-todos" icon="check-circle" />
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
-                    <x-forms.list-item route="/admin/funki-company-map" title="Karte" pageName="funki-company-map" icon="map" />
-
-                    {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt --}}
-                    <li>
-                        <a href="/admin/funki-tickets" @click="hasUnreadSupport = false" class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $currentPage === 'funki-tickets' ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                            <div class="relative">
-                                <x-heroicon-o-ticket class="w-5 h-5 shrink-0 transition-transform duration-300 {{ $currentPage === 'funki-tickets' ? 'text-primary' : 'text-gray-500 group-hover:text-white group-hover:scale-110' }}" />
-                                <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-                                </span>
-                            </div>
-                            <span class="truncate">Ticketsystem</span>
-                        </a>
-                    </li>
-
-                    <x-forms.list-item route="/admin/funki-knowledge_base" title="Wissensdatenbank" pageName="funki-knowledge_base" icon="book-open" />
                 </ul>
             </li>
         </ul>
@@ -49,21 +35,36 @@
     <li>
         <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">Shopverwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
-            <li x-data="{ open: {{ $isShopActive ? 'true' : 'false' }} }">
-                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isShopActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                    <x-heroicon-o-wrench-screwdriver class="h-5 w-5 shrink-0 transition-colors {{ $isShopActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
-                    <span class="flex-1">Produkte & Marketing</span>
+
+            {{-- Produkte --}}
+            <li x-data="{ open: {{ $isProductsActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isProductsActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-cube class="h-5 w-5 shrink-0 transition-colors {{ $isProductsActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Produkte</span>
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
                     <x-forms.list-item route="/admin/product-templates" title="Vorlagen" pageName="product-templates" icon="clipboard-document-list" />
                     <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="star" />
-                    <x-forms.list-item route="/admin/blog" title="Blog" pageName="blog" icon="document-text" />
-                    <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="gift" />
                 </ul>
             </li>
 
+            {{-- Marketing --}}
+            <li x-data="{ open: {{ $isMarketingActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isMarketingActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-at-symbol class="h-5 w-5 shrink-0 transition-colors {{ $isMarketingActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Marketing</span>
+                    <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
+                </button>
+                <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/newsletter" title="Newsletter" pageName="newsletter" icon="newspaper" />
+                    <x-forms.list-item route="/admin/voucher" title="Gutscheine" pageName="voucher" icon="gift" />
+                    <x-forms.list-item route="/admin/blog" title="Blogeinträge" pageName="blog" icon="document-text" />
+                </ul>
+            </li>
+
+            {{-- Bestellungen --}}
             <li x-data="{ open: {{ $isOrderActive ? 'true' : 'false' }} }">
                 <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isOrderActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
                     <x-heroicon-o-shopping-bag class="h-5 w-5 shrink-0 transition-colors {{ $isOrderActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
@@ -71,27 +72,29 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
-                    <x-forms.list-item route="/admin/orders" title="Alle Bestellungen" pageName="orders" icon="shopping-cart" />
-                    <x-forms.list-item route="/admin/quote-requests" title="Angebote" pageName="quote-requests" icon="clipboard-document-list" />
+                    <x-forms.list-item route="/admin/orders" title="Bestellungen" pageName="orders" icon="shopping-cart" />
                     <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoices" icon="document-text" />
+                    <x-forms.list-item route="/admin/quote-requests" title="Angebote" pageName="quote-requests" icon="clipboard-document-list" />
                 </ul>
             </li>
 
+            {{-- Buchhaltung --}}
             <li x-data="{ open: {{ $isFinanceActive ? 'true' : 'false' }} }">
                 <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isFinanceActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
                     <x-heroicon-o-currency-dollar class="h-5 w-5 shrink-0 transition-colors {{ $isFinanceActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
-                    <span class="flex-1">Finanzen</span>
+                    <span class="flex-1">Buchhaltung</span>
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+
+                    <x-forms.list-item route="/admin/financial-costs" title="Kosten" pageName="financial-costs" icon="banknotes" />
+                    <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
-                    <x-forms.list-item route="/admin/financial-categories-special-editions" title="Variable Kosten" pageName="financial-categories-special-editions" icon="rectangle-stack" />
-                    <x-forms.list-item route="/admin/financial-contracts-groups" title="Fixkosten" pageName="financial-contracts-groups" icon="document-check" />
-                    <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="chart-bar" />
+
                 </ul>
             </li>
 
-            <x-forms.list-item route="/admin/shipping" title="Versand & Logistik" pageName="shipping" icon="truck" />
+            <x-forms.list-item route="/admin/shipping" title="Logistik" pageName="shipping" icon="truck" />
             <x-forms.list-item route="/admin/configuration" title="Einstellungen" pageName="configuration" icon="cog-8-tooth" />
         </ul>
     </li>
@@ -99,8 +102,33 @@
     <li>
         <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">System</div>
         <ul role="list" class="-mx-2 space-y-1">
+
+            <x-forms.list-item route="/admin/knowledge_base" title="Wiki" pageName="knowledge_base" icon="book-open" />
+
+            {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt --}}
+            <li x-data="{ unread: hasUnreadSupport }"
+                @admin-ticket-badge-update.window="unread = true"
+                @clear-admin-ticket-badge.window="unread = false">
+
+                <a href="/admin/tickets" @click="unread = false; hasUnreadSupport = false" class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $currentPage === 'tickets' ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <div class="relative">
+                        <x-heroicon-o-ticket class="w-5 h-5 shrink-0 transition-transform duration-300 {{ $currentPage === 'tickets' ? 'text-primary' : 'text-gray-500 group-hover:text-white group-hover:scale-110' }}" />
+
+                        {{-- Nutzt nun die isolierte 'unread' Variable, die sich sofort aktualisiert --}}
+                        <span x-show="unread" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                        </span>
+                    </div>
+                    <span class="truncate">Tickets</span>
+                </a>
+            </li>
+
             <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />
             <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="right-management" icon="shield-check" />
+
+            <x-forms.list-item route="/admin/company-map" title="Architektur-Map" pageName="company-map" icon="map" />
+
         </ul>
     </li>
 </x-sections.vertical-nav>

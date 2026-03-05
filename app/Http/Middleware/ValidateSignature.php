@@ -13,7 +13,7 @@ class ValidateSignature extends Middleware
      */
     protected $except = [
         // 'fbclid',
-        // 'utm_FunkiNewsletter',
+        // 'utm_Newsletter',
         // 'utm_content',
         // 'utm_medium',
         // 'utm_source',

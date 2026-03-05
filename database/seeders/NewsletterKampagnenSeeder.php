@@ -2,9 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\Funki\FunkiNewsletter;
+use App\Models\Newsletter\Newsletter;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class NewsletterKampagnenSeeder extends Seeder
 {
@@ -18,66 +17,87 @@ class NewsletterKampagnenSeeder extends Seeder
             [
                 'target_event_key' => 'valentines',
                 'title' => 'Valentinstag - Kampagne',
-                'subject' => '💘 Valentinstag: Schenk was für die Ewigkeit!',
-                'content' => '<h1>Hallo {first_name},</h1>
-                <p>Hand aufs Herz: Rosen verwelken nach einer Woche und Schokolade... nun ja, die hält meistens keine 10 Minuten. 🍫</p>
-                <p>Wie wäre es dieses Jahr mit einem Liebesbeweis, der genau so beständig ist wie eure Verbindung? In unserer Manufaktur fertigen wir Dinge, die bleiben. Ein Funkeln, das nicht verblasst.</p>
-                <p>Wir haben unsere Werkstatt auf "Romantik-Modus" geschaltet und warten nur darauf, deine schönste Erinnerung für die Ewigkeit festzuhalten.</p>
-                <p><strong>Lass uns gemeinsam Augen zum Leuchten bringen!</strong></p>
-                <p>Viel Liebe,<br>Dein Funki & das Team</p>',
+                'subject' => '💘 Valentinstag: Schenk etwas für die Ewigkeit',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>Hand aufs Herz: Rote Rosen sind wunderschön, aber leider nach einer Woche schon verblüht. Und Pralinen? Die halten meistens nicht mal bis zum nächsten Tag. 🍫</p>
+<p>Wie wäre es dieses Jahr mit einer kleinen, aber feinen Aufmerksamkeit, die wirklich bleibt? In unserer Manufaktur fertigen wir persönliche Erinnerungsstücke. Keine Massenware, sondern echte Unikate, die wir mit viel Sorgfalt für dich personalisieren.</p>
+<p>Lass uns gemeinsam dafür sorgen, dass dieser Tag in besonderer Erinnerung bleibt.</p>
+<br>
+<p><em>P.S.: Weil wir jedes Stück von Hand veredeln und der Versand ein paar Tage dauern kann, sagen wir dir lieber heute schon Bescheid. So kannst du ganz in Ruhe aussuchen und hältst dein Geschenk rechtzeitig zum Valentinstag in den Händen!</em></p>
+<p>Liebe Grüße aus der Manufaktur,<br>Dein Mein-Seelenfunke Team</p>
+HTML,
                 'days_offset' => 14
             ],
             [
                 'target_event_key' => 'womens_day',
                 'title' => 'Weltfrauentag - Kampagne',
-                'subject' => '💪 Weltfrauentag: Ein Hoch auf die Heldinnen!',
-                'content' => '<h1>Huhu {first_name},</h1>
-                <p>heute feiern wir Stärke, Eleganz und Mut! Egal ob du dich selbst belohnen möchtest (Self-Care ist wichtig!) oder einer inspirierenden Powerfrau in deinem Leben einfach mal "Danke" sagen willst.</p>
-                <p>Bei <strong>Mein-Seelenfunke</strong> glauben wir daran, dass jeder Mensch ein inneres Strahlen hat. Unsere Unikate sind nur dazu da, es nach außen zu tragen.</p>
-                <p>Schau doch mal rein – wir haben da ein paar Dinge vorbereitet, die genau so facettenreich sind wie das Leben selbst.</p>
-                <p>Lass dich feiern!</p>',
-                'days_offset' => 3
+                'subject' => '💪 Weltfrauentag: Ein Hoch auf die Heldinnen',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>bald ist Weltfrauentag! Ein schöner Anlass, um einfach mal "Danke" zu sagen. Ob an die beste Freundin, die Mutter, eine Kollegin, die immer aushilft, oder ganz einfach an dich selbst.</p>
+<p>Wir bei <strong>Mein-Seelenfunke</strong> lieben es, kleine Momente der Wertschätzung greifbar zu machen. Schau doch mal bei uns vorbei. Wir haben ein paar schöne Ideen vorbereitet, die von Herzen kommen und ewig halten.</p>
+<br>
+<p><em>P.S.: Damit dein Unikat auch pünktlich ankommt, schreiben wir dir heute schon. Nimm dir die Zeit, die du brauchst, um in Ruhe das Passende zu finden!</em></p>
+<p>Herzliche Grüße!</p>
+HTML,
+                'days_offset' => 12
             ],
             [
                 'target_event_key' => 'easter',
                 'title' => 'Ostern - Kampagne',
-                'subject' => '🐰 Ostern: Funki hat da was funkeln sehen...',
-                'content' => '<h1>Frohe Ostern, {first_name}!</h1>
-                <p>Der Frühling ist da! Während der Osterhase noch verzweifelt versucht, bunte Eier im hohen Gras zu verstecken, haben wir uns gedacht: Warum nicht mal etwas verstecken, das man garantiert findet – weil es strahlt?</p>
-                <p>Funki war fleißig und hat die Manufaktur auf Hochglanz poliert. Ob als Geschenk für das Familienfest oder als edle Deko für den eigenen Ostertisch – bei uns findest du das gewisse Etwas, das garantiert nicht in der Sonne schmilzt.</p>
-                <p>Hoppelnde Grüße,<br>Dein Seelenfunke-Team</p>',
-                'days_offset' => 10
+                'subject' => '🐰 Ostern: Wir haben da etwas für dein Nest',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>der Frühling kündigt sich an und das Osterfest steht fast vor der Tür. Während die Schokohasen schon überall in den Regalen stehen, haben wir in der Werkstatt eine etwas beständigere Alternative vorbereitet.</p>
+<p>Egal, ob du eine kleine Überraschung für das Familiennest suchst oder eine edle Dekoration für den Ostertisch. Bei uns findest du personalisierte Stücke, die garantiert nicht in der Frühlingssonne wegschmelzen.</p>
+<br>
+<p><em>P.S.: Da die Osterpost manchmal etwas länger braucht und wir für die Gravur ein paar Tage einplanen, erinnern wir dich lieber rechtzeitig. So liegt am Ende auch wirklich alles pünktlich im Versteck!</em></p>
+<p>Frühlingshafte Grüße,<br>Dein Team von Mein-Seelenfunke</p>
+HTML,
+                'days_offset' => 14
             ],
 
             // --- SOMMER & FAMILIE ---
             [
                 'target_event_key' => 'mothers_day',
                 'title' => 'Muttertag - Kampagne',
-                'subject' => '💐 Muttertag: Weil "Danke" manchmal glitzern muss',
-                'content' => '<h1>Liebe/r {first_name},</h1>
-                <p>Mamas sind wie Kristalle: Sie sind stark, haben viele Facetten und bringen Licht in unser Leben, wenn es mal dunkel wird.</p>
-                <p>Statt der üblichen Pralinenschachtel (die Papa eh zur Hälfte isst 😉), wie wäre es mit einer Erinnerung, die für immer bleibt? Wir gravieren deine Dankbarkeit so tief ein, dass sie niemals verblasst.</p>
-                <p>Sichere dir jetzt dein Unikat für die beste Mama der Welt – damit es auch pünktlich ankommt!</p>',
+                'subject' => '💐 Muttertag: Ein ganz persönliches Dankeschön',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>Mütter sind oft unser Fels in der Brandung. Sie sind einfach immer da, hören zu und haben meistens recht.</p>
+<p>Statt dem klassischen Blumenstrauß haben wir eine Idee für dich: Schenk ihr in diesem Jahr doch eine Erinnerung, die für immer bleibt. Eine persönliche Gravur auf Glas oder Schiefer sagt mehr als tausend Worte und hält ein Leben lang.</p>
+<br>
+<p><em>P.S.: Der Muttertag ist für uns eine besonders arbeitsreiche Zeit. Deshalb melden wir uns jetzt schon bei dir. So kannst du dein Geschenk in aller Ruhe gestalten und wir können es rechtzeitig und mit der gewohnten Liebe anfertigen.</em></p>
+<p>Liebe Grüße aus der Werkstatt</p>
+HTML,
                 'days_offset' => 14
             ],
             [
                 'target_event_key' => 'fathers_day',
                 'title' => 'Vatertag - Kampagne',
-                'subject' => '🛠️ Vatertag: Für echte Typen mit weichem Kern',
-                'content' => '<h1>Hallo {first_name},</h1>
-                <p>Väter sind oft unser Fels in der Brandung. Sie reparieren Dinge, geben (meistens) gute Ratschläge und sind einfach da.</p>
-                <p>Schenke dieses Jahr etwas, das so massiv und beständig ist wie seine Unterstützung. Ein Unikat aus unserer Manufaktur ist robust, edel und garantiert ohne Krawatten-Muster.</p>
-                <p>Überrasche ihn mit etwas, das er stolz auf den Schreibtisch oder ins Regal stellen wird.</p>',
-                'days_offset' => 10
+                'subject' => '🛠️ Vatertag: Handfestes für echte Typen',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>ob als stiller Zuhörer, handwerklicher Notdienst oder Ratgeber in allen Lebenslagen: Väter machen einen verdammt guten Job.</p>
+<p>Dieses Jahr kannst du ihn mit etwas überraschen, das genauso beständig ist wie er selbst. Ein massives Unikat aus unserer Manufaktur, ganz ohne Sockenmuster oder Krawattennadeln. Einfach ein ehrliches, robustes Geschenk, das auf dem Schreibtisch oder im Regal richtig gut aussieht.</p>
+<br>
+<p><em>P.S.: Wir wollen sichergehen, dass dein Geschenk rechtzeitig zur Bollerwagentour oder zum gemeinsamen Grillen ankommt. Deswegen erinnern wir dich heute schon daran!</em></p>
+<p>Viele Grüße!</p>
+HTML,
+                'days_offset' => 14
             ],
             [
                 'target_event_key' => 'sale_summer',
                 'title' => 'Sommer Sale - Kampagne',
-                'subject' => '☀️ Sommer-Sale: Die Preise schmelzen dahin!',
-                'content' => '<h1>Sommer-Feeling pur, {first_name}!</h1>
-                <p>Puh, ist das heiß draußen! 🥵 Aber keine Sorge, bei uns rieseln die Preise wie Schneeflocken.</p>
-                <p>Wir räumen unser Lager auf und schaffen Platz für neue Ideen. Das ist deine Chance, dir echte Premium-Qualität zu einem Preis zu sichern, der so erfrischend ist wie ein Sprung in den Pool.</p>
-                <p>Schnapp dir jetzt deine Lieblingsstücke und bringe das Sonnenlicht in deinem Zuhause so richtig zum Brechen. Aber nicht trödeln – was weg ist, ist weg!</p>',
+                'subject' => '☀️ Sommer-Sale: Erfrischende Angebote',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>die Temperaturen steigen, die Laune auch! Passend zur sonnigen Jahreszeit räumen wir unser Lager etwas auf, um Platz für neue Ideen im Herbst zu schaffen.</p>
+<p>Das ist die perfekte Gelegenheit für dich. Sichere dir unsere personalisierten Unikate zu einem wirklich erfrischenden Preis. Ob als Mitbringsel zur nächsten Gartenparty oder einfach für dich selbst – schau doch mal rein, was wir reduziert haben.</p>
+<p>Hab einen wundervollen Sommer!</p>
+<p>Sonnige Grüße,<br>Dein Team von Mein-Seelenfunke</p>
+HTML,
                 'days_offset' => 0
             ],
 
@@ -85,61 +105,78 @@ class NewsletterKampagnenSeeder extends Seeder
             [
                 'target_event_key' => 'halloween',
                 'title' => 'Halloween - Kampagne',
-                'subject' => '🎃 Halloween: Süßes, Saures oder Funkelndes?',
-                'content' => '<h1>Buuuuh, {first_name}! 👻</h1>
-                <p>Die Tage werden kürzer, die Schatten länger. Genau die richtige Zeit, um ein Licht anzuzünden.</p>
-                <p>Unsere beleuchteten Unikate vertreiben garantiert jeden Geist (oder laden die netten Geister zum Verweilen ein). Mach es dir gemütlich und entdecke, wie schön Licht und Glas in der dunklen Jahreszeit harmonieren.</p>
-                <p>Kein Grusel, nur Glanz. Versprochen.</p>',
-                'days_offset' => 7
+                'subject' => '🎃 Es wird früh dunkel: Zeit für etwas Licht',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>die Tage werden wieder merklich kürzer und die Abende gemütlicher. Genau die richtige Zeit, um drinnen ein schönes Licht anzuzünden.</p>
+<p>Egal, ob du Halloween feierst oder einfach nur den Herbst liebst: Unsere beleuchteten Glas-Unikate bringen eine wunderbare, warme Atmosphäre in den Raum. Das sanfte Licht bricht sich elegant in der Gravur und sorgt für absolute Gemütlichkeit.</p>
+<br>
+<p><em>P.S.: Wir melden uns bewusst heute schon bei dir, damit dein neues Lieblingsstück pünktlich zu den ersten richtig kühlen Herbstabenden (oder der Gruselnacht) bei dir eintrifft.</em></p>
+<p>Mach es dir schön!</p>
+HTML,
+                'days_offset' => 14
             ],
             [
                 'target_event_key' => 'advent_1',
                 'title' => '1. Advent - Kampagne',
-                'subject' => '🕯️ 1. Advent: Das erste Lichtlein brennt...',
-                'content' => '<h1>Eine besinnliche Zeit, {first_name},</h1>
-                <p>jetzt wird es gemütlich. Plätzchenduft liegt in der Luft und die ersten Lichterketten hängen. Auch bei uns in der Manufaktur läuft die Weihnachtsplaylist schon rauf und runter (Funki singt übrigens sehr laut mit 🎶).</p>
-                <p>Suchst du noch nach dem perfekten, persönlichen Geschenk, das nicht "von der Stange" kommt? Bei uns findest du Unikate, die Augen zum Leuchten bringen – ganz ohne Einkaufsstress in vollen Innenstädten.</p>
-                <p>Stöbere jetzt entspannt durch unseren Shop.</p>',
-                'days_offset' => 2
+                'subject' => '🕯️ Die Vorweihnachtszeit beginnt',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>ist es bei dir schon soweit? Die erste Tasse Tee, vielleicht schon Spekulatius und die Lichterketten hängen? Bei uns in der Manufaktur duftet es definitiv schon nach Weihnachten.</p>
+<p>Wir wissen, wie stressig die Suche nach dem passenden Weihnachtsgeschenk manchmal sein kann. Deshalb laden wir dich ein: Lehn dich zurück, trink einen Schluck Tee und stöbere ganz entspannt durch unseren Shop. Bei uns findest du Unikate, die wirklich von Herzen kommen und nicht von der Stange sind.</p>
+<br>
+<p><em>P.S.: Die Adventszeit verfliegt immer schneller, als man denkt! Wir erinnern dich heute schon daran, damit du dem ganzen Lieferstress in ein paar Wochen ganz gelassen aus dem Weg gehen kannst.</em></p>
+<p>Eine besinnliche Zeit wünscht dir<br>Dein Team von Mein-Seelenfunke</p>
+HTML,
+                'days_offset' => 14
             ],
             [
                 'target_event_key' => 'christmas',
                 'title' => 'Weihnachten - Kampagne',
-                'subject' => '🎄 Weihnachten: Ein Päckchen voller Liebe',
-                'content' => '<h1>Ho Ho Ho {first_name},</h1>
-                <p>Weihnachten ist das Fest der Liebe und der Erinnerungen. Nichts ist schöner, als einen Moment festzuhalten und ihn unter den Baum zu legen.</p>
-                <p>Funki und das ganze Team haben die Laser poliert und die Geschenkboxen gestapelt. Wir sind bereit!</p>
-                <p><strong>Wichtiger Tipp:</strong> Gestalte jetzt dein ganz persönliches Weihnachtsgeschenk, bevor unsere Wichtel in den Weihnachtsurlaub gehen. So kommt alles pünktlich und stressfrei bei dir an.</p>
-                <p>Wir wünschen dir eine zauberhafte Vorweihnachtszeit.</p>',
-                'days_offset' => 20
+                'subject' => '🎄 Weihnachten: Schenke dieses Jahr eine Erinnerung',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>es ist das Fest der Liebe und der gemeinsamen Momente. Gibt es etwas Schöneres, als an Heiligabend in leuchtende Augen zu blicken, wenn ein Geschenk ausgepackt wird, das eine echte Bedeutung hat?</p>
+<p>Wir haben unsere Maschinen poliert und reichlich Verpackungsmaterial vorbereitet. Wir sind bereit, deine schönsten Momente in Glas oder Schiefer zu verewigen.</p>
+<br>
+<p><strong>Ein ehrlicher Tipp aus der Werkstatt:</strong> Weihnachten ist unsere intensivste Zeit des Jahres. Wenn du dein Geschenk jetzt schon gestaltest und bestellst, hilfst du uns enorm bei der Planung – und du hast die absolute Sicherheit, dass dein Paket pünktlich und ohne den üblichen Paketdienst-Stress unter dem Baum liegt.</p>
+<p>Wir freuen uns darauf, etwas Besonderes für dich anzufertigen!</p>
+HTML,
+                'days_offset' => 21
             ],
             [
                 'target_event_key' => 'sale_winter',
                 'title' => 'Winter Sale - Kampagne',
-                'subject' => '❄️ Winter-Sale: Frostig draußen, heiß im Warenkorb',
-                'content' => '<h1>Brrr, ist das kalt, {first_name}!</h1>
-                <p>Gut, dass man zum Shoppen nicht rausgehen muss. Wir machen Inventur und du kannst davon profitieren.</p>
-                <p>Sichere dir jetzt funkelnde Schnäppchen im großen Winter-Sale von <strong>Mein-Seelenfunke</strong>. Perfekt, um sich selbst eine Freude zu machen oder schon mal ganz entspannt für die kommenden Geburtstage vorzusorgen.</p>
-                <p>Kuschel dich in eine Decke und shoppe los!</p>',
+                'subject' => '❄️ Winter-Sale: Zeit für etwas Schönes',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>wir hoffen, du bist gut und gesund ins neue Jahr gestartet! Draußen ist es kalt und ungemütlich – der perfekte Moment, um vom Sofa aus ein bisschen zu stöbern.</p>
+<p>Wir machen Inventur und haben unseren großen Winter-Sale gestartet. Sichere dir jetzt handgefertigte Qualität zu stark reduzierten Preisen. Vielleicht um dir selbst eine Freude zu machen oder um schon mal völlig entspannt für die ersten Geburtstage des Jahres vorzusorgen?</p>
+<p>Wir laden dich herzlich ein, durch unsere Angebote zu scrollen.</p>
+<p>Liebe Grüße!</p>
+HTML,
                 'days_offset' => 0
             ],
             [
                 'target_event_key' => 'new_year',
                 'title' => 'Neujahr - Kampagne',
-                'subject' => '🎆 Neujahr: 3, 2, 1... Dein Jahr wird brillant!',
-                'content' => '<h1>Ein frohes neues Jahr, {first_name}!</h1>
-                <p>365 neue Tage. 365 neue Chancen. Wir wünschen dir ein Jahr voller Gesundheit, Glück und achtsamer Momente.</p>
-                <p>Vielleicht möchtest du deine Vorsätze, dein Jahresmotto oder einen besonderen Wunsch für dieses Jahr nicht nur auf einen Zettel schreiben, sondern "in Stein" (bzw. Glas) meißeln?</p>
-                <p><strong>Mein-Seelenfunke</strong> begleitet dich gerne in ein strahlendes neues Jahr. Auf alles, was kommt!</p>',
+                'subject' => '🎆 Willkommen im neuen Jahr!',
+                'content' => <<<HTML
+<h1>Hallo {first_name},</h1>
+<p>365 neue Tage liegen vor uns. Ein ganzes Jahr voller neuer Chancen, Herausforderungen und vor allem schöner Momente.</p>
+<p>Wir wünschen dir für die kommende Zeit viel Gesundheit, Zufriedenheit und Momente, die es wert sind, festgehalten zu werden.</p>
+<p>Gibt es ein Motto für dein neues Jahr? Oder ein bestimmtes Ziel? Manchmal hilft es, sich solche Dinge "in Stein" (oder Glas) gravieren zu lassen und sie sich auf den Schreibtisch zu stellen, um sie nicht aus den Augen zu verlieren.</p>
+<p>Auf ein wunderbares, strahlendes neues Jahr!</p>
+<p>Dein Mein-Seelenfunke Team</p>
+HTML,
                 'days_offset' => 0
             ],
         ];
 
         foreach ($templates as $t) {
-            FunkiNewsletter::updateOrCreate(
+            Newsletter::updateOrCreate(
                 ['target_event_key' => $t['target_event_key']],
                 [
-                    'id' => Str::uuid(),
                     'title' => $t['title'],
                     'subject' => $t['subject'],
                     'content' => $t['content'],

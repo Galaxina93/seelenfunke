@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Funki\FunkiMapNode;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -28,10 +27,10 @@ class DatabaseSeeder extends Seeder
 
             TodoSeeder::class,                      // DEAKTIVIEREN BEI LIVEGANG
             FunkiDayRoutineSeeder::class,           // Für den Livegang notwendig
-            FunkiMapSeeder::class,                  // Für den Livegang notwendig
+            MapSeeder::class,                  // Für den Livegang notwendig
             /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
 
-            FunkiKnowledgeBaseSeeder::class,             // Für den Livegang notwendig
+            KnowledgeBaseSeeder::class,             // Für den Livegang notwendig
             GamificationTestSeeder::class,          // DEAKTIVIEREN BEI LIVEGANG
         ]);
 

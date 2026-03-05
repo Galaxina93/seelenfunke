@@ -1,5 +1,5 @@
 {{-- HTML TREE --}}
-@include('global.mails.partials.mail_html_tree', ['title' => 'Neuigkeiten zu deinem FunkiTicket'])
+@include('global.mails.partials.mail_html_tree', ['title' => 'Neuigkeiten zu deinem Ticket'])
 
 <div class="container">
 
