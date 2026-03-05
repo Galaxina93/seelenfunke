@@ -38,15 +38,26 @@ class ShopSettingSeeder extends Seeder
             'owner_proprietor'          => 'Alina Steinhauer',
             'owner_street'              => 'Carl-Goerdeler-Ring 26',
             'owner_city'                => '38518 Gifhorn',
+
+            // E-Mail Routing & Postfächer
             'owner_email'               => 'kontakt@mein-seelenfunke.de',
+            'owner_email_impressum'     => 'impressum@mein-seelenfunke.de',
+            'owner_email_invoices'      => 'rechnungen@mein-seelenfunke.de',
+            'owner_email_backup'        => 'backup@mein-seelenfunke.de',
+
             'owner_phone'               => '+49 (0) 159 019 668 64',
             'owner_tax_id'              => '19/143/11624',
             'owner_ust_id'              => 'DE123456789',
             'owner_court'               => 'Amtsgericht Gifhorn',
             'owner_website'             => 'www.mein-seelenfunke.de',
+
+            // Bankdaten
+            'owner_bank_name'           => '',
+            'owner_bank_address'        => '',
+            'owner_bic'                 => '',
             'owner_iban'                => '',
 
-            // NEU: Erweiterte behördliche Daten (Platzhalter)
+            // Erweiterte behördliche Daten (Platzhalter)
             'owner_finanzamt_nr'        => '2319',
             'owner_social_security_nr'  => '29 010993 S 512', // Sozialversicherungsnr
             'owner_tax_ident_nr'        => '66324780911', // Persönliche Steuer-ID

@@ -20,6 +20,10 @@ class ShopConfig extends Component
         'owner_street',
         'owner_city',
         'owner_email',
+        // NEU: Routing E-Mails
+        'owner_email_impressum',
+        'owner_email_invoices',
+        'owner_email_backup',
         'owner_phone',
         'owner_tax_id',
         'owner_ust_id',
@@ -58,6 +62,10 @@ class ShopConfig extends Component
         'owner_name' => 'Dein offizieller Shop-Name, wie er im Briefkopf der Rechnung erscheint.',
         'owner_proprietor' => 'Der Vor- und Nachname der Inhaberin (gesetzlich vorgeschrieben).',
         'owner_email' => 'Kontaktadresse für Kundenanfragen und Systembenachrichtigungen.',
+        // NEU: Routing E-Mails
+        'owner_email_impressum' => 'Spezielle E-Mail-Adresse für das Impressum und rechtliche Anfragen.',
+        'owner_email_invoices' => 'E-Mail-Adresse als Absender für automatische Rechnungen und buchhalterische Themen.',
+        'owner_email_backup' => 'An diese E-Mail-Adresse werden System-Benachrichtigungen und Datenbank-Backups gesendet.',
         'owner_tax_id' => 'Deine persönliche Steuernummer beim Finanzamt.',
         'owner_ust_id' => 'Umsatzsteuer-Identifikationsnummer für den EU-weiten Handel.',
         'owner_court' => 'Der Gerichtsstand ist bei Streitigkeiten mit gewerblichen Kunden relevant.',
@@ -141,6 +149,11 @@ class ShopConfig extends Component
             'maintenance_mode' => false,
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
+
+            // NEU: Routing E-Mails Fallbacks
+            'owner_email_impressum' => 'impressum@mein-seelenfunke.de',
+            'owner_email_invoices' => 'rechnungen@mein-seelenfunke.de',
+            'owner_email_backup' => 'backup@mein-seelenfunke.de',
         ];
         return $fallbacks[$key] ?? '';
     }
@@ -150,6 +163,9 @@ class ShopConfig extends Component
         $this->validate([
             'settings.default_tax_rate' => 'required|numeric',
             'settings.owner_email' => 'required|email',
+            'settings.owner_email_impressum' => 'nullable|email', // NEU
+            'settings.owner_email_invoices' => 'nullable|email',  // NEU
+            'settings.owner_email_backup' => 'nullable|email',    // NEU
             'settings.shipping_cost' => 'required|numeric',
             'settings.shipping_free_threshold' => 'required|numeric',
             'settings.express_surcharge' => 'required|numeric',

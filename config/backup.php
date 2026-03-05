@@ -211,11 +211,13 @@ return [
         'notifiable' => \Spatie\Backup\Notifications\Notifiable::class,
 
         'mail' => [
-            'to' => env('MAIL_FROM_ADDRESS_BACKUP', 'hello@example.com'),
+            // Holt sich die Backup-Mail aus der .env
+            'to' => env('MAIL_FROM_ADDRESS_BACKUP', 'backup@mein-seelenfunke.de'),
 
             'from' => [
-                'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-                'name' => env('MAIL_FROM_NAME', 'Example'),
+                // Holt sich die Standard-Kontakt-Mail aus der .env
+                'address' => env('MAIL_FROM_ADDRESS', 'kontakt@mein-seelenfunke.de'),
+                'name' => env('BACKUP_FROM_NAME', 'Funki System-Backup'),
             ],
         ],
 
