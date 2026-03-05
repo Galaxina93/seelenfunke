@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Broadcast;
 // ----------------------------------------------------
 
 Broadcast::channel('admin.{id}', function ($user, $id) {
-    return (int) $user->id === (int) $id;
+    return (string) $user->id === (string) $id;
 }, ['guards' => ['admin']]);
 
 // Falls du auch den generischen Admin-Channel nutzt:

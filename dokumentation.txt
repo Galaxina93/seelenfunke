@@ -84,3 +84,10 @@ php artisan queue:restart
 
 Bei Env File Änderungen danach immer:
 php artisan optimize:clear
+
+
+
+BEIM FEHLER:
+The stream or file "/var/www/html/storage/logs/laravel.log" could not be opened in append mode: Failed to open stream: Permission denied The exception occurred while attempting to log: The stream or file "/var/www/html/storage/logs/laravel.log"
+Lösung:
+docker compose exec -u root web chmod -R 777 storage bootstrap/cache

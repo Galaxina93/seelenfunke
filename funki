@@ -90,7 +90,11 @@ case "$1" in
         ;;
     backup)
         echo "💾 Erstelle sicheres Datenbank-Backup..."
-        docker compose exec --user "$(id -u):$(id -g)" web php artisan backup:run --only-db
+        docker compose exec web php artisan backup:run --only-db
+        echo "🔧 Repariere Zugriffsrechte für das Dashboard..."
+        # 777 garantiert, dass der Webserver und der Root-User sich auf lokalen Testservern nicht in die Quere kommen
+        docker compose exec -u root web chmod -R 777 storage/
+        echo "✅ Backup erfolgreich abgeschlossen!"
         ;;
     artisan)
         shift
