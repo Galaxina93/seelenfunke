@@ -91,6 +91,17 @@ class FinancialLiquidityPlanner extends Component
         $this->calculate();
     }
 
+    // NEU: Funktion umgeht das JS-Dot-Notation Problem bei Livewire
+    public function updateValue($year, $month, $type, $key, $value)
+    {
+        // Falls leer oder null, setzen wir es auf null, ansonsten als Float
+        $val = ($value === '' || $value === null) ? null : (float) str_replace(',', '.', $value);
+        $this->data[$year][$month][$type][$key] = $val;
+
+        // Berechne alle Summen sofort neu
+        $this->calculate();
+    }
+
     public function setActiveYear($year)
     {
         $this->activeYear = $year;
@@ -453,7 +464,6 @@ class FinancialLiquidityPlanner extends Component
             $avgCostsAfterSubsidy = 0;
         }
 
-        // 1. Rentabilität (Max 40%)
         $scoreRent = 0;
         if ($avgCostsAfterSubsidy > 0) {
             $ratio = $avgSalesAfterSubsidy / $avgCostsAfterSubsidy;
@@ -463,7 +473,6 @@ class FinancialLiquidityPlanner extends Component
             else $scoreRent = 5;
         }
 
-        // 2. Liquidität (Max 30%)
         $scoreLiq = 30;
         $liqWarning = false;
         foreach($this->years as $y) {
@@ -476,7 +485,6 @@ class FinancialLiquidityPlanner extends Component
             }
         }
 
-        // 3. Marge (Max 30%) - basiert auf 2027
         $scoreMarge = 0;
         if (isset($this->rentabilitaet[2027])) {
             $umsatz = $this->rentabilitaet[2027]['umsatz'];
@@ -490,7 +498,6 @@ class FinancialLiquidityPlanner extends Component
         }
 
         $totalScore = $scoreRent + $scoreLiq + $scoreMarge;
-
         $breakEvenDate = 'Oktober ' . ($this->years[0] ?? 2026);
 
         return [

@@ -6,7 +6,7 @@
             <div>
                 <h2 class="text-2xl font-serif font-bold text-white tracking-wide flex items-center gap-3">
                     <div class="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     </div> Liquiditätsplanung (Brutto)
                 </h2>
                 <p class="text-xs text-gray-400 mt-2 max-w-2xl leading-relaxed">Plane deine Ein- und Auszahlungen. Das System berechnet automatisch, wann sich deine Firma nach Wegfall von ALG 1 und Zuschüssen selbst tragen muss.</p>
@@ -21,7 +21,7 @@
                     <span wire:loading wire:target="syncLiveData">Lade Daten...</span>
                 </button>
 
-                <button wire:click="exportPdf" wire:loading.class="opacity-50 grayscale cursor-not-allowed" wire:loading.attr="disabled" class="px-6 py-2.5 bg-primary text-gray-900 hover:text-white active:opacity-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] flex items-center gap-2">
+                <button wire:click="exportPdf" wire:loading.class="opacity-50 grayscale cursor-not-allowed" wire:loading.attr="disabled" class="px-6 py-2.5 bg-primary text-gray-900 hover:text-white active:bg-gray-400 active:opacity-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     <span>Als PDF Exportieren</span>
                 </button>
@@ -128,7 +128,8 @@
                                 <td class="px-2 py-1.5 border-r border-gray-800/50 align-middle whitespace-nowrap">
                                     @php $val = $data[$activeYear][$m]['in'][$key] ?? null; @endphp
                                     <div class="flex items-center justify-end gap-1">
-                                        <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}" wire:change="data.{{$activeYear}}.{{$m}}.in.{{$key}} = $event.target.value"
+                                        <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}"
+                                               wire:change="updateValue({{ $activeYear }}, {{ $m }}, 'in', '{{ $key }}', $event.target.value)"
                                                class="w-full bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors {{ empty($val) ? 'text-[10px] text-gray-600/50 font-normal' : 'text-gray-200 text-sm' }} {{ $isZeroRow ? 'line-through text-gray-600' : '' }}"
                                                placeholder="0.00">
                                         <span class="text-gray-600 {{ empty($val) ? 'text-[10px]' : 'text-sm font-bold text-gray-500' }}">&nbsp;€</span>
@@ -169,7 +170,8 @@
                                 <td class="px-2 py-1.5 border-r border-gray-800/50 align-middle whitespace-nowrap">
                                     @php $val = $data[$activeYear][$m]['out'][$key] ?? null; @endphp
                                     <div class="flex items-center justify-end gap-1">
-                                        <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}" wire:change="data.{{$activeYear}}.{{$m}}.out.{{$key}} = $event.target.value"
+                                        <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}"
+                                               wire:change="updateValue({{ $activeYear }}, {{ $m }}, 'out', '{{ $key }}', $event.target.value)"
                                                class="w-full bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors {{ empty($val) ? 'text-[10px] text-gray-600/50 font-normal' : 'text-gray-200 text-sm' }} {{ $isZeroRow ? 'line-through text-gray-600' : '' }}"
                                                placeholder="0.00">
                                         <span class="text-gray-600 {{ empty($val) ? 'text-[10px]' : 'text-sm font-bold text-gray-500' }}">&nbsp;€</span>
@@ -225,7 +227,8 @@
                                 <td class="px-2 py-1.5 border-r border-gray-800/50 align-middle whitespace-nowrap">
                                     @php $val = $data[$activeYear][$m]['adj'][$key] ?? null; @endphp
                                     <div class="flex items-center justify-end gap-1">
-                                        <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}" wire:change="data.{{$activeYear}}.{{$m}}.adj.{{$key}} = $event.target.value"
+                                        <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}"
+                                               wire:change="updateValue({{ $activeYear }}, {{ $m }}, 'adj', '{{ $key }}', $event.target.value)"
                                                class="w-full bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors {{ empty($val) ? 'text-[10px] text-gray-600/50 font-normal' : 'text-gray-200 text-sm' }} {{ $isZeroRow ? 'line-through text-gray-600' : '' }}"
                                                placeholder="0.00">
                                         <span class="text-gray-600 {{ empty($val) ? 'text-[10px]' : 'text-sm font-bold text-gray-500' }}">&nbsp;€</span>
@@ -254,7 +257,7 @@
             </div>
         </div>
 
-        {{-- ZUSATZ TABELLEN (Gepackt untereinander über die volle Breite) --}}
+        {{-- ZUSATZ TABELLEN (Backend) --}}
         <div class="space-y-8 mt-8">
 
             {{-- Kapitalbedarfsplanung --}}
