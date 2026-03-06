@@ -4,9 +4,15 @@
     <meta charset="UTF-8">
     <title>Liquiditätsplanung - Mein Seelenfunke</title>
     <style>
-        /* Optimierte Ränder für maximalen vertikalen Platz auf A4 Querformat */
-        @page { size: A4 landscape; margin: 6mm 12mm; }
+        /* Optimierte Ränder: Unten 15mm Platz für den sauberen Footer */
+        @page { size: A4 landscape; margin: 6mm 12mm 15mm 12mm; }
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 7px; color: #2d3748; margin: 0; padding: 0; background-color: #ffffff; }
+
+        /* Sicherer, fixierter Footer für DOMPDF */
+        #footer { position: fixed; bottom: -12mm; left: 0px; right: 0px; height: 10mm; font-size: 6px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 4px; }
+        .footer-table { width: 100%; border-collapse: collapse; border: none; }
+        .footer-table td { border: none; padding: 0; background: transparent; }
+        .page-number:after { content: "Seite " counter(page); font-weight: bold; }
 
         .header { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #C5A059; position: relative; }
         .logo { height: 90px; position: absolute; right: 0; top: -15px; }
@@ -20,12 +26,14 @@
         }
 
         .plan-year-title { font-size: 20px; font-weight: 900; color: #111827; margin-top: 10px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
-        .section-heading { font-size: 9px; font-weight: bold; color: #111827; margin-top: 6px; margin-bottom: 2px; text-transform: uppercase; }
+        .section-heading { font-size: 9px; font-weight: bold; color: #111827; margin-top: 15px; margin-bottom: 4px; text-transform: uppercase; }
 
         .doc-meta { font-size: 7px; color: #6b7280; margin-top: 2px; }
 
-        /* Kompaktere Tabellen-Paddings zur Platzersparnis */
-        table { width: 100%; border-collapse: collapse; margin-bottom: 6px; page-break-inside: auto; }
+        /* Tabellen Layout */
+        table { border-collapse: collapse; margin-bottom: 6px; page-break-inside: auto; width: 100%; }
+        .auto-table { width: auto; min-width: 60%; margin-bottom: 15px; }
+
         tr { page-break-inside: avoid; page-break-after: auto; }
         th, td { border: 1px solid #e5e7eb; padding: 1.5px 2px; text-align: right; white-space: nowrap; font-size: 6.5px;}
         th { background-color: #f3f4f6; font-weight: bold; text-align: center; color: #374151; font-size: 6.5px; }
@@ -39,35 +47,43 @@
         .negative { color: #dc2626; }
         .zero-val { color: #9ca3af; font-weight: normal; font-size: 5.5px; }
         .line-through { text-decoration: line-through; opacity: 0.3; }
+        .legend-box { font-size: 6px; color: #6b7280; margin-top: 2px; margin-bottom: 10px; }
 
-        .footer { margin-top: 6px; border-top: 1px solid #e5e7eb; padding-top: 4px; font-size: 5.5px; color: #6b7280; text-align: center; line-height: 1.2; }
-        .footer a { color: #C5A059; text-decoration: none; }
+        /* Layout für Glossar & Textblöcke */
+        .statement-box { margin-top: 10px; margin-bottom: 15px; padding: 8px; border-left: 2px solid #C5A059; background-color: #f9fafb; page-break-inside: avoid; }
+        .statement-box h3 { font-size: 9px; color: #111827; margin-top: 0; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+        .statement-box p { font-size: 7px; line-height: 1.4; color: #374151; margin-bottom: 3px; }
 
-        /* Glossar & Score Layout */
-        .glossary-section { margin-top: 4px; page-break-inside: avoid; float: left; width: 31%; margin-right: 2%; }
-        .glossary-section h3 { font-size: 7.5px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;}
-        .glossary-item { margin-bottom: 3px; }
-        .glossary-item strong { color: #C5A059; font-size: 6.5px; }
-        .glossary-item p { margin: 1px 0 0 0; font-size: 5.5px; color: #4b5563; line-height: 1.2; white-space: normal; }
+        .glossary-section { margin-bottom: 10px; page-break-inside: avoid; display: block; float: left; width: 31%; margin-right: 2%; }
+        .glossary-section h3 { font-size: 8px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;}
+        .glossary-item { margin-bottom: 5px; }
+        .glossary-item strong { color: #C5A059; font-size: 7px; }
+        .glossary-item p { margin: 1.5px 0 0 0; font-size: 6.5px; color: #4b5563; line-height: 1.3; white-space: normal; }
 
-        .score-container { clear: both; margin-top: 8px; padding: 8px 10px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; page-break-inside: avoid; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-
-        .score-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
-        .score-label { font-size: 6.5px; font-weight: bold; color: #374151; width: 35%; display: inline-block;}
-        .score-bar-wrapper { width: 55%; background-color: #f3f4f6; border-radius: 4px; height: 8px; overflow: hidden; display: inline-block; vertical-align: middle; }
+        .score-container { clear: both; margin-top: 15px; margin-bottom: 15px; padding: 10px 12px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px; page-break-inside: avoid; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .score-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; width: 60%; }
+        .score-label { font-size: 6.5px; font-weight: bold; color: #374151; width: 40%; display: inline-block;}
+        .score-bar-wrapper { width: 50%; background-color: #f3f4f6; border-radius: 4px; height: 8px; overflow: hidden; display: inline-block; vertical-align: middle; }
         .score-bar-fill { height: 100%; text-align: right; color: white; font-weight: bold; line-height: 8px; padding-right: 3px; font-size: 5.5px; }
-        .score-value { width: 8%; text-align: right; font-size: 6.5px; font-weight: bold; display: inline-block; }
+        .score-value { width: 10%; text-align: right; font-size: 6.5px; font-weight: bold; display: inline-block; }
 
+        .gold-heading { color: #C5A059; font-size: 12px; font-weight: bold; text-transform: uppercase; border-bottom: 1.5px solid #C5A059; padding-bottom: 4px; margin-top: 20px; margin-bottom: 10px; }
         .page-break { page-break-after: always; }
         .clearfix { clear: both; }
-
-        /* Golden Header für Glossar */
-        .gold-heading { color: #C5A059; font-size: 11px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #C5A059; padding-bottom: 3px; margin-top: 10px; margin-bottom: 8px; }
-
-        .milestone-box { margin-bottom: 6px; padding: 4px 6px; background-color: #f0fdf4; border-left: 2px solid #10b981; color: #065f46; font-size: 6.5px; font-weight: bold; line-height: 1.3;}
+        a { color: #C5A059; text-decoration: none; }
     </style>
 </head>
 <body>
+
+<div id="footer">
+    <table class="footer-table">
+        <tr>
+            <td style="text-align: left; width: 33%;"><strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}</td>
+            <td style="text-align: center; width: 33%; color: #111827;" class="page-number"></td>
+            <td style="text-align: right; width: 33%;"><a href="{{ url('/') }}">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a></td>
+        </tr>
+    </table>
+</div>
 
 @foreach($years as $index => $year)
     <div class="header">
@@ -183,13 +199,8 @@
         </tbody>
     </table>
 
-    {{-- Legal Footer --}}
-    <div class="footer">
-        <p>
-            <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }} |
-            {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }} |
-            <a href="{{ url('/') }}">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a>
-        </p>
+    <div class="legend-box">
+        <strong>* Legende:</strong> Grau durchgestrichene Positionen weisen im angezeigten Planungsjahr keine Liquiditätsbewegungen auf (0,00 €).
     </div>
 
     <div class="page-break"></div>
@@ -198,14 +209,14 @@
 <div class="header">
     <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Logo" class="logo">
     <div class="doc-title" style="color: #C5A059;">Ertrags- & Kapitalbedarfsplanung</div>
-    <div class="erp-tag">Liquiditätsplanung generiert durch: Seelenfunke ERP System</div>
+    <div class="erp-tag">Zusatz-Auswertungen</div>
 </div>
 
 <h3 class="section-heading">Kapitalbedarfsplanung (Startphase)</h3>
-<table>
+<table class="auto-table">
     <thead>
     <tr>
-        <th class="category-col" style="width: 70%;">Positionen (Netto / Brutto in EUR)</th>
+        <th class="category-col" style="text-align: left;">Positionen (Netto / Brutto in EUR)</th>
         <th>Betrag</th>
     </tr>
     </thead>
@@ -242,10 +253,10 @@
 </table>
 
 <h3 class="section-heading">Ertrags-/ Rentabilitätsvorschau (Netto)</h3>
-<table>
+<table class="auto-table">
     <thead>
     <tr>
-        <th class="category-col">Beträge in EUR (Netto Kalkulation)</th>
+        <th class="category-col" style="text-align: left;">Beträge in EUR (Netto Kalkulation)</th>
         @foreach($years as $index => $y)
             <th>{{ $index + 1 }}. Jahr ({{ $y }})</th>
             <th>% vom Umsatz</th>
@@ -261,7 +272,7 @@
             $rowStyle .= $isBg ? ' background-color: #f3f4f6;' : '';
         @endphp
         <tr style="{{ $rowStyle }}">
-            <td class="text-left" style="font-size: 6px;">{{ $label }}</td>
+            <td class="text-left">{{ $label }}</td>
             @foreach($years as $y)
                 @php
                     $val = $rentabilitaet[$y][$key] ?? 0;
@@ -285,38 +296,32 @@
 </div>
 
 <div class="score-container">
-    <div style="float: left; width: 45%;">
-        <h3 style="margin-top: 0; color: #111827; font-size: 9px; margin-bottom: 4px;">Management Summary & Tragfähigkeitsnachweis</h3>
-        <p style="font-size: 6.5px; color: #4b5563; line-height: 1.4; margin: 0 10px 0 0;">
+    <div class="statement-box" style="border-left: 3px solid #10b981; background-color: #f0fdf4; margin-top: 0;">
+        <h3 style="color: #065f46;">Management Summary & Tragfähigkeitsnachweis</h3>
+        <p style="font-size: 7px; color: #064e3b; margin-bottom: 2px;">
             <strong>1. Anlaufphase:</strong> Der private Lebensunterhalt in den ersten 6 Monaten (April bis September 2026) ist durch externe Zuschüsse vollständig gedeckt. Erwirtschaftete Umsätze verbleiben liquiditätsschonend im Unternehmen.<br>
             <strong>2. Tragfähigkeit:</strong> Ab dem 7. Monat entfallen die staatlichen Hilfen. Die Planung belegt, dass sich das Unternehmen ab diesem Zeitpunkt selbst trägt. Die <strong>Privatentnahme von 1.600 €</strong> ist fix kalkuliert. Der nötige Durchschnittsumsatz liegt bei realistischen&nbsp;<strong>{{ number_format($scoreData['avgSales'], 2, ',', '.') }}&nbsp;€ brutto</strong>.<br>
             <strong>3. Break-Even:</strong> Dank Eigennutzung vorhandener Räumlichkeiten sind Fixkosten minimal.
         </p>
     </div>
 
-    <div style="float: right; width: 55%; padding-left: 10px; border-left: 1px solid #e5e7eb;">
-        <h3 style="margin-top: 0; color: #111827; font-size: 9px; margin-bottom: 5px;">Gesamt-Tragfähigkeits-Score: {{ $scoreData['total'] }} / 100</h3>
-        <div class="milestone-box">
-            Meilenstein: Ab {{ $scoreData['breakEvenDate'] }} trägt sich das Unternehmen zu 100 % aus eigenen Mitteln.
-        </div>
+    <h3 style="margin-top: 10px; color: #111827; font-size: 10px; margin-bottom: 5px;">Gesamt-Tragfähigkeits-Score: {{ $scoreData['total'] }} / 100</h3>
 
-        @foreach($scoreData['details'] as $detail)
-            @php $w = ($detail['score'] / max(1, $detail['max'])) * 100; @endphp
-            <div class="score-row">
-                <span class="score-label">{{ $detail['label'] }}</span>
-                <div class="score-bar-wrapper">
-                    <div class="score-bar-fill" style="width: {{ max(5, $w) }}%; background-color: {{ $detail['color'] }};"></div>
-                </div>
-                <span class="score-value" style="color: {{ $detail['color'] }}">{{ $detail['score'] }} / {{ $detail['max'] }}</span>
+    @foreach($scoreData['details'] as $detail)
+        @php $w = ($detail['score'] / max(1, $detail['max'])) * 100; @endphp
+        <div class="score-row">
+            <span class="score-label">{{ $detail['label'] }}</span>
+            <div class="score-bar-wrapper">
+                <div class="score-bar-fill" style="width: {{ max(5, $w) }}%; background-color: {{ $detail['color'] }};"></div>
             </div>
-            <div style="font-size: 5.5px; color: #6b7280; margin-bottom: 6px; margin-top: 1px;">{{ $detail['desc'] }}</div>
-        @endforeach
-    </div>
-    <div class="clearfix"></div>
+            <span class="score-value" style="color: {{ $detail['color'] }}">{{ $detail['score'] }} / {{ $detail['max'] }}</span>
+        </div>
+        <div style="font-size: 6px; color: #6b7280; margin-bottom: 8px; margin-top: 1px; width: 60%;">{{ $detail['desc'] }}</div>
+    @endforeach
 </div>
 
 <h2 class="gold-heading">Betriebswirtschaftliches Fachglossar</h2>
-<div>
+<div style="width: 100%;">
     <div class="glossary-section">
         <h3>1. Einnahmen & Kapitalzufluss</h3>
         <div class="glossary-item">
@@ -333,7 +338,7 @@
         </div>
         <div class="glossary-item">
             <strong>Kontokorrentkredit / Darlehen</strong>
-            <p>Zusätzliche Fremdfinanzierung. Die Planung weist aus, ob externe Kreditlinien beansprucht werden müssen.</p>
+            <p>Zusätzliche Fremdfinanzierung. Die Planung weist aus, ob und in welcher Höhe externe Kreditlinien beansprucht werden müssen.</p>
         </div>
     </div>
 
@@ -377,14 +382,6 @@
         </div>
     </div>
     <div class="clearfix"></div>
-</div>
-
-<div class="footer" style="margin-top: 20px;">
-    <p>
-        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }} |
-        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }} |
-        <a href="{{ url('/') }}">{{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}</a>
-    </p>
 </div>
 
 </body>
