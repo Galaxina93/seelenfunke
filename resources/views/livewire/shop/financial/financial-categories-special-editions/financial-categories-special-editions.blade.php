@@ -1,9 +1,4 @@
-<div x-data="{ openList: false }"
-     x-init="$watch('openList', value => {
-         if(value) {
-             setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 300);
-         }
-     })">
+<div>
 
     <div class="bg-transparent pb-20 font-sans text-gray-300">
         {{-- Success Notification --}}
@@ -18,7 +13,7 @@
         @endif
 
         {{-- Header (Anklickbar gemacht, um die Liste auf-/zuzuklappen) --}}
-        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300 cursor-pointer" @click="openList = !openList">
+        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
             <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex justify-between items-center gap-4">
                 <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
                     <div class="p-2.5 bg-orange-500/10 border border-orange-500/20 shadow-inner rounded-xl text-orange-400 shrink-0">
@@ -28,18 +23,11 @@
                     </div>
                     Variable Ausgaben
                 </h1>
-
-                {{-- Pfeil-Indikator --}}
-                <div class="p-2 bg-gray-950 border border-gray-800 rounded-xl text-gray-500 hover:text-orange-400 transition-colors shadow-inner shrink-0">
-                    <svg class="w-5 h-5 transform transition-transform duration-300" :class="openList ? 'rotate-180 text-orange-400' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </div>
             </div>
         </div>
 
         {{-- Der einklappbare Inhaltsbereich --}}
-        <div x-show="openList" x-collapse style="display: none;">
+        <div>
             <div class="max-w-7xl mx-auto px-4 py-8 md:py-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
                 {{-- 1. KATEGORIEN VERWALTEN (Eingeklappt) --}}
                 @include('livewire.shop.financial.partials.category_management')

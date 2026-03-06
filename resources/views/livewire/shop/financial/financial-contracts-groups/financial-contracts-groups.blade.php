@@ -1,4 +1,4 @@
-<div x-data="{ draggingItemId: null, openList: false }">
+<div>
     <div class="bg-transparent pb-20 font-sans text-gray-300">
 
         {{-- Success Notification --}}
@@ -24,7 +24,7 @@
         @endif
 
         {{-- Header (Anklickbar gemacht, um die Liste auf-/zuzuklappen) --}}
-        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300 cursor-pointer" @click="openList = !openList">
+        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
             <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex justify-between items-center">
                 <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
                     <div class="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 shadow-inner shrink-0">
@@ -34,23 +34,15 @@
                     </div>
                     <span>Fixkosten</span>
                 </h1>
-
-                {{-- Pfeil-Indikator --}}
-                <div class="p-2 bg-gray-950 border border-gray-800 rounded-xl text-gray-500 hover:text-blue-400 transition-colors shadow-inner shrink-0">
-                    <svg class="w-5 h-5 transform transition-transform duration-300" :class="openList ? 'rotate-180 text-blue-400' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </div>
             </div>
         </div>
 
         {{-- Der einklappbare Inhaltsbereich --}}
-        <div x-show="openList" x-collapse style="display: none;">
+        <div>
             <div class="max-w-7xl mx-auto px-4 mt-8 md:mt-12 space-y-8 md:space-y-10 animate-fade-in-up" style="animation-delay: 100ms;">
 
                 {{-- Validierungstabelle: Fehlende Verträge ODER Alles OK --}}
                 @if($missingContracts->count() > 0)
-                    {{-- Helper für Total Count --}}
                     @php
                         $totalItems = $groups->sum(fn($group) => $group->items->count());
                     @endphp
@@ -294,6 +286,48 @@
                     @include('livewire.shop.financial.financial-contracts-groups.partials.new_group')
 
                 </div>
+
+                {{-- GLOBAL TAG MANAGEMENT SECTION --}}
+                <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8">
+                    <h3 class="text-xl font-serif font-bold text-white mb-4 tracking-wide flex items-center gap-3">
+                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        Tag-Verwaltung
+                    </h3>
+                    <p class="text-xs text-gray-400 mb-6">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
+
+                    <div class="flex flex-wrap gap-3">
+                        @forelse($this->globalTags as $tag)
+                            @if($editingGlobalTag === $tag)
+                                <div class="flex items-center gap-2 bg-gray-950 p-1.5 rounded-full border border-blue-500/50 shadow-inner">
+                                    <input type="text" wire:model="editingGlobalTagValue" wire:keydown.enter="saveGlobalTag" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-white px-2 outline-none w-28">
+                                    <button wire:click="saveGlobalTag" class="text-emerald-400 hover:text-emerald-300 transition-colors" title="Speichern">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                    <button wire:click="$set('editingGlobalTag', null)" class="text-gray-500 hover:text-gray-400 pr-1 transition-colors" title="Abbrechen">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                </div>
+                            @else
+                                <div class="group/tag flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] rounded-full px-3 py-1.5 transition-all">
+                                    <span class="text-[10px] font-black uppercase tracking-widest">{{ $tag }}</span>
+                                    <div class="flex items-center gap-1.5 border-l border-blue-500/30 pl-2 ml-1">
+                                        <button wire:click="editGlobalTag('{{ $tag }}')" class="text-blue-400/70 hover:text-blue-400 transition-colors" title="Tag umbenennen">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                        </button>
+                                        <button wire:click="deleteGlobalTag('{{ $tag }}')" wire:confirm="Tag '{{ $tag }}' wirklich von allen Kostenstellen global entfernen?" class="text-red-400/70 hover:text-red-400 transition-colors" title="Tag global löschen">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            @endif
+                        @empty
+                            <span class="text-xs text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
+                        @endforelse
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

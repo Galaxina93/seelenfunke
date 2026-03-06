@@ -39,6 +39,9 @@ return new class extends Migration
             $table->boolean('is_business')->default(false); // Neu: Gewerblich/Privat Trennung
 
             $table->string('contract_file_path')->nullable();
+
+            $table->json('tags')->nullable();
+
             $table->timestamps();
         });
 

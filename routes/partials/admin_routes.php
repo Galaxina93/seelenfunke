@@ -80,9 +80,17 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.financial-evaluation');
     })->name('admin.financial-evaluation');
 
-    Route::get('/admin/financial-costs', function () {
-        return view('backend.admin.pages.financial-costs');
-    })->name('admin.financial-costs');
+    Route::get('/admin/financial-liquidity-planning', function () {
+        return view('backend.admin.pages.financial-liquidity-planning');
+    })->name('admin.financial-liquidity-planning');
+
+    Route::get('/admin/financial-fix-costs', function () {
+        return view('backend.admin.pages.financial-fix-costs');
+    })->name('admin.financial-fix-costs');
+
+    Route::get('/admin/financial-variable-costs', function () {
+        return view('backend.admin.pages.financial-variable-costs');
+    })->name('admin.financial-variable-costs');
 
     Route::get('/admin/financial-tax', function () {
         return view('backend.admin.pages.financial-tax');

@@ -19,12 +19,14 @@ class FinanceCostItem extends Model
         'first_payment_date',
         'is_business',
         'contract_file_path',
+        'tags',
     ];
 
     protected $casts = [
         'first_payment_date' => 'date',
-        'amount' => 'decimal:2',
-        'is_business' => 'boolean'
+        'amount'             => 'decimal:2',
+        'is_business'        => 'boolean',
+        'tags'               => 'array',
     ];
 
     public function group(): BelongsTo

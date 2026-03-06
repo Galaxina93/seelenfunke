@@ -32,6 +32,7 @@ class DatabaseSeeder extends Seeder
 
             KnowledgeBaseSeeder::class,             // Für den Livegang notwendig
             GamificationTestSeeder::class,          // DEAKTIVIEREN BEI LIVEGANG
+            FinancialData2028Seeder::class          // DEAKTIVIEREN BEI LIVEGANG
         ]);
 
     }

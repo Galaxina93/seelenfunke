@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Livewire\Shop\Financial;
 
 use App\Models\Financial\FinanceGroup;
@@ -16,22 +17,23 @@ class FinancialContractsGroups extends Component
 
     #[Url]
     public $selectedYear;
+
     #[Url]
     public $selectedMonth;
 
     public ?string $activeGroupId = null;
-
     public ?string $editingGroupId = null;
+
     #[Rule('required|min:3')]
     public $tempGroupName = '';
 
     public $showAddItemFormForGroup = null;
-
     public $newGroupName = '';
     public $newGroupType = 'expense';
     public $isCreatingGroup = false;
 
     public ?string $uploadingMissingItemId = null;
+
     #[Rule('required|file|max:10240')]
     public $quickUploadFile;
 
@@ -55,6 +57,12 @@ class FinancialContractsGroups extends Component
     public ?string $addingToGroupId = null;
     public ?string $targetGroupId = null;
 
+    // --- Tagging Properties ---
+    public $addingTagToItemId = null;
+    public $newItemTag = '';
+    public $editingGlobalTag = null;
+    public $editingGlobalTagValue = '';
+
     public function mount()
     {
         if (!Auth::guard('admin')->check()) {
@@ -73,15 +81,107 @@ class FinancialContractsGroups extends Component
 
     public function getMissingContractsProperty()
     {
-        return FinanceCostItem::whereHas('group', function($q) {
+        return FinanceCostItem::whereHas('group', function ($q) {
             $q->where('admin_id', $this->getAdminId());
-        })
-            ->whereNull('contract_file_path')
-            ->with('group')
-            ->orderBy('name')
-            ->get();
+        })->whereNull('contract_file_path')->with('group')->orderBy('name')->get();
     }
 
+    // --- Tagging Methods ---
+    public function getGlobalTagsProperty()
+    {
+        return FinanceCostItem::whereHas('group', function ($q) {
+            $q->where('admin_id', $this->getAdminId());
+        })
+            ->pluck('tags')
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+    }
+
+    public function startAddingTag($itemId)
+    {
+        $this->addingTagToItemId = $itemId;
+        $this->newItemTag = '';
+    }
+
+    public function saveNewItemTag()
+    {
+        $this->validate(['newItemTag' => 'required|string|min:2|max:30']);
+        $item = FinanceCostItem::findOrFail($this->addingTagToItemId);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        $tags = is_array($item->tags) ? $item->tags : [];
+        $newTag = trim($this->newItemTag);
+
+        if (!in_array($newTag, $tags)) {
+            $tags[] = $newTag;
+            $item->update(['tags' => $tags]);
+        }
+
+        $this->addingTagToItemId = null;
+        $this->newItemTag = '';
+    }
+
+    public function removeTagFromItem($itemId, $tag)
+    {
+        $item = FinanceCostItem::findOrFail($itemId);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        $tags = is_array($item->tags) ? $item->tags : [];
+        $tags = array_values(array_filter($tags, fn($t) => $t !== $tag));
+        $item->update(['tags' => $tags]);
+    }
+
+    public function editGlobalTag($tag)
+    {
+        $this->editingGlobalTag = $tag;
+        $this->editingGlobalTagValue = $tag;
+    }
+
+    public function saveGlobalTag()
+    {
+        $this->validate(['editingGlobalTagValue' => 'required|string|min:2|max:30']);
+        $oldTag = $this->editingGlobalTag;
+        $newTag = trim($this->editingGlobalTagValue);
+
+        if ($oldTag !== $newTag) {
+            $items = FinanceCostItem::whereHas('group', function($q) {
+                $q->where('admin_id', $this->getAdminId());
+            })->get();
+
+            foreach ($items as $item) {
+                $tags = is_array($item->tags) ? $item->tags : [];
+                if (in_array($oldTag, $tags)) {
+                    $tags = array_map(fn($t) => $t === $oldTag ? $newTag : $t, $tags);
+                    $item->update(['tags' => array_unique($tags)]);
+                }
+            }
+        }
+
+        $this->editingGlobalTag = null;
+        $this->editingGlobalTagValue = '';
+        session()->flash('success', 'Tag erfolgreich aktualisiert.');
+    }
+
+    public function deleteGlobalTag($tag)
+    {
+        $items = FinanceCostItem::whereHas('group', function($q) {
+            $q->where('admin_id', $this->getAdminId());
+        })->get();
+
+        foreach ($items as $item) {
+            $tags = is_array($item->tags) ? $item->tags : [];
+            if (in_array($tag, $tags)) {
+                $tags = array_values(array_filter($tags, fn($t) => $t !== $tag));
+                $item->update(['tags' => $tags]);
+            }
+        }
+        session()->flash('success', "Tag '{$tag}' wurde global entfernt.");
+    }
+
+    // --- Core Methods ---
     public function startQuickUpload($itemId)
     {
         $this->uploadingMissingItemId = $itemId;
@@ -114,13 +214,12 @@ class FinancialContractsGroups extends Component
     public function createGroup()
     {
         $this->validate(['newGroupName' => 'required|min:3']);
-
         $position = FinanceGroup::where('admin_id', $this->getAdminId())->max('position') + 1;
 
         FinanceGroup::create([
             'admin_id' => $this->getAdminId(),
-            'name' => $this->newGroupName,
-            'type' => $this->newGroupType,
+            'name'     => $this->newGroupName,
+            'type'     => $this->newGroupType,
             'position' => $position
         ]);
 
@@ -139,12 +238,12 @@ class FinancialContractsGroups extends Component
     public function updateGroup()
     {
         $this->validate(['tempGroupName' => 'required|min:3']);
-
         $group = FinanceGroup::where('id', $this->editingGroupId)->where('admin_id', $this->getAdminId())->firstOrFail();
-        $group->update(['name' => $this->tempGroupName]);
 
+        $group->update(['name' => $this->tempGroupName]);
         $this->editingGroupId = null;
         $this->tempGroupName = '';
+
         $this->dispatchChartUpdate();
         session()->flash('success', 'Gruppenname aktualisiert.');
     }
@@ -178,7 +277,6 @@ class FinancialContractsGroups extends Component
         }
     }
 
-    // NEU: Gruppen Positionen nach Drag & Drop speichern
     public function updateGroupOrder($orderedIds)
     {
         foreach ($orderedIds as $index => $id) {
@@ -196,11 +294,11 @@ class FinancialContractsGroups extends Component
         $targetGroup = FinanceGroup::where('id', $targetGroupId)->where('admin_id', $this->getAdminId())->first();
 
         if ($item && $targetGroup) {
-            if($item->group->admin_id !== $this->getAdminId()) abort(403);
+            if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
             $item->update(['finance_group_id' => $targetGroup->id]);
-
             $this->activeGroupId = $targetGroup->id;
+
             $this->dispatchChartUpdate();
             session()->flash('success', 'Vertrag verschoben.');
         }
@@ -229,7 +327,7 @@ class FinancialContractsGroups extends Component
             $this->editingItemId = $itemId;
             $item = FinanceCostItem::findOrFail($itemId);
 
-            if($item->group->admin_id !== $this->getAdminId()) {
+            if ($item->group->admin_id !== $this->getAdminId()) {
                 abort(403);
             }
 
@@ -252,23 +350,23 @@ class FinancialContractsGroups extends Component
 
     public function saveItem()
     {
-        if($this->itemAmount) {
+        if ($this->itemAmount) {
             $this->itemAmount = str_replace(',', '.', $this->itemAmount);
         }
 
         $this->validate([
-            'itemName' => 'required',
+            'itemName'   => 'required',
             'itemAmount' => 'required|numeric',
-            'itemDate' => 'required|date',
+            'itemDate'   => 'required|date',
         ]);
 
         $data = [
-            'name' => $this->itemName,
-            'amount' => $this->itemAmount,
-            'interval_months' => $this->itemInterval,
+            'name'               => $this->itemName,
+            'amount'             => $this->itemAmount,
+            'interval_months'    => $this->itemInterval,
             'first_payment_date' => $this->itemDate,
-            'description' => $this->itemDescription,
-            'is_business' => $this->itemIsBusiness ? 1 : 0,
+            'description'        => $this->itemDescription,
+            'is_business'        => $this->itemIsBusiness ? 1 : 0,
         ];
 
         if ($this->itemFile) {
@@ -278,11 +376,11 @@ class FinancialContractsGroups extends Component
 
         if ($this->editingItemId) {
             $item = FinanceCostItem::findOrFail($this->editingItemId);
-            if($item->group->admin_id !== $this->getAdminId()) abort(403);
+            if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
             if ($this->targetGroupId && $this->targetGroupId !== $item->finance_group_id) {
                 $targetGroup = FinanceGroup::where('id', $this->targetGroupId)->where('admin_id', $this->getAdminId())->first();
-                if($targetGroup) {
+                if ($targetGroup) {
                     $data['finance_group_id'] = $this->targetGroupId;
                 }
             }
@@ -291,18 +389,15 @@ class FinancialContractsGroups extends Component
             $this->editingItemId = null;
             session()->flash('success', 'Kostenstelle aktualisiert.');
         } else {
-            if(!$this->addingToGroupId) {
+            if (!$this->addingToGroupId) {
                 session()->flash('error', 'Fehler: Keine Zielgruppe gefunden.');
                 return;
             }
 
             $group = FinanceGroup::findOrFail($this->addingToGroupId);
-            if($group->admin_id !== $this->getAdminId()) abort(403);
+            if ($group->admin_id !== $this->getAdminId()) abort(403);
 
-            FinanceCostItem::create(array_merge($data, [
-                'finance_group_id' => $this->addingToGroupId
-            ]));
-
+            FinanceCostItem::create(array_merge($data, ['finance_group_id' => $this->addingToGroupId]));
             $this->showAddItemFormForGroup = null;
             session()->flash('success', 'Kostenstelle erstellt.');
         }
@@ -314,7 +409,7 @@ class FinancialContractsGroups extends Component
     public function removeFileFromItem($itemId)
     {
         $item = FinanceCostItem::findOrFail($itemId);
-        if($item->group->admin_id !== $this->getAdminId()) abort(403);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         if ($item->contract_file_path) {
             $item->update(['contract_file_path' => null]);
@@ -333,7 +428,7 @@ class FinancialContractsGroups extends Component
     public function deleteItem($id)
     {
         $item = FinanceCostItem::findOrFail($id);
-        if($item->group->admin_id !== $this->getAdminId()) abort(403);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         $item->delete();
         $this->dispatchChartUpdate();
@@ -342,29 +437,53 @@ class FinancialContractsGroups extends Component
 
     public function resetItemForm()
     {
-        $this->reset(['itemName', 'itemAmount', 'itemInterval', 'itemDate', 'itemDescription', 'itemFile', 'addingToGroupId', 'itemIsBusiness', 'editingItemId', 'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId']);
+        $this->reset([
+            'itemName', 'itemAmount', 'itemInterval', 'itemDate', 'itemDescription',
+            'itemFile', 'addingToGroupId', 'itemIsBusiness', 'editingItemId',
+            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId'
+        ]);
         $this->itemDate = date('Y-m-d');
     }
 
     private function dispatchChartUpdate()
     {
-        $groups = FinanceGroup::with('items')
-            ->where('admin_id', $this->getAdminId())
-            ->orderBy('position')
-            ->orderBy('created_at')
-            ->get();
+        $groups = FinanceGroup::with('items')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
+        $chartLabels = [];
+        $chartData = [];
+        $chartColors = [];
+
+        foreach ($groups as $group) {
+            $monthlySum = 0;
+            foreach ($group->items as $item) {
+                $monthlySum += abs($item->amount) / $item->interval_months;
+            }
+            if ($monthlySum > 0) {
+                $chartLabels[] = $group->name;
+                $chartData[] = round($monthlySum, 2);
+                if ($group->type === 'income') {
+                    $chartColors[] = '#10b981';
+                } else {
+                    $chartColors[] = '#ef4444';
+                }
+            }
+        }
+        $this->dispatch('update-groups-chart', labels: $chartLabels, data: $chartData, colors: $chartColors);
+    }
+
+    public function render()
+    {
+        $groups = FinanceGroup::with('items')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
 
         $chartLabels = [];
         $chartData = [];
         $chartColors = [];
 
-        foreach($groups as $group) {
+        foreach ($groups as $group) {
             $monthlySum = 0;
-            foreach($group->items as $item) {
+            foreach ($group->items as $item) {
                 $monthlySum += abs($item->amount) / $item->interval_months;
             }
-
-            if($monthlySum > 0) {
+            if ($monthlySum > 0) {
                 $chartLabels[] = $group->name;
                 $chartData[] = round($monthlySum, 2);
                 if ($group->type === 'income') {
@@ -375,41 +494,11 @@ class FinancialContractsGroups extends Component
             }
         }
 
-        $this->dispatch('update-groups-chart', labels: $chartLabels, data: $chartData, colors: $chartColors);
-    }
-
-    public function render()
-    {
-        // WICHTIG: Sortierung nach `position`!
-        $groups = FinanceGroup::with('items')
-            ->where('admin_id', $this->getAdminId())
-            ->orderBy('position')
-            ->orderBy('created_at')
-            ->get();
-
-        $chartLabels = [];
-        $chartData = [];
-        $chartColors = [];
-
-        foreach($groups as $group) {
-            $monthlySum = 0;
-            foreach($group->items as $item) {
-                $monthlySum += abs($item->amount) / $item->interval_months;
-            }
-
-            if($monthlySum > 0) {
-                $chartLabels[] = $group->name;
-                $chartData[] = round($monthlySum, 2);
-                if ($group->type === 'income') $chartColors[] = '#10b981';
-                else $chartColors[] = '#ef4444';
-            }
-        }
-
         return view('livewire.shop.financial.financial-contracts-groups.financial-contracts-groups', [
-            'groups' => $groups,
-            'chartLabels' => $chartLabels,
-            'chartData' => $chartData,
-            'chartColors' => $chartColors,
+            'groups'         => $groups,
+            'chartLabels'    => $chartLabels,
+            'chartData'      => $chartData,
+            'chartColors'    => $chartColors,
             'missingContracts' => $this->missingContracts
         ]);
     }

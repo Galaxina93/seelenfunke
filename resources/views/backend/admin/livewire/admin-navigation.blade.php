@@ -9,9 +9,10 @@
         $isMarketingActive = in_array($currentPage, ['newsletter', 'voucher', 'blog']);
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
-        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-costs', 'financial-tax']);
+        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax']);
     @endphp
 
+    {{--Funkis Zentrale--}}
     <li>
         <ul role="list" class="-mx-2 space-y-1">
             <x-forms.list-item route="/admin/dashboard" title="Dashboard" pageName="dashboard" icon="home" />
@@ -32,6 +33,7 @@
         </ul>
     </li>
 
+    {{--Shopverwaltung--}}
     <li>
         <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">Shopverwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
@@ -87,9 +89,11 @@
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
 
-                    <x-forms.list-item route="/admin/financial-costs" title="Kosten" pageName="financial-costs" icon="banknotes" />
+                    <x-forms.list-item route="/admin/financial-fix-costs" title="Fixkosten" pageName="financial-fix-costs" icon="banknotes" />
+                    <x-forms.list-item route="/admin/financial-variable-costs" title="Variable Kosten" pageName="financial-variable-costs" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
+                    <x-forms.list-item route="/admin/financial-liquidity-planning" title="Liquiditätsplanung" pageName="financial-liquidity-planning" icon="shield-check" />
 
                 </ul>
             </li>
@@ -99,6 +103,7 @@
         </ul>
     </li>
 
+    {{--SYSTEM--}}
     <li>
         <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">System</div>
         <ul role="list" class="-mx-2 space-y-1">
@@ -131,4 +136,5 @@
 
         </ul>
     </li>
+
 </x-sections.vertical-nav>
