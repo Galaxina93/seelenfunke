@@ -1,4 +1,4 @@
-<div class="p-4 lg:p-8 bg-transparent min-h-screen font-sans antialiased text-gray-300" x-data="{ activeTab: 'general' }">
+<div class="p-4 lg:p-8 bg-transparent min-h-screen font-sans antialiased text-gray-300" x-data="{ activeTab: localStorage.getItem('shop_config_tab') || 'general' }" x-init="$watch('activeTab', value => localStorage.setItem('shop_config_tab', value))">
     <div class="max-w-6xl mx-auto animate-fade-in-up">
 
         {{-- Header --}}
@@ -44,7 +44,7 @@
         <div class="flex border-b border-gray-800 mb-8 overflow-x-auto no-scrollbar gap-2 sm:gap-6">
             <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Allgemein & Steuern</button>
             <button @click="activeTab = 'products'" :class="activeTab === 'products' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Produkt & Marketing</button>
-            <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Versand & Länder</button>
+            <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Versand & Lieferzeit</button>
             <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Stammdaten (Impressum)</button>
         </div>
 

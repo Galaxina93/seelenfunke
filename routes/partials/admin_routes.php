@@ -72,10 +72,6 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.quote-requests');
     })->name('admin.quote-requests');
 
-    Route::get('/admin/shipping', function () {
-        return view('backend.admin.pages.shipping');
-    })->name('admin.shipping');
-
     Route::get('/admin/financial-evaluation', function () {
         return view('backend.admin.pages.financial-evaluation');
     })->name('admin.financial-evaluation');

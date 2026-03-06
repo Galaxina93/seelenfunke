@@ -2,10 +2,8 @@
 
 namespace App\Livewire\Shop\Config;
 
-use App\Models\Shipping\ShippingZoneCountry;
 use App\Models\ShopSetting;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Artisan;
 use Livewire\Component;
 
 class ShopConfig extends Component
@@ -20,7 +18,6 @@ class ShopConfig extends Component
         'owner_street',
         'owner_city',
         'owner_email',
-        // NEU: Routing E-Mails
         'owner_email_impressum',
         'owner_email_invoices',
         'owner_email_backup',
@@ -29,13 +26,10 @@ class ShopConfig extends Component
         'owner_ust_id',
         'owner_website',
         'owner_court',
-
-        // Erweiterte Bankdaten
         'owner_bank_name',
         'owner_bank_address',
         'owner_bic',
         'owner_iban',
-
         'shipping_cost',
         'shipping_free_threshold',
         'express_surcharge',
@@ -47,7 +41,6 @@ class ShopConfig extends Component
         'stripe_publishable_key',
         'stripe_secret_key',
         'stripe_webhook_secret',
-        // NEU: Erweiterte Stammdaten
         'owner_finanzamt_nr',
         'owner_social_security_nr',
         'owner_tax_ident_nr',
@@ -62,20 +55,16 @@ class ShopConfig extends Component
         'owner_name' => 'Dein offizieller Shop-Name, wie er im Briefkopf der Rechnung erscheint.',
         'owner_proprietor' => 'Der Vor- und Nachname der Inhaberin (gesetzlich vorgeschrieben).',
         'owner_email' => 'Kontaktadresse für Kundenanfragen und Systembenachrichtigungen.',
-        // NEU: Routing E-Mails
         'owner_email_impressum' => 'Spezielle E-Mail-Adresse für das Impressum und rechtliche Anfragen.',
         'owner_email_invoices' => 'E-Mail-Adresse als Absender für automatische Rechnungen und buchhalterische Themen.',
         'owner_email_backup' => 'An diese E-Mail-Adresse werden System-Benachrichtigungen und Datenbank-Backups gesendet.',
         'owner_tax_id' => 'Deine persönliche Steuernummer beim Finanzamt.',
         'owner_ust_id' => 'Umsatzsteuer-Identifikationsnummer für den EU-weiten Handel.',
         'owner_court' => 'Der Gerichtsstand ist bei Streitigkeiten mit gewerblichen Kunden relevant.',
-
-        // Info-Texte für Bankdaten
         'owner_bank_name' => 'Der Name deines Kreditinstituts (z.B. Volksbank BraWo).',
         'owner_bank_address' => 'Die Adresse deiner Bankfiliale (oft für internationale Überweisungen wichtig).',
         'owner_bic' => 'Der BIC (Business Identifier Code) bzw. SWIFT-Code deiner Bank.',
         'owner_iban' => 'Die IBAN, auf die Kunden ihre Vorkasse-Zahlungen überweisen sollen.',
-
         'shipping_cost' => 'Standardversandkosten pro Bestellung (Eingabe in Euro).',
         'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
         'express_surcharge' => 'Zusätzliche Gebühr, wenn der Kunde die Express-Option im Checkout wählt (Eingabe in Euro).',
@@ -118,13 +107,6 @@ class ShopConfig extends Component
         }
     }
 
-    public function getActiveShippingCountriesProperty()
-    {
-        $codes = ShippingZoneCountry::pluck('country_code')->toArray();
-        $masterList = $this->getMasterCountryList();
-        return array_intersect_key($masterList, array_flip($codes));
-    }
-
     private function getFallback($key)
     {
         $fallbacks = [
@@ -134,13 +116,10 @@ class ShopConfig extends Component
             'owner_proprietor'  => 'Alina Steinhauer',
             'owner_website'     => 'www.mein-seelenfunke.de',
             'owner_court'       => 'Gifhorn',
-
-            // Bank Fallbacks
             'owner_bank_name'   => 'Volksbank',
             'owner_bank_address'=> '',
             'owner_bic'         => '',
             'owner_iban'        => 'DE...',
-
             'shipping_cost'     => 490,
             'shipping_free_threshold' => 5000,
             'express_surcharge' => 2500,
@@ -149,8 +128,6 @@ class ShopConfig extends Component
             'maintenance_mode' => false,
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
-
-            // NEU: Routing E-Mails Fallbacks
             'owner_email_impressum' => 'impressum@mein-seelenfunke.de',
             'owner_email_invoices' => 'rechnungen@mein-seelenfunke.de',
             'owner_email_backup' => 'backup@mein-seelenfunke.de',
@@ -163,9 +140,9 @@ class ShopConfig extends Component
         $this->validate([
             'settings.default_tax_rate' => 'required|numeric',
             'settings.owner_email' => 'required|email',
-            'settings.owner_email_impressum' => 'nullable|email', // NEU
-            'settings.owner_email_invoices' => 'nullable|email',  // NEU
-            'settings.owner_email_backup' => 'nullable|email',    // NEU
+            'settings.owner_email_impressum' => 'nullable|email',
+            'settings.owner_email_invoices' => 'nullable|email',
+            'settings.owner_email_backup' => 'nullable|email',
             'settings.shipping_cost' => 'required|numeric',
             'settings.shipping_free_threshold' => 'required|numeric',
             'settings.express_surcharge' => 'required|numeric',
@@ -192,20 +169,6 @@ class ShopConfig extends Component
     }
 
     public function resetSaved() { $this->saved = false; }
-
-    public function getMasterCountryList()
-    {
-        return [
-            'DE' => 'Deutschland', 'AT' => 'Österreich', 'NL' => 'Niederlande',
-            'BE' => 'Belgien', 'FR' => 'Frankreich', 'IT' => 'Italien',
-            'ES' => 'Spanien', 'PL' => 'Polen', 'CZ' => 'Tschechien',
-            'DK' => 'Dänemark', 'SE' => 'Schweden', 'FI' => 'Finnland',
-            'IE' => 'Irland', 'PT' => 'Portugal', 'GR' => 'Griechenland',
-            'HU' => 'Ungarn', 'RO' => 'Rumänien', 'BG' => 'Bulgarien',
-            'SK' => 'Slowakei', 'SI' => 'Slowenien', 'HR' => 'Kroatien',
-            'EE' => 'Estland', 'LV' => 'Lettland', 'LT' => 'Litauen', 'LU' => 'Luxemburg'
-        ];
-    }
 
     public function render() { return view('livewire.shop.config.shop-config'); }
 }

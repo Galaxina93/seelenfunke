@@ -35,6 +35,45 @@
                         $isTrulyOutOfStock = $this->product->track_quantity &&
                                              $this->product->quantity <= 0 &&
                                              !$this->product->continue_selling_when_out_of_stock;
+
+                        // --- Lieferzeiten & Modi laden ---
+                        $isVacationMode = filter_var(shop_setting('is_vacation_mode', false), FILTER_VALIDATE_BOOLEAN);
+                        $vacationDesc   = shop_setting('vacation_description', '');
+                        $vacationStart  = shop_setting('vacation_start_date');
+                        $vacationEnd    = shop_setting('vacation_end_date');
+
+                        $isSickMode     = filter_var(shop_setting('is_sick_mode', false), FILTER_VALIDATE_BOOLEAN);
+                        $sickDesc       = shop_setting('sick_description', '');
+
+                        $deliveryTimesRaw = shop_setting('delivery_times', []);
+                        if (is_string($deliveryTimesRaw)) {
+                            $deliveryTimesRaw = json_decode($deliveryTimesRaw, true);
+                        }
+                        $deliveryTimes = is_array($deliveryTimesRaw) ? $deliveryTimesRaw : [];
+
+                        $activeDeliveryTimeId = shop_setting('active_delivery_time_id');
+                        $activeDeliveryTime = null;
+                        foreach ($deliveryTimes as $dt) {
+                            if (($dt['id'] ?? null) === $activeDeliveryTimeId) {
+                                $activeDeliveryTime = $dt;
+                                break;
+                            }
+                        }
+
+                        // Datumsberechnung für den Urlaubsmodus
+                        $vacationDeliveryMin = '';
+                        $vacationDeliveryMax = '';
+                        if ($isVacationMode && $vacationEnd) {
+                            try {
+                                $vEnd = \Carbon\Carbon::parse($vacationEnd);
+                                $vacationDeliveryMin = $vEnd->copy()->addDays(5)->format('d.m.Y');
+                                $vacationDeliveryMax = $vEnd->copy()->addDays(7)->format('d.m.Y');
+                            } catch (\Exception $e) {}
+                        }
+
+                        // Berechnung für den Krankheitsmodus
+                        $sickDeliveryMin = ($activeDeliveryTime['min_days'] ?? 3) + 6;
+                        $sickDeliveryMax = ($activeDeliveryTime['max_days'] ?? 5) + 6;
                     @endphp
 
                     {{-- Steuerhinweis --}}
@@ -78,34 +117,8 @@
             </div>
         </div>
 
-        {{-- Lagerbestand & SKU --}}
-        <div class="flex items-center gap-4 mb-8 mt-4 text-sm w-full flex-wrap">
-            @if($this->product->track_quantity)
-                @if($this->product->quantity > 0)
-                    <span class="inline-flex items-center gap-1.5 text-green-700 font-medium">
-                        <span class="relative flex h-2.5 w-2.5">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                        </span>
-                        {{ $isService ? 'Plätze verfügbar' : 'Auf Lager, sofort lieferbar' }}
-                    </span>
-                @elseif($this->product->continue_selling_when_out_of_stock)
-                    <span class="inline-flex items-center gap-1.5 text-amber-600 font-medium">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        {{ $isService ? 'Warteliste verfügbar' : 'Verfügbar auf Nachbestellung' }}
-                    </span>
-                @else
-                    <span class="inline-flex items-center gap-1.5 text-red-600 font-bold bg-red-50 px-3 py-1 rounded-full border border-red-100 animate-pulse">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        {{ $isService ? 'Derzeit ausgebucht' : 'Derzeit leider vergriffen' }}
-                    </span>
-                @endif
-            @endif
-
-            @if($this->product->sku)
-                <span class="text-gray-400 border-l border-gray-200 pl-4 ml-2">Art.-Nr.: {{ $this->product->sku }}</span>
-            @endif
-        </div>
+        {{-- DIE NEUE FRONTEND KOMPONENTE FÜR LIEFERZEITEN & MODI --}}
+        <livewire:shop.shipping.delivery-display :product="$this->product" />
 
         {{-- Kurz-Beschreibung --}}
         @if($this->product->short_description)
@@ -292,7 +305,6 @@
 
     {{-- ========================================== --}}
     {{-- 3. PRODUKTDETAILS & BEWERTUNGEN (NUR MOBILE) --}}
-    {{-- Diese Blöcke erscheinen exakt unterhalb des Konfigurators auf Handys --}}
     {{-- ========================================== --}}
     <div class="flex lg:hidden flex-col mt-12 w-full clear-both">
         <div class="border-t border-gray-100 pt-8 w-full block">
@@ -321,7 +333,6 @@
             @endif
         </div>
 
-        {{-- Kundenbewertungen (Mobile Ansicht) --}}
         <div id="kundenbewertungen-mobile" class="mt-16 sm:mt-24 scroll-mt-24 w-full block clear-both">
             <livewire:shop.product.product-reviews :product="$product" />
         </div>

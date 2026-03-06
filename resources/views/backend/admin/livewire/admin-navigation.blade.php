@@ -98,7 +98,6 @@
                 </ul>
             </li>
 
-            <x-forms.list-item route="/admin/shipping" title="Logistik" pageName="shipping" icon="truck" />
             <x-forms.list-item route="/admin/configuration" title="Einstellungen" pageName="configuration" icon="cog-8-tooth" />
         </ul>
     </li>
