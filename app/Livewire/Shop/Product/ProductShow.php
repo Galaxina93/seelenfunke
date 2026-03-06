@@ -10,8 +10,6 @@ use Livewire\Component;
 class ProductShow extends Component
 {
     public Product $product;
-
-    // --- VORLAGEN STATE ---
     public $showTemplateSelection = false;
     public $showTemplatesList = false;
     public $productTemplates = [];
@@ -19,25 +17,19 @@ class ProductShow extends Component
 
     public function mount(Product $product)
     {
-        // 1. Status Check: Nur aktive Produkte anzeigen
         if ($product->status !== 'active') {
             abort(404);
         }
 
         $this->product = $product;
 
-        // 2. Prüfen, ob es aktive Vorlagen für dieses Produkt gibt
-        $templates = ProductTemplate::where('product_id', $this->product->id)
-            ->where('is_active', true)
-            ->get();
+        $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
 
         if ($templates->isNotEmpty()) {
             $this->productTemplates = $templates->toArray();
             $this->showTemplateSelection = true;
         }
     }
-
-    // --- VORLAGEN STEUERUNG ---
 
     public function openTemplatesList()
     {
@@ -55,20 +47,17 @@ class ProductShow extends Component
     public function selectTemplate($templateId)
     {
         $template = ProductTemplate::find($templateId);
-
         if ($template) {
             $this->currentConfig = $template->configuration ?? [];
         } else {
             $this->currentConfig = [];
         }
-
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
     }
 
     public function cancelConfig()
     {
-        // Geht zurück zur Vorlagen-Auswahl, falls es Vorlagen für das Produkt gibt
         if (!empty($this->productTemplates)) {
             $this->currentConfig = [];
             $this->showTemplateSelection = true;
@@ -77,14 +66,11 @@ class ProductShow extends Component
         }
     }
 
-    // --- RENDER ---
-
     public function render()
     {
         return view('livewire.shop.product.product-show')
             ->title($this->product->seo_title ?? $this->product->name)
-            ->with([
-                'meta_description' => $this->product->seo_description ?? Str::limit($this->product->short_description, 160)
-            ])->layout('components.layouts.frontend_layout');
+            ->with(['meta_description' => $this->product->seo_description ?? Str::limit($this->product->short_description, 160)])
+            ->layout('components.layouts.frontend_layout');
     }
 }

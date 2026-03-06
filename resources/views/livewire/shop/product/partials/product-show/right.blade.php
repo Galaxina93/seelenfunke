@@ -1,7 +1,7 @@
 <div class="w-full" @scroll-to-config.window="document.getElementById('configurator-start').scrollIntoView({ behavior: 'smooth', block: 'start' })">
 
     <div id="configurator-start" class="lg:sticky lg:top-24 w-full scroll-mt-24">
-        <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-2 leading-tight">
+        <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4 leading-tight">
             {{ $this->product->name }}
         </h1>
 
@@ -9,7 +9,7 @@
             {{-- Preis --}}
             <div class="flex flex-col">
                 <div class="flex items-baseline gap-3">
-                    <span class="text-2xl font-bold text-primary">
+                    <span class="text-2xl font-bold text-primary transition-all">
                         {{ number_format($this->product->price / 100, 2, ',', '.') }} €
                     </span>
                     @if($this->product->compare_at_price > $this->product->price)
@@ -117,7 +117,6 @@
             </div>
         </div>
 
-        {{-- DIE NEUE FRONTEND KOMPONENTE FÜR LIEFERZEITEN & MODI --}}
         <livewire:shop.shipping.delivery-display :product="$this->product" />
 
         {{-- Kurz-Beschreibung --}}
@@ -303,9 +302,6 @@
         </div>
     </div>
 
-    {{-- ========================================== --}}
-    {{-- 3. PRODUKTDETAILS & BEWERTUNGEN (NUR MOBILE) --}}
-    {{-- ========================================== --}}
     <div class="flex lg:hidden flex-col mt-12 w-full clear-both">
         <div class="border-t border-gray-100 pt-8 w-full block">
             <h3 class="font-serif text-2xl font-bold text-gray-900 mb-4">Beschreibung</h3>

@@ -111,7 +111,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
 
     Route::get('/admin/orders/laser-file/{itemId}', function ($itemId) {
-        $item = OrderItem::findOrFail($itemId);
+        $item = OrderItem::findOrFail($itemId); // Ggf. Namespace anpassen
         $product = $item->product;
         $config = $item->configuration;
 
@@ -119,12 +119,20 @@ Route::middleware(['auth:admin'])->group(function () {
         $widthMm = floatval($product->width ?? 100);
         $heightMm = floatval($product->height ?? 100);
 
+        // NEU: Dynamische Abmessungen aus dem Varianten-Namen extrahieren!
+        if (!empty($config['variant_name'])) {
+            // Sucht nach Mustern wie "180x200" oder "180 x 200" in "Transparent - 180x200x40 mm..."
+            if (preg_match('/(\d+)\s*[xX]\s*(\d+)/', $config['variant_name'], $matches)) {
+                $widthMm = floatval($matches[1]);
+                $heightMm = floatval($matches[2]);
+            }
+        }
+
         // SVG Header initialisieren
         $svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' . "\n";
         $svg .= '<svg width="'.$widthMm.'mm" height="'.$heightMm.'mm" viewBox="0 0 '.$widthMm.' '.$heightMm.'" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n";
 
         // HILFSLINIE: Äußerer Rahmen (hilft der Laserschutzbeauftragten beim Framing / Einmessen)
-        // Wird in der Laser-Software auf "Ignorieren" oder "Framing" gesetzt
         $svg .= '  ' . "\n";
         $svg .= '  <rect x="0" y="0" width="'.$widthMm.'" height="'.$heightMm.'" fill="none" stroke="#FF0000" stroke-width="0.1" />' . "\n";
 
@@ -150,7 +158,6 @@ Route::middleware(['auth:admin'])->group(function () {
                 }
 
                 $svg .= '  <g transform="translate('.$x.', '.$y.') rotate('.$rot.')">' . "\n";
-                // Bild um 50% der eigenen Größe verschieben, da x,y im Konfigurator der Mittelpunkt ist
                 $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
                 $svg .= '  </g>' . "\n";
             }
@@ -159,16 +166,17 @@ Route::middleware(['auth:admin'])->group(function () {
         // TEXTE RENDER (Als Text-Vektor)
         if (!empty($config['texts'])) {
             foreach ($config['texts'] as $textItem) {
+                // Verhindert Rendering von leeren Textboxen
+                if (empty(trim($textItem['text'] ?? ''))) continue;
+
                 $x = ($textItem['x'] / 100) * $widthMm;
                 $y = ($textItem['y'] / 100) * $heightMm;
                 $rot = $textItem['rotation'] ?? 0;
                 $fontFamily = $textItem['font'] ?? 'Arial';
                 $align = $textItem['align'] ?? 'center';
 
-                // Berechnung der Schriftgröße identisch zum Frontend Canvas
                 $fontSizeMm = ($textItem['size'] ?? 1) * ($widthMm / 25);
 
-                // Alignment auf SVG Anchor mappen
                 $textAnchor = match($align) {
                     'left' => 'start',
                     'right' => 'end',
@@ -183,7 +191,6 @@ Route::middleware(['auth:admin'])->group(function () {
                 $startY = -$totalHeight / 2;
 
                 foreach ($lines as $line) {
-                    // Y-Offset (+0.35 * fontSize), damit die Baseline optisch mittig zentriert ist wie im HTML Canvas
                     $svg .= '    <text x="0" y="'.($startY + ($fontSizeMm * 0.35)).'" font-family="'.$fontFamily.'" font-size="'.$fontSizeMm.'" font-weight="bold" fill="#000000" text-anchor="'.$textAnchor.'">'.htmlspecialchars($line).'</text>' . "\n";
                     $startY += $lineHeight;
                 }

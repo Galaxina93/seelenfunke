@@ -1,4 +1,5 @@
-<div class="flex flex-col items-center sticky top-0 z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}" x-ref="stage">
+{{-- FIX: Wenn Context = 'edit', dann kein sticky, damit es im Warenkorb Modal scrollt! --}}
+<div class="flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $context === 'edit' ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}" x-ref="stage">
 
     {{-- KUNDEN TOGGLE 2D / 3D --}}
     <div x-show="config.modelPath" class="mb-6 mt-4 p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
@@ -275,35 +276,4 @@
         </div>
     </div>
 
-    {{-- STORAGE BUTTONS (Laden & Speichern) --}}
-    <div class="mt-8 pt-8 border-t w-full max-w-[98vw] md:max-w-xl mx-auto flex flex-col gap-5 configurator-storage-ui {{ $isDark ? 'border-gray-800' : 'border-gray-200' }}" x-show="context !== 'preview'">
-
-        {{-- Blaue Info-Box --}}
-        <div class="border rounded-2xl p-5 flex gap-4 items-start shadow-sm mx-2 sm:mx-6 {{ $isDark ? 'bg-blue-900/10 border-blue-900/30' : 'bg-blue-50/50 border-blue-100' }}">
-            <div class="shrink-0 p-2 rounded-xl shadow-sm border {{ $isDark ? 'text-blue-400 bg-gray-900 border-blue-900/50' : 'text-blue-500 bg-white border-blue-100' }}">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            </div>
-            <div class="flex-1 pt-0.5">
-                <p class="text-xs leading-relaxed {{ $isDark ? 'text-gray-400' : 'text-gray-600' }}">
-                    <strong class="block mb-1 {{ $isDark ? 'text-gray-200' : 'text-gray-900' }}">Entwurf speichern</strong>
-                    Sichere den aktuellen Fortschritt lokal in deinem Browser, um später genau hier weiterzuarbeiten.
-                </p>
-                <span x-show="showMessage" x-transition.opacity x-text="messageText" class="inline-block mt-3 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border shadow-sm {{ $isDark ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-emerald-600 bg-emerald-50 border-emerald-200' }}" style="display:none;"></span>
-            </div>
-        </div>
-
-        {{-- Buttons --}}
-        <div class="flex flex-col sm:flex-row gap-4 px-2 sm:px-6">
-            <button type="button" @click="saveDesign()" class="flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-lg {{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark shadow-primary/20' : 'bg-gray-900 text-white hover:bg-primary hover:shadow-primary/30' }}">
-                <x-heroicon-o-bookmark class="w-5 h-5" /> Design sichern
-            </button>
-
-            <button type="button" x-show="hasSavedDesign" @click="loadDesign()" x-cloak class="flex-1 inline-flex items-center justify-center gap-2 px-6 py-4 border text-[10px] sm:text-xs font-black uppercase tracking-widest rounded-xl hover:border-primary hover:text-primary transition-colors shadow-sm {{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-400' : 'bg-white border-gray-200 text-gray-700' }}">
-                <x-heroicon-o-arrow-path class="w-5 h-5" /> Design laden
-            </button>
-        </div>
-
-    </div>
 </div>

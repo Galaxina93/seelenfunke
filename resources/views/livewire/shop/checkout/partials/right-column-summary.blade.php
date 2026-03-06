@@ -95,6 +95,14 @@
 
                             <div class="flex-auto space-y-1">
                                 <h3 class="text-gray-900 font-bold">{{ $item->product->name }}</h3>
+
+                                {{-- NEU: Varianten-Anzeige im Checkout --}}
+                                @if(!empty($item->configuration['variant_name']))
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-primary">
+                                        {{ $item->configuration['variant_name'] }}
+                                    </p>
+                                @endif
+
                                 <p class="text-gray-500">{{ $item->quantity }}x</p>
                                 @if(!empty($item->configuration) && is_array($item->configuration))
                                     <div class="text-xs text-gray-500 space-y-1">

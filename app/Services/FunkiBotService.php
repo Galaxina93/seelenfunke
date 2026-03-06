@@ -195,7 +195,7 @@ class FunkiBotService
                 'title' => 'Beleg fehlt',
                 'message' => "Uns fehlt noch der Beleg für '{$missingReceipt->title}'. Gleich hochladen, dann ist es erledigt.",
                 'action_label' => 'Beleg hochladen',
-                'action_route' => 'admin.financial-costs',
+                'action_route' => 'admin.financial-variable-costs',
                 'icon' => '📸'
             ];
         }

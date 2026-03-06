@@ -56,6 +56,7 @@ return new class extends Migration
             // 6. JSON-Felder
             $table->json('media_gallery')->nullable();
             $table->json('attributes')->nullable();
+            $table->json('variants_data')->nullable();
             $table->json('tier_pricing')->nullable();
             $table->json('configurator_settings')->nullable();
 

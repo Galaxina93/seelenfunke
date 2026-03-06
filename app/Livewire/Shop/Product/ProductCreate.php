@@ -46,6 +46,7 @@ class ProductCreate extends Component
     public $height = 0; // mm
     public $width = 0;  // mm
     public $length = 0; // mm
+    public $shipping_class = ''; // NEU hinzugefügt für das Shipping Panel
 
     // SEO
     public $seo_title = '';
@@ -154,6 +155,7 @@ class ProductCreate extends Component
             $this->height = 0;
             $this->width = 0;
             $this->length = 0;
+            $this->shipping_class = ''; // Reset auch hier
         }
 
         // Standardwerte für Attribute je nach Typ setzen (optional)
@@ -230,6 +232,7 @@ class ProductCreate extends Component
         $this->height = $this->product->height;
         $this->width = $this->product->width;
         $this->length = $this->product->length;
+        $this->shipping_class = $this->product->shipping_class; // Laden der Shipping Class
 
         // Lager
         $this->track_quantity = (bool) $this->product->track_quantity;
@@ -459,12 +462,14 @@ class ProductCreate extends Component
             $this->product->height = (int) $this->height;
             $this->product->width = (int) $this->width;
             $this->product->length = (int) $this->length;
+            $this->product->shipping_class = empty($this->shipping_class) ? null : $this->shipping_class; // Speichern!
         } else {
             // Bereinigung falls Typ geändert wurde
             $this->product->weight = null;
             $this->product->height = null;
             $this->product->width = null;
             $this->product->length = null;
+            $this->product->shipping_class = null;
         }
 
         // 8. JSON Arrays

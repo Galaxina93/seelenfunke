@@ -1,25 +1,25 @@
-<div x-data="{ open: false }">
-    <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up transition-colors hover:border-gray-700">
+<div x-data="{ open: false }" class="w-full min-w-0">
+    <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up transition-colors hover:border-gray-700 w-full min-w-0">
 
         {{-- Header (Klickbar zum Aufklappen) & Controls --}}
-        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 transition-all" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
+        <div class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between gap-4 sm:gap-5 transition-all" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
 
             {{-- Klickbarer Titelbereich --}}
-            <div @click="open = !open" class="flex items-center gap-4 cursor-pointer group flex-1 w-full lg:w-auto">
+            <div @click="open = !open" class="flex items-center gap-3 sm:gap-4 cursor-pointer group flex-1 min-w-[200px] w-full lg:w-auto">
                 <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
-                <h3 class="text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors">Kategorien</h3>
+                <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">Kategorien</h3>
 
                 @if(!$isManaging)
-                    <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg shadow-inner animate-pulse whitespace-nowrap ml-2">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg shadow-inner animate-pulse whitespace-nowrap ml-2 hidden sm:inline-block">
                         {{ count($selectedCategories) }} gewählt
                     </span>
                 @endif
             </div>
 
             {{-- Controls (Buttons rechts - stoppen Click-Event fürs Accordion) --}}
-            <div class="flex flex-row items-center justify-between w-full lg:w-auto gap-4" @click.stop>
+            <div class="flex flex-wrap items-center justify-start sm:justify-end w-full lg:w-auto gap-3" @click.stop>
                 @php
                     $typeColors = [
                         'physical' => 'bg-blue-500/10 text-blue-400 border-blue-500/20 shadow-[0_0_8px_currentColor]',
@@ -82,7 +82,7 @@
                             @endphp
                             <button
                                 wire:click="toggleCategory({{ $catId }})"
-                                class="group relative flex items-center gap-4 p-4 rounded-2xl border text-left transition-all duration-300 shadow-inner
+                                class="group relative flex items-center gap-4 p-4 rounded-2xl border text-left transition-all duration-300 shadow-inner min-w-0
                                        {{ $isSelected
                                           ? 'border-primary bg-primary/10 shadow-[inset_0_0_15px_rgba(197,160,89,0.2)]'
                                           : 'border-gray-800 bg-gray-950 hover:border-gray-600 hover:bg-gray-900'
@@ -96,7 +96,7 @@
                                     @endif
                                 </div>
 
-                                <div class="flex flex-col min-w-0">
+                                <div class="flex flex-col min-w-0 flex-1">
                                     <span class="text-sm font-bold truncate tracking-wide {{ $isSelected ? 'text-white' : 'text-gray-400 group-hover:text-gray-300' }}">
                                         {{ $catName }}
                                     </span>
@@ -118,14 +118,14 @@
             @else
                 <div class="space-y-8 pt-2 animate-fade-in">
                     {{-- 1. Erstellen --}}
-                    <div class="bg-gray-950 p-5 sm:p-6 rounded-[1.5rem] border border-gray-800 shadow-inner">
+                    <div class="bg-gray-950 p-5 sm:p-6 rounded-[1.5rem] border border-gray-800 shadow-inner w-full">
                         <label class="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 ml-1">Neue Kategorie erstellen</label>
-                        <div class="flex gap-3">
+                        <div class="flex gap-3 w-full">
                             <input type="text"
                                    wire:model.live="newCategoryName"
                                    wire:keydown.enter="createCategory"
                                    placeholder="Name der Kategorie..."
-                                   class="flex-1 px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-inner placeholder-gray-600">
+                                   class="flex-1 px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-inner placeholder-gray-600 min-w-0">
 
                             <button wire:click="createCategory"
                                     class="bg-primary text-gray-900 px-6 py-3.5 rounded-xl text-lg font-black hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(197,160,89,0.2)] shrink-0 flex items-center justify-center"
@@ -137,32 +137,32 @@
                     </div>
 
                     {{-- 2. Liste Bearbeiten --}}
-                    <div class="max-h-[400px] overflow-y-auto custom-scrollbar space-y-3 pr-2">
+                    <div class="max-h-[400px] overflow-y-auto custom-scrollbar space-y-3 pr-2 w-full">
                         @foreach($availableCategories as $category)
                             @php
                                 $catId = $category['id'];
                                 $catName = $category['name'];
                             @endphp
 
-                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-950 border border-gray-800 rounded-2xl shadow-inner hover:border-gray-700 transition-colors group gap-4" wire:key="cat-{{ $catId }}">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-950 border border-gray-800 rounded-2xl shadow-inner hover:border-gray-700 transition-colors group gap-4 min-w-0" wire:key="cat-{{ $catId }}">
 
                                 @if($editingCategoryId === $catId)
-                                    <div class="flex flex-1 w-full items-center gap-3 mr-3 animate-fade-in">
+                                    <div class="flex flex-1 w-full items-center gap-2 sm:gap-3 mr-0 sm:mr-3 animate-fade-in min-w-0">
                                         <input type="text"
                                                wire:model="editingCategoryName"
                                                wire:keydown.enter="updateCategory"
-                                               class="w-full px-4 py-2.5 text-sm font-bold border border-primary bg-gray-900 text-white rounded-xl focus:ring-2 focus:ring-primary/30 outline-none shadow-inner">
+                                               class="w-full flex-1 px-4 py-2.5 text-sm font-bold border border-primary bg-gray-900 text-white rounded-xl focus:ring-2 focus:ring-primary/30 outline-none shadow-inner min-w-0">
 
                                         <button wire:click="updateCategory" class="text-gray-900 bg-emerald-500 hover:bg-emerald-400 p-3 rounded-xl shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg></button>
                                         <button wire:click="cancelEditing" class="text-gray-400 bg-gray-900 border border-gray-700 hover:text-white p-3 rounded-xl transition-all shadow-inner shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                                     </div>
                                 @else
-                                    <div class="flex items-center gap-3">
+                                    <div class="flex items-center gap-3 min-w-0 flex-1">
                                         <div class="w-2 h-2 rounded-full shrink-0 {{ in_array($catId, $selectedCategories) ? 'bg-primary shadow-[0_0_8px_currentColor]' : 'bg-gray-700' }}"></div>
                                         <span class="text-sm font-bold text-gray-300 tracking-wide truncate">{{ $catName }}</span>
                                     </div>
 
-                                    <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity w-full sm:w-auto justify-end">
+                                    <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity w-full sm:w-auto justify-end shrink-0 mt-2 sm:mt-0">
                                         <button wire:click="startEditing({{ $catId }}, '{{ addslashes($catName) }}')" class="p-2.5 text-gray-500 hover:text-primary bg-gray-900 border border-gray-800 hover:border-primary/30 rounded-xl transition-all shadow-inner" title="Umbenennen">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                         </button>

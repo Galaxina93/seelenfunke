@@ -1,13 +1,11 @@
 <div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
-    {{-- SYMBOL BIBLIOTHEK (Automatisch aus Ordner) --}}
     @if($context !== 'preview')
         <div class="space-y-4">
             <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
                 <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
                 Symbol-Bibliothek
             </h3>
-
             <div class="border rounded-[2rem] p-5 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
                 <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
                     @php
@@ -27,8 +25,7 @@
                     @endphp
 
                     @forelse($vectors as $v)
-                        <button wire:click="addStandardVector('{{ $v['file'] }}')"
-                                class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-gray-950 border-gray-700' : 'bg-black border-slate-100' }}">
+                        <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-gray-950 border-gray-700' : 'bg-black border-slate-100' }}">
                             <img src="{{ asset('images/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-60 group-hover:opacity-100 transition-opacity {{ $isDark ? 'filter invert brightness-0' : '' }}">
                             <span class="text-[8px] font-bold uppercase mt-2 group-hover:text-primary truncate w-full text-center {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">{{ $v['name'] }}</span>
                         </button>
@@ -42,7 +39,6 @@
         </div>
     @endif
 
-    {{-- MEDIEN (Bilder & PDFs) --}}
     @if($configSettings['allow_logo'])
         <div class="space-y-4">
             <div class="flex justify-between items-center">
@@ -72,25 +68,22 @@
                     isDropping: false,
                     currentCount: {{ count($uploaded_files) }},
                     uploadError: null,
-
                     handleDrop(e) {
                         this.isDropping = false;
                         this.uploadError = null;
                         let files = e.dataTransfer.files;
-                        if (!this.validateFiles(files)) return;
+                        if(!this.validateFiles(files)) return;
                         this.$refs.fileInput.files = files;
                         this.$refs.fileInput.dispatchEvent(new Event('change'));
                     },
-
                     handleInput(e) {
                         this.uploadError = null;
                         let files = e.target.files;
-                        if (!this.validateFiles(files)) {
+                        if(!this.validateFiles(files)) {
                             this.$refs.fileInput.value = '';
                             return;
                         }
                     },
-
                     validateFiles(files) {
                         let newCount = files.length;
                         if ((this.currentCount + newCount) > 10) {
@@ -105,7 +98,7 @@
                     <span x-text="uploadError"></span>
                 </div>
 
-                @if ($errors->has('new_files') || $errors->has('new_files.*'))
+                @if($errors->has('new_files') || $errors->has('new_files.*'))
                     <div class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-xs font-bold text-center">
                         {{ $errors->first('new_files') ?: $errors->first('new_files.*') }}
                     </div>
@@ -132,17 +125,15 @@
                         </div>
                     @endif
 
-                    <div wire:loading wire:target="new_files"
-                         class="absolute inset-0 backdrop-blur-sm rounded-[2rem] border z-20 flex items-center justify-center {{ $isDark ? 'bg-gray-950/80 border-gray-800' : 'bg-white/90 border-slate-100' }}">
+                    <div wire:loading wire:target="new_files" class="absolute inset-0 backdrop-blur-sm rounded-[2rem] border z-20 flex items-center justify-center {{ $isDark ? 'bg-gray-950/80 border-gray-800' : 'bg-white/90 border-slate-100' }}">
                         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 text-center">
                             <svg class="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                             </svg>
                             <span class="text-xs font-black uppercase tracking-wide {{ $isDark ? 'text-gray-300' : 'text-slate-800' }}">
-                                    Wird verarbeitet...
-                                </span>
+                                Wird verarbeitet...
+                            </span>
                         </div>
                     </div>
                 @else
@@ -165,16 +156,8 @@
                         $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'svg']);
                         $isActive = $this->isLogoActive($path);
                     @endphp
-                    <div x-data="{
-                            width: 0, height: 0,
-                            init() {
-                                if ('{{ $isImage }}') {
-                                    let img = new Image();
-                                    img.onload = () => { this.width = img.width; this.height = img.height; };
-                                    img.src = '{{ asset('storage/'.$path) }}';
-                                }
-                            }
-                         }"
+
+                    <div x-data="{ width: 0, height: 0, init() { if('{{ $isImage }}') { let img = new Image(); img.onload = () => { this.width = img.width; this.height = img.height; }; img.src = '{{ asset('storage/'.$path) }}'; } } }"
                          class="flex flex-col p-3 rounded-2xl border transition-all {{ $isDark ? 'bg-gray-900' : 'bg-white' }} {{ $isActive ? 'border-primary shadow-md' : ($isDark ? 'border-gray-800' : 'border-slate-100') }}">
 
                         <div class="flex items-center justify-between">
@@ -190,12 +173,10 @@
                                     @endif
                                 </div>
                                 <div class="min-w-0 flex-1">
-                                    <p class="text-[11px] font-bold truncate {{ $isDark ? 'text-gray-200' : 'text-slate-800' }}" title="{{ basename($path) }}">
-                                        {{ basename($path) }}
-                                    </p>
+                                    <p class="text-[11px] font-bold truncate {{ $isDark ? 'text-gray-200' : 'text-slate-800' }}" title="{{ basename($path) }}">{{ basename($path) }}</p>
+
                                     @if($isImage)
-                                        <button wire:click="toggleLogo('saved', '{{ $path }}')"
-                                                class="text-[9px] font-black uppercase tracking-tighter mt-1 {{ $isActive ? 'text-primary' : ($isDark ? 'text-gray-500 hover:text-primary transition-colors' : 'text-slate-400 hover:text-primary transition-colors') }}">
+                                        <button wire:click="toggleLogo('saved', '{{ $path }}')" class="text-[9px] font-black uppercase tracking-tighter mt-1 {{ $isActive ? 'text-primary' : ($isDark ? 'text-gray-500 hover:text-primary transition-colors' : 'text-slate-400 hover:text-primary transition-colors') }}">
                                             {{ $isActive ? 'In Vorschau aktiv' : 'Als Vorschau einblenden' }}
                                         </button>
                                     @else
@@ -206,8 +187,11 @@
                                     @endif
                                 </div>
                             </div>
+
                             @if($context !== 'preview')
-                                <button wire:click="removeFile({{ $index }})" class="p-2 {{ $isDark ? 'text-gray-600 hover:text-rose-500' : 'text-slate-300 hover:text-rose-500' }}"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                <button wire:click="removeFile({{ $index }})" class="p-2 {{ $isDark ? 'text-gray-600 hover:text-rose-500' : 'text-slate-300 hover:text-rose-500' }}">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
                             @endif
                         </div>
 
@@ -228,14 +212,13 @@
             <span>Besondere Wünsche an die Manufaktur</span>
             <span class="text-[9px]" :class="count >= 400 ? 'text-red-500 font-bold' : '{{ $isDark ? 'text-gray-600' : 'text-slate-300' }}'" x-text="count + ' / 400'">0 / 400</span>
         </label>
-        <textarea
-            wire:model="notes"
-            maxlength="400"
-            x-on:input="count = $el.value.length"
-            rows="5"
-            class="w-full border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none shadow-inner {{ $isDark ? 'bg-gray-900 text-gray-300 placeholder-gray-600' : 'bg-slate-50 text-slate-700' }}"
-            placeholder="Geben Sie hier Details zu Ihrer gewünschten Gravur an..."
-            {{ $context === 'preview' ? 'readonly' : '' }}
-        ></textarea>
+        <textarea wire:model="notes"
+                  maxlength="400"
+                  x-on:input="count = $el.value.length"
+                  rows="5"
+                  class="w-full border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 transition-all resize-none shadow-inner {{ $isDark ? 'bg-gray-900 text-gray-300 placeholder-gray-600' : 'bg-slate-50 text-slate-700' }}"
+                  placeholder="Geben Sie hier Details zu Ihrer gewünschten Gravur an..."
+                  {{ $context === 'preview' ? 'readonly' : '' }}></textarea>
     </div>
+
 </div>

@@ -10,6 +10,19 @@ trait HandlesConfiguratorLogic
     public function calculatePrice()
     {
         $basePrice = $this->product->price;
+
+        // 1. NEU: Varianten-Preis überschreiben, falls vorhanden
+        if ($this->variantId) {
+            $variants = $this->product->variants_data ?? [];
+            $variant = collect($variants)->firstWhere('id', $this->variantId);
+
+            // Wenn die Variante gefunden wurde UND einen abweichenden Preis hat
+            if ($variant && !empty($variant['price'])) {
+                $basePrice = (int) round((float) $variant['price'] * 100);
+            }
+        }
+
+        // 2. Mengenrabatt (Staffelpreise) anwenden
         $tierPricing = $this->product->tierPrices ?? $this->product->tier_pricing;
 
         if (!empty($tierPricing)) {
@@ -29,6 +42,7 @@ trait HandlesConfiguratorLogic
             }
         }
 
+        // 3. Steuer aufschlagen (falls Netto-Eingabe)
         if ($this->product->tax_included === false) {
             $taxRate = (float) ($this->product->tax_rate ?? 19.0);
             $basePrice = (int) round($basePrice * (1 + ($taxRate / 100)));

@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.financial.financial-contracts-groups')
+        @livewire('shop.financial.financial-categories-special-editions')
 
     @endsection
 

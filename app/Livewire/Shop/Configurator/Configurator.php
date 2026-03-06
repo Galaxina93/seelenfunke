@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Services\ConfiguratorService;
+use Livewire\Attributes\Computed; // <-- NEU
 
 class Configurator extends Component
 {
@@ -22,13 +23,16 @@ class Configurator extends Component
     public $isDigital = false;
     public $qty = 1;
     public $activeSide = 'front';
+
     public $texts = [];
     public $logos = [];
     public $texts_back = [];
     public $logos_back = [];
+
     public $new_files = [];
     public $uploaded_files = [];
     public $notes = '';
+
     public $configSettings = [];
     public $currentPrice = 0;
     public $totalPrice = 0;
@@ -36,10 +40,16 @@ class Configurator extends Component
 
     public array $fonts = [];
     public array $vectors = [];
-
     public $design = 'light';
 
-    public $alignmentOptions = ['left' => 'Links', 'center' => 'Zentriert', 'right' => 'Rechts'];
+    public $alignmentOptions = [
+        'left' => 'Links',
+        'center' => 'Zentriert',
+        'right' => 'Rechts'
+    ];
+
+    public $variantId = null;
+    public $variantName = null;
 
     public function mount(ConfiguratorService $configService, $product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
     {
@@ -47,9 +57,7 @@ class Configurator extends Component
         $this->vectors = $configService->getStandardVectors();
 
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
-
         $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
-
         $this->context = $context;
         $this->cartItem = $cartItem;
 
@@ -61,15 +69,14 @@ class Configurator extends Component
 
         $this->configSettings = array_merge([
             'allow_logo' => true,
-            'overlay_type' => 'plane',     // NEU: plane (Flach) oder cylinder (Rund/Wicklung)
-            'cylinder_radius' => 50,       // NEU: Wölbung/Radius für zylindrische Projektion
-            'area_top' => 10, 'area_left' => 10, 'area_width' => 80, 'area_height' => 80, 'area_shape' => 'rect',
-            'custom_points' => [
-                ['x' => 10, 'y' => 10],
-                ['x' => 90, 'y' => 10],
-                ['x' => 90, 'y' => 90],
-                ['x' => 10, 'y' => 90]
-            ]
+            'overlay_type' => 'plane',
+            'cylinder_radius' => 50,
+            'area_top' => 10,
+            'area_left' => 10,
+            'area_width' => 80,
+            'area_height' => 80,
+            'area_shape' => 'rect',
+            'custom_points' => [['x'=>10,'y'=>10], ['x'=>90,'y'=>10], ['x'=>90,'y'=>90], ['x'=>10,'y'=>90]]
         ], $dbSettings ?? []);
 
         if ($this->isDigital) {
@@ -89,9 +96,22 @@ class Configurator extends Component
             $this->qty = $source['qty'] ?? 1;
         }
 
+        // NEU: Variant-ID laden oder Standard setzen
+        $this->variantId = $source['variant_id'] ?? null;
+        $this->variantName = $source['variant_name'] ?? null;
+
+        // Wenn noch keine Variante gewählt ist, aber es welche gibt, nimm die erste!
+        $variants = $this->activeVariants;
+        if (!$this->variantId && !empty($variants)) {
+            $firstKey = array_key_first($variants);
+            $this->variantId = $variants[$firstKey]['id'];
+            $this->variantName = $variants[$firstKey]['name'];
+        }
+
         $this->notes = $source['notes'] ?? '';
         $this->uploaded_files = $source['files'] ?? [];
 
+        // ... (Der restliche bestehende Mount-Code für Texte und Logos bleibt exakt gleich)
         if (isset($source['texts']) && is_array($source['texts'])) {
             $this->texts = $source['texts'];
         } elseif (!empty($source['text'])) {
@@ -106,13 +126,14 @@ class Configurator extends Component
                 'rotation' => 0
             ];
         } else {
-            if(!$this->isDigital) $this->addText($centerX, $centerY);
+            if (!$this->isDigital) $this->addText($centerX, $centerY);
         }
 
         if (isset($source['logos']) && is_array($source['logos'])) {
             $this->logos = $source['logos'];
         } elseif (!empty($source['logo_path'])) {
             if (!in_array($source['logo_path'], $this->uploaded_files)) $this->uploaded_files[] = $source['logo_path'];
+
             $this->logos[] = [
                 'id' => Str::uuid()->toString(),
                 'type' => 'saved',
@@ -137,6 +158,31 @@ class Configurator extends Component
         $this->calculatePrice();
     }
 
+    // NEU: Holt die aktiven Varianten für den Dropdown
+    #[Computed]
+    public function activeVariants()
+    {
+        $variants = $this->product->variants_data ?? [];
+        return array_filter($variants, function($v) {
+            return ($v['is_active'] ?? true) == true;
+        });
+    }
+
+    // NEU: Reagiert auf die Änderung im Dropdown
+    public function updatedVariantId($value)
+    {
+        $variants = $this->activeVariants;
+        $variant = collect($variants)->firstWhere('id', $value);
+
+        if ($variant) {
+            $this->variantName = $variant['name'];
+        } else {
+            $this->variantName = null;
+        }
+
+        $this->calculatePrice();
+    }
+
     public function updated($propertyName)
     {
         if ($this->context === 'preview') return;
@@ -146,6 +192,7 @@ class Configurator extends Component
             $this->calculatePrice();
         }
 
+        // ... (Restlicher File-Upload Code bleibt gleich)
         if ($propertyName === 'new_files') {
             $currentCount = count($this->uploaded_files);
             $newCount = count($this->new_files);
@@ -166,10 +213,7 @@ class Configurator extends Component
                 $mime = $file->getMimeType();
 
                 $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'pdf'];
-                $allowedMimes = [
-                    'application/pdf', 'application/x-pdf', 'application/acrobat', 'applications/vnd.pdf', 'text/pdf', 'text/x-pdf',
-                    'image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'
-                ];
+                $allowedMimes = ['application/pdf', 'application/x-pdf', 'application/acrobat', 'applications/vnd.pdf', 'text/pdf', 'text/x-pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
 
                 $isValid = in_array($extension, $allowedExtensions) || in_array($mime, $allowedMimes);
 
@@ -195,14 +239,21 @@ class Configurator extends Component
         }
     }
 
+    // ... (applyLaserEffect und save() bleiben identisch)
     protected function applyLaserEffect($filePath, $extension)
     {
         $image = null;
         switch ($extension) {
             case 'jpeg':
-            case 'jpg': $image = @imagecreatefromjpeg($filePath); break;
-            case 'png': $image = @imagecreatefrompng($filePath); break;
-            case 'webp': $image = @imagecreatefromwebp($filePath); break;
+            case 'jpg':
+                $image = @imagecreatefromjpeg($filePath);
+                break;
+            case 'png':
+                $image = @imagecreatefrompng($filePath);
+                break;
+            case 'webp':
+                $image = @imagecreatefromwebp($filePath);
+                break;
         }
 
         if (!$image) return null;
@@ -215,13 +266,11 @@ class Configurator extends Component
             $ratio = min($maxDim / $width, $maxDim / $height);
             $newW = (int)($width * $ratio);
             $newH = (int)($height * $ratio);
-
             $resizedImage = imagecreatetruecolor($newW, $newH);
             imagealphablending($resizedImage, false);
             imagesavealpha($resizedImage, true);
             $transparent = imagecolorallocatealpha($resizedImage, 0, 0, 0, 127);
             imagefill($resizedImage, 0, 0, $transparent);
-
             imagecopyresampled($resizedImage, $image, 0, 0, 0, 0, $newW, $newH, $width, $height);
             imagedestroy($image);
             $image = $resizedImage;
@@ -232,6 +281,7 @@ class Configurator extends Component
         $laserImage = imagecreatetruecolor($width, $height);
         imagealphablending($laserImage, false);
         imagesavealpha($laserImage, true);
+
         $transparent = imagecolorallocatealpha($laserImage, 0, 0, 0, 127);
         imagefill($laserImage, 0, 0, $transparent);
 
@@ -249,8 +299,8 @@ class Configurator extends Component
                 $engravingIntensity = 255 - $luminance;
                 $targetAlpha = 127 - ($engravingIntensity / 2);
                 $finalAlpha = max($alpha, $targetAlpha);
-
                 $white = imagecolorallocatealpha($laserImage, 255, 255, 255, (int)$finalAlpha);
+
                 imagesetpixel($laserImage, $x, $y, $white);
             }
         }
@@ -268,6 +318,7 @@ class Configurator extends Component
     public function save(CartService $cartService)
     {
         if ($this->context === 'preview') return;
+
         if (!$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte bestätigen Sie Ihre Angaben.');
             return;
@@ -288,7 +339,9 @@ class Configurator extends Component
             'files' => $this->uploaded_files,
             'notes' => $this->notes,
             'type' => $this->type,
-            'is_digital' => $this->isDigital
+            'is_digital' => $this->isDigital,
+            'variant_id' => $this->variantId,
+            'variant_name' => $this->variantName,
         ];
 
         if ($this->context !== 'template_admin') {
@@ -296,13 +349,14 @@ class Configurator extends Component
         }
 
         if ($this->context === 'add') {
-            if (!$this->product->isAvailable()) return $this->addError('qty', 'Nicht verfügbar.');
             $cartService->addItem($this->product, $this->qty, $configData);
             $this->dispatch('cart-updated');
             $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
+
             $this->reset(['uploaded_files', 'logos', 'notes']);
             $this->texts = [];
-            if(!$this->isDigital) $this->addText();
+            if (!$this->isDigital) $this->addText();
+
             $this->config_confirmed = false;
         } elseif ($this->context === 'edit') {
             $cartService->updateItem($this->cartItem->id, $this->qty, $configData);

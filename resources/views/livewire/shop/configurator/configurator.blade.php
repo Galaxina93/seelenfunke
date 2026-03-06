@@ -58,14 +58,50 @@
          @touchmove.window="handleMouseMove($event)"
          @touchend.window="handleMouseUp($event)">
 
-        <div class="flex-1 custom-scrollbar pb-20">
+        {{-- Varianten Auswahl ganz oben, VOR der Scroll-Area! (Jetzt für ALLE Produkttypen) --}}
+        @if(!empty($this->activeVariants) && $context !== 'preview')
+            <div class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-center mb-2 {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">Ausführung wählen</label>
+                <div class="relative">
+                    <select wire:model.live="variantId" class="w-full rounded-2xl border p-3.5 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-primary focus:border-primary appearance-none cursor-pointer outline-none {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
+                        @foreach($this->activeVariants as $variant)
+                            <option value="{{ $variant['id'] }}" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">
+                                {{ $variant['name'] }}
+                                @if(!empty($variant['price']))
+                                    @php
+                                        $diff = (float)$variant['price'] - ($this->product->price / 100);
+                                    @endphp
+                                    @if($diff > 0)
+                                        (+{{ number_format($diff, 2, ',', '.') }} €)
+                                    @elseif($diff < 0)
+                                        (-{{ number_format(abs($diff), 2, ',', '.') }} €)
+                                    @endif
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-primary">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                </div>
+            </div>
+        @elseif($context === 'preview' && $variantName)
+            <div class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
+                <div class="border p-3.5 rounded-2xl text-center {{ $isDark ? 'bg-primary/10 border-primary/20' : 'bg-primary/5 border-primary/20' }}">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-primary block mb-0.5">Gewählte Ausführung</span>
+                    <span class="font-bold text-sm {{ $isDark ? 'text-white' : 'text-gray-900' }}">{{ $variantName }}</span>
+                </div>
+            </div>
+        @endif
+
+        <div class="flex-1 custom-scrollbar pb-20 w-full min-w-0">
             @if(!$isDigital && !$isService)
                 {{-- Physisches Produkt Layout --}}
                 @include('livewire.shop.configurator.partials.preview', ['isDark' => $isDark])
                 @include('livewire.shop.configurator.partials.formluar', ['isDark' => $isDark])
             @elseif($isDigital)
                 {{-- Digitales Produkt Layout --}}
-                <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 relative">
+                <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 relative w-full">
                     {{-- Glow Background --}}
                     @if($isDark)
                         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -93,7 +129,7 @@
                 </div>
             @elseif($isService)
                 {{-- Dienstleistung / Service Layout --}}
-                <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 relative">
+                <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 relative w-full">
                     {{-- Glow Background --}}
                     @if($isDark)
                         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>

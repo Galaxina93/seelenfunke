@@ -58,8 +58,8 @@ class CartService
 
         $newQty = $existingItem ? $existingItem->quantity + $quantity : $quantity;
 
-        // Preis berechnen (inkl. Staffelung)
-        $unitPrice = $this->calculateTierPrice($product, $newQty);
+        // FIX: Konfiguration an Preisberechnung übergeben!
+        $unitPrice = $this->calculateTierPrice($product, $newQty, $configuration);
 
         if ($existingItem) {
             $existingItem->update([
@@ -86,7 +86,8 @@ class CartService
         $item = CartItem::find($itemId);
         if (!$item) return;
 
-        $unitPrice = $this->calculateTierPrice($item->product, $quantity);
+        // FIX: Konfiguration an Preisberechnung übergeben!
+        $unitPrice = $this->calculateTierPrice($item->product, $quantity, $configuration ?? $item->configuration);
 
         $data = [
             'quantity' => $quantity,
@@ -112,7 +113,8 @@ class CartService
             return;
         }
 
-        $unitPrice = $this->calculateTierPrice($item->product, $quantity);
+        // FIX: Konfiguration an Preisberechnung übergeben!
+        $unitPrice = $this->calculateTierPrice($item->product, $quantity, $item->configuration);
 
         $item->update([
             'quantity' => $quantity,
@@ -142,11 +144,24 @@ class CartService
     }
 
     /**
-     * Berechnet den Einzelpreis (Staffel).
+     * Berechnet den Einzelpreis (Staffel & Variante).
      */
-    public function calculateTierPrice(Product $product, int $qty): int
+    public function calculateTierPrice(Product $product, int $qty, array $configuration = null): int
     {
         $price = $product->price;
+
+        // 1. NEU: Varianten-Preis überschreiben, falls vorhanden
+        if ($configuration && isset($configuration['variant_id'])) {
+            $variants = $product->variants_data ?? [];
+            $variant = collect($variants)->firstWhere('id', $configuration['variant_id']);
+
+            // Wenn die Variante gefunden wurde UND einen abweichenden Preis hat
+            if ($variant && !empty($variant['price'])) {
+                $price = (int) round((float) $variant['price'] * 100);
+            }
+        }
+
+        // 2. Mengenrabatt anwenden
         // Wir nutzen die Relation tierPrices (Eloquent) statt tier_pricing (JSON),
         // da deine Seeder die Relation füllen.
         $tiers = $product->tierPrices;
@@ -230,8 +245,8 @@ class CartService
             $weight = (int)($product->weight ?? 0);
             $totalWeight += ($weight * $qty);
 
-            // Frischen Preis berechnen (Selbstheilung bei Preisänderungen)
-            $freshUnitPrice = $this->calculateTierPrice($product, $qty);
+            // FIX: Frischen Preis berechnen (mit Variante)
+            $freshUnitPrice = $this->calculateTierPrice($product, $qty, $item->configuration);
 
             if ($freshUnitPrice !== $item->unit_price) {
                 $item->unit_price = $freshUnitPrice;
@@ -241,13 +256,14 @@ class CartService
             $lineGross = $freshUnitPrice * $qty;
             $subtotalGross += $lineGross;
 
-            // NEU: Wir addieren den Betrag nur zur physischen Summe, wenn es Versand erfordert
+            // Wir addieren den Betrag nur zur physischen Summe, wenn es Versand erfordert
             if ($product->type === 'physical') {
                 $physicalSubtotalGross += $lineGross;
             }
 
             // Originalpreis (für Streichpreise/Mengenrabatt-Anzeige)
-            $basePrice = $product->price;
+            // Auch hier muss die Variante greifen, sonst wird der falsche Basispreis zum Abziehen genommen!
+            $basePrice = $this->calculateTierPrice($product, 1, $item->configuration);
             $originalSubtotal += ($basePrice * $qty);
 
             // Steueranteil herausrechnen

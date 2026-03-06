@@ -1,27 +1,27 @@
-<div x-data="{ open: false }">
-    <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up transition-colors hover:border-gray-700">
+<div x-data="{ open: false }" class="w-full min-w-0">
+    <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up transition-colors hover:border-gray-700 w-full min-w-0">
 
         {{-- Header (Klickbar zum Aufklappen) & Controls --}}
-        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 transition-all" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
+        <div class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between gap-4 sm:gap-5 transition-all" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
 
             {{-- Klickbarer Titelbereich --}}
-            <div @click="open = !open" class="flex items-center gap-4 cursor-pointer group flex-1 w-full lg:w-auto">
+            <div @click="open = !open" class="flex items-center gap-3 sm:gap-4 cursor-pointer group flex-1 min-w-[200px] w-full lg:w-auto">
                 <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
-                <h3 class="text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors">Details & Eigenschaften</h3>
+                <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">Details & Eigenschaften</h3>
 
                 @if(!$isManaging)
-                    <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg shadow-inner animate-pulse whitespace-nowrap ml-2">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg shadow-inner animate-pulse whitespace-nowrap ml-2 hidden sm:inline-block">
                         {{ count($productAttributes) }} aktiv
                     </span>
                 @endif
             </div>
 
             {{-- Controls (Buttons rechts - stoppen Click-Event fürs Accordion) --}}
-            <div class="flex flex-row items-center justify-between w-full lg:w-auto gap-4" @click.stop>
+            <div class="flex flex-wrap items-center justify-start sm:justify-end w-full lg:w-auto gap-3" @click.stop>
                 <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 hidden sm:inline-block">
-                    Wähle Eigenschaften & gib Werte ein
+                    Wähle Eigenschaften
                 </span>
 
                 <button wire:click="toggleManageMode"
@@ -73,17 +73,17 @@
                     </div>
 
                     {{-- UNTERER BEREICH: Eingabe Werte --}}
-                    <div>
+                    <div class="w-full">
                         <h4 class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 mb-5 ml-1">2. Werte eingeben</h4>
 
                         @if(count($productAttributes) > 0)
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                                 @foreach($productAttributes as $key => $value)
-                                    <div class="relative group" wire:key="input-{{ $key }}">
-                                        <label class="block text-[9px] font-black uppercase tracking-widest text-primary mb-2 ml-1 drop-shadow-[0_0_8px_currentColor]">{{ $key }}</label>
-                                        <div class="relative">
+                                    <div class="relative group min-w-0" wire:key="input-{{ $key }}">
+                                        <label class="block text-[9px] font-black uppercase tracking-widest text-primary mb-2 ml-1 drop-shadow-[0_0_8px_currentColor] truncate">{{ $key }}</label>
+                                        <div class="relative w-full">
                                             @php
-                                                $attrInputClass = "w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600";
+                                                $attrInputClass = "w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0";
                                             @endphp
 
                                             @if($key === 'Gewicht')
@@ -96,7 +96,7 @@
                                                 <input type="text"
                                                        wire:model.live.debounce.500ms="productAttributes.{{ $key }}"
                                                        class="{{ $attrInputClass }}"
-                                                       placeholder="Wert für {{ $key }}...">
+                                                       placeholder="z.B. S, M, L, XL oder Rot, Blau">
                                             @endif
 
                                             <button wire:click="toggleAttribute('{{ $key }}')"
@@ -105,11 +105,16 @@
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                             </button>
                                         </div>
+                                        @if($key !== 'Gewicht')
+                                            <p class="text-[9px] font-medium text-gray-500 mt-2 ml-1">
+                                                Tipp für Varianten: Trenne Optionen mit Komma (z.B. <span class="text-primary font-bold">Rot, Blau, Grün</span>)
+                                            </p>
+                                        @endif
                                     </div>
                                 @endforeach
                             </div>
                         @else
-                            <div class="bg-gray-950 border border-dashed border-gray-800 rounded-[1.5rem] p-12 text-center shadow-inner">
+                            <div class="bg-gray-950 border border-dashed border-gray-800 rounded-[1.5rem] p-12 text-center shadow-inner w-full">
                                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-600">Wähle oben Eigenschaften aus, um hier Werte einzutragen.</p>
                             </div>
                         @endif
@@ -117,16 +122,16 @@
                 </div>
 
             @else
-                <div class="space-y-8 pt-2">
+                <div class="space-y-8 pt-2 animate-fade-in w-full">
                     {{-- 1. Erstellen --}}
-                    <div class="bg-gray-950 p-5 sm:p-6 rounded-[1.5rem] border border-gray-800 shadow-inner">
+                    <div class="bg-gray-950 p-5 sm:p-6 rounded-[1.5rem] border border-gray-800 shadow-inner w-full min-w-0">
                         <label class="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 ml-1">Neue Eigenschaft definieren</label>
-                        <div class="flex gap-3">
+                        <div class="flex gap-3 w-full">
                             <input type="text"
                                    wire:model.live="newAttributeName"
                                    wire:keydown.enter="createAttribute"
                                    placeholder="z.B. Material, Pflegehinweis..."
-                                   class="flex-1 px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-inner placeholder-gray-600">
+                                   class="flex-1 px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-inner placeholder-gray-600 min-w-0">
                             <button wire:click="createAttribute"
                                     class="bg-primary text-gray-900 px-6 py-3.5 rounded-xl text-lg font-black hover:bg-primary-dark transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(197,160,89,0.2)] shrink-0 flex items-center justify-center"
                                     @if(empty($newAttributeName)) disabled @endif>
@@ -137,32 +142,32 @@
                     </div>
 
                     {{-- 2. Liste Bearbeiten (Flex-Wrap Tag-Cloud) --}}
-                    <div class="max-h-[450px] overflow-y-auto custom-scrollbar flex flex-wrap gap-4 pr-2 pb-2">
+                    <div class="max-h-[450px] overflow-y-auto custom-scrollbar flex flex-wrap gap-4 pr-2 pb-2 w-full">
                         @foreach($availableAttributes as $attr)
                             @php
                                 $attrId = $attr['id'];
                                 $attrName = $attr['name'];
                             @endphp
 
-                            <div class="flex items-center justify-between p-3.5 bg-gray-950 border border-gray-800 rounded-2xl shadow-inner hover:border-gray-700 transition-colors group gap-4 shrink-0" wire:key="attr-{{ $attrId }}">
+                            <div class="flex items-center justify-between p-3.5 bg-gray-950 border border-gray-800 rounded-2xl shadow-inner hover:border-gray-700 transition-colors group gap-4 shrink-0 min-w-0 max-w-full" wire:key="attr-{{ $attrId }}">
 
                                 @if($editingAttributeId === $attrId)
-                                    <div class="flex items-center gap-2 animate-fade-in">
+                                    <div class="flex items-center gap-2 animate-fade-in w-full min-w-0">
                                         <input type="text"
                                                wire:model="editingAttributeName"
                                                wire:keydown.enter="updateAttribute"
-                                               class="w-32 sm:w-48 px-3 py-2 text-sm font-bold border border-primary bg-gray-900 text-white rounded-xl focus:ring-2 focus:ring-primary/30 outline-none shadow-inner">
+                                               class="w-full sm:w-48 px-3 py-2 text-sm font-bold border border-primary bg-gray-900 text-white rounded-xl focus:ring-2 focus:ring-primary/30 outline-none shadow-inner min-w-0">
 
                                         <button wire:click="updateAttribute" class="text-gray-900 bg-emerald-500 hover:bg-emerald-400 p-2.5 rounded-xl shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg></button>
                                         <button wire:click="cancelEditing" class="text-gray-400 bg-gray-900 border border-gray-700 hover:text-white p-2.5 rounded-xl transition-all shadow-inner shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                                     </div>
                                 @else
-                                    <div class="flex items-center gap-3">
+                                    <div class="flex items-center gap-3 min-w-0 flex-1">
                                         <div class="w-1.5 h-1.5 rounded-full shrink-0 {{ array_key_exists($attrName, $productAttributes) ? 'bg-primary shadow-[0_0_8px_currentColor]' : 'bg-gray-700' }}"></div>
                                         <span class="text-sm font-bold text-gray-300 tracking-wide truncate max-w-[150px]">{{ $attrName }}</span>
                                     </div>
 
-                                    <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                                         <button wire:click="startEditing({{ $attrId }}, '{{ addslashes($attrName) }}')" class="p-2 text-gray-500 hover:text-primary bg-gray-900 border border-gray-800 hover:border-primary/30 rounded-xl transition-all shadow-inner" title="Umbenennen">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                         </button>

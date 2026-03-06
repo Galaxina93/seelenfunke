@@ -1,4 +1,4 @@
-<div class="bg-gray-50 min-h-screen py-24">
+<div class="bg-gray-50 min-h-screen py-24 relative">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <h1 class="text-3xl font-serif font-bold text-gray-900 mb-8">Dein Warenkorb</h1>
@@ -15,25 +15,21 @@
                 </a>
             </div>
         @else
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="flex flex-col lg:flex-row gap-8 items-start w-full relative">
 
                 {{-- Linke Spalte: Artikelliste --}}
-                <div class="lg:col-span-8 space-y-4">
+                <div class="w-full lg:w-7/12 xl:w-8/12 flex-1 min-w-0 space-y-4">
                     @foreach($items as $item)
                         @php
                             $prod = $item->product;
-                            // Fallback falls Typ noch nicht gesetzt ist
                             $type = $prod->type ?? 'physical';
-
                             $attributes = $prod->attributes ?? [];
                             $deliveryTime = $attributes['Lieferzeit'] ?? null;
                         @endphp
 
-                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md" wire:key="item-{{ $item->id }}">
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md w-full" wire:key="item-{{ $item->id }}">
 
-                            {{-- Standard-Ansicht der Kachel --}}
-                            <div class="p-4 sm:p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start {{ $editingItemId == $item->id ? 'bg-gray-50 border-b border-gray-100' : '' }}">
-
+                            <div class="p-4 sm:p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
                                 {{-- Produktbild --}}
                                 <div class="w-24 h-24 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group">
                                     @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
@@ -44,7 +40,6 @@
                                         </div>
                                     @endif
 
-                                    {{-- Typ Badge im Bild --}}
                                     @if($type === 'digital')
                                         <div class="absolute bottom-0 left-0 right-0 bg-blue-600/90 text-white text-[9px] font-bold text-center py-0.5">DIGITAL</div>
                                     @elseif($type === 'service')
@@ -53,13 +48,19 @@
                                 </div>
 
                                 {{-- Details --}}
-                                <div class="flex-1 text-center sm:text-left">
-                                    <h3 class="font-serif font-bold text-lg text-gray-900 mb-1 leading-tight">
+                                <div class="flex-1 text-center sm:text-left min-w-0">
+                                    <h3 class="font-serif font-bold text-lg text-gray-900 mb-1 leading-tight truncate">
                                         <a href="{{ route('product.show', $prod->slug) }}" class="hover:text-primary transition">{{ $prod->name }}</a>
                                     </h3>
 
-                                    {{-- Dynamische Infos je nach Typ --}}
-                                    <div class="flex items-center justify-center sm:justify-start gap-2 mb-2 text-xs font-medium">
+                                    {{-- Anzeige der gewählten Variante --}}
+                                    @if(!empty($item->configuration['variant_name']))
+                                        <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-2 drop-shadow-[0_0_5px_currentColor] truncate">
+                                            Ausführung: {{ $item->configuration['variant_name'] }}
+                                        </p>
+                                    @endif
+
+                                    <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2 text-xs font-medium">
                                         @if($type === 'physical')
                                             @if($deliveryTime)
                                                 <span class="text-green-700 flex items-center gap-1">
@@ -80,7 +81,6 @@
                                         @endif
                                     </div>
 
-                                    {{-- Konfigurations-Status --}}
                                     <div class="flex flex-wrap gap-2 justify-center sm:justify-start mb-3">
                                         @if(!empty($item->configuration['text']))
                                             <span class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded">
@@ -102,8 +102,7 @@
                                 </div>
 
                                 {{-- Controls --}}
-                                <div class="flex flex-col items-center gap-4">
-                                    {{-- Quantity: Nur bei Physischen Produkten editierbar --}}
+                                <div class="flex flex-col items-center gap-4 shrink-0">
                                     @if($type === 'physical')
                                         <div class="flex items-center bg-gray-50 rounded-full border border-gray-200">
                                             <button wire:click="decrement('{{ $item->id }}')" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-primary transition font-bold text-lg">-</button>
@@ -111,31 +110,21 @@
                                             <button wire:click="increment('{{ $item->id }}')" class="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-primary transition font-bold text-lg">+</button>
                                         </div>
                                     @else
-                                        {{-- Bei Digital/Service nur Anzeige --}}
                                         <div class="flex items-center justify-center bg-gray-50 rounded-full border border-gray-200 px-4 py-1.5">
                                             <span class="text-sm font-bold text-gray-900">{{ $item->quantity }}x</span>
                                         </div>
                                     @endif
 
-                                    {{-- Summe --}}
                                     <div class="font-bold text-gray-900 text-lg">
                                         {{ number_format(($item->unit_price * $item->quantity) / 100, 2, ',', '.') }} €
                                     </div>
 
-                                    {{-- Buttons: Bearbeiten & Entfernen --}}
                                     <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                                        {{-- Bearbeiten: NUR bei physischen Produkten anzeigen --}}
                                         @if($type === 'physical')
-                                            @if($editingItemId == $item->id)
-                                                <button wire:click="closeModal" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-gray-900 border border-gray-900 rounded-lg text-xs font-bold text-white shadow-sm hover:bg-black transition">
-                                                    Ansicht ohne speichern schließen
-                                                </button>
-                                            @else
-                                                <button wire:click="edit('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary hover:border-primary transition">
-                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                                    Bearbeiten
-                                                </button>
-                                            @endif
+                                            <button wire:click="edit('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary hover:border-primary transition">
+                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                Bearbeiten
+                                            </button>
                                         @endif
 
                                         <button wire:click="remove('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition">
@@ -145,42 +134,22 @@
                                     </div>
                                 </div>
                             </div>
-
-                            {{-- Inline Konfigurator (Nur wenn aktiv & nicht digital) --}}
-                            @if($editingItemId == $item->id && $type !== 'digital')
-                                <div class="bg-white md:p-[7rem] animate-fade-in-down border-t border-primary/10 shadow-inner bg-gray-50/30">
-                                    <div class="relative min-h-[400px]">
-                                        <livewire:shop.configurator.configurator
-                                            :product="$prod"
-                                            :cartItem="$item"
-                                            context="edit"
-                                            :key="'inline-edit-'.$item->id"
-                                        />
-                                    </div>
-                                </div>
-                            @endif
                         </div>
                     @endforeach
                 </div>
 
                 {{-- Rechte Spalte: Zusammenfassung --}}
-                <div class="lg:col-span-4">
-                    <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-lg sticky top-24">
+                <div class="w-full lg:w-5/12 xl:w-4/12 shrink-0">
+                    <div class="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-lg lg:sticky lg:top-28 z-30">
                         <h3 class="font-serif font-bold text-xl text-gray-900 mb-6">Zusammenfassung</h3>
 
                         @php
-                            // Dynamischen Wert aus Config laden
                             $threshold = (int) shop_setting('shipping_free_threshold', 5000);
                             $currentValue = $totals['subtotal_gross'];
-
-                            // Check: Haben wir überhaupt physische Produkte?
-                            // Wenn NUR Digital/Service im Warenkorb -> Kein Versandbalken nötig
                             $hasPhysical = $items->contains(fn($i) => ($i->product->type ?? 'physical') === 'physical');
-
                             $missing = $totals['missing_for_free_shipping'];
                             $isFree = $totals['is_free_shipping'];
 
-                            // Wenn NUR Digital -> Versand ist immer "Frei" (keine Kosten), Balken nicht anzeigen oder als 100%
                             if (!$hasPhysical) {
                                 $percent = 100;
                             } else {
@@ -188,8 +157,6 @@
                             }
                         @endphp
 
-                        {{-- 1. Fortschrittsanzeige für kostenlosen Versand --}}
-                        {{-- Nur anzeigen, wenn Physische Produkte da sind --}}
                         @if($hasPhysical && $threshold > 0)
                             @if(!$isFree && $missing > 0)
                                 <div class="mb-6 bg-gray-50 p-3 rounded-xl border border-gray-200">
@@ -210,24 +177,20 @@
                                 </div>
                             @endif
                         @elseif(!$hasPhysical)
-                            {{-- Hinweis für rein digitale Warenkörbe --}}
                             <div class="mb-6 flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                 <span class="text-xs font-bold uppercase tracking-wider">Sofort-Download / Service (Versandfrei)</span>
                             </div>
                         @endif
 
-                        {{-- 2. Kostenaufstellung via Master Component --}}
                         <div class="mb-6 pb-6 border-b border-gray-100">
                             <x-shop.cost-summary :totals="$totals" :showTitle="false">
-                                {{-- Slot für Gutschein Löschen Button --}}
                                 <button wire:click="removeCoupon" class="text-red-400 hover:text-red-600 transition" title="Gutschein entfernen">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                 </button>
                             </x-shop.cost-summary>
                         </div>
 
-                        {{-- 3. Gutschein Input --}}
                         @if(empty($totals['coupon_code']))
                             <div class="mb-6">
                                 <form wire:submit.prevent="applyCoupon" class="flex gap-2">
@@ -249,7 +212,6 @@
                             </div>
                         @endif
 
-                        {{-- 4. Checkout Button --}}
                         <a href="{{ route('checkout') }}"
                            class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
                             <span>Zur Kasse</span>
@@ -258,7 +220,6 @@
                             </svg>
                         </a>
 
-                        {{-- 5. Zahlungsanbieter --}}
                         <div class="mt-5">
                             <p class="text-[10px] text-gray-400 text-center mb-2">Sichere Zahlung mit</p>
                             <div class="flex flex-wrap justify-center gap-2 opacity-70">
@@ -281,4 +242,40 @@
     <div wire:loading class="fixed inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
         <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
     </div>
+
+    {{-- NEU: Configurator als Modal Overlay (verhindert Layout-Verschiebungen) --}}
+    @if($editingItemId)
+        @php
+            $editingItem = $items->firstWhere('id', $editingItemId);
+        @endphp
+        @if($editingItem && ($editingItem->product->type ?? 'physical') !== 'digital')
+            <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+                <div class="absolute inset-0" wire:click="closeModal"></div>
+
+                <div class="relative bg-white w-full max-w-5xl max-h-[95vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-fade-in-up">
+
+                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0 z-20">
+                        <div>
+                            <h2 class="text-xl font-serif font-bold text-gray-900">
+                                Design bearbeiten
+                            </h2>
+                            <p class="text-[10px] uppercase tracking-widest text-primary font-bold mt-1">{{ $editingItem->product->name }}</p>
+                        </div>
+                        <button wire:click="closeModal" class="p-2 bg-white border border-gray-200 text-gray-500 hover:text-red-500 hover:border-red-200 rounded-full transition-all shadow-sm">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto custom-scrollbar relative bg-gray-50/30 p-0 sm:p-4">
+                        <livewire:shop.configurator.configurator
+                            :product="$editingItem->product"
+                            :cartItem="$editingItem"
+                            context="edit"
+                            :key="'modal-edit-'.$editingItem->id"
+                        />
+                    </div>
+                </div>
+            </div>
+        @endif
+    @endif
 </div>
