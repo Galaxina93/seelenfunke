@@ -33,10 +33,12 @@
         init(onLoadedCallback) {
             if (this.isReady) return;
 
+            // Definition für Mobile (alles unter 768px Breite)
             const isMobile = window.innerWidth < 768;
 
             this.scene = new window.THREE.Scene();
 
+            // Hintergrund: Wenn bgPath existiert, nutzen wir es, sonst dunkelblau
             if (!this.bgPath) {
                 this.scene.background = new window.THREE.Color('#0b0f19');
             } else {
@@ -46,25 +48,29 @@
             const aspect = this.container.offsetWidth / this.container.offsetHeight;
             this.camera = new window.THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
 
+            // PERFORMANCE-FIX FÜR MOBILE RENDERER
             this.renderer = new window.THREE.WebGLRenderer({
-                antialias: false,
+                antialias: !isMobile, // Antialiasing auf Mobile aus!
                 alpha: true,
                 precision: isMobile ? 'lowp' : 'mediump',
-                powerPreference: 'low-power',
+                powerPreference: isMobile ? 'low-power' : 'high-performance',
                 stencil: false,
                 depth: true
             });
 
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
+            // Pixel-Ratio auf Mobile zwingend auf 1 begrenzen, um GPU-Crashes auf High-Res Displays (wie Pixel 9) zu verhindern
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
-            this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
+
+            // Einfacheres Tone-Mapping für Mobile (verhindert Shader-Überlastung)
+            this.renderer.toneMapping = isMobile ? window.THREE.LinearToneMapping : window.THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
 
             this.container.innerHTML = '';
             this.container.appendChild(this.renderer.domElement);
 
-            // Extrem starkes 3-Punkt-Studio-Licht + Ambient-Licht aus deiner "heilen Datei"
-            this.scene.add(new window.THREE.AmbientLight(0xffffff, 1.5));
+            // LICHTSETUP (WICHTIG ALS FALLBACK)
+            this.scene.add(new window.THREE.AmbientLight(0xffffff, isMobile ? 3.0 : 1.5)); // Auf Mobile heller, da HDRI fehlt
 
             const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
             mainLight.position.set(10, 10, 10);
@@ -84,15 +90,23 @@
             this.controls.enablePan = false;
             this.controls.maxPolarAngle = Math.PI / 1.6;
 
+            // HDRI / ENVIRONMENT FIX FÜR MOBILE
             if(this.bgPath) {
                 const loader = new window.THREE.TextureLoader();
                 loader.load(this.bgPath, (t) => {
                     t.mapping = window.THREE.EquirectangularReflectionMapping;
-                    this.scene.environment = t;
+
+                    // Lade das Bild nur als sichtbaren Hintergrund (spart massiv Speicher)
                     this.scene.background = t;
+
+                    // ABER: Das Environment (Reflexionsberechnung) nur auf Desktop aktivieren!
+                    if (!isMobile) {
+                        this.scene.environment = t;
+                    }
                 });
             }
 
+            // Textur-Auflösung auf Mobile radikal senken
             const texSize = isMobile ? 512 : 2048;
 
             // --- INIT FRONT TEXTURE ---
@@ -105,9 +119,9 @@
                 if (this.textureFront) {
                     this.textureFront.flipY = true;
                     this.textureFront.wrapS = window.THREE.RepeatWrapping;
-                    // FIX: repeat.x = -1 hier gelöscht, da es dynamisch gemacht wird!
                     this.textureFront.generateMipmaps = false;
                     this.textureFront.minFilter = window.THREE.LinearFilter;
+                    // Anisotropy auf Mobile aus!
                     if (typeof this.textureFront.anisotropy !== 'undefined') this.textureFront.anisotropy = isMobile ? 1 : 4;
                     this.textureFront.needsUpdate = true;
                 }
@@ -123,9 +137,9 @@
                 if (this.textureBack) {
                     this.textureBack.flipY = true;
                     this.textureBack.wrapS = window.THREE.RepeatWrapping;
-                    // FIX: repeat.x = -1 hier gelöscht, da es dynamisch gemacht wird!
                     this.textureBack.generateMipmaps = false;
                     this.textureBack.minFilter = window.THREE.LinearFilter;
+                    // Anisotropy auf Mobile aus!
                     if (typeof this.textureBack.anisotropy !== 'undefined') this.textureBack.anisotropy = isMobile ? 1 : 4;
                     this.textureBack.needsUpdate = true;
                 }
