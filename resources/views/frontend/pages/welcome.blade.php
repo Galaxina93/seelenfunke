@@ -822,29 +822,46 @@
                         @foreach($steps as $index => $step)
                             <div class="text-center fade-in group relative z-10" style="animation-delay: {{ $index * 0.2 }}s;">
 
-                                <div class="relative inline-block transition-transform transform group-hover:-translate-y-2 duration-300">
+                                {{-- Alpine.js Wrapper für Hover-to-Play Logik --}}
+                                <div class="relative inline-block transition-transform transform group-hover:-translate-y-2 duration-300"
+                                     @if(isset($step['video']))
+                                         x-data="{
+                                 loaded: false,
+                                 playVideo() {
+                                     // Video-URL erst beim Hovern setzen! Zero Bytes vorab geladen.
+                                     if (!this.loaded) {
+                                         this.$refs.video.src = '{{ asset('images/projekt/process/' . $step['video'] . '.webm') }}';
+                                         this.loaded = true;
+                                     }
+                                     this.$refs.video.play().catch(e => {}); // .catch fängt Autoplay-Fehler ab
+                                 },
+                                 pauseVideo() {
+                                     if (this.loaded) {
+                                         this.$refs.video.pause();
+                                     }
+                                 }
+                             }"
+                                     @mouseenter="playVideo()"
+                                     @mouseleave="pauseVideo()"
+                                     @touchstart.passive="playVideo()" {{-- Touch-Support für Smartphones --}}
+                                    @endif
+                                >
 
                                     {{-- Container für Bild ODER Video --}}
                                     <div class="w-32 h-32 bg-white border-4 border-primary rounded-full overflow-hidden mx-auto mb-6 shadow-xl relative z-10 group-hover:shadow-2xl group-hover:border-primary-dark transition-all">
 
                                         @if(isset($step['video']))
-                                            {{-- High-Performance Video-Logik --}}
+                                            {{-- High-Performance Video --}}
                                             <video
-                                                autoplay
+                                                x-ref="video"
                                                 loop
                                                 muted
                                                 playsinline
                                                 preload="none"
-                                                loading="lazy"
-                                                poster="{{ asset($step['image']) }}" {{-- Zeigt das Bild, während das Video lädt --}}
+                                                poster="{{ asset($step['image']) }}"
                                                 class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
 
-                                                {{-- Falls du eine WebM Version hast (sehr empfohlen für Speed) --}}
-                                                <source src="{{ asset('images/projekt/process/' . $step['video'] . '.webm') }}" type="video/webm">
-                                                {{-- Fallback MP4 --}}
-                                                {{--<source src="{{ asset('images/projekt/process/' . $step['video'] . '.mp4') }}" type="video/mp4">--}}
-
-                                                {{-- Fallback Image falls Video gar nicht geht --}}
+                                                {{-- Fallback Image falls Video vom Browser blockiert wird --}}
                                                 <img src="{{ asset($step['image']) }}"
                                                      alt="Prozess-Schritt: {{ $step['title'] }} - {{ $step['text'] }}"
                                                      loading="lazy">
@@ -870,7 +887,7 @@
                                     {{ $step['title'] }}
                                 </h3>
                                 <p class="text-gray-600 text-sm leading-relaxed px-1">
-                                    {{ $text = $step['text'] }}
+                                    {{ $step['text'] }}
                                 </p>
                             </div>
                         @endforeach
