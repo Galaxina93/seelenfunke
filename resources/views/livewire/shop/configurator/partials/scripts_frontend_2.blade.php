@@ -33,12 +33,10 @@
         init(onLoadedCallback) {
             if (this.isReady) return;
 
-            // Definition für Mobile (alles unter 768px Breite)
             const isMobile = window.innerWidth < 768;
 
             this.scene = new window.THREE.Scene();
 
-            // Hintergrund: Wenn bgPath existiert, nutzen wir es, sonst dunkelblau
             if (!this.bgPath) {
                 this.scene.background = new window.THREE.Color('#0b0f19');
             } else {
@@ -48,29 +46,26 @@
             const aspect = this.container.offsetWidth / this.container.offsetHeight;
             this.camera = new window.THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
 
-            // PERFORMANCE-FIX FÜR MOBILE RENDERER
+            // FIX: 'lowp' entfernt! PBR Materialien brauchen zwingend 'highp' (auch auf dem Handy), sonst werden sie schwarz.
             this.renderer = new window.THREE.WebGLRenderer({
-                antialias: !isMobile, // Antialiasing auf Mobile aus!
+                antialias: !isMobile,
                 alpha: true,
-                precision: isMobile ? 'lowp' : 'mediump',
-                powerPreference: isMobile ? 'low-power' : 'high-performance',
+                precision: 'highp',
+                powerPreference: 'high-performance',
                 stencil: false,
                 depth: true
             });
 
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
-            // Pixel-Ratio auf Mobile zwingend auf 1 begrenzen, um GPU-Crashes auf High-Res Displays (wie Pixel 9) zu verhindern
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
-
-            // Einfacheres Tone-Mapping für Mobile (verhindert Shader-Überlastung)
-            this.renderer.toneMapping = isMobile ? window.THREE.LinearToneMapping : window.THREE.ACESFilmicToneMapping;
+            this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.0;
 
             this.container.innerHTML = '';
             this.container.appendChild(this.renderer.domElement);
 
-            // LICHTSETUP (WICHTIG ALS FALLBACK)
-            this.scene.add(new window.THREE.AmbientLight(0xffffff, isMobile ? 3.0 : 1.5)); // Auf Mobile heller, da HDRI fehlt
+            // Stärkeres Umgebungslicht auf Mobile als Ausgleich
+            this.scene.add(new window.THREE.AmbientLight(0xffffff, isMobile ? 3.0 : 1.5));
 
             const mainLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
             mainLight.position.set(10, 10, 10);
@@ -90,26 +85,20 @@
             this.controls.enablePan = false;
             this.controls.maxPolarAngle = Math.PI / 1.6;
 
-            // HDRI / ENVIRONMENT FIX FÜR MOBILE
             if(this.bgPath) {
                 const loader = new window.THREE.TextureLoader();
                 loader.load(this.bgPath, (t) => {
                     t.mapping = window.THREE.EquirectangularReflectionMapping;
-
-                    // Lade das Bild nur als sichtbaren Hintergrund (spart massiv Speicher)
                     this.scene.background = t;
-
-                    // ABER: Das Environment (Reflexionsberechnung) nur auf Desktop aktivieren!
+                    // HDRI Environment auf Mobile weglassen, um Speicher zu sparen
                     if (!isMobile) {
                         this.scene.environment = t;
                     }
                 });
             }
 
-            // Textur-Auflösung auf Mobile radikal senken
             const texSize = isMobile ? 512 : 2048;
 
-            // --- INIT FRONT TEXTURE ---
             this.textureCanvasFront = document.createElement('canvas');
             this.textureCanvasFront.width = texSize;
             this.textureCanvasFront.height = texSize;
@@ -121,13 +110,11 @@
                     this.textureFront.wrapS = window.THREE.RepeatWrapping;
                     this.textureFront.generateMipmaps = false;
                     this.textureFront.minFilter = window.THREE.LinearFilter;
-                    // Anisotropy auf Mobile aus!
                     if (typeof this.textureFront.anisotropy !== 'undefined') this.textureFront.anisotropy = isMobile ? 1 : 4;
                     this.textureFront.needsUpdate = true;
                 }
             } catch (e) { this.textureFront = new window.THREE.Texture(); }
 
-            // --- INIT BACK TEXTURE ---
             this.textureCanvasBack = document.createElement('canvas');
             this.textureCanvasBack.width = texSize;
             this.textureCanvasBack.height = texSize;
@@ -139,7 +126,6 @@
                     this.textureBack.wrapS = window.THREE.RepeatWrapping;
                     this.textureBack.generateMipmaps = false;
                     this.textureBack.minFilter = window.THREE.LinearFilter;
-                    // Anisotropy auf Mobile aus!
                     if (typeof this.textureBack.anisotropy !== 'undefined') this.textureBack.anisotropy = isMobile ? 1 : 4;
                     this.textureBack.needsUpdate = true;
                 }
@@ -275,23 +261,41 @@
         applyMaterial() {
             if(!this.model) return;
             const matType = this.config.material_type || 'glass';
-            const hasEnv = !!this.bgPath;
+            const isMobile = window.innerWidth < 768;
+
+            // WICHTIG: Auf Mobile haben wir kein Environment, also müssen wir das berücksichtigen
+            const hasEnv = !isMobile && !!this.bgPath;
 
             this.model.traverse((child) => {
                 if(child.isMesh && child.material) {
                     const oldMap = child.material.map;
 
                     if(matType === 'glass') {
-                        child.material = new window.THREE.MeshPhysicalMaterial({
-                            map: oldMap,
-                            color: 0xffffff,
-                            metalness: hasEnv ? 0.3 : 0.0,
-                            roughness: hasEnv ? 0.05 : 0.2,
-                            transparent: true,
-                            opacity: 0.80,
-                            depthWrite: false,
-                            side: window.THREE.FrontSide
-                        });
+                        if (isMobile) {
+                            // FALLBACK FÜR MOBILE: StandardMaterial (braucht kein HDRI um gut auszusehen)
+                            child.material = new window.THREE.MeshStandardMaterial({
+                                map: oldMap,
+                                color: 0xffffff,
+                                roughness: 0.3,
+                                metalness: 0.1, // Sehr geringe Metalness, damit es nicht schwarz wird!
+                                transparent: true,
+                                opacity: 0.5,
+                                depthWrite: false,
+                                side: window.THREE.FrontSide
+                            });
+                        } else {
+                            // DESKTOP: Das hochauflösende PhysicalMaterial
+                            child.material = new window.THREE.MeshPhysicalMaterial({
+                                map: oldMap,
+                                color: 0xffffff,
+                                metalness: hasEnv ? 0.3 : 0.0,
+                                roughness: hasEnv ? 0.05 : 0.2,
+                                transparent: true,
+                                opacity: 0.80,
+                                depthWrite: false,
+                                side: window.THREE.FrontSide
+                            });
+                        }
                     } else if(matType === 'wood') {
                         child.material = new window.THREE.MeshStandardMaterial({
                             map: oldMap,
