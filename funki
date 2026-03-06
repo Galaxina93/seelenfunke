@@ -25,7 +25,6 @@ case "$1" in
     info)
         echo -e "\n\033[1;34m✨ Funki - Dein intelligenter Projekt-Assistent ✨\033[0m"
 
-        # Zeige an, welche Umgebung erkannt wurde
         if [ "$IS_LOCAL" = true ]; then
             echo -e "Status: \033[1;32mLokale Entwicklungsumgebung (Docker erkannt)\033[0m\n"
         else
@@ -41,14 +40,14 @@ case "$1" in
         echo -e "  \033[1;32m🗄️ migrate\033[0m       Führt Laravel Migrationen und Datenbank-Seeder aus."
         echo -e "  \033[1;32m🔑 key\033[0m           Generiert einen neuen Laravel Application Key."
         echo -e "  \033[1;32m🗂️ storage\033[0m       Repariert und erneuert den öffentlichen Storage-Link restlos."
-        echo -e "  \033[1;32m📦 export\033[0m        Exportiert Projektdateien (z.B. 'funki export ticket' oder 'funki export search=ticket')."
+        echo -e "  \033[1;32m📦 export\033[0m        Exportiert Projektdateien (z.B. 'funki export ticket, mail' oder 'funki export \"langer string\"')."
         echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
-        echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket --short\n"
+        echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket, profil --short\n"
         ;;
     start)
         require_local "start"
@@ -100,18 +99,31 @@ case "$1" in
         ;;
     export)
         shift
-        ARGS=()
+        OPTIONS=()
+        SEARCH_TERMS=()
+
+        # Argumente filtern (Flags vs Suchbegriffe)
         for arg in "$@"; do
             if [[ "$arg" == search=* ]]; then
-                ARGS+=("--search=${arg#search=}")
-            elif [[ "$arg" != -* ]]; then
-                ARGS+=("--search=$arg")
+                SEARCH_TERMS+=("${arg#search=}")
+            elif [[ "$arg" == --* ]]; then
+                OPTIONS+=("$arg")
             else
-                ARGS+=("$arg")
+                # Entfernt ein versehentliches Komma am Ende eines Wortes,
+                # falls der User "funki export wort1, wort2" tippt.
+                clean_arg=$(echo "$arg" | sed 's/,$//')
+                SEARCH_TERMS+=("$clean_arg")
             fi
         done
+
+        # Array der Suchbegriffe zu einem kommagetrennten String verbinden
+        if [ ${#SEARCH_TERMS[@]} -gt 0 ]; then
+            SEARCH_STRING=$(IFS=,; echo "${SEARCH_TERMS[*]}")
+            OPTIONS+=("--search=$SEARCH_STRING")
+        fi
+
         echo "📦 Exportiere Projektdateien..."
-        $PREFIX_DEFAULT php artisan project:export "${ARGS[@]}"
+        $PREFIX_DEFAULT php artisan project:export "${OPTIONS[@]}"
         ;;
     worker)
         echo "👷 Starte Funki Queue-Worker (lauscht auf Hintergrund-Jobs)..."
@@ -122,7 +134,6 @@ case "$1" in
         $PREFIX_DEFAULT php artisan backup:run --only-db
         echo "🔧 Repariere Zugriffsrechte für das Dashboard..."
 
-        # Lokal brauchen wir root-Rechte via Docker, Live reichen die Standard-Serverrechte
         if [ "$IS_LOCAL" = true ]; then
             docker compose exec -u root web chmod -R 777 storage/
         else

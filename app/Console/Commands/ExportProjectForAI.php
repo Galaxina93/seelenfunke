@@ -13,7 +13,7 @@ class ExportProjectForAI extends Command
                             {--migrations : Exportiert nur die Datenbank-Migrationen}
                             {--short : Exportiert nur Kern-Logik-Ordner}
                             {--importants : Exportiert nur die absolut wichtigsten Projektdateien}
-                            {--search= : Exportiert nur Dateien, die dieses Wort im Pfad oder im Inhalt enthalten (z.B. ticket)}';
+                            {--search= : Exportiert nur Dateien, die eines der Wörter (kommagetrennt) im Pfad oder Inhalt enthalten (z.B. ticket, email, user)}';
 
     protected $description = 'Radikaler Export: Extreme Minification auf Token-Ebene für maximale Token-Ersparnis.';
 
@@ -35,7 +35,13 @@ class ExportProjectForAI extends Command
     {
         $startTime = microtime(true);
         $outputFile = $this->option('output');
-        $search = $this->option('search');
+
+        // Such-String in ein Array aufteilen und leere Einträge entfernen
+        $searchString = $this->option('search');
+        $searchTerms = [];
+        if (!empty($searchString)) {
+            $searchTerms = array_filter(array_map('trim', explode(',', $searchString)));
+        }
 
         if ($this->option('migrations')) {
             $outputFile = $outputFile === 'project_context.txt' ? 'migrations.txt' : $outputFile;
@@ -73,19 +79,37 @@ class ExportProjectForAI extends Command
             ->in($validPaths)
             ->exclude($this->ignoredDirectories);
 
-        $finder->filter(function (\SplFileInfo $file) use ($search) {
+        $finder->filter(function (\SplFileInfo $file) use ($searchTerms) {
             if ($file->isDir()) return false;
             if (in_array($file->getBasename(), $this->ignoredFiles)) return false;
 
-            // NEU: Filtern nach dem Suchbegriff (in Pfad ODER Datei-Inhalt)
-            if (!empty($search)) {
-                $pathMatches = stripos($file->getRealPath(), $search) !== false;
+            // NEU: Filtern nach MEHREREN Suchbegriffen (ODER-Logik)
+            if (!empty($searchTerms)) {
+                $matched = false;
+                $filePath = $file->getRealPath();
+                $fileContent = null; // Lazy Loading für den Datei-Inhalt
 
-                if (!$pathMatches) {
-                    $contentMatches = stripos(file_get_contents($file->getRealPath()), $search) !== false;
-                    if (!$contentMatches) {
-                        return false; // Weder im Namen noch im Text gefunden -> überspringen
+                foreach ($searchTerms as $term) {
+                    // 1. Prüfe, ob der Begriff im Pfad/Dateinamen steht
+                    if (stripos($filePath, $term) !== false) {
+                        $matched = true;
+                        break; // Treffer gefunden, keine weiteren Begriffe prüfen
                     }
+
+                    // 2. Prüfe den Inhalt nur, wenn es nötig ist (spart extrem viel Arbeitsspeicher/Zeit)
+                    if ($fileContent === null) {
+                        $fileContent = file_get_contents($filePath);
+                    }
+
+                    if (stripos($fileContent, $term) !== false) {
+                        $matched = true;
+                        break; // Treffer gefunden, keine weiteren Begriffe prüfen
+                    }
+                }
+
+                // Wenn keines der Wörter gefunden wurde, Datei ignorieren
+                if (!$matched) {
+                    return false;
                 }
             }
 
@@ -103,8 +127,8 @@ class ExportProjectForAI extends Command
         }
 
         $exportType = $this->option('migrations') ? 'DATABASE MIGRATIONS' : 'PROJECT LOGIC';
-        if (!empty($search)) {
-            $exportType .= " (FILTERED BY: {$search})";
+        if (!empty($searchTerms)) {
+            $exportType .= " (FILTERED BY: " . implode(', ', $searchTerms) . ")";
         }
 
         fwrite($handle, "{$exportType}\n====================\n");

@@ -26,7 +26,6 @@ class ProfileDropdown extends Component
     public object $user;
     public string $guard;
 
-    // Profilfelder
     public string $firstName = '';
     public string $lastName = '';
     public string $email = '';
@@ -41,12 +40,10 @@ class ProfileDropdown extends Component
     public $isBusiness = 0;
     public string $birthday = '';
 
-    // Passwortfelder
     public string $newPassword = '';
     public string $currentPassword = '';
     public string $repeatNewPassword = '';
 
-    // 2FA Felder
     public $twoFactorActive = false;
     public $qrCodeSvg = null;
     public $secretKey = null;
@@ -61,8 +58,8 @@ class ProfileDropdown extends Component
         if ($this->user) {
             $this->mountUserProfileData();
             $this->country = $this->user->profile->country ?? 'DE';
-            $this->twoFactorActive = $this->user->profile->two_factor_is_active ?? false;
 
+            $this->twoFactorActive = $this->user->profile->two_factor_is_active ?? false;
             if (!$this->twoFactorActive) {
                 $google2fa = new Google2FA();
                 $this->secretKey = $google2fa->generateSecretKey();
@@ -84,6 +81,7 @@ class ProfileDropdown extends Component
     {
         $this->saveUserProfileData([]);
         $this->dispatch('saved');
+        $this->dispatch('profile-updated'); // Teilt dem Dashboard mit, dass das Profil geupdatet wurde
     }
 
     public function updatePassword(): void
@@ -144,12 +142,15 @@ class ProfileDropdown extends Component
 
         $this->generateQrCode();
         $this->generateRecoveryCodes();
+
         $this->password = "";
         $this->user->profile->two_factor_secret = $this->secretKey;
         $this->user->profile->two_factor_is_active = true;
         $this->user->profile->save();
+
         $this->twoFactorActive = true;
         $this->confirmPasswordOpener = false;
+
         $this->dispatch('saved');
     }
 
@@ -158,12 +159,15 @@ class ProfileDropdown extends Component
         if (session()->has('2fa_user_id')) {
             session()->forget('2fa_user_id');
         }
+
         $this->user->profile->two_factor_is_active = false;
         $this->user->profile->two_factor_secret = null;
         $this->user->profile->two_factor_recovery_codes = null;
         $this->confirmPasswordOpener = false;
+
         $this->user->profile->save();
         $this->twoFactorActive = false;
+
         $this->dispatch('saved');
     }
 
@@ -174,6 +178,7 @@ class ProfileDropdown extends Component
             $this->user->email,
             $this->secretKey
         );
+
         $this->qrCodeSvg = $this->generateSvg($qrCodeUrl);
     }
 
@@ -183,6 +188,7 @@ class ProfileDropdown extends Component
             new RendererStyle($size),
             new SvgImageBackEnd()
         );
+
         $writer = new Writer($renderer);
         return $writer->writeString($data);
     }
@@ -190,11 +196,14 @@ class ProfileDropdown extends Component
     public function generateRecoveryCodes()
     {
         $recoveryCodes = [];
+
         for ($i = 0; $i < 8; $i++) {
             $recoveryCodes[] = $this->generateRandomString() . '-' . $this->generateRandomString();
         }
+
         $this->user->profile->two_factor_recovery_codes = encrypt(json_encode($recoveryCodes));
         $this->user->profile->save();
+
         $this->dispatch('saved');
     }
 
