@@ -81,7 +81,9 @@ class ProfileDropdown extends Component
     {
         $this->saveUserProfileData([]);
         $this->dispatch('saved');
-        $this->dispatch('profile-updated'); // Teilt dem Dashboard mit, dass das Profil geupdatet wurde
+
+        // Benachrichtigt das Dashboard über die Änderungen, damit die Meldung sofort verschwindet
+        $this->dispatch('profile-updated');
     }
 
     public function updatePassword(): void

@@ -3,7 +3,7 @@
 namespace App\Livewire\Customer;
 
 use App\Models\Customer\CustomerGamification;
-use App\Models\Voucher; // WICHTIG: Für die Status-Prüfung
+use App\Models\Voucher;
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;
@@ -62,8 +62,13 @@ class DashboardComponent extends Component
     {
         $user = Auth::guard('customer')->user();
         if ($user) {
+            // WICHTIG: Erzwingt das Laden der neuen Datenbank-Daten nach dem Speichern!
+            $user->refresh();
+            $user->load('profile');
+
             $this->checkProfileSteps($user);
             $profile = $gameService->getProfile($user);
+
             if ($this->hasOptedIn) {
                 $this->loadGamificationData($gameService, $profile);
             }
@@ -96,7 +101,7 @@ class DashboardComponent extends Component
         $p = $user->profile;
 
         $needsProfileInfo = empty($user->first_name) || empty($user->last_name) ||
-            empty($p->street) || empty($p->city) || empty($p->house_number) || empty($p->postal);
+            empty($p->street) || empty($p->city) || empty($p->house_number) || empty($p->postal) || empty($p->birthday);
 
         if ($needsProfileInfo) {
             $this->profileSteps[] = ['label' => 'Profil Informationen', 'action' => "\$dispatch('open-profile-modal', {tab: 'profile'})"];
@@ -134,19 +139,16 @@ class DashboardComponent extends Component
 
         $this->milestonesConfig = GameConfig::getLevelRewards();
 
-        // Gutschein-Status live aus der Datenbank abrufen
         $rawCoupons = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
         $formattedCoupons = [];
 
         if (!empty($rawCoupons)) {
-            // Alle relevanten Gutscheine auf einmal aus der DB holen um Queries zu sparen
             $dbVouchers = Voucher::whereIn('code', array_values($rawCoupons))->get()->keyBy('code');
 
             foreach ($rawCoupons as $lvl => $code) {
                 $dbVoucher = $dbVouchers->get($code);
                 $isUsed = false;
 
-                // Prüfen ob das Nutzungs-Limit erreicht wurde
                 if ($dbVoucher) {
                     $isUsed = $dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit;
                 }

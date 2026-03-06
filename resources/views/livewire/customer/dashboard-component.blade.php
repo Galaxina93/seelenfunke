@@ -1,4 +1,4 @@
-<div class="w-full" x-data="{ showProfileWarning: true }" @profile-updated.window="showProfileWarning = false; $wire.$refresh()">
+<div class="w-full">
     @if(!$hasOptedIn)
         <div x-data="optInScreen()" :class="isWarping ? 'opacity-0 scale-95 blur-sm' : 'opacity-100 scale-100 blur-0'" class="max-w-6xl mx-auto relative p-6 sm:p-10 lg:p-20 flex flex-col lg:flex-row items-center gap-10 lg:gap-16 transition-all duration-[1500ms] ease-in-out mt-8 lg:mt-12">
             <template x-teleport="body">
@@ -11,7 +11,7 @@
             </template>
             <div class="relative z-10 flex-1 text-center lg:text-left">
                 @if(count($profileSteps) > 0)
-                    <div x-show="showProfileWarning" x-transition class="mb-8 flex flex-col sm:flex-row flex-wrap items-center lg:items-start gap-3 p-4 sm:p-5 bg-gray-900 rounded-2xl border border-gray-800 shadow-inner">
+                    <div class="mb-8 flex flex-col sm:flex-row flex-wrap items-center lg:items-start gap-3 p-4 sm:p-5 bg-gray-900 rounded-2xl border border-gray-800 shadow-inner">
                         <span class="w-full block text-[10px] text-gray-500 uppercase tracking-[0.2em] font-black mb-1">Profil vervollständigen:</span>
                         @foreach($profileSteps as $step)
                             <button @click="{!! $step['action'] !!}" class="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">{{ $step['label'] }}</button>
@@ -39,10 +39,21 @@
     @else
         <div class="relative animate-fade-in-up z-10 min-h-[85vh] flex flex-col items-center justify-center py-10" @funki-level-up.window="handleLevelUp($event.detail[0])" x-data="funkiHub('{{$modelPath}}', '{{$imagePath}}')" x-init="initFunki()">
             <div x-show="darkFade" x-transition:leave="transition ease-in-out duration-[2000ms]" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-[9999] bg-gray-950 pointer-events-none" style="display: none;"></div>
+
             <div class="relative z-10 text-center flex flex-col items-center w-full max-w-6xl px-4 sm:px-6">
                 <style>
                     @keyframes subtleFloat{0%, 100%{transform: translateY(0px);}50%{transform: translateY(-12px);}}.animate-subtle-float{animation: subtleFloat 6s ease-in-out infinite;}.perspective-1000{perspective: 1000px;}@keyframes slideUpFade{0%{opacity: 0;transform: translateY(40px) scale(0.9);}100%{opacity: 1;transform: translateY(0) scale(1);}}.animate-level-up{animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;}
                 </style>
+
+                @if(count($profileSteps) > 0)
+                    <div class="mb-8 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 p-4 sm:p-5 bg-gray-900 rounded-2xl border border-gray-800 shadow-inner w-full max-w-2xl mx-auto">
+                        <span class="w-full block text-[10px] text-gray-500 uppercase tracking-[0.2em] font-black mb-1">Profil vervollständigen:</span>
+                        @foreach($profileSteps as $step)
+                            <button @click="{!! $step['action'] !!}" class="px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-full text-[9px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse">{{ $step['label'] }}</button>
+                        @endforeach
+                    </div>
+                @endif
+
                 <h2 class="text-3xl sm:text-5xl md:text-7xl font-serif font-bold mb-4 tracking-tight text-white drop-shadow-2xl">Willkommen, {{auth()->user()->first_name}}</h2>
                 <p class="text-gray-400 text-sm sm:text-xl mb-12 max-w-2xl leading-relaxed drop-shadow-md mx-auto">Deine persönliche Manufaktur. Betrachte deine Evolution, spiele Minispiele oder schalte neue Erfolge frei.</p>
 

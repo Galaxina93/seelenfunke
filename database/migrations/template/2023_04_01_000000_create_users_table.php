@@ -28,6 +28,7 @@ return new class extends Migration
             $table->string('company_name')->nullable();
             $table->string('vat_id')->nullable();
             $table->text('internal_note')->nullable();
+            $table->date('birthday')->nullable();
             $table->string('photo_path')->nullable();
             $table->longText('about')->nullable();
             $table->string('url')->nullable();
@@ -111,6 +112,7 @@ return new class extends Migration
             $table->string('company_name')->nullable();
             $table->string('vat_id')->nullable();
             $table->text('internal_note')->nullable();
+            $table->date('birthday')->nullable();
             $table->string('photo_path')->nullable();
             $table->longText('about')->nullable();
             $table->string('url')->nullable();
