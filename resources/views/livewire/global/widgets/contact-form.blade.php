@@ -1,13 +1,37 @@
 <div>
     <div class="contact-item">
 
-        <section id="contact" class="bg-black py-24 relative overflow-hidden" aria-label="Kontaktformular und Kontaktdaten">
+        @php
+            $verifiedUsersCount = 0;
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('customer_profiles')) {
+                    $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('customer_profiles')->whereNotNull('email_verified_at')->count();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('admin_profiles')) {
+                    $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('admin_profiles')->whereNotNull('email_verified_at')->count();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('employee_profiles')) {
+                    $verifiedUsersCount += \Illuminate\Support\Facades\DB::table('employee_profiles')->whereNotNull('email_verified_at')->count();
+                }
+            } catch (\Exception $e) {
+                $verifiedUsersCount = 0;
+            }
 
-            {{-- Dekorativer Hintergrund-Schein (Gold/Primary) --}}
-            <div class="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" aria-hidden="true">
-                <div class="absolute -top-24 -left-24 w-96 h-96 bg-primary/20 rounded-full blur-[100px] opacity-20"></div>
-                <div class="absolute bottom-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-[100px] opacity-20"></div>
-            </div>
+            // Basis-Sterne + echte Nutzer (als sicherer Integer)
+            $totalStars = (int)(150 + $verifiedUsersCount);
+        @endphp
+
+        <section id="contact"
+                 class="bg-black py-24 relative overflow-hidden"
+                 x-data
+                 x-init="setTimeout(() => { if(window.startUniverseEngine) window.startUniverseEngine($el, {{ $totalStars }}) }, 100)"
+                 aria-label="Kontaktformular und Kontaktdaten">
+
+            {{-- Du brauchst keine id="contact-canvas" mehr! --}}
+            <canvas class="absolute inset-0 z-0 w-full h-full pointer-events-none" wire:ignore></canvas>
+
+            {{-- Zartes dunkles Overlay für perfekte Lesbarkeit des Textes und Formulars --}}
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/30 z-0 pointer-events-none" aria-hidden="true"></div>
 
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div class="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
@@ -43,7 +67,7 @@
                         <div class="space-y-6">
                             <a href="mailto:kontakt@mein-seelenfunke.de"
                                title="Senden Sie uns eine E-Mail"
-                               class="group flex items-center space-x-4 p-4 rounded-2xl border border-white/5 bg-white/5 hover:border-primary/50 hover:bg-white/10 transition-all duration-300">
+                               class="group flex items-center space-x-4 p-4 rounded-2xl border border-white/5 bg-white/5 hover:border-primary/50 hover:bg-white/10 transition-all duration-300 backdrop-blur-sm">
                                 <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-black transition-colors">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                                 </div>
@@ -72,11 +96,23 @@
                                     <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
                                 </a>
                             </div>
+
+                            {{-- Das Easter-Egg / Wusstest du schon (Mystisch ohne Zahl) --}}
+                            <div class="mt-8 flex items-start gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                                <div class="mt-0.5 text-primary animate-pulse">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <p class="text-xs text-gray-400 leading-relaxed">
+                                    <strong class="text-white block mb-0.5">Wusstest du schon?</strong>
+                                    Unser Universum lebt. Für jedes gefertigte Unikat und jeden Funken, den wir weitergeben dürfen, lassen wir einen neuen Stern in unserem digitalen Himmel erstrahlen. Werde auch du ein Teil davon.
+                                </p>
+                            </div>
+
                         </div>
                     </div>
 
                     {{-- RECHTE SPALTE: Formular --}}
-                    <div class="bg-gray-900/50 backdrop-blur-md border border-white/10 p-8 sm:p-10 rounded-3xl shadow-2xl relative">
+                    <div class="bg-gray-900/40 backdrop-blur-md border border-white/10 p-8 sm:p-10 rounded-3xl shadow-2xl relative">
 
                         <h4 class="text-2xl font-serif font-bold text-white mb-8">Nachricht senden</h4>
 
@@ -86,14 +122,15 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div class="space-y-2">
                                     <label for="first_name" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Vorname</label>
+                                    {{-- FIX: bg-transparent und shadow-inner für den Glas-Look --}}
                                     <input wire:model="first_name" type="text" id="first_name" autocomplete="given-name" required aria-required="true"
-                                           class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                           class="w-full rounded-xl border border-white/10 bg-transparent shadow-inner px-4 py-3 text-white placeholder-gray-600 transition-all focus:border-primary focus:bg-white/5 focus:ring-1 focus:ring-primary focus:outline-none">
                                     @error('first_name') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="space-y-2">
                                     <label for="last_name" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Nachname</label>
                                     <input wire:model="last_name" type="text" id="last_name" autocomplete="family-name" required aria-required="true"
-                                           class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                           class="w-full rounded-xl border border-white/10 bg-transparent shadow-inner px-4 py-3 text-white placeholder-gray-600 transition-all focus:border-primary focus:bg-white/5 focus:ring-1 focus:ring-primary focus:outline-none">
                                     @error('last_name') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                                 </div>
                             </div>
@@ -102,24 +139,24 @@
                             <div class="space-y-2">
                                 <label for="email" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">E-Mail Adresse</label>
                                 <input wire:model="email" type="email" id="email" required aria-required="true"
-                                       class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                       class="w-full rounded-xl border border-white/10 bg-transparent shadow-inner px-4 py-3 text-white placeholder-gray-600 transition-all focus:border-primary focus:bg-white/5 focus:ring-1 focus:ring-primary focus:outline-none">
                                 @error('email') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                             </div>
 
                             <div class="space-y-2">
                                 <label for="phone" class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Telefon (Optional)</label>
                                 <input wire:model="phone" type="text" id="phone"
-                                       class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none">
+                                       class="w-full rounded-xl border border-white/10 bg-transparent shadow-inner px-4 py-3 text-white placeholder-gray-600 transition-all focus:border-primary focus:bg-white/5 focus:ring-1 focus:ring-primary focus:outline-none">
                             </div>
 
-                            {{-- Message (Optimiert: Zählt lokal über Alpine.js ohne Server-Anfragen) --}}
+                            {{-- Message Textarea (Komplett transparent!) --}}
                             <div class="space-y-2" x-data="{ count: 0 }" x-init="count = $refs.msg.value.length">
                                 <div class="flex items-center justify-between ml-1">
                                     <label for="message" class="text-xs font-bold text-gray-400 uppercase tracking-wider">Deine Nachricht</label>
                                     <span class="text-xs text-gray-500"><span x-text="count"></span>/500</span>
                                 </div>
                                 <textarea wire:model="message" x-ref="msg" x-on:input="count = $refs.msg.value.length" id="message" rows="5" maxlength="500" required aria-required="true"
-                                          class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none resize-none"></textarea>
+                                          class="w-full rounded-xl border border-white/10 bg-transparent shadow-inner px-4 py-3 text-white placeholder-gray-600 transition-all focus:border-primary focus:bg-white/5 focus:ring-1 focus:ring-primary focus:outline-none resize-none"></textarea>
                                 @error('message') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                             </div>
 
@@ -162,11 +199,25 @@
                                 </div>
                             @endif
 
+                            {{-- Das Easter-Egg / Wusstest du schon (Variante 3) --}}
+                            <div class="mt-8 flex items-start gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                                <div class="mt-0.5 text-primary animate-pulse">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                </div>
+                                <p class="text-xs text-gray-400 leading-relaxed">
+                                    <strong class="text-white block mb-0.5">Wusstest du schon?</strong>
+                                    Schau dir den Hintergrund an: Jeder einzelne Stern an unserem Himmel steht für einen verifizierten Nutzer. Aktuell leuchten <span class="text-primary font-bold text-sm">{{ $verifiedUsersCount }} Funken</span> mit uns.
+                                </p>
+                            </div>
+
                         </form>
                     </div>
 
                 </div>
             </div>
         </section>
+
+        @include('components.scripts.universe')
+
     </div>
 </div>

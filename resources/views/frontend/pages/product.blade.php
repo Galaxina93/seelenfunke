@@ -127,7 +127,7 @@
                             🎁
                         </div>
                         <h3 class="text-xl font-bold text-gray-900 mb-3">Geschenkbox inklusive</h3>
-                        <p class="text-gray-500 leading-relaxed text-sm">Jeder Seelen-Kristall kommt in einer hochwertigen, mit Satin ausgelegten Geschenkbox. Bereit für die Übergabe.</p>
+                        <p class="text-gray-500 leading-relaxed text-sm">Jeder Seelen-Kristall kommt in einer hochwertigen Geschenkbox und ist direkt bereit für die Übergabe.</p>
                     </article>
                 </div>
             </div>
