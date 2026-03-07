@@ -242,18 +242,21 @@
                         {{-- Mobile Bottom Bar --}}
                         <div class="flex flex-col gap-3 mt-4 pt-4 border-t border-gray-800/50">
 
-                            <div class="flex items-center justify-between w-full">
-                                <input type="text" list="cat-list-mobile-{{$special->id}}"
-                                       value="{{ $special->category }}"
-                                       wire:change="updateSpecialField('{{ $special->id }}', 'category', $event.target.value)"
-                                       class="bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2 outline-none transition-all shadow-inner w-32">
-                                <datalist id="cat-list-mobile-{{$special->id}}">
-                                    @foreach($this->manageableCategories as $cat)
-                                        <option value="{{ $cat->name }}">
-                                    @endforeach
-                                </datalist>
+                            {{-- FIX 2: Container hat jetzt gap-3, das Input nimmt "flex-1 w-full" statt w-32 --}}
+                            <div class="flex items-center justify-between w-full gap-3">
+                                <div class="flex-1 min-w-0">
+                                    <input type="text" list="cat-list-mobile-{{$special->id}}"
+                                           value="{{ $special->category }}"
+                                           wire:change="updateSpecialField('{{ $special->id }}', 'category', $event.target.value)"
+                                           class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2 outline-none transition-all shadow-inner">
+                                    <datalist id="cat-list-mobile-{{$special->id}}">
+                                        @foreach($this->manageableCategories as $cat)
+                                            <option value="{{ $cat->name }}">
+                                        @endforeach
+                                    </datalist>
+                                </div>
 
-                                <label class="flex items-center gap-2 cursor-pointer group-checkbox bg-gray-900/30 hover:bg-gray-900 px-3 py-2 rounded-xl border border-transparent hover:border-gray-700 transition-all">
+                                <label class="shrink-0 flex items-center gap-2 cursor-pointer group-checkbox bg-gray-900/30 hover:bg-gray-900 px-3 py-2 rounded-xl border border-transparent hover:border-gray-700 transition-all">
                                     <div class="relative flex items-center">
                                         <input type="checkbox"
                                                @checked($special->is_business)
@@ -266,7 +269,26 @@
                                 </label>
                             </div>
 
-                            <div class="flex items-center justify-between w-full mt-2">
+                            {{-- FIX 1: Belege auch mobil anzeigen (immer klickbares rotes X für Touch-Geräte) --}}
+                            @php
+                                $files = is_string($special->file_paths) ? json_decode($special->file_paths, true) : $special->file_paths;
+                            @endphp
+                            @if(!empty($files) && count($files) > 0)
+                                <div class="flex flex-wrap gap-3 py-2">
+                                    @foreach($files as $index => $path)
+                                        <div class="relative">
+                                            <a href="{{ \Illuminate\Support\Facades\Storage::url($path) }}" target="_blank" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 active:border-orange-500 active:text-orange-400 transition-all shadow-md">
+                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                                            </a>
+                                            <button type="button" wire:click="deleteSpecialFile('{{ $special->id }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform z-20">
+                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                            </button>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <div class="flex items-center justify-between w-full mt-1">
                                 <div class="flex-1 pr-4">
                                     <div class="relative group/upload w-full">
                                         <label class="w-full cursor-pointer p-2.5 text-xs font-black uppercase tracking-widest text-gray-400 bg-gray-950 border border-gray-800 rounded-xl shadow-inner hover:text-orange-400 transition-colors flex items-center justify-center gap-2">
