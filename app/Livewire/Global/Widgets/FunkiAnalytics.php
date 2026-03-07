@@ -154,29 +154,40 @@ class FunkiAnalytics extends Component
             $health['smtp'] = ['status' => 'error', 'value' => 'Konfig-Fehler', 'error' => 'Mail-Konfiguration fehlerhaft.'];
         }
 
-        // 5. Redis / Cache Check (Schlau für Lokal vs. Live)
+        // 5. Redis / Cache Check (100% kugelsicher für Lokal & Stage)
         try {
             $start = microtime(true);
             $cacheDriver = config('cache.default');
 
             if ($cacheDriver === 'redis') {
-                if (extension_loaded('redis') || class_exists(\Predis\Client::class)) {
-                    $redis = \Illuminate\Support\Facades\Redis::connection();
-                    $redis->ping();
-                    $time = round((microtime(true) - $start) * 1000, 1);
-                    $health['redis'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+                // 1. VORAB-CHECK: Ist der Redis-Treiber auf diesem Server (Lokal/Stage) überhaupt installiert?
+                $hasPhpRedis = extension_loaded('redis');
+                $hasPredis = class_exists(\Predis\Client::class);
+
+                if (!$hasPhpRedis && !$hasPredis) {
+                    // Weder die PHP-Extension noch das Composer-Paket existieren!
+                    // Wir brechen sofort sanft ab, BEVOR Laravel den tödlichen Fehler wirft.
+                    $health['redis'] = ['status' => 'warning', 'value' => 'Fehlt', 'error' => 'Redis-Erweiterung auf diesem Server nicht installiert.'];
+                    $this->logSystemFailure('redis', "Der CACHE_DRIVER steht auf redis, aber die PHP-Erweiterung fehlt. (Wahrscheinlich Lokal oder Stage)");
                 } else {
-                    $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Redis-Erweiterung fehlt.'];
-                    $this->logSystemFailure('redis', 'Der Cache-Driver steht auf Redis, aber die PHP-Erweiterung fehlt.');
+                    // Treiber ist da, wir versuchen den Ping über den Cache-Manager
+                    try {
+                        \Illuminate\Support\Facades\Cache::store('redis')->get('ping_test');
+                        $time = round((microtime(true) - $start) * 1000, 1);
+                        $health['redis'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+                    } catch (\Exception $e) {
+                        $health['redis'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Redis-Server nicht erreichbar.'];
+                        $this->logSystemFailure('redis', 'Redis ist installiert, aber der Service verweigert die Verbindung.', ['exception' => $e->getMessage()]);
+                    }
                 }
             } else {
-                // Wenn wir lokal sind (oder auf File-Cache laufen)
+                // Wenn in der .env z.B. CACHE_DRIVER=file oder array steht (Standard für Lokal)
                 \Illuminate\Support\Facades\Cache::has('test_ping');
                 $time = round((microtime(true) - $start) * 1000, 1);
                 $health['redis'] = ['status' => 'connected', 'value' => "{$cacheDriver} ({$time}ms)", 'error' => null];
             }
         } catch (\Exception $e) {
-            $health['redis'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Cache/Redis antwortet nicht.'];
+            $health['redis'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Kritischer Cache-Fehler.'];
             $this->logSystemFailure('redis', 'Cache-Systemausfall: ' . $e->getMessage());
         }
 
