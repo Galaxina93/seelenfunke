@@ -2,8 +2,11 @@ window.Match3DEngine = class Match3DEngine {
 constructor(container, callbacks) {
 this.container = container; this.callbacks = callbacks; this.audio = new window.ArcadeAudio();
 
-// MOBIL OPTIMIERT: 8x8 Grid
-this.rows = 8; this.cols = 8; this.cellSize = 1.3;
+// MOBIL OPTIMIERT
+const isMobile = window.innerWidth < 768;
+this.cellSize = isMobile ? 1.5 : 1.3;
+this.baseCScale = isMobile ? 1.4 : 1.0;
+this.rows = 8; this.cols = 8;
 
 this.board = []; this.crystals = []; this.particles = []; this.tweens = []; this.lasers = [];
 this.isProcessing = false; this.selectedMesh = null; this.shakeTime = 0;
@@ -145,8 +148,9 @@ else if (rand < 0.075) typeIndex = 12; // Lightning
 const mat = (typeIndex >= 7) ? this.materials[typeIndex].clone() : this.materials[typeIndex];
 const mesh = new THREE.Mesh(this.geometries[typeIndex], mat);
 mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+mesh.scale.setScalar(this.baseCScale);
 
-mesh.userData = { r, c, type: typeIndex };
+mesh.userData = { r, c, type: typeIndex, baseScale: this.baseCScale };
 if(typeIndex === 10) mesh.userData.charges = 3;
 
 const targetPos = this.getPos(r, c);
@@ -276,25 +280,23 @@ this.deselectMesh();
 
 const onPointerUp = () => { isDragging = false; };
 
-// Mouse & Touch exakt wie früher registrieren
-this.container.addEventListener('mousedown', onPointerDown);
-this.container.addEventListener('mousemove', onPointerMove);
-this.container.addEventListener('mouseleave', onPointerUp);
-window.addEventListener('mouseup', onPointerUp);
-this.container.addEventListener('touchstart', onPointerDown, {passive: true});
-this.container.addEventListener('touchmove', onPointerMove, {passive: true});
-window.addEventListener('touchend', onPointerUp);
+// Pointer Events statt Mouse & Touch bündeln doppelte Events (klickt nicht doppelt auf Mobile!)
+this.container.addEventListener('pointerdown', onPointerDown);
+this.container.addEventListener('pointermove', onPointerMove);
+this.container.addEventListener('pointerleave', onPointerUp);
+this.container.addEventListener('pointercancel', onPointerUp);
+window.addEventListener('pointerup', onPointerUp);
 }
 
 selectMesh(mesh) {
-this.selectedMesh = mesh; this.tween(mesh.scale, {x: 1.3, y: 1.3, z: 1.3}, 150);
+this.selectedMesh = mesh; this.tween(mesh.scale, {x: mesh.userData.baseScale * 1.3, y: mesh.userData.baseScale * 1.3, z: mesh.userData.baseScale * 1.3}, 150);
 const outline = new THREE.Mesh(mesh.geometry, this.highlightMat); outline.scale.set(1.1, 1.1, 1.1);
 mesh.add(outline); mesh.userData.outline = outline;
 }
 
 deselectMesh() {
 if(this.selectedMesh) {
-this.tween(this.selectedMesh.scale, {x: 1, y: 1, z: 1}, 150);
+this.tween(this.selectedMesh.scale, {x: this.selectedMesh.userData.baseScale, y: this.selectedMesh.userData.baseScale, z: this.selectedMesh.userData.baseScale}, 150);
 if(this.selectedMesh.userData.outline) this.selectedMesh.remove(this.selectedMesh.userData.outline);
 this.selectedMesh = null;
 }

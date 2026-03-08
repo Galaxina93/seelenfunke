@@ -1,0 +1,469 @@
+# Mein Seelenfunke - AI Context Map
+
+Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuelle Dateistruktur und unumstößliche Projektregeln.
+
+## 1. Projekt-DNA
+- Laravel 11, Livewire 3, Tailwind CSS
+- Kein klassischer Controller-Ansatz für das Frontend, stattdessen reine Livewire-Komponenten.
+
+## 2. Verzeichnis-Struktur
+
+### Livewire Komponenten (`app/Livewire/`)
+- **Admin/**
+  - AdminNavigation.php
+  - RightsManagement.php
+  - TicketSystemComponent.php
+  - UserManagement.php
+- **Customer/**
+  - CustomerNavigation.php
+  - DashboardComponent.php
+  - GamesComponent.php
+  - GlobalRankingComponent.php
+  - GlobalStatsHeader.php
+  - OrderDetail.php
+  - Orders.php
+  - OrdersComponent.php
+  - TicketsComponent.php
+- **Employee/**
+  - EmployeeNavigation.php
+- **Frontend/**
+  - VoucherSlider.php
+- **Global/**
+  - **Auth/**
+    - Login.php
+    - LoginDropdown.php
+    - Register.php
+  - **Gamification/**
+    - SparkHuntComponent.php
+  - **Password/**
+    - PasswordReset.php
+  - **Profile/**
+    - ProfileDropdown.php
+  - **Widgets/**
+    - ContactForm.php
+    - FunkiAnalytics.php
+    - FunkiChat.php
+    - GoogleReviews.php
+    - HeaderSlider.php
+    - KnowledgeBase.php
+    - LoginLog.php
+- **Shop/**
+  - **Blog/**
+    - Blog.php
+    - BlogFrontendIndex.php
+    - BlogFrontendShow.php
+  - **Calculator/**
+    - Calculator.php
+  - **Cart/**
+    - Cart.php
+    - CartIcon.php
+  - **Checkout/**
+    - **Traits/**
+      - HandlesOrderCreation.php
+      - HandlesStripePayment.php
+    - Checkout.php
+    - CheckoutSuccess.php
+  - **Config/**
+    - DeliveryTimes.php
+    - ShopConfig.php
+  - **Configurator/**
+    - **Traits/**
+      - HandlesConfiguratorLogic.php
+    - Configurator.php
+  - **Financial/**
+    - FinancialBank.php
+    - FinancialCategoriesSpecialEditions.php
+    - FinancialContractsGroups.php
+    - FinancialEvaluation.php
+    - FinancialLiquidityPlanner.php
+    - FinancialQuickEntry.php
+    - FinancialTax.php
+  - **Funki/**
+    - FunkiBot.php
+    - FunkiDayRoutine.php
+    - FunkiKalender.php
+    - FunkiToDo.php
+  - **Invoice/**
+    - InvoicePreview.php
+    - Invoices.php
+  - **Map/**
+    - CompanyMap.php
+  - **Newsletter/**
+    - NewsletterPage.php
+    - NewsletterSignup.php
+    - ShopNewsletter.php
+  - **Offer/**
+    - QuoteAcceptance.php
+    - QuoteRequests.php
+  - **Order/**
+    - Orders.php
+  - **Product/**
+    - ProductAttributes.php
+    - ProductCategories.php
+    - ProductControlReviews.php
+    - ProductCreate.php
+    - ProductIndex.php
+    - ProductReviews.php
+    - ProductShow.php
+    - ProductTax.php
+    - ProductTemplates.php
+    - ProductTierPricing.php
+    - ProductVariants.php
+  - **Scheduler/**
+    - SchedulerManager.php
+  - **Shipping/**
+    - DeliveryDisplay.php
+    - Shipping.php
+  - **Voucher/**
+    - Voucher.php
+
+### Livewire Blade Views (`resources/views/livewire/`)
+- **admin/**
+  - knowledge-base.blade.php
+  - rights-management.blade.php
+  - user-management.blade.php
+- **auth/**
+  - login-dropdown.blade.php
+  - login.blade.php
+  - register.blade.php
+- **customer/**
+  - **partials/**
+    - **games-component/**
+      - **scripts/**
+        - alpine.blade.php
+        - audio.blade.php
+        - engine.blade.php
+      - scripts.blade.php
+      - styles.blade.php
+    - **scripts-partials/**
+      - funki_hub.blade.php
+      - opt_in_screen.blade.php
+      - space_warp_engine.blade.php
+    - ep_bar.blade.php
+    - evolution_timeline.blade.php
+    - header_filter.blade.php
+    - if_not_active.blade.php
+    - orders_section.blade.php
+    - scripts.blade.php
+    - shop-grid.blade.php
+    - title_management.blade.php
+  - dashboard-component.blade.php
+  - funki-shop-component.blade.php
+  - games-component.blade.php
+  - global-ranking-component.blade.php
+  - global-stats-header.blade.php
+  - order-detail.blade.php
+  - orders-component.blade.php
+  - orders.blade.php
+  - tickets-component.blade.php
+- **frontend/**
+  - voucher-slider.blade.php
+- **global/**
+  - **gamification/**
+    - spark-hunt-component.blade.php
+  - **widgets/**
+    - **funki-analytics/**
+      - **partials/**
+        - charts.blade.php
+        - header.blade.php
+        - health.blade.php
+        - history.blade.php
+        - kpis.blade.php
+        - podest.blade.php
+        - scripts.blade.php
+        - traffic.blade.php
+      - funki-analytics.blade.php
+    - contact-form.blade.php
+    - funki-chat.blade.php
+    - google-reviews.blade.php
+    - header-slider.blade.php
+    - login-log.blade.php
+- **password/**
+  - password-reset.blade.php
+- **profile/**
+  - **partials/**
+    - tab_2fa.blade.php
+    - tab_devices.blade.php
+    - tab_password.blade.php
+    - tab_profile.blade.php
+  - profile-dropdown.blade.php
+- **shop/**
+  - **blog/**
+    - blog.blade.php
+    - frontend-index.blade.php
+    - frontend-show.blade.php
+  - **calculator/**
+    - **partials/**
+      - contact_form.blade.php
+      - selected_items.blade.php
+      - sortiment.blade.php
+    - calculator.blade.php
+  - **cart/**
+    - cart-icon.blade.php
+    - cart.blade.php
+  - **checkout/**
+    - **partials/**
+      - left-column-payment-adress-login.blade.php
+      - right-column-summary.blade.php
+      - stripe-js.blade.php
+    - checkout-success.blade.php
+    - checkout.blade.php
+  - **config/**
+    - **partials/**
+      - general_tab.blade.php
+      - ower_tab.blade.php
+      - products_tab.blade.php
+      - shipping_tab.blade.php
+    - delivery-times.blade.php
+    - shop-config.blade.php
+  - **configurator/**
+    - **partials/**
+      - footer.blade.php
+      - formluar.blade.php
+      - preview.blade.php
+      - scripts_frontend_1.blade.php
+      - scripts_frontend_2.blade.php
+    - configurator.blade.php
+  - **financial/**
+    - **financial-categories-special-editions/**
+      - **partials/**
+        - categories.blade.php
+        - chart_scripts.blade.php
+      - financial-categories-special-editions.blade.php
+    - **financial-contracts-groups/**
+      - **partials/**
+        - chart_scripts.blade.php
+        - cost_item.blade.php
+        - edit_cost_item.blade.php
+        - group_header.blade.php
+        - new_cost_item.blade.php
+        - new_group.blade.php
+      - financial-contracts-groups.blade.php
+    - **financial-evaluation/**
+      - **partials/**
+        - chart_scripts.blade.php
+      - financial-evaluation.blade.php
+    - **financial-liquidity-planner/**
+    - **financial-quick-entry/**
+      - financial-quick-entry.blade.php
+    - **partials/**
+      - bill_check.blade.php
+      - category_management.blade.php
+      - special_issue_list.blade.php
+    - financial-bank.blade.php
+    - financial-liquidity-planner.blade.php
+    - financial-tax.blade.php
+  - **funki/**
+    - **partials/**
+      - automation.blade.php
+      - instructions.blade.php
+    - funki-bot.blade.php
+    - funki-day-routine.blade.php
+    - funki-kalender.blade.php
+    - funki-to-do.blade.php
+  - **invoice/**
+    - **partials/**
+      - invoice_create.blade.php
+      - invoice_main_table.blade.php
+    - invoice-preview.blade.php
+    - invoices.blade.php
+  - **map/**
+    - **partials/**
+      - canvas.blade.php
+      - header.blade.php
+      - modal-connection.blade.php
+      - modal-knot.blade.php
+      - modal-new-knot.blade.php
+      - panel.blade.php
+      - scripts.blade.php
+    - company-map.blade.php
+  - **newsletter/**
+    - **partials/**
+      - archive_view.blade.php
+      - edit_modal.blade.php
+      - month_grid.blade.php
+      - subscribers_table.blade.php
+      - toolbar.blade.php
+      - yearly_table.blade.php
+    - newsletter-page.blade.php
+    - newsletter-signup.blade.php
+    - newsletter.blade.php
+    - shop-newsletter.blade.php
+  - **offer/**
+    - quote-acceptance.blade.php
+    - quote-requests-detail.blade.php
+    - quote-requests.blade.php
+  - **order/**
+    - **orders-partials/**
+      - detail-header.blade.php
+      - shipping-modal.blade.php
+      - table.blade.php
+    - orders.blade.php
+  - **product/**
+    - **partials/**
+      - **edit-partials/**
+        - **step_4_partials/**
+          - 3d_model_config_ranges.blade.php
+          - 3d_overlay_config_ranges.blade.php
+          - 3d_preview.blade.php
+          - dimensions.blade.php
+          - file_uploads.blade.php
+          - preview_header_config.blade.php
+          - three_js_main.blade.php
+          - working_area_config_ranges.blade.php
+        - _edit_step_1.blade.php
+        - _edit_step_2.blade.php
+        - _edit_step_3.blade.php
+        - _edit_step_4.blade.php
+      - **product-show/**
+        - left.blade.php
+        - right.blade.php
+      - _edit.blade.php
+      - _list.blade.php
+    - product-attributes.blade.php
+    - product-categories.blade.php
+    - product-control-reviews.blade.php
+    - product-create.blade.php
+    - product-index.blade.php
+    - product-reviews.blade.php
+    - product-show.blade.php
+    - product-tax.blade.php
+    - product-templates.blade.php
+    - product-tier-pricing.blade.php
+    - product-variants.blade.php
+  - **scheduler/**
+    - scheduler-manager.blade.php
+  - **shared/**
+    - **partials/**
+      - left.blade.php
+      - right.blade.php
+    - order-offer-detail-content.blade.php
+  - **shipping/**
+    - delivery-display.blade.php
+    - shipping.blade.php
+  - **voucher/**
+    - voucher.blade.php
+
+### Datenbank Models (`app/Models/`)
+- **Admin/**
+  - Admin.php
+  - AdminProfile.php
+- **Blog/**
+  - BlogCategory.php
+  - BlogPost.php
+- **Cart/**
+  - Cart.php
+  - CartItem.php
+- **Customer/**
+  - Customer.php
+  - CustomerFunkiItem.php
+  - CustomerGamification.php
+  - CustomerProfile.php
+- **Delivery/**
+  - DeliveryFeedback.php
+  - DeliverySetting.php
+  - DeliveryTime.php
+- **Employee/**
+  - Employee.php
+  - EmployeeProfile.php
+- **Financial/**
+  - BankAccount.php
+  - FinanceCategory.php
+  - FinanceCostItem.php
+  - FinanceGroup.php
+  - FinanceSpecialIssue.php
+- **Funki/**
+  - FunkiDayRoutine.php
+  - FunkiDayRoutineStep.php
+  - FunkiItem.php
+  - FunkiLog.php
+- **Map/**
+  - MapEdge.php
+  - MapNode.php
+- **Newsletter/**
+  - Newsletter.php
+  - NewsletterSubscriber.php
+- **Order/**
+  - Order.php
+  - OrderItem.php
+- **Product/**
+  - Product.php
+  - ProductReview.php
+  - ProductTemplate.php
+  - ProductTierPrice.php
+- **Quote/**
+  - QuoteRequest.php
+  - QuoteRequestItem.php
+- **Shipping/**
+  - ShippingRate.php
+  - ShippingZone.php
+  - ShippingZoneCountry.php
+- **Tracking/**
+  - PageVisit.php
+- CalendarEvent.php
+- Category.php
+- Coupon.php
+- Directory.php
+- Invoice.php
+- KnowledgeBase.php
+- LoginAttempt.php
+- PasswordResetToken.php
+- Permission.php
+- Role.php
+- SchedulerLog.php
+- Session.php
+- ShopAttribute.php
+- ShopSetting.php
+- SystemCheckConfig.php
+- Ticket.php
+- TicketMessage.php
+- Todo.php
+- TodoList.php
+- User.php
+- UserDevice.php
+- Voucher.php
+
+### Mails (`app/Mail/`)
+- CalcMailToAdmin.php
+- CalcMailToCustomer.php
+- NewOrderShippedToCustomer.php
+- NewsletterAutomaticMail.php
+- NewsletterVerificationMail.php
+- OrderMailToAdmin.php
+- OrderMailToCustomer.php
+- PaymentReceivedMail.php
+- TicketUpdateMailToCustomer.php
+
+### Globale Mail Views (`resources/views/global/mails/`)
+- **auth/**
+  - new_register_mail_to_customer.blade.php
+- **newsletter/**
+  - new_newsletter_test_mail_to_admin.blade.php
+  - verification.blade.php
+- **partials/**
+  - mail_customer_info.blade.php
+  - mail_footer.blade.php
+  - mail_html_tree.blade.php
+  - mail_item_list.blade.php
+  - mail_logo.blade.php
+  - mail_price_list.blade.php
+- calculation_pdf_template.blade.php
+- contact-form.blade.php
+- forgot-password.blade.php
+- invoice_pdf_template.blade.php
+- new_calc_mail_to_admin.blade.php
+- new_calc_mail_to_customer.blade.php
+- new_order_mail_to_admin.blade.php
+- new_order_mail_to_customer.blade.php
+- new_order_shipped_to_customer.blade.php
+- payment_received.blade.php
+- ticket_update_mail_to_customer.blade.php
+
+## 3. Globale Projekt-Regeln (Zwingend beachten!)
+
+- **Sprache:** Antworte und kommentiere Code immer auf Deutsch.
+- **Ticketsystem:** Der Schlüssel für Tickets lautet im gesamten Code zwingend `funki_ticket_id` (nicht `ticket_id`). Die zugehörige View liegt unter `backend.admin.livewire.funki-ticket-system-component`.
+- **Mail-Klassen:** Updates an Kunden werden über die Klasse `TicketUpdateMailToCustomer` gesendet (liegt direkt unter `app/Mail`). Für Newsletter-Tests ist zwingend die View `global.mails.newsletter.new_newsletter_test_mail_to_admin` zu nutzen.
+- **Auth-Flow:** Die Registrierungs-View liegt unter `livewire.auth.register`. Der Namespace für die Livewire-Komponente ist `App\Livewire\Global\Auth`. Nach erfolgreicher Registrierung muss der User zwingend zur Login-Seite weitergeleitet werden.
+- **Gamification:** Der korrekte Namespace für neue Komponenten in diesem Bereich ist `App\Livewire\Global\Gamification`.
+- **Shop-Parameter:** In der Produkt-Template View (`livewire.shop.product.product-templates`) werden die Variablen strikt als `['templates' => $templates, 'products' => $products]` übergeben.
