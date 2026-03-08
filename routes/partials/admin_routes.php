@@ -80,6 +80,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.financial-liquidity-planning');
     })->name('admin.financial-liquidity-planning');
 
+    Route::get('/admin/financial-banks', function () {
+        return view('backend.admin.pages.financial-banks');
+    })->name('admin.financial-banks');
+
     Route::get('/admin/financial-fix-costs', function () {
         return view('backend.admin.pages.financial-fix-costs');
     })->name('admin.financial-fix-costs');

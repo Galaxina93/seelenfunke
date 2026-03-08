@@ -9,7 +9,7 @@
         $isMarketingActive = in_array($currentPage, ['newsletter', 'voucher', 'blog']);
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
-        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax']);
+        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'banks']);
     @endphp
 
     {{--Funkis Zentrale--}}
@@ -89,12 +89,12 @@
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
 
+                    <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-fix-costs" title="Fixkosten" pageName="financial-fix-costs" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-variable-costs" title="Variable Kosten" pageName="financial-variable-costs" icon="banknotes" />
-                    <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
                     <x-forms.list-item route="/admin/financial-liquidity-planning" title="Liquiditätsplanung" pageName="financial-liquidity-planning" icon="shield-check" />
-
+                    <x-forms.list-item route="/admin/financial-banks" title="Banken" pageName="financial-banks" icon="scale" />
                 </ul>
             </li>
 
