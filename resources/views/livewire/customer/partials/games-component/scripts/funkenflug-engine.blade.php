@@ -79,9 +79,13 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
     initScene() {
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
-
         this.isMobile = window.innerWidth <= 768;
+        
+        // Fog is expensive on mobile fragment shaders
+        if (!this.isMobile) {
+            this.scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+        }
+
         const w = this.container.offsetWidth || 800;
         const h = this.container.offsetHeight || 800;
 
@@ -94,8 +98,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
         this.renderer.setSize(w, h);
         
-        // Lower pixel ratio heavily on mobile to avoid GPU lag
-        const pixelRatio = this.isMobile ? Math.min(window.devicePixelRatio, 1) : Math.min(window.devicePixelRatio, 2);
+        // Lower pixel ratio aggressively on high-res phones (Pixel 9 Pro has huge pixel density causing lag)
+        const pixelRatio = this.isMobile ? 0.6 : Math.min(window.devicePixelRatio, 2);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
@@ -114,7 +118,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.scene.add(dirLight);
 
         // Create Starfield (moving background) - Less stars on mobile
-        const starCount = this.isMobile ? 250 : 1000;
+        const starCount = this.isMobile ? 100 : 1000;
         const starGeom = new THREE.BufferGeometry();
         const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.8 });
         const starVerts = [];
@@ -139,7 +143,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Fallback geometry
         const fbGeom = new THREE.ConeGeometry(1, 3, 8);
         fbGeom.rotateX(Math.PI / 2); // Point upwards
-        const fbMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, metalness: 0.8, roughness: 0.2 });
+        const fbMat = this.isMobile ? 
+            new THREE.MeshLambertMaterial({ color: 0x3b82f6 }) : 
+            new THREE.MeshStandardMaterial({ color: 0x3b82f6, metalness: 0.8, roughness: 0.2 });
         this.shipModel = new THREE.Mesh(fbGeom, fbMat);
         this.ship.add(this.shipModel);
 
@@ -173,7 +179,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     if (child.isMesh) {
                         child.castShadow = !this.isMobile;
                         if(child.material) {
-                            child.material.metalness = 0.5;
+                            if (this.isMobile) {
+                                const oldMat = child.material;
+                                child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
+                            } else {
+                                child.material.metalness = 0.5;
+                            }
                         }
                     }
                 });
@@ -192,6 +203,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
                         if (child.isMesh) {
                             child.castShadow = !this.isMobile;
                             child.receiveShadow = !this.isMobile;
+                            if (child.material && this.isMobile) {
+                                const oldMat = child.material;
+                                child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
+                            }
                         }
                     });
                 }, undefined, (e) => { console.warn("Could not load meteor GLTF."); });
@@ -207,6 +222,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
                         if (child.isMesh) {
                             child.castShadow = !this.isMobile;
                             child.receiveShadow = !this.isMobile;
+                            if (child.material && this.isMobile) {
+                                const oldMat = child.material;
+                                child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
+                            }
                         }
                     });
                 }, undefined, (e) => { console.warn("Could not load sharp stone GLTF."); });
@@ -218,7 +237,11 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.geomBullet = new THREE.CylinderGeometry(0.1, 0.1, 1, this.isMobile ? 4 : 8);
         this.geomBullet.rotateX(Math.PI / 2);
 
-        this.matEnemy = [
+        this.matEnemy = this.isMobile ? [
+            new THREE.MeshBasicMaterial({ color: 0xef4444 }), // Red Meteor
+            new THREE.MeshBasicMaterial({ color: 0x8b5cf6 }), // Purple Crystal
+            new THREE.MeshBasicMaterial({ color: 0xf97316 }) // Orange Wall
+        ] : [
             new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.6 }), // Red Meteor
             new THREE.MeshStandardMaterial({ color: 0x8b5cf6, metalness: 0.2 }), // Purple Crystal
             new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.8, roughness: 0.2 }) // Orange Wall
