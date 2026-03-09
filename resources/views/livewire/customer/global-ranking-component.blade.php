@@ -64,6 +64,9 @@
                                 <div class="w-16 h-16 mx-auto bg-slate-800 rounded-full flex items-center justify-center text-slate-300 font-serif font-black text-2xl mb-4 border-2 border-slate-500 shadow-inner">2</div>
                                 <h3 class="text-white font-bold text-lg truncate">{{ $p2->customer->first_name }} {{ substr($p2->customer->last_name, 0, 1) }}.</h3>
                                 <p class="text-slate-400 text-xs font-black uppercase tracking-widest mt-2">Level {{ $p2->level }}</p>
+                                <div class="flex justify-center my-4">
+                                    <img src="{{ $this->getAvatarForLevel($p2->level) }}" alt="Avatar" class="w-24 h-24 object-contain filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
+                                </div>
                                 @if($activeTab === 'funkenflug')
                                     <p class="text-indigo-400/80 text-[10px] font-bold mt-1">{{ number_format($p2->funkenflug_highscore, 0, ',', '.') }} m Distanz</p>
                                 @else
@@ -77,14 +80,17 @@
                         <div class="w-full sm:w-1/3 order-1 sm:order-2 bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-amber-400/50 rounded-t-[3rem] rounded-b-2xl p-8 text-center relative overflow-hidden shadow-[0_0_60px_rgba(251,191,36,0.2)] z-10 {{ $p1->customer_id === $myId ? 'ring-4 ring-amber-400/50' : '' }}">
                             <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20 pointer-events-none mix-blend-overlay"></div>
                             <div class="absolute inset-0 bg-gradient-to-b from-amber-500/20 to-transparent pointer-events-none"></div>
-                            <div class="absolute -top-4 left-1/2 -translate-x-1/2 text-4xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]">👑</div>
-                            <div class="w-20 h-20 mx-auto bg-amber-900/50 rounded-full flex items-center justify-center text-amber-400 font-serif font-black text-4xl mb-4 mt-2 border-4 border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.5)]">1</div>
-                            <h3 class="text-white font-black text-xl md:text-2xl truncate drop-shadow-md">{{ $p1->customer->first_name }} {{ substr($p1->customer->last_name, 0, 1) }}.</h3>
-                            <p class="text-amber-400 text-sm font-black uppercase tracking-[0.2em] mt-2 drop-shadow-[0_0_8px_currentColor]">Level {{ $p1->level }}</p>
+                            <div class="absolute top-2 left-1/2 -translate-x-1/2 text-4xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)] z-20">👑</div>
+                            <div class="w-20 h-20 mx-auto bg-amber-900/50 rounded-full flex items-center justify-center text-amber-400 font-serif font-black text-4xl mb-4 mt-6 border-4 border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.5)] relative z-10">1</div>
+                            <h3 class="text-white font-black text-xl md:text-2xl truncate drop-shadow-md relative z-10">{{ $p1->customer->first_name }} {{ substr($p1->customer->last_name, 0, 1) }}.</h3>
+                            <p class="text-amber-400 text-sm font-black uppercase tracking-[0.2em] mt-2 drop-shadow-[0_0_8px_currentColor] relative z-10">Level {{ $p1->level }}</p>
+                            <div class="flex justify-center my-6 relative z-10">
+                                <img src="{{ $this->getAvatarForLevel($p1->level) }}" alt="Avatar" class="w-32 h-32 object-contain filter drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
+                            </div>
                             @if($activeTab === 'funkenflug')
-                                <p class="text-indigo-400/90 text-xs font-bold mt-1">{{ number_format($p1->funkenflug_highscore, 0, ',', '.') }} m Distanz gesamt!</p>
+                                <p class="text-indigo-400/90 text-xs font-bold mt-1 relative z-10">{{ number_format($p1->funkenflug_highscore, 0, ',', '.') }} m Distanz gesamt!</p>
                             @else
-                                <p class="text-amber-500/70 text-xs font-bold mt-1">{{ number_format($p1->funken_total_earned, 0, ',', '.') }} Funken gesamt</p>
+                                <p class="text-amber-500/70 text-xs font-bold mt-1 relative z-10">{{ number_format($p1->funken_total_earned, 0, ',', '.') }} Funken gesamt</p>
                             @endif
                         </div>
 
@@ -96,6 +102,9 @@
                                 <div class="w-16 h-16 mx-auto bg-orange-950 rounded-full flex items-center justify-center text-orange-400 font-serif font-black text-2xl mb-4 border-2 border-orange-700 shadow-inner">3</div>
                                 <h3 class="text-white font-bold text-lg truncate">{{ $p3->customer->first_name }} {{ substr($p3->customer->last_name, 0, 1) }}.</h3>
                                 <p class="text-orange-400 text-xs font-black uppercase tracking-widest mt-2">Level {{ $p3->level }}</p>
+                                <div class="flex justify-center my-4">
+                                    <img src="{{ $this->getAvatarForLevel($p3->level) }}" alt="Avatar" class="w-24 h-24 object-contain filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
+                                </div>
                                 @if($activeTab === 'funkenflug')
                                     <p class="text-indigo-400/80 text-[10px] font-bold mt-1">{{ number_format($p3->funkenflug_highscore, 0, ',', '.') }} m Distanz</p>
                                 @else

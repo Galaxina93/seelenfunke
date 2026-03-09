@@ -44,10 +44,12 @@ case "$1" in
         echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
+        echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
-        echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket, profil --short\n"
+        echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket, profil --short"
+        echo -e "💡 \033[1;33mBeispiel:\033[0m funki test --filter ShopProcessTest\n"
         ;;
     start)
         require_local "start"
@@ -141,6 +143,11 @@ case "$1" in
         fi
 
         echo "✅ Backup erfolgreich abgeschlossen!"
+        ;;
+    test)
+        shift
+        echo "🧪 Starte automatisierte Tests..."
+        $PREFIX_USER php artisan test "$@"
         ;;
     artisan)
         shift

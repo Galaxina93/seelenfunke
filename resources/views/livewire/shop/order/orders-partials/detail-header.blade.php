@@ -28,20 +28,40 @@
     </div>
 
     {{-- Status Actions --}}
-    <div class="w-full sm:w-auto flex items-center gap-3">
-        <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest hidden sm:block">Status:</label>
-        <div class="relative w-full sm:w-auto">
-            <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)"
-                    class="appearance-none w-full sm:w-56 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary cursor-pointer transition-all outline-none tracking-wide">
-                <option value="pending" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'pending')>🟠 Wartend</option>
-                <option value="processing" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'processing')>🔵 In Bearbeitung</option>
-                <option value="shipped" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'shipped')>🟣 Versendet</option>
-                <option value="completed" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'completed')>🟢 Abgeschlossen</option>
-                <option value="cancelled" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'cancelled')>🔴 Storniert</option>
-            </select>
-            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+    <div class="w-full justify-between sm:justify-end flex flex-row items-center gap-3 sm:w-auto">
+
+        {{-- Payment Status --}}
+        <div class="flex items-center gap-2">
+            <div class="relative w-full sm:w-auto">
+                <select wire:model="payment_status" wire:change="saveStatus"
+                        class="appearance-none w-full sm:w-48 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary cursor-pointer transition-all outline-none tracking-wide">
+                    <option value="unpaid" class="bg-gray-900 text-white" @selected($this->selectedOrder->payment_status == 'unpaid')>❌ Offen</option>
+                    <option value="paid" class="bg-gray-900 text-white" @selected($this->selectedOrder->payment_status == 'paid')>✅ Bezahlt</option>
+                    <option value="refunded" class="bg-gray-900 text-white" @selected($this->selectedOrder->payment_status == 'refunded')>💳 Erstattet</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
             </div>
         </div>
+
+        {{-- Order Status --}}
+        <div class="flex items-center gap-2">
+            <div class="relative w-full sm:w-auto">
+                {{-- Achtung: Hier verwenden wir updateStatus direkt oder wir binden es auch an model/saveStatus? Der aktuelle Code nutzt wire:change="updateStatus" --}}
+                <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)"
+                        class="appearance-none w-full sm:w-56 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-primary/50 focus:border-primary cursor-pointer transition-all outline-none tracking-wide">
+                    <option value="pending" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'pending')>🟠 Wartend</option>
+                    <option value="processing" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'processing')>🔵 In Bearbeitung</option>
+                    <option value="shipped" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'shipped')>🟣 Versendet</option>
+                    <option value="completed" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'completed')>🟢 Abgeschlossen</option>
+                    <option value="cancelled" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'cancelled')>🔴 Storniert</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>

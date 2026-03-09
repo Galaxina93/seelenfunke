@@ -161,7 +161,18 @@ class Orders extends Component
             ]);
 
             $this->selectedOrder->refresh();
-            session()->flash('success', 'Bestelldetails aktualisiert.');
+            
+            // Wenn auf 'Bezahlt' gesetzt wurde und noch keine Rechnung existiert -> Automatisch Rechnung + E-Mail
+            if ($this->payment_status === 'paid' && $this->selectedOrder->invoices->isEmpty()) {
+                try {
+                    \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($this->selectedOrder);
+                    session()->flash('success', 'Bestelldetails aktualisiert. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
+                } catch (\Exception $e) {
+                    session()->flash('warning', 'Bestelldetails aktualisiert, aber Fehler beim Starten des Rechnungs-Jobs: ' . $e->getMessage());
+                }
+            } else {
+                session()->flash('success', 'Bestelldetails aktualisiert.');
+            }
         }
     }
 
@@ -223,14 +234,26 @@ class Orders extends Component
 
     public function markAsPaid($orderId)
     {
-        $order = Order::find($orderId);
+        $order = Order::with('invoices')->find($orderId);
         if ($order) {
             $order->update(['payment_status' => 'paid']);
+            
+            // Wenn die Bestellung noch keine Rechnung hat, generiere sie jetzt automatisch + E-Mail
+            if ($order->invoices->isEmpty()) {
+                try {
+                    \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
+                    session()->flash('success', 'Zahlung bestätigt. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
+                } catch (\Exception $e) {
+                    session()->flash('warning', 'Zahlung bestätigt, aber Fehler beim Starten des Rechnungs-Jobs: ' . $e->getMessage());
+                }
+            } else {
+                session()->flash('success', 'Zahlung bestätigt.');
+            }
+
             if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
                 $this->payment_status = 'paid';
                 $this->selectedOrder->refresh();
             }
-            session()->flash('success', 'Zahlung bestätigt.');
         }
     }
 

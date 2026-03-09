@@ -63,4 +63,26 @@ class GlobalRankingComponent extends Component
             'rankings' => $rankings
         ]);
     }
+
+    public function getAvatarForLevel($level)
+    {
+        $map = [
+            1 => 'funki_lvl_1_rags.png',
+            2 => 'funki_lvl_2_basic.png',
+            3 => 'funki_lvl_3_helper.png',
+            4 => 'funki_lvl_4_novice.png',
+            5 => 'funki_lvl_5_apprentice.png',
+            6 => 'funki_lvl_6_craftsman.png',
+            7 => 'funki_lvl_7_artisan.png',
+            8 => 'funki_lvl_8_master.png',
+            9 => 'funki_lvl_9_lightbringer.png',
+            10 => 'funki_lvl_10_god_of_soul.png',
+        ];
+
+        // Cap level between 1 and 10 for the image mapping
+        $clampedLevel = max(1, min(10, (int)$level));
+        $filename = $map[$clampedLevel] ?? 'funki_lvl_1_rags.png';
+
+        return asset('storage/funki/models/images/' . $filename);
+    }
 }
