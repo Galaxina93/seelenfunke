@@ -52,6 +52,7 @@ class FinancialContractsGroups extends Component
     public $itemFile;
     public $itemIsBusiness = false;
     public ?string $itemExistingFile = null;
+    public $itemTaxRate = 0;
 
     public ?string $editingItemId = null;
     public ?string $addingToGroupId = null;
@@ -337,6 +338,7 @@ class FinancialContractsGroups extends Component
             $this->itemDate = $item->first_payment_date->format('Y-m-d');
             $this->itemDescription = $item->description;
             $this->itemIsBusiness = (bool) $item->is_business;
+            $this->itemTaxRate = $item->tax_rate ?? 0;
             $this->itemExistingFile = $item->contract_file_path;
             $this->targetGroupId = $item->finance_group_id;
         }
@@ -367,6 +369,7 @@ class FinancialContractsGroups extends Component
             'first_payment_date' => $this->itemDate,
             'description'        => $this->itemDescription,
             'is_business'        => $this->itemIsBusiness ? 1 : 0,
+            'tax_rate'           => (int) $this->itemTaxRate,
         ];
 
         if ($this->itemFile) {
@@ -440,7 +443,7 @@ class FinancialContractsGroups extends Component
         $this->reset([
             'itemName', 'itemAmount', 'itemInterval', 'itemDate', 'itemDescription',
             'itemFile', 'addingToGroupId', 'itemIsBusiness', 'editingItemId',
-            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId'
+            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId', 'itemTaxRate'
         ]);
         $this->itemDate = date('Y-m-d');
     }

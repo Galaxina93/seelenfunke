@@ -26,6 +26,7 @@ class FinancialEvaluation extends Component
     public $dateTo;
 
     // Toggle
+    public bool $isNet = true;
     public $excludeSpecialExpenses = false;
     public $expandedCategories = [];
 
@@ -92,12 +93,12 @@ class FinancialEvaluation extends Component
     {
         $adminId = $this->getAdminId();
 
-        $stats = $service->getMonthlyStats($adminId, $this->selectedMonth, $this->selectedYear);
-        $matrix = $service->getYearlyMatrix($adminId, $this->selectedYear);
+        $stats = $service->getMonthlyStats($adminId, $this->selectedMonth, $this->selectedYear, $this->isNet);
+        $matrix = $service->getYearlyMatrix($adminId, $this->selectedYear, $this->isNet);
 
         // Charts Data
         $pieData = $service->getPieChartData($adminId, $this->dateFrom, $this->dateTo);
-        $barData = $service->getBarChartData($adminId, $this->dateFrom, $this->dateTo);
+        $barData = $service->getBarChartData($adminId, $this->dateFrom, $this->dateTo, $this->isNet);
 
         return view('livewire.shop.financial.financial-evaluation.financial-evaluation', [
             'stats' => $stats,

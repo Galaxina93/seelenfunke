@@ -56,7 +56,29 @@
                             </svg>
                         </div>
                     </div>
+
+                    <div class="h-8 w-px bg-gray-800 hidden sm:block"></div>
+
+                    {{-- Brutto/Netto Toggle --}}
+                    <label class="hidden sm:inline-flex items-center cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-gray-900 transition-colors" title="Wechsel zwischen Brutto- und Nettoansicht">
+                        <input type="checkbox" wire:model.live="isNet" class="sr-only peer">
+                        <div class="relative w-9 h-5 bg-gray-900 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-primary/20 peer-checked:border-primary/50 after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 peer-checked:after:bg-primary after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full shadow-inner peer-checked:after:border-white"></div>
+                        <span class="ms-2 text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-white transition-colors w-[50px]">
+                            {{ $isNet ? 'Netto' : 'Brutto' }}
+                        </span>
+                    </label>
                 </div>
+            </div>
+            
+            {{-- Mobile Brutto/Netto Toggle --}}
+            <div class="sm:hidden px-4 pb-4 flex justify-end">
+                <label class="inline-flex items-center cursor-pointer group px-3 py-2 bg-gray-950 rounded-xl border border-gray-800 shadow-inner">
+                    <input type="checkbox" wire:model.live="isNet" class="sr-only peer">
+                    <div class="relative w-9 h-5 bg-gray-900 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-primary/20 peer-checked:border-primary/50 after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 peer-checked:after:bg-primary after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full shadow-inner peer-checked:after:border-white"></div>
+                    <span class="ms-2 text-[10px] font-black uppercase tracking-widest text-gray-400 w-[50px]">
+                        {{ $isNet ? 'Netto Ansicht' : 'Brutto Ansicht' }}
+                    </span>
+                </label>
             </div>
         </div>
 
@@ -97,27 +119,27 @@
                             @endphp
 
                             <div class="text-5xl md:text-7xl font-serif font-black tracking-tighter mb-2 {{ $mainValue >= 0 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.2)]' }}">
-                                {{ number_format($mainValue, 2, ',', '.') }} €
+                                {{ number_format($mainValue, 2, ',', '.') }}&nbsp;€
                             </div>
 
-                            <p class="text-xs text-gray-500 font-medium">Inkl. Shop-Umsatz: <span class="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded ml-1 border border-primary/20">+{{ number_format($stats['shop_income'], 2, ',', '.') }} €</span></p>
+                            <p class="text-xs text-gray-500 font-medium">Inkl. Shop-Umsatz: <span class="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded ml-1 border border-primary/20">+&nbsp;{{ number_format($stats['shop_income'], 2, ',', '.') }}&nbsp;€</span></p>
                         </div>
 
                         {{-- Rechte Seite der Stats --}}
                         <div class="flex flex-col sm:flex-row gap-4 sm:gap-6 text-center sm:text-left w-full xl:w-auto overflow-x-auto no-scrollbar pb-2">
                             <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px]">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Monatsbudget</div>
-                                <div class="text-xl sm:text-2xl font-bold text-white">+ {{ number_format($stats['total_budget'], 2, ',', '.') }} €</div>
+                                <div class="text-xl sm:text-2xl font-bold text-white">+&nbsp;{{ number_format($stats['total_budget'], 2, ',', '.') }}&nbsp;€</div>
                             </div>
 
                             <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px]">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Fixkosten</div>
-                                <div class="text-xl sm:text-2xl font-bold text-rose-400">{{ number_format($stats['fixed_expenses'], 2, ',', '.') }} €</div>
+                                <div class="text-xl sm:text-2xl font-bold text-rose-400">{{ number_format($stats['fixed_expenses'], 2, ',', '.') }}&nbsp;€</div>
                             </div>
 
                             <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px] transition-all duration-300 {{ $excludeSpecialExpenses ? 'opacity-40 grayscale-[0.8] scale-95 border-dashed' : 'opacity-100' }}">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Sonderausgaben</div>
-                                <div class="text-xl sm:text-2xl font-bold text-orange-400">{{ number_format($stats['special_expenses'], 2, ',', '.') }} €</div>
+                                <div class="text-xl sm:text-2xl font-bold text-orange-400">{{ number_format($stats['special_expenses'], 2, ',', '.') }}&nbsp;€</div>
                             </div>
                         </div>
                     </div>

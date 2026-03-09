@@ -16,10 +16,10 @@ class FinanceCostItem extends Model
         'description',
         'amount',
         'interval_months',
-        'first_payment_date',
         'is_business',
         'contract_file_path',
         'tags',
+        'tax_rate',
     ];
 
     protected $casts = [
@@ -27,6 +27,7 @@ class FinanceCostItem extends Model
         'amount'             => 'decimal:2',
         'is_business'        => 'boolean',
         'tags'               => 'array',
+        'tax_rate'           => 'integer',
     ];
 
     public function group(): BelongsTo

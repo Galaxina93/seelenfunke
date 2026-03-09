@@ -12,7 +12,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class FinancialService
 {
-    public function getMonthlyStats($adminId, $month, $year)
+    public function getMonthlyStats($adminId, $month, $year, $isNet = false)
     {
         // 1. Fixkosten (Bleibt wie gehabt)
         $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
@@ -22,10 +22,14 @@ class FinancialService
         foreach ($groups as $group) {
             foreach ($group->items as $item) {
                 if ($this->isDueInMonth($item, $month)) {
-                    if ($item->amount >= 0) {
-                        $fixedIncome += $item->amount;
+                    $amount = $item->amount;
+                    if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                        $amount = $amount / (1 + ($item->tax_rate / 100));
+                    }
+                    if ($amount >= 0) {
+                        $fixedIncome += $amount;
                     } else {
-                        $fixedExpenses += $item->amount;
+                        $fixedExpenses += $amount;
                     }
                 }
             }
@@ -38,8 +42,14 @@ class FinancialService
             ->get();
 
         // Wir summieren ALLES zusammen. Positive Werte (Rückzahlungen) reduzieren automatisch die negativen Werte.
-        // Beispiel: -14.00 (Ausgabe) + 10.00 (Rückzahlung) = -4.00
-        $netSpecialSum = $specialIssues->sum('amount');
+        $netSpecialSum = 0;
+        foreach ($specialIssues as $special) {
+            $amount = $special->amount;
+            if ($isNet && isset($special->tax_rate) && $special->tax_rate > 0) {
+                $amount = $amount / (1 + ($special->tax_rate / 100));
+            }
+            $netSpecialSum += $amount;
+        }
 
         $specialExpenses = 0;
         $specialIncome = 0;
@@ -52,11 +62,18 @@ class FinancialService
         }
 
         // 3. Shop Umsätze (Basis: Rechnungen statt Bestellungen)
-        $shopRevenue = \App\Models\Invoice::whereYear('invoice_date', $year)
+        $shopRevenueQuery = \App\Models\Invoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
-            ->whereIn('type', ['invoice', 'cancellation'])
-            ->sum('total');
+            ->whereIn('type', ['invoice', 'cancellation']);
+            
+        if ($isNet) {
+            $shopRevenueQuery->selectRaw('SUM(total - tax_amount) as sum_total');
+        } else {
+            $shopRevenueQuery->selectRaw('SUM(total) as sum_total');
+        }
+        
+        $shopRevenue = $shopRevenueQuery->value('sum_total') ?? 0;
 
         $shopIncome = $shopRevenue / 100; // Umrechnung Cent -> Euro
 
@@ -91,7 +108,7 @@ class FinancialService
         return ($diff % $interval) === 0;
     }
 
-    public function getYearlyMatrix($adminId, $year)
+    public function getYearlyMatrix($adminId, $year, $isNet = false)
     {
         $structure = [
             'income' => ['label' => 'Einnahmen (Fix)', 'color' => 'text-emerald-600', 'bg' => 'bg-emerald-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
@@ -112,10 +129,14 @@ class FinancialService
 
                 for ($m = 1; $m <= 12; $m++) {
                     if ($this->isDueInMonth($item, $m)) {
-                        $structure[$catKey]['months'][$m] += $item->amount;
-                        $structure[$catKey]['year_sum'] += $item->amount;
-                        $itemRow['months'][$m] = $item->amount;
-                        $itemRow['year_sum'] += $item->amount;
+                        $amount = $item->amount;
+                        if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                            $amount = $amount / (1 + ($item->tax_rate / 100));
+                        }
+                        $structure[$catKey]['months'][$m] += $amount;
+                        $structure[$catKey]['year_sum'] += $amount;
+                        $itemRow['months'][$m] = $amount;
+                        $itemRow['year_sum'] += $amount;
                     }
                 }
                 $structure[$catKey]['items'][] = $itemRow;
@@ -139,24 +160,35 @@ class FinancialService
                 $catKey = 'special_private';
             }
 
-            $structure[$catKey]['months'][$m] += $special->amount;
-            $structure[$catKey]['year_sum'] += $special->amount;
+            $amount = $special->amount;
+            if ($isNet && isset($special->tax_rate) && $special->tax_rate > 0) {
+                $amount = $amount / (1 + ($special->tax_rate / 100));
+            }
+
+            $structure[$catKey]['months'][$m] += $amount;
+            $structure[$catKey]['year_sum'] += $amount;
 
             $groupName = $special->category ?: 'Sonstiges';
             if (!isset($structure[$catKey]['items'][$groupName])) {
                 $structure[$catKey]['items'][$groupName] = ['name' => $groupName . ' (Kumuliert)', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
             }
-            $structure[$catKey]['items'][$groupName]['months'][$m] += $special->amount;
-            $structure[$catKey]['items'][$groupName]['year_sum'] += $special->amount;
+            $structure[$catKey]['items'][$groupName]['months'][$m] += $amount;
+            $structure[$catKey]['items'][$groupName]['year_sum'] += $amount;
         }
 
         // 3. Shop (Basis: Rechnungen)
-        $shopInvoices = \App\Models\Invoice::whereYear('invoice_date', $year)
+        $shopInvoicesQuery = \App\Models\Invoice::whereYear('invoice_date', $year)
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereIn('type', ['invoice', 'cancellation'])
-            ->selectRaw('MONTH(invoice_date) as month, SUM(total) as total')
-            ->groupBy('month')
-            ->get();
+            ->groupBy('month');
+            
+        if ($isNet) {
+            $shopInvoicesQuery->selectRaw('MONTH(invoice_date) as month, SUM(total - tax_amount) as total');
+        } else {
+            $shopInvoicesQuery->selectRaw('MONTH(invoice_date) as month, SUM(total) as total');
+        }
+            
+        $shopInvoices = $shopInvoicesQuery->get();
 
         $shopRow = ['name' => 'Online Shop', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
         foreach($shopInvoices as $invoiceAgg) {
@@ -199,7 +231,7 @@ class FinancialService
         ];
     }
 
-    public function getBarChartData($adminId, $from, $to)
+    public function getBarChartData($adminId, $from, $to, $isNet = false)
     {
         $days = [];
         $start = Carbon::parse($from);
@@ -230,10 +262,15 @@ class FinancialService
                         : Carbon::createFromFormat('Y-m-d', $dateKey);
 
                     if ($this->isDueInMonth($item, $dateObj->month)) {
+                        $amount = $item->amount;
+                        if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                            $amount = $amount / (1 + ($item->tax_rate / 100));
+                        }
+                        
                         if (!$isMonthly) {
-                            if ($dateObj->day == $dayOfMonth) $this->addToChartData($val, $item->amount);
+                            if ($dateObj->day == $dayOfMonth) $this->addToChartData($val, $amount);
                         } else {
-                            $this->addToChartData($val, $item->amount);
+                            $this->addToChartData($val, $amount);
                         }
                     }
                 }
@@ -245,7 +282,11 @@ class FinancialService
         foreach($specials as $special) {
             $key = $isMonthly ? $special->execution_date->format('Y-m') : $special->execution_date->format('Y-m-d');
             if(isset($days[$key])) {
-                $this->addToChartData($days[$key], $special->amount);
+                $amount = $special->amount;
+                if ($isNet && isset($special->tax_rate) && $special->tax_rate > 0) {
+                    $amount = $amount / (1 + ($special->tax_rate / 100));
+                }
+                $this->addToChartData($days[$key], $amount);
             }
         }
 
@@ -258,7 +299,7 @@ class FinancialService
         foreach($invoices as $invoice) {
             $key = $isMonthly ? $invoice->invoice_date->format('Y-m') : $invoice->invoice_date->format('Y-m-d');
             if(isset($days[$key])) {
-                $amountEuro = $invoice->total / 100;
+                $amountEuro = ($isNet ? ($invoice->total - $invoice->tax_amount) : $invoice->total) / 100;
                 // Positive Beträge (Einnahmen) zu income, negative (Stornos) zu expense
                 if ($amountEuro >= 0) {
                     $days[$key]['income'] += $amountEuro;
@@ -292,12 +333,68 @@ class FinancialService
         $specials = FinanceSpecialIssue::where('admin_id', $adminId)
             ->whereYear('execution_date', $year)
             ->whereMonth('execution_date', $month)
-            ->where('is_business', true)
+            ->orderBy('execution_date')
             ->get();
 
-        $stats = $this->getMonthlyStats($adminId, $month, $year);
+        $fixedGroups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
+        $fixedCosts = collect();
+        foreach ($fixedGroups as $group) {
+            foreach ($group->items as $item) {
+                if ($this->isDueInMonth($item, $month)) {
+                    $fixedCosts->push((object)[
+                        'name' => $item->name,
+                        'category' => $group->name,
+                        'amount' => $item->amount,
+                        'tax_rate' => $item->tax_rate ?? 0,
+                        'is_business' => $item->is_business
+                    ]);
+                }
+            }
+        }
 
-        $zipFileName = "Steuerunterlagen_{$year}_{$month}.zip";
+        $invoices = \App\Models\Invoice::whereYear('invoice_date', $year)
+            ->whereMonth('invoice_date', $month)
+            ->whereIn('status', ['paid', 'cancelled'])
+            ->whereIn('type', ['invoice', 'cancellation'])
+            ->get();
+
+        $shopStats = [
+            'gross' => $invoices->sum('total') / 100,
+            'net'   => $invoices->sum(fn($i) => clone $i->total - $i->tax_amount) / 100,
+            'tax'   => $invoices->sum('tax_amount') / 100,
+            'count' => $invoices->where('total', '>', 0)->count(),
+            'returns' => $invoices->where('total', '<', 0)->count(),
+        ];
+        $shopStats['aov'] = $shopStats['count'] > 0 ? ($shopStats['gross'] / $shopStats['count']) : 0;
+
+        $liquidityPreview = [];
+        $avgShopNet = \App\Models\Invoice::whereBetween('invoice_date', [
+            Carbon::create($year, $month, 1)->subMonths(3), 
+            Carbon::create($year, $month, 1)->endOfMonth()
+        ])->whereIn('status', ['paid'])->sum(DB::raw('total - tax_amount')) / 100 / 3;
+
+        for ($i = 1; $i <= 3; $i++) {
+            $previewMonth = Carbon::create($year, $month, 1)->addMonths($i);
+            $m = $previewMonth->month;
+            
+            $previewFixed = 0;
+            foreach ($fixedGroups as $group) {
+                foreach ($group->items as $item) {
+                    if ($this->isDueInMonth($item, $m) && $item->amount < 0) {
+                        $previewFixed += ($item->amount / (1 + (($item->tax_rate ?? 0) / 100)));
+                    }
+                }
+            }
+
+            $liquidityPreview[] = [
+                'month' => $previewMonth->locale('de')->monthName,
+                'year' => $previewMonth->year,
+                'expected_income' => $avgShopNet > 0 ? $avgShopNet : 0,
+                'expected_fixed_costs' => abs($previewFixed),
+            ];
+        }
+
+        $zipFileName = "Finanzbericht_{$year}_{$month}.zip";
         $zipPath = storage_path("app/public/exports/{$zipFileName}");
 
         if(!is_dir(storage_path("app/public/exports"))) mkdir(storage_path("app/public/exports"), 0755, true);
@@ -307,17 +404,15 @@ class FinancialService
 
             $csvHandle = fopen('php://temp', 'r+');
             fprintf($csvHandle, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($csvHandle, ['Datum', 'Titel', 'Kategorie', 'Rechnungsnr.', 'Steuersatz', 'Betrag (Brutto)', 'Notiz'], ';');
+            fputcsv($csvHandle, ['Datum', 'Typ', 'Bezeichnung', 'Kategorie', 'Brutto', 'Steuersatz', 'Netto', 'Steuer'], ';');
 
             foreach ($specials as $s) {
+                $net = $s->amount / (1 + (($s->tax_rate ?? 0) / 100));
+                $tax = $s->amount - $net;
                 fputcsv($csvHandle, [
-                    $s->execution_date->format('d.m.Y'),
-                    $s->title,
-                    $s->category,
-                    $s->invoice_number ?? '-',
-                    $s->tax_rate ? $s->tax_rate.'%' : '0%',
-                    number_format($s->amount, 2, ',', '.'),
-                    $s->note
+                    $s->execution_date->format('d.m.Y'), 'Variabel', $s->title, $s->category,
+                    number_format($s->amount, 2, ',', '.'), ($s->tax_rate ?? 0).'%', 
+                    number_format($net, 2, ',', '.'), number_format($tax, 2, ',', '.')
                 ], ';');
 
                 if($s->file_paths) {
@@ -325,25 +420,38 @@ class FinancialService
                         if(Storage::disk('public')->exists($filePath)) {
                             $ext = pathinfo($filePath, PATHINFO_EXTENSION);
                             $cleanTitle = \Illuminate\Support\Str::slug($s->title);
-                            $cleanInv = $s->invoice_number ? '_'.$s->invoice_number : '';
-                            $newName = "Belege/{$s->execution_date->format('Y-m-d')}_{$cleanTitle}{$cleanInv}_{$index}.{$ext}";
+                            $newName = "Belege/{$s->execution_date->format('Y-m-d')}_{$cleanTitle}_{$index}.{$ext}";
                             $zip->addFile(storage_path("app/public/{$filePath}"), $newName);
                         }
                     }
                 }
             }
+
+            foreach ($fixedCosts as $f) {
+                $net = $f->amount / (1 + (($f->tax_rate ?? 0) / 100));
+                $tax = $f->amount - $net;
+                fputcsv($csvHandle, [
+                    Carbon::create($year, $month, 1)->format('d.m.Y'), 'Fixkosten', $f->name, $f->category,
+                    number_format($f->amount, 2, ',', '.'), ($f->tax_rate ?? 0).'%', 
+                    number_format($net, 2, ',', '.'), number_format($tax, 2, ',', '.')
+                ], ';');
+            }
+
             rewind($csvHandle);
             $csvContent = stream_get_contents($csvHandle);
             fclose($csvHandle);
-            $zip->addFromString("Bericht_{$year}_{$month}.csv", $csvContent);
+            $zip->addFromString("Transaktionen_{$year}_{$month}.csv", $csvContent);
 
             $pdf = Pdf::loadView('global.pdf.financial_report', [
-                'stats' => $stats,
+                'month' => $month, 'year' => $year,
+                'shopStats' => $shopStats,
+                'fixedCosts' => $fixedCosts,
                 'specials' => $specials,
-                'month' => $month,
-                'year' => $year
+                'liquidityPreview' => $liquidityPreview,
+                'statsBrutto' => $this->getMonthlyStats($adminId, $month, $year, false),
+                'statsNetto' => $this->getMonthlyStats($adminId, $month, $year, true)
             ]);
-            $zip->addFromString("Gesamtbericht_{$year}_{$month}.pdf", $pdf->output());
+            $zip->addFromString("Liquiditaets_und_Finanzbericht_{$year}_{$month}.pdf", $pdf->output());
 
             $zip->close();
         }

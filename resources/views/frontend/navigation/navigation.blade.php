@@ -35,7 +35,7 @@
 
                         <a href="{{ route('manufacture') }}"
                            class="{{ Request::routeIs('manufacture') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
-                            Die Manufaktur
+                            Manufaktur
                         </a>
 
                         <a href="{{ route('shop') }}"
@@ -115,7 +115,7 @@
 
                 <a href="{{ route('manufacture') }}"
                    class="block px-3 py-2 text-lg {{ Request::routeIs('manufacture') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Die Manufaktur
+                    Manufaktur
                 </a>
 
                 <a href="{{ route('shop') }}"

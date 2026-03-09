@@ -88,13 +88,12 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
-
+                    <x-forms.list-item route="/admin/financial-banks" title="Banken" pageName="financial-banks" icon="scale" />
                     <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-fix-costs" title="Fixkosten" pageName="financial-fix-costs" icon="banknotes" />
-                    <x-forms.list-item route="/admin/financial-variable-costs" title="Variable Kosten" pageName="financial-variable-costs" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
+                    <x-forms.list-item route="/admin/financial-variable-costs" title="Variable Kosten" pageName="financial-variable-costs" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-liquidity-planning" title="Liquiditätsplanung" pageName="financial-liquidity-planning" icon="shield-check" />
-                    <x-forms.list-item route="/admin/financial-banks" title="Banken" pageName="financial-banks" icon="scale" />
                 </ul>
             </li>
 

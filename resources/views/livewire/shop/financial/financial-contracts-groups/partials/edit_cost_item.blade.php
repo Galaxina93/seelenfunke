@@ -22,7 +22,7 @@
     @endphp
 
     {{-- Zeile 1: Name & Betrag --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8">
         <div>
             <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Bezeichnung</label>
             <input type="text" wire:model="itemName" placeholder="z.B. Miete" class="{{ $inputClass }}">
@@ -36,6 +36,20 @@
                 <input type="number" step="0.01" wire:model="itemAmount" placeholder="0.00" class="{{ $inputClass }} pl-10 font-mono">
             </div>
             @error('itemAmount') <span class="text-[10px] text-red-400 mt-2 block font-bold tracking-widest uppercase ml-1 drop-shadow-[0_0_8px_currentColor]">{{ $message }}</span> @enderror
+        </div>
+
+        <div>
+            <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Steuersatz</label>
+            <div class="relative">
+                <select wire:model="itemTaxRate" class="{{ $inputClass }} appearance-none cursor-pointer">
+                    <option value="0" class="bg-gray-950">0 %</option>
+                    <option value="7" class="bg-gray-950">7 %</option>
+                    <option value="19" class="bg-gray-950">19 %</option>
+                </select>
+                <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-500">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
         </div>
     </div>
 

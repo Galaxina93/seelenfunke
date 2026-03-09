@@ -2178,6 +2178,9 @@ video {
 .w-screen {
   width: 100vw;
 }
+.w-\[50px\] {
+  width: 50px;
+}
 .min-w-0 {
   min-width: 0px;
 }
@@ -10022,6 +10025,9 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(239 68 68 / var(--tw-border-opacity, 1));
 }
+.peer:checked ~ .peer-checked\:border-primary\/50 {
+  border-color: rgb(201 166 107 / 0.5);
+}
 .peer:checked ~ .peer-checked\:bg-amber-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(245 158 11 / var(--tw-bg-opacity, 1));
@@ -10048,6 +10054,9 @@ video {
 .peer:checked ~ .peer-checked\:bg-red-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(239 68 68 / var(--tw-bg-opacity, 1));
+}
+.peer:checked ~ .peer-checked\:bg-primary\/20 {
+  background-color: rgb(201 166 107 / 0.2);
 }
 .peer:checked ~ .peer-checked\:text-blue-400 {
   --tw-text-opacity: 1;
@@ -10085,6 +10094,11 @@ video {
   content: var(--tw-content);
   --tw-bg-opacity: 1;
   background-color: rgb(3 7 18 / var(--tw-bg-opacity, 1));
+}
+.peer:checked ~ .peer-checked\:after\:bg-primary::after {
+  content: var(--tw-content);
+  --tw-bg-opacity: 1;
+  background-color: rgb(201 166 107 / var(--tw-bg-opacity, 1));
 }
 .peer:focus ~ .peer-focus\:outline-none {
   outline: 2px solid transparent;
