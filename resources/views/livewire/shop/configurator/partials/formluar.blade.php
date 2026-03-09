@@ -14,9 +14,10 @@
                         if(\Illuminate\Support\Facades\File::exists($vectorPath)) {
                             $files = \Illuminate\Support\Facades\File::files($vectorPath);
                             foreach($files as $file) {
-                                if(strtolower($file->getExtension()) === 'svg') {
+                                $ext = strtolower($file->getExtension());
+                                if(in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'])) {
                                     $filename = $file->getFilename();
-                                    $name = str_replace('.svg', '', $filename);
+                                    $name = preg_replace('/\.[^.]+$/', '', $filename);
                                     $name = ucwords(str_replace(['-', '_'], ' ', $name));
                                     $vectors[] = ['file' => $filename, 'name' => $name];
                                 }
@@ -25,13 +26,13 @@
                     @endphp
 
                     @forelse($vectors as $v)
-                        <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-gray-950 border-gray-700' : 'bg-black border-slate-100' }}">
-                            <img src="{{ asset('images/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-60 group-hover:opacity-100 transition-opacity {{ $isDark ? 'filter invert brightness-0' : '' }}">
-                            <span class="text-[8px] font-bold uppercase mt-2 group-hover:text-primary truncate w-full text-center {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">{{ $v['name'] }}</span>
+                        <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
+                            <img src="{{ asset('images/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity">
+                            <span class="text-[8px] font-bold uppercase mt-2 group-hover:text-primary truncate w-full text-center {{ $isDark ? 'text-amber-500/80' : 'text-amber-700/80' }}">{{ $v['name'] }}</span>
                         </button>
                     @empty
                         <div class="col-span-full text-center text-xs py-4 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
-                            Keine SVG-Dateien im Ordner "images/configurator/vectors" gefunden.
+                            Keine Bilder im Ordner "images/configurator/vectors" gefunden.
                         </div>
                     @endforelse
                 </div>

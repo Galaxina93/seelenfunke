@@ -129,6 +129,10 @@ class Configurator extends Component
             if (!$this->isDigital) $this->addText($centerX, $centerY);
         }
 
+        if (isset($source['texts_back']) && is_array($source['texts_back'])) {
+            $this->texts_back = $source['texts_back'];
+        }
+
         if (isset($source['logos']) && is_array($source['logos'])) {
             $this->logos = $source['logos'];
         } elseif (!empty($source['logo_path'])) {
@@ -145,7 +149,21 @@ class Configurator extends Component
             ];
         }
 
+        if (isset($source['logos_back']) && is_array($source['logos_back'])) {
+            $this->logos_back = $source['logos_back'];
+        }
+
         foreach ($this->logos as &$logo) {
+            if (!isset($logo['url']) && isset($logo['value'])) {
+                if (Str::startsWith($logo['value'], 'vectors/')) {
+                    $logo['url'] = asset('images/configurator/' . $logo['value']);
+                } else {
+                    $logo['url'] = asset('storage/' . $logo['value']);
+                }
+            }
+        }
+
+        foreach ($this->logos_back as &$logo) {
             if (!isset($logo['url']) && isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
                     $logo['url'] = asset('images/configurator/' . $logo['value']);
@@ -207,6 +225,8 @@ class Configurator extends Component
                 'new_files.*' => 'required|max:20480',
             ]);
 
+            $newPaths = [];
+
             foreach ($this->new_files as $key => $file) {
                 $filename = $file->getClientOriginalName();
                 $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
@@ -232,10 +252,11 @@ class Configurator extends Component
                 }
 
                 $this->uploaded_files[] = $path;
+                $newPaths[] = $path;
             }
 
             $this->reset('new_files');
-            $this->addFilesToStage();
+            $this->addFilesToStage($newPaths);
         }
     }
 
@@ -299,9 +320,12 @@ class Configurator extends Component
                 $engravingIntensity = 255 - $luminance;
                 $targetAlpha = 127 - ($engravingIntensity / 2);
                 $finalAlpha = max($alpha, $targetAlpha);
-                $white = imagecolorallocatealpha($laserImage, 255, 255, 255, (int)$finalAlpha);
+                
+                // FIX: XCS benötigt "Schwarz" (#000000) für eine saubere Vektorgravur.
+                // Weiß (#FFFFFF) wird als "unsichtbar" gewertet.
+                $laserColor = imagecolorallocatealpha($laserImage, 0, 0, 0, (int)$finalAlpha);
 
-                imagesetpixel($laserImage, $x, $y, $white);
+                imagesetpixel($laserImage, $x, $y, $laserColor);
             }
         }
 
@@ -334,6 +358,8 @@ class Configurator extends Component
         $configData = [
             'texts' => $this->texts,
             'logos' => $this->logos,
+            'texts_back' => $this->texts_back,
+            'logos_back' => $this->logos_back,
             'text' => $mainText,
             'logo_path' => $mainLogo,
             'files' => $this->uploaded_files,
@@ -353,8 +379,9 @@ class Configurator extends Component
             $this->dispatch('cart-updated');
             $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
 
-            $this->reset(['uploaded_files', 'logos', 'notes']);
+            $this->reset(['uploaded_files', 'logos', 'logos_back', 'notes']);
             $this->texts = [];
+            $this->texts_back = [];
             if (!$this->isDigital) $this->addText();
 
             $this->config_confirmed = false;

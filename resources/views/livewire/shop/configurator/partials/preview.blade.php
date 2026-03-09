@@ -8,7 +8,7 @@
     </div>
 
     {{-- BÜHNE --}}
-    <div class="relative w-full max-w-[455px] md:max-w-[600px] aspect-square rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden border-[6px] group {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
+    <div class="relative w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden border-[6px] group {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
          :style="(!showDrawingBoard && config.bgPath) ? `background-image: url('${config.bgPath}'); background-size: cover; background-position: center;` : ''"
          x-ref="container"
          @mousedown="deselectAll($event)"
@@ -21,7 +21,7 @@
         <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full z-20 pointer-events-auto transition-opacity duration-500 {{ $isDark ? 'bg-gray-950' : 'bg-gray-50' }}">
 
             <template x-if="config.fallbackImg">
-                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-40 mix-blend-multiply transition-opacity group-hover:opacity-60 duration-500 {{ $isDark ? 'filter invert brightness-0 opacity-20' : '' }}">
+                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-20 mix-blend-screen filter invert brightness-0 group-hover:opacity-40' : 'opacity-40 mix-blend-multiply group-hover:opacity-60' }}">
             </template>
 
             <div class="absolute border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"

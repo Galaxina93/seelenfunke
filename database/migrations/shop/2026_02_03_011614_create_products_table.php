@@ -32,7 +32,6 @@ return new class extends Migration
             // 3. Preis & Steuer
             $table->integer('price'); // Preis in Cent
             $table->integer('compare_at_price')->nullable(); // Preis in Cent
-            $table->integer('cost_per_item')->nullable(); // Preis in Cent
             $table->string('tax_class')->default('standard');
 
             // 4. Lager & Identifikation

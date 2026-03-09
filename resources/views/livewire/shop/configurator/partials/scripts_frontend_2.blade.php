@@ -431,7 +431,12 @@
                             const drawW = scale;
                             const drawH = scale / aspect;
 
+                            // VISUELLER FILTER: Macht alle eingefügten Logos optisch weiß für die "Lasergravur-Optik"
+                            // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
+                            ctx.filter = 'brightness(0) invert(1) opacity(0.85)';
                             ctx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
+                            ctx.filter = 'none'; // Filter zurücksetzen für andere Operationen
+
                             ctx.restore();
                             if(textureObj) textureObj.needsUpdate = true;
                         };

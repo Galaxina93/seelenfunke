@@ -114,7 +114,18 @@ class TicketsComponent extends Component
 
     public function createTicket(GamificationService $gameService)
     {
-        $this->validate(['newSubject' => 'required|min:5|max:100', 'newCategory' => 'required', 'newMessage' => 'required|min:10']);
+        $this->validate([
+            'newSubject' => 'required|min:5|max:100',
+            'newCategory' => 'required',
+            'newMessage' => 'required|min:10'
+        ], [
+            'newSubject.required' => 'Bitte gib einen Betreff für deine Anfrage ein.',
+            'newSubject.min' => 'Der Betreff ist zu kurz (mindestens 5 Zeichen).',
+            'newSubject.max' => 'Der Betreff ist zu lang (maximal 100 Zeichen).',
+            'newCategory.required' => 'Bitte wähle eine Kategorie aus.',
+            'newMessage.required' => 'Bitte beschreibe dein Anliegen in einer Nachricht.',
+            'newMessage.min' => 'Deine Nachricht ist zu kurz (mindestens 10 Zeichen).'
+        ]);
 
         $ticket = Ticket::create([
             'ticket_number' => 'MSF-' . date('y') . '-' . strtoupper(Str::random(5)),
@@ -154,7 +165,12 @@ class TicketsComponent extends Component
 
     public function sendReply()
     {
-        $this->validate(['chatMessage' => 'required|min:1']);
+        $this->validate([
+            'chatMessage' => 'required|min:1'
+        ], [
+            'chatMessage.required' => 'Bitte schreibe eine Nachricht.',
+            'chatMessage.min' => 'Die Nachricht darf nicht leer sein.'
+        ]);
 
         $ticket = Ticket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
 

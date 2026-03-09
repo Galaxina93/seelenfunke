@@ -67,8 +67,11 @@ Da wir im Docker Container arbeiten müssen wir den Befehl auch im Container abf
 2. Worker starten: ./vendor/bin/sail artisan queue:work
 
 
-Chat Event Starten:
+WEB SOCKET Starten:
 funki artisan reverb:start
+
+JOB WORKER Starten:
+funki worker
 
 Wenn der Chat mal wieder nicht geht denk dran:
 Das ist der häufigste Fehler bei Reverb und Vite: Die Variablen aus deiner

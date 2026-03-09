@@ -73,9 +73,10 @@
          wire:key="checkout-address-section"
          x-data="{
             isOpen: true,
+            isBillingComplete: false,
 
             isValid(val) {
-                return val && typeof val === 'string' && val.trim().length > 0;
+                return val !== null && val !== undefined && String(val).trim().length > 0;
             },
 
             checkCompletion() {
@@ -86,7 +87,7 @@
                 let p = $wire.postal_code;
                 let c = $wire.city;
 
-                let billingComplete = this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c);
+                this.isBillingComplete = this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c);
 
                 let hasShipping = $wire.has_separate_shipping;
                 let sf = $wire.shipping_first_name;
@@ -97,7 +98,7 @@
 
                 let shippingComplete = !hasShipping || (this.isValid(sf) && this.isValid(sl) && this.isValid(sa) && this.isValid(sp) && this.isValid(sc));
 
-                if (billingComplete && shippingComplete) {
+                if (this.isBillingComplete && shippingComplete) {
                     this.isOpen = false;
                 } else {
                     this.isOpen = true;
@@ -115,8 +116,18 @@
             <div class="flex items-center gap-3">
                 <template x-if="!isOpen">
                     <div class="text-right mr-2 animate-fade-in">
-                        <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>
-                        <p class="text-xs text-gray-500 font-medium" x-text="$wire.first_name + ' ' + $wire.last_name"></p>
+                        <template x-if="isBillingComplete">
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-green-600">Vollständig</p>
+                                <p class="text-xs text-gray-500 font-medium" x-text="(typeof $wire.first_name !== 'undefined' && $wire.first_name !== null ? String($wire.first_name) : '') + ' ' + (typeof $wire.last_name !== 'undefined' && $wire.last_name !== null ? String($wire.last_name) : '')"></p>
+                            </div>
+                        </template>
+                        <template x-if="!isBillingComplete">
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-red-500">Nicht Vollständig</p>
+                                <p class="text-xs text-red-400 font-medium">Bitte Daten ergänzen</p>
+                            </div>
+                        </template>
                     </div>
                 </template>
                 <svg class="w-5 h-5 text-gray-400 transition-transform duration-300" :class="isOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">

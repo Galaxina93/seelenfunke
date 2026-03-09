@@ -25,7 +25,6 @@ class Product extends Model
         'continue_selling_when_out_of_stock' => 'boolean',
         'price' => 'integer',
         'compare_at_price' => 'integer',
-        'cost_per_item' => 'integer',
         'weight' => 'integer',
         'height' => 'integer',
         'width' => 'integer',

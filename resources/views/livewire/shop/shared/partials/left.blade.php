@@ -211,15 +211,33 @@
             </div>
 
             {{-- xTool Download --}}
-            @if(isset($previewItem->configuration['texts']) || isset($previewItem->configuration['logos']))
+            @php
+                $hasFront = !empty($previewItem->configuration['texts']) || !empty($previewItem->configuration['logos']);
+                $hasBack = !empty($previewItem->configuration['texts_back']) || !empty($previewItem->configuration['logos_back']);
+            @endphp
+
+            @if($hasFront || $hasBack)
                 <div class="bg-gray-950 px-6 py-5 border-t border-gray-800">
-                    <a href="{{ route('admin.orders.laserfile', $previewItem->id) }}" target="_blank" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group">
-                        <svg class="w-5 h-5 text-primary group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                        </svg>
-                        xTool Laser-Datei laden (.svg)
-                    </a>
-                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mt-3 text-center leading-relaxed max-w-sm mx-auto">Generiert automatisch eine maßstabsgetreue Vektordatei für XCS.</p>
+                    <div class="flex flex-col gap-3">
+                        @if($hasFront)
+                            <a href="{{ route('admin.orders.laserfile', ['itemId' => $previewItem->id, 'side' => 'front']) }}" target="_blank" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group">
+                                <svg class="w-5 h-5 text-primary group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                xTool Laser-Datei laden (VORDERSEITE)
+                            </a>
+                        @endif
+
+                        @if($hasBack)
+                            <a href="{{ route('admin.orders.laserfile', ['itemId' => $previewItem->id, 'side' => 'back']) }}" target="_blank" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group">
+                                <svg class="w-5 h-5 text-primary group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                xTool Laser-Datei laden (RÜCKSEITE)
+                            </a>
+                        @endif
+                    </div>
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500 mt-3 text-center leading-relaxed max-w-sm mx-auto">Generiert automatisch maßstabsgetreue SVG Dateien für XCS.</p>
                 </div>
             @endif
         </div>

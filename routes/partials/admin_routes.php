@@ -114,10 +114,14 @@ Route::middleware(['auth:admin'])->group(function () {
 
 
 
-    Route::get('/admin/orders/laser-file/{itemId}', function ($itemId) {
+    Route::get('/admin/orders/laser-file/{itemId}', function (Illuminate\Http\Request $request, $itemId) {
         $item = OrderItem::findOrFail($itemId); // Ggf. Namespace anpassen
         $product = $item->product;
         $config = $item->configuration;
+        $side = $request->query('side', 'front');
+
+        $logos = $side === 'back' ? ($config['logos_back'] ?? []) : ($config['logos'] ?? []);
+        $texts = $side === 'back' ? ($config['texts_back'] ?? []) : ($config['texts'] ?? []);
 
         // Physische Maße des Glases holen (Fallback auf 100x100mm)
         $widthMm = floatval($product->width ?? 100);
@@ -141,8 +145,8 @@ Route::middleware(['auth:admin'])->group(function () {
         $svg .= '  <rect x="0" y="0" width="'.$widthMm.'" height="'.$heightMm.'" fill="none" stroke="#FF0000" stroke-width="0.1" />' . "\n";
 
         // BILDER & LOGOS RENDER (Base64)
-        if (!empty($config['logos'])) {
-            foreach ($config['logos'] as $logo) {
+        if (!empty($logos)) {
+            foreach ($logos as $logo) {
                 $x = ($logo['x'] / 100) * $widthMm;
                 $y = ($logo['y'] / 100) * $heightMm;
                 $rot = $logo['rotation'] ?? 0;
@@ -150,26 +154,88 @@ Route::middleware(['auth:admin'])->group(function () {
                 $logoWidth = (($logo['size'] ?? 100) / 500) * $widthMm;
 
                 $url = $logo['url'];
+                $localPath = null;
 
                 // Falls es keine Base64-URL ist, sondern ein lokaler Pfad, wandeln wir es für die SVG um
                 if (!str_starts_with($url, 'data:image')) {
-                    $path = storage_path('app/public/' . str_replace('storage/', '', parse_url($url, PHP_URL_PATH)));
-                    if (file_exists($path)) {
-                        $type = pathinfo($path, PATHINFO_EXTENSION);
-                        $data = file_get_contents($path);
-                        $url = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                    $urlPath = parse_url($url, PHP_URL_PATH);
+                    
+                    if (str_contains($urlPath, '/storage/')) {
+                        $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
+                        $localPath = storage_path('app/public/' . $relativePath);
+                    } elseif (str_contains($urlPath, '/images/')) {
+                        $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
+                        $localPath = public_path('images/' . ltrim($relativePath, '/'));
+                    }
+
+                    if ($localPath && file_exists($localPath)) {
+                        $ext = strtolower(pathinfo($localPath, PATHINFO_EXTENSION));
+                        $data = file_get_contents($localPath);
+
+                        if ($ext === 'svg') {
+                            // SVG inlinen, aber OHNE <svg> Tag, da XCS verschachtelte SVGs ignoriert!
+                            $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $data);
+                            $innerSvg = preg_replace('/<!--.*?-->/is', '', $innerSvg);
+                            $innerSvg = preg_replace('/<!DOCTYPE.*?>/is', '', $innerSvg);
+                            
+                            $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
+                            if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {
+                                $vParts = preg_split('/[\s,]+/', trim($m[1]));
+                                if (count($vParts) >= 4) {
+                                    $vX = floatval($vParts[0]);
+                                    $vY = floatval($vParts[1]);
+                                    $viewBoxW = floatval($vParts[2]);
+                                    $viewBoxH = floatval($vParts[3]);
+                                }
+                            } elseif (preg_match('/<svg[^>]*width="([0-9\.]+)[a-z]*"/i', $innerSvg, $mw) && preg_match('/<svg[^>]*height="([0-9\.]+)[a-z]*"/i', $innerSvg, $mh)) {
+                                $viewBoxW = floatval($mw[1]);
+                                $viewBoxH = floatval($mh[1]);
+                            }
+
+                            // Nur den echten Vektor-Inhalt (die <path> Elemente) extrahieren
+                            if (preg_match('/<svg[^>]*>(.*?)<\/svg>/is', $innerSvg, $m)) {
+                                $innerSvg = $m[1];
+                            } else {
+                                $innerSvg = preg_replace('/<svg[^>]*>/is', '', $innerSvg);
+                                $innerSvg = str_replace('</svg>', '', $innerSvg);
+                            }
+
+                            // XCS BUGFIX: XCS Laser-Software ignoriert weiße Füllungen (#FFFFFF oder white) für Gravuren komplett.
+                            // Wir müssen die Farben auf schwarz (#000000) für Gravur umschreiben.
+                            $innerSvg = preg_replace('/fill="#[fF]{3,6}"/i', 'fill="#000000"', $innerSvg);
+                            $innerSvg = preg_replace('/fill="white"/i', 'fill="#000000"', $innerSvg);
+                            $innerSvg = preg_replace('/fill="none"/i', 'fill="#000000"', $innerSvg); // Manchmal sind sie unsichtbar, erzwinge Füllung.
+
+                            // Failsafe: Falls in der Datei kein "fill=" deklariert ist, sicherheitshalber ins <g> Tag packen.
+                            $fillAttr = !str_contains($innerSvg, 'fill=') ? ' fill="#000000"' : '';
+
+                            $scaleS = $logoWidth / max(1, $viewBoxW); 
+                            $cx = $vX + ($viewBoxW / 2);
+                            $cy = $vY + ($viewBoxH / 2);
+
+                            $svg .= '  <g transform="translate('.number_format($x,4,'.','').', '.number_format($y,4,'.','').') rotate('.number_format($rot,4,'.','').')">' . "\n";
+                            $svg .= '    <g transform="scale('.number_format($scaleS,6,'.','').') translate('.number_format(-$cx,6,'.','').', '.number_format(-$cy,6,'.','').')"' . $fillAttr . '>' . "\n";
+                            $svg .= $innerSvg . "\n";
+                            $svg .= '    </g>' . "\n";
+                            $svg .= '  </g>' . "\n";
+
+                            continue; // base64 <image> wird übersprungen
+                        } else {
+                            $type = ($ext === 'jpg') ? 'jpeg' : $ext;
+                            $url = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                        }
                     }
                 }
 
                 $svg .= '  <g transform="translate('.$x.', '.$y.') rotate('.$rot.')">' . "\n";
-                $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
+                $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" height="'.$logoWidth.'" href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
                 $svg .= '  </g>' . "\n";
             }
         }
 
         // TEXTE RENDER (Als Text-Vektor)
-        if (!empty($config['texts'])) {
-            foreach ($config['texts'] as $textItem) {
+        if (!empty($texts)) {
+            foreach ($texts as $textItem) {
                 // Verhindert Rendering von leeren Textboxen
                 if (empty(trim($textItem['text'] ?? ''))) continue;
 
@@ -205,7 +271,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
         $svg .= '</svg>';
 
-        $filename = 'xTool-F2-Druckdatei-' . ($item->order->order_number ?? 'Angebot') . '-Pos-' . $item->id . '.svg';
+        $filename = 'xTool-F2-Druckdatei-' . ($item->order->order_number ?? 'Angebot') . '-Pos-' . $item->id . '-' . ($side === 'back' ? 'Rueckseite' : 'Vorderseite') . '.svg';
 
         return response()->streamDownload(function() use ($svg) {
             echo $svg;

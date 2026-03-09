@@ -6127,6 +6127,12 @@ video {
   --tw-text-opacity: 1;
   color: rgb(133 77 14 / var(--tw-text-opacity, 1));
 }
+.text-amber-500\/80 {
+  color: rgb(245 158 11 / 0.8);
+}
+.text-amber-700\/80 {
+  color: rgb(180 83 9 / 0.8);
+}
 .underline {
   text-decoration-line: underline;
 }

@@ -149,14 +149,16 @@ trait HandlesConfiguratorLogic
         ];
     }
 
-    public function addFilesToStage()
+    public function addFilesToStage($newPaths = null)
     {
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
         $targetProperty = $this->activeSide === 'back' ? 'logos_back' : 'logos';
 
-        foreach($this->uploaded_files as $path) {
+        $pathsToProcess = is_array($newPaths) ? $newPaths : $this->uploaded_files;
+
+        foreach($pathsToProcess as $path) {
             $ext = pathinfo($path, PATHINFO_EXTENSION);
             if (in_array(strtolower($ext), ['jpg', 'jpeg', 'png', 'webp'])) {
 

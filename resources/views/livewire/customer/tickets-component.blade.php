@@ -135,11 +135,13 @@
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Betreff *</label>
-                    <input type="text" wire:model="newSubject" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none">
+                    <input type="text" wire:model="newSubject" class="w-full bg-gray-950 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-colors @error('newSubject') border-2 border-red-500 @else border border-gray-800 @enderror">
+                    @error('newSubject') <span class="text-red-500 text-xs mt-1 block font-bold">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Deine Nachricht *</label>
-                    <textarea wire:model="newMessage" rows="6" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none"></textarea>
+                    <textarea wire:model="newMessage" rows="6" class="w-full bg-gray-950 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-colors @error('newMessage') border-2 border-red-500 @else border border-gray-800 @enderror"></textarea>
+                    @error('newMessage') <span class="text-red-500 text-xs mt-1 block font-bold">{{ $message }}</span> @enderror
                 </div>
                 <div class="pt-4 flex justify-between items-center border-t border-gray-800">
                     <button type="button" wire:click="setMode('list')" class="text-gray-500 font-bold text-xs uppercase tracking-widest hover:text-white">Abbrechen</button>
