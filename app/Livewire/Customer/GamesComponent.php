@@ -39,7 +39,7 @@ class GamesComponent extends Component
                 $now = now();
                 $nextHour = now()->addHour()->startOfHour();
                 $diff = $now->diffInMinutes($nextHour);
-                $this->timeUntilNextEnergy = "in ca. {$diff} Minuten";
+                $this->timeUntilNextEnergy = $diff;
             }
             // Fetch highscores for Funkenflug
             $this->personalHighscoreFF = $profile->funkenflug_highscore ?? 0;

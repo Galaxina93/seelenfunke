@@ -81,6 +81,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
 
+        this.isMobile = window.innerWidth <= 768;
         const w = this.container.offsetWidth || 800;
         const h = this.container.offsetHeight || 800;
 
@@ -89,9 +90,13 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.camera.position.set(0, -15, 30);
         this.camera.lookAt(0, 5, 0);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        // Turn off antialiasing on mobile for huge performance gain
+        this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
         this.renderer.setSize(w, h);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        
+        // Lower pixel ratio heavily on mobile to avoid GPU lag
+        const pixelRatio = this.isMobile ? Math.min(window.devicePixelRatio, 1) : Math.min(window.devicePixelRatio, 2);
+        this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
         this.renderer.domElement.style.position = 'absolute';
@@ -108,11 +113,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
         dirLight.position.set(10, -10, 20);
         this.scene.add(dirLight);
 
-        // Create Starfield (moving background)
+        // Create Starfield (moving background) - Less stars on mobile
+        const starCount = this.isMobile ? 250 : 1000;
         const starGeom = new THREE.BufferGeometry();
         const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.8 });
         const starVerts = [];
-        for(let i=0; i<1000; i++) {
+        for(let i=0; i<starCount; i++) {
             starVerts.push((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 50 - 10);
         }
         starGeom.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
@@ -165,7 +171,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 // Add emissive engine glow to materials
                 this.shipModel.traverse((child) => {
                     if (child.isMesh) {
-                        child.castShadow = true;
+                        child.castShadow = !this.isMobile;
                         if(child.material) {
                             child.material.metalness = 0.5;
                         }
@@ -184,8 +190,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     this.meteorModel.scale.set(1.5, 1.5, 1.5);
                     this.meteorModel.traverse((child) => {
                         if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
+                            child.castShadow = !this.isMobile;
+                            child.receiveShadow = !this.isMobile;
                         }
                     });
                 }, undefined, (e) => { console.warn("Could not load meteor GLTF."); });
@@ -199,8 +205,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     this.sharpstoneModel.scale.set(1.5, 1.5, 1.5);
                     this.sharpstoneModel.traverse((child) => {
                         if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
+                            child.castShadow = !this.isMobile;
+                            child.receiveShadow = !this.isMobile;
                         }
                     });
                 }, undefined, (e) => { console.warn("Could not load sharp stone GLTF."); });
@@ -209,7 +215,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
         // Initialize materials for pools
         this.matBullet = new THREE.MeshBasicMaterial({ color: 0x38bdf8 }); // Light blue laser
-        this.geomBullet = new THREE.CylinderGeometry(0.1, 0.1, 1, 8);
+        this.geomBullet = new THREE.CylinderGeometry(0.1, 0.1, 1, this.isMobile ? 4 : 8);
         this.geomBullet.rotateX(Math.PI / 2);
 
         this.matEnemy = [
@@ -218,7 +224,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
             new THREE.MeshStandardMaterial({ color: 0xf97316, metalness: 0.8, roughness: 0.2 }) // Orange Wall
         ];
         this.geomEnemy = [
-            new THREE.DodecahedronGeometry(1.5, 1),
+            // Details auf Mobile drastisch reduzieren (Detail level 0 statt 1)
+            new THREE.DodecahedronGeometry(1.5, this.isMobile ? 0 : 1),
             new THREE.OctahedronGeometry(1.2, 0),
             new THREE.BoxGeometry(32, 1.5, 2)
         ];
@@ -227,13 +234,19 @@ window.FunkenflugEngine = class FunkenflugEngine {
             new THREE.MeshBasicMaterial({ color: 0xfde047 }), // Funken (Yellow)
             new THREE.MeshBasicMaterial({ color: 0x60a5fa })  // Cooldown (Blue)
         ];
-        this.geomCollect = new THREE.SphereGeometry(0.6, 16, 16);
+        // Kugel rund auf Desktop, eckiger auf Mobile
+        this.geomCollect = new THREE.SphereGeometry(0.6, this.isMobile ? 8 : 16, this.isMobile ? 8 : 16);
 
-        // Populate pools
-        for(let i=0; i<50; i++) this.pools.bullets.push(this.createBulletMesh());
-        for(let i=0; i<30; i++) this.pools.enemies.push(this.createEnemyMesh());
-        for(let i=0; i<20; i++) this.pools.collectibles.push(this.createCollectMesh());
-        for(let i=0; i<100; i++) this.pools.particles.push(this.createParticleMesh());
+        // Populate pools - Weniger Instanzen auf Mobile um RAM zu schonen
+        const bulletCount = this.isMobile ? 20 : 50;
+        const enemyCount = this.isMobile ? 15 : 30;
+        const collectCount = this.isMobile ? 10 : 20;
+        const particleCount = this.isMobile ? 40 : 100;
+
+        for(let i=0; i<bulletCount; i++) this.pools.bullets.push(this.createBulletMesh());
+        for(let i=0; i<enemyCount; i++) this.pools.enemies.push(this.createEnemyMesh());
+        for(let i=0; i<collectCount; i++) this.pools.collectibles.push(this.createCollectMesh());
+        for(let i=0; i<particleCount; i++) this.pools.particles.push(this.createParticleMesh());
     }
 
     // --- POOL FACTORIES ---
