@@ -80,13 +80,30 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             $this->order->loadMissing(['items.product', 'customer']);
             $mailData = $this->order->toFormattedArray();
 
+            // Sammle alle Snapshots der konfigurierten Artikel
+            $snapshotPaths = [];
+            foreach ($this->order->items as $item) {
+                if (!empty($item->configuration['snapshot_path'])) {
+                    $paths = is_array($item->configuration['snapshot_path']) 
+                                ? array_values($item->configuration['snapshot_path']) 
+                                : [$item->configuration['snapshot_path']];
+                                
+                    foreach ($paths as $path) {
+                        $fullPath = storage_path('app/public/' . $path);
+                        if (file_exists($fullPath)) {
+                            $snapshotPaths[] = $fullPath;
+                        }
+                    }
+                }
+            }
+
             // Da wir hier schon im Job sind, können wir send() nutzen.
             // Falls deine Mailables 'ShouldQueue' nutzen, werden sie sonst "doppelt" gequeued. Das ist aber kein Problem.
             Mail::to($this->order->email)
-                ->send(new OrderMailToCustomer($mailData, $pdfPath, $xmlPath));
+                ->send(new OrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
 
             Mail::to('kontakt@mein-seelenfunke.de')
-                ->send(new OrderMailToAdmin($mailData, $pdfPath, $xmlPath));
+                ->send(new OrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
 
         } catch (\Exception $e) {
             Log::error("Checkout Mail Fehler für {$this->order->order_number}: " . $e->getMessage());

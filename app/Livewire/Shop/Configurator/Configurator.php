@@ -339,7 +339,46 @@ class Configurator extends Component
         return basename($newPath);
     }
 
-    public function save(CartService $cartService)
+    public function saveWithSnapshot($snapshotData, CartService $cartService)
+    {
+        $snapshotPaths = [];
+        
+        \Illuminate\Support\Facades\Log::info("saveWithSnapshot called. Data empty: " . (empty($snapshotData) ? 'YES' : 'NO'));
+
+        if (!empty($snapshotData)) {
+            if (is_array($snapshotData)) {
+                foreach ($snapshotData as $side => $base64) {
+                    $parts = explode(',', $base64);
+                    if (count($parts) === 2) {
+                        $decoded = base64_decode($parts[1]);
+                        if ($decoded !== false) {
+                            $filename = 'snapshots/' . Str::uuid() . '_' . $side . '.jpg';
+                            Storage::disk('public')->put($filename, $decoded);
+                            $snapshotPaths[$side] = $filename;
+                            \Illuminate\Support\Facades\Log::info("Snapshot $side successfully saved to: " . $filename);
+                        }
+                    }
+                }
+            } elseif (is_string($snapshotData)) {
+                // Fallback für alte Aufrufe mit einzelnem String
+                $parts = explode(',', $snapshotData);
+                if (count($parts) === 2) {
+                    $decoded = base64_decode($parts[1]);
+                    if ($decoded !== false) {
+                        $filename = 'snapshots/' . Str::uuid() . '.jpg';
+                        Storage::disk('public')->put($filename, $decoded);
+                        $snapshotPaths['front'] = $filename;
+                        \Illuminate\Support\Facades\Log::info("Snapshot successfully saved to: " . $filename);
+                    }
+                }
+            }
+        }
+
+        // Ruft die normale save-Funktion auf, reicht das Snapshot-Array weiter
+        $this->save($cartService, $snapshotPaths);
+    }
+
+    public function save(CartService $cartService, $snapshotPath = null)
     {
         if ($this->context === 'preview') return;
 
@@ -368,6 +407,7 @@ class Configurator extends Component
             'is_digital' => $this->isDigital,
             'variant_id' => $this->variantId,
             'variant_name' => $this->variantName,
+            'snapshot_path' => $snapshotPath,
         ];
 
         if ($this->context !== 'template_admin') {

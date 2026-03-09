@@ -17,16 +17,18 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
     public array $data;
     protected ?string $pdfPath;
     public ?string $xmlPath;
+    public array $snapshotPaths;
 
     /**
      * Create a new message instance.
      * Wir machen xmlPath optional (= null), damit alter Code (z.B. QuoteRequests) nicht kaputt geht.
      */
-    public function __construct(array $data, ?string $pdfPath = null, ?string $xmlPath = null)
+    public function __construct(array $data, ?string $pdfPath = null, ?string $xmlPath = null, array $snapshotPaths = [])
     {
         $this->data = $data;
         $this->pdfPath = $pdfPath;
         $this->xmlPath = $xmlPath;
+        $this->snapshotPaths = $snapshotPaths;
     }
 
     public function envelope(): Envelope
@@ -66,6 +68,17 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
             $attachments[] = Attachment::fromPath($this->xmlPath)
                 ->as($filename)
                 ->withMime('application/xml');
+        }
+
+        // 3. Snapshots anhängen
+        if (!empty($this->snapshotPaths)) {
+            foreach ($this->snapshotPaths as $index => $snapshotPath) {
+                if (file_exists($snapshotPath)) {
+                    $attachments[] = Attachment::fromPath($snapshotPath)
+                        ->as('Bestell-Sicherung-' . ($index + 1) . '.jpg')
+                        ->withMime('image/jpeg');
+                }
+            }
         }
 
         return $attachments;

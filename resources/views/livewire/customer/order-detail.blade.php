@@ -112,6 +112,31 @@
                                             @endforeach
                                         </div>
                                     @endif
+
+                                    {{-- Snapshot-Nachweis --}}
+                                    @if(!empty($item->configuration['snapshot_path']))
+                                        @php
+                                            $snapshots = is_array($item->configuration['snapshot_path']) 
+                                                ? $item->configuration['snapshot_path'] 
+                                                : ['Konfiguration' => $item->configuration['snapshot_path']];
+                                        @endphp
+                                        <div class="mt-4">
+                                            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Ihre Konfiguration (Sicherung)</p>
+                                            <div class="flex gap-4 flex-wrap">
+                                            @foreach($snapshots as $side => $path)
+                                                <a href="{{ asset('storage/' . $path) }}" target="_blank" class="block w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-shadow group relative">
+                                                    <img src="{{ asset('storage/' . $path) }}" alt="Ihre Konfiguration ({{ ucfirst($side) }})" title="Sicherung {{ ucfirst($side) }}" class="w-full h-full object-cover bg-gray-50">
+                                                    <div class="absolute inset-0 bg-black/5 group-hover:bg-black/20 flex flex-col items-center justify-center transition-colors">
+                                                        <svg class="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                                                        @if(count($snapshots) > 1)
+                                                        <span class="text-[9px] font-bold text-white uppercase tracking-wider drop-shadow-md opacity-0 group-hover:opacity-100">{{ $side === 'front' ? 'Vorderseite' : ($side === 'back' ? 'Rückseite' : ucfirst($side)) }}</span>
+                                                        @endif
+                                                    </div>
+                                                </a>
+                                            @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
                             </li>
                         @endforeach
@@ -224,6 +249,51 @@
                                     </a>
                                 </div>
                             @endforeach
+
+                            {{-- Configurator Snapshots als Dokumente --}}
+                            @php
+                                $allSnapshots = [];
+                                foreach($order->items as $item) {
+                                    if (!empty($item->configuration['snapshot_path'])) {
+                                        $paths = is_array($item->configuration['snapshot_path']) 
+                                            ? $item->configuration['snapshot_path'] 
+                                            : ['Konfiguration' => $item->configuration['snapshot_path']];
+                                            
+                                        foreach($paths as $side => $path) {
+                                            $label = count($paths) > 1 
+                                                ? $item->product_name . ' (' . ($side === 'front' ? 'Vorder-' : ($side === 'back' ? 'Rückseite' : ucfirst($side))) . ')'
+                                                : $item->product_name . ' (Sicherung)';
+                                                
+                                            $allSnapshots[] = [
+                                                'label' => $label,
+                                                'path' => $path,
+                                                'date' => $order->created_at->format('d.m.Y')
+                                            ];
+                                        }
+                                    }
+                                }
+                            @endphp
+
+                            @foreach($allSnapshots as $snap)
+                                <div class="flex items-center justify-between p-3 rounded-lg border border-blue-100 bg-blue-50/50 hover:shadow-sm transition">
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-blue-500">
+                                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-gray-900 line-clamp-1" title="{{ $snap['label'] }}">
+                                                {{ Str::limit($snap['label'], 25) }}
+                                            </p>
+                                            <p class="text-xs text-blue-600/70">{{ $snap['date'] }}</p>
+                                        </div>
+                                    </div>
+
+                                    <a href="{{ asset('storage/' . $snap['path']) }}" download target="_blank" class="p-2 text-blue-400 hover:text-blue-600 transition" title="Bild Herunterladen">
+                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    </a>
+                                </div>
+                            @endforeach
+
                         </div>
                     @endif
                 </div>

@@ -236,7 +236,107 @@
                 }
             },
 
-            loadDesign() {
+            // NEU: Snapshot Capture vor dem Speichern in den Warenkorb
+            async submitConfig() {
+                this.isSaving = true;
+                this.selectedIndex = null;
+                this.selectedType = null;
+                this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
+                
+                // Kurze Pause, damit die UI (Hervorhebungsboxen etc.) verschwindet
+                await new Promise(r => setTimeout(r, 100));
+
+                let snapshotBase64 = null;
+                let snapshotBackBase64 = null;
+
+                // 1. Snapshot erstellen
+                try {
+                    if (window._threeEngineInstance && window._threeEngineInstance.renderer && this.config.modelPath) {
+                        if (this.config.has_back_side) {
+                            const origX = window._threeEngineInstance.camera.position.x;
+                            const origZ = window._threeEngineInstance.camera.position.z;
+                            let camFrontX = origX;
+                            let camFrontZ = origZ;
+                            if (this.activeSide === 'back') {
+                                camFrontX = origX * -1;
+                                camFrontZ = origZ * -1;
+                            }
+
+                            // Front Snapshot
+                            window._threeEngineInstance.camera.position.x = camFrontX;
+                            window._threeEngineInstance.camera.position.z = camFrontZ;
+                            window._threeEngineInstance.controls.update();
+                            window._threeEngineInstance.renderer.render(window._threeEngineInstance.scene, window._threeEngineInstance.camera);
+                            snapshotBase64 = window._threeEngineInstance.renderer.domElement.toDataURL('image/jpeg', 0.85);
+
+                            // Back Snapshot
+                            window._threeEngineInstance.camera.position.x = camFrontX * -1;
+                            window._threeEngineInstance.camera.position.z = camFrontZ * -1;
+                            window._threeEngineInstance.controls.update();
+                            window._threeEngineInstance.renderer.render(window._threeEngineInstance.scene, window._threeEngineInstance.camera);
+                            snapshotBackBase64 = window._threeEngineInstance.renderer.domElement.toDataURL('image/jpeg', 0.85);
+
+                            // Restore
+                            window._threeEngineInstance.camera.position.x = origX;
+                            window._threeEngineInstance.camera.position.z = origZ;
+                            window._threeEngineInstance.controls.update();
+                        } else {
+                            window._threeEngineInstance.renderer.render(window._threeEngineInstance.scene, window._threeEngineInstance.camera);
+                            snapshotBase64 = window._threeEngineInstance.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                        }
+                    } else {
+                        // 2D-Fallback-Modus
+                        if (!window.html2canvas) {
+                            console.log("Loading html2canvas dynamically...");
+                            await new Promise((resolve) => {
+                                const script = document.createElement('script');
+                                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                                script.onload = resolve;
+                                script.onerror = resolve;
+                                document.head.appendChild(script);
+                            });
+                        }
+
+                        if (window.html2canvas) {
+                            const containerToCapture = this.$refs.container || document.querySelector('.configurator-2d-preview');
+                            if (containerToCapture) {
+                                if (this.config.has_back_side) {
+                                    let origSide = this.activeSide;
+                                    
+                                    this.activeSide = 'front';
+                                    await new Promise(r => setTimeout(r, 200)); // wait for DOM
+                                    let canvasF = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: null, scale: 2 });
+                                    snapshotBase64 = canvasF.toDataURL('image/jpeg', 0.85);
+
+                                    this.activeSide = 'back';
+                                    await new Promise(r => setTimeout(r, 200)); // wait for DOM
+                                    let canvasB = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: null, scale: 2 });
+                                    snapshotBackBase64 = canvasB.toDataURL('image/jpeg', 0.85);
+
+                                    this.activeSide = origSide;
+                                    await new Promise(r => setTimeout(r, 100)); // restore
+                                } else {
+                                    let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: null, scale: 2 });
+                                    snapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.error("Konnte keinen Snapshot erstellen:", e);
+                }
+
+                // 2. An Livewire übergeben
+                let payload = {};
+                if (snapshotBase64) payload.front = snapshotBase64;
+                if (snapshotBackBase64) payload.back = snapshotBackBase64;
+
+                $wire.saveWithSnapshot(payload).finally(() => {
+                    this.isSaving = false;
+                });
+            },
+
+            loadSavedDesign() {
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
                 const savedData = localStorage.getItem(storageKey);
 

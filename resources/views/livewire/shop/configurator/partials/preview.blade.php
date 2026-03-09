@@ -133,7 +133,7 @@
 
                         <div class="relative transition-all rounded-lg ring-2" :class="selectedIndex===index && context!=='preview'?'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg':'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}'">
                             <template x-if="currentLogos[index] !== undefined">
-                                <img :src="currentLogos[index].url" class="w-full h-auto pointer-events-none opacity-90 drop-shadow-md rounded-lg {{ $isDark ? 'filter invert brightness-0' : '' }}">
+                                <img crossorigin="anonymous" :src="currentLogos[index].url" class="w-full h-auto pointer-events-none opacity-90 drop-shadow-md rounded-lg {{ $isDark ? 'filter invert brightness-0' : '' }}">
                             </template>
 
                             <template x-if="selectedIndex===index && context!=='preview' && currentLogos[index] !== undefined">

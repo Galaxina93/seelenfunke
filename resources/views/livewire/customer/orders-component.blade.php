@@ -269,6 +269,50 @@
                                             </a>
                                         </div>
                                     @endforeach
+
+                                    {{-- Configurator Snapshots als Dokumente --}}
+                                    @php
+                                        $allSnapshots = [];
+                                        foreach($selectedOrder->items as $item) {
+                                            if (!empty($item->configuration['snapshot_path'])) {
+                                                $paths = is_array($item->configuration['snapshot_path']) 
+                                                    ? $item->configuration['snapshot_path'] 
+                                                    : ['Konfiguration' => $item->configuration['snapshot_path']];
+                                                    
+                                                foreach($paths as $side => $path) {
+                                                    $label = count($paths) > 1 
+                                                        ? $item->product_name . ' (' . ($side === 'front' ? 'Vorder-' : ($side === 'back' ? 'Rückseite' : ucfirst($side))) . ')'
+                                                        : $item->product_name . ' (Sicherung)';
+                                                        
+                                                    $allSnapshots[] = [
+                                                        'label' => $label,
+                                                        'path' => $path,
+                                                        'date' => $selectedOrder->created_at->format('d.m.Y')
+                                                    ];
+                                                }
+                                            }
+                                        }
+                                    @endphp
+
+                                    @foreach($allSnapshots as $snap)
+                                        <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-gray-700 bg-gray-800/50 hover:bg-gray-800 hover:border-primary/50">
+                                            <div class="flex items-center gap-4">
+                                                <div class="text-primary">
+                                                    <svg class="w-8 h-8 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-bold tracking-wider text-white group-hover:text-primary transition-colors line-clamp-1" title="{{ $snap['label'] }}">
+                                                        {{ Str::limit($snap['label'], 25) }}
+                                                    </p>
+                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ $snap['date'] }}</p>
+                                                </div>
+                                            </div>
+
+                                            <a href="{{ asset('storage/' . $snap['path']) }}" download target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg" title="Herunterladen">
+                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            </a>
+                                        </div>
+                                    @endforeach
                                 </div>
                             @endif
                         </div>

@@ -51,11 +51,12 @@ class FinancialService
             $specialIncome = $netSpecialSum;   // z.B. +5.00 (falls man Plus gemacht hat)
         }
 
-        // 3. Shop Umsätze
-        $shopRevenue = Order::whereYear('created_at', $year)
-            ->whereMonth('created_at', $month)
-            ->where('payment_status', 'paid')
-            ->sum('total_price');
+        // 3. Shop Umsätze (Basis: Rechnungen statt Bestellungen)
+        $shopRevenue = \App\Models\Invoice::whereYear('invoice_date', $year)
+            ->whereMonth('invoice_date', $month)
+            ->whereIn('status', ['paid', 'cancelled'])
+            ->whereIn('type', ['invoice', 'cancellation'])
+            ->sum('total');
 
         $shopIncome = $shopRevenue / 100; // Umrechnung Cent -> Euro
 
@@ -149,17 +150,18 @@ class FinancialService
             $structure[$catKey]['items'][$groupName]['year_sum'] += $special->amount;
         }
 
-        // 3. Shop
-        $shopOrders = Order::whereYear('created_at', $year)
-            ->where('payment_status', 'paid')
-            ->selectRaw('MONTH(created_at) as month, SUM(total_price) as total')
+        // 3. Shop (Basis: Rechnungen)
+        $shopInvoices = \App\Models\Invoice::whereYear('invoice_date', $year)
+            ->whereIn('status', ['paid', 'cancelled'])
+            ->whereIn('type', ['invoice', 'cancellation'])
+            ->selectRaw('MONTH(invoice_date) as month, SUM(total) as total')
             ->groupBy('month')
             ->get();
 
         $shopRow = ['name' => 'Online Shop', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
-        foreach($shopOrders as $orderAgg) {
-            $m = $orderAgg->month;
-            $amount = $orderAgg->total / 100;
+        foreach($shopInvoices as $invoiceAgg) {
+            $m = $invoiceAgg->month;
+            $amount = $invoiceAgg->total / 100;
 
             $structure['shop_income']['months'][$m] += $amount;
             $structure['shop_income']['year_sum'] += $amount;
@@ -247,15 +249,22 @@ class FinancialService
             }
         }
 
-        // Shop Orders
-        $orders = Order::whereBetween('created_at', [$from, $to])
-            ->where('payment_status', 'paid')
+        // Shop Invoices (anstatt Orders)
+        $invoices = \App\Models\Invoice::whereBetween('invoice_date', [$from, $to])
+            ->whereIn('status', ['paid', 'cancelled'])
+            ->whereIn('type', ['invoice', 'cancellation'])
             ->get();
 
-        foreach($orders as $order) {
-            $key = $isMonthly ? $order->created_at->format('Y-m') : $order->created_at->format('Y-m-d');
+        foreach($invoices as $invoice) {
+            $key = $isMonthly ? $invoice->invoice_date->format('Y-m') : $invoice->invoice_date->format('Y-m-d');
             if(isset($days[$key])) {
-                $days[$key]['income'] += ($order->total_price / 100);
+                $amountEuro = $invoice->total / 100;
+                // Positive Beträge (Einnahmen) zu income, negative (Stornos) zu expense
+                if ($amountEuro >= 0) {
+                    $days[$key]['income'] += $amountEuro;
+                } else {
+                    $days[$key]['expense'] += abs($amountEuro);
+                }
             }
         }
 

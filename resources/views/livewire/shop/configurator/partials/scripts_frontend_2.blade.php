@@ -53,7 +53,8 @@
                 precision: 'highp',
                 powerPreference: 'high-performance',
                 stencil: false,
-                depth: true
+                depth: true,
+                preserveDrawingBuffer: true
             });
 
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);

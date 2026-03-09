@@ -170,29 +170,64 @@
                 <div class="p-5 space-y-3 bg-gray-900/30">
                     @php
                         // Dateien aus der Konfiguration sammeln
-                        $files = $previewItem->configuration['files'] ?? [];
-                        $logoPath = $previewItem->configuration['logo_storage_path'] ?? null;
+                        $files = $previewItem ? ($previewItem->configuration['files'] ?? []) : [];
+                        $logoPath = $previewItem ? ($previewItem->configuration['logo_storage_path'] ?? null) : null;
+                        $snapshotPath = $previewItem ? ($previewItem->configuration['snapshot_path'] ?? null) : null;
+                        
+                        $allFiles = [];
 
                         // Wenn Logo existiert und noch nicht in der Liste ist, hinzufügen
-                        if($logoPath && !in_array($logoPath, $files)) {
-                            array_unshift($files, $logoPath);
+                        if($logoPath) {
+                            $allFiles[] = [
+                                'label' => 'Kunden-Logo',
+                                'path' => $logoPath,
+                                'ext' => pathinfo($logoPath, PATHINFO_EXTENSION)
+                            ];
+                        }
+
+                        // Reguläre Dateien anhängen
+                        foreach ($files as $f) {
+                            $allFiles[] = [
+                                'label' => basename($f),
+                                'path' => $f,
+                                'ext' => pathinfo($f, PATHINFO_EXTENSION)
+                            ];
+                        }
+                        
+                        // Snapshot als separaten bewertbaren Download hinzufügen
+                        if(!empty($snapshotPath)) {
+                            if (is_array($snapshotPath)) {
+                                foreach($snapshotPath as $side => $s) {
+                                    $label = 'Sicherung (' . ($side === 'front' ? 'Vorderseite' : ($side === 'back' ? 'Rückseite' : ucfirst($side))) . ')';
+                                    array_unshift($allFiles, [
+                                        'label' => $label,
+                                        'path' => $s,
+                                        'ext' => pathinfo($s, PATHINFO_EXTENSION)
+                                    ]);
+                                }
+                            } else {
+                                array_unshift($allFiles, [
+                                    'label' => 'Sicherung (Konfiguration)',
+                                    'path' => $snapshotPath,
+                                    'ext' => pathinfo($snapshotPath, PATHINFO_EXTENSION)
+                                ]);
+                            }
                         }
                     @endphp
 
-                    @forelse($files as $path)
+                    @forelse($allFiles as $fileObj)
                         <div class="flex items-center justify-between p-3.5 rounded-2xl border border-gray-800 bg-gray-950 hover:bg-gray-800 hover:border-gray-700 transition-colors group shadow-inner">
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="h-12 w-12 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
-                                    @php $ext = pathinfo($path, PATHINFO_EXTENSION); @endphp
-                                    <span class="text-[11px] font-black uppercase tracking-wider">{{ $ext }}</span>
+                                    <span class="text-[11px] font-black uppercase tracking-wider">{{ $fileObj['ext'] }}</span>
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="text-sm font-bold text-white truncate">{{ basename($path) }}</p>
+                                    <p class="text-sm font-bold text-white truncate">{{ $fileObj['label'] }}</p>
                                     <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5">Hinterlegt am {{ $model->created_at->format('d.m.Y') }}</p>
                                 </div>
                             </div>
-                            <a href="{{ asset('storage/'.$path) }}"
-                               download="{{ basename($path) }}"
+                            <a href="{{ asset('storage/'.$fileObj['path']) }}"
+                               download="{{ $fileObj['label'] . '.' . $fileObj['ext'] }}"
                                target="_blank"
                                class="ml-4 p-3 bg-gray-800 text-gray-400 rounded-xl hover:bg-primary hover:text-gray-900 hover:shadow-[0_0_15px_rgba(197,160,89,0.4)] transition-all"
                                title="Herunterladen">
