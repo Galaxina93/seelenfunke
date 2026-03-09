@@ -92,8 +92,13 @@
      class="relative w-full min-h-screen flex flex-col">
 
     @if(auth()->guard('admin')->check())
-        <div class="fixed bottom-6 right-6 z-[100] transition-all duration-500 ease-out"
-             :class="showToast ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'">
+        <div x-cloak x-show="showToast" style="display: none;" class="fixed bottom-6 right-6 z-[100]"
+             x-transition:enter="transition-all duration-500 ease-out"
+             x-transition:enter-start="translate-y-10 opacity-0 pointer-events-none"
+             x-transition:enter-end="translate-y-0 opacity-100"
+             x-transition:leave="transition-all duration-500 ease-out"
+             x-transition:leave-start="translate-y-0 opacity-100"
+             x-transition:leave-end="translate-y-10 opacity-0 pointer-events-none">
             <div class="bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer" @click="window.location.href='/admin/tickets'">
                 <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
                     <span class="text-primary text-xl">💌</span>
