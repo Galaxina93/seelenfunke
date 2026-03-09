@@ -263,7 +263,7 @@
         {{-- AUDIO BGM FUNKENFLUG --}}
         <audio x-ref="ffBgmAudio" src="{{ asset('storage/gamification/music/funkenflug.mp3') }}" loop preload="auto"></audio>
 
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 mb-6 sm:mb-8 bg-gray-900/80 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-800 shadow-lg">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-6 mb-2 sm:mb-4 bg-gray-900/80 p-3 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-800 shadow-lg">
             <div class="flex items-center gap-3 sm:gap-4 bg-gray-950 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-800 shadow-inner w-full sm:w-auto justify-center">
                 <button type="button" @click="toggleMute()" class="text-gray-400 hover:text-amber-400 transition-colors focus:outline-none shrink-0">
                     <svg x-show="isBgmPlaying" class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 12h4l4-4v16l-4-4H5a2 2 0 01-2-2v-4a2 2 0 012-2z" /></svg>
@@ -361,7 +361,7 @@
                                 <span class="text-[10px] sm:text-xs font-bold uppercase tracking-widest hidden sm:block">Pause (ESC)</span>
                             </button>
                             {{-- FULLSCREEN BUTTON --}}
-                            <button type="button" @click="toggleFullscreen()" class="text-gray-400 hover:text-amber-400 bg-gray-950/80 px-3 py-2 sm:px-4 sm:py-3 rounded-xl border border-gray-800 shadow-lg transition-colors hidden lg:flex items-center justify-center gap-2">
+                            <button type="button" @click="toggleFullscreen()" class="text-gray-400 hover:text-amber-400 bg-gray-950/80 px-3 py-2 sm:px-4 sm:py-3 rounded-xl border border-gray-800 shadow-lg transition-colors flex items-center justify-center gap-2">
                                 <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                                 </svg>
@@ -376,7 +376,7 @@
                                 </div>
 
                                 {{-- SKILL BUTTONS (Mobile & Desktop Overlay) --}}
-                                <div class="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-40 flex flex-col items-center gap-2 origin-bottom-left scale-[0.45] sm:scale-[0.55] opacity-70 hover:opacity-100 transition-opacity pointer-events-auto" x-show="gameState === 'playing'">
+                                <div class="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-40 flex flex-col items-center gap-2 origin-bottom-left scale-[0.7] sm:scale-[0.55] opacity-70 hover:opacity-100 transition-opacity pointer-events-auto" x-show="gameState === 'playing'">
                             <!-- W Button -->
                             <div class="flex justify-center w-full">
                                 <div class="flex flex-col items-center gap-1">
@@ -439,7 +439,7 @@
                             </button>
                             
                             {{-- FULLSCREEN TOGGLE IN PAUSE --}}
-                            <button type="button" @click="toggleFullscreen()" class="mt-6 text-gray-400 hover:text-amber-400 bg-gray-900 border border-gray-700 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hidden lg:flex">
+                            <button type="button" @click="toggleFullscreen()" class="mt-6 text-gray-400 hover:text-amber-400 bg-gray-900 border border-gray-700 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                                 </svg>

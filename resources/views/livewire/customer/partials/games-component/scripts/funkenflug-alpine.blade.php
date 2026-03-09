@@ -222,7 +222,9 @@ window.funkenflugExpress = function() {
             };
 
             const assets = {
-                rocket: "{{ asset('storage/gamification/images/funki_rocket.glb') }}"
+                rocket: "{{ asset('storage/gamification/images/funki_rocket.glb') }}",
+                meteor: "{{ asset('storage/gamification/images/meteorit.glb') }}",
+                sharp_stone: "{{ asset('storage/gamification/images/sharp_stone.glb') }}"
             };
 
             console.log("[Alpine] Instantiating FunkenflugEngine...");

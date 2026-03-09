@@ -174,6 +174,37 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
                 this.ship.add(this.shipModel);
             }, undefined, (e) => { console.warn("Could not load rocket GLTF, using fallback."); });
+
+            // Load Meteor GLB
+            this.meteorModel = null;
+            if (this.assets.meteor) {
+                loader.load(this.assets.meteor, (gltf) => {
+                    this.meteorModel = gltf.scene;
+                    // Standard scaling/rotation for meteor
+                    this.meteorModel.scale.set(1.5, 1.5, 1.5);
+                    this.meteorModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                }, undefined, (e) => { console.warn("Could not load meteor GLTF."); });
+            }
+
+            // Load Sharp Stone GLB
+            this.sharpstoneModel = null;
+            if (this.assets.sharp_stone) {
+                loader.load(this.assets.sharp_stone, (gltf) => {
+                    this.sharpstoneModel = gltf.scene;
+                    this.sharpstoneModel.scale.set(1.5, 1.5, 1.5);
+                    this.sharpstoneModel.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                }, undefined, (e) => { console.warn("Could not load sharp stone GLTF."); });
+            }
         }
 
         // Initialize materials for pools
@@ -211,10 +242,15 @@ window.FunkenflugEngine = class FunkenflugEngine {
         m.visible = false; this.scene.add(m); return m;
     }
     createEnemyMesh() {
-        // Pool stores generic meshes that are reconfigured at spawn
-        const m = new THREE.Mesh(this.geomEnemy[0], this.matEnemy[0]);
-        m.visible = false; m.userData = { type: 0, hp: 0, radius: 1.5, isWall: false };
-        this.scene.add(m); return m;
+        // Pool stores generic GROUPs now, so we can swap in GLTF or fallback Mesh easily
+        const container = new THREE.Group();
+        const fallback = new THREE.Mesh(this.geomEnemy[0], this.matEnemy[0]);
+        container.add(fallback);
+        
+        container.visible = false; 
+        container.userData = { type: 0, hp: 0, radius: 1.5, isWall: false, meshFallback: fallback, meshGlb: null };
+        this.scene.add(container); 
+        return container;
     }
     createCollectMesh() {
         const m = new THREE.Mesh(this.geomCollect, this.matCollect[0]);
@@ -362,6 +398,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
             return true;
         }
         else if (index === 2) { // Teleport
+            if (this.activeSkills.teleport && this.activeSkills.teleport.waitingForClick) return false;
             this.timeScale = 0.1; // Slow motion!
             this.activeSkills.teleport.waitingForClick = true;
 
@@ -440,8 +477,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
         // Progression
         if (this.timeScale === 1.0) {
-            this.currentSpeed = this.baseSpeed + (this.distance / 1000); // gets faster
-            this.distance += this.currentSpeed * dtRaw * 5;
+            this.currentSpeed = this.baseSpeed + (this.distance / 500); // gets faster FASTER
+            this.distance += this.currentSpeed * dtRaw * 8; // Global game speed up
             this.callbacks.onDistanceUpdate(this.distance);
         }
 
@@ -572,26 +609,58 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.enemySpawnTimer -= dt;
         this.collectibleSpawnTimer -= dt;
 
-        let spawnRate = Math.max(0.2, 0.7 - (this.distance / 15000)); // Higher quantity, faster spawns
+        let spawnRate = Math.max(0.1, 0.5 - (this.distance / 10000)); // Higher quantity, much faster spawns
 
         if (this.enemySpawnTimer <= 0) {
             if(this.pools.enemies.length > 0) {
                 let m = this.pools.enemies.pop();
                 let seed = Math.random();
-                let extraHp = Math.floor(this.distance / 4000); // Enemies get tougher over time
+                let extraHp = Math.floor(this.distance / 3000); // Enemies get tougher over time
+
+                // Clean up previous GLB if any
+                if(m.userData.meshGlb) {
+                    m.remove(m.userData.meshGlb);
+                    m.userData.meshGlb = null;
+                }
 
                 if (seed < 0.15 + (this.distance / 50000)) {
-                    // Tough purple enemy (becomes more common over time)
+                    // Tough purple enemy (Sharp Stone or fallback)
                     m.userData.type = 1; m.userData.hp = 3 + (extraHp * 2); m.userData.isWall = false;
-                    m.material = this.matEnemy[1]; m.geometry = this.geomEnemy[1];
-                    m.scale.set(1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1)); m.userData.radius = 1.8 + (extraHp * 0.1);
-                    m.position.set((Math.random() - 0.5) * 30, 35, 0);
+                    
+                    if (this.sharpstoneModel) {
+                        m.userData.meshFallback.visible = false;
+                        let clone = this.sharpstoneModel.clone();
+                        clone.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                        m.userData.meshGlb = clone;
+                        m.add(clone);
+                        m.scale.set(1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1));
+                    } else {
+                        m.userData.meshFallback.material = this.matEnemy[1]; 
+                        m.userData.meshFallback.geometry = this.geomEnemy[1];
+                        m.userData.meshFallback.visible = true;
+                        m.scale.set(1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1)); 
+                    }
+                    m.userData.radius = 1.8 + (extraHp * 0.1);
+                    m.position.set((Math.random() - 0.5) * 30, 35, 0); // Spawn exactly on Z=0, Y=35 plane
                 } else {
-                    // Normal red meteor
+                    // Normal Meteor
                     m.userData.type = 0; m.userData.hp = 1 + extraHp; m.userData.isWall = false;
-                    m.material = this.matEnemy[0]; m.geometry = this.geomEnemy[0];
-                    m.scale.set(1,1,1); m.userData.radius = 1.5;
-                    m.position.set((Math.random() - 0.5) * 30, 35, 0);
+                    
+                    if (this.meteorModel) {
+                        m.userData.meshFallback.visible = false;
+                        let clone = this.meteorModel.clone();
+                        clone.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                        m.userData.meshGlb = clone;
+                        m.add(clone);
+                        m.scale.set(1.5, 1.5, 1.5);
+                    } else {
+                        m.userData.meshFallback.material = this.matEnemy[0]; 
+                        m.userData.meshFallback.geometry = this.geomEnemy[0];
+                        m.userData.meshFallback.visible = true;
+                        m.scale.set(1,1,1); 
+                    }
+                    m.userData.radius = 1.5;
+                    m.position.set((Math.random() - 0.5) * 30, 35, 0); // Spawn exactly on Z=0, Y=35 plane
                 }
 
                 m.visible = true;
@@ -665,11 +734,25 @@ window.FunkenflugEngine = class FunkenflugEngine {
         const baseFallSpeed = (this.currentSpeed * 1.5) * dt; // Increased game speed
         for(let i=this.enemies.length-1; i>=0; i--) {
             let e = this.enemies[i];
-            let fallSpeed = e.userData.isWall ? (15 * dt) : baseFallSpeed;
-            e.position.y -= fallSpeed;
-            if(!e.userData.isWall) { e.rotation.x += 1 * dt; e.rotation.y += 2 * dt; }
+            let fallSpeedY = e.userData.isWall ? (15 * dt) : baseFallSpeed;
+
+            e.position.y -= fallSpeedY;
+            e.position.z = 0; // Lock perfectly onto 2D Plane Z=0
+
+            if(!e.userData.isWall) { 
+                if (e.userData.meshGlb) {
+                    e.userData.meshGlb.rotation.x += 1 * dt; 
+                    e.userData.meshGlb.rotation.y += 2 * dt; 
+                } else if (e.userData.meshFallback) {
+                    e.userData.meshFallback.rotation.x += 1 * dt; 
+                    e.userData.meshFallback.rotation.y += 2 * dt; 
+                }
+            }
+
             if(e.position.y < -20) {
-                e.visible = false; this.pools.enemies.push(e); this.enemies.splice(i, 1);
+                e.visible = false; 
+                this.pools.enemies.push(e); 
+                this.enemies.splice(i, 1);
             }
         }
 
@@ -703,7 +786,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
             let hit = false;
             for(let j=this.enemies.length-1; j>=0; j--) {
                 let em = this.enemies[j];
-                if (b.position.distanceToSquared(em.position) < Math.pow(em.userData.radius + 0.5, 2)) {
+                const dx = b.position.x - em.position.x;
+                const dy = b.position.y - em.position.y;
+                if ((dx * dx + dy * dy) < Math.pow(em.userData.radius + 0.5, 2)) {
                     hit = true;
                     // Apply DMG
                     em.userData.hp -= 1;
@@ -751,12 +836,13 @@ window.FunkenflugEngine = class FunkenflugEngine {
             const collisionDist = this.activeSkills.shield.active ? 3.0 : this.shipBounds;
 
             let hit = false;
+            const dx = this.ship.position.x - em.position.x;
+            const dy = this.ship.position.y - em.position.y;
+
             if (em.userData.isWall) {
-                const dx = Math.abs(this.ship.position.x - em.position.x);
-                const dy = Math.abs(this.ship.position.y - em.position.y);
-                if (dx < 16 + collisionDist && dy < 0.75 + collisionDist) hit = true;
+                if (Math.abs(dx) < 16 + collisionDist && Math.abs(dy) < 0.75 + collisionDist) hit = true;
             } else {
-                if (this.ship.position.distanceToSquared(em.position) < Math.pow(collisionDist + em.userData.radius, 2)) hit = true;
+                if ((dx * dx + dy * dy) < Math.pow(collisionDist + em.userData.radius, 2)) hit = true;
             }
 
             if (hit) {
@@ -784,7 +870,14 @@ window.FunkenflugEngine = class FunkenflugEngine {
     killEnemy(enemyMesh, index) {
         this.audio.playExplosion();
         // Explosion particles
-        for(let k=0; k<15; k++) this.spawnParticle(enemyMesh.position, enemyMesh.material.color.getHex());
+        let color = 0xffffff;
+        if(enemyMesh.userData.meshFallback && enemyMesh.userData.meshFallback.material) {
+            color = enemyMesh.userData.meshFallback.material.color.getHex();
+        } else if (enemyMesh.material) {
+            color = enemyMesh.material.color.getHex();
+        }
+        
+        for(let k=0; k<15; k++) this.spawnParticle(enemyMesh.position, color);
 
         enemyMesh.visible = false;
         this.pools.enemies.push(enemyMesh);
