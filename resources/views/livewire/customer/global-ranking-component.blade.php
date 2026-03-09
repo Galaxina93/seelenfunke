@@ -39,6 +39,11 @@
                     </a>
                     <h1 class="text-4xl sm:text-5xl md:text-6xl font-serif font-black text-white drop-shadow-lg tracking-tight">Halle der Legenden</h1>
                     <p class="text-amber-400/80 mt-3 text-xs sm:text-sm uppercase tracking-[0.3em] font-bold">Die glorreichen Top 50 der Manufaktur</p>
+
+                    <div class="flex flex-wrap justify-center gap-4 mt-8">
+                        <button wire:click="$set('activeTab', 'classic')" class="px-6 py-2 rounded-full font-bold uppercase tracking-widest text-xs transition-colors border {{ $activeTab === 'classic' ? 'bg-amber-500 text-gray-900 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500' }}">Klassisch</button>
+                        <button wire:click="$set('activeTab', 'funkenflug')" class="px-6 py-2 rounded-full font-bold uppercase tracking-widest text-xs transition-colors border {{ $activeTab === 'funkenflug' ? 'bg-indigo-500 text-white border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500' }}">Funkenflug Express</button>
+                    </div>
                 </div>
 
                 @php
@@ -59,7 +64,11 @@
                                 <div class="w-16 h-16 mx-auto bg-slate-800 rounded-full flex items-center justify-center text-slate-300 font-serif font-black text-2xl mb-4 border-2 border-slate-500 shadow-inner">2</div>
                                 <h3 class="text-white font-bold text-lg truncate">{{ $p2->customer->first_name }} {{ substr($p2->customer->last_name, 0, 1) }}.</h3>
                                 <p class="text-slate-400 text-xs font-black uppercase tracking-widest mt-2">Level {{ $p2->level }}</p>
-                                <p class="text-slate-500 text-[10px] font-bold mt-1">{{ number_format($p2->funken_total_earned, 0, ',', '.') }} Funken</p>
+                                @if($activeTab === 'funkenflug')
+                                    <p class="text-indigo-400/80 text-[10px] font-bold mt-1">{{ number_format($p2->funkenflug_highscore, 0, ',', '.') }} m Distanz</p>
+                                @else
+                                    <p class="text-slate-500 text-[10px] font-bold mt-1">{{ number_format($p2->funken_total_earned, 0, ',', '.') }} Funken</p>
+                                @endif
                             </div>
                         @endif
 
@@ -72,7 +81,11 @@
                             <div class="w-20 h-20 mx-auto bg-amber-900/50 rounded-full flex items-center justify-center text-amber-400 font-serif font-black text-4xl mb-4 mt-2 border-4 border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.5)]">1</div>
                             <h3 class="text-white font-black text-xl md:text-2xl truncate drop-shadow-md">{{ $p1->customer->first_name }} {{ substr($p1->customer->last_name, 0, 1) }}.</h3>
                             <p class="text-amber-400 text-sm font-black uppercase tracking-[0.2em] mt-2 drop-shadow-[0_0_8px_currentColor]">Level {{ $p1->level }}</p>
-                            <p class="text-amber-500/70 text-xs font-bold mt-1">{{ number_format($p1->funken_total_earned, 0, ',', '.') }} Funken gesamt</p>
+                            @if($activeTab === 'funkenflug')
+                                <p class="text-indigo-400/90 text-xs font-bold mt-1">{{ number_format($p1->funkenflug_highscore, 0, ',', '.') }} m Distanz gesamt!</p>
+                            @else
+                                <p class="text-amber-500/70 text-xs font-bold mt-1">{{ number_format($p1->funken_total_earned, 0, ',', '.') }} Funken gesamt</p>
+                            @endif
                         </div>
 
                         {{-- PLATZ 3 (Bronze) --}}
@@ -83,7 +96,11 @@
                                 <div class="w-16 h-16 mx-auto bg-orange-950 rounded-full flex items-center justify-center text-orange-400 font-serif font-black text-2xl mb-4 border-2 border-orange-700 shadow-inner">3</div>
                                 <h3 class="text-white font-bold text-lg truncate">{{ $p3->customer->first_name }} {{ substr($p3->customer->last_name, 0, 1) }}.</h3>
                                 <p class="text-orange-400 text-xs font-black uppercase tracking-widest mt-2">Level {{ $p3->level }}</p>
-                                <p class="text-orange-500/60 text-[10px] font-bold mt-1">{{ number_format($p3->funken_total_earned, 0, ',', '.') }} Funken</p>
+                                @if($activeTab === 'funkenflug')
+                                    <p class="text-indigo-400/80 text-[10px] font-bold mt-1">{{ number_format($p3->funkenflug_highscore, 0, ',', '.') }} m Distanz</p>
+                                @else
+                                    <p class="text-orange-500/60 text-[10px] font-bold mt-1">{{ number_format($p3->funken_total_earned, 0, ',', '.') }} Funken</p>
+                                @endif
                             </div>
                         @endif
                     </div>
@@ -98,7 +115,7 @@
                                 <th class="px-6 py-5 w-16 text-center">Rang</th>
                                 <th class="px-6 py-5">Legende</th>
                                 <th class="px-6 py-5 text-center">Level</th>
-                                <th class="px-6 py-5 text-right">Verdiente Funken</th>
+                                <th class="px-6 py-5 text-right">{{ $activeTab === 'funkenflug' ? 'Highscore (m)' : 'Verdiente Funken' }}</th>
                             </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-800/50">
@@ -122,7 +139,11 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-right text-gray-400 font-mono text-xs sm:text-sm">
-                                        {{ number_format($r->funken_total_earned, 0, ',', '.') }} ✨
+                                        @if($activeTab === 'funkenflug')
+                                            {{ number_format($r->funkenflug_highscore, 0, ',', '.') }} m 🚀
+                                        @else
+                                            {{ number_format($r->funken_total_earned, 0, ',', '.') }} ✨
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach

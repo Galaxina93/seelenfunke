@@ -11,6 +11,7 @@ use Livewire\Attributes\Layout;
 class GlobalRankingComponent extends Component
 {
     public $hasOptedIn = false;
+    public $activeTab = 'classic';
 
     public function mount()
     {
@@ -43,13 +44,19 @@ class GlobalRankingComponent extends Component
 
         // Rangliste nur laden, wenn der Kunde eingewilligt hat (Performance & Datenschutz)
         if ($this->hasOptedIn) {
-            $rankings = CustomerGamification::with('customer')
+            $query = CustomerGamification::with('customer')
                 ->where('is_active', true)
-                ->where('ranking_opt_in', true)
-                ->orderBy('level', 'desc')
-                ->orderBy('funken_total_earned', 'desc')
-                ->take(50)
-                ->get();
+                ->where('ranking_opt_in', true);
+
+            if ($this->activeTab === 'funkenflug') {
+                $query->where('funkenflug_highscore', '>', 0)
+                      ->orderBy('funkenflug_highscore', 'desc');
+            } else {
+                $query->orderBy('level', 'desc')
+                      ->orderBy('funken_total_earned', 'desc');
+            }
+
+            $rankings = $query->take(50)->get();
         }
 
         return view('livewire.customer.global-ranking-component', [

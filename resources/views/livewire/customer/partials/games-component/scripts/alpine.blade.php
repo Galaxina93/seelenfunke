@@ -6,13 +6,13 @@ activeGame: null,
 score: 0,
 moves: 15,
 gameState: 'ready',
-bgmVolume: 0.1,
+bgmVolumeUi: 20,
 isBgmPlaying: false,
 energyWarning: false,
 
 init() {
-this.$watch('bgmVolume', val => {
-if (this.$refs.bgmAudio) this.$refs.bgmAudio.volume = val;
+this.$watch('bgmVolumeUi', val => {
+if (this.$refs.bgmAudio) this.$refs.bgmAudio.volume = (val / 100) * 0.3;
 });
 
 this.$watch('activeGame', value => {
@@ -41,7 +41,7 @@ this.isBgmPlaying = false;
 }
 if (engine) engine.clearBoard();
 this.gameState = 'ready';
-this.activeGame = null;
+if (this.activeGame === 'kristall') { this.activeGame = null; }
 },
 
 async attemptStartGame() {
@@ -86,6 +86,13 @@ onMoveUsed: () => {
 if (this.moves > 0) this.moves--;
 if(this.moves <= 0 && this.gameState !== 'gameover') {
 this.gameState = 'gameover';
+
+// Stop music
+if (this.$refs.bgmAudio) {
+this.$refs.bgmAudio.pause();
+this.isBgmPlaying = false;
+}
+
 let earnedFunken = Math.floor(this.score / 100);
 if (earnedFunken > 0) { try { this.$wire.rewardGameSparks(earnedFunken); } catch(e) {} }
 }
@@ -100,9 +107,9 @@ startGame() {
 this.score = 0;
 this.moves = 15;
 this.gameState = 'playing';
-
 if (this.$refs.bgmAudio) {
-this.$refs.bgmAudio.volume = this.bgmVolume;
+this.$refs.bgmAudio.volume = (this.bgmVolumeUi / 100) * 0.3;
+this.$refs.bgmAudio.currentTime = 0; // Restart
 this.$refs.bgmAudio.play().then(() => { this.isBgmPlaying = true; }).catch(e => console.warn(e));
 }
 if(engine) engine.start();
