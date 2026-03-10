@@ -13,5 +13,14 @@
         @include('livewire.global.widgets.funki-analytics.partials.history')
     </div>
 
-    @include('livewire.global.widgets.funki-analytics.partials.scripts')
+    <!-- CRITICAL: wire:ignore prevents Livewire polling from destroying the WebGL Context and Alpine State -->
+    <div wire:ignore x-data="funkiView(
+        @js($this->isSystemHealthy()), 
+        @js($this->getActiveSessionsCount()), 
+        @js($stats['summary']['avg_daily_profit'] ?? 0), 
+        @js($stats['summary']['orders_total'] ?? 0),
+        @js(now()->format('H:i:s'))
+    )">
+        @include('livewire.global.widgets.funki-analytics.partials.funki_view')
+    </div>
 </div>

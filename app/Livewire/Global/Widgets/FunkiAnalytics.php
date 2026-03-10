@@ -67,6 +67,37 @@ class FunkiAnalytics extends Component
     }
 
     /**
+     * Gibt zurück, ob alle Systemdienste für die Galaxie-View "gesund" sind.
+     */
+    public function isSystemHealthy(): bool
+    {
+        if (empty($this->systemHealth)) {
+            return true;
+        }
+
+        foreach ($this->systemHealth as $service) {
+            if (isset($service['status']) && in_array($service['status'], ['error', 'warning', 'offline'])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Gibt eine Schätzung der aktuell aktiven User/Sessions für die Partikelanzahl zurück.
+     */
+    public function getActiveSessionsCount(): int
+    {
+        try {
+            // Falls Sessions in der DB liegen
+            return DB::table('sessions')->where('last_activity', '>=', now()->subMinutes(15)->timestamp)->count() + 20;
+        } catch (\Exception $e) {
+            // Fallback: Fake-Partikel für die Optik, falls Redis/File Cache etc.
+            return rand(20, 50);
+        }
+    }
+
+    /**
      * Hilfsfunktion, um System-Ausfälle in den FunkiLog zu schreiben (Max 1x pro Stunde pro Fehler)
      */
     private function logSystemFailure($serviceName, $message, $payload = [])
