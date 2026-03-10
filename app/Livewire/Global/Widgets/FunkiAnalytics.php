@@ -207,9 +207,19 @@ class FunkiAnalytics extends Component
 
         // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob)
         try {
-            $lastRun = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
-            if ($lastRun && now()->diffInMinutes($lastRun) < 10) {
-                $health['scheduler'] = ['status' => 'connected', 'value' => "Aktiv (" . now()->diffInMinutes($lastRun) . "m)", 'error' => null];
+            $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
+            if ($lastRunRaw) {
+                // Cache-Wert in Carbon umwandeln (könnte Unix-Timestamp sein)
+                $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
+                $diffMinutes = abs((int)now()->diffInMinutes($lastRun));
+                
+                if ($diffMinutes < 10) {
+                    $text = $diffMinutes == 1 ? "Minute" : "Minuten";
+                    $health['scheduler'] = ['status' => 'connected', 'value' => "Aktiv ({$diffMinutes} {$text})", 'error' => null];
+                } else {
+                    $health['scheduler'] = ['status' => 'warning', 'value' => 'Inaktiv', 'error' => 'Kein Cronjob in den letzten 10 Minuten gelaufen!'];
+                    $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
+                }
             } else {
                 $health['scheduler'] = ['status' => 'warning', 'value' => 'Inaktiv', 'error' => 'Kein Cronjob in den letzten 10 Minuten gelaufen!'];
                 $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
@@ -248,11 +258,13 @@ class FunkiAnalytics extends Component
             }
 
             if ($lastRun) {
-                $hoursAgo = now()->diffInHours($lastRun);
+                $hoursAgo = abs((int)now()->diffInHours($lastRun));
+                $text = $hoursAgo == 1 ? "Stunde" : "Stunden";
+                
                 if ($hoursAgo < 48) {
-                    $health['backup'] = ['status' => 'connected', 'value' => "Sicher ({$hoursAgo}h)", 'error' => null, 'path' => $pathInfo];
+                    $health['backup'] = ['status' => 'connected', 'value' => "Sicher ({$hoursAgo} {$text})", 'error' => null, 'path' => $pathInfo];
                 } else {
-                    $health['backup'] = ['status' => 'warning', 'value' => "Alt ({$hoursAgo}h)", 'error' => 'Letztes Backup ist älter als 48 Stunden!', 'path' => $pathInfo];
+                    $health['backup'] = ['status' => 'warning', 'value' => "Alt ({$hoursAgo} {$text})", 'error' => 'Letztes Backup ist älter als 48 Stunden!', 'path' => $pathInfo];
                     $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!');
                 }
             } else {
