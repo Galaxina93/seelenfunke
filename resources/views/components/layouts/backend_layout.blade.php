@@ -441,6 +441,8 @@
                     loop();
                 }
             };
+        }
+    }
 </script>
 </body>
 </html>
