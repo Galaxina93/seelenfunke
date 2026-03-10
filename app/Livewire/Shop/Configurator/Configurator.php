@@ -320,7 +320,7 @@ class Configurator extends Component
                 $engravingIntensity = 255 - $luminance;
                 $targetAlpha = 127 - ($engravingIntensity / 2);
                 $finalAlpha = max($alpha, $targetAlpha);
-                
+
                 // FIX: XCS benötigt "Schwarz" (#000000) für eine saubere Vektorgravur.
                 // Weiß (#FFFFFF) wird als "unsichtbar" gewertet.
                 $laserColor = imagecolorallocatealpha($laserImage, 0, 0, 0, (int)$finalAlpha);
@@ -342,8 +342,8 @@ class Configurator extends Component
     public function saveWithSnapshot($snapshotData, CartService $cartService)
     {
         $snapshotPaths = [];
-        
-        \Illuminate\Support\Facades\Log::info("saveWithSnapshot called. Data empty: " . (empty($snapshotData) ? 'YES' : 'NO'));
+
+        /*\Illuminate\Support\Facades\Log::info("saveWithSnapshot called. Data empty: " . (empty($snapshotData) ? 'YES' : 'NO'));*/
 
         if (!empty($snapshotData)) {
             if (is_array($snapshotData)) {
