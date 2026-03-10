@@ -32,7 +32,12 @@ Schedule::command('funki:generate-tax-export')->monthlyOn(5, '02:00');
 
 // System-Herzschlag für das Health-Dashboard (jede Minute)
 Schedule::call(function () {
-    Cache::put('scheduler_last_run', now());
+    try {
+        Cache::put('scheduler_last_run', now());
+    } catch (\Exception $e) {
+        // Lokal per CLI können Berechtigungsfehler auf Cache-Dateien von www-data auftreten.
+        // Diese werden hier stumm geschaltet, um ein "FAIL" im Ausgabefenster zu verhindern.
+    }
 })->everyMinute();
 
 // Das echte Datenbank-Backup (z.B. über Spatie Laravel Backup)

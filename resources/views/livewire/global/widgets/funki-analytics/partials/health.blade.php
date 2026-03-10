@@ -132,12 +132,19 @@
 
         <div class="flex items-center justify-between mb-6 ml-1">
             <h4 class="text-xs font-black uppercase tracking-[0.2em] text-gray-500">System & Infrastruktur</h4>
-            <div class="flex items-center gap-2 text-[9px] font-bold text-gray-400 bg-gray-950 px-3 py-1.5 rounded-full border border-gray-800 shadow-inner">
-                <span class="relative flex h-2 w-2">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                </span>
-                Live Monitoring
+            <div class="flex items-center gap-3">
+                <button type="button" wire:click="fixSystem" wire:loading.attr="disabled"
+                        class="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-gray-900 bg-primary hover:bg-primary-dark transition-colors shadow-glow flex items-center gap-2 disabled:opacity-50">
+                    <span wire:loading.remove wire:target="fixSystem"><i class="bi bi-wrench-adjustable"></i> Fix System</span>
+                    <span wire:loading wire:target="fixSystem" class="animate-pulse"><i class="bi bi-hourglass-split"></i> Arbeite...</span>
+                </button>
+                <div class="flex items-center gap-2 text-[9px] font-bold text-gray-400 bg-gray-950 px-3 py-1.5 rounded-full border border-gray-800 shadow-inner">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                    Live Monitoring
+                </div>
             </div>
         </div>
 
@@ -208,7 +215,7 @@
                                     }
                                 }" x-init="setTimeout(() => checkConnection(), 1500)">
                                     <div class="flex items-center gap-2.5 relative">
-                                        <div class="relative flex h-2 w-2 shrink-0">
+                                        <div class="relative flex h-2 w-2 shrink-0 mt-0.5">
                                             <span x-show="wsStatus === 'connected' || wsStatus === 'checking'" class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 transition-colors duration-300" :class="{'bg-emerald-400': wsStatus === 'connected', 'bg-gray-400': wsStatus === 'checking'}"></span>
                                             <span class="relative inline-flex rounded-full h-2 w-2 transition-colors duration-300" :class="{'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]': wsStatus === 'connected', 'bg-amber-500': wsStatus === 'connecting', 'bg-red-500': wsStatus === 'disconnected' || wsStatus === 'unavailable', 'bg-gray-500': wsStatus === 'checking'}"></span>
                                         </div>
@@ -223,10 +230,16 @@
                                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 text-gray-600 transition-colors" :class="showWsInfo ? 'text-primary' : ''"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
                                             </div>
 
-                                            <span class="text-[9px] font-bold uppercase tracking-widest text-right truncate"
-                                                  :class="{'text-emerald-400': wsStatus === 'connected', 'text-amber-400': wsStatus === 'connecting', 'text-red-400': wsStatus === 'disconnected' || wsStatus === 'unavailable', 'text-gray-500': wsStatus === 'checking'}"
-                                                  x-text="wsStatus === 'connected' ? 'Online' : (wsStatus === 'checking' ? 'Prüfe...' : 'Offline')">
-                                            </span>
+                                            <div class="flex items-center gap-2">
+                                                <button x-show="wsStatus !== 'connected' && wsStatus !== 'checking'" type="button" wire:click="fixSystem('ws')"
+                                                        class="px-2 py-0.5 rounded border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors text-[8px] font-black uppercase tracking-wider hidden sm:block">
+                                                    Fix
+                                                </button>
+                                                <span class="text-[9px] font-bold uppercase tracking-widest text-right truncate"
+                                                      :class="{'text-emerald-400': wsStatus === 'connected', 'text-amber-400': wsStatus === 'connecting', 'text-red-400': wsStatus === 'disconnected' || wsStatus === 'unavailable', 'text-gray-500': wsStatus === 'checking'}"
+                                                      x-text="wsStatus === 'connected' ? 'Online' : (wsStatus === 'checking' ? 'Prüfe...' : 'Offline')">
+                                                </span>
+                                            </div>
 
                                             <div x-show="showWsInfo" x-cloak x-transition.opacity.duration.200ms
                                                  class="absolute bottom-[calc(100%+12px)] w-[280px] sm:w-[320px] p-4 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] z-[100] pointer-events-none"
@@ -268,8 +281,8 @@
                                     };
                                 @endphp
 
-                                <div class="flex items-center gap-2.5 relative">
-                                    <div class="relative flex h-2 w-2 shrink-0">
+                                <div class="flex items-center gap-2.5 relative group/row">
+                                    <div class="relative flex h-2 w-2 shrink-0 mt-0.5">
                                         @if($status === 'connected' || $status === 'checking' || $status === 'warning')
                                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 {{ $status === 'checking' ? 'bg-gray-400' : ($status === 'warning' ? 'bg-amber-400' : 'bg-emerald-400') }}"></span>
                                         @endif
@@ -290,9 +303,17 @@
                                             </svg>
                                         </div>
 
-                                        <span class="text-[9px] font-bold uppercase tracking-widest text-right truncate {{ $textColor }}">
-                                            {{ $msg }}
-                                        </span>
+                                        <div class="flex items-center gap-2">
+                                            @if($status !== 'connected' && $status !== 'checking')
+                                                <button type="button" wire:click="fixSystem('{{ $sKey }}')"
+                                                        class="px-2 py-0.5 rounded border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors text-[8px] font-black uppercase tracking-wider hidden sm:block">
+                                                    Fix
+                                                </button>
+                                            @endif
+                                            <span class="text-[9px] font-bold uppercase tracking-widest text-right truncate {{ $textColor }}">
+                                                {{ $msg }}
+                                            </span>
+                                        </div>
 
                                         <div x-show="showInfo" x-cloak x-transition.opacity.duration.200ms
                                              class="absolute bottom-[calc(100%+12px)] w-[280px] sm:w-[320px] p-4 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] z-[100] pointer-events-none"
@@ -336,5 +357,49 @@
                 </div>
             @endforeach
         </div>
+
+        {{-- REPAIR LOG / TERMINAL OUTPUT (Only shown when not empty) --}}
+        @if(count($repairLogs) > 0)
+            <div x-data="{
+                    scrollDown() {
+                        this.$refs.logContainer.scrollTop = this.$refs.logContainer.scrollHeight;
+                    }
+                }"
+                 x-init="$watch('$wire.repairLogs', () => { setTimeout(() => scrollDown(), 50) })"
+                 class="mt-6 border border-gray-800 rounded-[1.5rem] bg-gray-950 overflow-hidden shadow-inner flex flex-col">
+
+                <div class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i class="bi bi-terminal text-gray-500"></i>
+                        <span class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Reparatur-Log</span>
+                    </div>
+                    <button type="button" wire:click="$set('repairLogs', [])" class="text-gray-500 hover:text-white transition-colors">
+                        <i class="bi bi-x-lg text-xs"></i>
+                    </button>
+                </div>
+
+                <div x-ref="logContainer" class="p-4 font-mono text-[10px] sm:text-xs leading-relaxed max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col gap-1.5">
+                    @foreach($repairLogs as $log)
+                        @php
+                            $logColor = match($log['type'] ?? 'info') {
+                                'success' => 'text-emerald-400',
+                                'error' => 'text-red-400 font-bold',
+                                'warning' => 'text-amber-400',
+                                default => 'text-gray-300'
+                            };
+                        @endphp
+                        <div class="flex gap-3">
+                            <span class="text-gray-600 shrink-0">[{{ $log['time'] }}]</span>
+                            <span class="{{ $logColor }} break-words w-full">{{ $log['message'] }}</span>
+                        </div>
+                    @endforeach
+                    <div wire:loading wire:target="fixSystem" class="flex gap-3 animate-pulse">
+                        <span class="text-gray-600 shrink-0">[{{ now()->format('H:i:s') }}]</span>
+                        <span class="text-primary tracking-widest">>>> System arbeitet...</span>
+                    </div>
+                </div>
+            </div>
+        @endif
+
     </div>
 </div>

@@ -1942,6 +1942,9 @@ video {
 .max-h-full {
   max-height: 100%;
 }
+.max-h-\[300px\] {
+  max-height: 300px;
+}
 .min-h-0 {
   min-height: 0px;
 }

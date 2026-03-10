@@ -36,6 +36,7 @@ class FunkiAnalytics extends Component
     public $uploadFile;
     public array $stockUpdate = [];
     public ?string $expandedHealthKey = null;
+    public array $repairLogs = [];
 
     public $infoTexts = [
         'trend' => 'Veränderung des Umsatzes im Vergleich zum vorherigen Zeitraum gleicher Länge.',
@@ -211,7 +212,9 @@ class FunkiAnalytics extends Component
             if ($lastRunRaw) {
                 // Cache-Wert in Carbon umwandeln (könnte Unix-Timestamp sein)
                 $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
-                $diffMinutes = abs((int)now()->diffInMinutes($lastRun));
+                
+                // Wir nutzen absoluteTo() oder einfach abs() mit diffInMinutes()
+                $diffMinutes = (int) abs(now()->diffInMinutes($lastRun));
                 
                 if ($diffMinutes < 10) {
                     $text = $diffMinutes == 1 ? "Minute" : "Minuten";
@@ -517,6 +520,112 @@ class FunkiAnalytics extends Component
 
         // 3. Zusammen nach Zeit sortieren und nur die neusten 30 zurückgeben
         return $logs->sortByDesc('timestamp')->values()->take(30);
+    }
+
+    public function fixSystem($service = null)
+    {
+        // Start des Repair-Logs
+        $this->repairLogs = [];
+        $this->addRepairLog("--- SYSTEM HEALING INITIERT ---", 'info');
+        
+        $targets = $service ? [$service] : array_keys($this->systemHealth);
+
+        // Gehe alle Targets durch
+        foreach ($targets as $target) {
+            
+            // Wenn man selektiv klickt ODER wenn im universellen Modus der Status NICHT connected ist
+            $healthStatus = $this->systemHealth[$target]['status'] ?? 'connected';
+            
+            if ($service || $healthStatus !== 'connected') {
+                $this->addRepairLog("Analysiere Problem bei: " . strtoupper($target), 'warning');
+                
+                try {
+                    switch ($target) {
+                        case 'storage':
+                            $this->addRepairLog("Räume Log-Files & Framework Caches auf...");
+                            // Wir leeren die Standard-Cache Ordner, nicht die Nutzerdaten!
+                            \Illuminate\Support\Facades\Artisan::call('view:clear');
+                            $this->addRepairLog("✓ Blade Views geleert.", 'success');
+                            \Illuminate\Support\Facades\Artisan::call('cache:clear');
+                            $this->addRepairLog("✓ Application Cache geleert.", 'success');
+                            break;
+
+                        case 'redis':
+                        case 'database':
+                            $this->addRepairLog("Führe Config & Cache Reset durch...");
+                            \Illuminate\Support\Facades\Artisan::call('config:clear');
+                            $this->addRepairLog("✓ Config Cache geleert.", 'success');
+                            \Illuminate\Support\Facades\Artisan::call('cache:clear');
+                            $this->addRepairLog("✓ Application Cache geleert.", 'success');
+                            break;
+
+                        case 'queue':
+                            $this->addRepairLog("Sende Restart-Signal an Queue Worker...");
+                            \Illuminate\Support\Facades\Artisan::call('queue:restart');
+                            $this->addRepairLog("✓ Signal gesendet. Supervisor/Daemon sollte Worker neu starten.", 'success');
+                            
+                            $failed = \Illuminate\Support\Facades\Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0;
+                            if ($failed > 0) {
+                                $this->addRepairLog("Versuche $failed fehlgeschlagene Jobs neu zu starten...");
+                                \Illuminate\Support\Facades\Artisan::call('queue:retry', ['id' => 'all']);
+                                $this->addRepairLog("✓ Retry-Befehl für alle fehlgeschlagenen Jobs ausgeführt.", 'success');
+                            }
+                            break;
+
+                        case 'scheduler':
+                            $this->addRepairLog("Erzwinge manuellen Scheduler-Lauf...");
+                            \Illuminate\Support\Facades\Artisan::call('schedule:run');
+                            $this->addRepairLog("✓ Scheduler manuell getriggert.", 'success');
+                            break;
+                            
+                        case 'backup':
+                            $this->addRepairLog("Starte Notfall-Datenbank-Backup im Hintergrund...");
+                            // Queueing the backup command to not block the UI
+                            \Illuminate\Support\Facades\Artisan::queue('backup:run', ['--only-db' => true]);
+                            $this->addRepairLog("✓ Backup-Auftrag erfolgreich in die Warteschlange eingereiht.", 'success');
+                            break;
+                            
+                        case 'stripe':
+                        case 'smtp':
+                            $this->addRepairLog("Führe Netzwerk Reset durch (Lösche Config Caches)...");
+                            \Illuminate\Support\Facades\Artisan::call('config:clear');
+                            $this->addRepairLog("✓ Caches geleert. Die API/SMTP Schlüssel werden neu geladen.", 'success');
+                            break;
+                            
+                        case 'ws':
+                            $this->addRepairLog("WebSocket Daemon muss serverseitig neugestartet werden.", 'error');
+                            $this->addRepairLog("Hinweis: Logge dich via SSH ein und führe 'php artisan reverb:start' oder 'pm2 restart reverb' aus.", 'warning');
+                            break;
+
+                        default:
+                            $this->addRepairLog("Keine automatisierte Heilung für $target verfügbar.", 'error');
+                            break;
+                    }
+                } catch (\Exception $e) {
+                    $this->addRepairLog("Fehler beim Reparieren von $target: " . $e->getMessage(), 'error');
+                }
+            }
+        }
+        
+        $this->addRepairLog("Heilungsprozess abgeschlossen. Überprüfe Systemstatus...", 'info');
+        
+        // Nach einer Sekunde die System-Health neu abfragen
+        sleep(1);
+        $this->checkSystemHealth();
+        
+        $this->addRepairLog("Systemstatus wurde aktualisiert. Lade Ansicht neu...", 'success');
+        
+        // Die Komponente/Seite automatisch neuladen lassen (mit kurzer Verzögerung, damit man den Log lesen kann)
+        $this->js('setTimeout(() => window.location.reload(), 2500)');
+    }
+    
+    private function addRepairLog($message, $type = 'info') 
+    {
+        $this->repairLogs[] = [
+            'time' => now()->format('H:i:s'),
+            'message' => $message,
+            'type' => $type
+        ];
     }
 
     public function render()

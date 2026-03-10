@@ -6,6 +6,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - Laravel 11, Livewire 3, Tailwind CSS
 - Kein klassischer Controller-Ansatz für das Frontend, stattdessen reine Livewire-Komponenten.
 - **Global Rules:** Verwende NIEMALS `x-layouts` oder `x-slots` für die Erstellung oder Einbindung von Komponenten/Ansichten. Die Komponenten rendern sich selbst oder werden traditionell via `@livewire` eingebunden.
+- **Global Design Rules:** Wenn du einen Button im Standard-Design verwendest (z. B. mit `bg-primary`), dann **MUSS** dieser zwingend auch die Tailwind-Klasse `hover:text-white` erhalten.
 
 ## 2. Verzeichnis-Struktur
 
