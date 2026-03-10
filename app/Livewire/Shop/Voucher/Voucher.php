@@ -134,10 +134,105 @@ class Voucher extends Component
         $manualCoupons = $this->voucherSectionMode === 'manual'
             ? VoucherModel::where('mode', 'manual')->latest()->paginate(10)
             : [];
+            
+        $chartData = $this->getChartData();
 
         return view('livewire.shop.voucher.voucher', [
             'autoVouchers' => $autoVouchers,
-            'manualCoupons' => $manualCoupons
+            'manualCoupons' => $manualCoupons,
+            'chartData' => $chartData
         ]);
+    }
+
+    private function getChartData()
+    {
+        $start = now()->subMonths(11)->startOfMonth();
+        $end = now()->endOfMonth();
+
+        // Top 10 Gutscheine der letzten 12 Monate
+        $topCoupons = \Illuminate\Support\Facades\DB::table('orders')
+            ->whereNotNull('coupon_code')
+            ->whereBetween('created_at', [$start, $end])
+            ->select('coupon_code', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
+            ->groupBy('coupon_code')
+            ->orderByDesc('total')
+            ->limit(10)
+            ->pluck('coupon_code')
+            ->map(fn($c) => strtoupper($c))
+            ->toArray();
+
+        // Alle relevanten Bestellungen
+        $orders = \Illuminate\Support\Facades\DB::table('orders')
+            ->whereNotNull('coupon_code')
+            ->whereBetween('created_at', [$start, $end])
+            ->get(['coupon_code', 'created_at']);
+
+        $monthlyData = [];
+
+        // Initialisiere die letzten 12 Monate
+        for ($i = 11; $i >= 0; $i--) {
+            $monthKey = now()->subMonths($i)->format('Y-m'); // "2023-01"
+            $monthLabel = now()->subMonths($i)->translatedFormat('M Y'); // "Jan 2023"
+            $monthlyData[$monthKey] = [
+                'label' => $monthLabel,
+                'coupons' => []
+            ];
+            foreach($topCoupons as $tc) {
+                $monthlyData[$monthKey]['coupons'][$tc] = 0;
+            }
+        }
+
+        foreach ($orders as $order) {
+            $monthKey = \Carbon\Carbon::parse($order->created_at)->format('Y-m');
+            $code = strtoupper($order->coupon_code);
+            
+            if (!isset($monthlyData[$monthKey])) continue;
+            if (in_array($code, $topCoupons)) {
+                $monthlyData[$monthKey]['coupons'][$code]++;
+            }
+        }
+
+        $labels = array_column($monthlyData, 'label');
+        $datasets = [];
+
+        $colors = [
+            '168, 85, 247',  // Purple
+            '234, 88, 12',   // Orange
+            '16, 185, 129',  // Emerald
+            '59, 130, 246',  // Blue
+            '236, 72, 153',  // Pink
+            '234, 179, 8',   // Yellow
+            '14, 165, 233',  // Sky
+            '244, 63, 94',   // Rose
+            '139, 92, 246',  // Violet
+            '20, 184, 166',  // Teal
+        ];
+
+        $colorIndex = 0;
+
+        foreach ($topCoupons as $code) {
+            $data = [];
+            foreach ($monthlyData as $monthKey => $monthInfo) {
+                $data[] = $monthInfo['coupons'][$code];
+            }
+
+            $color = $colors[$colorIndex % count($colors)];
+            
+            $datasets[] = [
+                'label' => $code,
+                'data' => $data,
+                'backgroundColor' => 'rgba(' . $color . ', 0.2)',
+                'borderColor' => 'rgb(' . $color . ')',
+                'borderWidth' => 2,
+                'tension' => 0.4,
+                'fill' => true
+            ];
+            $colorIndex++;
+        }
+
+        return [
+            'labels' => $labels,
+            'datasets' => $datasets
+        ];
     }
 }

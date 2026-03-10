@@ -204,7 +204,7 @@
                                 Neue Automation
                             </button>
                         </div>
-                        
+
                         {{-- Template Slider --}}
                         <div class="relative group/slider w-full mt-4" x-data="{
                                 scrollAmount: 0,
@@ -233,7 +233,7 @@
                                     @endphp
                                     <div class="relative group w-[280px] sm:w-[320px] shrink-0 snap-start">
                                         <div wire:click="editTemplate('{{ $event['template_id'] }}')" class="relative cursor-pointer transition-all duration-500 group-hover:-translate-y-2 h-full opacity-90 hover:opacity-100">
-                                            <x-shop.funki-timeline-card
+                                            <x-shop.timeline-card
                                                 :date="$event['event_date']"
                                                 :title="$event['title']"
                                                 :subtitle="'Versand am: ' . $event['date']->format('d.m.Y')"
@@ -289,7 +289,7 @@
                                                     <select wire:model="new_target_event_key" class="w-full bg-gray-950 border border-gray-800 text-white font-bold text-sm rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner appearance-none cursor-pointer">
                                                         <option value="">Bitte wählen...</option>
                                                         @foreach($availableEvents as $key => $label)
-                                                            @if(!in_array($key, $activeTemplateKeys))
+                                                            @if(!in_array($key, $activeTemplateKeys, true))
                                                                 <option value="{{ $key }}">{{ $label }}</option>
                                                             @endif
                                                         @endforeach

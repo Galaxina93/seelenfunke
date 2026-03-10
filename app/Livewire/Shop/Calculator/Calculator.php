@@ -526,26 +526,13 @@ class Calculator extends Component
 
         $data = $quote->toFormattedArray();
 
-        $pdf = Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $data]);
-        $filename = 'Angebot_' . Str::slug($this->form['firma'] ?: $this->form['nachname']) . '_' . time() . '.pdf';
-        $path = storage_path('app/public/tmp/' . $filename);
-
-        if (!file_exists(dirname($path))) {
-            mkdir(dirname($path), 0755, true);
-        }
-        file_put_contents($path, $pdf->output());
-
         try {
-            Mail::to($this->form['email'])->send(new CalcMailToCustomer($data, $path));
+            Mail::to($this->form['email'])->send(new CalcMailToCustomer($data));
             $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
-            Mail::to($owner_mail)->send(new CalcMailToAdmin($data, $path));
+            Mail::to($owner_mail)->send(new CalcMailToAdmin($data));
             \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
-        }
-
-        if (file_exists($path)) {
-            @unlink($path);
         }
 
         session()->forget(['calc_cart', 'calc_form']);

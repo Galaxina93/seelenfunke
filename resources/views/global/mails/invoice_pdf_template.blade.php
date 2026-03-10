@@ -93,7 +93,7 @@
 @endphp
 
 {{-- Stempel-Logik --}}
-@if($invoice->paid_at && $invoice->type !== 'cancellation')
+@if($invoice->paid_at && !in_array($invoice->type, ['cancellation', 'credit_note']))
     <div class="paid-stamp">Bezahlt</div>
 @endif
 
@@ -110,7 +110,7 @@
             </td>
             <td class="text-right">
                 <div class="invoice-title">
-                    @if($invoice->type === 'cancellation') STORNO-RECHNUNG @else RECHNUNG @endif
+                    @if($invoice->type === 'cancellation') STORNO @elseif($invoice->type === 'credit_note') GUTSCHRIFT @else RECHNUNG @endif
                 </div>
                 <div class="invoice-meta">
                     <strong>Nummer:</strong> {{ $invoice->invoice_number }}<br>
@@ -161,7 +161,12 @@
 
 {{-- [NEU] INTELLIGENTE ZAHLUNGS-INFO BOX --}}
 <div class="payment-info-box">
-    @if($invoice->paid_at)
+    @if(in_array($invoice->type, ['cancellation', 'credit_note']))
+        {{-- FALL: GUTSCHRIFT / STORNO --}}
+        <p style="margin: 0; font-weight: bold;">
+            Der Betrag wird Ihnen wie vereinbart erstattet oder mit offenen Forderungen verrechnet.
+        </p>
+    @elseif($invoice->paid_at)
         {{-- FALL 1: BEREITS BEZAHLT --}}
         <p style="margin: 0; color: #16a34a; font-weight: bold;">
             Der Rechnungsbetrag wurde bereits am {{ $invoice->paid_at->format('d.m.Y') }} vollständig beglichen. Vielen Dank!

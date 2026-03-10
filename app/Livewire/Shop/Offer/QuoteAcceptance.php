@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Offer;
 
 use App\Models\Quote\QuoteRequest;
 use App\Models\Shipping\ShippingZone;
+use App\Models\Voucher;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;
@@ -19,6 +20,10 @@ class QuoteAcceptance extends Component
     // UI States
     public $viewState = 'dashboard'; // 'dashboard', 'editor', 'success_rejected', 'error'
     public $errorMessage = '';
+
+    // Coupon State
+    public $couponCodeInput = '';
+    public $activeCoupon = null;
 
     // Editing State
     public $editingItem = null; // Das QuoteRequestItem Model, das gerade bearbeitet wird
@@ -267,7 +272,48 @@ class QuoteAcceptance extends Component
     }
 
     /**
-     * Checkout Logik: Überträgt Items und Express-Status in den Warenkorb
+     * Coupon Logik
+     */
+    public function applyCoupon()
+    {
+        $this->validate(['couponCodeInput' => 'required|string']);
+
+        $coupon = Voucher::where('code', $this->couponCodeInput)->first();
+
+        if (!$coupon || !$coupon->isValid()) {
+            $this->addError('couponCodeInput', 'Gutschein ist ungültig oder abgelaufen.');
+            return;
+        }
+
+        // Check Minimum Order Value against Goods Gross (Gross Total - Shipping - Express)
+        $hasExpress = $this->quote->is_express;
+        $expressCost = $hasExpress ? (int)shop_setting('express_surcharge', 2500) : 0;
+        $shippingCost = $this->quote->shipping_cost_calculated ?? ($this->quote->shipping_price ?? 0);
+        
+        $goodsGross = $this->quote->gross_total - $shippingCost - $expressCost;
+
+        if ($coupon->min_order_value && $goodsGross < $coupon->min_order_value) {
+            $this->addError('couponCodeInput', 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . '€ nicht erreicht.');
+            return;
+        }
+
+        $this->activeCoupon = [
+            'code' => $coupon->code,
+            'type' => $coupon->type,
+            'value' => $coupon->value
+        ];
+        
+        $this->couponCodeInput = ''; // Input leeren nach erfolg
+        session()->flash('coupon_success', 'Gutschein erfolgreich angewendet!');
+    }
+
+    public function removeCoupon()
+    {
+        $this->activeCoupon = null;
+    }
+
+    /**
+     * Checkout Logik: Überträgt Items, Express-Status und Gutschein in den Warenkorb
      */
     public function proceedToCheckout(CartService $cartService)
     {
@@ -276,12 +322,17 @@ class QuoteAcceptance extends Component
         $cart = $cartService->getCart();
         $cart->items()->delete();
 
-        // Express-Status und Adress-Vorauswahl in das cart-Model übernehmen
-        $cart->update([
+        // Express-Status, Adress-Vorauswahl und GUTSCHEIN in das cart-Model übernehmen
+        $cartUpdateData = [
             'is_express' => $this->quote->is_express,
             'deadline' => $this->quote->deadline,
-            // Wir können hier auch die Adressdaten für den Checkout vor-reservieren falls gewünscht
-        ]);
+        ];
+        
+        if ($this->activeCoupon) {
+            $cartUpdateData['coupon_code'] = $this->activeCoupon['code'];
+        }
+
+        $cart->update($cartUpdateData);
 
         foreach($this->quote->items as $qItem) {
             if($qItem->product) {

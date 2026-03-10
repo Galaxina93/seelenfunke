@@ -658,11 +658,21 @@ class Invoices extends Component
             });
         }
 
+        $invoiceStats = [
+            'paid_count' => Invoice::where('type', 'invoice')->where('status', 'paid')->count(),
+            'open_count' => Invoice::where('type', 'invoice')->where('status', 'open')->count(),
+            'draft_count' => Invoice::where('status', 'draft')->count(),
+            'cancelled_count' => Invoice::whereIn('status', ['cancelled'])->orWhere('type', 'cancellation')->count(),
+            'open_amount' => Invoice::where('type', 'invoice')->where('status', 'open')->sum('total'),
+            'paid_amount' => Invoice::where('type', 'invoice')->where('status', 'paid')->sum('total'),
+        ];
+
         return view('livewire.shop.invoice.invoices', [
             'invoices' => $query->paginate(15),
             'totalsPreview' => $totalsPreview,
             'customers' => Customer::orderBy('last_name')->get(),
-            'archivedFiles' => $archivedFiles
+            'archivedFiles' => $archivedFiles,
+            'invoiceStats' => $invoiceStats
         ]);
     }
 }

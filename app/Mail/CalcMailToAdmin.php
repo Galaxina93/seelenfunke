@@ -56,13 +56,14 @@ class CalcMailToAdmin extends Mailable implements ShouldQueue
      */
     public function attachments(): array
     {
-        $attachments = [];
+        $lastName = $this->data['contact']['nachname'] ?? 'Kunde';
+        $firm = $this->data['contact']['firma'] ?? '';
+        $namePart = $firm ?: $lastName;
+        $cleanName = \Illuminate\Support\Str::slug($namePart);
 
-        // 1. Das Haupt-PDF (Angebot oder Rechnung) anhängen
-        if ($this->pdfPath && file_exists($this->pdfPath)) {
-            $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromPath($this->pdfPath);
-        }
-
-        return $attachments;
+        return [
+            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data])->output(), "Angebot_{$cleanName}.pdf")
+                ->withMime('application/pdf'),
+        ];
     }
 }

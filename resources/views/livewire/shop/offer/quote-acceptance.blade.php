@@ -147,8 +147,22 @@
                                     // Berechnungen für die Anzeige (Alles Brutto Basis wie in der Mail)
                                     $grossTotal = $quote->gross_total; // Gesamtsumme Brutto aus DB
 
-                                    // Warenwert Brutto = Gesamt Brutto - Versand - Express
+                                    // Warenwert Brutto = Gesamt Brutto - Versand - Express (ohne Gutschein, reiner Artikelwert)
                                     $goodsGross = $grossTotal - $shippingCost - $expressCost;
+
+                                    // Gutscheinwert berechnen
+                                    $discountAmount = 0;
+                                    if ($activeCoupon) {
+                                        if ($activeCoupon['type'] === 'fixed') {
+                                            $discountAmount = $activeCoupon['value'];
+                                        } elseif ($activeCoupon['type'] === 'percent') {
+                                            $discountAmount = (int) round($goodsGross * ($activeCoupon['value'] / 100));
+                                        }
+                                        $discountAmount = min($discountAmount, $goodsGross);
+                                    }
+
+                                    // Neue Gesamtsumme
+                                    $displayGrossTotal = max(0, $grossTotal - $discountAmount);
                                 @endphp
 
                                 {{-- 1. Warenwert (Brutto) --}}
@@ -178,13 +192,24 @@
                                     @endif
                                 </div>
 
+                                {{-- Gutschein Rabatt-Zeile --}}
+                                @if($activeCoupon)
+                                    <div class="flex justify-between text-sm text-green-600 font-bold mt-1 bg-green-50 p-1.5 rounded-md -mx-1.5 px-1.5">
+                                        <div class="flex items-center gap-1">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            <span>Gutschein ({{ $activeCoupon['code'] }})</span>
+                                        </div>
+                                        <span>- {{ number_format($discountAmount / 100, 2, ',', '.') }} €</span>
+                                    </div>
+                                @endif
+
                                 {{-- Divider --}}
                                 <div class="border-t border-gray-200 my-2"></div>
 
                                 {{-- 4. Gesamtsumme (Fett) --}}
                                 <div class="flex justify-between items-end mb-2">
                                     <span class="font-bold text-gray-900">Gesamtsumme</span>
-                                    <span class="font-bold text-xl text-primary">{{ number_format($grossTotal / 100, 2, ',', '.') }} €</span>
+                                    <span class="font-bold text-xl text-primary">{{ number_format($displayGrossTotal / 100, 2, ',', '.') }} €</span>
                                 </div>
 
                                 {{-- 5. Steuer-Hinweis (Klein & Dezent) --}}
@@ -206,8 +231,57 @@
                         </div>
                     </div>
 
-                    {{-- Actions Area --}}
-                    <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    {{-- Gutschein & Aktionen --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                        {{-- Gutschein Area --}}
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col justify-center">
+                            <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v1m4.5 4.5l-4.5 4.5M12 20a8 8 0 100-16 8 8 0 000 16z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11l-3 3-3-3" /></svg>
+                                Haben Sie einen Gutscheincode?
+                            </h3>
+
+                            @if($activeCoupon)
+                                <div class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="bg-green-100 p-2 rounded-full">
+                                            <svg class="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-green-800">{{ $activeCoupon['code'] }} aktiv</p>
+                                            <p class="text-xs text-green-600">Gutschein erfolgreich angewendet.</p>
+                                        </div>
+                                    </div>
+                                    <button wire:click="removeCoupon" class="text-xs text-red-500 hover:text-red-700 hover:underline transition">Entfernen</button>
+                                </div>
+                            @elseif($quote->isValid())
+                                @if (session()->has('coupon_success'))
+                                    <div class="mb-3 p-3 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200 flex items-center gap-2">
+                                        {{ session('coupon_success') }}
+                                    </div>
+                                @endif
+                                
+                                <form wire:submit.prevent="applyCoupon" class="flex gap-2">
+                                    <div class="flex-1 relative">
+                                        <input wire:model="couponCodeInput" type="text" placeholder="Code eingeben" 
+                                               class="w-full text-base border-gray-300 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary focus:ring-opacity-50 uppercase placeholder:normal-case font-mono @error('couponCodeInput') border-red-500 @enderror">
+                                        @error('couponCodeInput')
+                                            <p class="text-red-500 text-xs mt-1 absolute -bottom-5 left-0">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                    <button type="submit" wire:loading.attr="disabled" class="bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition font-bold text-sm whitespace-nowrap">
+                                        Einlösen
+                                    </button>
+                                </form>
+                            @else
+                                <div class="text-sm border border-gray-200 bg-gray-50 text-gray-500 p-4 rounded-lg">
+                                    Gutscheine können nur für noch gültige Angebote eingelöst werden.
+                                </div>
+                            @endif
+                        </div>
+
+                        {{-- Actions Area --}}
+                        <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col justify-center">
                         <h3 class="font-bold text-gray-800 mb-4 text-center">Wie möchten Sie fortfahren?</h3>
 
                         <div class="flex justify-center">
@@ -234,6 +308,7 @@
                                 </button>
                             </div>
                         @endif
+                        </div>
                     </div>
 
                 </div>

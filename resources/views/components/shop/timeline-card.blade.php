@@ -48,6 +48,25 @@
 
     // Bereinige den Event-Namen
     $cleanEventName = $eventName ? preg_replace('/\s\(.*\)/', '', $eventName) : '';
+
+    // Calculate Progress Bar (Days Left)
+    $daysLeftRaw = now()->diffInDays($date, false);
+    $daysLeft = max(0, intval($daysLeftRaw));
+    
+    // Scale for width (from 365 days down to 0) -> 0% to 100% full
+    $progressPercent = max(2, 100 - min(100, ($daysLeft / 365) * 100));
+
+    // Dynamic Color (Ampelsystem)
+    if ($daysLeft <= 7) {
+        $progressTheme = 'from-red-600 to-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]';
+        $progressText = 'text-red-400';
+    } elseif ($daysLeft <= 30) {
+        $progressTheme = 'from-amber-600 to-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]';
+        $progressText = 'text-amber-400';
+    } else {
+        $progressTheme = 'from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]';
+        $progressText = 'text-emerald-400';
+    }
 @endphp
 
 <div class="w-full h-full p-6 rounded-[2rem] ml-2 mt-2 border transition-all duration-500 relative flex flex-col justify-between group min-h-[160px] backdrop-blur-sm {{ $containerClasses }}">
@@ -102,6 +121,24 @@
         @if($subtitle)
             <div class="text-[10px] font-mono text-{{ $themeColor }}-400/70 mt-2 truncate bg-{{ $themeColor }}-400/5 px-2 py-1 rounded border border-{{ $themeColor }}-400/10">
                 {{ $subtitle }}
+            </div>
+        @endif
+
+        {{-- Progress Bar (Only show if not in the past) --}}
+        @if($state !== 'past')
+            <div class="mt-4 w-full">
+                <div class="flex justify-between items-end mb-1.5">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Versand in</span>
+                    <span class="text-[10px] font-bold {{ $progressText }}">{{ $daysLeft }} {{ $daysLeft === 1 ? 'Tag' : 'Tagen' }}</span>
+                </div>
+                <div class="w-full bg-gray-950 rounded-full h-1.5 border border-gray-800 overflow-hidden relative">
+                    <div class="bg-gradient-to-r {{ $progressTheme }} h-1.5 rounded-full transition-all duration-1000 ease-out" style="width: {{ $progressPercent }}%"></div>
+                </div>
+            </div>
+        @else
+            <div class="mt-4 w-full flex items-center gap-1.5 mt-2 opacity-50">
+                <x-heroicon-s-check-circle class="w-3.5 h-3.5 text-emerald-500" />
+                <span class="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erfolgreich abgewickelt</span>
             </div>
         @endif
     </div>

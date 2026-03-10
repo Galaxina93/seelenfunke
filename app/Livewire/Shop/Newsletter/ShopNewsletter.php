@@ -379,7 +379,7 @@ class ShopNewsletter extends Component
             'subscribers' => $subscribers,
             'archivedTemplates' => $archivedTemplates,
             'availableEvents' => $this->getAvailableEvents(),
-            'activeTemplateKeys' => Newsletter::where('is_active', true)->pluck('target_event_key')->toArray(),
+            'activeTemplateKeys' => Newsletter::where('is_active', true)->where('type', 'automated')->whereNotNull('target_event_key')->pluck('target_event_key')->toArray(),
             'stats' => [
                 'subscribers' => NewsletterSubscriber::count(),
                 'active_templates' => Newsletter::where('is_active', true)->count()

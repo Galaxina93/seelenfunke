@@ -64,6 +64,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.invoices');
     })->name('admin.invoices');
 
+    Route::get('/admin/credit-management', function () {
+        return view('backend.admin.pages.credit-management');
+    })->name('admin.credit-management');
+
     Route::get('/admin/orders', function () {
         return view('backend.admin.pages.orders');
     })->name('admin.orders');

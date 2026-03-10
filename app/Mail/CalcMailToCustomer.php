@@ -15,9 +15,9 @@ class CalcMailToCustomer extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     public $data;
-    protected string $pdfPath;
+    protected ?string $pdfPath;
 
-    public function __construct(array $data, string $pdfPath)
+    public function __construct(array $data, ?string $pdfPath = null)
     {
         $this->data = $data;
         $this->pdfPath = $pdfPath;
@@ -47,20 +47,15 @@ class CalcMailToCustomer extends Mailable implements ShouldQueue
 
     public function attachments(): array
     {
-        if ($this->pdfPath && file_exists($this->pdfPath)) {
-            // Wir holen den Nachnamen aus unserem neuen zentralen Array
-            $lastName = $this->data['contact']['nachname'] ?? 'Kunde';
+        // Wir holen den Nachnamen aus unserem neuen zentralen Array
+        $lastName = $this->data['contact']['nachname'] ?? 'Kunde';
 
-            // Dateiname säubern (z.B. "Angebot-MeinSeelenfunke-Mustermann.pdf")
-            $cleanName = \Illuminate\Support\Str::slug($lastName);
+        // Dateiname säubern (z.B. "Angebot-MeinSeelenfunke-Mustermann.pdf")
+        $cleanName = \Illuminate\Support\Str::slug($lastName);
 
-            return [
-                \Illuminate\Mail\Mailables\Attachment::fromPath($this->pdfPath)
-                    ->as("Angebot-MeinSeelenfunke-{$cleanName}.pdf")
-                    ->withMime('application/pdf'),
-            ];
-        }
-
-        return [];
+        return [
+            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data])->output(), "Angebot-MeinSeelenfunke-{$cleanName}.pdf")
+                ->withMime('application/pdf'),
+        ];
     }
 }

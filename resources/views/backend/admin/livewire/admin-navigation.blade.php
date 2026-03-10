@@ -8,8 +8,8 @@
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
         $isMarketingActive = in_array($currentPage, ['newsletter', 'voucher', 'blog']);
 
-        $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'invoices']);
-        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'banks']);
+        $isOrderActive = in_array($currentPage, ['orders', 'quote-requests']);
+        $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
     @endphp
 
     {{--Funkis Zentrale--}}
@@ -75,7 +75,6 @@
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/orders" title="Bestellungen" pageName="orders" icon="shopping-cart" />
-                    <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoices" icon="document-text" />
                     <x-forms.list-item route="/admin/quote-requests" title="Angebote" pageName="quote-requests" icon="clipboard-document-list" />
                 </ul>
             </li>
@@ -92,8 +91,11 @@
                     <x-forms.list-item route="/admin/financial-tax" title="Steuern" pageName="financial-tax" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-fix-costs" title="Fixkosten" pageName="financial-fix-costs" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-evaluation" title="Auswertung" pageName="financial-evaluation" icon="chart-bar" />
+                    <x-forms.list-item route="/admin/credit-management" title="Gutschriften" pageName="credit-management" icon="document-minus" />
+                    <x-forms.list-item route="/admin/invoices" title="Rechnungen" pageName="invoices" icon="document-text" />
                     <x-forms.list-item route="/admin/financial-variable-costs" title="Variable Kosten" pageName="financial-variable-costs" icon="banknotes" />
                     <x-forms.list-item route="/admin/financial-liquidity-planning" title="Liquiditätsplanung" pageName="financial-liquidity-planning" icon="shield-check" />
+
                 </ul>
             </li>
 

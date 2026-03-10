@@ -214,6 +214,13 @@ Route::get('/invoice/{invoice}/download', function (App\Models\Invoice $invoice)
     $service = new App\Services\InvoiceService();
     $pdf = $service->generatePdf($invoice);
 
-    return $pdf->download('Rechnung_' . $invoice->invoice_number . '.pdf');
+    $filenamePrefix = 'Rechnung_';
+    if ($invoice->type === 'cancellation') {
+        $filenamePrefix = 'Storno_';
+    } elseif ($invoice->type === 'credit_note') {
+        $filenamePrefix = 'Gutschrift_';
+    }
+
+    return $pdf->download($filenamePrefix . $invoice->invoice_number . '.pdf');
 
 })->name('invoice.download');

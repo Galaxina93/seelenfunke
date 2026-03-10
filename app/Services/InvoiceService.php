@@ -114,6 +114,52 @@ class InvoiceService
     }
 
     /**
+     * Erstellt eine manuelle Gutschrift (Rechnungskorrektur) unabhängig von einer existierenden Rechnung.
+     * Stellt sicher, dass die übergebenen positiven Beträge intern als Minus für die Statistik verbucht werden.
+     */
+    public function createCreditNote(array $data): Invoice
+    {
+        return DB::transaction(function () use ($data) {
+            $stornoNumber = $this->generateInvoiceNumber(prefix: 'GUT');
+
+            // Formatiere Beträge ins Negative für korrekte Auswertung
+            $subtotal = -1 * abs($data['subtotal'] ?? 0);
+            $tax_amount = -1 * abs($data['tax_amount'] ?? 0);
+            $total = -1 * abs($data['total'] ?? 0);
+
+            $invoice = Invoice::create([
+                'customer_id' => $data['customer_id'] ?? null,
+                'invoice_number' => $stornoNumber,
+                'type' => 'credit_note', // Gutschrift
+                'status' => 'paid', // Ist direkt wirksam
+                'invoice_date' => now(),
+                'delivery_date' => now(),
+                'due_date' => now(),
+                'paid_at' => now(),
+                'subject' => $data['subject'] ?? 'Gutschrift / Rechnungskorrektur',
+                'header_text' => $data['header_text'] ?? 'Hiermit erhalten Sie eine Gutschrift.',
+                'footer_text' => $data['footer_text'] ?? 'Der Betrag wird Ihnen wie vereinbart erstattet oder verrechnet.',
+                'billing_address' => $data['billing_address'] ?? [],
+                'shipping_address' => $data['shipping_address'] ?? [],
+                'subtotal' => $subtotal,
+                'tax_amount' => $tax_amount,
+                'shipping_cost' => 0,
+                'discount_amount' => 0,
+                'volume_discount' => 0,
+                'total' => $total,
+                'notes' => $data['notes'] ?? '',
+                'custom_items' => $data['custom_items'] ?? [], // Manueller Posten-Array
+                'is_e_invoice' => false,
+            ]);
+
+            // PDF generieren und speichern
+            $this->storePdf($invoice);
+
+            return $invoice;
+        });
+    }
+
+    /**
      * Generiert PDF Stream/Download
      */
     public function generatePdf(Invoice $invoice)

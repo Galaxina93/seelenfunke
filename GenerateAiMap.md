@@ -5,6 +5,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 ## 1. Projekt-DNA
 - Laravel 11, Livewire 3, Tailwind CSS
 - Kein klassischer Controller-Ansatz für das Frontend, stattdessen reine Livewire-Komponenten.
+- **Global Rules:** Verwende NIEMALS `x-layouts` oder `x-slots` für die Erstellung oder Einbindung von Komponenten/Ansichten. Die Komponenten rendern sich selbst oder werden traditionell via `@livewire` eingebunden.
 
 ## 2. Verzeichnis-Struktur
 

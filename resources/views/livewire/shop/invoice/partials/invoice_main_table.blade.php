@@ -115,7 +115,7 @@
                         </td>
                         <td class="px-4 py-5 align-middle">
                             <div class="text-white font-bold truncate max-w-[200px]">
-                                {{ $inv->billing_address['company'] ? $inv->billing_address['company'] . ' (' . $inv->billing_address['last_name'] . ')' : $inv->billing_address['first_name'] . ' ' . $inv->billing_address['last_name'] }}
+                                {{ !empty($inv->billing_address['company']) ? $inv->billing_address['company'] . ' (' . $inv->billing_address['last_name'] . ')' : $inv->billing_address['first_name'] . ' ' . $inv->billing_address['last_name'] }}
                             </div>
                             <div class="text-[10px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ $inv->invoice_date->format('d.m.Y') }}</div>
                         </td>

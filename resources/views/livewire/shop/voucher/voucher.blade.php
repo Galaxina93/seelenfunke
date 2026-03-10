@@ -4,6 +4,7 @@
     $currentMonth = now()->month; // Aktueller Monat für die Highlight-Logik
 @endphp
 
+<div>
 <section class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden transition-all duration-500 w-full mt-6">
     <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b {{ $bgClass }} opacity-60 transition-colors duration-500"></div>
 
@@ -68,11 +69,54 @@
                                 </div>
                             </div>
 
-                            <div class="mt-5 mb-2"> {{-- Margin Bottom hinzugefügt, damit Badge nicht unter Button rutscht --}}
-                                <span class="inline-block text-[10px] font-black {{ $isCurrentMonth && !$statusDisabled ? 'text-purple-400 bg-purple-500/10 border-purple-500/30' : 'text-gray-500 bg-gray-800/50 border-gray-700' }} px-3 py-1.5 rounded-lg border uppercase tracking-widest">
-                                    {{ $voucher->type === 'percent' ? $voucher->value . '%' : number_format($voucher->value / 100, 2) . ' €' }} Rabatt
-                                </span>
-                            </div>
+                                <div class="mt-5 mb-2 flex flex-col gap-3"> 
+                                    <div class="flex justify-between items-center">
+                                        <span class="inline-block text-[10px] font-black {{ $isCurrentMonth && !$statusDisabled ? 'text-purple-400 bg-purple-500/10 border-purple-500/30' : 'text-gray-500 bg-gray-800/50 border-gray-700' }} px-3 py-1.5 rounded-lg border uppercase tracking-widest">
+                                            {{ $voucher->type === 'percent' ? $voucher->value . '%' : number_format($voucher->value / 100, 2) . ' €' }} Rabatt
+                                        </span>
+                                        <span class="text-[10px] font-bold text-gray-400 bg-gray-950 px-2 py-1 rounded-md border border-gray-800" title="{{ $voucher->used_count }} von {{ $voucher->usage_limit ?: '∞' }} Mal genutzt">
+                                            {{ $voucher->used_count }} / {{ $voucher->usage_limit ?: '∞' }}
+                                        </span>
+                                    </div>
+                                    
+                                    @php
+                                        // Fortschrittsbalken berechnen (Dauer des Monats)
+                                        $now = now();
+                                        $start = $voucher->valid_from ? \Carbon\Carbon::parse($voucher->valid_from) : now()->startOfMonth();
+                                        $end = $voucher->valid_until ? \Carbon\Carbon::parse($voucher->valid_until) : now()->endOfMonth();
+                                        $totalDays = max(1, $start->diffInDays($end));
+                                        
+                                        if ($now->lt($start)) {
+                                            $progressPercent = 0;
+                                            $timeText = 'Startet bald';
+                                            $barColor = 'bg-gray-500';
+                                        } elseif ($now->gt($end)) {
+                                            $progressPercent = 100;
+                                            $timeText = 'Abgelaufen';
+                                            $barColor = 'bg-red-500';
+                                        } else {
+                                            $daysPassed = $start->diffInDays($now);
+                                            $progressPercent = min(100, max(0, ($daysPassed / $totalDays) * 100));
+                                            $daysLeft = $now->diffInDays($end);
+                                            $timeText = "Noch {$daysLeft} " . ($daysLeft == 1 ? 'Tag' : 'Tage');
+                                            
+                                            // Ampel Logik
+                                            if ($progressPercent < 50) $barColor = 'bg-emerald-500';
+                                            elseif ($progressPercent < 80) $barColor = 'bg-yellow-500';
+                                            else $barColor = 'bg-orange-500';
+                                        }
+                                    @endphp
+                                    
+                                    <div class="w-full pr-12">
+                                        <div class="flex justify-between text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                                            <span>Gültigkeit</span>
+                                            <span class="{{ $now->gt($end) ? 'text-red-500' : ($now->lt($start) ? 'text-gray-500' : 'text-gray-400') }}">{{ $timeText }}</span>
+                                        </div>
+                                        <div class="h-1.5 w-full bg-gray-900 rounded-full overflow-hidden border border-gray-800">
+                                            <div class="h-full {{ $barColor }} rounded-full" style="width: {{ $progressPercent }}%"></div>
+                                        </div>
+                                    </div>
+                                </div>
                         </div>
 
                         {{-- Toggle Button (Jetzt UNTEN RECHTS) --}}
@@ -279,3 +323,105 @@
         </div>
     @endif
 </section>
+
+{{-- GUTSCHEIN ANALYSE CHART --}}
+<section class="mt-8 bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden transition-all w-full"
+         x-data="{
+             chartData: @js($chartData),
+             initChart() {
+                 if (!document.getElementById('voucherChart')) return;
+                 const ctx = document.getElementById('voucherChart').getContext('2d');
+                 new Chart(ctx, {
+                     type: 'bar',
+                     data: this.chartData,
+                     options: {
+                         responsive: true,
+                         maintainAspectRatio: false,
+                         scales: {
+                             x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af', font: { family: 'ui-sans-serif, system-ui' } } },
+                             y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, border: { dash: [4, 4] }, ticks: { color: '#9ca3af', stepSize: 1, font: { family: 'ui-sans-serif, system-ui' } } }
+                         },
+                         plugins: {
+                             legend: { position: 'top', labels: { color: '#d1d5db', boxWidth: 12, padding: 20, font: { family: 'ui-sans-serif, system-ui', weight: 'bold' } } },
+                             tooltip: { backgroundColor: 'rgba(17,24,39,0.9)', titleColor: '#fff', bodyColor: '#fff', padding: 12, cornerRadius: 8, borderColor: 'rgba(75,85,99,0.5)', borderWidth: 1 }
+                         }
+                     }
+                 });
+             }
+         }" x-init="initChart()">
+         
+    <h3 class="text-2xl font-serif font-bold text-white tracking-tight flex items-center gap-3 mb-8">
+        <x-heroicon-s-chart-bar class="w-7 h-7 text-blue-400" />
+        Gutschein Performance (Letzte 12 Monate)
+    </h3>
+    
+    <div class="w-full h-[400px]">
+        <canvas id="voucherChart"></canvas>
+    </div>
+</section>
+
+{{-- TIPPS, TRICKS & HINWEISE --}}
+<section class="mt-8 bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] border border-gray-800 p-6 sm:p-10 relative w-full overflow-hidden shadow-2xl mb-12">
+    <div class="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
+
+    <div class="mb-8 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+            <x-heroicon-s-light-bulb class="w-6 h-6" />
+        </div>
+        <div>
+            <h2 class="text-2xl font-serif font-bold text-white tracking-tight">Best Practices & Wissen</h2>
+            <p class="text-[11px] font-black text-emerald-500 uppercase tracking-widest mt-1">Gutschein Strategien für Seelenfunke</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6">
+        <div class="p-6 bg-gray-950/60 border border-gray-800 rounded-3xl backdrop-blur-sm relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <x-heroicon-m-sparkles class="w-24 h-24 text-emerald-500" />
+            </div>
+            
+            <h3 class="text-emerald-400 font-bold mb-4 uppercase tracking-widest text-[11px] flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                Autopilot vs. Manuell
+            </h3>
+            
+            <ul class="space-y-4 text-sm text-gray-400">
+                <li class="flex items-start gap-3">
+                    <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" />
+                    <div>
+                        <strong class="text-gray-200 block mb-1">Saisonale Auto-Gutscheine (Autopilot)</strong>
+                        Diese Gutscheine rotieren automatisch je nach Monat (z.B. START-2026, XMAS-2026). Sie sind fest hinterlegt, monatig begrenzt und auf eine wirtschaftlich sichere Marge von 5% bei 20 Nutzungen limitiert. Sie müssen nicht manuell gepflegt werden.
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" />
+                    <div>
+                        <strong class="text-gray-200 block mb-1">Manuelle Gutscheine</strong>
+                        Perfekt für Influencer-Kooperationen (z.B. "INSTA10"), individuelle Wiedergutmachungen für verärgerte Kunden oder Kurzzeit-Sales am Black Friday. Setze hier immer ein Limit oder ein Gültigkeitsdatum, um Missbrauch vorzubeugen!
+                    </div>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="p-6 bg-gray-950/60 border border-gray-800 rounded-3xl backdrop-blur-sm relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+            <h3 class="text-emerald-400 font-bold mb-4 uppercase tracking-widest text-[11px] flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                Rabatt-Arten verstehen
+            </h3>
+            
+            <div class="space-y-4 text-sm text-gray-400">
+                <p>
+                    <strong class="text-gray-200 block mb-1">Prozentualer Rabatt (%)</strong>
+                    Ideal für größere Warenkörbe. Ein 10% Rabatt wirkt psychologisch ansprechend, skaliert aber mit der Warenkorbgröße. Schütze dich vor Margen-Verlusten bei Teuren Produkten!
+                </p>
+                <div class="border-t border-gray-800/50 my-2"></div>
+                <p>
+                    <strong class="text-gray-200 block mb-1">Fester Betrag (€)</strong>
+                    Hervorragend, um Kunden zu einem Kauf zu bewegen ("Hier hast du 5€ geschenkt"). Kombiniere feste Beträge aber <strong class="text-emerald-400">immer</strong> mit einem Mindestbestellwert, ansonsten bestellt der Kunde etwas für 4,90€ komplett gratis.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+</div>
