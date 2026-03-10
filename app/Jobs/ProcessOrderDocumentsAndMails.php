@@ -55,9 +55,8 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
 
             // B) XML Generieren (Nur für gewerbliche Kunden)
             $isBusiness = false;
+            // Wichtig: Nur wenn im Profil explizit is_business auf 1/true steht, dann XML erzeugen
             if ($this->order->customer && $this->order->customer->profile && $this->order->customer->profile->is_business) {
-                $isBusiness = true;
-            } elseif (!empty($this->order->billing_address['company'])) {
                 $isBusiness = true;
             }
 

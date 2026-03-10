@@ -18,12 +18,23 @@ class ShopNewsletter extends Component
     public $activeTab = 'templates'; // 'templates', 'subscribers', 'archive'
     public $search = '';
 
+    // New Subscriber
+    public $newSubscriberEmail = '';
+
     // Editor State
     public $editingTemplateId = null;
     public $edit_subject;
     public $edit_content;
     public $edit_offset;
     public $edit_event_date = null; // Neu: Speichert das Datum des Events für die Live-Vorschau
+    public $edit_type = 'automated'; // 'automated' oder 'manual'
+
+    // Create Modal State
+    public $showCreateModal = false;
+    public $new_type = 'automated';
+    public $new_target_event_key = '';
+    public $new_manual_title = '';
+    public $new_manual_send_at = '';
 
     public function setTab($tab)
     {
@@ -32,42 +43,146 @@ class ShopNewsletter extends Component
         $this->cancelEdit();
     }
 
+    public function addSubscriber()
+    {
+        $this->validate([
+            'newSubscriberEmail' => 'required|email'
+        ]);
+
+        if (NewsletterSubscriber::where('email', $this->newSubscriberEmail)->exists()) {
+            session()->flash('error', 'Diese E-Mail-Adresse ist bereits eingetragen.');
+            return;
+        }
+
+        NewsletterSubscriber::create([
+            'email' => $this->newSubscriberEmail,
+            'is_verified' => true, // Manuell hinzugefügte gelten idR als verifiziert
+        ]);
+
+        $this->newSubscriberEmail = '';
+        session()->flash('success', 'Abonnent erfolgreich hinzugefügt.');
+    }
+
     public function editTemplate($id)
     {
         $t = Newsletter::findOrFail($id);
         $this->editingTemplateId = $t->id;
         $this->edit_subject = $t->subject;
+        $this->edit_type = $t->type;
 
         // Entfernt alle führenden Leerzeichen/Tabs am Anfang jeder Zeile für eine saubere Code-Ansicht
         $this->edit_content = preg_replace('/^[ \t]+/m', '', $t->content);
 
-        $this->edit_offset = $t->days_offset;
+        if ($this->edit_type === 'manual') {
+            $this->edit_offset = null;
+            $this->edit_event_date = $t->send_at ? Carbon::parse($t->send_at)->format('Y-m-d\TH:i') : null;
+        } else {
+            $this->edit_offset = $t->days_offset;
 
-        // Berechne das dazugehörige Event-Datum für dieses oder nächstes Jahr
-        $year = date('Y');
-        $eventDate = $this->getHolidayDate($t->target_event_key, $year);
-        $sendDate = $eventDate->copy()->subDays($t->days_offset);
+            // Berechne das dazugehörige Event-Datum für dieses oder nächstes Jahr
+            $year = date('Y');
+            $eventDate = $this->getHolidayDate($t->target_event_key, $year);
+            $sendDate = $eventDate->copy()->subDays($t->days_offset);
 
-        if ($sendDate->isPast() && !$sendDate->isToday()) {
-            $eventDate = $this->getHolidayDate($t->target_event_key, $year + 1);
+            if ($sendDate->isPast() && !$sendDate->isToday()) {
+                $eventDate = $this->getHolidayDate($t->target_event_key, $year + 1);
+            }
+
+            $this->edit_event_date = $eventDate->format('Y-m-d');
+        }
+        
+        // Modal falls offen schließen
+        $this->showCreateModal = false;
+    }
+
+    public function openCreateModal()
+    {
+        $this->resetErrorBag();
+        $this->new_type = 'automated';
+        $this->new_target_event_key = '';
+        $this->new_manual_title = '';
+        $this->new_manual_send_at = '';
+        $this->showCreateModal = true;
+    }
+
+    public function createTemplate()
+    {
+        $this->validate([
+            'new_type' => 'required|in:automated,manual',
+            'new_target_event_key' => 'required_if:new_type,automated',
+            'new_manual_title' => 'required_if:new_type,manual|string|max:255',
+            'new_manual_send_at' => 'required_if:new_type,manual|date',
+        ], [
+            'new_target_event_key.required_if' => 'Bitte wähle ein Ereignis aus.',
+            'new_manual_title.required_if' => 'Bitte gib deiner manuellen Kampagne einen Namen.',
+            'new_manual_send_at.required_if' => 'Bitte lege fest, wann die E-Mail versendet werden soll.',
+        ]);
+
+        if ($this->new_type === 'automated') {
+            if (Newsletter::where('target_event_key', $this->new_target_event_key)->where('is_active', true)->exists()) {
+                session()->flash('error', 'Es existiert bereits eine aktive Kampagne für dieses Ereignis.');
+                return;
+            }
+
+            $events = $this->getAvailableEvents();
+            $eventName = $events[$this->new_target_event_key] ?? 'Neues Ereignis';
+
+            $template = Newsletter::create([
+                'type' => 'automated',
+                'title' => $eventName . ' Kampagne', // Interne Bezeichnung
+                'target_event_key' => $this->new_target_event_key,
+                'subject' => 'Neue Kampagne für ' . $eventName,
+                'content' => "<div style=\"font-family: sans-serif; padding: 20px;\">\n  <h2>Hallo {first_name},</h2>\n  <p>Hier steht dein Text für $eventName.</p>\n</div>",
+                'days_offset' => 14,
+                'is_active' => true
+            ]);
+        } else {
+            $template = Newsletter::create([
+                'type' => 'manual',
+                'title' => $this->new_manual_title, // Interne Bezeichnung
+                'target_event_key' => null,
+                'subject' => $this->new_manual_title, // Kann im Editor geändert werden
+                'content' => "<div style=\"font-family: sans-serif; padding: 20px;\">\n  <h2>Hallo {first_name},</h2>\n  <p>Hier steht dein Text für diese Sonder-Kampagne.</p>\n</div>",
+                'send_at' => Carbon::parse($this->new_manual_send_at),
+                'days_offset' => 0,
+                'is_active' => true
+            ]);
         }
 
-        $this->edit_event_date = $eventDate->format('Y-m-d');
+        $this->showCreateModal = false;
+        $this->editTemplate($template->id);
+        session()->flash('success', 'Neue Kampagne erstellt. Bitte anpassen.');
     }
 
     public function saveTemplate()
     {
-        $this->validate([
-            'edit_subject' => 'required|string',
-            'edit_content' => 'required|string',
-            'edit_offset' => 'required|integer'
-        ]);
+        $t = Newsletter::find($this->editingTemplateId);
 
-        Newsletter::find($this->editingTemplateId)->update([
-            'subject' => $this->edit_subject,
-            'content' => $this->edit_content,
-            'days_offset' => $this->edit_offset
-        ]);
+        if ($t->type === 'manual') {
+            $this->validate([
+                'edit_subject' => 'required|string',
+                'edit_content' => 'required|string',
+                'edit_event_date' => 'required|date'
+            ]);
+
+            $t->update([
+                'subject' => $this->edit_subject,
+                'content' => $this->edit_content,
+                'send_at' => Carbon::parse($this->edit_event_date)
+            ]);
+        } else {
+            $this->validate([
+                'edit_subject' => 'required|string',
+                'edit_content' => 'required|string',
+                'edit_offset' => 'required|integer'
+            ]);
+
+            $t->update([
+                'subject' => $this->edit_subject,
+                'content' => $this->edit_content,
+                'days_offset' => $this->edit_offset
+            ]);
+        }
 
         $this->editingTemplateId = null;
         session()->flash('success', 'Kampagne aktualisiert.');
@@ -89,7 +204,7 @@ class ShopNewsletter extends Component
     public function cancelEdit()
     {
         $this->editingTemplateId = null;
-        $this->reset(['edit_subject', 'edit_content', 'edit_offset', 'edit_event_date']);
+        $this->reset(['edit_subject', 'edit_content', 'edit_offset', 'edit_event_date', 'edit_type']);
     }
 
     public function sendTestMail()
@@ -115,7 +230,7 @@ class ShopNewsletter extends Component
             $subscriberMock = (object) ['email' => $adminEmail];
 
             // 3. Render das Blade-Template zu reinem HTML
-            $html = view('global.mails.newsletter.default', [
+            $html = view('global.mails.newsletter.new_newsletter_test_mail_to_admin', [
                 'template'   => $templateMock,
                 'content'    => $contentReplaced,
                 'subscriber' => $subscriberMock
@@ -199,7 +314,7 @@ class ShopNewsletter extends Component
         $events = [];
 
         foreach ($this->getAvailableEvents() as $key => $label) {
-            $tmpl = $templates->where('target_event_key', $key)->first();
+            $tmpl = $templates->where('target_event_key', $key)->where('type', 'automated')->first();
 
             if ($tmpl) {
                 $eventDate = $this->getHolidayDate($key, $year);
@@ -214,11 +329,30 @@ class ShopNewsletter extends Component
                 $events[] = [
                     'date' => $sendDate, // Wird für die korrekte chronologische Sortierung genutzt
                     'event_date' => $eventDate, // Das eigentliche Ereignis-Datum
-                    'title' => $tmpl->subject,
+                    'title' => $tmpl->title,
                     'template_id' => $tmpl->id,
                     'type' => 'mail',
                     'event_key' => $key,
-                    'event_name' => $label
+                    'event_name' => $label,
+                    'is_manual' => false
+                ];
+            }
+        }
+
+        // Add manual active templates
+        $manualTemplates = $templates->where('type', 'manual');
+        foreach ($manualTemplates as $tmpl) {
+            if ($tmpl->send_at) {
+                $sendDate = Carbon::parse($tmpl->send_at);
+                $events[] = [
+                    'date' => $sendDate,
+                    'event_date' => clone $sendDate, // Identical for manual
+                    'title' => $tmpl->title,
+                    'template_id' => $tmpl->id,
+                    'type' => 'mail',
+                    'event_key' => 'manual',
+                    'event_name' => 'Manuelles Event',
+                    'is_manual' => true
                 ];
             }
         }
@@ -244,6 +378,8 @@ class ShopNewsletter extends Component
             'newsletterTimeline' => $this->getNewsletterTimeline(date('Y')),
             'subscribers' => $subscribers,
             'archivedTemplates' => $archivedTemplates,
+            'availableEvents' => $this->getAvailableEvents(),
+            'activeTemplateKeys' => Newsletter::where('is_active', true)->pluck('target_event_key')->toArray(),
             'stats' => [
                 'subscribers' => NewsletterSubscriber::count(),
                 'active_templates' => Newsletter::where('is_active', true)->count()

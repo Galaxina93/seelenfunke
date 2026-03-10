@@ -19,7 +19,7 @@
     {{-- DETAILS / ADRESSEN & KUNDENDATEN --}}
     @include('global.mails.partials.mail_customer_info', ['showContactCard' => true])
 
-    {{-- HINWEIS ZUR XML DATEI (Nur für gewerbliche Kunden sichtbar) --}}
+    {{-- HINWEIS ZUR XML DATEI (Wird vom System nur bei gewerblichen Kunden befüllt/angezeigt) --}}
     @if(!empty($xmlPath))
         <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; font-size: 12px; color: #6c757d; line-height: 1.5;">
             <strong>ℹ️ Hinweis zum Anhang:</strong><br>

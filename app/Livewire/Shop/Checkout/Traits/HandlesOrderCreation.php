@@ -175,11 +175,13 @@ trait HandlesOrderCreation
                 ? hash('sha256', json_encode($item->configuration))
                 : null;
 
+            $productTax = $item->product->tax_rate;
             $order->items()->create([
                 'product_id' => $item->product_id,
                 'product_name' => $item->product->name,
                 'quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
+                'tax_rate' => $productTax !== null ? $productTax : shop_setting('default_tax_rate', 19.0),
                 'total_price' => $item->unit_price * $item->quantity,
                 'configuration' => $item->configuration,
                 'config_fingerprint' => $configFingerprint

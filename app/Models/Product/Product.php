@@ -8,11 +8,12 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class Product extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, SoftDeletes;
 
     protected $guarded = [];
 
@@ -85,6 +86,10 @@ class Product extends Model
     public function getTaxRateAttribute(): float
     {
         if (shop_setting('is_small_business', false)) {
+            return 0.00;
+        }
+
+        if ($this->tax_class === 'zero') {
             return 0.00;
         }
 

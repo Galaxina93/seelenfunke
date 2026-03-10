@@ -39,6 +39,13 @@
                 </div>
             @endif
 
+            @if (session()->has('error'))
+                <div class="bg-red-500/10 border-l-4 border-red-500 p-5 mb-8 text-red-400 shadow-inner rounded-r-2xl flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                    <span>{{ session('error') }}</span>
+                    <x-heroicon-s-exclamation-circle class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
+                </div>
+            @endif
+
             {{-- Tabs --}}
             <div class="flex border-b border-gray-800 mb-8 overflow-x-auto no-scrollbar gap-6">
                 <button wire:click="setTab('templates')" class="pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap {{ $activeTab === 'templates' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300' }}">Automationen</button>
@@ -93,39 +100,49 @@
                                              }
                                          }">
 
-                                        <div class="flex items-center justify-between mb-4">
-                                            <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Timing Offset (Tage vorher)</label>
-                                            <span class="bg-blue-500/10 text-blue-400 text-[9px] px-2 py-0.5 rounded border border-blue-500/20 font-bold">Autopilot</span>
-                                        </div>
-
-                                        <div class="flex items-center gap-4 mb-4">
-                                            <input type="number" x-model="offset" class="w-24 bg-gray-950 border border-gray-800 text-blue-400 font-black text-2xl rounded-xl px-2 py-3 text-center outline-none focus:ring-2 focus:ring-blue-500/30 transition-all shadow-inner">
-                                        </div>
-
-                                        {{-- Live Datumsvorschau Box --}}
-                                        <div class="text-[11px] text-gray-400 font-medium leading-relaxed bg-gray-950 p-4 rounded-xl border border-gray-800 shadow-inner w-full space-y-2">
-                                            <div class="flex justify-between items-center">
-                                                <span class="text-gray-500">Datum des Ereignisses:</span>
-                                                <span class="text-white font-bold" x-text="eventDateFormatted"></span>
-                                            </div>
-                                            <div class="flex justify-between items-center">
-                                                <span class="text-blue-400 font-bold">Wird versendet am:</span>
-                                                <span class="text-blue-400 font-bold" x-text="sendDateFormatted"></span>
+                                        @if($edit_type === 'automated')
+                                            <div class="flex items-center justify-between mb-4">
+                                                <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Timing Offset (Tage vorher)</label>
+                                                <span class="bg-blue-500/10 text-blue-400 text-[9px] px-2 py-0.5 rounded border border-blue-500/20 font-bold">Autopilot</span>
                                             </div>
 
-                                            <template x-if="offset == 0 || offset == ''">
-                                                <div class="mt-3 pt-3 border-t border-gray-800 text-emerald-400 flex items-center gap-2">
-                                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                    Versand erfolgt exakt am Tag des Ereignisses.
-                                                </div>
-                                            </template>
+                                            <div class="flex items-center gap-4 mb-4">
+                                                <input type="number" x-model="offset" class="w-24 bg-gray-950 border border-gray-800 text-blue-400 font-black text-2xl rounded-xl px-2 py-3 text-center outline-none focus:ring-2 focus:ring-blue-500/30 transition-all shadow-inner">
+                                            </div>
 
-                                            <template x-if="offset < 0">
-                                                <div class="mt-3 pt-3 border-t border-gray-800 text-red-400 font-bold">
-                                                    Negative Werte sind hierfür nicht vorgesehen.
+                                            {{-- Live Datumsvorschau Box --}}
+                                            <div class="text-[11px] text-gray-400 font-medium leading-relaxed bg-gray-950 p-4 rounded-xl border border-gray-800 shadow-inner w-full space-y-2">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-gray-500">Datum des Ereignisses:</span>
+                                                    <span class="text-white font-bold" x-text="eventDateFormatted"></span>
                                                 </div>
-                                            </template>
-                                        </div>
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-blue-400 font-bold">Wird versendet am:</span>
+                                                    <span class="text-blue-400 font-bold" x-text="sendDateFormatted"></span>
+                                                </div>
+
+                                                <template x-if="offset == 0 || offset == ''">
+                                                    <div class="mt-3 pt-3 border-t border-gray-800 text-emerald-400 flex items-center gap-2">
+                                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        Versand erfolgt exakt am Tag des Ereignisses.
+                                                    </div>
+                                                </template>
+
+                                                <template x-if="offset < 0">
+                                                    <div class="mt-3 pt-3 border-t border-gray-800 text-red-400 font-bold">
+                                                        Negative Werte sind hierfür nicht vorgesehen.
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        @else
+                                            <div class="flex items-center justify-between mb-4">
+                                                <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Exaktes Sendedatum</label>
+                                                <span class="bg-amber-500/10 text-amber-400 text-[9px] px-2 py-0.5 rounded border border-amber-500/20 font-bold">Manuell</span>
+                                            </div>
+                                            <div class="flex items-center gap-4">
+                                                <input type="datetime-local" wire:model="edit_event_date" class="w-full bg-gray-950 border border-gray-800 text-amber-400 font-black text-sm rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-500/30 transition-all shadow-inner">
+                                            </div>
+                                        @endif
                                     </div>
 
                                     <div class="bg-gray-900/30 rounded-[2rem] p-6 border border-gray-800 border-dashed w-full">
@@ -179,6 +196,15 @@
                             </div>
                         </div>
                     @else
+                        {{-- Template Slider Header --}}
+                        <div class="flex items-center justify-between mt-4 mb-2">
+                            <h3 class="text-white font-serif font-bold text-xl tracking-wide">Aktive Kampagnen</h3>
+                            <button wire:click="openCreateModal" class="px-5 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2">
+                                <x-heroicon-o-plus class="w-4 h-4" />
+                                Neue Automation
+                            </button>
+                        </div>
+                        
                         {{-- Template Slider --}}
                         <div class="relative group/slider w-full mt-4" x-data="{
                                 scrollAmount: 0,
@@ -224,17 +250,102 @@
                                 @endforeach
                             </div>
                         </div>
+
+                        {{-- Create Automation Modal --}}
+                        @if($showCreateModal)
+                            <div class="fixed inset-0 bg-gray-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 sm:p-6" x-data @keydown.escape.window="$wire.showCreateModal = false">
+                                <div class="bg-gray-900 border border-gray-800 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+                                    <div class="px-6 py-5 border-b border-gray-800 flex justify-between items-center bg-gray-950/50">
+                                        <h3 class="text-white font-serif font-bold text-xl">Neue Automation</h3>
+                                        <button wire:click="$set('showCreateModal', false)" class="text-gray-500 hover:text-white transition-colors">
+                                            <x-heroicon-m-x-mark class="w-6 h-6" />
+                                        </button>
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="flex gap-4 mb-6">
+                                            <label class="flex-1 cursor-pointer relative">
+                                                <input type="radio" wire:model.live="new_type" value="automated" class="peer sr-only">
+                                                <div class="p-4 rounded-xl border border-gray-800 bg-gray-950 peer-checked:bg-blue-500/10 peer-checked:border-blue-500/50 peer-checked:text-blue-400 text-gray-500 transition-all flex flex-col items-center justify-center gap-2 text-center h-full">
+                                                    <x-heroicon-o-calendar-days class="w-6 h-6" />
+                                                    <span class="text-[10px] font-black uppercase tracking-widest">Automatisiert<br><span class="text-[8px] font-medium tracking-normal normal-case opacity-70">(Jährlich)</span></span>
+                                                </div>
+                                            </label>
+                                            <label class="flex-1 cursor-pointer relative">
+                                                <input type="radio" wire:model.live="new_type" value="manual" class="peer sr-only">
+                                                <div class="p-4 rounded-xl border border-gray-800 bg-gray-950 peer-checked:bg-amber-500/10 peer-checked:border-amber-500/50 peer-checked:text-amber-400 text-gray-500 transition-all flex flex-col items-center justify-center gap-2 text-center h-full">
+                                                    <x-heroicon-o-cursor-arrow-rays class="w-6 h-6" />
+                                                    <span class="text-[10px] font-black uppercase tracking-widest">Manuell<br><span class="text-[8px] font-medium tracking-normal normal-case opacity-70">(Einmalig)</span></span>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div class="space-y-4">
+                                            @if($new_type === 'automated')
+                                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 leading-relaxed">
+                                                    Wähle ein Ereignis, für das noch keine aktive Automation existiert.
+                                                </p>
+                                                <div>
+                                                    <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2">Ziel-Ereignis</label>
+                                                    <select wire:model="new_target_event_key" class="w-full bg-gray-950 border border-gray-800 text-white font-bold text-sm rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner appearance-none cursor-pointer">
+                                                        <option value="">Bitte wählen...</option>
+                                                        @foreach($availableEvents as $key => $label)
+                                                            @if(!in_array($key, $activeTemplateKeys))
+                                                                <option value="{{ $key }}">{{ $label }}</option>
+                                                            @endif
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+                                            @else
+                                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 leading-relaxed">
+                                                    Lege den Namen und den Versandzeitpunkt fest.
+                                                </p>
+                                                <div>
+                                                    <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2">Interner Name</label>
+                                                    <input type="text" wire:model="new_manual_title" placeholder="z.B. Sommer Special 2026" class="w-full bg-gray-950 border border-gray-800 text-white font-bold text-sm rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-inner">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1 mb-2">Versanddatum & Uhrzeit</label>
+                                                    <input type="datetime-local" wire:model="new_manual_send_at" class="w-full bg-gray-950 border border-gray-800 text-amber-400 font-bold text-sm rounded-xl px-4 py-3.5 focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-inner" style="color-scheme: dark;">
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="px-6 py-5 border-t border-gray-800 bg-gray-950/50 flex justify-end gap-4">
+                                        <button wire:click="$set('showCreateModal', false)" class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
+                                            Abbrechen
+                                        </button>
+                                        <button wire:click="createTemplate" class="px-6 py-2.5 rounded-xl bg-primary text-gray-900 font-black text-[10px] uppercase tracking-widest hover:bg-white hover:scale-105 transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] flex items-center gap-2">
+                                            <span wire:loading.remove wire:target="createTemplate">Erstellen</span>
+                                            <span wire:loading wire:target="createTemplate" class="flex items-center gap-2">
+                                                <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                                Erstelle...
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
                     @endif
                 @endif
 
                 {{-- TAB: SUBSCRIBERS --}}
                 @if($activeTab === 'subscribers')
                     <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden">
-                        <div class="p-6 sm:p-8 border-b border-gray-800 bg-gray-950/50 shadow-inner">
-                            <div class="relative flex-1 group max-w-lg">
+                        <div class="p-6 sm:p-8 border-b border-gray-800 bg-gray-950/50 shadow-inner flex flex-col sm:flex-row gap-6 items-center justify-between">
+                            <div class="relative flex-1 group w-full sm:max-w-md">
                                 <input wire:model.live.debounce.300ms="search" type="text" placeholder="Abonnent suchen..." class="w-full pl-12 pr-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-gray-950 focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600">
                                 <x-heroicon-o-magnifying-glass class="w-5 h-5 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-primary transition-colors" />
                             </div>
+
+                            <form wire:submit.prevent="addSubscriber" class="flex items-center gap-3 w-full sm:w-auto">
+                                <div class="relative flex-1 sm:w-64">
+                                    <input wire:model="newSubscriberEmail" type="email" required placeholder="Neue E-Mail Adresse..." class="w-full px-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-gray-950 focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 shadow-inner outline-none transition-all placeholder-gray-600">
+                                </div>
+                                <button type="submit" class="p-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 rounded-xl transition-all shadow-lg shrink-0" title="Abonnent manuell prüfen & eintragen">
+                                    <svg wire:loading.remove wire:target="addSubscriber" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                    <svg wire:loading wire:target="addSubscriber" class="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                </button>
+                            </form>
                         </div>
                         <div class="overflow-x-auto custom-scrollbar">
                             <table class="w-full text-left border-collapse min-w-[800px]">

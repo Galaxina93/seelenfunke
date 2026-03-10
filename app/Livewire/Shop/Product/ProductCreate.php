@@ -15,6 +15,7 @@ class ProductCreate extends Component
     use WithFileUploads;
 
     public $viewMode = 'list';
+    public $showArchived = false;
     public Product $product;
 
     public $currentStep = 1;
@@ -698,10 +699,45 @@ class ProductCreate extends Component
         }
     }
 
+    public function archiveProduct($id)
+    {
+        $prod = Product::find($id);
+        if ($prod) {
+            $prod->status = 'archived';
+            $prod->save();
+            $prod->delete(); // Soft delete
+            session()->flash('success', 'Produkt ins Archiv verschoben.');
+        }
+    }
+
+    public function restoreProduct($id)
+    {
+        $prod = Product::withTrashed()->find($id);
+        if ($prod) {
+            $prod->restore();
+            $prod->status = 'active';
+            $prod->save();
+            session()->flash('success', 'Produkt aus dem Archiv als aktiv wiederhergestellt.');
+        }
+    }
+
+    public function toggleArchiveMode()
+    {
+        $this->showArchived = !$this->showArchived;
+        $this->search = ''; // optionally clear search
+    }
+
     public function render()
     {
         $query = Product::query();
-        if($this->search) $query->where('name', 'like', '%'.$this->search.'%');
+        
+        if ($this->showArchived) {
+            $query->onlyTrashed();
+        }
+        
+        if($this->search) {
+            $query->where('name', 'like', '%'.$this->search.'%');
+        }
 
         $products = ($this->viewMode === 'list') ? $query->latest()->get() : [];
 

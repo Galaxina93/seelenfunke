@@ -22,11 +22,22 @@
                 </div>
             </div>
 
-            {{-- NEU BUTTON --}}
-            <button wire:click="createDraft"
-                    class="bg-primary border border-primary/50 text-gray-900 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
-                <span class="text-sm leading-none">+</span> Neu
-            </button>
+            {{-- NEU/ARCHIV BUTTONS --}}
+            @if(!$showArchived)
+                <button wire:click="toggleArchiveMode"
+                        class="bg-gray-950 border border-gray-800 text-gray-400 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-inner hover:bg-gray-900 hover:text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                    Archiv öffnen
+                </button>
+                <button wire:click="createDraft"
+                        class="bg-primary border border-primary/50 text-gray-900 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                    <span class="text-sm leading-none">+</span> Neu
+                </button>
+            @else
+                <button wire:click="toggleArchiveMode"
+                        class="bg-gray-950 border border-gray-800 text-gray-400 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-inner hover:bg-gray-900 hover:text-white transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                    Zurück zur Kollektion
+                </button>
+            @endif
         </div>
     </div>
 
@@ -190,9 +201,20 @@
                                 Schritt {{ $prod->completion_step }}/{{ $maxSteps }}
                             @endif
                         </span>
-                        <button wire:click="edit('{{ $prod->id }}')" class="text-gray-500 hover:text-white transition-colors border-b border-gray-600 hover:border-white pb-0.5">
-                            Bearbeiten &rarr;
-                        </button>
+                        @if($showArchived)
+                            <button wire:click="restoreProduct('{{ $prod->id }}')" class="text-emerald-500 hover:text-emerald-400 transition-colors border-b border-emerald-600 hover:border-emerald-400 pb-0.5">
+                                Wiederherstellen
+                            </button>
+                        @else
+                            <div class="flex items-center gap-4">
+                                <button wire:click="archiveProduct('{{ $prod->id }}')" onclick="confirm('Produkt wirklich ins Archiv verschieben?') || event.stopImmediatePropagation()" class="text-gray-500 hover:text-red-400 transition-colors border-b border-gray-600 hover:border-red-400 pb-0.5">
+                                    Löschen
+                                </button>
+                                <button wire:click="edit('{{ $prod->id }}')" class="text-gray-500 hover:text-white transition-colors border-b border-gray-600 hover:border-white pb-0.5">
+                                    Bearbeiten &rarr;
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @endforeach

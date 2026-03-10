@@ -1,11 +1,18 @@
-<div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up">
+<div x-data="{ saved: false }" @tax-saved.window="saved = true; setTimeout(() => saved = false, 3000)" class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up">
 
     {{-- Header --}}
-    <div class="flex items-center justify-between mb-8 border-b border-gray-800 pb-5">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-8 border-b border-gray-800 pb-5">
         <div class="flex items-center gap-4">
             <h2 class="text-xl font-serif font-bold text-white tracking-wide">Steuer & Mehrwertsteuer</h2>
             <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_8px_currentColor] hidden sm:inline-flex">
                 EU Richtlinie
+            </span>
+        </div>
+        
+        <div class="flex items-center mt-2 sm:mt-0">
+            <span x-show="saved" x-transition.opacity style="display: none;" class="text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 drop-shadow-[0_0_8px_currentColor]">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                Gespeichert
             </span>
         </div>
     </div>

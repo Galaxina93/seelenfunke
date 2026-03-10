@@ -18,11 +18,17 @@ return new class extends Migration
             $table->string('subject'); // Betreff der Mail an den Kunden
             $table->longText('content')->nullable(); // Der HTML Inhalt
 
-            // Verknüpfung zum Feiertag (Key-Based, z.B. 'mothers_day', 'christmas')
-            $table->string('target_event_key')->index();
+            // Typ: 'automated' (feiertagsbasiert) oder 'manual' (einmalig)
+            $table->string('type')->default('automated');
 
-            // Wann soll gesendet werden? (z.B. 14 Tage vorher)
+            // Verknüpfung zum Feiertag (Key-Based, z.B. 'mothers_day', 'christmas') - Nur für automated
+            $table->string('target_event_key')->index()->nullable();
+
+            // Wann soll gesendet werden? (z.B. 14 Tage vorher) - Nur für automated
             $table->integer('days_offset')->default(14);
+
+            // Exaktes Sendedatum - Nur für manual
+            $table->timestamp('send_at')->nullable();
 
             $table->boolean('is_active')->default(true);
             $table->timestamp('last_sent_at')->nullable();

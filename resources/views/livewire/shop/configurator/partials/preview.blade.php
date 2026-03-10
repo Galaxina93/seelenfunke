@@ -187,7 +187,7 @@
                 class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center">
             Vorderseite
         </button>
-        <button @click="activeSide = 'back'"
+        <button @click="activeSide = 'back'; if (texts_back.length === 0 && logos_back.length === 0) { addFallbackText(); }"
                 :class="activeSide === 'back' ? 'bg-purple-500 text-white shadow-md' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
                 class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center">
             Rückseite

@@ -45,6 +45,7 @@ case "$1" in
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
+        echo -e "  \033[1;32m🔐 rights\033[0m        Repariert die Verzeichnis-Berechtigungen (storage/ und bootstrap/cache/)."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
@@ -143,6 +144,16 @@ case "$1" in
         fi
 
         echo "✅ Backup erfolgreich abgeschlossen!"
+        ;;
+    rights)
+        echo "🔐 Repariere Datei-Berechtigungen..."
+        if [ "$IS_LOCAL" = true ]; then
+            docker compose exec -u root web chmod -R 777 storage/ bootstrap/cache/
+        else
+            chmod -R 775 storage/ bootstrap/cache/
+        fi
+        $PREFIX_DEFAULT php artisan optimize:clear
+        echo "✅ Berechtigungen und Cache erfolgreich erneuert!"
         ;;
     test)
         shift

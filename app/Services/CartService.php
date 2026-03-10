@@ -232,6 +232,7 @@ class CartService
         // Globale Einstellungen aus der 'shop-settings' Tabelle laden
         $isSmallBusiness = (bool)shop_setting('is_small_business', false);
         $defaultTaxRate = (float)shop_setting('default_tax_rate', 19.0);
+        $maxTaxRate = 0.0;
 
         // 1. ARTIKEL DURCHLAUFEN
         foreach ($cart->items as $item) {
@@ -267,14 +268,24 @@ class CartService
             $originalSubtotal += ($basePrice * $qty);
 
             // Steueranteil herausrechnen
-            $taxRate = $isSmallBusiness ? 0.0 : (float) ($product->tax_rate ?? $defaultTaxRate);
+            $productTaxRate = $product->tax_rate !== null ? (float)$product->tax_rate : $defaultTaxRate;
+            if ($productTaxRate > $maxTaxRate) {
+                $maxTaxRate = $productTaxRate;
+            }
+            
+            $taxRate = $isSmallBusiness ? 0.0 : $productTaxRate;
 
             $lineNet = (int) round($lineGross / (1 + ($taxRate / 100)));
             $lineTax = $lineGross - $lineNet;
 
+            // Ensure 0% breakdown array starts at 0 if no item has > 0 tax yet
             $strRate = number_format($taxRate, 0);
             if (!isset($taxesBreakdown[$strRate])) $taxesBreakdown[$strRate] = 0;
             $taxesBreakdown[$strRate] += $lineTax;
+        }
+        
+        if ($maxTaxRate === 0.0 && $itemCount === 0) {
+            $maxTaxRate = $defaultTaxRate;
         }
 
         $volumeDiscount = max(0, $originalSubtotal - $subtotalGross);
@@ -327,17 +338,17 @@ class CartService
             $taxesBreakdown[$key] = (int) round($val * $discountRatio);
         }
 
-        // 5. VERSANDSTEUER (EU-Logik)
+        // 5. VERSANDSTEUER (MAXIMALER STEUERSATZ EU-Logik)
         $shippingTaxAmount = 0;
         $euCountries = ['DE', 'AT', 'BE', 'BG', 'CY', 'CZ', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'];
         $isEU = in_array($countryCode, $euCountries);
 
         if ($shippingGross > 0) {
-            $shippingTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
+            $shippingTaxRate = ($isEU && !$isSmallBusiness) ? $maxTaxRate : 0.0;
             $shippingNet = (int) round($shippingGross / (1 + ($shippingTaxRate / 100)));
             $shippingTaxAmount = $shippingGross - $shippingNet;
 
-            if ($shippingTaxRate > 0) {
+            if ($shippingTaxRate > 0 || floatval($shippingTaxRate) == 0.0) {
                 $strShipRate = number_format($shippingTaxRate, 0);
                 if (!isset($taxesBreakdown[$strShipRate])) {
                     $taxesBreakdown[$strShipRate] = 0;
@@ -354,12 +365,12 @@ class CartService
         // (Wenn alles digital ist -> kein Versand -> auch kein Express möglich)
         if ($cart->is_express && $this->shippingService->needsShipping($cart->items)) {
             $expressGross = (int) shop_setting('express_surcharge', 2500);
-            $expressTaxRate = ($isEU && !$isSmallBusiness) ? $defaultTaxRate : 0.0;
+            $expressTaxRate = ($isEU && !$isSmallBusiness) ? $maxTaxRate : 0.0;
 
             $expressNet = (int) round($expressGross / (1 + ($expressTaxRate / 100)));
             $expressTaxAmount = $expressGross - $expressNet;
 
-            if ($expressTaxRate > 0) {
+            if ($expressTaxRate > 0 || floatval($expressTaxRate) == 0.0) {
                 $strExpRate = number_format($expressTaxRate, 0);
                 if (!isset($taxesBreakdown[$strExpRate])) $taxesBreakdown[$strExpRate] = 0;
                 $taxesBreakdown[$strExpRate] += $expressTaxAmount;

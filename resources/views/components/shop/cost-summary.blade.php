@@ -86,6 +86,18 @@
         } else {
             $data['subtotal'] = $rawSubtotal;
         }
+
+        // NEU: Zieht den exakten, aufgeschlüsselten Tax Breakdown via Traits für 0% Produkte!
+        $data['tax_breakdown'] = [];
+        if (!$isSmallBusiness && method_exists($model, 'toFormattedArray')) {
+            $summaryData = $model->toFormattedArray();
+            if (isset($summaryData['tax_breakdown']) && is_array($summaryData['tax_breakdown'])) {
+                foreach($summaryData['tax_breakdown'] as $rate => $formattedStr) {
+                    $cleanFloat = (float)str_replace(['.', ','], ['', '.'], $formattedStr);
+                    $data['tax_breakdown'][$rate] = (int)round($cleanFloat * 100);
+                }
+            }
+        }
     }
     elseif ($totals) {
         $data['subtotal'] = $totals['subtotal_gross'] ?? ($totals['subtotal_original'] ?? 0);
@@ -201,7 +213,7 @@
             @if(!$isSmallBusiness)
                 @if(!empty($data['tax_breakdown']))
                     @foreach($data['tax_breakdown'] as $rate => $amount)
-                        @if($amount > 0)
+                        @if($amount > 0 || floatval($rate) == 0)
                             <div class="text-[10px] uppercase tracking-widest font-black {{ $taxTextClass }} whitespace-nowrap">
                                 inkl. {{ number_format($amount / 100, 2, ',', '.') }}&nbsp;€ MwSt. ({{ floatval($rate) }}%)
                             </div>

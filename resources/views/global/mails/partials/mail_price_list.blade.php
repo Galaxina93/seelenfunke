@@ -113,18 +113,36 @@
                 {{ $data['total_netto'] }} €
             </td>
         </tr>
-        <tr>
-            <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                {{ $data['tax_note'] ?? 'Enthaltene MwSt.:' }}
-            </td>
-            <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                @if(empty($data['is_small_business']) && isset($data['total_vat']))
-                    {{ $data['total_vat'] }} €
-                @elseif(!empty($data['is_small_business']))
+        @if(empty($data['is_small_business']) && !empty($data['tax_breakdown']))
+            @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
+            <tr>
+                <td class="text-right" style="padding-bottom: 5px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    inkl. MwSt. ({{ $rate }}%):
+                </td>
+                <td class="text-right" style="padding-bottom: 5px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    {{ $taxAmountStr }} €
+                </td>
+            </tr>
+            @endforeach
+        @elseif(!empty($data['is_small_business']))
+            <tr>
+                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    {{ $data['tax_note'] ?? 'Enthaltene MwSt.:' }}
+                </td>
+                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
                     0,00 €
-                @endif
-            </td>
-        </tr>
+                </td>
+            </tr>
+        @else
+            <tr>
+                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    {{ $data['tax_note'] ?? 'Enthaltene MwSt.:' }}
+                </td>
+                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    {{ $data['total_vat'] }} €
+                </td>
+            </tr>
+        @endif
     </table>
 
     {{-- ZAHLUNGSBUTTON --}}

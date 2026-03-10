@@ -80,6 +80,7 @@
             $headers = [
                 'invoice_number' => ['label' => 'Belegnummer', 'sortable' => true],
                 'recipient'      => ['label' => 'Empfänger', 'sortable' => true],
+                'created_at'     => ['label' => 'Erstellt am', 'sortable' => true],
                 'total'          => ['label' => 'Bruttobetrag', 'align' => 'right', 'sortable' => true],
                 'status'         => ['label' => 'Status', 'align' => 'center', 'sortable' => true],
                 'actions'        => ['label' => 'Aktionen', 'align' => 'right']
@@ -118,6 +119,9 @@
                             </div>
                             <div class="text-[10px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ $inv->invoice_date->format('d.m.Y') }}</div>
                         </td>
+                        <td class="px-4 py-5 align-middle">
+                            <div class="text-[10px] text-gray-500 uppercase tracking-widest font-black whitespace-nowrap">{{ $inv->created_at->format('d.m.Y H:i') }} Uhr</div>
+                        </td>
                         <td @class(['px-4 py-5 text-right font-serif font-bold text-lg align-middle whitespace-nowrap', 'text-white' => $inv->total >= 0, 'text-red-400' => $inv->total < 0])>
                             {{ number_format($inv->total / 100, 2, ',', '.') }} €
                         </td>
@@ -152,7 +156,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="p-16 text-center text-gray-500 font-serif italic text-lg">Keine Belege gefunden.</td></tr>
+                    <tr><td colspan="6" class="p-16 text-center text-gray-500 font-serif italic text-lg">Keine Belege gefunden.</td></tr>
                 @endforelse
 
                 {{-- Mobile Slot --}}
@@ -166,6 +170,7 @@
                                         @if($inv->is_e_invoice) <span class="text-[8px] bg-blue-500/10 border border-blue-500/30 text-blue-400 px-1.5 py-0.5 rounded shadow-sm font-black">XML</span> @endif
                                     </span>
                                     <span class="text-[9px] text-gray-500 uppercase font-black tracking-widest">{{ $inv->invoice_date->format('d.m.Y') }}</span>
+                                    <span class="text-[9px] text-gray-500/80 uppercase font-black tracking-widest">{{ $inv->created_at->format('d.m.Y H:i') }} Uhr</span>
                                     @if($inv->type === 'cancellation' && $inv->parent_id)
                                         <span class="text-[8px] text-red-400 font-black uppercase tracking-widest mt-1 flex items-center gap-1.5">
                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(false);
             $table->integer('funken_balance')->default(0);
             $table->integer('funken_total_earned')->default(0);
+            $table->integer('funkenflug_highscore')->default(0);
             $table->integer('level')->default(1);
             $table->integer('sparks_collected_today')->default(0);
             $table->date('last_spark_collection_date')->nullable();

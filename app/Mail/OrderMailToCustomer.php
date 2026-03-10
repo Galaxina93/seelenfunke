@@ -60,11 +60,9 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
                 ->withMime('application/pdf');
         }
 
-        // 2. XML anhängen (falls vorhanden)
+        // 2. XML anhängen (falls vorhanden - wird nur bei gewerblichen Bestellungen erzeugt)
         if ($this->xmlPath && file_exists($this->xmlPath)) {
-            // Dateiname extrahieren (z.B. RE-2026-1001.xml)
             $filename = basename($this->xmlPath);
-
             $attachments[] = Attachment::fromPath($this->xmlPath)
                 ->as($filename)
                 ->withMime('application/xml');
@@ -74,8 +72,9 @@ class OrderMailToCustomer extends Mailable implements ShouldQueue
         if (!empty($this->snapshotPaths)) {
             foreach ($this->snapshotPaths as $index => $snapshotPath) {
                 if (file_exists($snapshotPath)) {
+                    $sideName = ($index === 0) ? 'Vorderseite' : 'Rückseite';
                     $attachments[] = Attachment::fromPath($snapshotPath)
-                        ->as('Bestell-Sicherung-' . ($index + 1) . '.jpg')
+                        ->as($sideName . '-Sicherung.jpg')
                         ->withMime('image/jpeg');
                 }
             }

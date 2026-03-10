@@ -37,7 +37,7 @@ return new class extends Migration
             $table->date('first_payment_date');
 
             $table->boolean('is_business')->default(false); // Neu: Gewerblich/Privat Trennung
-
+            $table->integer('tax_rate')->nullable(); // 0, 7, 19
             $table->string('contract_file_path')->nullable();
 
             $table->json('tags')->nullable();

@@ -235,10 +235,24 @@
                                                     <span>Nettobetrag:</span>
                                                     <span>{{ number_format(($invoice->total - $invoice->tax_amount) / 100, 2, ',', '.') }} €</span>
                                                 </div>
-                                                <div class="flex justify-between">
-                                                    <span>{{ $isSmallBusiness ? 'Umsatzsteuerfrei gem. § 19 UStG.' : 'MwSt. ('.shop_setting('default_tax_rate', 19).'%):' }}</span>
-                                                    <span>@if(!$isSmallBusiness) {{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} € @endif</span>
-                                                </div>
+                                                @if(empty($isSmallBusiness) && !empty($data['tax_breakdown']))
+                                                    @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
+                                                        <div class="flex justify-between">
+                                                            <span>inkl. MwSt. ({{ $rate }}%):</span>
+                                                            <span>{{ $taxAmountStr }} €</span>
+                                                        </div>
+                                                    @endforeach
+                                                @elseif(!empty($isSmallBusiness))
+                                                    <div class="flex justify-between">
+                                                        <span>Umsatzsteuerfrei gem. § 19 UStG.</span>
+                                                        <span>0,00 €</span>
+                                                    </div>
+                                                @else
+                                                    <div class="flex justify-between">
+                                                        <span>MwSt. ({{ shop_setting('default_tax_rate', 19) }}%):</span>
+                                                        <span>{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</span>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
                                     </div>

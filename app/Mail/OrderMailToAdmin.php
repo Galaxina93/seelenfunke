@@ -85,8 +85,9 @@ class OrderMailToAdmin extends Mailable implements ShouldQueue
         if (!empty($this->snapshotPaths)) {
             foreach ($this->snapshotPaths as $index => $snapshotPath) {
                 if (file_exists($snapshotPath)) {
+                    $sideName = ($index === 0) ? 'Vorderseite' : 'Rückseite';
                     $attachments[] = Attachment::fromPath($snapshotPath)
-                        ->as('Bestell-Sicherung-' . ($index + 1) . '.jpg')
+                        ->as($sideName . '-Sicherung.jpg')
                         ->withMime('image/jpeg');
                 }
             }

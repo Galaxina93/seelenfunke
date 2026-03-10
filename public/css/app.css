@@ -3942,6 +3942,10 @@ video {
 .border-yellow-600\/50 {
   border-color: rgb(202 138 4 / 0.5);
 }
+.border-emerald-600 {
+  --tw-border-opacity: 1;
+  border-color: rgb(5 150 105 / var(--tw-border-opacity, 1));
+}
 .border-b-primary\/20 {
   border-bottom-color: rgb(201 166 107 / 0.2);
 }
@@ -5600,6 +5604,9 @@ video {
 .capitalize {
   text-transform: capitalize;
 }
+.normal-case {
+  text-transform: none;
+}
 .italic {
   font-style: italic;
 }
@@ -6138,6 +6145,9 @@ video {
 }
 .text-blue-600\/70 {
   color: rgb(37 99 235 / 0.7);
+}
+.text-gray-500\/80 {
+  color: rgb(107 114 128 / 0.8);
 }
 .underline {
   text-decoration-line: underline;
@@ -8453,6 +8463,14 @@ video {
 .hover\:border-white\/40:hover {
   border-color: rgb(255 255 255 / 0.4);
 }
+.hover\:border-emerald-400:hover {
+  --tw-border-opacity: 1;
+  border-color: rgb(52 211 153 / var(--tw-border-opacity, 1));
+}
+.hover\:border-emerald-500:hover {
+  --tw-border-opacity: 1;
+  border-color: rgb(16 185 129 / var(--tw-border-opacity, 1));
+}
 .hover\:bg-amber-200:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(253 230 138 / var(--tw-bg-opacity, 1));
@@ -10028,6 +10046,12 @@ video {
 .peer:checked ~ .peer-checked\:border-primary\/50 {
   border-color: rgb(201 166 107 / 0.5);
 }
+.peer:checked ~ .peer-checked\:border-amber-500\/50 {
+  border-color: rgb(245 158 11 / 0.5);
+}
+.peer:checked ~ .peer-checked\:border-blue-500\/50 {
+  border-color: rgb(59 130 246 / 0.5);
+}
 .peer:checked ~ .peer-checked\:bg-amber-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(245 158 11 / var(--tw-bg-opacity, 1));
@@ -10058,9 +10082,19 @@ video {
 .peer:checked ~ .peer-checked\:bg-primary\/20 {
   background-color: rgb(201 166 107 / 0.2);
 }
+.peer:checked ~ .peer-checked\:bg-amber-500\/10 {
+  background-color: rgb(245 158 11 / 0.1);
+}
+.peer:checked ~ .peer-checked\:bg-blue-500\/10 {
+  background-color: rgb(59 130 246 / 0.1);
+}
 .peer:checked ~ .peer-checked\:text-blue-400 {
   --tw-text-opacity: 1;
   color: rgb(96 165 250 / var(--tw-text-opacity, 1));
+}
+.peer:checked ~ .peer-checked\:text-amber-400 {
+  --tw-text-opacity: 1;
+  color: rgb(251 191 36 / var(--tw-text-opacity, 1));
 }
 .peer:checked ~ .peer-checked\:opacity-100 {
   opacity: 1;
@@ -10543,6 +10577,9 @@ video {
   .sm\:w-max {
     width: -moz-max-content;
     width: max-content;
+  }
+  .sm\:w-64 {
+    width: 16rem;
   }
   .sm\:max-w-\[160px\] {
     max-width: 160px;

@@ -22,9 +22,10 @@ trait FormatsECommerceData
         // 2. Artikel aufbereiten & Brutto-Warenwert der Positionen berechnen
         $items = [];
         $goodsGrossCents = 0;
+        $taxesBreakdownCents = [];
 
-        foreach ($this->items as $item) {
-            $lineGross = $item->total_price ?? 0;
+        foreach ($this->items ?? [] as $item) {
+            $lineGross = $item->total_price ?? $item['total_price'] ?? 0;
             $goodsGrossCents += $lineGross;
 
             // SICHERER ZUGRIFF AUF CONFIGURATION (Verhindert stdClass Fehler)
@@ -35,13 +36,35 @@ trait FormatsECommerceData
                 $config = $item['configuration'];
             }
 
+            // TAX CALCULATION FOR ITEM
+            $itemTax = is_object($item) ? ($item->tax_rate ?? null) : ($item['tax_rate'] ?? null);
+            $taxRate = (float)($itemTax !== null ? $itemTax : $defaultTaxRate);
+            $lineNet = (int)round($lineGross / (1 + ($taxRate / 100)));
+            $lineTax = $lineGross - $lineNet;
+
+            if (!$isSmallBusiness) {
+                $strRate = number_format($taxRate, 0);
+                if (!isset($taxesBreakdownCents[$strRate])) $taxesBreakdownCents[$strRate] = 0;
+                $taxesBreakdownCents[$strRate] += $lineTax;
+            }
+
             $items[] = [
-                'name'         => $item->product_name ?? $item->name ?? 'Unbekanntes Produkt',
-                'quantity'     => $item->quantity,
-                'single_price' => number_format(($item->unit_price ?? 0) / 100, 2, ',', '.'),
+                'name'         => is_object($item) ? ($item->product_name ?? $item->name ?? 'Unbekanntes Produkt') : ($item['product_name'] ?? 'Unbekanntes Produkt'),
+                'quantity'     => is_object($item) ? $item->quantity : ($item['quantity'] ?? 1),
+                'single_price' => number_format((is_object($item) ? ($item->unit_price ?? 0) : ($item['unit_price'] ?? 0)) / 100, 2, ',', '.'),
                 'total_price'  => number_format($lineGross / 100, 2, ',', '.'),
                 'config'       => $config
             ];
+        }
+
+        // Apply discount proportion to taxes
+        $totalDiscountCents = ($this->discount_amount ?? 0) + ($this->volume_discount ?? 0);
+        $discountRatio = $goodsGrossCents > 0 ? max(0, ($goodsGrossCents - $totalDiscountCents) / $goodsGrossCents) : 1;
+
+        if (!$isSmallBusiness) {
+            foreach ($taxesBreakdownCents as $rate => $tax) {
+                $taxesBreakdownCents[$rate] = (int)round($tax * $discountRatio);
+            }
         }
 
         // 3. Brutto-Summen aus dem Model ermitteln (Robustheit für Invoice, Order, Quote)
@@ -59,19 +82,66 @@ trait FormatsECommerceData
         // Gesamt-Netto
         $totalNettoCents = $grossTotalCents - $taxAmountCents;
 
-        // 4. Versandkosten-Logik (Zentrale Prüfung der Schwelle)
+        // 4. MAXIMALER STEUERSATZ (Für Versand & Express relevant in EU)
+        // Find the maximum tax rate used by any item in this specific order/invoice
+        $maxTaxRate = -1.0;
+        foreach ($this->items ?? [] as $item) {
+            $itemTax = null;
+            if (is_object($item)) {
+                $itemTax = $item->tax_rate ?? ($item->product->tax_rate ?? null);
+            } else {
+                $itemTax = $item['tax_rate'] ?? ($item['product']['tax_rate'] ?? null);
+            }
+            $taxRate = (float)($itemTax !== null ? $itemTax : $defaultTaxRate);
+            if ($taxRate > $maxTaxRate) {
+                $maxTaxRate = $taxRate;
+            }
+        }
+        
+        // Wenn keine Items da sind oder nichts gefunden wurde, Fallback verwenden
+        if ($maxTaxRate < 0) {
+            $maxTaxRate = $defaultTaxRate;
+        }
+
+        $dynamicDivisor = $isSmallBusiness ? 1.0 : (1 + ($maxTaxRate / 100));
+
+        // 5. Versandkosten-Logik (Zentrale Prüfung der Schwelle)
         // Wir prüfen subtotal_price (Order) oder goodsGrossCents (berechnet) gegen die Schwelle
         $calcBase = $this->subtotal_price ?? $goodsGrossCents;
         $actualShippingGross = ($calcBase >= $shippingThreshold) ? 0 : ($this->shipping_price ?? $this->shipping_cost ?? 0);
-        $shippingNettoCents  = (int)round($actualShippingGross / $divisor);
+        $shippingNettoCents  = (int)round($actualShippingGross / $dynamicDivisor);
 
-        // 5. Express-Logik
+        if ($actualShippingGross > 0 && !$isSmallBusiness) {
+            $shippingTaxCents = $actualShippingGross - $shippingNettoCents;
+            $strShipRate = number_format($maxTaxRate, 0);
+            if (!isset($taxesBreakdownCents[$strShipRate])) $taxesBreakdownCents[$strShipRate] = 0;
+            $taxesBreakdownCents[$strShipRate] += $shippingTaxCents;
+        }
+
+        // 6. Express-Logik
         $expressGross = $this->is_express ? $expressSurcharge : 0;
-        $expressNettoCents = (int)round($expressGross / $divisor);
+        $expressNettoCents = (int)round($expressGross / $dynamicDivisor);
 
-        // 6. Reiner Warenwert Netto (Gesamt-Netto minus Nebenkosten)
+        if ($expressGross > 0 && !$isSmallBusiness) {
+            $expressTaxCents = $expressGross - $expressNettoCents;
+            $strExpRate = number_format($maxTaxRate, 0);
+            if (!isset($taxesBreakdownCents[$strExpRate])) $taxesBreakdownCents[$strExpRate] = 0;
+            $taxesBreakdownCents[$strExpRate] += $expressTaxCents;
+        }
+
+        // 7. Reiner Warenwert Netto (Gesamt-Netto minus Nebenkosten)
         // Verhindert negative Werte, falls die Summen-Felder in der DB leer sind
         $goodsNettoCents = max(0, $totalNettoCents - $expressNettoCents - $shippingNettoCents);
+
+        // 7. Breakdown formatieren
+        $formattedTaxBreakdown = [];
+        if (!$isSmallBusiness) {
+            foreach ($taxesBreakdownCents as $rate => $cents) {
+                if ($cents > 0 || floatval($rate) == 0) {
+                    $formattedTaxBreakdown[$rate] = number_format($cents / 100, 2, ',', '.');
+                }
+            }
+        }
 
         return [
             // Identifikatoren
@@ -104,6 +174,9 @@ trait FormatsECommerceData
             'discount_amount' => number_format(($this->discount_amount ?? 0) / 100, 2, ',', '.'),
             'coupon_code'     => $this->coupon_code ?? null,
             // -----------------------------------
+
+            // Steuer Aufschlüsselung
+            'tax_breakdown'  => $formattedTaxBreakdown,
 
             // Einzel-Netto-Werte für Partials
             'display_netto_goods'    => number_format($goodsNettoCents / 100, 2, ',', '.') . ' €',
