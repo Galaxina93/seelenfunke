@@ -8,7 +8,7 @@
             <p class="text-gray-400 mt-2 text-sm">Echtzeitanalyse von Systemstatus, Finanzen und Performance.</p>
         </div>
         <button @click="$dispatch('open-funki')" class="text-xs font-bold leading-none bg-gray-800/80 hover:bg-black text-primary hover:text-white border border-gray-700 hover:border-primary px-4 py-2 rounded-full shadow-[0_0_15px_rgba(197,160,89,0.2)] transition-all flex items-center gap-2 whitespace-nowrap">
-            🌠 Funki
+            🌠 Funkira
         </button>
     </div>
 

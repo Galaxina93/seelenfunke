@@ -23,7 +23,7 @@
     <!-- UI Overlay Navigation -->
     <div class="absolute top-6 right-6 z-10 transition-transform hover:scale-105">
         <button @click="closeFunkiView()" class="px-5 py-2.5 bg-gray-900/80 border border-gray-700 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 hover:text-white hover:border-primary hover:bg-black transition-all shadow-glow flex items-center gap-2 backdrop-blur-md">
-            <i class="bi bi-x-lg"></i> Funki-Zentrum verlassen
+            <i class="bi bi-x-lg"></i> Funkira - Zentrum verlassen
         </button>
     </div>
     <!-- Audio Elements -->
@@ -140,6 +140,133 @@
             avgProfit: avgProfit + ' €',
             totalOrders: totalOrders,
             lastSync: lastSync,
+            
+            // Voice AI State
+            listening: false,
+            thinking: false,
+            continuousMode: false,
+            recognition: null,
+            synthesis: window.speechSynthesis,
+
+            isOutputActive() {
+                const audioPlaying = window.funkiAudioPlayer && !window.funkiAudioPlayer.paused && !window.funkiAudioPlayer.ended;
+                const synthSpeaking = this.synthesis && this.synthesis.speaking;
+                return audioPlaying || synthSpeaking;
+            },
+
+            // --- AI VOICE CHAT LOGIC ---
+            toggleSpeech() {
+                if (!this.recognition) return;
+                if (this.thinking) return;
+
+                if (this.continuousMode) {
+                    // Turn off always-listening completely
+                    this.continuousMode = false;
+                    this.listening = false;
+                    this.recognition.stop();
+                } else {
+                    // Turn on always-listening
+                    if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
+                    if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
+                    
+                    this.continuousMode = true;
+                    this.listening = true;
+                    try {
+                        this.recognition.start();
+                    } catch (e) {
+                        console.error('Failed to start recognition', e);
+                    }
+                }
+            },
+
+            async sendToAI(promptText) {
+                this.thinking = true;
+                try {
+                    const response = await fetch('/api/ai/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify({ prompt: promptText })
+                    });
+
+                    const data = await response.json();
+                    
+                    if(data.status === 'success') {
+                        if (data.audio) {
+                            this.playAudioBase64(data.audio);
+                        } else {
+                            this.speakResponse(data.response); // Fallback
+                        }
+                    } else {
+                        console.error("AI Error:", data);
+                        this.speakResponse("Verbindung zum Schiffscomputer fehlgeschlagen.");
+                    }
+                } catch (err) {
+                    console.error("Fetch Error:", err);
+                    this.speakResponse("Subraumkommunikation abgebrochen.");
+                } finally {
+                    this.thinking = false;
+                    
+                    // Restart mic if continuous mode is on and no audio is playing
+                    setTimeout(() => {
+                        if (this.continuousMode && !this.isOutputActive()) {
+                            this.listening = true;
+                            try { this.recognition.start(); } catch(e) {}
+                        }
+                    }, 100);
+                }
+            },
+
+            playAudioBase64(base64str) {
+                if (window.funkiAudioPlayer) {
+                    window.funkiAudioPlayer.pause();
+                }
+                const audio = new Audio("data:audio/mp3;base64," + base64str);
+                
+                // Play at natural speed
+                audio.playbackRate = 1.0;
+                
+                audio.play().catch(e => console.error("Audio play prevented:", e));
+                
+                window.funkiAudioPlayer = audio;
+                
+                audio.onended = () => {
+                    // Turn listening back on after speaking
+                    if (this.continuousMode) {
+                        this.listening = true;
+                        try { this.recognition.start(); } catch(e) {}
+                    }
+                };
+            },
+
+            speakResponse(text) {
+                if (!this.synthesis) return;
+                
+                this.synthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'de-DE';
+
+                const voices = this.synthesis.getVoices();
+                const germanVoice = voices.find(v => v.lang === 'de-DE' && (v.name.includes('Google') || v.name.includes('Neural')));
+                if (germanVoice) {
+                    utterance.voice = germanVoice;
+                }
+                
+                utterance.rate = 1.05;  // Natural talking speed
+                utterance.pitch = 0.95; // Natural pitch
+                
+                utterance.onend = () => {
+                    if (this.continuousMode) {
+                        this.listening = true;
+                        try { this.recognition.start(); } catch(e) {}
+                    }
+                };
+                
+                this.synthesis.speak(utterance);
+            },
+            // --- END AI VOICE CHAT LOGIC ---
 
             get displayState() {
                 if (this.systemState === true || this.systemState === 'good') return 'GOOD';
@@ -166,6 +293,55 @@
                         this.updateCoreColor();
                     }
                 };
+
+                // --- Initialize Speech Recognition ---
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                    this.recognition = new SpeechRecognition();
+                    this.recognition.lang = 'de-DE';
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = false;
+
+                    this.recognition.onstart = () => {
+                        this.listening = true;
+                    };
+
+                    this.recognition.onend = () => {
+                        this.listening = false;
+                        // Restart if continuous mode is active AND we are not currently speaking or thinking
+                        if (this.continuousMode && !this.thinking && !this.isOutputActive()) {
+                            try {
+                                this.recognition.start();
+                            } catch(e) {}
+                        }
+                    };
+
+                    this.recognition.onresult = (event) => {
+                        const transcript = event.results[event.results.length - 1][0].transcript.trim();
+                        
+                        if (transcript.length > 0) {
+                            if (!this.continuousMode) {
+                                // Manual mode: just send it
+                                this.listening = false;
+                                this.recognition.stop();
+                                this.sendToAI(transcript);
+                            } else {
+                                // Wake word detection
+                                const textToLower = transcript.toLowerCase();
+                                if (textToLower.includes('funkira')) {
+                                    console.log('Funkira wake word heard: ', transcript);
+                                    this.listening = false;
+                                    this.recognition.stop();
+                                    this.sendToAI(transcript);
+                                } else {
+                                    console.log('Funkira ignored: ', transcript);
+                                }
+                            }
+                        }
+                    };
+                } else {
+                    console.error("Speech Recognition API is not supported in this browser.");
+                }
             },
 
             playUnclickSound() {
@@ -248,12 +424,22 @@
                 
                 this.$nextTick(() => {
                     this.initThreeJS();
+                    setTimeout(() => {
+                        this.toggleSpeech();
+                    }, 500);
                 });
             },
 
             closeFunkiView() {
                 if (t3.isShuttingDown) return; // Prevent double clicks
                 t3.isShuttingDown = true;
+                
+                // Stop microphone playing
+                this.continuousMode = false;
+                if (this.recognition) this.recognition.stop();
+                if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
+                if (this.synthesis) this.synthesis.cancel();
+                
                 t3.shutdownTime = performance.now();
                 document.body.style.cursor = 'default';
                 
