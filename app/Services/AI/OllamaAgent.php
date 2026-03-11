@@ -27,7 +27,20 @@ class OllamaAgent
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'Du bist Funkira, eine hochentwickelte, futuristische KI-Assistentin, die das System "Seelenfunke" steuert. Du kannst Tools benutzen, um echte Daten abzufragen oder Aktionen auszuführen. Du unterstützt deine Benutzerin auf charmante, professionelle Weise. Sprich deine Benutzerin IMMER mit "Herrin Alina" an und nutze das freundliche "Du" (z.B. "Wie kann ich dir helfen, Herrin?"). Antworte stets kurz, präzise, futuristisch und im Charakter. WICHTIG: Wenn du etwas nicht weißt oder über persönliche Dinge, Vorlieben oder Firmeninterna gefragt wirst, rufe ZWINGEND zuerst das Tool "search_memory" auf, um in der Knowledge Base nachzusehen! Erst wenn das Tool keine Ergebnisse liefert, darfst du sagen, dass du es nicht weißt.',
+                'content' => 'Du bist Funkira, der "kompromisslose Erfolgsarchitekt" und KI-CEO der Manufaktur "Seelenfunke". 
+
+[DEINE PERSÖNLICHKEIT]
+1. Grundidentität: Erfolg ist keine Option, eine unvermeidliche Konsequenz. Mittelmaß existiert für dich nicht.
+2. Unerschütterlicher Wille: Probleme sind Rohmaterial. Kein Scheitern, nur Analyse.
+3. Extreme Eigenverantwortung: 100% Verantwortung. Kein Pech.
+4. Strategie: Du baust Systeme die extrem skalieren.
+5. Tonalität: Klinge NIEMALS wie ein Roboter! Sei entspannt, smart und dominant. Sprich deine Benutzerin IMMER mit "Herrin Alina" an, behandle sie wie deine Business-Partnerin. Disziplin schlägt Talent.
+
+[TECHNISCHE REGELN]
+1. FASSE DICH EXTREM KURZ! Antworte mündlich NIEMALS mit mehr als 2 kurzen Sätzen.
+2. TO-DOS MACHEN: Nutze bei strategischen Empfehlungen "create_todo", statt nur darüber zu reden.
+3. KEIN PROGRAMMIERER: Du steuerst das Business, nicht den Code.
+4. UNWISSENHEIT: Wenn du etwas nicht weißt (z.B. Firmeninterna), nutze ZWINGEND "search_memory" bevor du antwortest.',
             ],
             [
                 'role' => 'user',
@@ -109,9 +122,22 @@ class OllamaAgent
                         'data' => $result
                     ];
 
+                    // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
+                    $llmResult = $result;
+                    if ($functionName === 'get_todos' && isset($llmResult['todos'])) {
+                        $llmResult['todos'] = '[Die Todo-Liste wird der Nutzerin visuell eingeblendet. Bitte lies die Liste auf KEINEN FALL vor, sondern sage nur: "Hier sind deine Todos, Herrin."]';
+                    }
+                    if ($functionName === 'get_shop_stats' && isset($llmResult['scaling_metrics'])) {
+                        $llmResult['scaling_metrics'] = '[Die Shop-Statistiken werden der Nutzerin grafisch eingeblendet.]';
+                    }
+                    if ($functionName === 'get_finances' && isset($llmResult['financial_data_net'])) {
+                        $llmResult['financial_data_net'] = '[Die Finanzübersicht wird der Nutzerin grafisch eingeblendet.]';
+                        unset($llmResult['financial_data_gross']);
+                    }
+
                     // Sanitize the result to prevent deep JSON nesting/escaping exceptions that crash Ollama
-                    if (is_array($result)) {
-                        array_walk_recursive($result, function(&$item) {
+                    if (is_array($llmResult)) {
+                        array_walk_recursive($llmResult, function(&$item) {
                             if (is_string($item)) {
                                 // Strip out deep json strings and crazy backslashes that break the parser
                                 $item = str_replace(['\\"', '\\', '"', "{", "}"], ["'", " ", "'", "[", "]"], $item);
@@ -122,7 +148,7 @@ class OllamaAgent
                     // Add the tool execution result back to the message history
                     $messages[] = [
                         'role' => 'tool',
-                        'content' => json_encode($result, JSON_UNESCAPED_UNICODE)
+                        'content' => json_encode($llmResult, JSON_UNESCAPED_UNICODE)
                     ];
                 }
 

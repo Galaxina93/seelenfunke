@@ -3,7 +3,7 @@
 namespace App\Services\AI;
 
 use App\Models\Expense; 
-use App\Models\Order;   
+use App\Models\Order\Order;   
 use App\Models\Todo;
 use App\Models\TodoList;
 use App\Models\KnowledgeBase;
@@ -87,6 +87,15 @@ class AIFunctionsRegistry
                     'properties' => [],
                 ],
                 'callable' => [self::class, 'executeGetShopStats']
+            ],
+            [
+                'name' => 'get_finances',
+                'description' => 'Returns the current month\'s accounting and financial data (Income, Fixed Costs, Special Expenses, Shop Revenue).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [],
+                ],
+                'callable' => [self::class, 'executeGetFinances']
             ],
             [
                 'name' => 'create_todo',
@@ -478,20 +487,16 @@ class AIFunctionsRegistry
             $manualVouchers = \App\Models\Voucher::where('is_active', true)->where('mode', 'manual')->count();
 
             // Fetch generic bot instructions stats
-            $service = app(FunkiBotService::class);
-            
+            $manualRulesCount = \App\Models\Bot\GenericInstruction::count();
+
             return [
                 'status' => 'success',
                 'scaling_metrics' => [
                     'abandoned_carts_count' => $abandonedCarts->count(),
-                    'potential_lost_revenue_last_24h' => $potentialRevenue . ' €',
+                    'potential_lost_revenue' => $potentialRevenue, // in Euro
                     'active_auto_vouchers' => $autoVouchers,
                     'active_manual_vouchers' => $manualVouchers,
-                ],
-                'instruction_metrics' => [
-                    'priority_order_issues' => $service->getPriorityOrder(),
-                    'product_status' => $service->getProductStatus(),
-                    'quote_status' => $service->getQuoteStatus(),
+                    'trained_ai_rules' => $manualRulesCount
                 ]
             ];
         } catch (\Exception $e) {
@@ -499,6 +504,24 @@ class AIFunctionsRegistry
         }
     }
 
+    public static function executeGetFinances(array $args)
+    {
+        try {
+            $service = new \App\Services\FinancialService();
+            // Default to Alina (admin_id = 1) and current month/year
+            $statsNet = $service->getMonthlyStats(1, date('n'), date('Y'), true);
+            $statsGross = $service->getMonthlyStats(1, date('n'), date('Y'), false);
+
+            return [
+                'status' => 'success',
+                'financial_data_net' => $statsNet,
+                'financial_data_gross' => $statsGross,
+                'current_month' => date('F Y')
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => $e->getMessage()];
+        }
+    }
     public static function executeCreateTodo(array $args)
     {
         try {

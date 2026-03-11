@@ -483,18 +483,68 @@
                     lastUserContent.includes('chart')
                 );
 
-                // 1. Check for Shop Stats (Potential Revenue)
+                // 1. Check for Shop Stats (Potential Revenue & Vouchers)
                 const statData = contextData.find(c => c.function === 'get_shop_stats');
                 if (statData && statData.data && statData.data.scaling_metrics) {
-                    title = 'Umsatz & Skalierung';
-                    chartLabels = ['Active Auto-Vouchers', 'Active Manual-Vouchers', 'Abandoned Carts (24h)'];
-                    chartDataset = [
-                        statData.data.scaling_metrics.active_auto_vouchers || 0,
-                        statData.data.scaling_metrics.active_manual_vouchers || 0,
-                        statData.data.scaling_metrics.abandoned_carts_count || 0
-                    ];
-                    chartType = 'polarArea';
+                    title = 'Marketing & Skalierung';
                     foundData = true;
+
+                    if (userRequestedGraphic) {
+                        chartLabels = ['Active Auto-Vouchers', 'Active Manual-Vouchers', 'Abandoned Carts (24h)'];
+                        chartDataset = [
+                            statData.data.scaling_metrics.active_auto_vouchers || 0,
+                            statData.data.scaling_metrics.active_manual_vouchers || 0,
+                            statData.data.scaling_metrics.abandoned_carts_count || 0
+                        ];
+                        chartType = 'polarArea';
+                    } else {
+                        // Display as Table/List
+                        this.tableHeaders = ['Metrik', 'Wert'];
+                        this.tableData.push({
+                            cells: [
+                                { value: 'Auto-Gutscheine (Aktiv)', color: 'text-gray-300' },
+                                { value: statData.data.scaling_metrics.active_auto_vouchers + 'x', color: 'text-emerald-400 font-bold' }
+                            ]
+                        });
+                        this.tableData.push({
+                            cells: [
+                                { value: 'Manuelle-Gutscheine (Aktiv)', color: 'text-gray-300' },
+                                { value: statData.data.scaling_metrics.active_manual_vouchers + 'x', color: 'text-blue-400 font-bold' }
+                            ]
+                        });
+                        this.tableData.push({
+                            cells: [
+                                { value: 'Abgebrochene Carts (24h)', color: 'text-gray-300' },
+                                { value: statData.data.scaling_metrics.abandoned_carts_count + 'x', color: 'text-yellow-400 font-bold' }
+                            ]
+                        });
+                        
+                        this.chartListData.push({
+                            title: 'Verlorener Umsatz (24h)',
+                            titleColor: 'text-rose-400',
+                            badge: 'Warnung',
+                            subtitle: `Potenzieller Verlust: ${statData.data.scaling_metrics.potential_lost_revenue || 0} €`
+                        });
+                    }
+                }
+
+                // 1b. Check for Finances (Income/Expenses)
+                const financeData = contextData.find(c => c.function === 'get_finances');
+                if (!foundData && financeData && financeData.data && financeData.data.financial_data_net) {
+                    title = 'Finanzübersicht (' + (financeData.data.current_month || 'Laufender Monat') + ')';
+                    foundData = true;
+                    
+                    let fd = financeData.data.financial_data_net;
+                    
+                    if (userRequestedGraphic || true) { // Always prefer chart for finances to look cool
+                        chartLabels = ['Shop Netto-Umsatz', 'Fixkosten', 'Sonderausgaben'];
+                        chartDataset = [
+                            fd.shop_income || 0,
+                            Math.abs(fd.fixed_expenses || 0),
+                            Math.abs(fd.special_expenses || 0)
+                        ];
+                        chartType = 'doughnut';
+                    }
                 }
 
                 // 2. Check for ToDos
@@ -1815,14 +1865,31 @@
 
                 if (t3.cssObject) {
                     if (panelsVisible) {
-                        // Calculate a vector moving left and slightly up relative to the CAMERA's view angle
-                        let leftVector = new THREE.Vector3(-1, 0, 0); // Local Left
-                        leftVector.transformDirection(t3.camera.matrixWorld); // Convert to World Space
-                        leftVector.multiplyScalar(260); // Distance outward
-                        leftVector.y += 40; // Push upwards
+                        // Dynamically calculate visible world size at the depth of the core (origin 0,0,0)
+                        let dist = t3.camera.position.length();
+                        let vFov = (t3.camera.fov * Math.PI) / 180;
+                        let visibleHeight = 2 * Math.tan(vFov / 2) * dist;
+                        let visibleWidth = visibleHeight * t3.camera.aspect;
+
+                        // Calculate percentage-based screen offsets
+                        // Wide screens -> push further left (-28%). Narrow/Mobile screens -> keep near center (-15%)
+                        let percentX = t3.camera.aspect > 1.2 ? -0.28 : -0.15;
+                        let percentY = 0.08; // 8% above center
                         
-                        // Lerp CSS Object to this camera-anchored position so it smoothly follows the camera's gaze
-                        t3.cssObject.position.lerp(leftVector, 0.1);
+                        let offsetX = visibleWidth * percentX;
+                        let offsetY = visibleHeight * percentY;
+
+                        // Align vectors with the camera's local viewport angles
+                        let rightVector = new THREE.Vector3(1, 0, 0).applyQuaternion(t3.camera.quaternion);
+                        let upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(t3.camera.quaternion);
+
+                        // Start at core (0,0,0) and apply relative offsets
+                        let targetPos = new THREE.Vector3(0, 0, 0);
+                        targetPos.add(rightVector.multiplyScalar(offsetX));
+                        targetPos.add(upVector.multiplyScalar(offsetY));
+                        
+                        // Smoothly glide into position
+                        t3.cssObject.position.lerp(targetPos, 0.15);
                     } else {
                         // Tuck object away so it doesn't block rays
                         t3.cssObject.position.set(-9999, 0, 0);
