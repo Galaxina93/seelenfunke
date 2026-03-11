@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Route;
 // --- 1. Authentifizierung (Ungeschützt) ---
 require __DIR__ . '/api/auth.php';
 
+// --- Lokale KI API ---
+require __DIR__ . '/api/ai.php';
+
 
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {

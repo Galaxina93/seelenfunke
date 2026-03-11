@@ -21,18 +21,31 @@
     <div id="funki-canvas-container" class="absolute inset-0 w-full h-full"></div>
     
     <!-- UI Overlay Navigation -->
-    <div class="absolute top-6 right-6 z-10 transition-transform hover:scale-105">
+    <div class="absolute top-6 right-6 z-50 flex items-center gap-4 transition-transform hover:scale-105" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
+        
+        <!-- Audio Toggle -->
+        <button @click="toggleBackgroundAudio()" class="w-10 h-10 flex justify-center items-center bg-gray-900/80 border border-gray-700 rounded-full text-lg font-black text-gray-300 hover:text-emerald-400 hover:border-emerald-500 hover:bg-black transition-all shadow-glow backdrop-blur-md" title="Hintergrundmusik an/aus">
+            <i class="bi" :class="isAudioMuted ? 'bi-volume-mute-fill text-gray-500' : 'bi-volume-up-fill'"></i>
+        </button>
+
+        <!-- Close Button -->
         <button @click="closeFunkiView()" class="px-5 py-2.5 bg-gray-900/80 border border-gray-700 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 hover:text-white hover:border-primary hover:bg-black transition-all shadow-glow flex items-center gap-2 backdrop-blur-md">
             <i class="bi bi-x-lg"></i> Funkira - Zentrum verlassen
         </button>
     </div>
+    <!-- Video Initialization Element -->
+    <video id="video-funki-init" src="{{ asset('storage/funkira/videos/ki_initialisierung_funkira.mp4') }}" 
+           class="absolute inset-0 w-full h-full object-cover z-20 pointer-events-none transition-opacity duration-1000" 
+           style="opacity: 0; display: none;" playsinline></video>
+
     <!-- Audio Elements -->
-    <audio id="audio-funki-background" src="{{ asset('storage/sounds/funki_background.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-init" src="{{ asset('storage/sounds/funki_Initialize.mp3') }}" preload="auto"></audio>
-    <audio id="audio-funki-shutdown" src="{{ asset('storage/sounds/funki_shutdown.mp3') }}" preload="auto"></audio>
-    <audio id="audio-funki-heartbeat" src="{{ asset('storage/sounds/funki_heartbeat.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-click" src="{{ asset('storage/sounds/funki_click.mp3') }}" preload="auto"></audio>
-    <audio id="audio-funki-unclick" src="{{ asset('storage/sounds/funki_unclick.mp3') }}" preload="auto"></audio>
+    <audio id="audio-funki-background" src="{{ asset('storage/funkira/sounds/funki_background.mp3') }}" preload="auto" loop></audio>
+    <audio id="audio-funki-pulse" src="{{ asset('storage/funkira/sounds/funki_pulse.mp3') }}" preload="auto" loop></audio>
+    <audio id="audio-funki-init" src="{{ asset('storage/funkira/sounds/funki_Initialize.mp3') }}" preload="auto"></audio>
+    <audio id="audio-funki-shutdown" src="{{ asset('storage/funkira/sounds/funki_shutdown.mp3') }}" preload="auto"></audio>
+    <audio id="audio-funki-heartbeat" src="{{ asset('storage/funkira/sounds/funki_heartbeat.mp3') }}" preload="auto" loop></audio>
+    <audio id="audio-funki-click" src="{{ asset('storage/funkira/sounds/funki_click.mp3') }}" preload="auto"></audio>
+    <audio id="audio-funki-unclick" src="{{ asset('storage/funkira/sounds/funki_unclick.mp3') }}" preload="auto"></audio>
     
     <!-- Floating Info Panel (Mapped to 3D Space) -->
     <div id="diagnostic-panel"
@@ -100,6 +113,39 @@
             </div>
         </div>
     </div>
+    
+    <!-- Dynamic Analytics Chart Panel (HTML Overlay instead of 3D CSS2D) -->
+    <div id="funki-chart-panel"
+         x-show="showChartPanel"
+         @click.away="if(showChartPanel) { showChartPanel = false; }"
+         class="absolute left-4 lg:left-12 top-1/2 -translate-y-1/2 z-[60] w-[500px] max-w-[90vw] pointer-events-none flex justify-center items-center"
+         style="display: none;">
+        
+        <div x-show="showChartPanel"
+             x-transition:enter="transition ease-out duration-500 delay-150"
+             x-transition:enter-start="opacity-0 scale-95 translate-x-12"
+             x-transition:enter-end="opacity-100 scale-100 translate-x-0"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-start="opacity-100 scale-100 translate-x-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-x-12"
+             class="w-full pointer-events-auto bg-transparent border border-white/5 rounded-2xl p-6 drop-shadow-[0_0_30px_rgba(16,185,129,0.15)] flex flex-col gap-4">
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold text-emerald-400 tracking-wider font-mono text-sm uppercase flex items-center gap-2">
+                    <i class="bi bi-graph-up-arrow"></i> <span x-text="chartTitle">Daten-Analyse</span>
+                </h3>
+                <button @click="showChartPanel = false" class="text-gray-500 hover:text-white transition-colors">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            
+            <!-- Chart Canvas -->
+            <div class="w-full h-[280px] relative">
+                <canvas id="funkiDynamicChart" width="500" height="280"></canvas>
+            </div>
+        </div>
+    </div>
 
         </div>
     </template>
@@ -118,6 +164,7 @@
             coreLight: null,
             cssRenderer: null,
             cssObject: null,
+            chartCssObject: null,
             animationId: null,
             controls: null,
             raycaster: null,
@@ -135,6 +182,10 @@
             // State
             showFunkiView: false,
             showInfoPanel: false,
+            showChartPanel: false,
+            isAudioMuted: true, // Default to muted as requested
+            chartTitle: 'Analyse',
+            currentChart: null,
             systemState: initialState, // 'good', 'warning', 'error', true, false
             activeSparks: initialSparks,
             avgProfit: avgProfit + ' €',
@@ -181,6 +232,15 @@
 
             async sendToAI(promptText) {
                 this.thinking = true;
+                this.updateCoreColor();
+                
+                // Play pulse sound while thinking
+                const pulseAudio = document.getElementById('audio-funki-pulse');
+                if (pulseAudio) {
+                    pulseAudio.volume = 0.5;
+                    pulseAudio.play().catch(e => console.log('Pulse blocked', e));
+                }
+
                 try {
                     const response = await fetch('/api/ai/chat', {
                         method: 'POST',
@@ -194,6 +254,11 @@
                     const data = await response.json();
                     
                     if(data.status === 'success') {
+                        // Render Analytics if the AI used any tools
+                        if (data.context_data && data.context_data.length > 0) {
+                            this.renderAnalytics(data.context_data);
+                        }
+
                         if (data.audio) {
                             this.playAudioBase64(data.audio);
                         } else {
@@ -208,7 +273,15 @@
                     this.speakResponse("Subraumkommunikation abgebrochen.");
                 } finally {
                     this.thinking = false;
+                    this.updateCoreColor();
                     
+                    // Stop pulse sound
+                    const pulseAudio = document.getElementById('audio-funki-pulse');
+                    if (pulseAudio) {
+                        pulseAudio.pause();
+                        pulseAudio.currentTime = 0;
+                    }
+
                     // Restart mic if continuous mode is on and no audio is playing
                     setTimeout(() => {
                         if (this.continuousMode && !this.isOutputActive()) {
@@ -216,6 +289,110 @@
                             try { this.recognition.start(); } catch(e) {}
                         }
                     }, 100);
+                }
+            },
+
+            renderAnalytics(contextData) {
+                // Find system health data
+                const healthData = contextData.find(c => c.function === 'get_system_health');
+                
+                let chartType = 'doughnut';
+                let chartLabels = [];
+                let chartDataset = [];
+                let title = 'System Metriken';
+                
+                if (healthData && healthData.data && healthData.data.active_sessions !== undefined) {
+                    title = 'Sitzungen vs Bestellungen';
+                    chartLabels = ['Aktive Sitzungen', 'Bestellungen'];
+                    chartDataset = [healthData.data.active_sessions || 0, healthData.data.total_orders || 0];
+                } else {
+                    // Fallback for other upcoming metrics
+                    title = 'Analytische Daten';
+                    chartLabels = ['Relevante Daten', 'Nebenwerte'];
+                    chartDataset = [50, 50];
+                }
+                    
+                this.chartTitle = title;
+                this.showChartPanel = true;
+                
+                // Force Alpine/CSS transition bypass to prevent Chart.js 0x0 resize observer crash
+                const panel = document.getElementById('funki-chart-panel');
+                if (panel) {
+                    panel.style.display = 'flex';
+                    panel.style.opacity = '1';
+                }
+                
+                this.$nextTick(() => {
+                    this.playClickSound(); // Trigger sound for visual reveal
+                    this.destroyCurrentChart();
+                    
+                    setTimeout(() => {
+                        const ctx = document.getElementById('funkiDynamicChart');
+                        if (!ctx) return;
+                        
+                        // Ensure Chart variable is globally available
+                        if (typeof Chart === 'undefined') {
+                            console.error('Chart.js is not loaded yet.');
+                            return;
+                        }
+                        
+                        Chart.defaults.color = "rgba(255, 255, 255, 0.6)";
+                        Chart.defaults.font.family = "'JetBrains Mono', monospace";
+                        Chart.defaults.plugins.tooltip.backgroundColor = "rgba(0, 0, 0, 0.8)";
+                        
+                        this.currentChart = new Chart(ctx, {
+                            type: chartType,
+                            data: {
+                                labels: chartLabels,
+                                datasets: [{
+                                    data: chartDataset,
+                                    backgroundColor: [
+                                        'rgba(16, 185, 129, 0.6)', 
+                                        'rgba(59, 130, 246, 0.6)',
+                                        'rgba(139, 92, 246, 0.6)'
+                                    ],
+                                    borderColor: [
+                                        'rgba(16, 185, 129, 1)', 
+                                        'rgba(59, 130, 246, 1)',
+                                        'rgba(139, 92, 246, 1)'
+                                    ],
+                                    borderWidth: 1,
+                                    hoverOffset: 4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                cutout: chartType === 'doughnut' ? '75%' : undefined,
+                                plugins: {
+                                    legend: { 
+                                        position: 'bottom',
+                                        labels: { padding: 20, color: 'rgba(255,255,255,0.7)' }
+                                    }
+                                },
+                                animation: {
+                                    animateScale: true,
+                                    animateRotate: true
+                                }
+                            }
+                        });
+                    }, 300); // Allow DOM reflow & Alpine transitions to create height/width
+                });
+            },
+            
+            destroyCurrentChart() {
+                if (this.currentChart) {
+                    this.currentChart.destroy();
+                    this.currentChart = null;
+                }
+            },
+
+            playClickSound() {
+                const clickAudio = document.getElementById('audio-funki-click');
+                if (clickAudio) {
+                    clickAudio.currentTime = 0;
+                    clickAudio.volume = 0.6;
+                    clickAudio.play().catch(e => console.log(e));
                 }
             },
 
@@ -358,35 +535,83 @@
                 t3.isShuttingDown = false;
                 t3.shutdownTime = null;
                 
-                // Play Init Sound
-                const initAudio = document.getElementById('audio-funki-init');
-                if(initAudio) {
-                    initAudio.currentTime = 0;
-                    initAudio.volume = 0.8;
-                    initAudio.play().catch(e => console.log("Audio play prevented", e));
-                }
+                const startAnimation = () => {
+                    if (t3.isShuttingDown) return; // Abort if user closed during video
 
-                // Setup & Play Background Music
-                t3.bgAudio = document.getElementById('audio-funki-background');
-                if (t3.bgAudio) {
-                    t3.bgAudio.volume = 0; // Start at 0, fade in
-                    t3.bgAudio.play().catch(e => console.log("Audio play prevented", e));
-                    // Fade in slightly delayed
+                    // Play Init Sound
+                    const initAudio = document.getElementById('audio-funki-init');
+                    if(initAudio) {
+                        initAudio.currentTime = 0;
+                        initAudio.volume = 0.8;
+                        initAudio.play().catch(e => console.log("Audio play prevented", e));
+                    }
+
+                    // Setup & Play Background Music
+                    t3.bgAudio = document.getElementById('audio-funki-background');
+                    if (t3.bgAudio) {
+                        // Inherit global mute state
+                        t3.bgAudio.muted = this.isAudioMuted;
+                        t3.bgAudio.volume = 0; // Start at 0, fade in
+                        t3.bgAudio.play().catch(e => console.log("Audio play prevented", e));
+                        // Fade in slightly delayed
+                        setTimeout(() => {
+                            let volInt = setInterval(() => {
+                                if(!this.showFunkiView || t3.isShuttingDown) { clearInterval(volInt); return; }
+                                if(t3.bgAudio.volume < 0.3) t3.bgAudio.volume += 0.01;
+                                else clearInterval(volInt);
+                            }, 50);
+                        }, 500);
+                    }
+
+                    // Setup Heartbeat Audio
+                    t3.heartbeatAudio = document.getElementById('audio-funki-heartbeat');
+                    if (t3.heartbeatAudio) {
+                        t3.heartbeatAudio.volume = 0;
+                        t3.heartbeatAudio.playbackRate = 1.0;
+                        t3.heartbeatAudio.play().catch(e => console.log("Audio play prevented", e));
+                    }
+                    
+                    this.$nextTick(() => {
+                        this.initThreeJS();
+                        setTimeout(() => {
+                            this.toggleSpeech();
+                        }, 500);
+                    });
+                };
+
+                const initVideo = document.getElementById('video-funki-init');
+                if (initVideo) {
+                    initVideo.style.display = 'block';
+                    // Small delay to allow CSS display:block to apply before animating opacity
                     setTimeout(() => {
-                        let volInt = setInterval(() => {
-                            if(!this.showFunkiView || t3.isShuttingDown) { clearInterval(volInt); return; }
-                            if(t3.bgAudio.volume < 0.3) t3.bgAudio.volume += 0.01;
-                            else clearInterval(volInt);
-                        }, 50);
-                    }, 500);
-                }
+                        initVideo.style.opacity = '1';
+                        initVideo.play().catch(e => {
+                            console.log("Video play prevented", e);
+                            startAnimation(); // Fallback if autoplay is blocked
+                        });
+                    }, 50);
 
-                // Setup Heartbeat Audio
-                t3.heartbeatAudio = document.getElementById('audio-funki-heartbeat');
-                if (t3.heartbeatAudio) {
-                    t3.heartbeatAudio.volume = 0;
-                    t3.heartbeatAudio.playbackRate = 1.0;
-                    t3.heartbeatAudio.play().catch(e => console.log("Audio play prevented", e));
+                    // When the video finishes, fade it out and start the AI logic
+                    initVideo.onended = () => {
+                        initVideo.style.opacity = '0';
+                        setTimeout(() => {
+                            initVideo.style.display = 'none';
+                        }, 1000); // Wait for transition
+                        startAnimation();
+                    };
+                } else {
+                    startAnimation();
+                }
+                
+                // Load Chart.js
+                if (typeof Chart === 'undefined') {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
                 }
                 
                 // Load Three.js dynamically to prevent multiple instances warning
@@ -421,19 +646,29 @@
                         document.head.appendChild(script);
                     });
                 }
-                
-                this.$nextTick(() => {
-                    this.initThreeJS();
-                    setTimeout(() => {
-                        this.toggleSpeech();
-                    }, 500);
-                });
             },
 
             closeFunkiView() {
                 if (t3.isShuttingDown) return; // Prevent double clicks
                 t3.isShuttingDown = true;
                 
+                // Stop video if it's currently playing
+                const initVideo = document.getElementById('video-funki-init');
+                if (initVideo) {
+                    initVideo.pause();
+                    initVideo.style.opacity = '0';
+                    setTimeout(() => { initVideo.style.display = 'none'; }, 1000);
+                }
+
+                this.listening = false; // Stop listening visually
+                
+                // Stop processing audio loops
+                const pulseAudio = document.getElementById('audio-funki-pulse');
+                if(pulseAudio) {
+                    pulseAudio.pause();
+                    pulseAudio.currentTime = 0;
+                }
+
                 // Stop microphone playing
                 this.continuousMode = false;
                 if (this.recognition) this.recognition.stop();
@@ -480,6 +715,14 @@
                     this.showFunkiView = false;
                     this.destroyThreeJS();
                 }, 2500);
+            },
+
+            toggleBackgroundAudio() {
+                this.isAudioMuted = !this.isAudioMuted;
+                const bgAudio = document.getElementById('audio-funki-background');
+                if (bgAudio) {
+                    bgAudio.muted = this.isAudioMuted;
+                }
             },
 
             initThreeJS() {
@@ -560,6 +803,7 @@
                     uniform float hoverTime;
                     uniform float initProgress;
                     uniform float shutdownProgress;
+                    uniform float isThinking; // ADDED FOR LOADING ANIMATION
 
                     varying vec3 vWorldPosition;
                     varying vec3 vLocalPosition;
@@ -576,7 +820,7 @@
 
                     // --- EPIC Smooth Organic Fluid Displacement ---
                     float smoothFluid(vec3 p) {
-                        float timeScale = time * 1.2;
+                        float timeScale = time * (1.2 + isThinking * 2.0); // SPEED UP WHEN THINKING
                         
                         // Epic twisting vortex effect (Slower in center, faster on edges)
                         float l = length(p.xz);
@@ -600,8 +844,8 @@
                     float map(vec3 p) {
                         float critical = min(hoverTime / 4.0, 1.0); // Reaches max critical at 4 seconds
                         
-                        // Dynamic rotation, spins aggressively on hover
-                        float rotSpeed = time * (0.02 + hoverState * 0.05 + critical * 0.3);
+                        // Dynamic rotation, spins aggressively on hover or thinking
+                        float rotSpeed = time * (0.02 + hoverState * 0.05 + critical * 0.3 + isThinking * 0.15);
                         p = rotY(rotSpeed) * rotX(rotSpeed * 0.6) * p;
                         
                         // Base size shrinks on init/shutdown, gets super fat on hover
@@ -639,10 +883,13 @@
                         
                         // Glow gets much hotter and brighter in center, but stays true to the base color (Green/Yellow/Red)
                         vec3 currentGlowColor = mix(glowColor, glowColor * 1.5, hoverState * 0.95);
+                        // If thinking, pump the core intensity
+                        currentGlowColor = mix(currentGlowColor, currentGlowColor * 1.8, isThinking);
+                        
                         vec3 criticalColor = vec3(1.0, 0.05, 0.0); // Pure deep red warning
                         currentGlowColor = mix(currentGlowColor, criticalColor * 2.0, critical);
                         
-                        vec3 hotCoreColor = currentGlowColor * (2.5 + critical * 2.0); // Force the center to be intensely saturated
+                        vec3 hotCoreColor = currentGlowColor * (2.5 + critical * 2.0 + isThinking); // Force the center to be intensely saturated
                         
                         // Raymarching Loop (Thick, voluminous plasma logic)
                         for(int i = 0; i < 45; i++) { 
@@ -671,8 +918,8 @@
                             if (t > maxT || accumulatedAlpha > 0.99) break; 
                         }
                         
-                        // Dynamic Pulse System (Huge heartbeats)
-                        float speedBoost = critical * 15.0;
+                        // Dynamic Pulse System (Huge heartbeats or hyper thinking)
+                        float speedBoost = critical * 15.0 + isThinking * 25.0;
                         float breathingPulse = 0.8 + 0.3 * sin(time * (2.5 + speedBoost));
                         float quickPulse = 0.7 + 0.5 * sin(time * (7.0 + speedBoost));
                         float combinedPulse = mix(breathingPulse, quickPulse, hoverState);
@@ -680,8 +927,8 @@
                         vec3 finalColor = accumulatedColor * combinedPulse * smoothstep(0.2, 1.0, initProgress);
                         
                         // Ambient hover corona waggle (outer energy flares)
-                        float softWaggle = sin(vWorldPosition.x * 0.03 + time * 3.0) * 1.5;
-                        finalColor += currentGlowColor * hoverState * softWaggle * 0.15;
+                        float softWaggle = sin(vWorldPosition.x * 0.03 + time * 3.0) * (1.5 + isThinking * 1.0);
+                        finalColor += currentGlowColor * max(hoverState, isThinking * 0.5) * softWaggle * 0.15;
                         
                         // Shutdown desaturation
                         float luma = dot(finalColor, vec3(0.299, 0.587, 0.114));
@@ -704,7 +951,8 @@
                     hoverState: { value: 0.0 },
                     hoverTime: { value: 0.0 },
                     initProgress: { value: 0.0 },
-                    shutdownProgress: { value: 0.0 }
+                    shutdownProgress: { value: 0.0 },
+                    isThinking: { value: 0.0 } // ADDED FOR LOADING ANIMATION
                 };
 
                 t3.coreMaterial = new THREE.ShaderMaterial({
@@ -831,7 +1079,9 @@
                 if(!t3.raymarchUniforms || !t3.coreLight) return;
                 
                 let targetColor = 0x00ff88; // default green
-                if (this.systemState === 'good' || this.systemState === true) {
+                if (this.thinking) {
+                    targetColor = 0xff66b2; // Deep glowing pink/rosa
+                } else if (this.systemState === 'good' || this.systemState === true) {
                     targetColor = 0x00ff88; // Green
                 } else if (this.systemState === 'warning') {
                     targetColor = 0xffcc00; // Yellow
@@ -841,6 +1091,7 @@
                 
                 t3.raymarchUniforms.glowColor.value.setHex(targetColor);
                 t3.coreLight.color.setHex(targetColor);
+                t3.raymarchUniforms.isThinking.value = this.thinking ? 1.0 : 0.0;
                 
                 // Also tint the environment grid to match the system state
                 if (t3.gridHelper) {

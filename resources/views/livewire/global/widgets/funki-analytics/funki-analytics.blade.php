@@ -13,6 +13,8 @@
         @include('livewire.global.widgets.funki-analytics.partials.history')
     </div>
 
+    @include('livewire.global.widgets.funki-analytics.partials.scripts')
+
     <!-- CRITICAL: wire:ignore prevents Livewire polling from destroying the WebGL Context and Alpine State -->
     <div wire:ignore x-data="funkiView(
         @js($this->isSystemHealthy()), 

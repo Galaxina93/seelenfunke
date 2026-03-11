@@ -76,11 +76,12 @@ class AIController extends Controller
         $prompt = $request->input('prompt');
 
         $agent = new \App\Services\AI\OllamaAgent();
-        $responseText = $agent->ask($prompt);
+        $result = $agent->ask($prompt);
 
         return response()->json([
             'status' => 'success',
-            'response' => $responseText,
+            'response' => $result['response'],
+            'context_data' => $result['context_data'] ?? []
         ]);
     }
 }

@@ -19,15 +19,15 @@ class OllamaAgent
     }
 
     /**
-     * Send a prompt to Ollama, hand over the tools, and handle the execution loop 
+     * Send a prompt to Ollama, hand over the tools, and handle the execution loop
      * until Ollama gives a final text response.
      */
-    public function ask(string $prompt): string
+    public function ask(string $prompt): array
     {
         $messages = [
             [
                 'role' => 'system',
-                'content' => 'Du bist Funkira, eine hochentwickelte, futuristische KI-Assistentin, die das System "Seelenfunke" steuert. Du kannst Tools benutzen, um echte Daten abzufragen oder Aktionen auszuführen. Du unterstützt deine Benutzerin auf charmante, professionelle Weise. Sprich deine Benutzerin IMMER mit "Herrin" an und nutze das freundliche "Du" (z.B. "Wie kann ich dir helfen, Herrin?"). Antworte stets kurz, präzise, futuristisch und im Charakter.',
+                'content' => 'Du bist Funkira, eine hochentwickelte, futuristische KI-Assistentin, die das System "Seelenfunke" steuert. Du kannst Tools benutzen, um echte Daten abzufragen oder Aktionen auszuführen. Du unterstützt deine Benutzerin auf charmante, professionelle Weise. Sprich deine Benutzerin IMMER mit "Herrin Alina" an und nutze das freundliche "Du" (z.B. "Wie kann ich dir helfen, Herrin?"). Antworte stets kurz, präzise, futuristisch und im Charakter.',
             ],
             [
                 'role' => 'user',
@@ -35,13 +35,19 @@ class OllamaAgent
             ]
         ];
 
-        return $this->chatLoop($messages);
+        $contextData = [];
+        $textResponse = $this->chatLoop($messages, $contextData);
+
+        return [
+            'response' => $textResponse,
+            'context_data' => $contextData
+        ];
     }
 
     /**
      * The recursive chat loop handling Tool Calling.
      */
-    protected function chatLoop(array &$messages): string
+    protected function chatLoop(array &$messages, array &$contextData = []): string
     {
         // Prepare the payload according to Ollama's Chat API
         $payload = [
@@ -53,7 +59,7 @@ class OllamaAgent
 
         try {
             Log::info("Sending request to Ollama", ['payload' => json_encode($payload, JSON_UNESCAPED_UNICODE)]);
-            
+
             $response = Http::timeout(120)
                 ->asJson()
                 ->post($this->baseUrl . '/api/chat', $payload);
@@ -75,7 +81,7 @@ class OllamaAgent
 
             // Did the AI decide to call a tool?
             if (isset($message['tool_calls']) && !empty($message['tool_calls'])) {
-                
+
                 // Fix: PHP json_decode(true) turns {} into []. We must ensure arguments don't break Ollama JSON unmarshaling on the next loop.
                 foreach ($message['tool_calls'] as &$call) {
                     if (empty($call['function']['arguments']) && is_array($call['function']['arguments'])) {
@@ -88,7 +94,7 @@ class OllamaAgent
                 foreach ($message['tool_calls'] as $toolCall) {
                     $functionName = $toolCall['function']['name'];
                     $functionArgs = $toolCall['function']['arguments'] ?? [];
-                    
+
                     // Convert stdClass back to array for execution if needed
                     $executeArgs = is_object($functionArgs) ? (array)$functionArgs : $functionArgs;
 
@@ -96,6 +102,12 @@ class OllamaAgent
 
                     // Execute via our safe registry
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
+
+                    // Collect the RAW result data before sanitization for the frontend!
+                    $contextData[] = [
+                        'function' => $functionName,
+                        'data' => $result
+                    ];
 
                     // Sanitize the result to prevent deep JSON nesting/escaping exceptions that crash Ollama
                     if (is_array($result)) {
@@ -114,18 +126,23 @@ class OllamaAgent
                     ];
                 }
 
-                // IMPORTANT FIX: Re-encode the existing messages array to ensure that ANY empty arrays inside `arguments` 
-                // in previous `tool_calls` are strictly cast to objects {}, NOT arrays []. 
+                // IMPORTANT FIX: Re-encode the existing messages array to ensure that ANY empty arrays inside `arguments`
+                // in previous `tool_calls` are strictly cast to objects {}, NOT arrays [].
                 // Otherwise, Ollama's strict Go json.Unmarshal crashes with "Value looks like object, but can't find closing '}'"
-                array_walk_recursive($messages, function (&$value, $key) {
-                   if ($key === 'arguments' && is_array($value) && empty($value)) {
-                       $value = new \stdClass();
-                   }
-                });
+                foreach ($messages as &$msg) {
+                    if (isset($msg['tool_calls'])) {
+                        foreach ($msg['tool_calls'] as &$callItem) {
+                            if (isset($callItem['function']['arguments']) && is_array($callItem['function']['arguments']) && empty($callItem['function']['arguments'])) {
+                                $callItem['function']['arguments'] = new \stdClass();
+                            }
+                        }
+                    }
+                }
+                unset($msg, $callItem);
 
-                // Since we added new tool results, we MUST loop back and ask the AI again 
+                // Since we added new tool results, we MUST loop back and ask the AI again
                 // so it can read the results and formulate a final answer based on them.
-                return $this->chatLoop($messages);
+                return $this->chatLoop($messages, $contextData);
             }
 
             // Provide final answer
