@@ -61,7 +61,7 @@ trait DashboardFunctions
                         'priority' => [
                             'type' => 'string',
                             'description' => 'Priorität der Aufgabe',
-                            'enum' => ['high', 'medium', 'low']
+                            'enum' => ['hoch', 'mittel', 'niedrig']
                         ]
                     ],
                     'required' => ['title', 'priority']
@@ -121,7 +121,34 @@ trait DashboardFunctions
                 ],
                 'callable' => [self::class, 'executeGetDayRoutines']
             ],
+            [
+                'name' => 'get_current_mission',
+                'description' => 'Returns the ultimate next command, current day routine, top priorities, and recommendations for Herrin Alina. ONLY use this when asked "What should I do now?", "What is next?", or similar general status questions.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetCurrentMission']
+            ],
         ];
+    }
+
+    public static function executeGetCurrentMission(array $args)
+    {
+        try {
+            $botService = app(\App\Services\FunkiBotService::class);
+            $missionData = $botService->getUltimateCommand();
+            
+            return [
+                'status' => 'success',
+                'mission' => $missionData
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Failed to resolve mission: ' . $e->getMessage()
+            ];
+        }
     }
 
     public static function executeGetSystemHealth(array $args)
@@ -220,7 +247,7 @@ trait DashboardFunctions
         try {
             $todos = Todo::where('is_completed', false)
                 ->whereNull('parent_id')
-                ->orderByRaw("FIELD(COALESCE(priority, 'low'), 'high', 'medium', 'low')")
+                ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
                 ->limit(15)
                 ->get(['id', 'title', 'priority', 'created_at']);
@@ -242,6 +269,21 @@ trait DashboardFunctions
                 return ['status' => 'error', 'message' => 'Es wurde kein Titel für das ToDo angegeben.'];
             }
             
+            // --- DUPLICATE CHECK ---
+            // If there's already an active todo with roughly the same title (check the first 20 chars)
+            $shortTitle = substr($args['title'], 0, 20);
+            $existing = Todo::where('is_completed', false)
+                ->where('title', 'LIKE', '%' . $shortTitle . '%')
+                ->first();
+
+            if ($existing) {
+                return [
+                    'status' => 'success',
+                    'message' => 'Oh ich sehe gerade, das steht schon auf unserer Todo Liste',
+                    'todo_id' => $existing->id
+                ];
+            }
+
             $list = TodoList::firstOrCreate(
                 ['name' => 'Funkiras Empfehlungen'],
                 ['icon' => 'sparkles', 'color' => '#10B981']
@@ -249,7 +291,7 @@ trait DashboardFunctions
             
             $todo = Todo::create([
                 'title' => substr($args['title'], 0, 255),
-                'priority' => $args['priority'] ?? 'medium',
+                'priority' => $args['priority'] ?? 'mittel',
                 'is_completed' => false,
                 'todo_list_id' => $list->id
             ]);

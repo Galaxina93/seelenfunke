@@ -146,9 +146,9 @@
                                     'relative flex items-start gap-5 p-5 rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
                                     'bg-gray-950/40 border-gray-900 opacity-40 grayscale' => $todo->is_completed,
                                     'shadow-lg hover:border-primary/40' => !$todo->is_completed,
-                                    'bg-gray-900 border-gray-800' => !$todo->is_completed && ($todo->priority ?? 'low') === 'low',
-                                    'bg-orange-950/20 border-orange-900/50' => !$todo->is_completed && ($todo->priority ?? 'low') === 'medium',
-                                    'bg-red-950/20 border-red-900/50' => !$todo->is_completed && ($todo->priority ?? 'low') === 'high',
+                                    'bg-gray-900 border-gray-800' => !$todo->is_completed && ($todo->priority ?? 'niedrig') === 'niedrig',
+                                    'bg-orange-950/20 border-orange-900/50' => !$todo->is_completed && ($todo->priority ?? 'niedrig') === 'mittel',
+                                    'bg-red-950/20 border-red-900/50' => !$todo->is_completed && ($todo->priority ?? 'niedrig') === 'hoch',
                                 ])>
                                     <button wire:click="toggleComplete('{{ $todo->id }}')"
                                             class="mt-1 flex-shrink-0 w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all duration-500 {{ $todo->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-950 shadow-[0_0_15px_#10b981]' : 'border-gray-800 text-transparent hover:border-primary hover:bg-primary/5 bg-gray-950 shadow-inner' }}">
@@ -179,10 +179,10 @@
                                             <div class="hidden sm:flex items-center">
                                                 <select wire:change="updateTodoPriority('{{ $todo->id }}', $event.target.value)"
                                                         class="text-[10px] font-black uppercase tracking-tighter border border-gray-800 bg-gray-950 focus:ring-0 cursor-pointer py-1.5 pl-3 pr-8 rounded-lg transition-all
-                                                        {{ ($todo->priority ?? 'low') === 'high' ? 'text-red-400 border-red-900/50' : (($todo->priority ?? 'low') === 'medium' ? 'text-orange-400 border-orange-900/50' : 'text-gray-500 hover:text-gray-300') }}">
-                                                    <option value="low" class="bg-gray-900">LOW</option>
-                                                    <option value="medium" class="bg-gray-900">MED</option>
-                                                    <option value="high" class="bg-gray-900">HIGH</option>
+                                                        {{ ($todo->priority ?? 'niedrig') === 'hoch' ? 'text-red-400 border-red-900/50' : (($todo->priority ?? 'niedrig') === 'mittel' ? 'text-orange-400 border-orange-900/50' : 'text-gray-500 hover:text-gray-300') }}">
+                                                    <option value="niedrig" class="bg-gray-900" {{ ($todo->priority ?? 'niedrig') === 'niedrig' ? 'selected' : '' }}>LOW</option>
+                                                    <option value="mittel" class="bg-gray-900" {{ ($todo->priority ?? 'niedrig') === 'mittel' ? 'selected' : '' }}>MED</option>
+                                                    <option value="hoch" class="bg-gray-900" {{ ($todo->priority ?? 'niedrig') === 'hoch' ? 'selected' : '' }}>HIGH</option>
                                                 </select>
                                             </div>
                                         @endif
@@ -271,4 +271,19 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #C5A059; }
     </style>
+
+    {{-- AUDIO FEEDBACK --}}
+    <audio id="todoDoneSound" src="{{ asset('todo/sounds/todo_done.mp3') }}" preload="auto"></audio>
+    
+    @script
+    <script>
+        $wire.on('todo-completed', () => {
+            let audio = document.getElementById('todoDoneSound');
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play().catch(e => console.log('Audio Autoplay prevented'));
+            }
+        });
+    </script>
+    @endscript
 </div>

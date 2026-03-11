@@ -76,34 +76,21 @@
                                     <div class="rounded-[1.5rem] px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm shadow-sm {{ $msg['role'] === 'user' ? 'bg-slate-900 text-white rounded-br-none self-end' : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none font-medium self-start w-full' }}">
                                         @php
                                             $content = $msg['content'];
-                                            
+
                                             // 1. Extrahiere [COMPONENT]
                                             $hasComponent = preg_match('/\[COMPONENT\](.*?)\[\/COMPONENT\]/is', $content, $matches);
                                             $componentName = $hasComponent ? trim($matches[1]) : null;
-                                            
+
                                             // Entferne den Component String aus dem Text
                                             $cleanContent = trim(preg_replace('/\[COMPONENT\].*?\[\/COMPONENT\]/is', '', $content));
-                                            
+
                                             // 2. Escape HTML, aber erlaube [TEXTBOX] Rendering
                                             $escapedContent = e($cleanContent);
                                             $escapedContent = preg_replace('/\[TEXTBOX\](.*?)\[\/TEXTBOX\]/is', '<textarea readonly class="w-full mt-2 mb-2 p-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-mono shadow-inner transition-all hover:bg-white focus:ring-2 focus:ring-cyan-500/20 outline-none" rows="2" onclick="this.select()">$1</textarea>', $escapedContent);
-                                            
-                                            // 3. Extrahiere [NAVIGATE] für visuelles Rendering
-                                            $hasNavigate = preg_match('/\[NAVIGATE\](.*?)\[\/NAVIGATE\]/is', $escapedContent, $navMatches);
-                                            $escapedContent = preg_replace('/\[NAVIGATE\].*?\[\/NAVIGATE\]/is', '', $escapedContent);
                                         @endphp
-                                        
+
                                         @if(!empty(trim($escapedContent)))
                                             {!! nl2br($escapedContent) !!}
-                                        @endif
-                                        
-                                        @if($hasNavigate)
-                                            <div class="mt-2 text-[10px] text-cyan-600 font-bold uppercase tracking-wider flex items-center gap-2 animate-pulse">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                                                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.438 4.438 0 002.946-2.946 4.493 4.493 0 004.306-1.758q.15-.15.3-.297a9.02 9.02 0 01-5.096-5.096c-.1.1-.203.203-.298.3" />
-                                                </svg>
-                                                Sprungsequenz initiiert...
-                                            </div>
                                         @endif
                                     </div>
                                 </div>
@@ -174,11 +161,11 @@
         </div>
 
         {{-- TRIGGER BUTTON / MINI AVATAR --}}
-        <div class="relative items-center flex pointer-events-auto" 
-             @mouseenter="showMenu = true" 
+        <div class="relative items-center flex pointer-events-auto"
+             @mouseenter="showMenu = true"
              @mouseleave="showMenu = false"
              x-on:funkira-navigate.window="setTimeout(() => { window.location.href = $event.detail.url; }, 1500)"
-             x-data="{ 
+             x-data="{
                  showMenu: false,
                  isListening: $persist(false),
                  isMuted: $persist(false),
@@ -203,17 +190,25 @@
                          this.recognition.lang = 'de-DE';
                          this.recognition.continuous = true;
                          this.recognition.interimResults = false;
-                         
+
                          this.recognition.onstart = () => { this.isListening = true; };
-                         this.recognition.onend = () => { 
+                         this.recognition.onend = () => {
                              // Auto-Restart unless manually stopped
                              if (this.isListening) {
                                  try { this.recognition.start(); } catch(e) { this.isListening = false; }
                              }
                          };
-                         
+
                          this.recognition.onresult = (event) => {
                              const transcript = event.results[event.results.length - 1][0].transcript;
+                             const cleanTranscript = transcript.trim().toLowerCase().replace(/[.,!?]/g, '');
+
+                             // 1. Voice Command Interception for SILENCE
+                             if (['stopp', 'stop', 'halt', 'abbruch', 'ruhe'].includes(cleanTranscript)) {
+                                 this.synthesis.cancel(); // Stop talking instantly
+                                 return; // Don't send this command to the AI
+                             }
+
                              if(transcript.trim() !== '') {
                                  @this.set('input', transcript);
                                  @this.call('sendMessage');
@@ -227,8 +222,8 @@
                      if (this.isMuted) return;
 
                      this.synthesis.cancel(); // Stop old speeches
-                     
-                     // Filter out all tags: [COMPONENT], [NAVIGATE], [TEXTBOX], [EVENT] and md formatting
+
+                     // Filter out all tags: [COMPONENT], , [TEXTBOX], [EVENT] and md formatting
                      let cleanText = text.replace(/\[COMPONENT\].*?\[\/COMPONENT\]/gs, 'Visualisiere Komponente.');
                      cleanText = cleanText.replace(/\[NAVIGATE\].*?\[\/NAVIGATE\]/gs, 'Navigiere dorthin.');
                      cleanText = cleanText.replace(/\[TEXTBOX\].*?\[\/TEXTBOX\]/gs, 'Zeige Daten im Textfeld.');
@@ -247,8 +242,8 @@
                      const germanVoice = voices.find(v => v.lang === 'de-DE' && (v.name.includes('Google') || v.name.includes('Neural')));
                      if (germanVoice) utterance.voice = germanVoice;
 
-                     utterance.rate = 1.05;  
-                     utterance.pitch = 0.95; 
+                     utterance.rate = 1.05;
+                     utterance.pitch = 0.95;
 
                      // Temporarily pause mic so she doesn't hear herself
                      if (this.recognition && this.isListening) {
@@ -267,21 +262,21 @@
                  },
                  toggleListening(forceStart = false) {
                      if (!this.recognition) this.initSpeech();
-                     
+
                      if (this.isListening && !forceStart) {
                          this.isListening = false; // Intentionally turning off
                          try { this.recognition.stop(); } catch(e) {}
                      } else {
                          this.isListening = true; // Intentionally turning on
-                         try { 
-                             this.recognition.start(); 
-                         } catch(e) { 
+                         try {
+                             this.recognition.start();
+                         } catch(e) {
                              if(e.name === 'InvalidStateError') {
                                  // Already started, ignore
                                  console.log('Mic already active.');
                              } else {
-                                 console.error(e); 
-                                 this.isListening = false; 
+                                 console.error(e);
+                                 this.isListening = false;
                              }
                          }
                      }
@@ -289,9 +284,9 @@
              }"
              @funkira-center-opened.window="if(isListening) { toggleListening(false); }"
              @funkira-spoke.window="speakResponse($event.detail.text)">
-                 
+
             {{-- HOVER MENÜ --}}
-            <div x-show="showMenu && !$wire.isOpen" 
+            <div x-show="showMenu && !$wire.isOpen"
                  x-transition:enter="transition ease-out duration-200"
                  x-transition:enter-start="opacity-0 translate-x-4"
                  x-transition:enter-end="opacity-100 translate-x-0"
@@ -344,15 +339,15 @@
 
                 {{-- CSS ORB 3D CORE --}}
                 <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.2rem] sm:rounded-[1.4rem] shadow-2xl transition-all duration-500 transform group-hover/btn:scale-105 flex items-center justify-center relative z-10 overflow-hidden shrink-0 bg-slate-900 border" :class="isListening ? 'border-red-500/50' : '{{ $isTyping ? "border-pink-500/50" : "border-emerald-400/30" }}'">
-                    
+
                     {{-- Inner Glowing Sphere --}}
                     <div class="absolute inset-2 rounded-full border animate-[spin_4s_linear_infinite] group-hover/btn:[animation-duration:15s]" :class="isListening ? 'border-red-500/60' : '{{ $isTyping ? "border-pink-400/60" : "border-emerald-400/40" }}'"></div>
                     <div class="absolute inset-3 rounded-full border animate-[spin_3s_linear_infinite_reverse] group-hover/btn:[animation-duration:12s]" :class="isListening ? 'border-orange-500/50' : '{{ $isTyping ? "border-purple-400/50" : "border-teal-400/30" }}'"></div>
-                    
+
                     {{-- Core Light --}}
                     <div class="absolute w-6 h-6 rounded-full blur-md animate-pulse transition-colors duration-700" :class="isListening ? 'bg-red-500 scale-125' : '{{ $isTyping ? "bg-pink-400 scale-110" : "bg-emerald-400" }}'"></div>
                     <div class="absolute w-3 h-3 bg-white rounded-full blur-[2px]"></div>
-                    
+
                     {{-- Grid Lines Overlay --}}
                     <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.8)_100%)]"></div>
 

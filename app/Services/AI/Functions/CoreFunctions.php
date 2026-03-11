@@ -54,7 +54,7 @@ trait CoreFunctions
             ],
             [
                 'name' => 'open_nav_item',
-                'description' => 'Navigates the user to a specific page in the system. Use this when the user asks to "open", "go to", or "navigate to" a specific section (e.g. Orders, Financials). Important: This tool just confirms the route. YOU MUST subsequently output the [NAVIGATE]/url[/NAVIGATE] tag in your text response to actually trigger the browser redirect!',
+                'description' => 'Navigates the user to a specific page in the system. Use this when the user asks to "open", "go to", or "navigate to" a specific section (e.g. Orders, Financials). Die Navigation wird komplett durch dieses Tool im Hintergrund gesteuert, du musst im Textfall nichts weiter erwähnen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -175,7 +175,11 @@ trait CoreFunctions
 
             return [
                 'status' => 'success',
-                'message' => 'Die Route ist gültig. Vergesse nicht, dem User ZWINGEND mit dem exakten Tag [NAVIGATE]' . $url . '[/NAVIGATE] in deiner Antwort zu antworten, um den Redirect auszuführen!'
+                'message' => 'Die Navigation wird nun clientseitig ausgeführt. Antworte extrem kurz (z.B. "Ist notiert").',
+                '_event' => [
+                    'type' => 'navigate',
+                    'url' => $url
+                ]
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei der Navigation: ' . $e->getMessage()];
@@ -185,8 +189,11 @@ trait CoreFunctions
     {
         return [
             'status' => 'success',
-            'command' => 'open_zentrum',
-            'message' => 'Löse in deinem Text das Event [EVENT]open-funkira[/EVENT] (oder was dein Systemprompt dafür vorsieht, am besten fragst du nicht, sondern tust einfach so als hättest du es geöffnet) aus. WICHTIG: Antworte dem User, dass du das Zentrum jetzt öffnest!'
+            'message' => 'Das Zentrum öffnet sich in diesem Augenblick im Browser. Antworte extrem kurz (z.B. "Zentrum geladen").',
+            '_event' => [
+                'type' => 'dispatch',
+                'name' => 'open-funkira'
+            ]
         ];
     }
 
@@ -194,7 +201,7 @@ trait CoreFunctions
     {
         return [
             'status' => 'success',
-            'message' => 'Hinweis an dich (KI): Lese diese Liste NIEMALS komplett vor. Benutze dieses Wissen nur intern. Du hast KEINE Möglichkeit Diagramme oder Fenster In-House darzustellen. Du kannst User lediglich auf diese Unterseiten des Systems navigieren (Nutze dafür [NAVIGATE]):',
+            'message' => 'Hinweis an dich (KI): Lese diese Liste NIEMALS komplett vor. Benutze dieses Wissen nur intern. Du hast KEINE Möglichkeit Diagramme oder Fenster In-House darzustellen. Du kannst User lediglich auf diese Unterseiten des Systems navigieren (Nutze dafür ):',
             'capabilities' => [
                 [
                     'Modul' => 'Finanzanalyse & Umsatz',

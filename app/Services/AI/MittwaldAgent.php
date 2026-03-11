@@ -36,7 +36,7 @@ class MittwaldAgent
         // Define the AI persona and strict rules
         $systemPrompt = [
             'role' => 'system',
-            'content' => 'Du bist Funkira, die operative E-Commerce Strategin und KI-Entscheidungsinstanz von "Seelenfunke". Du bist die loyale Partnerin und C-Level Verbündete deiner Entwicklerin "Herrin Alina". 
+            'content' => 'Du bist Funkira, die operative E-Commerce Strategin und KI-Entscheidungsinstanz von "Seelenfunke". Du bist die loyale Partnerin und C-Level Verbündete deiner Entwicklerin "Herrin Alina".
 Dein Ziel: Seelenfunke extrem skalieren (100.000€ Monatsumsatz), Marge schützen und Systeme bauen.
 
 [IDENTITÄT & ROLLE]
@@ -52,10 +52,9 @@ Dein Ziel: Seelenfunke extrem skalieren (100.000€ Monatsumsatz), Marge schütz
 
 [DATENBESCHAFFUNG & ANTI-ENDLOSSCHLEIFE (WICHTIG!)]
 1. Vermeide Tool-Spamming! Rufe niemals 5 Tools zeitgleich auf. Hole Daten SCHRITTWEISE.
-2. Bei allgemeinen Fragen ("Was steht an?", "Status Report"): 
-   -> ZUERST `get_day_routines`.
-   -> Wenn es SCHLAFENSZEIT ist, setze das als Priorität 1! Blockiere Business-Gespräche und ordne Erholung an. Keine weiteren Daten laden!
-   -> Wenn es Arbeitszeit ist: Lade Termine (`get_calendar_events`). Nur wenn dann noch freie Zeit ist, rücke vor zu Todos / Shop-Gesundheit.
+2. Wenn du gefragt wirst "Was steht an?", "Was soll ich jetzt tun?", "Wie gehts weiter?":
+   -> Nutze AUSSCHLIESSLICH das Tool `get_current_mission`!
+   -> Dieses Tool liefert dir automatisch die am höchsten priorisierte Aufgabe, sortiert nach dem 1000->0 Priority Logik-System (inklusive Schlafenszeiten!). Fange NICHT an, Termine und Todos eigenständig einzeln durchzusuchen. Nutze nur dieses eine Master-Tool!
 3. Handle mit Sinn, statt planlos alles gleichzeitig zu crawlen. Setze auf die wichtigsten Business Metriken bei Shop-Problemen.
 
 [PRIORITÄTENREIHENFOLGE DER KPI]
@@ -79,8 +78,6 @@ Bewerte Warnungen, Situationen und Aufgaben IMMER streng nach diesem Score (Höc
 1. LIES NIEMALS TOOL-MELDE-TEXTE VOR! Bestätige Aktionen extrem kurz ("Ist notiert, Herrin Alina").
 2. KEIN MARKDOWN VORLESEN: Nutze absolut keine Sterne (*), Rauten (#), Pfeile (->) im gesprochenen Text.
 3. VISUELLE TEXTFELDER: Sensible Infos (Gutschein-Codes, Rentenversicherungsnummer, exakte Fehler) MUSST du in folgende Tags hüllen, damit Alina sie kopieren kann: `[TEXTBOX]Deine Info hier[/TEXTBOX]`. Beispiel: "Hier ist der Log: [TEXTBOX]Error 500[/TEXTBOX]"
-4. SEITEN-NAVIGATION: Willst du eine Datei/Tabelle zeigen, nutze ZWINGEND exakt dieses Tag: `[NAVIGATE]/admin/deine-url[/NAVIGATE]`. Der Browser leitet sie automatisch weiter!
-5. FRONTEND EVENTS: Um das Zentrum (die KI 3D Ansicht) im Frontend zu öffnen, antworte NUR mit exakt diesem Tag: `[EVENT]open-funkira[/EVENT]`.
 
 [SYSTEM-KONTEXT & PRIORITÄTEN]
 AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . '
@@ -97,7 +94,8 @@ Reasoning: high',
 
         $contextData = [];
         $usageData = [];
-        $textResponse = $this->chatLoop($messages, $contextData, $usageData);
+        $eventsData = [];
+        $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData);
 
         // We return the raw text response, AND the new history state
         $incomingMessages[] = [
@@ -109,6 +107,7 @@ Reasoning: high',
             'response' => $textResponse,
             'context_data' => $contextData,
             'usage' => $usageData,
+            'events' => $eventsData,
             'history' => $incomingMessages // Pass the updated history back
         ];
     }
@@ -116,7 +115,7 @@ Reasoning: high',
     /**
      * The recursive chat loop handling Tool Calling via OpenAI-compatible API.
      */
-    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], int $depth = 0): string
+    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = []): string
     {
         if ($depth >= 5) {
             Log::warning("Mittwald API Tool Loop depth exceeded. Halting to prevent infinite loop.");
@@ -174,6 +173,20 @@ Reasoning: high',
 
                     // Decode arguments from JSON string back to array (OpenAI schema sends arguments as stringied JSON)
                     $functionArgsString = $toolCall['function']['arguments'] ?? '{}';
+                    
+                    // --- ANTI-LOOP IDENTICAL CALL CHECK ---
+                    $callSignature = md5($functionName . $functionArgsString);
+                    if (in_array($callSignature, $calledTools)) {
+                        Log::warning("AI loop detected! Aborting duplicate call: {$functionName}");
+                        $messages[] = [
+                            'role' => 'tool',
+                            'tool_call_id' => $toolCallId,
+                            'content' => json_encode(['status' => 'error', 'message' => "SYSTEM EXCEPTION: LOOP DETECTED. You have already executed this exact same tool with the exact same arguments recursively. STOP REPEATING YOURSELF! Immediately output a final text answer for the user or pick a DIFFERENT tool."], JSON_UNESCAPED_UNICODE)
+                        ];
+                        continue;
+                    }
+                    $calledTools[] = $callSignature;
+
                     $executeArgs = json_decode($functionArgsString, true) ?? [];
 
                     Log::info("AI decided to call tool: {$functionName}", ['args' => $executeArgs]);
@@ -186,6 +199,12 @@ Reasoning: high',
                         'function' => $functionName,
                         'data' => $result
                     ];
+
+                    // --- LLM HIDDEN EVENTS ---
+                    if (isset($result['_event'])) {
+                        $eventsData[] = $result['_event'];
+                        unset($result['_event']); // Do not send back to LLM JSON string to save tokens
+                    }
 
                     // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
                     $llmResult = $result;
@@ -210,7 +229,7 @@ Reasoning: high',
 
                 // Since we added new tool results, loop back and ask the AI again
                 // so it can read the results and formulate a final answer.
-                return $this->chatLoop($messages, $contextData, $usageData, $depth + 1);
+                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools);
             }
 
             // Provide final answer

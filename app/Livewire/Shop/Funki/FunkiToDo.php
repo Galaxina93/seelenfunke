@@ -21,6 +21,11 @@ class FunkiToDo extends Component
 
     public function mount()
     {
+        // One-time auto-migration of old English priorities
+        Todo::where('priority', 'low')->update(['priority' => 'niedrig']);
+        Todo::where('priority', 'medium')->update(['priority' => 'mittel']);
+        Todo::where('priority', 'high')->update(['priority' => 'hoch']);
+
         // Wähle standardmäßig die erste Liste, falls vorhanden
         $firstList = TodoList::orderBy('created_at', 'asc')->first();
         if ($firstList) {
@@ -68,7 +73,7 @@ class FunkiToDo extends Component
             'id' => (string) Str::uuid(),
             'todo_list_id' => $this->selectedListId,
             'title' => $this->newTask_title,
-            'priority' => 'low',
+            'priority' => 'niedrig',
         ]);
 
         $this->reset('newTask_title');
@@ -83,7 +88,7 @@ class FunkiToDo extends Component
             'todo_list_id' => $this->selectedListId,
             'parent_id' => $parentId,
             'title' => $title,
-            'priority' => 'low',
+            'priority' => 'niedrig',
         ]);
     }
 
@@ -102,7 +107,7 @@ class FunkiToDo extends Component
         if(empty($priority)) return;
 
         $todo = Todo::find($id);
-        if($todo && in_array($priority, ['low', 'medium', 'high'])) {
+        if($todo && in_array($priority, ['niedrig', 'mittel', 'hoch'])) {
             $todo->update(['priority' => $priority]);
         }
     }
@@ -112,6 +117,10 @@ class FunkiToDo extends Component
         $todo = Todo::find($id);
         if($todo) {
             $todo->update(['is_completed' => !$todo->is_completed]);
+            
+            if ($todo->is_completed) {
+                $this->dispatch('todo-completed');
+            }
         }
     }
 
@@ -153,7 +162,7 @@ class FunkiToDo extends Component
                 }])
                 ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
                 ->orderBy('is_completed', 'asc')
-                ->orderByRaw("FIELD(COALESCE(priority, 'low'), 'high', 'medium', 'low')")
+                ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
                 ->get();
         }

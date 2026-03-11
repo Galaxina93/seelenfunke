@@ -96,6 +96,18 @@ class FunkiBotService
                         'icon' => $routine->icon ?? '🧘'
                     ];
                 }
+
+                // Wenn es ein aktiver Schlafenszeit-Block ist, pushen wir es mit absoluter Priorität (Score 2500)
+                if ($routine->type === 'sleep') {
+                    $options[] = [
+                        'score' => 2500,
+                        'title' => $routine->title,
+                        'message' => "Deine Nachtruhe ist aktiv: " . $currentFlow['step'] . ". " . ($routine->message ?? "Zeit für Regeneration. Klapp den Laptop zu und gute Nacht!"),
+                        'action_label' => 'Feierabend',
+                        'action_route' => 'admin.dashboard',
+                        'icon' => $routine->icon ?? '🌙'
+                    ];
+                }
             }
 
             return [
@@ -106,6 +118,25 @@ class FunkiBotService
                 'status' => $status,
             ];
         })->values()->toArray();
+
+        // ------------------------------------------------------------------
+        // 0.5. AUSSERHALB VON ROUTINEN -> SCHLAFENSZEIT (Score 2000)
+        // ------------------------------------------------------------------
+        if ($currentFlow['type'] === 'free') {
+            $options[] = [
+                'score' => 2000,
+                'title' => 'Schlafenszeit',
+                'message' => "Du befindest dich außerhalb deiner regulären Routinen. Das bedeutet höchste Priorität für Schlaf und Erholung! Klapp den Laptop zu.",
+                'action_label' => 'Feierabend',
+                'action_route' => 'admin.dashboard',
+                'icon' => '🌙'
+            ];
+
+            $currentFlow['title'] = 'Nachtruhe';
+            $currentFlow['step'] = 'Schlaf oder Offline-Phase';
+            $currentFlow['type'] = 'sleep';
+            $currentFlow['icon'] = 'moon';
+        }
 
         // ------------------------------------------------------------------
         // 1. SICHERHEIT (Score 1000+)

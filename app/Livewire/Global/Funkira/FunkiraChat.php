@@ -28,16 +28,16 @@ class FunkiraChat extends Component
         $this->isOpen = !$this->isOpen;
         session()->put('funkira_is_open', $this->isOpen);
     }
-    
+
     /**
      * Schließt den Chat explizit und öffnet das Zentrum
      */
     public function openZentrum(): void
     {
-        // Teile dem Frontend (Alpine) mit, dass das Zentrum öffnet 
+        // Teile dem Frontend (Alpine) mit, dass das Zentrum öffnet
         // -> WICHTIG: Orb Mic deaktiviert sich daraufhin automatisch (`@funkira-center-opened` Listener im Blade)
         $this->dispatch('funkira-center-opened');
-        
+
         // Das 3D Widget reagiert jetzt auf das 'open-funkira' Event, ohne die Seite neu zu laden
         $this->dispatch('open-funkira');
     }
@@ -93,59 +93,39 @@ class FunkiraChat extends Component
 
         try {
             $agent = new \App\Services\AI\MittwaldAgent();
-            
+
             // Provide exact URL Context to the AI
             $currentUrl = request()->headers->get('referer') ?? url()->current();
             $pageName = $this->translateUrlToPageName($currentUrl);
-            
+
             $payload = $this->messages;
             $payload[] = [
                 'role' => 'system',
                 'content' => "SYSTEM-INFO (Verdeckt): Der User befindet sich momentan im System-Bereich: '" . $pageName . "'. Nutze ausschließlich diesen Namen für die Orientierung und sage mir nicht den Pfad."
             ];
-            
+
             $result = $agent->ask($payload);
-            
+
             // The MittwaldAgent already appends the assistant response to the history array
             $this->messages = $result['history'];
 
-            // Extract [NAVIGATE] tag to trigger a safe singular browser redirect event
-            $redirectUrl = null;
-            $eventName = null;
-            $lastMessageIndex = count($this->messages) - 1;
-            
-            if (isset($this->messages[$lastMessageIndex]['content'])) {
-                if (preg_match('/\[NAVIGATE\](.*?)\[\/NAVIGATE\]/is', $this->messages[$lastMessageIndex]['content'], $matches)) {
-                    $redirectUrl = trim($matches[1]);
-                }
-                if (preg_match('/\[EVENT\](.*?)\[\/EVENT\]/is', $this->messages[$lastMessageIndex]['content'], $matches)) {
-                    $eventName = trim($matches[1]);
+            // Execute the side-effect actions (Navigation, Opening Modules) triggered by internal API Tools
+            if (isset($result['events']) && is_array($result['events'])) {
+                foreach ($result['events'] as $evt) {
+                    if (isset($evt['type']) && $evt['type'] === 'navigate' && isset($evt['url'])) {
+                        $this->dispatch('funkira-navigate', url: $evt['url']);
+                    }
+                    if (isset($evt['type']) && $evt['type'] === 'dispatch' && isset($evt['name'])) {
+                         // Special case for 'open-funkira': We must also stop the Orb Mic
+                        if ($evt['name'] === 'open-funkira') {
+                            $this->dispatch('funkira-center-opened');
+                        }
+                        $this->dispatch($evt['name']);
+                    }
                 }
             }
-
-            // Save to session, but strip [NAVIGATE], [EVENT] and [COMPONENT] tags to prevent infinite redirect loops on reload
-            // Wir überschreiben jetzt AUCH $this->messages selbst, damit beim Livewire Re-Render der Tag weg ist!
-            $this->messages = array_map(function($msg) {
-                if (isset($msg['content'])) {
-                    $msg['content'] = preg_replace('/\[NAVIGATE\](.*?)\[\/NAVIGATE\]/is', "\n*(Sprung zu: $1)*", $msg['content']);
-                    $msg['content'] = preg_replace('/\[EVENT\](.*?)\[\/EVENT\]/is', "", $msg['content']);
-                }
-                return $msg;
-            }, $this->messages);
 
             session()->put('funkira_chat_history', $this->messages);
-
-            // Execute the redirect via Livewire Event instead of raw HTML script injection
-            if ($redirectUrl) {
-                $this->dispatch('funkira-navigate', url: $redirectUrl);
-            }
-            if ($eventName) {
-                // Special case for 'open-funkira': We must also stop the Orb Mic
-                if ($eventName === 'open-funkira') {
-                    $this->dispatch('funkira-center-opened');
-                }
-                $this->dispatch($eventName);
-            }
 
             // Audio-Ausgabe triggern (Event an AlpineJS)
             if (!empty($result['response'])) {
@@ -153,22 +133,22 @@ class FunkiraChat extends Component
             }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Chat Error: " . $e->getMessage() . "\nTrace:\n" . $e->getTraceAsString());
-            
+
             $errorDetail = $e->getMessage();
             $file = basename($e->getFile());
             $line = $e->getLine();
-            
+
             $this->messages[] = [
-                'role' => 'assistant', 
+                'role' => 'assistant',
                 'content' => "⚠️ **SYSTEM WARNUNG & FEHLERANALYSE** ⚠️\n\nMein neurales Netzwerk hat eine kritische Ausnahmebedingung abgefangen.\n\n[FEHLER-DETAILS]\nFile: {$file} (Zeile: {$line})\nMessage: {$errorDetail}\n\n[GEGENMASSNAHME]\nIch kann diesen Codeblock nicht selbst umschreiben. Bitte kopiere diese genaue Fehlermeldung und übergib sie meinem Entwickler **Gemini**, damit er den Bug sofort in der Architektur fixen kann, Herrin Alina. Wenn das erledigt ist, bin ich sofort wieder zu 100% einsatzbereit."
             ];
-            
+
             // Speichern in der Session, damit auch der Fehler sichtbar bleibt
             session()->put('funkira_chat_history', $this->messages);
         }
 
         $this->isTyping = false;
-        
+
         $this->dispatch('message-sent');
     }
 
