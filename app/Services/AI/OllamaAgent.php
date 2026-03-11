@@ -52,7 +52,7 @@ class OllamaAgent
         ];
 
         try {
-            Log::info("Sending request to Ollama", ['payload' => $payload]);
+            Log::info("Sending request to Ollama", ['payload' => json_encode($payload, JSON_UNESCAPED_UNICODE)]);
             
             $response = Http::timeout(120)
                 ->asJson()
@@ -97,12 +97,31 @@ class OllamaAgent
                     // Execute via our safe registry
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
 
+                    // Sanitize the result to prevent deep JSON nesting/escaping exceptions that crash Ollama
+                    if (is_array($result)) {
+                        array_walk_recursive($result, function(&$item) {
+                            if (is_string($item)) {
+                                // Strip out deep json strings and crazy backslashes that break the parser
+                                $item = str_replace(['\\"', '\\', '"', "{", "}"], ["'", " ", "'", "[", "]"], $item);
+                            }
+                        });
+                    }
+
                     // Add the tool execution result back to the message history
                     $messages[] = [
                         'role' => 'tool',
                         'content' => json_encode($result, JSON_UNESCAPED_UNICODE)
                     ];
                 }
+
+                // IMPORTANT FIX: Re-encode the existing messages array to ensure that ANY empty arrays inside `arguments` 
+                // in previous `tool_calls` are strictly cast to objects {}, NOT arrays []. 
+                // Otherwise, Ollama's strict Go json.Unmarshal crashes with "Value looks like object, but can't find closing '}'"
+                array_walk_recursive($messages, function (&$value, $key) {
+                   if ($key === 'arguments' && is_array($value) && empty($value)) {
+                       $value = new \stdClass();
+                   }
+                });
 
                 // Since we added new tool results, we MUST loop back and ask the AI again 
                 // so it can read the results and formulate a final answer based on them.
