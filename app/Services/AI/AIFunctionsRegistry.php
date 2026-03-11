@@ -8,7 +8,6 @@ class AIFunctionsRegistry
 {
     use Functions\DashboardFunctions;
     use Functions\ShopFunctions;
-    use Functions\MarketingFunctions;
     use Functions\OrderFunctions;
     use Functions\AccountingFunctions;
     use Functions\SettingsFunctions;
@@ -23,7 +22,6 @@ class AIFunctionsRegistry
         return array_merge(
             self::getDashboardFunctionsSchema(),
             self::getShopFunctionsSchema(),
-            self::getMarketingFunctionsSchema(),
             self::getOrderFunctionsSchema(),
             self::getAccountingFunctionsSchema(),
             self::getSettingsFunctionsSchema(),
@@ -37,14 +35,14 @@ class AIFunctionsRegistry
     public static function getSchema(): array
     {
         $functions = self::getFunctions();
-        
+
         return array_map(function ($fn) {
-            
+
             $props = $fn['parameters']['properties'];
             if (empty($props)) {
                 $props = new \stdClass(); // Force {} instead of [] in JSON
             }
-            
+
             // Allow bypassing required fields if empty
             $data = [
                 'type' => 'function',

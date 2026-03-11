@@ -4,13 +4,14 @@
     @include('livewire.global.widgets.funki-analytics.partials.header')
     @include('livewire.global.widgets.funki-analytics.partials.health')
     @include('livewire.global.widgets.funki-analytics.partials.kpis')
+    
+    @include('livewire.global.widgets.funki-analytics.partials.profit')
     @include('livewire.global.widgets.funki-analytics.partials.charts')
 
     <div class="border-t border-gray-800 pt-8 mt-8">
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
             @include('livewire.global.widgets.funki-analytics.partials.traffic')
         </div>
-        @include('livewire.global.widgets.funki-analytics.partials.history')
     </div>
 
     @include('livewire.global.widgets.funki-analytics.partials.scripts')

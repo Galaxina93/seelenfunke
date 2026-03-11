@@ -106,43 +106,6 @@
                                             </div>
                                         @endif
                                     </div>
-                                    
-                                    @if($hasComponent && $componentName)
-                                        @php
-                                            $componentExists = false;
-                                            try {
-                                                if (class_exists(app(\Livewire\Mechanisms\ComponentRegistry::class)->getClass($componentName))) {
-                                                    $componentExists = true;
-                                                }
-                                            } catch (\Exception $e) {
-                                                $componentExists = false;
-                                            }
-                                        @endphp
-                                    
-                                        <div class="mt-2 w-full overflow-hidden rounded-2xl border {{ $componentExists ? 'border-slate-200 bg-white shadow-lg' : 'border-red-200 bg-red-50 shadow-sm' }} pointer-events-auto">
-                                            <div class="{{ $componentExists ? 'bg-slate-100/80' : 'bg-red-100/50' }} px-4 py-2 text-[9px] uppercase tracking-widest font-black {{ $componentExists ? 'text-slate-500 border-slate-200' : 'text-red-500 border-red-200' }} border-b flex items-center justify-between">
-                                                <span>Modul: {{ $componentName }}</span>
-                                                <div class="flex gap-1.5">
-                                                    <span class="w-2 h-2 rounded-full {{ $componentExists ? 'bg-red-400' : 'bg-red-300' }}"></span>
-                                                    <span class="w-2 h-2 rounded-full {{ $componentExists ? 'bg-amber-400' : 'bg-red-300' }}"></span>
-                                                    <span class="w-2 h-2 rounded-full {{ $componentExists ? 'bg-green-400' : 'bg-red-300' }}"></span>
-                                                </div>
-                                            </div>
-                                            <div class="p-3 sm:p-5">
-                                                @if($componentExists)
-                                                    @livewire($componentName, ['lazy' => true], key('chat-comp-'.$index))
-                                                @else
-                                                    <div class="p-6 text-center">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mx-auto text-red-400 mb-3 animate-pulse">
-                                                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                        </svg>
-                                                        <h4 class="text-xs font-black text-red-600 uppercase tracking-widest mb-1">Subraum-Fehler</h4>
-                                                        <p class="text-[10px] text-red-500 font-medium">Das referenzierte System-Modul konnte im Register nicht gefunden werden oder wurde offline genommen.</p>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    @endif
                                 </div>
                             </div>
                         @endforeach
@@ -218,8 +181,15 @@
              x-data="{ 
                  showMenu: false,
                  isListening: $persist(false),
+                 isMuted: $persist(false),
                  recognition: null,
                  synthesis: window.speechSynthesis,
+                 toggleMute() {
+                     this.isMuted = !this.isMuted;
+                     if(this.isMuted) {
+                         this.synthesis.cancel();
+                     }
+                 },
                  init() {
                      // Auto-Restart on Page load if the user left it 'Listening'
                      if (this.isListening) {
@@ -254,6 +224,8 @@
                      }
                  },
                  speakResponse(text) {
+                     if (this.isMuted) return;
+
                      this.synthesis.cancel(); // Stop old speeches
                      
                      // Filter out all tags: [COMPONENT], [NAVIGATE], [TEXTBOX], [EVENT] and md formatting
@@ -340,9 +312,14 @@
                         <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out" :class="isListening ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
                     </div>
                 </button>
-                <button class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-cyan-400"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
-                    Lautsprecher Muten
+                <button @click="toggleMute" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group">
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4" :class="isMuted ? 'text-slate-500' : 'text-cyan-400'"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                        <span x-text="isMuted ? 'Ton Aus' : 'Ton An'"></span>
+                    </div>
+                    <div class="relative inline-flex h-4 w-7 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out" :class="isMuted ? 'bg-slate-600' : 'bg-green-500'">
+                        <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out" :class="isMuted ? 'translate-x-0.5' : 'translate-x-3.5'"></span>
+                    </div>
                 </button>
                 <button wire:click="openZentrum" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group border-t border-white/5 pt-2 mt-1">
                     <span>Aktivierungswort</span>
@@ -363,17 +340,17 @@
             </div>
 
             <button wire:click="toggleChat" class="relative outline-none shrink-0 transition-all active:scale-95 group/btn z-30">
-                <div class="absolute inset-0 rounded-full blur-xl opacity-30 group-hover/btn:opacity-60 transition-colors duration-500 animate-pulse" :class="isListening ? 'bg-red-600' : 'bg-cyan-600'"></div>
+                <div class="absolute inset-0 rounded-full blur-xl opacity-30 group-hover/btn:opacity-60 transition-colors duration-500 animate-pulse" :class="isListening ? 'bg-red-600' : '{{ $isTyping ? "bg-pink-500" : "bg-emerald-400" }}'"></div>
 
                 {{-- CSS ORB 3D CORE --}}
-                <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.2rem] sm:rounded-[1.4rem] shadow-2xl transition-all duration-500 transform group-hover/btn:scale-105 flex items-center justify-center relative z-10 overflow-hidden shrink-0 bg-slate-900 border" :class="isListening ? 'border-red-500/50' : 'border-white/20'">
+                <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.2rem] sm:rounded-[1.4rem] shadow-2xl transition-all duration-500 transform group-hover/btn:scale-105 flex items-center justify-center relative z-10 overflow-hidden shrink-0 bg-slate-900 border" :class="isListening ? 'border-red-500/50' : '{{ $isTyping ? "border-pink-500/50" : "border-emerald-400/30" }}'">
                     
                     {{-- Inner Glowing Sphere --}}
-                    <div class="absolute inset-2 rounded-full border animate-[spin_4s_linear_infinite]" :class="isListening ? 'border-red-500/60' : 'border-cyan-500/30'"></div>
-                    <div class="absolute inset-3 rounded-full border animate-[spin_3s_linear_infinite_reverse]" :class="isListening ? 'border-orange-500/50' : 'border-blue-500/40'"></div>
+                    <div class="absolute inset-2 rounded-full border animate-[spin_4s_linear_infinite] group-hover/btn:[animation-duration:15s]" :class="isListening ? 'border-red-500/60' : '{{ $isTyping ? "border-pink-400/60" : "border-emerald-400/40" }}'"></div>
+                    <div class="absolute inset-3 rounded-full border animate-[spin_3s_linear_infinite_reverse] group-hover/btn:[animation-duration:12s]" :class="isListening ? 'border-orange-500/50' : '{{ $isTyping ? "border-purple-400/50" : "border-teal-400/30" }}'"></div>
                     
                     {{-- Core Light --}}
-                    <div class="absolute w-6 h-6 rounded-full blur-md animate-pulse" :class="isListening ? 'bg-red-500 scale-125' : 'bg-cyan-400'"></div>
+                    <div class="absolute w-6 h-6 rounded-full blur-md animate-pulse transition-colors duration-700" :class="isListening ? 'bg-red-500 scale-125' : '{{ $isTyping ? "bg-pink-400 scale-110" : "bg-emerald-400" }}'"></div>
                     <div class="absolute w-3 h-3 bg-white rounded-full blur-[2px]"></div>
                     
                     {{-- Grid Lines Overlay --}}
@@ -381,8 +358,8 @@
 
                     {{-- AI Badge --}}
                     <div x-show="!$wire.isOpen && !isListening" x-transition.opacity class="absolute top-1 right-1 flex h-4 w-4 sm:h-5 sm:w-5">
-                        <span class="animate-ping absolute inset-0 rounded-full bg-cyan-400 opacity-75"></span>
-                        <span class="relative h-4 w-4 sm:h-5 sm:w-5 bg-slate-800 border sm:border text-cyan-400 border-white/20 shadow-lg rounded-full flex items-center justify-center text-[6px] sm:text-[8px] font-black italic">
+                        <span class="animate-ping absolute inset-0 rounded-full opacity-75 {{ $isTyping ? 'bg-pink-400' : 'bg-emerald-400' }}"></span>
+                        <span class="relative h-4 w-4 sm:h-5 sm:w-5 bg-slate-800 border sm:border rounded-full flex items-center justify-center text-[6px] sm:text-[8px] font-black italic shadow-lg {{ $isTyping ? 'text-pink-400 border-pink-400/30' : 'text-emerald-400 border-emerald-400/30' }}">
                             AI
                         </span>
                     </div>

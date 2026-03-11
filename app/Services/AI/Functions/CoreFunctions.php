@@ -75,6 +75,15 @@ trait CoreFunctions
                     'properties' => new \stdClass(),
                 ],
                 'callable' => [self::class, 'executeOpenZentrum']
+            ],
+            [
+                'name' => 'get_graphical_capabilities',
+                'description' => 'Gibt dir eine Liste zurück, in der steht, was du alles visuell einblenden kannst (z.B. Todos, Analytics) und WIE der User danach fragen muss. Nutze dies, wenn du gefragt wirst: "Was kannst du mir anzeigen?", "Zeig mir deine grafischen Möglichkeiten" oder ähnliches.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetGraphicalCapabilities']
             ]
         ];
     }
@@ -141,8 +150,7 @@ trait CoreFunctions
     {
         return [
             'status' => 'success',
-            'command' => 'close_all_panels',
-            'message' => 'Alle Fenster wurden geschlossen.'
+            'message' => 'Die UI wurde erfolgreich geschlossen.'
         ];
     }
 
@@ -161,6 +169,9 @@ trait CoreFunctions
             if ($url === '/admin/vouchers') {
                 $url = '/admin/voucher';
             }
+            if ($url === '/admin/financial' || $url === '/admin/financials') {
+                $url = '/admin/financial-evaluation';
+            }
 
             return [
                 'status' => 'success',
@@ -176,6 +187,36 @@ trait CoreFunctions
             'status' => 'success',
             'command' => 'open_zentrum',
             'message' => 'Löse in deinem Text das Event [EVENT]open-funkira[/EVENT] (oder was dein Systemprompt dafür vorsieht, am besten fragst du nicht, sondern tust einfach so als hättest du es geöffnet) aus. WICHTIG: Antworte dem User, dass du das Zentrum jetzt öffnest!'
+        ];
+    }
+
+    public static function executeGetGraphicalCapabilities(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => 'Hinweis an dich (KI): Lese diese Liste NIEMALS komplett vor. Benutze dieses Wissen nur intern. Du hast KEINE Möglichkeit Diagramme oder Fenster In-House darzustellen. Du kannst User lediglich auf diese Unterseiten des Systems navigieren (Nutze dafür [NAVIGATE]):',
+            'capabilities' => [
+                [
+                    'Modul' => 'Finanzanalyse & Umsatz',
+                    'Wie Alina fragen muss' => '"Zeige mir meine Finanzdaten", "Wie läuft der Umsatz?"',
+                    'URL Alias' => '/admin/financial-evaluation'
+                ],
+                [
+                    'Modul' => 'Todo-Liste & Tagesaufgaben',
+                    'Wie Alina fragen muss' => '"Zeig mir meine Todos", "Öffne die Aufgabenliste"',
+                    'URL Alias' => '/admin/funki-todos'
+                ],
+                [
+                    'Modul' => 'Bestellübersicht',
+                    'Wie Alina fragen muss' => '"Zeig mir die letzten Bestellungen", "Öffne die Bestellungen"',
+                    'URL Alias' => '/admin/orders'
+                ],
+                [
+                    'Modul' => 'Kundenverwaltung',
+                    'Wie Alina fragen muss' => '"Öffne die Kunden", "Zeige mir die Kundenliste"',
+                    'URL Alias' => '/admin/customers'
+                ],
+            ]
         ];
     }
 }

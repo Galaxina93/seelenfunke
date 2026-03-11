@@ -25,7 +25,7 @@ class DatabaseSeeder extends Seeder
             NewsletterKampagnenSeeder::class,       // Für den Livegang notwendig
             MonthlyVoucherSeeder::class,            // Für den Livegang notwendig
 
-            TodoSeeder::class,                  // DEAKTIVIEREN BEI LIVEGANG
+            /*TodoSeeder::class,*/                  // DEAKTIVIEREN BEI LIVEGANG
             FunkiDayRoutineSeeder::class,           // Für den Livegang notwendig
             MapSeeder::class,                       // Für den Livegang notwendig
             /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG

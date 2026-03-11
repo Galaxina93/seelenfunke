@@ -97,209 +97,10 @@
 
     <!-- Unified Floating UI Panel (Mapped to 3D Space) -->
     <div id="diagnostic-panel"
-         x-show="showInfoPanel || showChartPanel || showErrorPanel"
-         class="w-[800px] max-w-[90vw] pointer-events-none flex flex-col justify-center items-center gap-6"
-         style="display: none;">
-
-        <!-- 1. Kern-Diagnostik Module -->
-        <div x-show="showInfoPanel"
-             x-transition:enter="transition ease-out duration-500 delay-100"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-300"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-             class="w-[600px] max-w-[90vw] pointer-events-auto overflow-hidden self-end drop-shadow-2xl">
-
-            <!-- Header -->
-            <div class="px-6 py-4 flex justify-between items-center drop-shadow-md border-b border-gray-800">
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 rounded-full shadow-[0_0_10px_rgba(16,185,129,1)]"
-                         :class="{'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]': stateColor === 'good', 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,1)]': stateColor === 'warning', 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,1)]': stateColor === 'error'}"></div>
-                    <h3 class="font-bold text-gray-100 tracking-wider">Kern-Diagnostik</h3>
-                </div>
-                <button @click="showInfoPanel = false; playUnclickSound();" class="text-gray-400 hover:text-white transition-colors drop-shadow-md">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-
-            <!-- Body -->
-            <div class="p-6 grid grid-cols-2 gap-6 relative drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                <div class="space-y-4 relative z-10">
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Status</p>
-                        <p class="text-lg font-mono text-emerald-400"
-                           :class="{'text-emerald-400': stateColor === 'good', 'text-yellow-400': stateColor === 'warning', 'text-red-400': stateColor === 'error'}">
-                           <span x-text="displayState"></span>
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Aktive Sitzungen</p>
-                        <p class="text-2xl font-mono text-white flex items-baseline gap-2">
-                            <span x-text="activeSparks"></span>
-                            <span class="text-xs text-primary bg-primary/20 px-1.5 py-0.5 rounded">Online</span>
-                        </p>
-                    </div>
-                </div>
-
-                <div class="space-y-4 relative z-10">
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Ø Tagesgewinn / Orders</p>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-mono text-emerald-400" x-text="avgProfit"></span>
-                            <span class="text-gray-600">|</span>
-                            <span class="text-xs font-mono text-gray-300" x-text="totalOrders + ' Orders'"></span>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Letzter Sync</p>
-                        <p class="text-sm font-mono text-gray-300" x-text="lastSync"></p>
-                    </div>
-                </div>
-            </div>
         </div>
 
-        <!-- 2. Dynamic Analytics Chart/Table Module -->
-        <div x-show="showChartPanel"
-             x-transition:enter="transition ease-out duration-500"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-300"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-             class="w-full pointer-events-auto overflow-hidden self-start drop-shadow-2xl">
-
-            <!-- Header -->
-            <div class="px-6 py-4 flex justify-between items-center drop-shadow-md">
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 rounded-full shadow-[0_0_10px_rgba(16,185,129,1)] bg-emerald-500"></div>
-                    <h3 class="font-bold text-gray-100 tracking-wider">
-                        <span x-text="chartTitle">Daten-Analyse</span>
-                    </h3>
-                </div>
-                <button @click="showChartPanel = false; playUnclickSound();" class="text-gray-400 hover:text-white transition-colors drop-shadow-md">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-
-            <!-- Body -->
-            <div class="p-6 relative">
-
-                <!-- Chart Container -->
-                <div x-show="showChartCanvas" 
-                     x-transition:enter="transition ease-out duration-700 delay-100"
-                     x-transition:enter-start="opacity-0 scale-90 translate-y-4"
-                     x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                     x-transition:leave="transition ease-in duration-300"
-                     x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-                     x-transition:leave-end="opacity-0 scale-90 translate-y-4"
-                     id="funki-canvas-wrapper" class="w-full h-[280px] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] relative">
-                    <!-- Individual Close Button for Chart -->
-                    <button @click="destroyCurrentChart(); showChartCanvas = false; playUnclickSound();" class="absolute -top-3 -right-3 w-6 h-6 bg-red-600/80 hover:bg-red-500 rounded-full flex items-center justify-center text-white text-xs drop-shadow-md z-20 border border-red-400">
-                        <i class="bi bi-x"></i>
-                    </button>
-                    <canvas id="funkiDynamicChart"></canvas>
-                </div>
-
-                <!-- Dynamic Table Container -->
-                <div x-show="tableData.length > 0" 
-                     x-transition:enter="transition ease-out duration-700 delay-200"
-                     x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-                     x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                     x-transition:leave="transition ease-in duration-300"
-                     x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-                     x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-                     class="w-full relative mt-4">
-                    <!-- Individual Close Button for Table -->
-                    <button @click="tableData = []; playUnclickSound();" class="absolute -top-3 -right-3 w-6 h-6 bg-red-600/80 hover:bg-red-500 rounded-full flex items-center justify-center text-white text-xs drop-shadow-md z-20 border border-red-400">
-                        <i class="bi bi-x"></i>
-                    </button>
-                    
-                    <div class="overflow-y-auto max-h-[400px] custom-scrollbar transition-opacity duration-300 opacity-100">
-                        <div class="relative drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10 w-full bg-gray-900/50 rounded-xl border border-gray-700/50 overflow-hidden">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="border-b border-gray-700/50">
-                                    <template x-for="(header, index) in tableHeaders" :key="index">
-                                        <th class="py-3 px-4 text-[10px] font-bold uppercase tracking-widest text-emerald-500/70" x-text="header"></th>
-                                    </template>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-800/50">
-                                <template x-for="(row, rIndex) in tableData" :key="rIndex">
-                                    <tr class="hover:bg-white/5 transition-colors">
-                                        <template x-for="(cell, cIndex) in row.cells" :key="cIndex">
-                                            <td class="py-3 px-4 text-sm font-mono" :class="cell.color || 'text-gray-300'" x-text="cell.value"></td>
-                                        </template>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Dynamic List Container -->
-                <div x-show="chartListData.length > 0" 
-                     x-transition:enter="transition ease-out duration-700 delay-300"
-                     x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-                     x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                     x-transition:leave="transition ease-in duration-300"
-                     x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-                     x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-                     class="w-full relative mt-4">
-                    <!-- Individual Close Button for List -->
-                    <button @click="chartListData = []; playUnclickSound();" class="absolute -top-3 -right-3 w-6 h-6 bg-red-600/80 hover:bg-red-500 rounded-full flex items-center justify-center text-white text-xs drop-shadow-md z-20 border border-red-400">
-                        <i class="bi bi-x"></i>
-                    </button>
-                    
-                    <div class="overflow-y-auto max-h-[400px] pr-2 custom-scrollbar transition-opacity duration-300 opacity-100">
-                        <div class="grid grid-cols-2 gap-6 relative drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] z-10">
-                        <template x-for="(item, index) in chartListData" :key="index">
-                            <div class="space-y-2">
-                                <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500" x-text="item.badge"></p>
-                                <p class="text-lg font-mono" :class="item.titleColor || 'text-emerald-400'" x-text="item.title"></p>
-                                <p class="text-xs font-mono text-gray-300 whitespace-pre-wrap leading-relaxed" x-text="item.subtitle" x-show="item.subtitle"></p>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 3. System Error Module -->
-        <div x-show="showErrorPanel"
-             x-transition:enter="transition ease-out duration-500"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             x-transition:leave="transition ease-in duration-300"
-             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-             x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-             class="w-[600px] max-w-[90vw] pointer-events-auto overflow-hidden self-start drop-shadow-2xl">
-
-            <!-- Header -->
-            <div class="px-6 py-4 flex justify-between items-center bg-red-900/40 drop-shadow-md border border-red-900/50 rounded-t-xl">
-                <div class="flex items-center gap-3">
-                    <div class="w-2.5 h-2.5 rounded-full shadow-[0_0_10px_rgba(239,68,68,1)] bg-red-500 animate-pulse"></div>
-                    <h3 class="font-bold text-red-100 tracking-wider">
-                        SYSTEM WARNUNG
-                    </h3>
-                </div>
-                <button @click="showErrorPanel = false; playUnclickSound();" class="text-red-400 hover:text-white transition-colors drop-shadow-md">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-
-            <!-- Body -->
-            <div class="p-6 bg-gray-900/80 backdrop-blur-md rounded-b-xl border border-red-900/30">
-                <p class="text-red-400 font-mono text-sm whitespace-pre-wrap leading-relaxed" x-text="errorText"></p>
-                
-                <div class="mt-4 pt-4 border-t border-red-900/30">
-                    <p class="text-[10px] uppercase font-bold tracking-widest text-red-300">Aktion abgebrochen. Bitte kontaktiere Gemini für einen Architektur-Fix.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <!-- 3. Dynamic Elements Removed per User Request -->
+    
     <!-- End of CSS2D Elements -->
 
 
@@ -335,17 +136,9 @@
         Alpine.data('funkiView', (initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '') => ({
             // State
             showFunkiView: false,
-            showInfoPanel: false,
-            showChartPanel: false,
             showErrorPanel: false,
-            showChartCanvas: false,
             isAudioMuted: true, // Default to muted as requested
             bgVolume: 15,       // Default background volume
-            chartTitle: 'Analyse',
-            chartListData: [],
-            tableHeaders: [],
-            tableData: [],
-            currentChart: null,
             systemState: initialState, // 'good', 'warning', 'error', true, false
             activeSparks: initialSparks,
             avgProfit: avgProfit + ' €',
@@ -448,15 +241,13 @@
                             this.chatHistory = data.history;
                         }
 
-                        // Render Analytics if the AI used any tools
+                        // Generate Funki Logs
                         if (data.context_data && data.context_data.length > 0) {
                             data.context_data.forEach(ctx => {
                                 this.funkiLogs.push(`Führte aus: ${ctx.function}`);
                             });
                             // Keep only last 8 logs
                             if (this.funkiLogs.length > 8) this.funkiLogs = this.funkiLogs.slice(-8);
-
-                            this.renderAnalytics(data.context_data, data.response || '');
                         }
 
                         if (data.usage && data.usage.total_tokens) {
@@ -946,6 +737,7 @@
                     const healthData = contextData.find(c => c.function === 'get_system_health');
                     if (healthData && healthData.data && healthData.data.active_sessions !== undefined) {
                         title = 'Sitzungen vs Bestellungen';
+                        chartType = 'bar';
                         chartLabels = ['Aktive Sitzungen', 'Bestellungen'];
                         chartDataset = [healthData.data.active_sessions || 0, healthData.data.total_orders || 0];
                     } else {
@@ -1223,6 +1015,7 @@
             },
 
             async openFunkiView() {
+                this.isAudioMuted = false; // Always unmute when opening intentionally
                 this.showFunkiView = true;
                 t3.isShuttingDown = false;
                 t3.shutdownTime = null;
@@ -1330,8 +1123,6 @@
                 if (t3.isShuttingDown) return; // Prevent double clicks
                 t3.isShuttingDown = true;
 
-
-
                 this.listening = false; // Stop listening visually
 
                 // Stop processing audio loops
@@ -1396,7 +1187,7 @@
                     }, 50);
                 }
 
-                // Wait 2 seconds for the core to shrink/turn black
+                // Wait 3.5 seconds for the core to shrink/turn black
                 setTimeout(() => {
                     this.showFunkiView = false; // Triggers Alpine fade-out (lasts 1s)
                     
@@ -1405,7 +1196,7 @@
                         this.destroyThreeJS();
                         document.body.style.overflow = 'auto'; // ALWAYS ensure scroll is restored
                     }, 1000);
-                }, 2000);
+                }, 3500);
             }, // Closing bracket for closeFunkiView method
             toggleBackgroundAudio() {
                 this.isAudioMuted = !this.isAudioMuted;
@@ -1844,7 +1635,7 @@
 
                     if (t3.isShuttingDown) {
                         const sdTime = performance.now() - t3.shutdownTime;
-                        shutProg = Math.min(sdTime / 2500.0, 1.0);
+                        shutProg = Math.min(sdTime / 3500.0, 1.0);
                         t3.raymarchUniforms.shutdownProgress.value = shutProg;
                     } else {
                         t3.raymarchUniforms.shutdownProgress.value = 0.0;

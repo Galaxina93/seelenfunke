@@ -115,10 +115,10 @@ class FunkiraChat extends Component
             $lastMessageIndex = count($this->messages) - 1;
             
             if (isset($this->messages[$lastMessageIndex]['content'])) {
-                if (preg_match('/\[NAVIGATE\](.*?)\[\/NAVIGATE\]/', $this->messages[$lastMessageIndex]['content'], $matches)) {
+                if (preg_match('/\[NAVIGATE\](.*?)\[\/NAVIGATE\]/is', $this->messages[$lastMessageIndex]['content'], $matches)) {
                     $redirectUrl = trim($matches[1]);
                 }
-                if (preg_match('/\[EVENT\](.*?)\[\/EVENT\]/', $this->messages[$lastMessageIndex]['content'], $matches)) {
+                if (preg_match('/\[EVENT\](.*?)\[\/EVENT\]/is', $this->messages[$lastMessageIndex]['content'], $matches)) {
                     $eventName = trim($matches[1]);
                 }
             }
@@ -129,8 +129,6 @@ class FunkiraChat extends Component
                 if (isset($msg['content'])) {
                     $msg['content'] = preg_replace('/\[NAVIGATE\](.*?)\[\/NAVIGATE\]/is', "\n*(Sprung zu: $1)*", $msg['content']);
                     $msg['content'] = preg_replace('/\[EVENT\](.*?)\[\/EVENT\]/is', "", $msg['content']);
-                    // KEEP [COMPONENT] in the history so Blade can render it!
-                    // Do NOT strip it here, Blade needs it to render the component UI.
                 }
                 return $msg;
             }, $this->messages);
