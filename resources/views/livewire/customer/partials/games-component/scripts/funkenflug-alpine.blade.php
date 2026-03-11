@@ -26,7 +26,7 @@ window.funkenflugExpress = function() {
                 if (e.key === 'Escape' && this.gameState === 'playing') {
                     this.togglePause();
                 }
-                if (e.key.toLowerCase() === 'v') {
+                if (e.key?.toLowerCase() === 'v') {
                     this.toggleFullscreen();
                 }
             });
@@ -222,9 +222,9 @@ window.funkenflugExpress = function() {
             };
 
             const assets = {
-                rocket: "{{ asset('storage/gamification/images/funki_rocket.glb') }}",
-                meteor: "{{ asset('storage/gamification/images/meteorit.glb') }}",
-                sharp_stone: "{{ asset('storage/gamification/images/sharp_stone.glb') }}"
+                rocket: "{{ asset('gamification/images/funki_rocket.glb') }}",
+                meteor: "{{ asset('gamification/images/meteorit.glb') }}",
+                sharp_stone: "{{ asset('gamification/images/sharp_stone.glb') }}"
             };
 
             console.log("[Alpine] Instantiating FunkenflugEngine...");

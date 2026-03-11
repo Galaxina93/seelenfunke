@@ -32,7 +32,7 @@
             <div class="relative z-10 w-full lg:w-5/12 flex justify-center perspective-1000 mt-8 lg:mt-0 shrink-0">
                 <div class="relative w-56 h-56 sm:w-72 sm:h-72 md:w-96 md:h-96 transform-gpu hover:rotate-y-12 hover:rotate-x-12 transition-transform duration-700 ease-out shrink-0">
                     <div class="absolute inset-0 bg-primary/20 rounded-full blur-[40px] md:blur-[50px] animate-pulse"></div>
-                    <img src="{{asset('storage/funki/models/images/funki_lvl_5_apprentice.png')}}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none z-10">
+                    <img src="{{asset('funki/models/images/funki_lvl_5_apprentice.png')}}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none z-10">
                 </div>
             </div>
         </div>
@@ -299,10 +299,10 @@
                                     <div class="flex flex-col items-center gap-2 sm:gap-3 relative group shrink-0">
                                         <button type="button"
                                                 @if($level >= $mLevel)
-                                                    @click="currentPath = '{{asset('storage/funki/models/' . $mName . '.glb')}}'; currentImagePath = '{{asset('storage/funki/models/images/' . $mName . '.png')}}'; window._funki3DLoader(currentPath);"
+                                                    @click="currentPath = '{{asset('funki/models/' . $mName . '.glb')}}'; currentImagePath = '{{asset('funki/models/images/' . $mName . '.png')}}'; window._funki3DLoader(currentPath);"
                                                 @endif
                                                 class="w-14 h-14 sm:w-20 sm:h-20 shrink-0 rounded-full bg-black border-2 flex items-center justify-center transition-all duration-1000 focus:outline-none {{ $level == $mLevel ? 'border-primary shadow-[0_0_25px_rgba(197,160,89,0.6)] scale-110 ring-4 ring-primary/20 z-10' : ($level > $mLevel ? 'border-primary/40 opacity-70 hover:opacity-100 hover:scale-105 hover:border-primary cursor-pointer' : 'border-gray-800 cursor-not-allowed') }}">
-                                            <img src="{{asset('storage/funki/models/images/' . $mName . '.png')}}" class="w-full h-full object-cover rounded-full transition-all duration-1000 {{ $level >= $mLevel ? '' : 'blur-[10px] opacity-10 grayscale' }}">
+                                            <img src="{{asset('funki/models/images/' . $mName . '.png')}}" class="w-full h-full object-cover rounded-full transition-all duration-1000 {{ $level >= $mLevel ? '' : 'blur-[10px] opacity-10 grayscale' }}">
                                         </button>
                                         <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-widest {{ $level == $mLevel ? 'text-primary' : 'text-gray-600' }}">Level {{$mLevel}}</span>
                                     </div>

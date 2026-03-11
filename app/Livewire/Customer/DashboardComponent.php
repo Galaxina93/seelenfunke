@@ -184,8 +184,8 @@ class DashboardComponent extends Component
             }
         }
 
-        $this->modelPath = asset('storage/funki/models/' . $currentModelName . '.glb');
-        $this->imagePath = asset('storage/funki/models/images/' . $currentModelName . '.png');
+        $this->modelPath = asset('funki/models/' . $currentModelName . '.glb');
+        $this->imagePath = asset('funki/models/images/' . $currentModelName . '.png');
 
         $this->titlesData = $gameService->evaluateTitles($profile);
         $this->activeTitleKey = $profile->active_title;

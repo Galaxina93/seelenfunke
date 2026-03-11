@@ -83,6 +83,6 @@ class GlobalRankingComponent extends Component
         $clampedLevel = max(1, min(10, (int)$level));
         $filename = $map[$clampedLevel] ?? 'funki_lvl_1_rags.png';
 
-        return asset('storage/funki/models/images/' . $filename);
+        return asset('funki/models/images/' . $filename);
     }
 }

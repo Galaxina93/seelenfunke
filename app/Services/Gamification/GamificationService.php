@@ -142,7 +142,7 @@ class GamificationService
             if ($level >= $milestoneLevel) $currentModel = $modelName;
             else break;
         }
-        return asset('storage/funki/models/' . $currentModel . '.glb');
+        return asset('funki/models/' . $currentModel . '.glb');
     }
 
     public function incrementTitleProgress(CustomerGamification $profile, string $titleId, int $amount = 1): void

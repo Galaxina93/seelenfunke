@@ -50,4 +50,9 @@ return [
         'place_id' => env('GOOGLE_PLACE_ID'),
     ],
 
+    'mittwald' => [
+        'url' => env('MITTWALD_AI_URL', 'https://llm.aihosting.mittwald.de/v1'),
+        'key' => env('MITTWALD_AI_API_KEY'),
+    ],
+
 ];

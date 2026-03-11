@@ -304,10 +304,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
             // Hotkeys for skills (WASD or 1-4)
             if(state) {
                 let skillIndex = 0;
-                if(e.key.toLowerCase() === 'w' || e.key === '1') skillIndex = 1;
-                if(e.key.toLowerCase() === 'a' || e.key === '2') skillIndex = 2;
-                if(e.key.toLowerCase() === 's' || e.key === '3') skillIndex = 3;
-                if(e.key.toLowerCase() === 'd' || e.key === '4') skillIndex = 4;
+                if(e.key?.toLowerCase() === 'w' || e.key === '1') skillIndex = 1;
+                if(e.key?.toLowerCase() === 'a' || e.key === '2') skillIndex = 2;
+                if(e.key?.toLowerCase() === 's' || e.key === '3') skillIndex = 3;
+                if(e.key?.toLowerCase() === 'd' || e.key === '4') skillIndex = 4;
 
                 if(skillIndex > 0 && window.alpineComponentContext) {
                     window.alpineComponentContext.useSkill(skillIndex);

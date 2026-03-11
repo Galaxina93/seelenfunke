@@ -65,23 +65,34 @@ class AIController extends Controller
     }
 
     /**
-     * Frontend Endpoint: Receives a text prompt, sends it to Ollama, and returns the response.
+     * Frontend Endpoint: Receives a conversation history, sends it to the Agent, and returns the response.
      */
     public function chat(Request $request)
     {
         $request->validate([
-            'prompt' => 'required|string|max:1000'
+            'prompt' => 'sometimes|string|max:1000',
+            'history' => 'sometimes|array'
         ]);
 
-        $prompt = $request->input('prompt');
+        $history = $request->input('history', []);
+        
+        // Backwards compatibility or single-shot prompts
+        if (empty($history) && $request->has('prompt')) {
+            $history[] = [
+                'role' => 'user',
+                'content' => $request->input('prompt')
+            ];
+        }
 
-        $agent = new \App\Services\AI\OllamaAgent();
-        $result = $agent->ask($prompt);
+        $agent = new \App\Services\AI\MittwaldAgent();
+        $result = $agent->ask($history);
 
         return response()->json([
             'status' => 'success',
             'response' => $result['response'],
-            'context_data' => $result['context_data'] ?? []
+            'history' => $result['history'] ?? [],
+            'context_data' => $result['context_data'] ?? [],
+            'usage' => $result['usage'] ?? []
         ]);
     }
 }

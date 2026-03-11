@@ -1,7 +1,7 @@
 <div class="p-4 sm:p-6 lg:p-10 min-h-full flex flex-col relative z-10" x-data="kristallKollaps3D()">
 
     {{-- AUDIO BGM --}}
-    <audio x-ref="bgmAudio" src="{{ asset('storage/gamification/music/cristall_kollaps_bg_music.mp3') }}" loop preload="auto"></audio>
+    <audio x-ref="bgmAudio" src="{{ asset('gamification/music/cristall_kollaps_bg_music.mp3') }}" loop preload="auto"></audio>
 
     {{-- SEITEN-HEADER --}}
     <div class="mb-8 sm:mb-10">
@@ -261,7 +261,7 @@
     <div x-show="activeGame === 'funkenflug'" x-cloak x-transition:enter="transition ease-out duration-500 delay-200" x-transition:enter-start="opacity-0 translate-y-10" x-transition:enter-end="opacity-100 translate-y-0" class="w-full max-w-[1400px] mx-auto flex-1 flex flex-col" x-data="funkenflugExpress()">
 
         {{-- AUDIO BGM FUNKENFLUG --}}
-        <audio x-ref="ffBgmAudio" src="{{ asset('storage/gamification/music/funkenflug.mp3') }}" loop preload="auto"></audio>
+        <audio x-ref="ffBgmAudio" src="{{ asset('gamification/music/funkenflug.mp3') }}" loop preload="auto"></audio>
 
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-6 mb-2 sm:mb-4 bg-gray-900/80 p-3 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-800 shadow-lg">
             <div class="flex items-center gap-3 sm:gap-4 bg-gray-950 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-800 shadow-inner w-full sm:w-auto justify-center">

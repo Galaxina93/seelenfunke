@@ -106,6 +106,91 @@
                     </div>
                 @endif
             </div>
+            </div>
+        </div>
+
+        <!-- Wiki Storage Section -->
+        <div class="mt-8 bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] mt-8 shadow-2xl border border-gray-800 overflow-hidden">
+            <div class="p-8 lg:p-10 border-b border-gray-800 flex justify-between items-center bg-gray-950/50">
+                <div>
+                    <h2 class="text-2xl font-serif font-bold text-white tracking-tight flex items-center gap-3">
+                        <x-heroicon-o-folder-arrow-down class="w-8 h-8 text-primary" />
+                        Wiki Dateispeicher (Für Funkira)
+                    </h2>
+                    <p class="text-gray-400 mt-1 text-sm">Lade hier PDFs, TXT oder CSV Dateien hoch. Funkira liest sie automatisch bei Anfragen.</p>
+                </div>
+                <div class="text-sm text-gray-400">
+                    <span class="text-white font-bold" x-text="$wire.uploadedWikiFiles.length"></span> Dateien online
+                </div>
+            </div>
+
+            <div class="p-8 lg:p-10 flex flex-col lg:flex-row gap-8">
+                <!-- Dropzone -->
+                <div class="w-full lg:w-1/3">
+                    <div 
+                        x-data="{ isDropping: false }"
+                        x-on:dragover.prevent="isDropping = true"
+                        x-on:dragleave.prevent="isDropping = false"
+                        x-on:drop.prevent="isDropping = false; $wire.uploadMultiple('wikiFiles', $event.dataTransfer.files)"
+                        :class="isDropping ? 'border-primary bg-primary/10' : 'border-gray-700 hover:border-gray-500 bg-gray-900/50'"
+                        class="border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center text-center transition-all cursor-pointer relative h-full min-h-[250px]"
+                    >
+                        <input type="file" wire:model="wikiFiles" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        <x-heroicon-o-document-arrow-up class="w-16 h-16 text-gray-500 mb-4 transition-colors" x-bind:class="isDropping ? 'text-primary' : ''" />
+                        <h3 class="text-white font-bold mb-2">Dateien hier ablegen</h3>
+                        <p class="text-xs text-gray-500 mb-4 uppercase tracking-widest font-black">oder klicken zum Auswählen</p>
+                        
+                        <div wire:loading wire:target="wikiFiles" class="mt-4">
+                            <span class="flex items-center gap-2 text-primary text-sm font-bold">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Lade hoch...
+                            </span>
+                        </div>
+
+                        @if (session()->has('message'))
+                            <div class="mt-4 text-emerald-400 text-xs font-bold bg-emerald-400/10 px-3 py-1.5 rounded-lg border border-emerald-400/20">
+                                {{ session('message') }}
+                            </div>
+                        @endif
+                        @error('wikiFiles.*') <span class="mt-4 text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <!-- File List -->
+                <div class="w-full lg:w-2/3">
+                    <div class="bg-gray-950 rounded-3xl border border-gray-800 overflow-hidden h-full">
+                        <div class="p-6 border-b border-gray-800 bg-gray-900/50">
+                            <h3 class="text-sm font-bold text-white uppercase tracking-widest">Hochgeladene Dateien</h3>
+                        </div>
+                        <div class="p-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                            @forelse($uploadedWikiFiles as $file)
+                                <div class="flex items-center justify-between p-4 hover:bg-gray-900/50 rounded-2xl transition-colors group">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center shrink-0">
+                                            <x-heroicon-o-document-text class="w-5 h-5 text-gray-400" />
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-[300px]">{{ $file['name'] }}</p>
+                                            <p class="text-xs text-gray-500 font-mono">{{ round($file['size'] / 1024, 1) }} KB &bull; {{ date('d.m.Y H:i', $file['time']) }}</p>
+                                        </div>
+                                    </div>
+                                    <button wire:click="deleteWikiFile('{{ $file['name'] }}')" wire:confirm="Möchtest du diese Datei wirklich löschen?" class="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                                        <x-heroicon-o-trash class="w-5 h-5" />
+                                    </button>
+                                </div>
+                            @empty
+                                <div class="p-8 text-center text-gray-500">
+                                    <x-heroicon-o-document-minus class="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                    <p class="text-sm font-medium">Bisher keine Dateien vorhanden.</p>
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <style>

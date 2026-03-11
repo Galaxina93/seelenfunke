@@ -52,7 +52,7 @@
     </button>
 
     {{-- AUDIO PLAYER (mit Alpine Verknüpfung) --}}
-    <audio x-ref="funkiAudio" src="{{ asset('storage/funki/audio/bgm.mp3') }}" loop preload="auto" class="hidden" x-init="$el.volume = volume; $watch('volume', val => $el.volume = val)"></audio>
+    <audio x-ref="funkiAudio" src="{{ asset('funki/audio/bgm.mp3') }}" loop preload="auto" class="hidden" x-init="$el.volume = volume; $watch('volume', val => $el.volume = val)"></audio>
 
     {{-- GLOBALES MODAL (Teleportiert in den Body, um Z-Index Probleme zu lösen) --}}
     <template x-teleport="body">

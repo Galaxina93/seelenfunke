@@ -82,6 +82,32 @@ class KnowledgeBaseSeeder extends Seeder
                 'tags' => ['Linux', 'Permissions', 'Chmod', 'Chown', 'Hosts', 'Windows'],
                 'content' => '<h3>Wichtige Linux Schreibrechte (Laravel)</h3><p>Damit Laravel fehlerfrei Logs schreiben und Caches generieren kann, benötigen diese Ordner spezielle Schreibrechte:</p><p><code>chmod -R 777 storage bootstrap/cache</code></p><h3>Dateibesitzer korrigieren</h3><p>Wenn Docker-Container Dateien anlegen (z.B. bei einem <code>composer install</code> im Container), gehören diese oft dem Root-User. Um wieder selbst im Code-Editor speichern zu können, muss der Besitzer zurück auf deinen Linux-User geändert werden:</p><p><code>sudo chown -R $USER:$USER .</code></p><h3>Windows Hosts-Datei</h3><p>Falls lokale Domains (z.B. mein-seelenfunke.test) eingerichtet werden müssen, liegt die Hosts-Datei unter Windows hier:</p><p><code>C:\Windows\System32\drivers\etc\hosts</code></p>'
             ],
+            [
+                'title' => 'Mein Seelenfunke - Unternehmensprofil & Produkte',
+                'category' => 'Firmenwissen',
+                'tags' => ['seelenfunke', 'produkte', 'k9-kristall', 'schiefer', 'metall', 'manufaktur', 'geschenke'],
+                'content' => "<h3>Mein Seelenfunke - Ein Funke, der bleibt</h3>
+<p>Wir stellen personalisierte Unikate für die Ewigkeit her. Unsere handveredelten Geschenke bestehen aus hochwertigen Materialien wie Glas (insbesondere K9-Kristall), Schiefer und Metall.</p>
+<h4>Unsere Materialien & Veredelungen</h4>
+<ul>
+<li><strong>K9-Kristall:</strong> Exklusive Glas-Unikate mit höchster optischer Reinheit. Durch Laser-Innengravur entstehen faszinierende 3D-Motive direkt im Glas, ohne die Oberfläche zu beschädigen.</li>
+<li><strong>Schiefer & Metall:</strong> Weitere hochwertige Materialien, die wir für individuelle, unvergessliche Geschenke veredeln.</li>
+</ul>
+<p><strong>Philosophie:</strong> Wir produzieren in Deutschland (Made in Germany), bieten schnellen Versand und verpacken jedes Stück mit Liebe. Kunden können über unseren Angebotskalkulator individuelle Wünsche anfragen oder direkt im Shop personalisierte Unikate bestellen.</p>
+<h4>Wichtige Bereiche der Website:</h4>
+<ul>
+<li>Shop & Angebotskalkulator</li>
+<li>Funki Chat (KI-Assistenz)</li>
+<li>Seelen-Kristall (3D-Laser-Motive)</li>
+<li>Blog & Manufaktur-Einblicke</li>
+</ul>",
+            ],
+            [
+                'title' => 'Theresa - Wichtige Daten',
+                'category' => 'Team & Kontakte',
+                'tags' => ['theresa', 'geburtstag', 'team'],
+                'content' => "<p>Theresa hat am <strong>11. März</strong> Geburtstag.</p>",
+            ]
         ];
 
         foreach ($articles as $article) {

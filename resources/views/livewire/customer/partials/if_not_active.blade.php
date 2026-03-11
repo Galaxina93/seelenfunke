@@ -73,7 +73,7 @@
             <div class="relative z-10 w-full md:w-5/12 flex justify-center perspective-1000">
                 <div class="relative w-72 h-72 md:w-96 md:h-96 transform hover:rotate-y-12 hover:rotate-x-12 transition-transform duration-700 ease-out">
                     <div class="absolute inset-0 bg-primary/30 rounded-full blur-[80px] animate-pulse"></div>
-                    <img src="{{ asset('storage/funki/models/images/funki_lvl_5_apprentice.png') }}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_30px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none">
+                    <img src="{{ asset('funki/models/images/funki_lvl_5_apprentice.png') }}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_30px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none">
                 </div>
             </div>
         </div>

@@ -43,6 +43,7 @@ case "$1" in
         echo -e "  \033[1;32m📦 export\033[0m        Exportiert Projektdateien (z.B. 'funki export ticket, mail' oder 'funki export \"langer string\"')."
         echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
+        echo -e "  \033[1;32m🌐 websocket\033[0m     Starte den Reverb WebSocket-Server (Echtzeit-Verbindungen)."
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
         echo -e "  \033[1;32m🔐 rights\033[0m        Repariert die Verzeichnis-Berechtigungen (storage/ und bootstrap/cache/)."
@@ -131,6 +132,10 @@ case "$1" in
     worker)
         echo "👷 Starte Funki Queue-Worker (lauscht auf Hintergrund-Jobs)..."
         $PREFIX_DEFAULT php artisan queue:listen
+        ;;
+    websocket)
+        echo "🌐 Starte Reverb WebSocket-Server..."
+        $PREFIX_DEFAULT php artisan reverb:start
         ;;
     backup)
         echo "💾 Erstelle sicheres Datenbank-Backup..."
