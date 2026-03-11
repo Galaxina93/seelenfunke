@@ -71,7 +71,7 @@
 @include('frontend.footer.footer')
 
 {{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
-@livewire('global.widgets.funki-chat')
+{{-- FunkiChat removed as per request --}}
 
 @livewireScripts
 </body>

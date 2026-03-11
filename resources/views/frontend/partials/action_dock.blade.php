@@ -103,17 +103,6 @@
             </svg>
             <span class="absolute right-full mr-4 px-2 py-1 bg-gray-900 text-white text-[10px] font-black rounded opacity-0 group-hover/icon:opacity-100 transition-opacity whitespace-nowrap pointer-events-none tracking-widest uppercase">Cookies</span>
         </button>
-
-        {{-- 4. FUNKI CHAT TRIGGER --}}
-        <button @click="$dispatch('toggle-chat')"
-                class="group/funki relative p-1 rounded-xl bg-gradient-to-br from-primary to-primary-dark shadow-lg transform active:scale-95 transition-transform">
-            <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" class="w-9 h-9 rounded-lg object-cover">
-            <div class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-green-500 border-2 border-gray-900"></span>
-            </div>
-            <span class="absolute right-full mr-4 px-2 py-1 bg-gray-900 text-white text-[10px] font-black rounded opacity-0 group-hover/funki:opacity-100 transition-opacity whitespace-nowrap pointer-events-none tracking-widest uppercase">Funki Chat</span>
-        </button>
     </div>
 
     {{-- GUTSCHEIN PANEL --}}

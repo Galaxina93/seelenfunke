@@ -104,6 +104,14 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.configuration');
     })->name('admin.configuration');
 
+    Route::get('/admin/funkira-log', function () {
+        return view('backend.admin.pages.funkira-log');
+    })->name('admin.funkira-log');
+
+    Route::get('/admin/funkira-methods', function () {
+        return view('backend.admin.pages.funkira-methods');
+    })->name('admin.funkira-methods');
+
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');
     })->name('admin.blog');

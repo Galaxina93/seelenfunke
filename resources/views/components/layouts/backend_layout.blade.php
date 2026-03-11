@@ -204,7 +204,8 @@
     </div>
 
     @if($guard !== 'customer')
-        @livewire('global.widgets.funki-chat')
+        <livewire:global.funkira.funkira-chat />
+        <livewire:global.funkira.funkira-widget />
     @endif
 
 </div> {{-- ENDE DES GLOBALEN ALPINE STATES --}}

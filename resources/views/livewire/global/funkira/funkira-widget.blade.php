@@ -1,7 +1,7 @@
-<div @open-funki.window="openFunkiView()"
+<div x-data="funkiView()"
+     @open-funkira.window="openFunkiView()"
      @funki-event.window="updateFunkiStatus($event.detail.state)"
      @keyup.escape.window="closeFunkiView()">
-
     <template x-teleport="body">
         <div x-show="showFunkiView"
              x-transition:enter="transition ease-out duration-1000"
@@ -92,13 +92,12 @@
     <audio id="audio-funki-init" src="{{ asset('funkira/sounds/funkira_Initialize.mp3') }}" preload="auto"></audio>
     <audio id="audio-funki-shutdown" src="{{ asset('funkira/sounds/funkira_shutdown.mp3') }}" preload="auto"></audio>
     <audio id="audio-funki-heartbeat" src="{{ asset('funkira/sounds/funkira_heartbeat.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-waiting" src="{{ asset('funkira/sounds/funkira_heartbeat_waiting.mp3') }}" preload="auto" loop></audio>
     <audio id="audio-funki-click" src="{{ asset('funkira/sounds/funkira_click.mp3') }}" preload="auto"></audio>
     <audio id="audio-funki-unclick" src="{{ asset('funkira/sounds/funkira_unclick.mp3') }}" preload="auto"></audio>
 
     <!-- Unified Floating UI Panel (Mapped to 3D Space) -->
     <div id="diagnostic-panel"
-         x-show="showInfoPanel || showChartPanel"
+         x-show="showInfoPanel || showChartPanel || showErrorPanel"
          class="w-[800px] max-w-[90vw] pointer-events-none flex flex-col justify-center items-center gap-6"
          style="display: none;">
 
@@ -266,6 +265,39 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 3. System Error Module -->
+        <div x-show="showErrorPanel"
+             x-transition:enter="transition ease-out duration-500"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+             class="w-[600px] max-w-[90vw] pointer-events-auto overflow-hidden self-start drop-shadow-2xl">
+
+            <!-- Header -->
+            <div class="px-6 py-4 flex justify-between items-center bg-red-900/40 drop-shadow-md border border-red-900/50 rounded-t-xl">
+                <div class="flex items-center gap-3">
+                    <div class="w-2.5 h-2.5 rounded-full shadow-[0_0_10px_rgba(239,68,68,1)] bg-red-500 animate-pulse"></div>
+                    <h3 class="font-bold text-red-100 tracking-wider">
+                        SYSTEM WARNUNG
+                    </h3>
+                </div>
+                <button @click="showErrorPanel = false; playUnclickSound();" class="text-red-400 hover:text-white transition-colors drop-shadow-md">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 bg-gray-900/80 backdrop-blur-md rounded-b-xl border border-red-900/30">
+                <p class="text-red-400 font-mono text-sm whitespace-pre-wrap leading-relaxed" x-text="errorText"></p>
+                
+                <div class="mt-4 pt-4 border-t border-red-900/30">
+                    <p class="text-[10px] uppercase font-bold tracking-widest text-red-300">Aktion abgebrochen. Bitte kontaktiere Gemini für einen Architektur-Fix.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- End of CSS2D Elements -->
@@ -305,6 +337,7 @@
             showFunkiView: false,
             showInfoPanel: false,
             showChartPanel: false,
+            showErrorPanel: false,
             showChartCanvas: false,
             isAudioMuted: true, // Default to muted as requested
             bgVolume: 15,       // Default background volume
@@ -318,6 +351,7 @@
             avgProfit: avgProfit + ' €',
             totalOrders: totalOrders,
             lastSync: lastSync,
+            errorText: '',
             chatHistory: [],
             idleProgress: 0, // 0-100 indicating time until spontaneous action
 
@@ -391,7 +425,22 @@
                         body: JSON.stringify({ history: this.chatHistory })
                     });
 
-                    const data = await response.json();
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (jsonErr) {
+                        this.thinking = false;
+                        this.updateCoreColor();
+                        
+                        const errorTextHTML = await response.text();
+                        console.error("SyntaxError Fallback:", errorTextHTML);
+                        
+                        this.errorText = "⚠️ Subraum Kommunikation abgebrochen:\nDer Server hat eine HTML-Fehlerseite (Status " + response.status + ") statt JSON zurückgegeben.\n\nDies bedeutet meist, dass der API Code abgestürzt ist.\n\nAuszug:\n" + errorTextHTML.substring(0, 300) + "...\n\nBitte sende diesen Fehler an Gemini!";
+                        this.showErrorPanel = true;
+                        this.systemState = 'error';
+                        this.updateCoreColor(true);
+                        return;
+                    }
 
                     if(data.status === 'success') {
                         // Update memory with new state from backend
@@ -455,6 +504,7 @@
                 if (closeCommand && closeCommand.data && closeCommand.data.status === 'success') {
                     this.showInfoPanel = false;
                     this.showChartPanel = false;
+                    this.showErrorPanel = false;
                     this.tableData = [];
                     this.chartListData = [];
                     this.destroyCurrentChart();
@@ -544,6 +594,13 @@
                             Math.abs(fd.special_expenses || 0)
                         ];
                         chartType = 'doughnut';
+                        
+                        // Prevent Chart.js Doughnut from collapsing into thin air if all values are 0!
+                        let sum = chartDataset.reduce((a,b) => a+b, 0);
+                        if (sum === 0) {
+                            chartLabels = ['Keine Daten in diesem Monat'];
+                            chartDataset = [1]; // Fake value to render a "hollow" empty ring
+                        }
                     }
                 }
 
@@ -613,17 +670,12 @@
                     });
                 }
 
-                // 2c. Check for Tool Errors (Visually represent silently)
+                // 2c. Check for Tool Errors (Visually represent silently in a dedicated red modal)
                 const errorData = contextData.find(c => c.data && c.data.status === 'error');
                 if (!foundData && errorData) {
-                    title = 'System Warnung';
                     foundData = true;
-                    this.chartListData.push({
-                         title: errorData.data.message || 'Ein Fehler ist aufgetreten',
-                         titleColor: 'text-red-400',
-                         badge: 'FEHLER',
-                         subtitle: 'Ausführung abgebrochen'
-                    });
+                    this.errorText = `Modul: ${errorData.function}\nFehlerbericht:\n${errorData.data.message || 'Unbekannter Systemfehler'}`;
+                    this.showErrorPanel = true;
                     this.systemState = 'error';
                     this.updateCoreColor();
                 }
@@ -676,28 +728,31 @@
                             badge: 'Routinen',
                             subtitle: 'Du hast heute noch keine Fokus-Routinen geplant.'
                         });
-                    } else if (userRequestedGraphic) {
+                    } else {
+                        // IMMER ALS GRAFIK ANZEIGEN BEI ROUTINEN
                         chartType = 'doughnut';
                         routineData.data.routines.forEach(r => {
                             let rTitle = r.title || 'Unbenannt';
-                            let duration = r.duration_minutes || 10; // Default to 10 if missing to avoid 0s
+                            let duration = r.duration_minutes || 10; 
                             chartLabels.push(rTitle);
                             chartDataset.push(duration);
-                        });
-                    } else {
-                        routineData.data.routines.forEach(r => {
+                            
+                            // Zusätzlich als Liste für die Details eintragen
                             let stepText = '';
                             if (r.steps && r.steps.length > 0) {
                                 stepText = r.steps.map(s => `• ${s.title}`).join('\n');
                             }
 
                             this.chartListData.push({
-                                title: r.title,
+                                title: rTitle,
                                 titleColor: 'text-emerald-400',
-                                badge: r.duration_minutes ? r.duration_minutes + ' Min' : 'Aktiv',
+                                badge: duration + ' Min',
                                 subtitle: stepText
                             });
                         });
+                        // Wir erzwingen sowohl Chart als auch Liste, damit sie die Steps lesen kann.
+                        // Damit both gerendert werden, darf showGraphicChart und showTable nicht strikt exklusiv sein, 
+                        // was im Template durch showChartPanel abgefangen wird.
                     }
                 }
 
@@ -1233,17 +1288,6 @@
                         }, 500);
                     });
                 };
-
-                // Load Chart.js
-                if (typeof Chart === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = "https://cdn.jsdelivr.net/npm/chart.js";
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
 
                 // Load Three.js dynamically to prevent multiple instances warning
                 if (typeof THREE === 'undefined') {
@@ -1854,7 +1898,7 @@
                 }
 
                 // Dynamic UI Anchoring (Screen-relative 3D Positioning)
-                let panelsVisible = this.showInfoPanel || this.showChartPanel;
+                let panelsVisible = this.showInfoPanel || this.showChartPanel || this.showErrorPanel;
 
                 // Smooth FOV zoom
                 let targetFov = panelsVisible ? 60 : 50;
@@ -1905,22 +1949,6 @@
                 }
 
                 const idleSeconds = (now - t3.lastActivityTime) / 1000.0;
-
-                // Handle Waiting Heartbeat Audio (Starts at 20s)
-                const waitingAudio = document.getElementById('audio-funki-waiting');
-                if (waitingAudio) {
-                    if (this.continuousMode && idleSeconds >= 20 && !this.thinking && !this.isOutputActive()) {
-                        if (waitingAudio.paused) {
-                            waitingAudio.volume = 0.3; // Low volume
-                            waitingAudio.play().catch(e => console.log('Waiting audio blocked', e));
-                        }
-                    } else {
-                        if (!waitingAudio.paused) {
-                            waitingAudio.pause();
-                            waitingAudio.currentTime = 0;
-                        }
-                    }
-                }
 
                 // Update Controls
                 if (t3.controls) {
@@ -1982,8 +2010,10 @@
 
                     if (t3.cssObject && t3.cssObject.element) {
                         t3.cssObject.element.style.display = 'none';
-                        if (t3.cssObject.parent) {
-                            t3.cssObject.parent.remove(t3.cssObject);
+                        if (t3.cssObject.parent && typeof t3.cssObject.parent.remove === 'function') {
+                            try { t3.cssObject.parent.remove(t3.cssObject); } catch(e) {}
+                        } else {
+                            try { t3.scene.remove(t3.cssObject); } catch(e) {}
                         }
                     }
                     t3.scene.clear();

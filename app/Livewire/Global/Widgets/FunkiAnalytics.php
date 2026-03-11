@@ -240,6 +240,7 @@ class FunkiAnalytics extends Component
         // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob)
         try {
             $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
+            
             if ($lastRunRaw) {
                 // Cache-Wert in Carbon umwandeln (könnte Unix-Timestamp sein)
                 $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
@@ -250,13 +251,16 @@ class FunkiAnalytics extends Component
                 if ($diffMinutes < 10) {
                     $text = $diffMinutes == 1 ? "Minute" : "Minuten";
                     $health['scheduler'] = ['status' => 'connected', 'value' => "Aktiv ({$diffMinutes} {$text})", 'error' => null];
+                }
+            }
+            
+            if (!isset($health['scheduler'])) {
+                if (app()->environment('local')) {
+                    $health['scheduler'] = ['status' => 'connected', 'value' => 'Inaktiv (Lokal OK)', 'error' => null];
                 } else {
                     $health['scheduler'] = ['status' => 'warning', 'value' => 'Inaktiv', 'error' => 'Kein Cronjob in den letzten 10 Minuten gelaufen!'];
                     $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
                 }
-            } else {
-                $health['scheduler'] = ['status' => 'warning', 'value' => 'Inaktiv', 'error' => 'Kein Cronjob in den letzten 10 Minuten gelaufen!'];
-                $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
             }
         } catch (\Exception $e) {
             $health['scheduler'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Cache nicht lesbar.'];
