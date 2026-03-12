@@ -58,11 +58,22 @@
     </div>
 
     <div class="absolute bottom-6 left-6 z-50 flex flex-col items-start gap-4" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
-        <!-- Wake Word Toggle -->
-        <label class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
+        
+        <!-- Desktop: Wake Word Toggle -->
+        <label x-show="!isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Aktivierungswort</span>
             <div class="relative inline-block w-8 outline-none focus:outline-none">
                 <input type="checkbox" x-model="requireWakeWord" class="peer sr-only">
+                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
+                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+            </div>
+        </label>
+
+        <!-- Mobile: Listening Mode Toggle (PTT vs Continuous) -->
+        <label x-show="isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Knopf drücken (PTT) vs Dauerhaft zuhören (Stellt Musik stumm)">
+            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Dauerhaft Hören</span>
+            <div class="relative inline-block w-8 outline-none focus:outline-none">
+                <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="peer sr-only">
                 <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
                 <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
             </div>
@@ -92,6 +103,24 @@
         <!-- Close Button -->
         <button @click="closeFunkiView()" class="px-5 py-2.5 bg-gray-900/80 border border-gray-700 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 hover:text-white hover:border-primary hover:bg-black transition-all shadow-glow flex items-center gap-2 backdrop-blur-md">
             <i class="bi bi-x-lg"></i> Funkira - Zentrum verlassen
+        </button>
+    </div>
+
+    <!-- Push to Talk Mobile Anchor -->
+    <div x-show="isMobile && !continuousMode" class="absolute bottom-10 left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none;">
+        <span class="text-[10px] font-mono tracking-widest text-emerald-400/80 uppercase" x-show="!listening && !thinking">Halten zum Sprechen</span>
+        <span class="text-[10px] font-mono tracking-widest text-cyan-400 uppercase animate-pulse" x-show="listening">Hört zu...</span>
+        <span class="text-[10px] font-mono tracking-widest text-purple-400 uppercase animate-pulse" x-show="thinking">Verarbeitet...</span>
+        
+        <button 
+            @touchstart.prevent="startPushToTalk()"
+            @mousedown.prevent="startPushToTalk()"
+            @touchend.prevent="stopPushToTalk()"
+            @mouseup.prevent="stopPushToTalk()"
+            @mouseleave.prevent="stopPushToTalk()"
+            :class="{'bg-emerald-600 border-emerald-400 scale-110 shadow-[0_0_30px_rgba(16,185,129,0.6)]': listening, 'bg-gray-800 border-gray-600 text-gray-400 hover:border-emerald-500': !listening, 'opacity-50 pointer-events-none': thinking || isOutputActive()}"
+            class="w-20 h-20 rounded-full border-2 flex items-center justify-center transition-all duration-200 backdrop-blur-md active:scale-95 touch-none">
+            <i class="bi bi-mic-fill text-3xl" :class="{'text-white': listening, 'text-gray-400': !listening}"></i>
         </button>
     </div>
 
@@ -157,6 +186,7 @@
             errorText: '',
             chatHistory: [],
             idleProgress: 0, // 0-100 indicating time until spontaneous action
+            isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
 
             // Voice AI State
             listening: false,
@@ -176,9 +206,36 @@
             },
 
             // --- AI VOICE CHAT LOGIC ---
+            toggleMobileContinuous() {
+                if (!this.recognition) return;
+                
+                if (this.continuousMode) {
+                    // Changed FROM PTT -> TO Continuous
+                    this.isAudioMuted = true; // Auto-mute background logic
+                    this.enforceAudioMuteState();
+                    
+                    if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
+                    if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
+                    
+                    this.listening = true;
+                    this.updateCoreColor();
+                    try { this.recognition.start(); } catch(e) {}
+                } else {
+                    // Changed FROM Continuous -> TO PTT
+                    this.listening = false;
+                    this.updateCoreColor();
+                    this.recognition.stop();
+                }
+            },
+
             toggleSpeech() {
                 if (!this.recognition) return;
                 if (this.thinking) return;
+
+                if (this.isMobile) {
+                    // On mobile, speech toggle is handled by the dedicated checkbox/PTT button
+                    return;
+                }
 
                 if (this.continuousMode) {
                     // Turn off always-listening completely
@@ -198,6 +255,31 @@
                         console.error('Failed to start recognition', e);
                     }
                 }
+            },
+
+            startPushToTalk() {
+                if (!this.recognition || this.thinking || this.isOutputActive()) return;
+                
+                // Stop any TTS
+                if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
+                if (this.synthesis) this.synthesis.cancel();
+
+                this.playClickSound();
+                this.continuousMode = false; // Ensure loop is off
+                this.listening = true;
+                this.updateCoreColor();
+
+                try {
+                    this.recognition.start();
+                } catch(e) {}
+            },
+
+            stopPushToTalk() {
+                if (!this.listening || !this.recognition) return;
+                this.playUnclickSound();
+                this.listening = false;
+                this.updateCoreColor();
+                this.recognition.stop(); // This triggers onend and onresult where sendToAI happens
             },
 
             async sendToAI(promptText, isSpontaneous = false) {
@@ -1011,13 +1093,15 @@
                     this.recognition.interimResults = false;
 
                     this.recognition.onstart = () => {
-                        this.listening = true;
+                        // Let specific button handlers manage this.listening to prevent visual jitter
                     };
 
                     this.recognition.onend = () => {
                         this.listening = false;
+                        if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
+                        
                         // Restart if continuous mode is active AND we are not currently speaking or thinking
-                        if (this.continuousMode && !this.thinking && !this.isOutputActive()) {
+                        if (this.continuousMode && !this.thinking && !this.isOutputActive() && !this.isMobile) {
                             try {
                                 this.recognition.start();
                             } catch(e) {}
@@ -1270,6 +1354,10 @@
             }, // Closing bracket for closeFunkiView method
             toggleBackgroundAudio() {
                 this.isAudioMuted = !this.isAudioMuted;
+                this.enforceAudioMuteState();
+            },
+
+            enforceAudioMuteState() {
                 const bgAudio = document.getElementById('audio-funki-background');
                 const ambientAudio = document.getElementById('audio-funki-default-ambient');
 
