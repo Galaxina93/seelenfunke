@@ -77,6 +77,15 @@ trait CoreFunctions
                 ],
                 'callable' => [self::class, 'executeOpenZentrum']
             ],
+            [
+                'name' => 'close_zentrum',
+                'description' => 'Schließt das visuelle 3D Zentrum (Funkira Widget) und kehrt zum Chat zurück. Nutze dies IMMER, wenn Alina sagt "Schließe das Zentrum", "Zentrum zu", "Zurück zum Chat" oder ähnliches.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeCloseZentrum']
+            ],
             array_merge(SearchChatHistory::schema()['function'], [
                 'callable' => [self::class, 'executeSearchChatHistory']
             ])
@@ -188,6 +197,18 @@ trait CoreFunctions
             '_event' => [
                 'type' => 'dispatch',
                 'name' => 'open-funkira'
+            ]
+        ];
+    }
+
+    public static function executeCloseZentrum(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => 'Das Zentrum schließt sich in diesem Augenblick im Browser. Antworte extrem kurz (z.B. "Zentrum geschlossen").',
+            '_event' => [
+                'type' => 'dispatch',
+                'name' => 'close-funkira'
             ]
         ];
     }

@@ -182,17 +182,15 @@
         </div>
 
         {{-- TRIGGER BUTTON / MINI AVATAR --}}
-        <div class="relative items-center flex pointer-events-auto"
-             @mouseenter="showMenu = true"
-             @mouseleave="showMenu = false"
-             x-on:funkira-navigate.window="setTimeout(() => { window.location.href = $event.detail.url; }, 1500)"
-             x-data="{
+        <div class="relative items-center flex pointer-events-auto z-50"
+             x-data="{ 
                  showMenu: false,
                  isListening: $persist(false),
                  isMuted: $persist(false),
                  useWakeWord: $persist(false),
                  recognition: null,
                  synthesis: window.speechSynthesis,
+                 currentAudio: null,
                  toggleWakeWord() {
                      this.useWakeWord = !this.useWakeWord;
                  },
@@ -200,9 +198,43 @@
                      this.isMuted = !this.isMuted;
                      if(this.isMuted) {
                          this.synthesis.cancel();
+                         if(this.currentAudio) {
+                             this.currentAudio.pause();
+                             this.currentAudio.currentTime = 0;
+                         }
+                     }
+                 },
+                 toggleListening(forceStart = false) {
+                     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                     if (!SpeechRecognition) {
+                         alert('Spracherkennung wird von diesem Browser nicht unterstützt.');
+                         return;
+                     }
+
+                     if (!this.recognition) this.initSpeech();
+
+                     if (this.isListening && !forceStart) {
+                         this.isListening = false;
+                         try { this.recognition.stop(); } catch(e) {}
+                     } else {
+                         this.isListening = true;
+                         try {
+                             this.recognition.start();
+                         } catch(e) {
+                             if(e.name !== 'InvalidStateError') {
+                                 console.error(e);
+                                 this.isListening = false;
+                             }
+                         }
                      }
                  },
                  init() {
+                     // Stop any ongoing browser TTS from a previous page
+                     this.synthesis.cancel();
+                     window.addEventListener('beforeunload', () => {
+                         this.synthesis.cancel();
+                     });
+                     
                      // Auto-Restart on Page load if the user left it 'Listening'
                      if (this.isListening) {
                          setTimeout(() => { this.initSpeech(); this.toggleListening(true); }, 500);
@@ -218,7 +250,6 @@
 
                          this.recognition.onstart = () => { this.isListening = true; };
                          this.recognition.onend = () => {
-                             // Auto-Restart unless manually stopped
                              if (this.isListening) {
                                  try { this.recognition.start(); } catch(e) { this.isListening = false; }
                              }
@@ -228,24 +259,19 @@
                              const transcript = event.results[event.results.length - 1][0].transcript;
                              const cleanTranscript = transcript.trim().toLowerCase().replace(/[.,!?]/g, '');
 
-                             // 1. Voice Command Interception for SILENCE
                              if (['stopp', 'stop', 'halt', 'abbruch', 'ruhe'].includes(cleanTranscript)) {
-                                 this.synthesis.cancel(); // Stop talking instantly
-                                 return; // Don't send this command to the AI
+                                 this.synthesis.cancel();
+                                 if (this.currentAudio) {
+                                     this.currentAudio.pause();
+                                     this.currentAudio.currentTime = 0;
+                                 }
+                                 return;
                              }
 
-                             // 2. Wake Word Interception
                              let parsedTranscript = transcript.trim();
                              if (this.useWakeWord) {
-                                 // Check if it starts with 'funki' or 'funkira'
                                  const match = cleanTranscript.match(/^(funki|funkira)\s*(.*)/);
-                                 if (!match) {
-                                     return; // Ignore if wake word is missing and toggle is active
-                                 }
-                                 // Extract the actual command without the wake word to send to the AI
-                                 // or just send the full transcript. Sending the full is fine, 
-                                 // but removing it makes it cleaner. Let's just pass the full transcript to keep it simple,
-                                 // since the AI knows its name.
+                                 if (!match) return;
                              }
 
                              if(parsedTranscript !== '') {
@@ -253,16 +279,17 @@
                                  @this.call('sendMessage');
                              }
                          };
-                     } else {
-                         console.error('Speech Recognition API not supported.');
                      }
                  },
                  speakResponse(text) {
                      if (this.isMuted) return;
 
-                     this.synthesis.cancel(); // Stop old speeches
+                     this.synthesis.cancel();
+                     if (this.currentAudio) {
+                         this.currentAudio.pause();
+                         this.currentAudio.currentTime = 0;
+                     }
 
-                     // Filter out all tags: [COMPONENT], , [TEXTBOX], [EVENT] and md formatting
                      let cleanText = text.replace(/\[COMPONENT\].*?\[\/COMPONENT\]/gs, 'Visualisiere Komponente.');
                      cleanText = cleanText.replace(/\[NAVIGATE\].*?\[\/NAVIGATE\]/gs, 'Navigiere dorthin.');
                      cleanText = cleanText.replace(/\[TEXTBOX\].*?\[\/TEXTBOX\]/gs, 'Zeige Daten im Textfeld.');
@@ -271,59 +298,65 @@
                                           .replace(/%0?0|\0/g, '')
                                           .replace(/\b([0-9\.]+)\s*(?:H|h)\b/g, '$1 Stunden')
                                           .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
-                                          // Date Formatter: 20.03.2024 -> 20 Punkt 03 Punkt 2024 (Damit sie es nicht als 20 Millionen 32tausend liest)
                                           .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
 
-                     const utterance = new SpeechSynthesisUtterance(cleanText);
-                     utterance.lang = 'de-DE';
-
-                     const voices = this.synthesis.getVoices();
-                     const germanVoice = voices.find(v => v.lang === 'de-DE' && (v.name.includes('Google') || v.name.includes('Neural')));
-                     if (germanVoice) utterance.voice = germanVoice;
-
-                     utterance.rate = 1.05;
-                     utterance.pitch = 0.95;
-
-                     // Temporarily pause mic so she doesn't hear herself
                      if (this.recognition && this.isListening) {
                          this.recognition.stop();
                      }
 
+                     fetch('/api/ai/voice', {
+                         method: 'POST',
+                         headers: {
+                             'Content-Type': 'application/json',
+                             'Accept': 'audio/mpeg',
+                             'X-CSRF-TOKEN': document.querySelector('meta[name=&quot;csrf-token&quot;]')?.getAttribute('content') || ''
+                         },
+                         body: JSON.stringify({ text: cleanText })
+                     })
+                     .then(response => {
+                         if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                         return response.blob();
+                     })
+                     .then(blob => {
+                         const audioUrl = URL.createObjectURL(blob);
+                         this.currentAudio = new Audio(audioUrl);
+                         
+                         this.currentAudio.onended = () => {
+                             if (this.isListening) {
+                                 setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
+                             }
+                             URL.revokeObjectURL(audioUrl);
+                         };
+                         this.currentAudio.play().catch(e => {
+                             this.fallbackToBrowserTTS(cleanText);
+                         });
+                     })
+                     .catch(error => {
+                         this.fallbackToBrowserTTS(cleanText);
+                     });
+                 },
+                 fallbackToBrowserTTS(cleanText) {
+                     const utterance = new SpeechSynthesisUtterance(cleanText);
+                     utterance.lang = 'de-DE';
+                     const voices = this.synthesis.getVoices();
+                     const germanVoice = voices.find(v => v.lang === 'de-DE' && (v.name.includes('Google') || v.name.includes('Neural')));
+                     if (germanVoice) utterance.voice = germanVoice;
+                     utterance.rate = 1.05;
+                     utterance.pitch = 0.95;
+
                      utterance.onend = () => {
                          if (this.isListening) {
-                             setTimeout(() => {
-                                 try { this.recognition.start(); } catch(e) {}
-                             }, 300);
+                             setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
                          }
                      };
-
                      this.synthesis.speak(utterance);
-                 },
-                 toggleListening(forceStart = false) {
-                     if (!this.recognition) this.initSpeech();
-
-                     if (this.isListening && !forceStart) {
-                         this.isListening = false; // Intentionally turning off
-                         try { this.recognition.stop(); } catch(e) {}
-                     } else {
-                         this.isListening = true; // Intentionally turning on
-                         try {
-                             this.recognition.start();
-                         } catch(e) {
-                             if(e.name === 'InvalidStateError') {
-                                 // Already started, ignore
-                                 console.log('Mic already active.');
-                             } else {
-                                 console.error(e);
-                                 this.isListening = false;
-                             }
-                         }
-                     }
                  }
              }"
+             @mouseenter="showMenu = true"
+             @mouseleave="showMenu = false"
              @funkira-center-opened.window="if(isListening) { toggleListening(false); }"
-             @funkira-spoke.window="speakResponse($event.detail.text)">
-
+             @funkira-spoke.window="speakResponse($event.detail.text)"
+             x-on:funkira-navigate.window="window.location.href = $event.detail.url;">
             {{-- HOVER MENÜ --}}
             <div x-show="showMenu && !$wire.isOpen"
                  x-transition:enter="transition ease-out duration-200"
@@ -372,7 +405,7 @@
                     <i class="bi bi-hdd-network text-purple-400 group-hover:text-purple-300"></i>
                     <span>Fähigkeiten-Matrix</span>
                 </a>
-                <button wire:click="openZentrum" class="text-left w-full px-2 py-2 text-xs text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300 rounded-lg transition-colors flex items-center gap-2 mt-1">
+                <button type="button" @click="$dispatch('open-funkira'); $dispatch('funkira-center-opened'); showMenu = false;" class="text-left w-full px-2 py-2 text-xs text-cyan-400 hover:bg-cyan-500/20 hover:text-cyan-300 rounded-lg transition-colors flex items-center gap-2 mt-1 relative z-50">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418" /></svg>
                     Zentrum öffnen
                 </button>
@@ -405,26 +438,26 @@
                 </div>
             </button>
         </div>
-    </div>
-
-    <script>
-        document.addEventListener('livewire:initialized', () => {
-            Livewire.on('message-sent', () => {
-                setTimeout(() => {
-                    const el = document.getElementById('funkira-chat-messages');
-                    if(el) { el.scrollTop = el.scrollHeight; }
-                    
-                    const elLog = document.getElementById('funkira-log-messages');
-                    if(elLog) { elLog.scrollTop = elLog.scrollHeight; }
-                }, 100);
+        
+        <script>
+            document.addEventListener('livewire:initialized', () => {
+                Livewire.on('message-sent', () => {
+                    setTimeout(() => {
+                        const el = document.getElementById('funkira-chat-messages');
+                        if(el) { el.scrollTop = el.scrollHeight; }
+                        
+                        const elLog = document.getElementById('funkira-log-messages');
+                        if(elLog) { elLog.scrollTop = elLog.scrollHeight; }
+                    }, 100);
+                });
             });
-        });
-    </script>
+        </script>
 
-    <style>
-        [x-cloak] { display: none !important; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-    </style>
+        <style>
+            [x-cloak] { display: none !important; }
+            .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        </style>
+    </div>
 </div>

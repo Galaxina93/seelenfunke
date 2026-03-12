@@ -25,4 +25,7 @@ Route::prefix('ai')->group(function () {
 
     // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
     Route::post('/chat', [AIController::class, 'chat']);
+
+    // ElevenLabs Proxy
+    Route::post('/voice', [\App\Http\Controllers\AI\FunkiraVoiceController::class, 'generateSpeech']);
 });

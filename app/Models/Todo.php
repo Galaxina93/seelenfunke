@@ -25,7 +25,7 @@ class Todo extends Model
     ];
 
     /**
-     * Die Liste, zu der dieses FunkiToDo gehört.
+     * Die Liste, zu der dieses To-Do gehört.
      */
     public function list(): BelongsTo
     {

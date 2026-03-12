@@ -162,10 +162,29 @@ trait CalendarFunctions
                 ];
             }
 
+            $formattedEvents = $events->map(function ($event) {
+                $data = [
+                    'id' => $event->id,
+                    'title' => $event->title,
+                    'is_all_day' => $event->is_all_day,
+                    'category' => $event->category,
+                    'description' => $event->description,
+                ];
+
+                if ($event->is_all_day) {
+                    $data['date_info'] = "Gilt für den ganzen Tag: " . Carbon::parse($event->start_date)->format('Y-m-d');
+                    $data['AI_INSTRUCTION'] = "Lies keine Uhrzeiten vor! Erwähne diesen Termin nur beiläufig als Tagesereignis.";
+                } else {
+                    $data['start'] = Carbon::parse($event->start_date)->format('Y-m-d H:i');
+                    $data['end'] = $event->end_date ? Carbon::parse($event->end_date)->format('Y-m-d H:i') : null;
+                }
+                return $data;
+            });
+
             return [
                 'status' => 'success',
                 'events_count' => $events->count(),
-                'upcoming_events' => $events->toArray()
+                'upcoming_events' => $formattedEvents->toArray()
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Abrufen der Termine: ' . $e->getMessage()];

@@ -113,14 +113,22 @@ class FunkiraChat extends Component
         try {
             $agent = new \App\Services\AI\MittwaldAgent();
 
-            // Provide exact URL Context to the AI
             $currentUrl = request()->headers->get('referer') ?? url()->current();
             $pageName = $this->translateUrlToPageName($currentUrl);
+
+            // Generiere die Navigations-Map für die KI
+            $navMap = "Verfügbare Admin-Routen & Bezeichnungen:\n";
+            $map = $this->getUrlMap();
+            foreach ($map as $path => $name) {
+                $navMap .= "- " . $name . " => " . $path . "\n";
+            }
 
             $payload = $this->messages;
             $payload[] = [
                 'role' => 'system',
-                'content' => "SYSTEM-INFO (Verdeckt): Der User befindet sich momentan im System-Bereich: '" . $pageName . "'. Nutze ausschließlich diesen Namen für die Orientierung und sage mir nicht den Pfad."
+                'content' => "SYSTEM-INFO (Verdeckt): Der User befindet sich momentan auf: '" . $pageName . "'.\n" . 
+                             "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste. Erfinde und rate NIEMALS fremde URLs! Nutze ausschließlich diese:\n" . $navMap . "\n" .
+                             "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!"
             ];
 
             $result = $agent->ask($payload);
@@ -145,25 +153,37 @@ class FunkiraChat extends Component
             }
 
             // Execute the side-effect actions (Navigation, Opening Modules) triggered by internal API Tools
+            $hasNavigation = false;
             if (isset($result['events']) && is_array($result['events'])) {
                 foreach ($result['events'] as $evt) {
                     if (isset($evt['type']) && $evt['type'] === 'navigate' && isset($evt['url'])) {
                         $this->dispatch('funkira-navigate', url: $evt['url']);
+                        $hasNavigation = true;
                     }
                     if (isset($evt['type']) && $evt['type'] === 'dispatch' && isset($evt['name'])) {
                          // Special case for 'open-funkira': We must also stop the Orb Mic
                         if ($evt['name'] === 'open-funkira') {
                             $this->dispatch('funkira-center-opened');
+                            $hasNavigation = true;
                         }
                         $this->dispatch($evt['name']);
                     }
                 }
             }
 
+            if ($hasNavigation) {
+                // Remove the "Ist notiert" or whatever text the AI outputted so it doesn't open the chat bubble
+                $lastMsg = end($this->messages);
+                if ($lastMsg && $lastMsg['role'] === 'assistant') {
+                    array_pop($this->messages);
+                }
+            }
+
             session()->put('funkira_chat_history', $this->messages);
 
             // Audio-Ausgabe triggern (Event an AlpineJS)
-            if (!empty($result['response'])) {
+            // Wenn navigiert wird, redet sie nicht mehr "Ist notiert", we can save the traffic
+            if (!$hasNavigation && !empty($result['response'])) {
                 \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                     'active_node' => 'globe-alt',
                     'action_text' => 'Ausgabe via Web Speech API...',
@@ -198,11 +218,10 @@ class FunkiraChat extends Component
         return view('livewire.global.funkira.funkira-chat');
     }
 
-    private function translateUrlToPageName(string $url): string
+    private function getUrlMap(): array
     {
-        $map = [
+        return [
             '/admin/dashboard' => 'Dashboard / Startseite',
-            '/admin/funki' => 'Funkira 3D Zentrum',
             '/admin/funki-routine' => 'Morgenroutine',
             '/admin/funki-todos' => 'Todo-Listenverwaltung',
             '/admin/funki-kalender' => 'Firmenkalender / Termine',
@@ -222,15 +241,19 @@ class FunkiraChat extends Component
             '/admin/financial-banks' => 'Bankkonten & Liquidität',
             '/admin/financial-fix-costs' => 'Fixkosten',
             '/admin/financial-variable-costs' => 'Variable Kosten / Sonderausgaben',
-            '/admin/financial-tax' => 'Steuer Export & Tresor',
+            '/admin/financial-tax' => 'Steuern Export & Tresor',
             '/admin/configuration' => 'System-Einstellungen',
             '/admin/blog' => 'Blog-Beiträge',
             '/admin/voucher' => 'Gutscheine / Rabattcodes',
             '/admin/newsletter' => 'Newsletter-Verwaltung',
+            '/admin/right-management' => 'Rechte & Rollen',
         ];
+    }
 
+    private function translateUrlToPageName(string $url): string
+    {
         // Find match in map
-        foreach ($map as $path => $name) {
+        foreach ($this->getUrlMap() as $path => $name) {
             if (str_contains($url, $path)) {
                 return $name;
             }
