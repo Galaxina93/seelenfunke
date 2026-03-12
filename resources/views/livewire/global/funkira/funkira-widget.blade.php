@@ -883,17 +883,66 @@
             },
 
             speakResponse(text) {
+                if (t3.isShuttingDown) return;
+
+                if (this.synthesis) {
+                    this.synthesis.cancel();
+                }
+                if (window.funkiAudioPlayer) {
+                    window.funkiAudioPlayer.pause();
+                    window.funkiAudioPlayer.currentTime = 0;
+                }
+
+                let cleanText = text.replace(/\[COMPONENT\].*?\[\/COMPONENT\]/gs, 'Visualisiere Komponente.');
+                cleanText = cleanText.replace(/\[NAVIGATE\].*?\[\/NAVIGATE\]/gs, 'Navigiere dorthin.');
+                cleanText = cleanText.replace(/\[TEXTBOX\].*?\[\/TEXTBOX\]/gs, 'Zeige Daten im Textfeld.');
+                cleanText = cleanText.replace(/\[EVENT\].*?\[\/EVENT\]/gs, '');
+                cleanText = cleanText.replace(/[*_#`~>]/g, '')
+                                     .replace(/%0?0|\0/g, '')
+                                     .replace(/\b([0-9\.]+)\s*(?:H|h)\b/g, '$1 Stunden')
+                                     .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
+                                     .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
+
+                if (this.recognition && this.listening) {
+                    this.recognition.stop();
+                }
+
+                fetch('/api/ai/voice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'audio/mpeg',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({ text: cleanText })
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    return response.blob();
+                })
+                .then(blob => {
+                    const audioUrl = URL.createObjectURL(blob);
+                    window.funkiAudioPlayer = new Audio(audioUrl);
+                    window.funkiAudioPlayer.playbackRate = 1.0;
+                    
+                    window.funkiAudioPlayer.onended = () => {
+                        if (this.continuousMode && !t3.isShuttingDown) {
+                            this.listening = true;
+                            setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
+                        }
+                        URL.revokeObjectURL(audioUrl);
+                    };
+                    window.funkiAudioPlayer.play().catch(e => {
+                        this.fallbackToBrowserTTS(cleanText);
+                    });
+                })
+                .catch(error => {
+                    this.fallbackToBrowserTTS(cleanText);
+                });
+            },
+            
+            fallbackToBrowserTTS(cleanText) {
                 if (!this.synthesis) return;
-
-                this.synthesis.cancel();
-
-                // Fix numbers combined with characters (e.g. 2 H -> 2 Stunden), and strip Markdown
-                const cleanText = text.replace(/[*_#`~>]/g, '')
-                                      .replace(/%0?0|\0/g, '') // Strip empty percent artifacts or null bytes that TTS misreads
-                                      .replace(/\b([0-9\.]+)\s*(?:H|h)\b/g, '$1 Stunden')
-                                      .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
-                                      .replace(/\b(?<!\w)h(?!\w)\b/gi, ' Stunden ');
-
                 const utterance = new SpeechSynthesisUtterance(cleanText);
                 utterance.lang = 'de-DE';
 
@@ -903,13 +952,13 @@
                     utterance.voice = germanVoice;
                 }
 
-                utterance.rate = 1.05;  // Natural talking speed
-                utterance.pitch = 0.95; // Natural pitch
+                utterance.rate = 1.05;
+                utterance.pitch = 0.95;
 
                 utterance.onend = () => {
-                    if (this.continuousMode) {
+                    if (this.continuousMode && !t3.isShuttingDown) {
                         this.listening = true;
-                        try { this.recognition.start(); } catch(e) {}
+                        setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
                     }
                 };
 
