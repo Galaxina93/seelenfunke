@@ -1,13 +1,12 @@
 <div class="relative font-sans">
     <div class="fixed z-[9999] flex gap-3 sm:gap-4 pointer-events-none bottom-4 right-4 sm:bottom-6 sm:right-6 flex-col items-end">
 
-        {{-- HAUPTFENSTER --}}
         <div x-data="{ isMaximized: $persist(false) }"
-             x-init="$watch('$wire.isOpen', value => { if (value) { setTimeout(() => { const el = document.getElementById('funkira-chat-messages'); if (el) el.scrollTop = el.scrollHeight; }, 150); } })"
+             x-init="$watch('$wire.isOpen', value => { if (value) { setTimeout(() => { const el = document.getElementById('funkira-chat-messages'); if (el) el.scrollTop = el.scrollHeight; const el2 = document.getElementById('funkira-log-messages'); if (el2) el2.scrollTop = el2.scrollHeight; }, 150); } })"
              class="pointer-events-auto bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden flex flex-col transition-all duration-500 transform origin-bottom-right mb-2 sm:mb-4"
              :class="isMaximized
-                ? 'w-[calc(100vw-2rem)] h-[85vh] sm:w-[700px] sm:h-[80vh]'
-                : 'w-[calc(100vw-2rem)] h-[60vh] sm:w-[360px] sm:h-[550px]'"
+                ? 'w-[calc(100vw-2rem)] h-[85vh] sm:w-[900px] sm:h-[85vh]'
+                : 'w-[calc(100vw-2rem)] h-[60vh] sm:w-[450px] sm:h-[650px]'"
              x-show="$wire.isOpen"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 scale-95 translate-y-10"
@@ -116,45 +115,67 @@
                         </form>
                     </div>
                 @elseif($activeMode === 'logs')
-                    <div class="flex-1 overflow-y-auto p-0 bg-slate-50/30 custom-scrollbar">
-                        <table class="w-full text-xs text-left border-collapse">
-                            <thead class="sticky top-0 bg-white shadow-sm z-10">
-                            <tr class="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                <th class="px-4 sm:px-5 py-3">Aktivität</th>
-                                <th class="px-4 sm:px-5 py-3 text-right">Status</th>
-                            </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-50">
+                    <div class="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-50/50 custom-scrollbar relative" id="funkira-log-messages">
+                        <div class="absolute top-0 left-6 sm:left-8 bottom-0 w-px bg-slate-200"></div>
+                        <div class="space-y-6 relative">
                             @forelse($this->history as $entry)
-                                <tr class="hover:bg-white transition-colors">
-                                    <td class="px-4 sm:px-5 py-3 sm:py-4">
-                                        <div class="flex items-center gap-3">
-                                            @php
-                                                $icon = match($entry->status) {
-                                                    'success' => 'bi-check-circle-fill text-green-500',
-                                                    'error' => 'bi-exclamation-triangle-fill text-red-500',
-                                                    'running' => 'bi-arrow-repeat text-cyan-500 animate-spin',
-                                                    default => 'bi-info-circle-fill text-slate-400'
-                                                };
-                                            @endphp
-                                            <i class="bi {{ $icon }} text-sm sm:text-base"></i>
-                                            <div>
-                                                <span class="block font-black text-slate-900 leading-none mb-1 text-[11px] sm:text-xs">{{ $entry->title }}</span>
-                                                <span class="text-[8px] sm:text-[9px] text-slate-400 font-mono">{{ $entry->started_at->format('H:i:s') }} — {{ $entry->started_at->diffForHumans() }}</span>
-                                            </div>
+                                <div class="flex items-start gap-4 sm:gap-5 relative group">
+                                    {{-- Timeline Dot --}}
+                                    <div class="relative shrink-0 mt-1">
+                                        @php
+                                            $dotColor = match($entry->type) {
+                                                'chat_ai' => 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]',
+                                                'chat_user' => 'bg-slate-700 shadow-sm',
+                                                'ai_tool' => 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]',
+                                                default => 'bg-slate-300'
+                                            };
+                                        @endphp
+                                        <div class="w-4 h-4 rounded-full border-4 border-white z-10 relative {{ $dotColor }}"></div>
+                                    </div>
+                                    
+                                    {{-- Log Content Box --}}
+                                    <div class="flex-1 min-w-0 {{ in_array($entry->type, ['chat_ai', 'chat_user', 'ai_tool']) ? '' : 'pb-2' }}">
+                                        <div class="flex flex-wrap items-baseline justify-between mb-1 gap-2">
+                                            <span class="font-black text-slate-800 text-xs sm:text-[13px] tracking-tight">
+                                                {{ $entry->title }}
+                                            </span>
+                                            <span class="text-[9px] sm:text-[10px] text-slate-400 font-mono shrink-0 whitespace-nowrap">
+                                                {{ $entry->started_at->format('d.m.Y H:i:s') }}
+                                            </span>
                                         </div>
-                                    </td>
-                                    <td class="px-4 sm:px-5 py-3 sm:py-4 text-right">
-                                        <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest {{ $entry->status === 'success' ? 'text-green-600' : 'text-red-500' }}">
-                                            {{ $entry->status }}
-                                        </span>
-                                    </td>
-                                </tr>
+
+                                        @if($entry->type === 'chat_user')
+                                            <div class="bg-slate-900 text-white p-3 sm:p-4 rounded-2xl rounded-tl-sm text-xs sm:text-sm shadow-sm inline-block max-w-[90%]">
+                                                {!! nl2br(e($entry->message)) !!}
+                                            </div>
+                                        @elseif($entry->type === 'chat_ai')
+                                            <div class="bg-cyan-50 text-slate-800 border border-cyan-100 p-3 sm:p-4 rounded-2xl rounded-tl-sm text-xs sm:text-sm shadow-sm relative inline-block max-w-[100%]">
+                                                <div class="absolute top-0 left-0 w-1 h-full bg-cyan-400 rounded-l-2xl"></div>
+                                                {!! nl2br(e(preg_replace('/\[.*?\]/s', '', $entry->message))) !!}
+                                            </div>
+                                        @elseif($entry->type === 'ai_tool')
+                                            <div class="bg-white border border-slate-200 p-3 rounded-xl shadow-sm cursor-help block overflow-hidden group/tool">
+                                                <div class="flex items-center gap-2 mb-2">
+                                                    <i class="bi bi-wrench-adjustable text-purple-500"></i>
+                                                    <span class="text-xs font-bold text-slate-700 font-mono">{{ $entry->title }}</span>
+                                                </div>
+                                                <div class="text-[10px] sm:text-xs text-slate-500 font-mono italic break-words leading-relaxed group-hover/tool:text-slate-800 transition-colors">
+                                                    {{ Str::limit($entry->message, 150) }}
+                                                </div>
+                                            </div>
+                                        @else
+                                            <p class="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed">
+                                                {{ $entry->message }}
+                                            </p>
+                                        @endif
+                                    </div>
+                                </div>
                             @empty
-                                <tr><td colspan="2" class="p-8 sm:p-10 text-center text-slate-400 italic text-xs">Noch keine Logs vorhanden.</td></tr>
+                                <div class="p-10 text-center text-slate-400 italic text-xs bg-white rounded-2xl border border-slate-100 shadow-sm relative z-10">
+                                    Noch keine Einträge im Live Log.
+                                </div>
                             @endforelse
-                            </tbody>
-                        </table>
+                        </div>
                     </div>
                 @endif
             </div>
@@ -169,8 +190,12 @@
                  showMenu: false,
                  isListening: $persist(false),
                  isMuted: $persist(false),
+                 useWakeWord: $persist(true),
                  recognition: null,
                  synthesis: window.speechSynthesis,
+                 toggleWakeWord() {
+                     this.useWakeWord = !this.useWakeWord;
+                 },
                  toggleMute() {
                      this.isMuted = !this.isMuted;
                      if(this.isMuted) {
@@ -209,8 +234,22 @@
                                  return; // Don't send this command to the AI
                              }
 
-                             if(transcript.trim() !== '') {
-                                 @this.set('input', transcript);
+                             // 2. Wake Word Interception
+                             let parsedTranscript = transcript.trim();
+                             if (this.useWakeWord) {
+                                 // Check if it starts with 'funki' or 'funkira'
+                                 const match = cleanTranscript.match(/^(funki|funkira)\s*(.*)/);
+                                 if (!match) {
+                                     return; // Ignore if wake word is missing and toggle is active
+                                 }
+                                 // Extract the actual command without the wake word to send to the AI
+                                 // or just send the full transcript. Sending the full is fine, 
+                                 // but removing it makes it cleaner. Let's just pass the full transcript to keep it simple,
+                                 // since the AI knows its name.
+                             }
+
+                             if(parsedTranscript !== '') {
+                                 @this.set('input', parsedTranscript);
                                  @this.call('sendMessage');
                              }
                          };
@@ -298,7 +337,7 @@
                     <p class="text-[9px] text-cyan-400 font-extrabold uppercase tracking-widest leading-none">Funkira Core</p>
                     <p class="text-[8px] text-slate-400">System Online</p>
                 </div>
-                <button @click="toggleListening" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group">
+                <button @click="toggleListening()" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group">
                     <div class="flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4" :class="isListening ? 'text-red-400 animate-pulse' : 'text-cyan-400'"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" /></svg>
                         <span x-text="isListening ? 'Lauscht...' : 'Zuhören'"></span>
@@ -307,7 +346,7 @@
                         <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out" :class="isListening ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
                     </div>
                 </button>
-                <button @click="toggleMute" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group">
+                <button @click="toggleMute()" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group">
                     <div class="flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4" :class="isMuted ? 'text-slate-500' : 'text-cyan-400'"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
                         <span x-text="isMuted ? 'Ton Aus' : 'Ton An'"></span>
@@ -316,9 +355,14 @@
                         <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out" :class="isMuted ? 'translate-x-0.5' : 'translate-x-3.5'"></span>
                     </div>
                 </button>
-                <button wire:click="openZentrum" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group border-t border-white/5 pt-2 mt-1">
-                    <span>Aktivierungswort</span>
-                    <span class="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-slate-300">Funkira</span>
+                <button @click="toggleWakeWord()" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center justify-between group border-t border-white/5 pt-2 mt-1">
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 cursor-help" :class="useWakeWord ? 'text-cyan-400' : 'text-slate-500'" title="Wenn aktiv, reagiert Funkira nur auf Sätze, die mit 'Funkira' beginnen."><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.516 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>
+                        <span x-text="useWakeWord ? 'Wake-Word An' : 'Wake-Word Aus'"></span>
+                    </div>
+                    <div class="relative inline-flex h-4 w-7 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out" :class="useWakeWord ? 'bg-cyan-500' : 'bg-slate-600'">
+                        <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 ease-in-out" :class="useWakeWord ? 'translate-x-3.5' : 'translate-x-0.5'"></span>
+                    </div>
                 </button>
                 <a href="{{ route('admin.funkira-log') }}" class="text-left w-full px-2 py-2 text-xs text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2 mt-1 group">
                     <i class="bi bi-card-text text-emerald-400 group-hover:text-emerald-300"></i>
@@ -369,6 +413,9 @@
                 setTimeout(() => {
                     const el = document.getElementById('funkira-chat-messages');
                     if(el) { el.scrollTop = el.scrollHeight; }
+                    
+                    const elLog = document.getElementById('funkira-log-messages');
+                    if(elLog) { elLog.scrollTop = elLog.scrollHeight; }
                 }, 100);
             });
         });

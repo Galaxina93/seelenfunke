@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Services\AI\AIFunctionsRegistry;
 use App\Services\FunkiBotService;
+use App\Models\Funki\FunkiraToolUsage;
+use App\Models\Funki\FunkiLog;
 
 class MittwaldAgent
 {
@@ -133,6 +135,12 @@ Reasoning: high',
         try {
             Log::info("Sending request to Mittwald AI", ['model' => $this->model]);
 
+            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                'active_node' => 'cpu-chip',
+                'action_text' => 'LLM Inference (Tiefe: '.$depth.')...',
+                'pulse_color' => 'indigo'
+            ], 60);
+
             $response = Http::withToken($this->apiKey)
                 ->timeout(120) // Deep reasoning can take time
                 ->asJson()
@@ -191,8 +199,42 @@ Reasoning: high',
 
                     Log::info("AI decided to call tool: {$functionName}", ['args' => $executeArgs]);
 
+                    \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                        'active_node' => 'wrench-screwdriver',
+                        'action_text' => 'Tool Call: ' . $functionName,
+                        'pulse_color' => 'indigo'
+                    ], 60);
+
+                    // Track the usage for Analytics
+                    if (class_exists(FunkiraToolUsage::class)) {
+                        FunkiraToolUsage::create([
+                            'tool_name' => $functionName,
+                            'used_at'   => now(),
+                            'context'   => $executeArgs
+                        ]);
+                    }
+
+                    // Log into Live Log for the Chat view
+                    if (class_exists(FunkiLog::class)) {
+                        FunkiLog::create([
+                            'action_id' => 'ai_tool_' . uniqid(),
+                            'title' => 'Werkzeug ausgeführt: ' . $functionName,
+                            'message' => 'Die KI hat das System-Werkzeug [' . $functionName . '] mit folgenden Argumenten aufgerufen: ' . json_encode($executeArgs, JSON_UNESCAPED_UNICODE),
+                            'type' => 'ai_tool',
+                            'status' => 'success',
+                            'started_at' => now(),
+                            'finished_at' => now(),
+                        ]);
+                    }
+
                     // Execute via our safe registry
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
+
+                    \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                        'active_node' => 'circle-stack',
+                        'action_text' => 'DB/Action Resultat verarbeitet...',
+                        'pulse_color' => 'emerald'
+                    ], 60);
 
                     // Collect the RAW result data before sanitization for the frontend!
                     $contextData[] = [
@@ -229,10 +271,22 @@ Reasoning: high',
 
                 // Since we added new tool results, loop back and ask the AI again
                 // so it can read the results and formulate a final answer.
+                \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                    'active_node' => 'sparkles',
+                    'action_text' => 'Re-Evaluierung des Kontexts...',
+                    'pulse_color' => 'indigo'
+                ], 60);
+
                 return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools);
             }
 
             // Provide final answer
+            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                'active_node' => 'bolt',
+                'action_text' => 'Finales Prompt beendet.',
+                'pulse_color' => 'emerald'
+            ], 60);
+
             return $message['content'] ?? "Ich habe meine Aufgabe ausgeführt.";
 
         } catch (\Exception $e) {

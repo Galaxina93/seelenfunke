@@ -11,7 +11,7 @@ trait CoreFunctions
         return [
             [
                 'name' => 'save_memory',
-                'description' => 'Saves a fact, user preference, or important note into your long-term memory (Knowledge Base). ALWAYS use this when Alina says "Merke dir", "Notiere", or similar.',
+                'description' => 'Speichert eine Tatsache, eine persönliche Einstellung oder eine wichtige Notiz in deinem Langzeitgedächtnis (Knowledge Base). VERWENDE DIES IMMER, wenn Alina sagt "Merke dir", "Notiere" oder Ähnliches.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -30,7 +30,7 @@ trait CoreFunctions
             ],
             [
                 'name' => 'search_memory',
-                'description' => 'Searches your long-term memory (Knowledge Base) for past facts, preferences, or notes you have saved. Proactively use this if asked about a specific detail you might have learned earlier.',
+                'description' => 'Durchsucht dein Langzeitgedächtnis (Knowledge Base) nach gespeicherten Fakten, Einstellungen oder Notizen. Setze dies proaktiv ein, wenn du nach einem bestimmten Detail gefragt wirst, das du früher einmal gelernt haben könntest.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -54,7 +54,7 @@ trait CoreFunctions
             ],
             [
                 'name' => 'open_nav_item',
-                'description' => 'Navigates the user to a specific page in the system. Use this when the user asks to "open", "go to", or "navigate to" a specific section (e.g. Orders, Financials). Die Navigation wird komplett durch dieses Tool im Hintergrund gesteuert, du musst im Textfall nichts weiter erwähnen.',
+                'description' => 'Navigiert den Benutzer zu einer bestimmten Seite im System. Verwende dies, wenn der Benutzer darum bittet, einen bestimmten Bereich zu "öffnen", "dorthin zu gehen" oder "dorthin zu navigieren" (z. B. Bestellungen, Finanzen). Die Navigation wird komplett durch dieses Tool im Hintergrund gesteuert, du musst im Textfall nichts weiter erwähnen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [

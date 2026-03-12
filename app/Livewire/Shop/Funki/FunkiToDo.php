@@ -26,6 +26,12 @@ class FunkiToDo extends Component
         Todo::where('priority', 'medium')->update(['priority' => 'mittel']);
         Todo::where('priority', 'high')->update(['priority' => 'hoch']);
 
+        // Auto-run map_id migrations and seeder (for easy update deployment without terminal)
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+            \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'Database\Seeders\MapSeeder', '--force' => true]);
+        }
+
         // Wähle standardmäßig die erste Liste, falls vorhanden
         $firstList = TodoList::orderBy('created_at', 'asc')->first();
         if ($firstList) {

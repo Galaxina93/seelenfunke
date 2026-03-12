@@ -1,6 +1,7 @@
 <div class="relative flex-1 w-full h-full bg-gray-950/40 overflow-hidden"
      :class="action === 'pan' ? 'cursor-grabbing' : 'cursor-grab'"
      x-ref="canvas"
+     wire:poll.1s="pollAiState"
      @mousedown="onCanvasMouseDown($event)"
      @mousemove="onMove($event)"
      @mouseup="stopAction()"
@@ -129,7 +130,12 @@
                     <div x-show="apiStatuses[node.id] === 'up'" class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981] animate-pulse"></div>
                     <div x-show="apiStatuses[node.id] === 'down'" class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444] animate-pulse"></div>
 
-                    <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
+                    {{-- AI LIVE HUD HIGHLIGHT --}}
+                    <div x-show="activeMap === 'ai' && liveAiPulse && liveAiPulse.active_node === node.icon" 
+                         class="absolute inset-0 z-0 bg-indigo-500/20 shadow-[0_0_50px_rgba(99,102,241,0.6)] animate-pulse border-2 border-indigo-400 rounded-[inherit]">
+                    </div>
+
+                    <div class="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none z-10"></div>
 
                     <template x-if="isImageLogo(node.icon)">
                         <img :src="getLogoUrl(node.icon)" class="w-8 h-8 sm:w-14 sm:h-14 object-contain pointer-events-none drop-shadow-md relative z-10" :alt="node.label">
@@ -145,7 +151,7 @@
                             <x-heroicon-s-currency-euro class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'currency-euro'" />
                             <x-heroicon-s-building-library class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'building-library'" />
                             <x-heroicon-s-document-text class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'document-text'" />
-                            <x-heroicon-s-server        class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'server'" />
+                            <x-heroicon-s-server        class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'server' || node.icon === 'circle-stack'" />
                             <x-heroicon-s-device-phone-mobile class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'device-phone-mobile'" />
                             <x-heroicon-s-globe-alt     class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'globe-alt'" />
                             <x-heroicon-s-truck         class="w-8 h-8 sm:w-12 sm:h-12" x-show="node.icon === 'truck'" />
@@ -168,5 +174,24 @@
             </div>
         </template>
 
+    </div>
+
+    {{-- AI HUD FLOATING OVERLAY --}}
+    <div x-show="activeMap === 'ai' && liveAiPulse && liveAiPulse.action_text"
+         x-transition:enter="transition ease-out duration-300 transform origin-bottom"
+         x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200 transform origin-bottom"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+         class="absolute bottom-6 sm:bottom-12 left-1/2 -translate-x-1/2 bg-gray-950/90 backdrop-blur-2xl border px-6 sm:px-10 py-4 sm:py-5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-40 text-center pointer-events-none min-w-[300px]" 
+         :class="liveAiPulse && liveAiPulse.pulse_color === 'red' ? 'border-red-500/50 shadow-[0_20px_50px_rgba(239,68,68,0.3)]' : (liveAiPulse && liveAiPulse.pulse_color === 'emerald' ? 'border-emerald-500/50 shadow-[0_20px_50px_rgba(16,185,129,0.3)]' : 'border-indigo-500/40 shadow-[0_20px_50px_rgba(99,102,241,0.3)]')">
+        <div class="text-[9px] sm:text-[11px] uppercase font-black tracking-[0.2em] mb-1.5"
+             :class="liveAiPulse && liveAiPulse.pulse_color === 'red' ? 'text-red-400' : (liveAiPulse && liveAiPulse.pulse_color === 'emerald' ? 'text-emerald-400' : 'text-indigo-400')">Live AI Prozess Status</div>
+        <div class="text-sm sm:text-lg font-bold text-white font-mono flex items-center justify-center gap-3">
+            <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full animate-ping"
+                  :class="liveAiPulse && liveAiPulse.pulse_color === 'red' ? 'bg-red-500' : (liveAiPulse && liveAiPulse.pulse_color === 'emerald' ? 'bg-emerald-500' : 'bg-indigo-500')"></span>
+            <span x-text="liveAiPulse?.action_text || 'System lauscht...'"></span>
+        </div>
     </div>
 </div>

@@ -1,7 +1,18 @@
 <div class="px-4 sm:px-8 py-5 flex flex-col lg:flex-row justify-between items-start lg:items-center relative z-20 bg-gray-950/80 backdrop-blur-md border-b border-gray-800 shrink-0 gap-4 shadow-inner">
     <div>
         <h3 class="text-lg sm:text-2xl font-serif font-bold text-white tracking-tight">System Architektur Map</h3>
-        <p class="text-[9px] sm:text-[10px] font-black text-primary mt-1 uppercase tracking-[0.2em] drop-shadow-[0_0_8px_currentColor]">Live Ökosystem & API Schnittstellen</p>
+        
+        <div class="mt-2 flex gap-2">
+            <button wire:click="switchMap('erp')" class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border {{ $activeMap === 'erp' ? 'bg-primary/20 text-primary border-primary/50 shadow-[0_0_10px_rgba(197,160,89,0.2)]' : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white' }}">
+                ERP Ökosystem
+            </button>
+            <button wire:click="switchMap('ai')" class="px-3 py-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border {{ $activeMap === 'ai' ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white' }}">
+                KI-Architektur
+                @if($activeMap === 'ai')
+                    <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                @endif
+            </button>
+        </div>
     </div>
 
     {{-- Button Group: Scrollbar on mobile --}}

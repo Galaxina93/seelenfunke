@@ -37,7 +37,7 @@ trait SettingsFunctions
             ],
             [
                 'name' => 'get_system_map',
-                'description' => 'Generates an architectural map of the entire system by scanning all Database Models. Use this when you are asked what data exists, what you can access, or what functionalities you are still missing to manage the system completely. Compare this map with your currently available tools.',
+                'description' => 'Generiert eine Architekturkarte des gesamten Systems durch Scannen aller berechtigten Datenbankmodelle. Nutze dies, wenn du gefragt wirst, welche Daten existieren, worauf du Zugriff hast, oder welche Funktionen dir zur vollständigen Systemverwaltung noch fehlen. Vergleiche diese Karte mit deinen aktuell verfügbaren Werkzeugen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),

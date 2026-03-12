@@ -1,5 +1,5 @@
 <section class="bg-gray-900/80 backdrop-blur-xl rounded-[1.5rem] sm:rounded-[2.5rem] shadow-2xl border border-gray-800 relative overflow-hidden transition-all duration-500 flex flex-col h-full w-full"
-         x-data="companyMapData({ nodes: @entangle('nodes').live, edges: @entangle('edges').live })">
+         x-data="companyMapData({ nodes: @entangle('nodes').live, edges: @entangle('edges').live, liveAiPulse: @entangle('liveAiState'), activeMap: @entangle('activeMap') })">
 
     <div class="absolute top-0 left-0 w-1 sm:w-1.5 h-full bg-gradient-to-b from-primary to-primary-dark z-10 pointer-events-none opacity-80"></div>
 

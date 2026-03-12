@@ -3,6 +3,8 @@
         Alpine.data('companyMapData', (config) => ({
             nodes: config.nodes,
             edges: config.edges,
+            liveAiPulse: config.liveAiPulse,
+            activeMap: config.activeMap,
             apiStatuses: @entangle('apiStatuses'),
 
             action: 'none',
@@ -26,6 +28,10 @@
                     new ResizeObserver(() => this.updateCanvasSize()).observe(this.$refs.canvas);
                 }
 
+                if(window.innerWidth < 768 && this.scale === 1) {
+                    this.scale = 0.6;
+                }
+
                 Livewire.on('apis-checked', () => {
                     this.nodes = [...this.nodes];
                 });
@@ -34,13 +40,10 @@
             updateCanvasSize() {
                 if (this.$refs.canvas) {
                     const rect = this.$refs.canvas.getBoundingClientRect();
+                    // Protect against Livewire DOM Morph 0x0
                     if (rect.width > 0 && rect.height > 0) {
                         this.canvasWidth = rect.width;
                         this.canvasHeight = rect.height;
-
-                        if(window.innerWidth < 768 && this.scale === 1) {
-                            this.scale = 0.6;
-                        }
                     }
                 }
             },
@@ -56,16 +59,19 @@
                 this.action = 'dragNode';
                 this.draggingIndex = index;
 
-                const rect = this.$refs.canvas.getBoundingClientRect();
                 const node = this.nodes[index];
                 const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
                 const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
 
-                const nodeCenterX = (node.pos_x / 100) * this.canvasWidth * this.scale + this.panX + rect.left;
-                const nodeCenterY = (node.pos_y / 100) * this.canvasHeight * this.scale + this.panY + rect.top;
-
-                this.dragOffsetX = clientX - nodeCenterX;
-                this.dragOffsetY = clientY - nodeCenterY;
+                const rect = this.$refs.canvas.getBoundingClientRect();
+                
+                // Screen coordinates wo der Klick passierte
+                this.dragOffsetX = clientX;
+                this.dragOffsetY = clientY;
+                
+                // Wir speichern den Originalstand des Knotens in % beim Start
+                this._initialNodePosX = node.pos_x;
+                this._initialNodePosY = node.pos_y;
             },
 
             onCanvasMouseDown(e) {
@@ -96,12 +102,16 @@
 
             onMove(e) {
                 if (this.action === 'dragNode' && this.draggingIndex !== null) {
-                    const rect = this.$refs.canvas.getBoundingClientRect();
-                    const canvasX = (e.clientX - rect.left - this.dragOffsetX - this.panX) / this.scale;
-                    const canvasY = (e.clientY - rect.top  - this.dragOffsetY - this.panY) / this.scale;
+                    // Mausbewegung in Pixeln
+                    const deltaX = (e.clientX - this.dragOffsetX) / this.scale;
+                    const deltaY = (e.clientY - this.dragOffsetY) / this.scale;
+                    
+                    // Umrechnung in % basierend auf der ECHTEN DOM-Breite/-Höhe
+                    const deltaXPercent = (deltaX / this.canvasWidth) * 100;
+                    const deltaYPercent = (deltaY / this.canvasHeight) * 100;
 
-                    let x = (canvasX / this.canvasWidth) * 100;
-                    let y = (canvasY / this.canvasHeight) * 100;
+                    let x = this._initialNodePosX + deltaXPercent;
+                    let y = this._initialNodePosY + deltaYPercent;
 
                     this.nodes[this.draggingIndex].pos_x = Math.max(-10, Math.min(110, x));
                     this.nodes[this.draggingIndex].pos_y = Math.max(-10, Math.min(110, y));
@@ -166,7 +176,7 @@
             },
 
             calculatePath(edge) {
-                if (!edge) return '';
+                if (!edge || !this.canvasWidth) return '';
                 const source = this.nodes.find(n => n.id === edge.source_id);
                 const target = this.nodes.find(n => n.id === edge.target_id);
                 if (!source || !target) return '';
@@ -175,13 +185,19 @@
                 const y1 = (source.pos_y / 100) * this.canvasHeight;
                 const x2 = (target.pos_x / 100) * this.canvasWidth;
                 const y2 = (target.pos_y / 100) * this.canvasHeight;
-                const dx = Math.abs(x2 - x1) * 0.4;
+                
+                // Dynamische Kurven logik: Wenn Target links von Source liegt
+                // (wird für saubere Back-Flows wie in der KI Architektur genutzt)
+                let dx = Math.abs(x2 - x1) * 0.4;
+                if (x1 > x2) {
+                    return `M ${x1},${y1} Q ${(x1+x2)/2},${y1 + (this.canvasHeight * 0.15)} ${x2},${y2}`;
+                }
 
                 return `M ${x1},${y1} C ${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
             },
 
             getMidPoint(edge) {
-                if (!edge) return { x: 0, y: 0 };
+                if (!edge || !this.canvasWidth) return { x: 0, y: 0 };
                 const source = this.nodes.find(n => n.id === edge.source_id);
                 const target = this.nodes.find(n => n.id === edge.target_id);
                 if (!source || !target) return { x: 0, y: 0 };

@@ -91,6 +91,25 @@ class FunkiraChat extends Component
         $this->input = '';
         $this->isTyping = true;
 
+        // Log user message into Live Log
+        if (class_exists(FunkiLog::class)) {
+            FunkiLog::create([
+                'action_id' => 'chat_user_' . uniqid(),
+                'title' => auth()->check() ? auth()->user()->first_name : 'User',
+                'message' => $userMessage,
+                'type' => 'chat_user',
+                'status' => 'success',
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+
+        \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+            'active_node' => 'bolt',
+            'action_text' => 'Livewire erhält Transkript: ' . \Illuminate\Support\Str::limit($userMessage, 15),
+            'pulse_color' => 'indigo'
+        ], 60);
+
         try {
             $agent = new \App\Services\AI\MittwaldAgent();
 
@@ -108,6 +127,22 @@ class FunkiraChat extends Component
 
             // The MittwaldAgent already appends the assistant response to the history array
             $this->messages = $result['history'];
+
+            // Extrahiere die letzte Assistant-Antwort, um sie ins Live Log zu pushen
+            $lastResponse = end($this->messages);
+            if ($lastResponse && $lastResponse['role'] === 'assistant' && !empty($lastResponse['content'])) {
+                if (class_exists(FunkiLog::class)) {
+                    FunkiLog::create([
+                        'action_id' => 'chat_ai_' . uniqid(),
+                        'title' => 'Funkira',
+                        'message' => $lastResponse['content'],
+                        'type' => 'chat_ai',
+                        'status' => 'success',
+                        'started_at' => now(),
+                        'finished_at' => now(),
+                    ]);
+                }
+            }
 
             // Execute the side-effect actions (Navigation, Opening Modules) triggered by internal API Tools
             if (isset($result['events']) && is_array($result['events'])) {
@@ -129,6 +164,12 @@ class FunkiraChat extends Component
 
             // Audio-Ausgabe triggern (Event an AlpineJS)
             if (!empty($result['response'])) {
+                \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                    'active_node' => 'globe-alt',
+                    'action_text' => 'Ausgabe via Web Speech API...',
+                    'pulse_color' => 'emerald'
+                ], 60);
+                
                 $this->dispatch('funkira-spoke', text: $result['response']);
             }
         } catch (\Exception $e) {

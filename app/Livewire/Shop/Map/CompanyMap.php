@@ -27,20 +27,51 @@ class CompanyMap extends Component
     public $showNodePanel = false;
     public $activePanelNode = null;
 
+    public $activeMap = 'erp'; // 'erp' oder 'ai'
+    public $liveAiState = null; // Speichert Echtzeit Cache Status
+
+
+
     // Neues Feature: Environment Status für das Panel
     public $envStatus = [];
 
     public function mount()
     {
+        // One-time auto-migration of map architecture (User complained about mixed-up coordinates from previous seed)
+        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'Database\Seeders\MapSeeder', '--force' => true]);
+
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        }
+        
         $this->loadMap();
     }
 
     public function loadMap()
     {
-        $this->nodes = MapNode::all()->toArray();
-        $this->edges = MapEdge::all()->toArray();
+        $this->nodes = MapNode::where('map_id', $this->activeMap)->get()->toArray();
+        $this->edges = MapEdge::where('map_id', $this->activeMap)->get()->toArray();
     }
 
+    public function switchMap($mapId)
+    {
+        $this->activeMap = $mapId;
+        $this->closeNodePanel();
+        $this->loadMap();
+    }
+
+    // --- NEU: AI LIVE STATE CHECK (1s Poll) ---
+    public function pollAiState()
+    {
+        if ($this->activeMap === 'ai') {
+            $this->liveAiState = \Illuminate\Support\Facades\Cache::get('ai_live_state', [
+                'active_node' => null,
+                'action_text' => 'Bereit für Spracheingabe...',
+                'pulse_color' => 'gray'
+            ]);
+            $this->dispatch('ai-state-updated', state: $this->liveAiState);
+        }
+    }
     // --- NEU: API PING CHECK & LOGGING ---
     public function checkApiStatuses()
     {
@@ -106,7 +137,7 @@ class CompanyMap extends Component
     public function createNode()
     {
         $this->validate(['newNode.label' => 'required|string|max:255', 'newNode.link' => 'nullable|url']);
-        MapNode::create(array_merge($this->newNode, ['id' => Str::uuid(), 'pos_x' => 10, 'pos_y' => 10]));
+        MapNode::create(array_merge($this->newNode, ['id' => Str::uuid(), 'map_id' => $this->activeMap, 'pos_x' => 10, 'pos_y' => 10]));
         $this->showNodeForm = false;
         $this->newNode = ['label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
         $this->loadMap();
@@ -168,7 +199,7 @@ class CompanyMap extends Component
             'newEdge.source_id' => 'required|exists:map_nodes,id',
             'newEdge.target_id' => 'required|exists:map_nodes,id|different:newEdge.source_id',
         ]);
-        MapEdge::create(array_merge($this->newEdge, ['id' => Str::uuid()]));
+        MapEdge::create(array_merge($this->newEdge, ['id' => Str::uuid(), 'map_id' => $this->activeMap]));
         $this->showEdgeForm = false;
         $this->newEdge = ['source_id' => '', 'target_id' => '', 'label' => '', 'description' => '', 'status' => 'active'];
         $this->loadMap();

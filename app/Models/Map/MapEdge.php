@@ -10,7 +10,7 @@ class MapEdge extends Model
     use HasUuids;
 
     protected $fillable = [
-        'id', 'source_id', 'target_id', 'label', 'status'
+        'id', 'map_id', 'source_id', 'target_id', 'label', 'status'
     ];
 
     public function sourceNode()

@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('map_nodes', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->string('map_id')->default('erp');
             $table->string('label');
-
             $table->text('description')->nullable();
             $table->string('icon')->nullable();
             $table->string('type')->default('default'); // core, sales, finance, api
@@ -25,6 +25,7 @@ return new class extends Migration
 
         Schema::create('map_edges', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->string('map_id')->default('erp');
             $table->uuid('source_id');
             $table->uuid('target_id');
             $table->string('label')->nullable();

@@ -9,7 +9,7 @@ trait AccountingFunctions
         return [
             [
                 'name' => 'check_missing_expenses',
-                'description' => 'Checks if there are missing Sonderausgaben (special expenses) that need to be recorded or reviewed.',
+                'description' => 'Prüft, ob fehlende Sonderausgaben vorliegen, die noch erfasst oder überprüft werden müssen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -18,7 +18,7 @@ trait AccountingFunctions
             ],
             [
                 'name' => 'get_finances',
-                'description' => 'Returns the current month\'s accounting and financial data (Income, Fixed Costs, Special Expenses, Shop Revenue).',
+                'description' => 'Gibt die Buchhaltungs- und Finanzdaten des aktuellen Monats zurück (Einnahmen, Fixkosten, Sonderausgaben, Shop-Umsatz).',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),

@@ -8,6 +8,19 @@
         </p>
     </div>
 
+    <!-- Tracking Graphic (Chart) -->
+    <div class="mb-12">
+        <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <i class="bi bi-graph-up-arrow text-cyan-500 max-sm:hidden"></i> KI Werkzeug Tracking (Letzte 7 Tage)
+        </h2>
+        
+        <div class="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-white/10 p-5 shadow-lg shadow-black/20 w-full overflow-hidden" wire:ignore>
+            <div class="h-64 sm:h-80 w-full relative">
+                <canvas id="funkiraUsageChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <!-- Aktive Werkzeuge (Tools) -->
     <div class="mb-12">
         <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -24,9 +37,16 @@
                         <h3 class="font-black text-white text-sm group-hover:text-cyan-400 transition-colors font-mono">
                             {{ $method['name'] }}
                         </h3>
-                        <span class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold px-2 py-1 rounded w-fit capitalize h-fit shadow-[0_0_10px_rgba(34,211,238,0.1)]">
-                            Aktiv
-                        </span>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold px-2 py-1 rounded w-fit capitalize h-fit shadow-[0_0_10px_rgba(34,211,238,0.1)]">
+                                Aktiv
+                            </span>
+                            @if($method['usage_count'] > 0)
+                                <span class="bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[9px] font-bold px-1.5 py-0.5 rounded w-fit shadow-[0_0_10px_rgba(168,85,247,0.1)] shrink-0">
+                                    <i class="bi bi-lightning-charge-fill mr-0.5"></i> {{ $method['usage_count'] }}x
+                                </span>
+                            @endif
+                        </div>
                     </div>
                     
                     <p class="text-xs text-slate-400 mb-5 flex-1 leading-relaxed relative z-10">
@@ -126,5 +146,76 @@
                 @endforeach
             </div>
         </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Chart.js Injection -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('livewire:initialized', () => {
+            const ctx = document.getElementById('funkiraUsageChart');
+            if(!ctx) return;
+
+            const chartDataArray = @json($chartData);
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartDataArray.labels,
+                    datasets: [{
+                        label: 'Ausgeführte Werkzeuge',
+                        data: chartDataArray.data,
+                        backgroundColor: 'rgba(6, 182, 212, 0.2)', // Cyan-500
+                        borderColor: 'rgba(6, 182, 212, 0.8)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        hoverBackgroundColor: 'rgba(6, 182, 212, 0.4)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)', // slate-900
+                            titleColor: '#fff',
+                            bodyColor: '#cbd5e1', // slate-300
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderWidth: 1,
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + ' Aufrufe';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false, drawBorder: false },
+                            ticks: { color: '#94a3b8', font: { size: 11, family: 'mono' } }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+                            ticks: { 
+                                color: '#94a3b8', 
+                                font: { size: 11, family: 'mono' },
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        });
+    </script>
 </div>

@@ -11,7 +11,7 @@ trait OrderFunctions
         return [
             [
                 'name' => 'get_next_order_deadline',
-                'description' => 'Returns the date and time when the next pending or open order must be finished or shipped.',
+                'description' => 'Gibt das Datum und die Uhrzeit zurück, wann die nächste ausstehende Bestellung abgeschlossen oder versendet werden muss.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),

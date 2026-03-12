@@ -10,7 +10,7 @@
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemFunkiraActive = in_array($currentPage, ['funkira-methods', 'funkira-log', 'knowledge_base']);
+        $isSystemFunkiraActive = in_array($currentPage, ['funkira-methods', 'funkira-structure', 'funkira-log', 'knowledge_base']);
     @endphp
 
     {{--Funkis Zentrale--}}
@@ -118,6 +118,7 @@
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/funkira-log" title="Log" pageName="funkira-log" icon="document-text" />
                     <x-forms.list-item route="/admin/knowledge_base" title="Wiki" pageName="knowledge_base" icon="book-open" />
+                    <x-forms.list-item route="/admin/funkira-structure" title="Struktur" pageName="funkira-structure" icon="rectangle-group" />
                     <x-forms.list-item route="/admin/funkira-methods" title="Fähigkeiten" pageName="funkira-methods" icon="chart-bar-square" />
                 </ul>
             </li>

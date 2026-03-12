@@ -14,7 +14,7 @@ trait DashboardFunctions
         return [
             [
                 'name' => 'get_system_health',
-                'description' => 'Returns the overall system status, active sessions, and health metrics. Useful to determine if the system is running smoothly.',
+                'description' => 'Prüft den allgemeinen Systemstatus, aktive Sitzungen und Integritätsmetriken. Nützlich, um festzustellen, ob das System reibungslos läuft.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -23,7 +23,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'fix_system_errors',
-                'description' => 'Behebt Systemwarnungen und Fehler (Clears Caches, restarts Queues, resets Configs). FÜHRE DIESES TOOL ZWINGEND AUS, wenn get_system_health meldet, dass das System Fehler hat! BEVOR du der Benutzerin antwortest!',
+                'description' => 'Agiert automatisch als Heiler: Behebt gefundene Systemwarnungen und Fehler (Leert Caches, startet Queues neu, setzt Configs zurück). FÜHRE DIESES TOOL ZWINGEND AUS, wenn get_system_health meldet, dass das System Fehler hat! BEVOR du der Benutzerin antwortest!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -41,7 +41,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'get_todos',
-                'description' => 'Returns all currently open ToDos from the shop system. Use this to find out what Herrin Alina needs to work on next.',
+                'description' => 'Ruft alle aktuell offenen To-Do-Aufgaben aus dem Shopsystem ab. Nutze dies, um herauszufinden, was Herrin Alina als Nächstes tun muss.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -50,7 +50,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'create_todo',
-                'description' => 'Creates a new ToDo task based on your recommendations. Keep the title short and actionable. ALWAYS use this when giving Alina a specific task to do.',
+                'description' => 'Erstellt eine neue To-Do-Aufgabe basierend auf deinen Empfehlungen. Halte den Titel kurz und umsetzbar. VERWENDE DIES IMMER, wenn du Alina eine bestimmte Aufgabe zuweist.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -70,7 +70,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'complete_todo',
-                'description' => 'Marks an open ToDo as completed. Use this when Herrin Alina says she has finished a specific task.',
+                'description' => 'Markiert eine offene To-Do-Aufgabe als abgeschlossen. Verwende dies, wenn Herrin Alina sagt, dass sie eine bestimmte Aufgabe beendet hat.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -85,7 +85,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'delete_todo',
-                'description' => 'Deletes an open ToDo task completely. Use this when Herrin Alina asks to delete, cancel, or remove a task.',
+                'description' => 'Löscht eine offene To-Do-Aufgabe vollständig. Verwende dies, wenn Herrin Alina verlangt, eine Aufgabe zu löschen, abzubrechen oder zu entfernen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -100,7 +100,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'get_calendar_events',
-                'description' => 'Returns upcoming calendar events and meetings. Use the `limit` parameter to fetch "the exact next" appointment (limit=1).',
+                'description' => 'Gibt bevorstehende Kalenderereignisse und Besprechungen zurück. Verwende den Parameter `limit`, um "genau den nächsten" Termin abzurufen (limit=1).',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -114,7 +114,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'get_day_routines',
-                'description' => 'Returns the active daily routines of Herrin Alina. Use this to check if she is following her structured day.',
+                'description' => 'Ruft die aktiven Tagesroutinen von Herrin Alina ab. Nutze dies, um zu überprüfen, ob sie ihrem strukturierten Tag folgt.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -123,7 +123,7 @@ trait DashboardFunctions
             ],
             [
                 'name' => 'get_current_mission',
-                'description' => 'Returns the ultimate next command, current day routine, top priorities, and recommendations for Herrin Alina. ONLY use this when asked "What should I do now?", "What is next?", or similar general status questions.',
+                'description' => 'Gibt den ultimativen nächsten Befehl, die aktuelle Tagesroutine, Top-Prioritäten und Empfehlungen für Herrin Alina zurück. NUR verwenden, wenn gefragt wird "Was soll ich jetzt tun?", "Was steht als Nächstes an?" oder ähnliche allgemeine Statusfragen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
