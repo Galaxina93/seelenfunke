@@ -35,30 +35,46 @@
             </button>
         </div>
 
+        <!-- Mobile: Listening Mode Toggle (PTT vs Continuous) relocated here -->
+        <label x-show="isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Knopf drücken (PTT) vs Dauerhaft zuhören (Stellt Musik stumm)">
+            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Immer hören</span>
+            <div class="relative inline-block w-8 outline-none focus:outline-none">
+                <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="peer sr-only">
+                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
+                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+            </div>
+        </label>
+
         <!-- Action Debug Log -->
-        <div x-show="funkiLogs.length > 0" class="w-80 mt-2 p-3 bg-black/60 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-2 max-h-80 overflow-y-auto pointer-events-auto custom-scrollbar" style="display: none;">
-            <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-2 mb-1 sticky top-0 bg-black/80 z-10">KI Aktionen (Live-Log)</div>
-            <template x-for="(log, i) in funkiLogs.slice().reverse()" :key="i">
-                <div class="text-[10px] font-mono leading-tight text-gray-300 break-words flex flex-col gap-1 border-b border-white/5 pb-2 last:border-0 last:pb-0">
-                    <div class="flex justify-between items-center text-[8px] mb-0.5">
-                        <span class="text-emerald-500/60" x-text="log.time"></span>
-                        <span x-show="log.role === 'user'" class="text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">User</span>
-                        <span x-show="log.role === 'ai'" class="text-cyan-400 bg-cyan-500/10 px-1 py-0.5 rounded">Funkira</span>
-                        <span x-show="log.role === 'tool'" class="text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded">Tool</span>
+        <div x-data="{ showLog: false }" class="flex flex-col items-end w-full">
+            <button @click="showLog = !showLog" x-show="funkiLogs.length > 0" class="mt-2 text-[10px] text-emerald-500/50 hover:text-emerald-400 transition-colors uppercase tracking-widest bg-black/40 px-2 py-1 rounded backdrop-blur-sm border border-emerald-900/30">
+                <i class="bi" :class="showLog ? 'bi-chevron-up' : 'bi-card-list'"></i> Log <span x-show="!showLog" x-text="'('+funkiLogs.length+')'"></span>
+            </button>
+            <div x-show="showLog" x-collapse x-transition class="w-80 mt-2 p-3 bg-black/60 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-2 max-h-80 overflow-y-auto pointer-events-auto custom-scrollbar" style="display: none;">
+                <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-2 mb-1 sticky top-0 bg-black/80 z-10">KI Aktionen (Live-Log)</div>
+                <template x-for="(log, i) in funkiLogs.slice().reverse()" :key="i">
+                    <div class="text-[10px] font-mono leading-tight text-gray-300 break-words flex flex-col gap-1 border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                        <div class="flex justify-between items-center text-[8px] mb-0.5">
+                            <span class="text-emerald-500/60" x-text="log.time"></span>
+                            <span x-show="log.role === 'user'" class="text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">User</span>
+                            <span x-show="log.role === 'ai'" class="text-cyan-400 bg-cyan-500/10 px-1 py-0.5 rounded">Funkira</span>
+                            <span x-show="log.role === 'tool'" class="text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded">Tool</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <span x-show="log.role === 'user'" class="text-blue-500 shrink-0"><i class="bi bi-person-fill"></i></span>
+                            <span x-show="log.role === 'ai'" class="text-cyan-500 shrink-0"><i class="bi bi-stars"></i></span>
+                            <span x-show="log.role === 'tool'" class="text-purple-500 shrink-0"><i class="bi bi-wrench-adjustable"></i></span>
+                            <span class="leading-relaxed" x-text="log.message.substring(0, 150) + (log.message.length > 150 ? '...' : '')"></span>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                        <span x-show="log.role === 'user'" class="text-blue-500 shrink-0"><i class="bi bi-person-fill"></i></span>
-                        <span x-show="log.role === 'ai'" class="text-cyan-500 shrink-0"><i class="bi bi-stars"></i></span>
-                        <span x-show="log.role === 'tool'" class="text-purple-500 shrink-0"><i class="bi bi-wrench-adjustable"></i></span>
-                        <span class="leading-relaxed" x-text="log.message.substring(0, 150) + (log.message.length > 150 ? '...' : '')"></span>
-                    </div>
-                </div>
-            </template>
+                </template>
+            </div>
         </div>
     </div>
 
+    <!-- Bottom Left Controls (Desktop Wake Word) -->
     <div class="absolute bottom-6 left-6 z-50 flex flex-col items-start gap-4" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
-        
+
         <!-- Desktop: Wake Word Toggle -->
         <label x-show="!isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Aktivierungswort</span>
@@ -68,18 +84,10 @@
                 <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
             </div>
         </label>
+    </div>
 
-        <!-- Mobile: Listening Mode Toggle (PTT vs Continuous) -->
-        <label x-show="isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Knopf drücken (PTT) vs Dauerhaft zuhören (Stellt Musik stumm)">
-            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Dauerhaft Hören</span>
-            <div class="relative inline-block w-8 outline-none focus:outline-none">
-                <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="peer sr-only">
-                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
-                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
-            </div>
-        </label>
-
-
+    <!-- Bottom Right Controls (Audio & Close) -->
+    <div class="absolute bottom-6 right-6 z-50 flex flex-col items-end gap-3" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
 
         <!-- Audio Toggle & Slider -->
         <div class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black group">
@@ -101,8 +109,9 @@
         </div>
 
         <!-- Close Button -->
-        <button @click="closeFunkiView()" class="px-5 py-2.5 bg-gray-900/80 border border-gray-700 rounded-full text-xs font-black uppercase tracking-widest text-gray-300 hover:text-white hover:border-primary hover:bg-black transition-all shadow-glow flex items-center gap-2 backdrop-blur-md">
-            <i class="bi bi-x-lg"></i> Funkira - Zentrum verlassen
+        <button @click="closeFunkiView()" class="w-12 h-12 bg-gray-900/80 border border-gray-700 rounded-full flex items-center justify-center hover:text-white hover:border-primary hover:bg-black transition-all shadow-glow backdrop-blur-md group" title="Zentrum verlassen">
+            <i class="bi bi-arrow-left-circle text-gray-300 group-hover:text-red-400 text-2xl"></i>
+            <x-heroicon-o-arrow-uturn-left class="w-4 h-4" />
         </button>
     </div>
 
@@ -111,8 +120,8 @@
         <span class="text-[10px] font-mono tracking-widest text-emerald-400/80 uppercase" x-show="!listening && !thinking">Halten zum Sprechen</span>
         <span class="text-[10px] font-mono tracking-widest text-cyan-400 uppercase animate-pulse" x-show="listening">Hört zu...</span>
         <span class="text-[10px] font-mono tracking-widest text-purple-400 uppercase animate-pulse" x-show="thinking">Verarbeitet...</span>
-        
-        <button 
+
+        <button
             @touchstart.prevent="startPushToTalk()"
             @mousedown.prevent="startPushToTalk()"
             @touchend.prevent="stopPushToTalk()"
@@ -139,7 +148,7 @@
         </div>
 
     <!-- 3. Dynamic Elements Removed per User Request -->
-    
+
     <!-- End of CSS2D Elements -->
 
 
@@ -208,15 +217,15 @@
             // --- AI VOICE CHAT LOGIC ---
             toggleMobileContinuous() {
                 if (!this.recognition) return;
-                
+
                 if (this.continuousMode) {
                     // Changed FROM PTT -> TO Continuous
                     this.isAudioMuted = true; // Auto-mute background logic
                     this.enforceAudioMuteState();
-                    
+
                     if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
                     if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
-                    
+
                     this.listening = true;
                     this.updateCoreColor();
                     try { this.recognition.start(); } catch(e) {}
@@ -259,7 +268,7 @@
 
             startPushToTalk() {
                 if (!this.recognition || this.thinking || this.isOutputActive()) return;
-                
+
                 // Stop any TTS
                 if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
                 if (this.synthesis) this.synthesis.cancel();
@@ -318,10 +327,10 @@
                     } catch (jsonErr) {
                         this.thinking = false;
                         this.updateCoreColor();
-                        
+
                         const errorTextHTML = await response.text();
                         console.error("SyntaxError Fallback:", errorTextHTML);
-                        
+
                         this.errorText = "⚠️ Subraum Kommunikation abgebrochen:\nDer Server hat eine HTML-Fehlerseite (Status " + response.status + ") statt JSON zurückgegeben.\n\nDies bedeutet meist, dass der API Code abgestürzt ist.\n\nAuszug:\n" + errorTextHTML.substring(0, 300) + "...\n\nBitte sende diesen Fehler an Gemini!";
                         this.showErrorPanel = true;
                         this.systemState = 'error';
@@ -341,7 +350,7 @@
                                 this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug: ${ctx.function}` });
                             });
                         }
-                        
+
                         // Push AI Response
                         if (data.response) {
                             this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: data.response.replace(/\[.*?\]/s, '') });
@@ -459,7 +468,7 @@
                                 { value: statData.data.scaling_metrics.abandoned_carts_count + 'x', color: 'text-yellow-400 font-bold' }
                             ]
                         });
-                        
+
                         this.chartListData.push({
                             title: 'Verlorener Umsatz (24h)',
                             titleColor: 'text-rose-400',
@@ -474,9 +483,9 @@
                 if (!foundData && financeData && financeData.data && financeData.data.financial_data_net) {
                     title = 'Finanzübersicht (' + (financeData.data.current_month || 'Laufender Monat') + ')';
                     foundData = true;
-                    
+
                     let fd = financeData.data.financial_data_net;
-                    
+
                     if (userRequestedGraphic || true) { // Always prefer chart for finances to look cool
                         chartLabels = ['Shop Netto-Umsatz', 'Fixkosten', 'Sonderausgaben'];
                         chartDataset = [
@@ -485,7 +494,7 @@
                             Math.abs(fd.special_expenses || 0)
                         ];
                         chartType = 'doughnut';
-                        
+
                         // Prevent Chart.js Doughnut from collapsing into thin air if all values are 0!
                         let sum = chartDataset.reduce((a,b) => a+b, 0);
                         if (sum === 0) {
@@ -624,10 +633,10 @@
                         chartType = 'doughnut';
                         routineData.data.routines.forEach(r => {
                             let rTitle = r.title || 'Unbenannt';
-                            let duration = r.duration_minutes || 10; 
+                            let duration = r.duration_minutes || 10;
                             chartLabels.push(rTitle);
                             chartDataset.push(duration);
-                            
+
                             // Zusätzlich als Liste für die Details eintragen
                             let stepText = '';
                             if (r.steps && r.steps.length > 0) {
@@ -642,7 +651,7 @@
                             });
                         });
                         // Wir erzwingen sowohl Chart als auch Liste, damit sie die Steps lesen kann.
-                        // Damit both gerendert werden, darf showGraphicChart und showTable nicht strikt exklusiv sein, 
+                        // Damit both gerendert werden, darf showGraphicChart und showTable nicht strikt exklusiv sein,
                         // was im Template durch showChartPanel abgefangen wird.
                     }
                 }
@@ -702,7 +711,7 @@
                                     { value: o.date || '-', color: 'text-gray-400' }
                                 ]
                             });
-                            
+
                             // If it's a specific single order, we could show items in a list below
                             if (orderData.data.orders.length === 1 && o.items_summary) {
                                 this.chartListData.push({
@@ -1009,7 +1018,7 @@
                     // For WebKit
                     window.funkiAudioPlayer.setAttribute('webkit-playsinline', 'true');
                     window.funkiAudioPlayer.playbackRate = 1.0;
-                    
+
                     window.funkiAudioPlayer.onended = () => {
                         if (this.continuousMode && !t3.isShuttingDown) {
                             this.listening = true;
@@ -1025,7 +1034,7 @@
                     this.fallbackToBrowserTTS(cleanText);
                 });
             },
-            
+
             fallbackToBrowserTTS(cleanText) {
                 if (!this.synthesis) return;
                 const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -1099,7 +1108,7 @@
                     this.recognition.onend = () => {
                         this.listening = false;
                         if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
-                        
+
                         // Restart if continuous mode is active AND we are not currently speaking or thinking
                         if (this.continuousMode && !this.thinking && !this.isOutputActive() && !this.isMobile) {
                             try {
@@ -1344,7 +1353,7 @@
                 // Wait 3.5 seconds for the core to shrink/turn black
                 setTimeout(() => {
                     this.showFunkiView = false; // Triggers Alpine fade-out (lasts 1s)
-                    
+
                     // Wait for Alpine fade to finish before destroying the scene visually
                     setTimeout(() => {
                         this.destroyThreeJS();
@@ -1672,7 +1681,7 @@
                         // Start it off-screen, it gets dynamically positioned in animate()
                         t3.cssObject.position.set(-9999, 0, 0);
                         // Do NOT parent to the hitbox, parent to scene so we can control it via camera vector
-                        t3.scene.add(t3.cssObject); 
+                        t3.scene.add(t3.cssObject);
                     }
                 }
 
@@ -1868,7 +1877,7 @@
                         // Wide screens -> push further left (-28%). Narrow/Mobile screens -> keep near center (-15%)
                         let percentX = t3.camera.aspect > 1.2 ? -0.28 : -0.15;
                         let percentY = 0.08; // 8% above center
-                        
+
                         let offsetX = visibleWidth * percentX;
                         let offsetY = visibleHeight * percentY;
 
@@ -1880,7 +1889,7 @@
                         let targetPos = new THREE.Vector3(0, 0, 0);
                         targetPos.add(rightVector.multiplyScalar(offsetX));
                         targetPos.add(upVector.multiplyScalar(offsetY));
-                        
+
                         // Smoothly glide into position
                         t3.cssObject.position.lerp(targetPos, 0.15);
                     } else {
