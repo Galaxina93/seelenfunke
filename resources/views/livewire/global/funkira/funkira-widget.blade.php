@@ -96,14 +96,14 @@
     </div>
 
     <!-- Audio Elements -->
-    <audio id="audio-funki-background" src="{{ asset('funkira/sounds/funkira_background.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-default-ambient" src="{{ asset('funkira/sounds/funkira_default_universum.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-pulse" src="{{ asset('funkira/sounds/funkira_pulse.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-init" src="{{ asset('funkira/sounds/funkira_Initialize.mp3') }}" preload="auto"></audio>
-    <audio id="audio-funki-shutdown" src="{{ asset('funkira/sounds/funkira_shutdown.mp3') }}" preload="auto"></audio>
-    <audio id="audio-funki-heartbeat" src="{{ asset('funkira/sounds/funkira_heartbeat.mp3') }}" preload="auto" loop></audio>
-    <audio id="audio-funki-click" src="{{ asset('funkira/sounds/funkira_click.mp3') }}" preload="auto"></audio>
-    <audio id="audio-funki-unclick" src="{{ asset('funkira/sounds/funkira_unclick.mp3') }}" preload="auto"></audio>
+    <audio id="audio-funki-background" src="{{ asset('funkira/sounds/funkira_background.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-default-ambient" src="{{ asset('funkira/sounds/funkira_default_universum.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-pulse" src="{{ asset('funkira/sounds/funkira_pulse.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-init" src="{{ asset('funkira/sounds/funkira_Initialize.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-shutdown" src="{{ asset('funkira/sounds/funkira_shutdown.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-heartbeat" src="{{ asset('funkira/sounds/funkira_heartbeat.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-click" src="{{ asset('funkira/sounds/funkira_click.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-unclick" src="{{ asset('funkira/sounds/funkira_unclick.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
 
     <!-- Unified Floating UI Panel (Mapped to 3D Space) -->
     <div id="diagnostic-panel"
@@ -923,6 +923,9 @@
                 .then(blob => {
                     const audioUrl = URL.createObjectURL(blob);
                     window.funkiAudioPlayer = new Audio(audioUrl);
+                    window.funkiAudioPlayer.playsInline = true;
+                    // For WebKit
+                    window.funkiAudioPlayer.setAttribute('webkit-playsinline', 'true');
                     window.funkiAudioPlayer.playbackRate = 1.0;
                     
                     window.funkiAudioPlayer.onended = () => {
