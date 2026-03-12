@@ -151,6 +151,7 @@
 
     <!-- End of CSS2D Elements -->
 
+    <!-- Generative UI Master Modal extracted to layout -->
 
     </template>
 </div>
@@ -350,6 +351,20 @@
                                 this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug: ${ctx.function}` });
                             });
                         }
+                        
+                        // Handle Frontend Events triggers (GenUI Routing)
+                        if (data.events_data && data.events_data.length > 0) {
+                            data.events_data.forEach(evt => {
+                                if (evt.name === 'open-ai-visualization') {
+                                    this.playClickSound(); // Audio cue
+                                    Livewire.dispatch('open-ai-visualization', { payload: evt.detail });
+                                } else if (evt.type === 'navigate') {
+                                    window.location.href = evt.url;
+                                } else if (evt.type === 'dispatch') {
+                                    window.dispatchEvent(new Event(evt.name));
+                                }
+                            });
+                        }
 
                         // Push AI Response
                         if (data.response) {
@@ -365,8 +380,8 @@
 
                         if (data.audio) {
                             this.playAudioBase64(data.audio);
-                        } else {
-                            this.speakResponse(data.response); // Fallback
+                        } else if (data.response && data.response.trim() !== '') {
+                            this.speakResponse(data.response); // Fallback only if there is text
                         }
                     } else {
                         console.error("AI Error:", data);

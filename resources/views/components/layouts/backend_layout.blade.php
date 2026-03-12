@@ -206,6 +206,7 @@
     @if($guard !== 'customer')
         <livewire:global.funkira.funkira-chat />
         <livewire:global.funkira.funkira-widget />
+        <livewire:global.funkira.ai-data-visualization />
     @endif
 
 </div> {{-- ENDE DES GLOBALEN ALPINE STATES --}}

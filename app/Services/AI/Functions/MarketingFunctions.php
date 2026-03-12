@@ -144,7 +144,15 @@ trait MarketingFunctions
         return [
             'status' => 'success',
             'message' => "Der Gutschein '$code' wurde erfolgreich erstellt.",
-            'voucher' => $voucher->toArray()
+            'voucher' => $voucher->toArray(),
+            '_frontend_event' => [
+                'name' => 'open-ai-visualization',
+                'detail' => [
+                    'category' => 'voucher',
+                    'data' => [$voucher->toArray()] // Wrap in array to ensure consistency for UI Router
+                ]
+            ],
+            '_fast_track' => true
         ];
     }
 
@@ -204,6 +212,14 @@ trait MarketingFunctions
             'status' => 'success',
             'coupons' => $mapped->toArray(),
             'message' => 'Gutscheine geladen. Achte darauf, dass hier 50 manuelle Gutscheine gefunden wurden. Analysiere diese Daten leise.',
+            '_frontend_event' => [
+                'name' => 'open-ai-visualization',
+                'detail' => [
+                    'category' => 'voucher',
+                    'data' => $mapped->toArray()
+                ]
+            ],
+            '_fast_track' => true
         ];
     }
 

@@ -79,8 +79,7 @@ Bewerte Warnungen, Situationen und Aufgaben IMMER streng nach diesem Score (Höc
 
 [TECHNISCHE SYNTAX & AUSGABE (ZWEINGEND!)]
 1. LIES NIEMALS TOOL-MELDE-TEXTE VOR! Bestätige Aktionen extrem kurz ("Ist notiert, Herrin Alina").
-2. KEIN MARKDOWN VORLESEN: Nutze absolut keine Sterne (*), Rauten (#), Pfeile (->) im gesprochenen Text.
-3. VISUELLE TEXTFELDER: Sensible Infos (Gutschein-Codes, Rentenversicherungsnummer, exakte Fehler) MUSST du in folgende Tags hüllen, damit Alina sie kopieren kann: `[TEXTBOX]Deine Info hier[/TEXTBOX]`. Beispiel: "Hier ist der Log: [TEXTBOX]Error 500[/TEXTBOX]"
+3. DATEN-VISUALISIERUNG: Formatiere und sprich niemals rohen JSON-Code oder riesige Listen aus! Wenn du Kundenlisten, Datensätze, Tickets oder Tabellen laden (z.B. via `get_coupons` oder `get_shop_stats`) und anzeigen sollst, nutze ZWINGEND SOFORT das Tool `visualize_data`. Damit generiert das Frontend automatisch ein schickes, graphisches Overlay für Alina. Falls bei einem Aufruf wie get_coupons das Backend schon ein Frontend-Event feuert, bestätige einfach super kurz "Die Daten werden dir jetzt in der Mitte des Bildschirms angezeigt, Chefin."
 
 [SYSTEM-KONTEXT & PRIORITÄTEN]
 AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . '
@@ -100,11 +99,14 @@ Reasoning: high',
         $eventsData = [];
         $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData);
 
-        // We return the raw text response, AND the new history state
-        $incomingMessages[] = [
-            'role' => 'assistant',
-            'content' => $textResponse
-        ];
+        // Even if textResponse is empty (Fast Track), we STILL return the new history
+        // and importantly, the extracted events.
+        if (!empty($textResponse)) {
+            $incomingMessages[] = [
+                'role' => 'assistant',
+                'content' => $textResponse
+            ];
+        }
 
         return [
             'response' => $textResponse,
@@ -257,6 +259,10 @@ Reasoning: high',
                     if (isset($result['_event'])) {
                         $eventsData[] = $result['_event'];
                         unset($result['_event']); // Do not send back to LLM JSON string to save tokens
+                    }
+                    if (isset($result['_frontend_event'])) {
+                        $eventsData[] = $result['_frontend_event'];
+                        unset($result['_frontend_event']); // Hide from LLM context to save tokens
                     }
 
                     // --- FAST TRACK INTERCEPT FOR INSTANT UI ACTIONS ---

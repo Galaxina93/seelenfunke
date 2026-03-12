@@ -30,6 +30,29 @@ trait CoreFunctions
                 'callable' => [self::class, 'executeSaveMemory']
             ],
             [
+                'name' => 'visualize_data',
+                'description' => 'Zeigt strukturierte Daten (wie Listen, Objekte oder Statistiken) visuell im Frontend (Master Modal) des Users an. Nutze dies IMMER, wenn der User nach einer Übersicht, Tabelle, Liste oder Grafik fragt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'category' => [
+                            'type' => 'string',
+                            'description' => 'Grobe Kategorie der Daten in Kleinschreibung (z.B. "voucher", "customer", "todo", "finance", "system_health").'
+                        ],
+                        'data' => [
+                            'type' => 'array',
+                            'description' => 'Die nativen rohen JSON-Daten als Array. Das Backend kümmert sich um das Design.',
+                            'items' => [
+                                'type' => 'object',
+                                'additionalProperties' => true
+                            ]
+                        ]
+                    ],
+                    'required' => ['category', 'data']
+                ],
+                'callable' => [self::class, 'executeVisualizeData']
+            ],
+            [
                 'name' => 'search_memory',
                 'description' => 'Durchsucht dein Langzeitgedächtnis (Knowledge Base) nach gespeicherten Fakten, Einstellungen oder Notizen. Setze dies proaktiv ein, wenn du nach einem bestimmten Detail gefragt wirst, das du früher einmal gelernt haben könntest.',
                 'parameters' => [
@@ -115,6 +138,31 @@ trait CoreFunctions
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Speichern der Erinnerung: ' . $e->getMessage()];
         }
+    }
+
+    public static function executeVisualizeData(array $args)
+    {
+        $category = strtolower($args['category'] ?? 'general');
+        
+        // Safety Fallbacks & Aliases
+        if ($category === 'coupon' || $category === 'gutschein' || $category === 'coupons') {
+            $category = 'voucher';
+        }
+        
+        $data = $args['data'] ?? [];
+
+        return [
+            'status' => 'success',
+            'message' => "Habe ein UI Master Modal für die Kategorie '{$category}' geöffnet.",
+            '_frontend_event' => [
+                'name' => 'open-ai-visualization',
+                'detail' => [
+                    'category' => $category,
+                    'data' => $data
+                ]
+            ],
+            '_fast_track' => true
+        ];
     }
 
     public static function executeSearchMemory(array $args)

@@ -85,34 +85,7 @@ class AIController extends Controller
             ];
         }
 
-        $map = [
-            '/admin/dashboard' => 'Dashboard / Startseite',
-            '/admin/funki-routine' => 'Morgenroutine',
-            '/admin/funki-todos' => 'Todo-Listenverwaltung',
-            '/admin/funki-kalender' => 'Firmenkalender / Termine',
-            '/admin/company-map' => 'Firmenstruktur & Partner',
-            '/admin/tickets' => 'Kundensupport (Tickets)',
-            '/admin/knowledge_base' => 'Wiki / Wissensdatenbank',
-            '/admin/user-management' => 'Benutzerverwaltung (Mitarbeiter)',
-            '/admin/products' => 'Produkte / Shop-Artikel',
-            '/admin/product-templates' => 'Produkt-Templates',
-            '/admin/reviews' => 'Produkt-Bewertungen',
-            '/admin/invoices' => 'Rechnungen',
-            '/admin/credit-management' => 'Gutschriftenverwaltung',
-            '/admin/orders' => 'Bestellungen',
-            '/admin/quote-requests' => 'Angebotsanfragen (Quotes)',
-            '/admin/financial-evaluation' => 'Finanzübersicht & Auswertung',
-            '/admin/financial-liquidity-planning' => 'Liquiditätsplanung',
-            '/admin/financial-banks' => 'Bankkonten & Liquidität',
-            '/admin/financial-fix-costs' => 'Fixkosten',
-            '/admin/financial-variable-costs' => 'Variable Kosten / Sonderausgaben',
-            '/admin/financial-tax' => 'Steuern Export & Tresor',
-            '/admin/configuration' => 'System-Einstellungen',
-            '/admin/blog' => 'Blog-Beiträge',
-            '/admin/voucher' => 'Gutscheine / Rabattcodes',
-            '/admin/newsletter' => 'Newsletter-Verwaltung',
-            '/admin/right-management' => 'Rechte & Rollen',
-        ];
+        $map = \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
 
         $navMap = "Verfügbare Admin-Routen & Bezeichnungen:\n";
         foreach ($map as $path => $name) {
@@ -220,6 +193,7 @@ class AIController extends Controller
             'response' => $result['response'],
             'history' => $result['history'] ?? [],
             'context_data' => $result['context_data'] ?? [],
+            'events_data' => $result['events'] ?? [],
             'usage' => $result['usage'] ?? [],
             'audio' => $base64Audio
         ]);

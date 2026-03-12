@@ -133,8 +133,12 @@ class FunkiraChat extends Component
 
             $result = $agent->ask($payload);
 
-            // The MittwaldAgent already appends the assistant response to the history array
-            $this->messages = $result['history'];
+            // The MittwaldAgent appends the prompt and assistant response to the history array.
+            // We strip out 'system' and 'tool' roles so they don't pollute the user UI.
+            $cleanHistory = array_filter($result['history'], function ($msg) {
+                return !in_array($msg['role'], ['system', 'tool']);
+            });
+            $this->messages = array_values($cleanHistory);
 
             // Extrahiere die letzte Assistant-Antwort, um sie ins Live Log zu pushen
             $lastResponse = end($this->messages);
@@ -156,6 +160,10 @@ class FunkiraChat extends Component
             $hasNavigation = false;
             if (isset($result['events']) && is_array($result['events'])) {
                 foreach ($result['events'] as $evt) {
+                    if (isset($evt['name']) && $evt['name'] === 'open-ai-visualization') {
+                        $this->dispatch('open-ai-visualization', payload: $evt['detail']);
+                        $hasNavigation = true;
+                    }
                     if (isset($evt['type']) && $evt['type'] === 'navigate' && isset($evt['url'])) {
                         $this->dispatch('funkira-navigate', url: $evt['url']);
                         $hasNavigation = true;
@@ -220,34 +228,7 @@ class FunkiraChat extends Component
 
     private function getUrlMap(): array
     {
-        return [
-            '/admin/dashboard' => 'Dashboard / Startseite',
-            '/admin/funki-routine' => 'Morgenroutine',
-            '/admin/funki-todos' => 'Todo-Listenverwaltung',
-            '/admin/funki-kalender' => 'Firmenkalender / Termine',
-            '/admin/company-map' => 'Firmenstruktur & Partner',
-            '/admin/tickets' => 'Kundensupport (Tickets)',
-            '/admin/knowledge_base' => 'Wiki / Wissensdatenbank',
-            '/admin/user-management' => 'Benutzerverwaltung (Mitarbeiter)',
-            '/admin/products' => 'Produkte / Shop-Artikel',
-            '/admin/product-templates' => 'Produkt-Templates',
-            '/admin/reviews' => 'Produkt-Bewertungen',
-            '/admin/invoices' => 'Rechnungen',
-            '/admin/credit-management' => 'Gutschriftenverwaltung',
-            '/admin/orders' => 'Bestellungen',
-            '/admin/quote-requests' => 'Angebotsanfragen (Quotes)',
-            '/admin/financial-evaluation' => 'Finanzübersicht & Auswertung',
-            '/admin/financial-liquidity-planning' => 'Liquiditätsplanung',
-            '/admin/financial-banks' => 'Bankkonten & Liquidität',
-            '/admin/financial-fix-costs' => 'Fixkosten',
-            '/admin/financial-variable-costs' => 'Variable Kosten / Sonderausgaben',
-            '/admin/financial-tax' => 'Steuern Export & Tresor',
-            '/admin/configuration' => 'System-Einstellungen',
-            '/admin/blog' => 'Blog-Beiträge',
-            '/admin/voucher' => 'Gutscheine / Rabattcodes',
-            '/admin/newsletter' => 'Newsletter-Verwaltung',
-            '/admin/right-management' => 'Rechte & Rollen',
-        ];
+        return \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
     }
 
     private function translateUrlToPageName(string $url): string

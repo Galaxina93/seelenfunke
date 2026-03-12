@@ -79,6 +79,11 @@ class FunkiChat extends Component
         $this->isTyping = false;
     }
 
+    public function getUrlMap(): array
+    {
+        return \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
+    }
+
     public function render()
     {
         return view('livewire.global.widgets.funki-chat');
