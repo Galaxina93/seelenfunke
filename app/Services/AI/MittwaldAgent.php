@@ -259,6 +259,12 @@ Reasoning: high',
                         unset($result['_event']); // Do not send back to LLM JSON string to save tokens
                     }
 
+                    // --- FAST TRACK INTERCEPT FOR INSTANT UI ACTIONS ---
+                    if (isset($result['_fast_track']) && $result['_fast_track'] === true) {
+                        $shouldFastTrack = true;
+                        unset($result['_fast_track']);
+                    }
+
                     // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
                     $llmResult = $result;
                     if ($functionName === 'get_todos' && isset($llmResult['todos'])) {
@@ -278,6 +284,11 @@ Reasoning: high',
                         'tool_call_id' => $toolCallId,
                         'content' => json_encode($llmResult, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE) ?: '{"status":"error","message":"JSON Encoding Failed for tool result"}'
                     ];
+                }
+
+                if (isset($shouldFastTrack) && $shouldFastTrack === true) {
+                    \Illuminate\Support\Facades\Log::info("FAST TRACK TRIGGERED: Skipping LLM confirmation loop for immediate UI response.");
+                    return ""; // Return empty string so FunkiraChat doesn't synthesize empty audio
                 }
 
                 // Since we added new tool results, loop back and ask the AI again

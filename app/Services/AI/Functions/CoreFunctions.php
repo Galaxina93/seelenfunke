@@ -179,11 +179,12 @@ trait CoreFunctions
 
             return [
                 'status' => 'success',
-                'message' => 'Die Navigation wird nun clientseitig ausgeführt. Antworte extrem kurz (z.B. "Ist notiert").',
+                'message' => 'Die Navigation wird nun clientseitig ausgeführt.',
                 '_event' => [
                     'type' => 'navigate',
                     'url' => $url
-                ]
+                ],
+                '_fast_track' => true
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei der Navigation: ' . $e->getMessage()];
@@ -193,11 +194,12 @@ trait CoreFunctions
     {
         return [
             'status' => 'success',
-            'message' => 'Das Zentrum öffnet sich in diesem Augenblick im Browser. Antworte extrem kurz (z.B. "Zentrum geladen").',
+            'message' => 'Das Zentrum öffnet sich in diesem Augenblick im Browser.',
             '_event' => [
                 'type' => 'dispatch',
                 'name' => 'open-funkira'
-            ]
+            ],
+            '_fast_track' => true
         ];
     }
 
@@ -205,11 +207,12 @@ trait CoreFunctions
     {
         return [
             'status' => 'success',
-            'message' => 'Das Zentrum schließt sich in diesem Augenblick im Browser. Antworte extrem kurz (z.B. "Zentrum geschlossen").',
+            'message' => 'Das Zentrum schließt sich in diesem Augenblick im Browser.',
             '_event' => [
                 'type' => 'dispatch',
                 'name' => 'close-funkira'
-            ]
+            ],
+            '_fast_track' => true
         ];
     }
 
