@@ -231,6 +231,7 @@
                         <th class="px-6 py-5">Gültigkeit</th>
                         <th class="px-6 py-5">Nutzung</th>
                         <th class="px-6 py-5">Status</th>
+                        <th class="px-6 py-5">Erstellt am</th>
                         <th class="px-6 sm:px-8 py-5 text-right">Aktionen</th>
                     </tr>
                     </thead>
@@ -299,6 +300,9 @@
                                     </span>
                                 @endif
                             </td>
+                            <td class="px-6 py-5 text-xs text-gray-400 font-mono">
+                                {{ $c->created_at ? $c->created_at->format('d.m.Y H:i') . ' Uhr' : '-' }}
+                            </td>
                             <td class="px-6 sm:px-8 py-5 text-right">
                                 <div class="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button wire:click="editManualCoupon('{{ $c->id }}')" class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 hover:bg-orange-500/10 hover:border-orange-500/30 hover:text-orange-400 transition-all shadow-inner" title="Bearbeiten">
@@ -312,7 +316,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-16 text-center text-gray-500 font-serif italic text-lg">
+                            <td colspan="8" class="px-6 py-16 text-center text-gray-500 font-serif italic text-lg">
                                 Noch keine manuellen Gutscheine erstellt.
                             </td>
                         </tr>

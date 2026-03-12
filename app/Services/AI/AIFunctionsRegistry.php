@@ -13,6 +13,7 @@ class AIFunctionsRegistry
     use Functions\SettingsFunctions;
     use Functions\CoreFunctions;
     use Functions\CalendarFunctions;
+    use Functions\MarketingFunctions;
 
     /**
      * Define all available functions the AI can call.
@@ -27,7 +28,8 @@ class AIFunctionsRegistry
             self::getAccountingFunctionsSchema(),
             self::getSettingsFunctionsSchema(),
             self::getCoreFunctionsSchema(),
-            self::getCalendarFunctionsSchema()
+            self::getCalendarFunctionsSchema(),
+            self::getMarketingFunctionsSchema()
         );
     }
 
