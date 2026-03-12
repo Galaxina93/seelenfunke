@@ -1720,27 +1720,54 @@
                 // Start anim loop
                 this.animate();
 
-                // Add Click Event Listener
+                // Add Pointer Event Listener (Works for both Mouse and Mobile Touch)
                 t3.clickListener = (event) => {
                     t3.lastActivityTime = performance.now();
-                    if (t3.raycaster && t3.camera && t3.hitboxMesh && !t3.isShuttingDown && !this.showInfoPanel) {
+                    
+                    // Update mouse coordinates for the exact tap/click location
+                    t3.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    t3.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                    if (t3.raycaster && t3.camera && t3.hitboxMesh && !t3.isShuttingDown) {
                         t3.raycaster.setFromCamera(t3.mouse, t3.camera);
                         const intersects = t3.raycaster.intersectObject(t3.hitboxMesh);
                         if (intersects.length > 0) {
-                            // Play click sound
-                            const clickAudio = document.getElementById('audio-funki-click');
-                            if (clickAudio) {
-                                clickAudio.currentTime = 0;
-                                clickAudio.volume = 0.6;
-                                clickAudio.play().catch(e => console.log(e));
+                            if (typeof t3.clickLevel === 'undefined') t3.clickLevel = 0;
+                            t3.clickLevel++;
+                            
+                            if (t3.clickLevel === 1) {
+                                t3.targetCameraDist = 800;
+                                t3.zoomSpeed = 0.04;
+                            } else if (t3.clickLevel === 2) {
+                                t3.targetCameraDist = 1100;
+                                t3.zoomSpeed = 0.04;
+                            } else if (t3.clickLevel === 3) {
+                                t3.targetCameraDist = 1500;
+                                t3.zoomSpeed = 0.04;
+                            } else {
+                                // 4th click: zoom back to start very slowly
+                                t3.clickLevel = 0;
+                                t3.targetCameraDist = 500;
+                                t3.zoomSpeed = 0.006; // Very slow (approx 8s)
+                                
+                                let zoomAudio = new Audio('/funkira/sounds/funkira_zoom_in.mp3');
+                                zoomAudio.volume = 0.7;
+                                zoomAudio.play().catch(e => console.log('Zoom in sound blocked or missing:', e));
                             }
 
-                            // Open panel
-                            this.showInfoPanel = true;
+                            if (t3.clickLevel > 0) {
+                                // Play standard click sound
+                                const clickAudio = document.getElementById('audio-funki-click');
+                                if (clickAudio) {
+                                    clickAudio.currentTime = 0;
+                                    clickAudio.volume = 0.6;
+                                    clickAudio.play().catch(e => console.log(e));
+                                }
+                            }
                         }
                     }
                 };
-                window.addEventListener('click', t3.clickListener);
+                window.addEventListener('pointerdown', t3.clickListener);
 
                 t3.currentColor = new THREE.Color(0x00ff88);
                 t3.targetColor = new THREE.Color(0x00ff88);
@@ -1922,6 +1949,18 @@
                 }
 
                 const idleSeconds = (now - t3.lastActivityTime) / 1000.0;
+
+                // Apply Zoom Target
+                if (t3.targetCameraDist && t3.camera && t3.controls) {
+                    let currentDist = t3.camera.position.distanceTo(t3.controls.target);
+                    if (Math.abs(currentDist - t3.targetCameraDist) > 1.0) {
+                        let newDist = currentDist + (t3.targetCameraDist - currentDist) * t3.zoomSpeed;
+                        t3.camera.position.sub(t3.controls.target).setLength(newDist).add(t3.controls.target);
+                        
+                        // Prevent OrbitControls from violently clamping the camera
+                        t3.controls.maxDistance = Math.max(800, newDist + 200);
+                    }
+                }
 
                 // Update Controls
                 if (t3.controls) {
