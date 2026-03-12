@@ -190,7 +190,7 @@
                  showMenu: false,
                  isListening: $persist(false),
                  isMuted: $persist(false),
-                 useWakeWord: $persist(true),
+                 useWakeWord: $persist(false),
                  recognition: null,
                  synthesis: window.speechSynthesis,
                  toggleWakeWord() {

@@ -23,9 +23,18 @@
 
     <!-- Aktive Werkzeuge (Tools) -->
     <div class="mb-12">
-        <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <i class="bi bi-tools text-cyan-500 max-sm:hidden"></i> Registrierte Werkzeuge ({{ count($methods) }})
-        </h2>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <h2 class="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <i class="bi bi-tools text-cyan-500 max-sm:hidden"></i> Registrierte Werkzeuge ({{ count($methods) }})
+            </h2>
+            
+            <div class="relative w-full sm:w-72">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-search text-slate-500"></i>
+                </div>
+                <input type="text" wire:model.live.debounce.300ms="search" placeholder="Werkzeuge durchsuchen..." class="w-full bg-slate-900/50 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all shadow-inner">
+            </div>
+        </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             @foreach($methods as $method)

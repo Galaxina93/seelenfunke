@@ -211,7 +211,12 @@ class FunkiKalender extends Component
             $uid = isset($mUid[1]) ? trim($mUid[1]) : null;
 
             preg_match('/SUMMARY:(.*?)(?:\r\n|\n|$)/', $eventBlock, $mTitle);
-            $title = isset($mTitle[1]) ? trim($mTitle[1]) : 'Termin';
+            $title = 'Termin';
+            if (isset($mTitle[1])) {
+                $title = trim($mTitle[1]);
+                $title = str_replace(['&shy;', '\,', '\;', '\n', '\N'], ['', ',', ';', ' ', ' '], $title);
+                $title = html_entity_decode($title);
+            }
 
             preg_match('/DTSTART([^:]*):(\d{8}(?:T\d{6}Z?)?)/', $eventBlock, $mStart);
             if (empty($mStart[2])) continue;
@@ -240,7 +245,8 @@ class FunkiKalender extends Component
                 if (!empty($mEnd[2])) {
                     $rawEnd = $mEnd[2];
                     if (strlen($rawEnd) === 8) {
-                        $endDate = Carbon::createFromFormat('Ymd', $rawEnd, $timezone)->subSecond();
+                        // ICS End dates for all day events are EXCLUSIVE (next day at 00:00).
+                        $endDate = Carbon::createFromFormat('Ymd', $rawEnd, $timezone)->subDay()->endOfDay();
                     } else {
                         if (str_ends_with($rawEnd, 'Z')) {
                             $endDate = Carbon::parse($rawEnd)->setTimezone($timezone);
@@ -325,9 +331,12 @@ class FunkiKalender extends Component
         }
 
         // Normale Events
-        $normalEvents = CalendarEvent::whereBetween('start_date', [$start, $end])
-            ->whereNull('recurrence')
-            ->get();
+        $normalEvents = CalendarEvent::where(function($query) use ($start, $end) {
+            $query->where('start_date', '<=', $end)
+                  ->where('end_date', '>=', $start);
+        })
+        ->whereNull('recurrence')
+        ->get();
 
         // Wiederholungen berechnen
         $recurringEvents = CalendarEvent::whereNotNull('recurrence')->get();
@@ -395,18 +404,39 @@ class FunkiKalender extends Component
 
         $curr = $start->copy();
 
-        $eventsByDate = $this->events->groupBy(function($event) {
-            return $event->start_date->format('Y-m-d');
-        });
-
         while ($curr <= $end) {
-            $dateKey = $curr->format('Y-m-d');
+            $dayStart = $curr->copy()->startOfDay();
+            $dayEnd = $curr->copy()->endOfDay();
+
+            $dayEvents = $this->events->filter(function($event) use ($dayStart, $dayEnd) {
+                $evtStart = $event->start_date;
+                $evtEnd = $event->end_date ?: $event->start_date->copy()->endOfDay();
+                return $evtStart <= $dayEnd && $evtEnd >= $dayStart;
+            })->map(function($event) use ($dayStart, $dayEnd) {
+                $e = clone $event;
+                $evtStart = $event->start_date;
+                $evtEnd = $event->end_date ?: $event->start_date->copy()->endOfDay();
+                
+                $e->is_multi_day = !$evtStart->isSameDay($evtEnd);
+                if ($e->is_multi_day) {
+                    if ($evtStart->isSameDay($dayStart)) {
+                        $e->span_type = 'start';
+                    } elseif ($evtEnd->isSameDay($dayStart)) {
+                        $e->span_type = 'end';
+                    } else {
+                        $e->span_type = 'middle';
+                    }
+                } else {
+                    $e->span_type = 'single';
+                }
+                return $e;
+            })->values();
 
             $grid[] = [
                 'date' => $curr->copy(),
                 'is_current_month' => $curr->isSameMonth($this->currentDate),
                 'is_today' => $curr->isToday(),
-                'events' => $eventsByDate->get($dateKey, collect())
+                'events' => $dayEvents
             ];
             $curr->addDay();
         }
@@ -428,8 +458,13 @@ class FunkiKalender extends Component
             $gridEnd = $monthEnd->copy()->endOfWeek();
 
             while ($curr <= $gridEnd) {
-                $hasEvents = $this->events->contains(function($e) use ($curr) {
-                    return $e->start_date->isSameDay($curr);
+                $dayStart = $curr->copy()->startOfDay();
+                $dayEnd = $curr->copy()->endOfDay();
+
+                $hasEvents = $this->events->contains(function($e) use ($dayStart, $dayEnd) {
+                    $evtStart = $e->start_date;
+                    $evtEnd = $e->end_date ?: $e->start_date->copy()->endOfDay();
+                    return $evtStart <= $dayEnd && $evtEnd >= $dayStart;
                 });
 
                 $days[] = [

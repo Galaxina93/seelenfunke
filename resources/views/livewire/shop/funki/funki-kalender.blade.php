@@ -144,11 +144,36 @@
 
                             <div class="space-y-1.5 flex-1 overflow-y-auto no-scrollbar pr-1">
                                 @foreach($day['events'] as $event)
-                                    @php $s = $styles[$event->category] ?? $styles['general']; @endphp
+                                    @php 
+                                        $s = $styles[$event->category] ?? $styles['general']; 
+                                        $spanType = $event->span_type ?? 'single';
+                                        
+                                        $roundedClass = 'rounded-lg';
+                                        $borderClass = 'border-transparent hover:border-current/30';
+                                        
+                                        if ($spanType === 'start') {
+                                            $roundedClass = 'rounded-l-lg rounded-r-none';
+                                            $borderClass = 'border-y border-l border-r-0 border-transparent hover:border-current/30';
+                                        } elseif ($spanType === 'middle') {
+                                            $roundedClass = 'rounded-none';
+                                            $borderClass = 'border-y border-x-0 border-transparent hover:border-current/30';
+                                        } elseif ($spanType === 'end') {
+                                            $roundedClass = 'rounded-l-none rounded-r-lg';
+                                            $borderClass = 'border-y border-r border-l-0 border-transparent hover:border-current/30';
+                                        }
+                                    @endphp
                                     <div wire:click.stop="editEvent('{{ $event->id }}')"
-                                         class="px-2 py-1 rounded-lg {{ $s['bg'] }} {{ $s['text'] }} w-full text-[9px] font-bold truncate transition-all border border-transparent hover:border-current/30 shadow-lg flex items-center justify-between group/event">
-                                        <span class="truncate">{{ $event->title }}</span>
-                                        @if($event->reminder_minutes) <x-heroicon-s-bell class="w-2.5 h-2.5 opacity-50 shrink-0" /> @endif
+                                         class="px-2 py-1 {{ $roundedClass }} {{ $s['bg'] }} {{ $s['text'] }} w-full text-[9px] font-bold truncate transition-all border {{ $borderClass }} shadow-lg flex items-center justify-between group/event" title="{{ $event->title }}">
+                                        <span class="truncate">
+                                            @if($spanType === 'start' || $spanType === 'single')
+                                                {{ $event->title }}
+                                            @else
+                                                <span class="opacity-0">{{ $event->title }}</span>
+                                            @endif
+                                        </span>
+                                        @if($event->reminder_minutes && ($spanType === 'start' || $spanType === 'single')) 
+                                            <x-heroicon-s-bell class="w-2.5 h-2.5 opacity-50 shrink-0" /> 
+                                        @endif
                                     </div>
                                 @endforeach
                             </div>
@@ -185,25 +210,51 @@
 
             {{-- TERMINÜBERSICHT (LISTE) --}}
         @elseif($view === 'list')
-            <div class="max-w-3xl mx-auto py-10 px-4 space-y-10">
-                @foreach($this->events->groupBy(fn($e) => $e->start_date->format('Y-m-d')) as $dateKey => $events)
-                    @php $dayDate = \Carbon\Carbon::parse($dateKey); @endphp
-                    <div class="space-y-4">
+            <div class="max-w-3xl mx-auto py-10 px-4 space-y-10"
+                 x-init="$nextTick(() => { 
+                    const todayEl = document.getElementById('list-day-today'); 
+                    if(todayEl) { todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                 })">
+                @php
+                    $listDays = collect($this->calendarGrid)->filter(fn($day) => $day['date']->isSameMonth($currentDate) && count($day['events']) > 0);
+                @endphp
+                @foreach($listDays as $dayData)
+                    @php $dayDate = $dayData['date']; @endphp
+                    <div class="space-y-4" @if($dayDate->isToday()) id="list-day-today" @endif>
                         <div class="flex items-center gap-4 px-4">
-                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">{{ $dayDate->locale('de')->dayName }}</span>
+                            <span class="text-[10px] font-black {{ $dayDate->isToday() ? 'text-primary' : 'text-gray-400' }} uppercase tracking-[0.3em]">{{ $dayDate->locale('de')->dayName }}</span>
                             <div class="h-px bg-gray-800 flex-1"></div>
-                            <span class="text-xs font-bold text-gray-600 font-mono">{{ $dayDate->format('d.m.Y') }}</span>
+                            <span class="text-xs font-bold {{ $dayDate->isToday() ? 'text-primary' : 'text-gray-600' }} font-mono">
+                                @if($dayDate->isToday()) HEUTE @else {{ $dayDate->format('d.m.Y') }} @endif
+                            </span>
                         </div>
-                        <div class="bg-gray-900/60 rounded-[2rem] p-3 shadow-2xl border border-gray-800 space-y-2">
-                            @foreach($events as $event)
-                                @php $s = $styles[$event->category] ?? $styles['general']; @endphp
+                        <div @class([
+                            'bg-gray-900/60 rounded-[2rem] p-3 border space-y-2 transition-all',
+                            'ring-2 ring-primary ring-offset-4 ring-offset-gray-950 shadow-glow border-primary z-10' => $dayDate->isToday(),
+                            'border-gray-800 shadow-2xl' => !$dayDate->isToday()
+                        ])>
+                            @foreach($dayData['events'] as $event)
+                                @php 
+                                    $s = $styles[$event->category] ?? $styles['general']; 
+                                    $spanType = $event->span_type ?? 'single';
+                                @endphp
                                 <div class="flex items-center gap-4 p-4 hover:bg-gray-800 rounded-2xl cursor-pointer transition-all group border border-transparent hover:border-gray-700 shadow-sm" wire:click="editEvent('{{ $event->id }}')">
                                     <div class="w-14 h-14 bg-gray-950 rounded-xl border border-gray-800 shrink-0 flex flex-col items-center justify-center group-hover:border-primary/30 transition-colors shadow-inner">
                                         <span class="text-xl font-black text-white leading-none">{{ $dayDate->day }}</span>
                                         <span class="text-[9px] font-black text-gray-600 uppercase mt-1">{{ $dayDate->locale('de')->shortMonthName }}</span>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <h4 class="text-sm font-bold text-white truncate group-hover:text-primary transition-colors">{{ $event->title }}</h4>
+                                        <h4 class="text-sm font-bold text-white truncate group-hover:text-primary transition-colors">
+                                            {{ $event->title }}
+                                            @if($spanType !== 'single')
+                                                <span class="text-[9px] text-gray-500 ml-2 font-mono uppercase">
+                                                    @if($spanType === 'start') Beginn
+                                                    @elseif($spanType === 'middle') Fortlaufend
+                                                    @elseif($spanType === 'end') Endet heute
+                                                    @endif
+                                                </span>
+                                            @endif
+                                        </h4>
                                         <div class="flex items-center gap-3 mt-1.5">
                                             <span class="text-[8px] font-black uppercase px-2 py-1 rounded-md {{ $s['bg'] }} {{ $s['text'] }} border border-current/10 shadow-sm">{{ $s['label'] }}</span>
                                             <span class="text-[10px] font-mono font-bold text-gray-500">
@@ -230,27 +281,7 @@
             {{-- WOCHEN- / TAGESANSICHT --}}
         @elseif($view === 'week' || $view === 'day')
             <div class="max-w-4xl mx-auto py-10 px-4 space-y-10">
-                @php
-                    $loopDays = $view === 'day'
-                        ? [['date' => $currentDate, 'is_today' => $currentDate->isToday(), 'events' => $this->events->filter(fn($e) => $e->start_date->isSameDay($currentDate))]]
-                        : $this->calendarGrid;
-
-                    if($view === 'week') {
-                        $startW = $currentDate->copy()->startOfWeek();
-                        $endW = $currentDate->copy()->endOfWeek();
-                        $grouped = $this->events->groupBy(fn($e) => $e->start_date->format('Y-m-d'));
-                        $loopDays = [];
-                        for($d = $startW->copy(); $d <= $endW; $d->addDay()) {
-                            $loopDays[] = [
-                                'date' => $d->copy(),
-                                'is_today' => $d->isToday(),
-                                'events' => $grouped->get($d->format('Y-m-d'), collect())
-                            ];
-                        }
-                    }
-                @endphp
-
-                @foreach($loopDays as $dayData)
+                @foreach($this->calendarGrid as $dayData)
                     <div class="relative pl-10 md:pl-16 pb-6">
                         {{-- Timeline Dot --}}
                         <div @class(['absolute left-0 top-1 w-5 h-5 rounded-full border-4 border-gray-950 z-10 shadow-sm transition-all', 'bg-primary ring-4 ring-primary/20 scale-125 shadow-glow' => $dayData['is_today'], 'bg-gray-700' => !$dayData['is_today']])></div>
@@ -264,14 +295,27 @@
 
                         <div class="grid gap-3">
                             @forelse($dayData['events'] as $event)
-                                @php $s = $styles[$event->category] ?? $styles['general']; @endphp
+                                @php 
+                                    $s = $styles[$event->category] ?? $styles['general']; 
+                                    $spanType = $event->span_type ?? 'single';
+                                @endphp
                                 <div wire:click="editEvent('{{ $event->id }}')" class="bg-gray-900/60 border border-gray-800 rounded-[2rem] p-5 shadow-lg hover:shadow-2xl hover:border-primary/40 transition-all cursor-pointer flex items-center justify-between group/card">
                                     <div class="flex items-center gap-5">
                                         <div class="w-12 h-12 rounded-xl flex items-center justify-center {{ $s['bg'] }} {{ $s['text'] }} shadow-inner border border-current/10">
                                             <x-dynamic-component :component="'heroicon-o-' . $s['icon']" class="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <h5 class="text-base font-bold text-white group-hover/card:text-primary transition-colors">{{ $event->title }}</h5>
+                                            <h5 class="text-base font-bold text-white group-hover/card:text-primary transition-colors">
+                                                {{ $event->title }}
+                                                @if($spanType !== 'single')
+                                                    <span class="text-[10px] text-gray-500 ml-2 font-mono uppercase">
+                                                        @if($spanType === 'start') (Beginn)
+                                                        @elseif($spanType === 'middle') (Fortlaufend)
+                                                        @elseif($spanType === 'end') (Endet heute)
+                                                        @endif
+                                                    </span>
+                                                @endif
+                                            </h5>
                                             <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">{{ $s['label'] }}</p>
                                         </div>
                                     </div>

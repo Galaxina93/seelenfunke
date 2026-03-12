@@ -8,6 +8,7 @@ use App\Services\AI\AIFunctionsRegistry;
 use App\Services\FunkiBotService;
 use App\Models\Funki\FunkiraToolUsage;
 use App\Models\Funki\FunkiLog;
+use App\Models\Funki\FunkiraChatMemory;
 
 class MittwaldAgent
 {
@@ -229,6 +230,16 @@ Reasoning: high',
 
                     // Execute via our safe registry
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
+
+                    // Speichere in Langzeitgedächtnis
+                    if (class_exists(FunkiraChatMemory::class)) {
+                        FunkiraChatMemory::create([
+                            'session_id' => session()->getId(),
+                            'role' => 'tool',
+                            'content' => 'Werkzeug: ' . $functionName,
+                            'context_data' => ['args' => $executeArgs, 'result' => $result]
+                        ]);
+                    }
 
                     \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                         'active_node' => 'circle-stack',

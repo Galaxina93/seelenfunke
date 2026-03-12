@@ -36,12 +36,22 @@
         </div>
 
         <!-- Action Debug Log -->
-        <div x-show="funkiLogs.length > 0" class="w-64 mt-2 p-2 bg-black/60 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-1 max-h-48 overflow-y-auto pointer-events-none" style="display: none;">
-            <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-1 mb-1">KI Aktionen (Live-Log)</div>
+        <div x-show="funkiLogs.length > 0" class="w-80 mt-2 p-3 bg-black/60 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-2 max-h-80 overflow-y-auto pointer-events-auto custom-scrollbar" style="display: none;">
+            <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-2 mb-1 sticky top-0 bg-black/80 z-10">KI Aktionen (Live-Log)</div>
             <template x-for="(log, i) in funkiLogs.slice().reverse()" :key="i">
-                <div class="text-[9px] font-mono leading-tight text-gray-300 break-words flex gap-2">
-                    <span class="text-emerald-500 shrink-0">►</span>
-                    <span x-text="log"></span>
+                <div class="text-[10px] font-mono leading-tight text-gray-300 break-words flex flex-col gap-1 border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                    <div class="flex justify-between items-center text-[8px] mb-0.5">
+                        <span class="text-emerald-500/60" x-text="log.time"></span>
+                        <span x-show="log.role === 'user'" class="text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">User</span>
+                        <span x-show="log.role === 'ai'" class="text-cyan-400 bg-cyan-500/10 px-1 py-0.5 rounded">Funkira</span>
+                        <span x-show="log.role === 'tool'" class="text-purple-400 bg-purple-500/10 px-1 py-0.5 rounded">Tool</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <span x-show="log.role === 'user'" class="text-blue-500 shrink-0"><i class="bi bi-person-fill"></i></span>
+                        <span x-show="log.role === 'ai'" class="text-cyan-500 shrink-0"><i class="bi bi-stars"></i></span>
+                        <span x-show="log.role === 'tool'" class="text-purple-500 shrink-0"><i class="bi bi-wrench-adjustable"></i></span>
+                        <span class="leading-relaxed" x-text="log.message.substring(0, 150) + (log.message.length > 150 ? '...' : '')"></span>
+                    </div>
                 </div>
             </template>
         </div>
@@ -205,8 +215,10 @@
                     // Append user message to memory
                     if (!isSpontaneous) {
                         this.chatHistory.push({ role: 'user', content: promptText });
+                        this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: promptText });
                     } else {
                         this.chatHistory.push({ role: 'system', content: 'SYSTEM-BEFEHL (Verdeckt): ' + promptText });
+                        this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: 'Spontane Analyse ausgelöst.' });
                     }
 
                     const response = await fetch('/api/ai/chat', {
@@ -244,11 +256,17 @@
                         // Generate Funki Logs
                         if (data.context_data && data.context_data.length > 0) {
                             data.context_data.forEach(ctx => {
-                                this.funkiLogs.push(`Führte aus: ${ctx.function}`);
+                                this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug: ${ctx.function}` });
                             });
-                            // Keep only last 8 logs
-                            if (this.funkiLogs.length > 8) this.funkiLogs = this.funkiLogs.slice(-8);
                         }
+                        
+                        // Push AI Response
+                        if (data.response) {
+                            this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: data.response.replace(/\[.*?\]/s, '') });
+                        }
+
+                        // Keep only last 15 logs
+                        if (this.funkiLogs.length > 15) this.funkiLogs = this.funkiLogs.slice(-15);
 
                         if (data.usage && data.usage.total_tokens) {
                             this.tokenUsage = `TOKENS: ${data.usage.total_tokens}`;

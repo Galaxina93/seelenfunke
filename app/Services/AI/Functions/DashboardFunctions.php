@@ -99,20 +99,6 @@ trait DashboardFunctions
                 'callable' => [self::class, 'executeDeleteTodo']
             ],
             [
-                'name' => 'get_calendar_events',
-                'description' => 'Gibt bevorstehende Kalenderereignisse und Besprechungen zurück. Verwende den Parameter `limit`, um "genau den nächsten" Termin abzurufen (limit=1).',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'limit' => [
-                            'type' => 'integer',
-                            'description' => 'Optional. Wie viele Termine sollen gezeigt werden? Falls "nächster Termin" gefragt ist, sende 1.'
-                        ]
-                    ],
-                ],
-                'callable' => [self::class, 'executeGetCalendarEvents']
-            ],
-            [
                 'name' => 'get_day_routines',
                 'description' => 'Ruft die aktiven Tagesroutinen von Herrin Alina ab. Nutze dies, um zu überprüfen, ob sie ihrem strukturierten Tag folgt.',
                 'parameters' => [
@@ -366,34 +352,6 @@ trait DashboardFunctions
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Löschen des ToDos: ' . $e->getMessage()];
-        }
-    }
-
-    public static function executeGetCalendarEvents(array $args)
-    {
-        try {
-            $limit = $args['limit'] ?? null;
-            
-            $query = CalendarEvent::where('start_date', '>=', now())
-                ->orderBy('start_date', 'asc');
-                
-            if ($limit) {
-                // Nur N Termine holen (z.B. den absolut nächsten)
-                $query->limit($limit);
-            } else {
-                // Fallback: 7 Tage
-                $query->where('start_date', '<=', now()->addDays(7)->endOfDay());
-            }
-
-            $events = $query->get(['title', 'start_date', 'end_date', 'is_all_day', 'category', 'description']);
-            
-            return [
-                'status' => 'success',
-                'events_count' => $events->count(),
-                'upcoming_events' => $events->toArray()
-            ];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\AI;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\AI\AIFunctionsRegistry;
+use App\Models\Funki\FunkiraChatMemory;
 
 class AIController extends Controller
 {
@@ -86,6 +87,28 @@ class AIController extends Controller
 
         $agent = new \App\Services\AI\MittwaldAgent();
         $result = $agent->ask($history);
+        
+        // Speichere finalen Dialog-Verlauf in der Datenbank
+        $sessionId = session()->getId();
+        
+        // Was hat der User gesagt? (Finde die neuste User-Nachricht)
+        $userMsg = collect($history)->reverse()->firstWhere('role', 'user');
+        if ($userMsg) {
+            FunkiraChatMemory::create([
+                'session_id' => $sessionId,
+                'role' => 'user',
+                'content' => $userMsg['content'],
+            ]);
+        }
+
+        // Was hat die KI final geantwortet?
+        if (!empty($result['response'])) {
+            FunkiraChatMemory::create([
+                'session_id' => $sessionId,
+                'role' => 'assistant',
+                'content' => $result['response'],
+            ]);
+        }
 
         return response()->json([
             'status' => 'success',

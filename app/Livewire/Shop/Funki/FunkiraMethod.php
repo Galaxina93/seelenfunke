@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Schema;
 
 class FunkiraMethod extends Component
 {
+    public $search = '';
+
     public function getToolUsageStatsProperty()
     {
         if (!class_exists(FunkiraToolUsage::class)) return ['total' => [], 'chart' => []];
@@ -56,6 +58,15 @@ class FunkiraMethod extends Component
             return $m;
         });
 
+        // Filter by search
+        if (!empty($this->search)) {
+            $searchTerm = strtolower($this->search);
+            $methods = $methods->filter(function($m) use ($searchTerm) {
+                return str_contains(strtolower($m['name']), $searchTerm) || 
+                       str_contains(strtolower($m['description']), $searchTerm);
+            })->values();
+        }
+
         return view('livewire.shop.funki.funkira-method', [
             'methods' => $methods,
             'systemCoverage' => $this->getSystemCoverage(),
@@ -80,6 +91,10 @@ class FunkiraMethod extends Component
         // Priorisierte Reihenfolge der wichtigsten Tools (von extrem wichtig nach unwichtig)
         $priorityOrder = [
             'get_current_mission',
+            'get_calendar_events',
+            'create_calendar_event',
+            'update_calendar_event',
+            'delete_calendar_event',
             'get_finances',
             'get_order',
             'check_inventory',
@@ -92,8 +107,6 @@ class FunkiraMethod extends Component
             'get_system_health',
             'get_system_logs',
             'fix_system_errors',
-            'get_calendar_events',
-            'get_day_routines',
             'get_product_reviews',
             'get_gamification_leaderboard',
             'search_customers',
@@ -104,7 +117,6 @@ class FunkiraMethod extends Component
             'close_ui',
             'open_nav_item',
             'open_zentrum',
-            'get_graphical_capabilities',
             'delete_todo'
         ];
 
