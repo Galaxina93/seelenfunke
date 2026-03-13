@@ -290,7 +290,8 @@
                 this.updateCoreColor();
                 this.restartCount = 0;
 
-                if (!this.recognition) this.initSpeech();
+                // FORCE recreation of SpeechRecognition to prevent the single-use bug on mobile browsers
+                this.initSpeech();
                 try {
                     this.recognition.start();
                 } catch(e) {}
@@ -1024,7 +1025,7 @@
                 // DO NOT stop the recognition, so we can listen for "Stopp" interruptions mid-sentence
                 // UNLESS on mobile to avoid hardware echo-cancellation stuttering
                 if (this.isMobile && this.recognition) {
-                    this.recognition.onend = null;
+                    this.recognition.onend = null; // PREVENT Auto-Restart loop!
                     try { this.recognition.abort(); } catch(e) {}
                 }
 
@@ -1053,6 +1054,12 @@
                         if (this.continuousMode && !t3.isShuttingDown) {
                             // Audio loopback unblocked automatically by isOutputActive() status resolving to false
                             if (this.isMobile && this.listening) {
+                                // Re-attach the onend handler first!
+                                if (this.recognition) {
+                                    this.recognition.onend = () => { 
+                                        if (this.continuousMode) this.restartRecognition(); 
+                                    };
+                                }
                                 this.restartRecognition();
                             }
                         }
@@ -1084,6 +1091,12 @@
                 utterance.onend = () => {
                     // Audio loopback unblocked automatically by isOutputActive() status resolving to false
                     if (this.continuousMode && !t3.isShuttingDown && this.isMobile && this.listening) {
+                        // Re-attach the onend handler first!
+                        if (this.recognition) {
+                            this.recognition.onend = () => { 
+                                if (this.continuousMode) this.restartRecognition(); 
+                            };
+                        }
                         this.restartRecognition();
                     }
                 };

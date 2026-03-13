@@ -374,7 +374,7 @@
 
                      // Disable mic temporarily on mobile so playback doesn't stutter (hardware echo cancellation issue)
                      if (this.isMobile && this.recognition) {
-                         this.recognition.onend = null;
+                         this.recognition.onend = null; // PREVENT Auto-Restart loop!
                          try { this.recognition.abort(); } catch(e) {}
                      }
 
@@ -408,6 +408,10 @@
                              this.isSpeaking = false;
                              URL.revokeObjectURL(audioUrl);
                              if (this.isMobile && this.isListening) {
+                                 // Re-attach the onend handler first!
+                                 if (this.recognition) {
+                                     this.recognition.onend = () => { this.restartRecognition(); };
+                                 }
                                  this.restartRecognition();
                              }
                          };
@@ -435,6 +439,10 @@
                      utterance.onend = () => {
                          this.isSpeaking = false;
                          if (this.isMobile && this.isListening) {
+                             // Re-attach the onend handler first!
+                             if (this.recognition) {
+                                 this.recognition.onend = () => { this.restartRecognition(); };
+                             }
                              this.restartRecognition();
                          }
                      };
