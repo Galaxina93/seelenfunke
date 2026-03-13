@@ -40,7 +40,7 @@ class FunkiraVoiceController extends Controller
                 'xi-api-key' => $apiKey,
                 'Content-Type' => 'application/json',
                 'Accept' => 'audio/mpeg'
-            ])->post("https://api.elevenlabs.io/v1/text-to-speech/{$voiceId}", [
+            ])->timeout(30)->post("https://api.elevenlabs.io/v1/text-to-speech/{$voiceId}", [
                 'text' => $text,
                 'model_id' => 'eleven_multilingual_v2', // Best current multilingual model
                 'voice_settings' => [
@@ -72,7 +72,7 @@ class FunkiraVoiceController extends Controller
             // Auto-Fallback if the Voice ID does not exist on this account
             if (($response->status() === 400 || $response->status() === 404) && str_contains($response->body(), 'voice_not_found')) {
                 Log::warning("Voice {$voiceId} not found. Attempting to auto-fetch first available voice.");
-                $voicesResponse = Http::withHeaders(['xi-api-key' => $apiKey])->get("https://api.elevenlabs.io/v1/voices");
+                $voicesResponse = Http::withHeaders(['xi-api-key' => $apiKey])->timeout(30)->get("https://api.elevenlabs.io/v1/voices");
                 $voices = $voicesResponse->json();
                 
                 Log::info("ElevenLabs /v1/voices Fallback Response: " . $voicesResponse->body());
@@ -86,7 +86,7 @@ class FunkiraVoiceController extends Controller
                         'xi-api-key' => $apiKey,
                         'Content-Type' => 'application/json',
                         'Accept' => 'audio/mpeg'
-                    ])->post("https://api.elevenlabs.io/v1/text-to-speech/{$firstVoice}", [
+                    ])->timeout(30)->post("https://api.elevenlabs.io/v1/text-to-speech/{$firstVoice}", [
                         'text' => $text,
                         'model_id' => 'eleven_multilingual_v2',
                         'voice_settings' => [

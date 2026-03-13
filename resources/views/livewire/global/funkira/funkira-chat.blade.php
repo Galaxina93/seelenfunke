@@ -191,6 +191,11 @@
                  recognition: null,
                  synthesis: window.speechSynthesis,
                  currentAudio: null,
+                 isSpeaking: false,
+                 watchdogTimer: null,
+                 lastActivityTime: Date.now(),
+                 restartCount: 0,
+                 lastRestartTime: 0,
                  toggleWakeWord() {
                      this.useWakeWord = !this.useWakeWord;
                  },
@@ -202,6 +207,7 @@
                              this.currentAudio.pause();
                              this.currentAudio.currentTime = 0;
                          }
+                         this.isSpeaking = false;
                      }
                  },
                  toggleListening(forceStart = false) {
@@ -211,13 +217,17 @@
                          return;
                      }
 
-                     if (!this.recognition) this.initSpeech();
-
                      if (this.isListening && !forceStart) {
                          this.isListening = false;
-                         try { this.recognition.stop(); } catch(e) {}
+                         if (this.recognition) {
+                             this.recognition.onend = null;
+                             try { this.recognition.abort(); } catch(e) {}
+                             this.recognition = null;
+                         }
                      } else {
                          this.isListening = true;
+                         this.restartCount = 0;
+                         if (!this.recognition) this.initSpeech();
                          try {
                              this.recognition.start();
                          } catch(e) {
@@ -228,6 +238,49 @@
                          }
                      }
                  },
+                 restartRecognition() {
+                     if (!this.isListening) return;
+                     
+                     if (Date.now() - this.lastRestartTime < 1000) {
+                         this.restartCount++;
+                         if (this.restartCount > 5) {
+                             console.warn('Voice restart loop detected, aborting...');
+                             this.isListening = false;
+                             return;
+                         }
+                     } else {
+                         this.restartCount = 0;
+                     }
+                     this.lastRestartTime = Date.now();
+
+                     setTimeout(() => {
+                         if (!this.isListening) return;
+                         try {
+                             if (!this.recognition) this.initSpeech();
+                             this.recognition.start();
+                         } catch(e) {
+                             if (e.name !== 'InvalidStateError') {
+                                 this.isListening = false;
+                             }
+                         }
+                     }, 300);
+                 },
+                 resetWatchdog() {
+                     if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+                     this.watchdogTimer = setInterval(() => {
+                         if (this.isListening && (Date.now() - this.lastActivityTime > 45000)) {
+                             console.log('Voice watchdog restarting mic...');
+                             if (this.recognition) {
+                                 this.recognition.onend = null;
+                                 try { this.recognition.abort(); } catch(e) {}
+                                 this.recognition = null;
+                             }
+                             this.initSpeech();
+                             try { this.recognition.start(); } catch(e) {}
+                             this.lastActivityTime = Date.now();
+                         }
+                     }, 10000);
+                 },
                  init() {
                      // Stop any ongoing browser TTS from a previous page
                      this.synthesis.cancel();
@@ -237,49 +290,75 @@
                      
                      // Auto-Restart on Page load if the user left it 'Listening'
                      if (this.isListening) {
-                         setTimeout(() => { this.initSpeech(); this.toggleListening(true); }, 500);
+                         setTimeout(() => { this.toggleListening(true); }, 500);
                      }
+                     this.resetWatchdog();
                  },
                  initSpeech() {
                      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                     if (SpeechRecognition) {
-                         this.recognition = new SpeechRecognition();
-                         this.recognition.lang = 'de-DE';
-                         this.recognition.continuous = true;
-                         this.recognition.interimResults = false;
+                     if (!SpeechRecognition) return;
 
-                         this.recognition.onstart = () => { this.isListening = true; };
-                         this.recognition.onend = () => {
-                             if (this.isListening) {
-                                 try { this.recognition.start(); } catch(e) { this.isListening = false; }
-                             }
-                         };
-
-                         this.recognition.onresult = (event) => {
-                             const transcript = event.results[event.results.length - 1][0].transcript;
-                             const cleanTranscript = transcript.trim().toLowerCase().replace(/[.,!?]/g, '');
-
-                             if (['stopp', 'stop', 'halt', 'abbruch', 'ruhe'].includes(cleanTranscript)) {
-                                 this.synthesis.cancel();
-                                 if (this.currentAudio) {
-                                     this.currentAudio.pause();
-                                     this.currentAudio.currentTime = 0;
-                                 }
-                                 return;
-                             }
-
-                             let parsedTranscript = transcript.trim();
-                             if (this.useWakeWord) {
-                                 const match = cleanTranscript.match(/^(funki|funkira)\s*(.*)/);
-                                 if (!match) return;
-                             }
-
-                             if(parsedTranscript !== '') {
-                                 @this.set('input', parsedTranscript);
-                                 @this.call('sendMessage');
-                             }
-                         };
+                     if (this.recognition) {
+                         this.recognition.onend = null;
+                         try { this.recognition.abort(); } catch(e) {}
                      }
+
+                     this.recognition = new SpeechRecognition();
+                     this.recognition.lang = 'de-DE';
+                     this.recognition.continuous = true;
+                     this.recognition.interimResults = false;
+
+                     this.recognition.onstart = () => { 
+                         this.isListening = true; 
+                         this.lastActivityTime = Date.now();
+                         this.restartCount = 0;
+                     };
+                     
+                     this.recognition.onspeechend = () => {
+                         this.lastActivityTime = Date.now();
+                     };
+
+                     this.recognition.onend = () => {
+                         this.restartRecognition();
+                     };
+
+                     this.recognition.onerror = (e) => {
+                         if (e.error === 'not-allowed' || e.error === 'audio-capture') {
+                             this.isListening = false;
+                         } else {
+                             this.lastActivityTime = 0; // Force watchdog to catch/restart it
+                         }
+                     };
+
+                     this.recognition.onresult = (event) => {
+                         this.lastActivityTime = Date.now();
+                         const transcript = event.results[event.results.length - 1][0].transcript;
+                         const cleanTranscript = transcript.trim().toLowerCase().replace(/[.,!?]/g, '');
+
+                         if (['stopp', 'stop', 'halt', 'abbruch', 'ruhe'].includes(cleanTranscript)) {
+                             this.synthesis.cancel();
+                             if (this.currentAudio) {
+                                 this.currentAudio.pause();
+                                 this.currentAudio.currentTime = 0;
+                             }
+                             this.isSpeaking = false;
+                             return;
+                         }
+
+                         // Audio Loopback Prevention: Ignore words while AI speaks
+                         if (this.isSpeaking) return;
+
+                         let parsedTranscript = transcript.trim();
+                         if (this.useWakeWord) {
+                             const match = cleanTranscript.match(/^(funki|funkira)\s*(.*)/);
+                             if (!match) return;
+                         }
+
+                         if(parsedTranscript !== '') {
+                             @this.set('input', parsedTranscript);
+                             @this.call('sendMessage');
+                         }
+                     };
                  },
                  speakResponse(text) {
                      if (this.isMuted) return;
@@ -289,6 +368,8 @@
                          this.currentAudio.pause();
                          this.currentAudio.currentTime = 0;
                      }
+                     
+                     this.isSpeaking = true;
 
                      let cleanText = text.replace(/\[COMPONENT\].*?\[\/COMPONENT\]/gs, 'Visualisiere Komponente.');
                      cleanText = cleanText.replace(/\[NAVIGATE\].*?\[\/NAVIGATE\]/gs, 'Navigiere dorthin.');
@@ -298,10 +379,6 @@
                                           .replace(/%0?0|\0/g, '')
                                           .replace(/\b([0-9\.]+)\s*(?:H|h)\b/g, '$1 Stunden')
                                           .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten');
-
-                     if (this.recognition && this.isListening) {
-                         this.recognition.stop();
-                     }
 
                      fetch('/api/ai/voice', {
                          method: 'POST',
@@ -321,9 +398,7 @@
                          this.currentAudio = new Audio(audioUrl);
                          
                          this.currentAudio.onended = () => {
-                             if (this.isListening) {
-                                 setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
-                             }
+                             this.isSpeaking = false;
                              URL.revokeObjectURL(audioUrl);
                          };
                          this.currentAudio.play().catch(e => {
@@ -335,6 +410,10 @@
                      });
                  },
                  fallbackToBrowserTTS(cleanText) {
+                     if (!cleanText || cleanText.trim() === '') {
+                         this.isSpeaking = false;
+                         return;
+                     }
                      const utterance = new SpeechSynthesisUtterance(cleanText);
                      utterance.lang = 'de-DE';
                      const voices = this.synthesis.getVoices();
@@ -344,9 +423,7 @@
                      utterance.pitch = 0.95;
 
                      utterance.onend = () => {
-                         if (this.isListening) {
-                             setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
-                         }
+                         this.isSpeaking = false;
                      };
                      this.synthesis.speak(utterance);
                  }

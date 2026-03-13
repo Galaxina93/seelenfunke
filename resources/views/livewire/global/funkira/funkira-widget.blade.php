@@ -197,7 +197,6 @@
             chatHistory: [],
             idleProgress: 0, // 0-100 indicating time until spontaneous action
             isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-
             // Voice AI State
             listening: false,
             thinking: false,
@@ -208,6 +207,10 @@
             synthesis: window.speechSynthesis,
             tokenUsage: '',
             funkiLogs: [],
+            watchdogTimer: null,
+            lastActivityTime: Date.now(),
+            restartCount: 0,
+            lastRestartTime: 0,
 
             isOutputActive() {
                 const audioPlaying = window.funkiAudioPlayer && !window.funkiAudioPlayer.paused && !window.funkiAudioPlayer.ended;
@@ -239,7 +242,6 @@
             },
 
             toggleSpeech() {
-                if (!this.recognition) return;
                 if (this.thinking) return;
 
                 if (this.isMobile) {
@@ -251,7 +253,11 @@
                     // Turn off always-listening completely
                     this.continuousMode = false;
                     this.listening = false;
-                    this.recognition.stop();
+                    if (this.recognition) {
+                        this.recognition.onend = null;
+                        try { this.recognition.abort(); } catch(e) {}
+                        this.recognition = null;
+                    }
                 } else {
                     // Turn on always-listening
                     if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
@@ -259,16 +265,20 @@
 
                     this.continuousMode = true;
                     this.listening = true;
+                    this.restartCount = 0;
+                    if (!this.recognition) this.initSpeech();
                     try {
                         this.recognition.start();
                     } catch (e) {
                         console.error('Failed to start recognition', e);
+                        if (e.name !== 'InvalidStateError') this.listening = false;
                     }
+                    this.resetWatchdog();
                 }
             },
 
             startPushToTalk() {
-                if (!this.recognition || this.thinking || this.isOutputActive()) return;
+                if (this.thinking || this.isOutputActive()) return;
 
                 // Stop any TTS
                 if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
@@ -278,7 +288,9 @@
                 this.continuousMode = false; // Ensure loop is off
                 this.listening = true;
                 this.updateCoreColor();
+                this.restartCount = 0;
 
+                if (!this.recognition) this.initSpeech();
                 try {
                     this.recognition.start();
                 } catch(e) {}
@@ -1009,9 +1021,7 @@
                                      .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
                                      .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
 
-                if (this.recognition && this.listening) {
-                    this.recognition.stop();
-                }
+                // DO NOT stop the recognition, so we can listen for "Stopp" interruptions mid-sentence
 
                 fetch('/api/ai/voice', {
                     method: 'POST',
@@ -1036,8 +1046,7 @@
 
                     window.funkiAudioPlayer.onended = () => {
                         if (this.continuousMode && !t3.isShuttingDown) {
-                            this.listening = true;
-                            setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
+                            // Audio loopback unblocked automatically by isOutputActive() status resolving to false
                         }
                         URL.revokeObjectURL(audioUrl);
                     };
@@ -1065,10 +1074,7 @@
                 utterance.pitch = 0.95;
 
                 utterance.onend = () => {
-                    if (this.continuousMode && !t3.isShuttingDown) {
-                        this.listening = true;
-                        setTimeout(() => { try { this.recognition.start(); } catch(e) {} }, 300);
-                    }
+                    // Audio loopback unblocked automatically by isOutputActive() status resolving to false
                 };
 
                 this.synthesis.speak(utterance);
@@ -1108,79 +1114,147 @@
                     }
                 };
 
-                // --- Initialize Speech Recognition ---
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (SpeechRecognition) {
-                    this.recognition = new SpeechRecognition();
-                    this.recognition.lang = 'de-DE';
-                    this.recognition.continuous = true;
-                    this.recognition.interimResults = false;
+                // Replace inline Speech recognition with call to initSpeech method
+                this.initSpeech();
+            },
 
-                    this.recognition.onstart = () => {
-                        // Let specific button handlers manage this.listening to prevent visual jitter
-                    };
+            resetWatchdog() {
+                if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+                this.watchdogTimer = setInterval(() => {
+                    if (this.listening && this.continuousMode && (Date.now() - this.lastActivityTime > 45000)) {
+                        console.log('Orb Voice watchdog restarting mic...');
+                        if (this.recognition) {
+                            this.recognition.onend = null;
+                            try { this.recognition.abort(); } catch(e) {}
+                            this.recognition = null;
+                        }
+                        this.initSpeech();
+                        try { this.recognition.start(); } catch(e) {}
+                        this.lastActivityTime = Date.now();
+                    }
+                }, 10000);
+            },
 
-                    this.recognition.onend = () => {
+            restartRecognition() {
+                if (!this.listening || !this.continuousMode || t3.isShuttingDown) return;
+                
+                if (Date.now() - this.lastRestartTime < 1000) {
+                    this.restartCount++;
+                    if (this.restartCount > 5) {
+                        console.warn('Voice restart loop detected in Orb, aborting...');
                         this.listening = false;
                         if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
-
-                        // Restart if continuous mode is active AND we are not currently speaking or thinking
-                        if (this.continuousMode && !this.thinking && !this.isOutputActive() && !this.isMobile) {
-                            try {
-                                this.recognition.start();
-                            } catch(e) {}
-                        }
-                    };
-
-                    this.recognition.onresult = (event) => {
-                        if (window.t3) window.t3.lastActivityTime = performance.now();
-                        const transcript = event.results[event.results.length - 1][0].transcript.trim();
-
-                        if (transcript.length > 0) {
-                            const textToLower = transcript.toLowerCase();
-
-                            // 1. Voice Interruption
-                            const stopWords = ['stop', 'stopp', 'halt', 'ruhe', 'aufhören', 'pause', 'schweig', 'psst', 'leise'];
-                            if (this.isOutputActive()) {
-                                if (stopWords.some(w => textToLower === w || textToLower.startsWith(w) || textToLower.endsWith(w))) {
-                                    console.log('Interrupted by user:', transcript);
-                                    this.stopSpeech();
-                                    return; // Do not send to AI
-                                }
-                            }
-
-                            if (!this.continuousMode) {
-                                // Manual mode: just send it
-                                this.listening = false;
-                                this.recognition.stop();
-                                this.sendToAI(transcript);
-                            } else {
-                                if (this.requireWakeWord) {
-                                    // Wake word detection
-                                    const textToLower = transcript.toLowerCase();
-                                    const wakeWords = ['funkira', 'funki', 'kira'];
-
-                                    if (wakeWords.some(w => textToLower.includes(w))) {
-                                        console.log('Funkira wake word heard: ', transcript);
-                                        this.listening = false;
-                                        this.recognition.stop();
-                                        this.sendToAI(transcript);
-                                    } else {
-                                        console.log('Funkira ignored: ', transcript);
-                                    }
-                                } else {
-                                    // React to everything
-                                    console.log('Funkira (No Wake-Word) heard: ', transcript);
-                                    this.listening = false;
-                                    this.recognition.stop();
-                                    this.sendToAI(transcript);
-                                }
-                            }
-                        }
-                    };
+                        return;
+                    }
                 } else {
-                    console.error("Speech Recognition API is not supported in this browser.");
+                    this.restartCount = 0;
                 }
+                this.lastRestartTime = Date.now();
+
+                setTimeout(() => {
+                    if (!this.listening || !this.continuousMode || t3.isShuttingDown) return;
+                    try {
+                        if (!this.recognition) this.initSpeech();
+                        this.recognition.start();
+                    } catch(e) {
+                        if (e.name !== 'InvalidStateError') {
+                            this.listening = false;
+                            if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
+                        }
+                    }
+                }, 300);
+            },
+
+            initSpeech() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    console.error("Speech Recognition API is not supported in this browser.");
+                    return;
+                }
+
+                if (this.recognition) {
+                    this.recognition.onend = null;
+                    try { this.recognition.abort(); } catch(e) {}
+                }
+
+                this.recognition = new SpeechRecognition();
+                this.recognition.lang = 'de-DE';
+                this.recognition.continuous = true;
+                this.recognition.interimResults = false;
+
+                this.recognition.onstart = () => {
+                    this.lastActivityTime = Date.now();
+                    this.restartCount = 0;
+                };
+
+                this.recognition.onspeechend = () => {
+                    this.lastActivityTime = Date.now();
+                };
+
+                this.recognition.onerror = (e) => {
+                    if (e.error === 'not-allowed' || e.error === 'audio-capture') {
+                        this.listening = false;
+                        if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
+                    } else {
+                        this.lastActivityTime = 0; // Force watchdog restart
+                    }
+                };
+
+                this.recognition.onend = () => {
+                    if (!this.continuousMode) {
+                        this.listening = false;
+                        if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
+                        return;
+                    }
+                    this.restartRecognition();
+                };
+
+                this.recognition.onresult = (event) => {
+                    this.lastActivityTime = Date.now();
+                    if (window.t3) window.t3.lastActivityTime = performance.now();
+                    const transcript = event.results[event.results.length - 1][0].transcript.trim();
+
+                    if (transcript.length > 0) {
+                        const textToLower = transcript.toLowerCase();
+
+                        // 1. Voice Interruption
+                        const stopWords = ['stop', 'stopp', 'halt', 'ruhe', 'aufhören', 'pause', 'schweig', 'psst', 'leise'];
+                        if (this.isOutputActive()) {
+                            if (stopWords.some(w => textToLower === w || textToLower.startsWith(w) || textToLower.endsWith(w))) {
+                                console.log('Interrupted by user:', transcript);
+                                this.stopSpeech();
+                                return; // Do not send to AI
+                            }
+                        }
+
+                        // Audio Loopback Prevention: Ignore natural speech if AI is currently talking (and it wasn't a stop command)
+                        if (this.isOutputActive()) return;
+
+                        if (!this.continuousMode) {
+                            // Manual mode: just send it
+                            this.listening = false;
+                            this.recognition.stop();
+                            this.sendToAI(transcript);
+                        } else {
+                            if (this.requireWakeWord) {
+                                // Wake word detection
+                                const wakeWords = ['funkira', 'funki', 'kira'];
+
+                                if (wakeWords.some(w => textToLower.includes(w))) {
+                                    console.log('Funkira wake word heard: ', transcript);
+                                    // Do not stop recognition, rely on isOutputActive blocking to prevent noise
+                                    this.sendToAI(transcript);
+                                } else {
+                                    console.log('Funkira ignored: ', transcript);
+                                }
+                            } else {
+                                // React to everything
+                                console.log('Funkira (No Wake-Word) heard: ', transcript);
+                                this.sendToAI(transcript);
+                            }
+                        }
+                    }
+                };
             },
 
             playUnclickSound() {

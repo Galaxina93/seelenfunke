@@ -334,10 +334,12 @@ trait CoreFunctions
                 $searchName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $nameLower));
                 
                 // 1. Harte Treffer (Instring)
+                $dbRelation = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->relation_type ?? ''));
                 if (str_contains($dbFullName, $searchName) || 
                     str_contains($dbFirstName, $searchName) || 
                     str_contains($dbLastName, $searchName) || 
-                    ($dbNickname && str_contains($dbNickname, $searchName))) {
+                    ($dbNickname && str_contains($dbNickname, $searchName)) ||
+                    ($dbRelation && str_contains($dbRelation, $searchName))) {
                     $bestMatch = $p;
                     $highestSimilarity = 100;
                     break; // Perfekter Treffer, abbrechen!
@@ -432,10 +434,12 @@ trait CoreFunctions
                 
                 $searchName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $nameLower));
                 
+                $dbRelation = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->relation_type ?? ''));
                 if (str_contains($dbFullName, $searchName) || 
                     str_contains($dbFirstName, $searchName) || 
                     str_contains($dbLastName, $searchName) || 
-                    ($dbNickname && str_contains($dbNickname, $searchName))) {
+                    ($dbNickname && str_contains($dbNickname, $searchName)) ||
+                    ($dbRelation && str_contains($dbRelation, $searchName))) {
                     $bestMatch = $p;
                     $highestSimilarity = 100;
                     break;

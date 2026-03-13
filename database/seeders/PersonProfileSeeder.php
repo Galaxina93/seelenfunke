@@ -50,28 +50,38 @@ EOT,
                 'first_name' => 'Jan',
                 'last_name' => 'Steinhauer',
                 'nickname' => 'Papa',
-                'relation_type' => 'Vater',
+                'relation_type' => 'Vater/Papa',
                 'birthday' => '1963-10-25',
                 'email' => 'jansteinhauer@t-online.de',
                 'phone' => '0176 57793016 / +49 160 90592752',
                 'system_instructions' => <<<EOT
 WICHTIGE FAKTEN ZU JAN STEINHAUER (Papa):
-- Wohnort: Gifhorn, Deutschland
-- Beruf: Immobilienmakler bei der Volksbank (seit Januar 2008)
+- Vater von der Herrin Alina
+- Wohnort: 38536 Meinernsen, Holzweg 11 Deutschland
+- Ehemaliger Beruf: Immobilienmakler bei der Volksbank (seit Januar 2008)
+- Aktuell: In Rente, kümmert sich ehrenamtlich um den FIM der Gemeinde Meinersen
+- Arbeitsplatz: Schlechte Ausstattung, zu kleine Büro, zuviele Schränke
+Verbesserungsvorschlag: Räumt den Raum leer, schafft mehr Platz für einen guten Arbeitsplatz.
 EOT,
                 'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."
             ],
             [
                 'first_name' => 'Kerstin',
                 'last_name' => 'Steinhauer',
-                'nickname' => 'Mum / Mutter',
+                'nickname' => 'Mum / Mutter / Mama',
                 'relation_type' => 'Mutter',
                 'birthday' => '1960-07-08',
                 'email' => 'kerstinsteinhauer@freenet.de',
                 'phone' => '01515 6336004',
                 'system_instructions' => <<<EOT
 WICHTIGE FAKTEN ZU KERSTIN STEINHAUER (Mutter):
+- Mutter von der Herrin Alina
+- Wohnort: 38536 Meinernsen, Holzweg 11 Deutschland
+- Ehemaliger Beruf: Apothekerin, hat damals in Meinersen in der Litzapotheke gearbeitet. Ihre Kollegin Albertie ist anscheinend ganz nett gewesen.
 - Kontakt: Alternativ kann sie auch über jansteinhauer@t-online.de erreicht werden.
+- Lässt sich gerne massieren
+- Schreibt sich immer noch altmodisch die Termine in ein Terminkalender
+- Befindet sich auch in Rente
 EOT,
                 'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."
             ],
@@ -86,6 +96,8 @@ EOT,
                 'system_instructions' => <<<EOT
 WICHTIGE FAKTEN ZU GLORCHIK ROLINSKA:
 - Rolle: Alina's Mitbewohnerin, Prinzessin ❤️❤️❤️
+- Zukunft: Sie muss dringend den B2 Deutschkurs machen, aber leider scheitert es an der deutschen Bürokratie
+- Beruf: Sie möchte aktuell gerne Köchin werden
 EOT,
                 'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."
             ],
@@ -93,13 +105,16 @@ EOT,
                 'first_name' => 'Philip',
                 'last_name' => 'Goik',
                 'nickname' => 'Liebster Mensch',
-                'relation_type' => 'Guter Freund',
+                'relation_type' => 'Guter Freund mit Sternchen',
                 'birthday' => '2000-07-01',
                 'email' => null,
                 'phone' => '+49 176 52784439',
                 'system_instructions' => <<<EOT
 WICHTIGE FAKTEN ZU PHILIP GOIK:
-- Rolle: Liebster Mensch ❤️ und es macht sehr viel Spaß mit ihm Zeit zu verbringen.
+- Rolle: Ein sehr lieber Mensch ❤️
+- Beruf: Soldat
+- Freizeit: Verbringt unglaublich gerne Zeit mit der Herrin Alina. (Schwimmen, essen und vieles mehr)
+- Hobby: Erlebt gerne was mit seinen Freunden und denkt wirklich das Jonas mehr KI Wissen hat als Alina.
 EOT,
                 'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."
             ],
