@@ -1145,6 +1145,8 @@
             resetWatchdog() {
                 if (this.watchdogTimer) clearInterval(this.watchdogTimer);
                 this.watchdogTimer = setInterval(() => {
+                    if (this.isMobile && this.isOutputActive()) return; // STRICT BLOCK during audio playback
+                    
                     if (this.listening && this.continuousMode && (Date.now() - this.lastActivityTime > 45000)) {
                         console.log('Orb Voice watchdog restarting mic...');
                         if (this.recognition) {
@@ -1161,6 +1163,8 @@
 
             restartRecognition() {
                 if (!this.listening || !this.continuousMode || t3.isShuttingDown) return;
+                if (this.isMobile && this.isOutputActive()) return; // STRICT BLOCK during audio playback on mobile
+                
                 
                 if (Date.now() - this.lastRestartTime < 1000) {
                     this.restartCount++;

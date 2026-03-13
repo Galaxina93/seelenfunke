@@ -241,6 +241,7 @@
                  },
                  restartRecognition() {
                      if (!this.isListening) return;
+                     if (this.isMobile && this.isSpeaking) return; // STRICT BLOCK during audio playback
                      
                      if (Date.now() - this.lastRestartTime < 1000) {
                          this.restartCount++;
@@ -269,6 +270,8 @@
                  resetWatchdog() {
                      if (this.watchdogTimer) clearInterval(this.watchdogTimer);
                      this.watchdogTimer = setInterval(() => {
+                         if (this.isMobile && this.isSpeaking) return; // STRICT BLOCK during audio playback
+                         
                          if (this.isListening && (Date.now() - this.lastActivityTime > 45000)) {
                              console.log('Voice watchdog restarting mic...');
                              if (this.recognition) {
