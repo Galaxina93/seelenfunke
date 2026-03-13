@@ -211,11 +211,10 @@
             lastActivityTime: Date.now(),
             restartCount: 0,
             lastRestartTime: 0,
+            isSpeaking: false,
 
             isOutputActive() {
-                const audioPlaying = window.funkiAudioPlayer && !window.funkiAudioPlayer.paused && !window.funkiAudioPlayer.ended;
-                const synthSpeaking = this.synthesis && this.synthesis.speaking;
-                return audioPlaying || synthSpeaking;
+                return this.isSpeaking;
             },
 
             // --- AI VOICE CHAT LOGIC ---
@@ -978,12 +977,17 @@
 
                 // Play at natural speed
                 audio.playbackRate = 1.0;
+                this.isSpeaking = true;
 
-                audio.play().catch(e => console.error("Audio play prevented:", e));
+                audio.play().catch(e => {
+                    console.error("Audio play prevented:", e);
+                    this.isSpeaking = false;
+                });
 
                 window.funkiAudioPlayer = audio;
 
                 audio.onended = () => {
+                    this.isSpeaking = false;
                     // Turn listening back on after speaking
                     if (this.continuousMode) {
                         this.listening = true;
@@ -995,6 +999,7 @@
             stopSpeech() {
                 if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
                 if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
+                this.isSpeaking = false;
                 if (this.continuousMode && !this.listening) {
                     this.listening = true;
                     try { this.recognition.start(); } catch(e) {}
@@ -1029,6 +1034,8 @@
                     try { this.recognition.abort(); } catch(e) {}
                 }
 
+                this.isSpeaking = true;
+
                 fetch('/api/ai/voice', {
                     method: 'POST',
                     headers: {
@@ -1051,6 +1058,7 @@
                     window.funkiAudioPlayer.playbackRate = 1.0;
 
                     window.funkiAudioPlayer.onended = () => {
+                        this.isSpeaking = false;
                         if (this.continuousMode && !t3.isShuttingDown) {
                             // Audio loopback unblocked automatically by isOutputActive() status resolving to false
                             if (this.isMobile && this.listening) {
@@ -1075,8 +1083,12 @@
             },
 
             fallbackToBrowserTTS(cleanText) {
-                if (!this.synthesis) return;
+                if (!this.synthesis) {
+                    this.isSpeaking = false;
+                    return;
+                }
                 const utterance = new SpeechSynthesisUtterance(cleanText);
+                this.isSpeaking = true;
                 utterance.lang = 'de-DE';
 
                 const voices = this.synthesis.getVoices();
@@ -1089,6 +1101,7 @@
                 utterance.pitch = 0.95;
 
                 utterance.onend = () => {
+                    this.isSpeaking = false;
                     // Audio loopback unblocked automatically by isOutputActive() status resolving to false
                     if (this.continuousMode && !t3.isShuttingDown && this.isMobile && this.listening) {
                         // Re-attach the onend handler first!
