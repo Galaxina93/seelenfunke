@@ -120,6 +120,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.funkira-genui');
     })->name('admin.funkira-genui');
 
+    Route::get('/admin/person-profiles', function () {
+        return view('backend.admin.pages.person-profile');
+    })->name('admin.person-profiles');
+
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');
     })->name('admin.blog');

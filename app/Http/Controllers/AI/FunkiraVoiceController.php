@@ -21,6 +21,10 @@ class FunkiraVoiceController extends Controller
         ]);
 
         $text = $request->input('text');
+        
+        // Neu: Text vorher für deutsche Sprachausgabe (ElevenLabs) "vorreinigen" und lesbar machen
+        $text = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($text);
+        
         $apiKey = env('ELEVENLABS_API_KEY');
         // Fallback to Rachel voice if none is configured
         $voiceId = env('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM');
@@ -30,6 +34,8 @@ class FunkiraVoiceController extends Controller
         }
 
         try {
+            Log::info("ElevenLabs TTS Request. Text length: " . mb_strlen($text) . " | Text: '{$text}'");
+            
             $response = Http::withHeaders([
                 'xi-api-key' => $apiKey,
                 'Content-Type' => 'application/json',
@@ -44,6 +50,9 @@ class FunkiraVoiceController extends Controller
             ]);
 
             if ($response->successful()) {
+                $audioBytes = strlen($response->body());
+                Log::info("ElevenLabs TTS Success. Audio bytes received: {$audioBytes}");
+                
                 // Return the raw audio binary with correct headers
                 return response($response->body(), 200)
                     ->header('Content-Type', 'audio/mpeg')

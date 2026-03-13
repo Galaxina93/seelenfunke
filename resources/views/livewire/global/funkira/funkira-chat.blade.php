@@ -297,8 +297,7 @@
                      cleanText = cleanText.replace(/[*_#`~>]/g, '')
                                           .replace(/%0?0|\0/g, '')
                                           .replace(/\b([0-9\.]+)\s*(?:H|h)\b/g, '$1 Stunden')
-                                          .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
-                                          .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
+                                          .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten');
 
                      if (this.recognition && this.isListening) {
                          this.recognition.stop();

@@ -3,6 +3,7 @@
 namespace App\Services\AI\Functions;
 
 use App\Models\KnowledgeBase;
+use App\Models\Funki\PersonProfile;
 use App\Services\AI\Functions\SearchChatHistory;
 
 trait CoreFunctions
@@ -12,7 +13,7 @@ trait CoreFunctions
         return [
             [
                 'name' => 'save_memory',
-                'description' => 'Speichert eine Tatsache, eine persönliche Einstellung oder eine wichtige Notiz in deinem Langzeitgedächtnis (Knowledge Base). VERWENDE DIES IMMER, wenn Alina sagt "Merke dir", "Notiere" oder Ähnliches.',
+                'description' => 'Speichert eine Tatsache, eine persönliche Einstellung oder eine wichtige Notiz in deinem Langzeitgedächtnis (Knowledge Base). VERWENDE DIES IMMER, wenn Alina sagt "Merke dir", "Notiere" oder Ähnliches. WICHTIG: Wenn sich die Information auf eine bestimmte Person (Freunde, Familie) bezieht, nutze stattdessen ZWINGEND "add_fact_to_person"!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -54,7 +55,7 @@ trait CoreFunctions
             ],
             [
                 'name' => 'search_memory',
-                'description' => 'Durchsucht dein Langzeitgedächtnis (Knowledge Base) nach gespeicherten Fakten, Einstellungen oder Notizen. Setze dies proaktiv ein, wenn du nach einem bestimmten Detail gefragt wirst, das du früher einmal gelernt haben könntest.',
+                'description' => 'Durchsucht dein Langzeitgedächtnis (Knowledge Base) nach gespeicherten Fakten, Einstellungen oder Notizen. Setze dies proaktiv ein, wenn du nach einem bestimmten Detail gefragt wirst, das du früher einmal gelernt haben könntest. WICHTIG: Wenn du explizit nach einer Person (Freunde, Familie, Kollegen) gefragt wirst, nutze stattdessen ZWINGEND "get_person_profile"!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -111,7 +112,41 @@ trait CoreFunctions
             ],
             array_merge(SearchChatHistory::schema()['function'], [
                 'callable' => [self::class, 'executeSearchChatHistory']
-            ])
+            ]),
+            [
+                'name' => 'get_person_profile',
+                'description' => 'Ruft das ausführliche Profil, Vorlieben, Kontaktinfos und Notizen zu einer bestimmten Person (Freunde, Familie, Kollegen) ab.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'person_name' => [
+                            'type' => 'string',
+                            'description' => 'Der Name oder Rufname der Person (z.B. "Tim", "Mama", "Lisa Müller").'
+                        ]
+                    ],
+                    'required' => ['person_name']
+                ],
+                'callable' => [self::class, 'executeGetPersonProfile']
+            ],
+            [
+                'name' => 'add_fact_to_person',
+                'description' => 'Nutze dieses Werkzeug, wenn der Nutzer dich bittet, dir eine neue Information, Vorliebe oder Tatsache über eine bestimmte Person zu merken.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'person_name' => [
+                            'type' => 'string',
+                            'description' => 'Der Name oder Spitzname der Person (z.B. "Tim", "Mama").'
+                        ],
+                        'new_fact' => [
+                            'type' => 'string',
+                            'description' => 'Die konkrete, neue Information (z.B. "Trinkt seinen Kaffee jetzt schwarz.").'
+                        ]
+                    ],
+                    'required' => ['person_name', 'new_fact']
+                ],
+                'callable' => [self::class, 'executeAddFactToPerson']
+            ]
         ];
     }
 
@@ -267,5 +302,183 @@ trait CoreFunctions
     public static function executeSearchChatHistory(array $args)
     {
         return SearchChatHistory::call($args);
+    }
+
+    public static function executeGetPersonProfile(array $args)
+    {
+        try {
+            if (empty($args['person_name'])) {
+                return ['status' => 'error', 'message' => 'Es wurde kein Name übergeben.'];
+            }
+
+            $name = $args['person_name'];
+            
+            // Fuzzy Search / Ähnlichkeitssuche für Vornamen, Nachnamen oder Spitznamen
+            $nameLower = strtolower(trim($name));
+            
+            // Hole ALLE Profile in den Speicher (da die Liste meist < 100 ist, ist das extrem schnell)
+            // und filtere sie mit einer Fuzzy-Suche (Levenshtein / similar_text) im PHP, um Speech-To-Text 
+            // Fehler wie "Christmas" statt "Grüssmer" aufzufangen.
+            $allProfiles = PersonProfile::all();
+            
+            $bestMatch = null;
+            $highestSimilarity = 0;
+            
+            foreach ($allProfiles as $p) {
+                // Bereinige Umlaute für den Vergleich (Grüssmer -> gruessmer)
+                $dbFullName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name . ' ' . $p->last_name));
+                $dbFirstName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name));
+                $dbLastName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->last_name));
+                $dbNickname = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->nickname ?? ''));
+                
+                $searchName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $nameLower));
+                
+                // 1. Harte Treffer (Instring)
+                if (str_contains($dbFullName, $searchName) || 
+                    str_contains($dbFirstName, $searchName) || 
+                    str_contains($dbLastName, $searchName) || 
+                    ($dbNickname && str_contains($dbNickname, $searchName))) {
+                    $bestMatch = $p;
+                    $highestSimilarity = 100;
+                    break; // Perfekter Treffer, abbrechen!
+                }
+                
+                // 2. Fuzzy Suche (Ähnlichkeitsprozentsatz)
+                $simFull = 0; similar_text($dbFullName, $searchName, $simFull);
+                $simFirst = 0; similar_text($dbFirstName, $searchName, $simFirst);
+                $simLast = 0; similar_text($dbLastName, $searchName, $simLast);
+                $simNick = 0; if($dbNickname) similar_text($dbNickname, $searchName, $simNick);
+                
+                $maxSim = max($simFull, $simFirst, $simLast, $simNick);
+                
+                 // Spezielle Hardcoded-Fallbacks für extrem schlechtes Speech-to-Text
+                if (str_contains($searchName, 'christmas') && str_contains($dbLastName, 'gruessmer')) {
+                    $maxSim = 85; 
+                }
+                if (str_contains($searchName, 'grüß') && str_contains($dbLastName, 'gruessmer')) {
+                    $maxSim = 95;
+                }
+
+                if ($maxSim > $highestSimilarity) {
+                    $highestSimilarity = $maxSim;
+                    $bestMatch = $p;
+                }
+            }
+
+            // Schwellenwert: Nur wenn die Ähnlichkeit über 60% liegt, nehmen wir an, es ist die gesuchte Person
+            $profile = ($highestSimilarity > 60) ? $bestMatch : null;
+
+            if (!$profile) {
+                // Return debug information to the AI so we can see what the similarity scores actually were
+                $debugInfo = "Gesuchter Name: '{$nameLower}'. Bester Treffer war: " . ($bestMatch ? "{$bestMatch->first_name} {$bestMatch->last_name}" : "Niemand") . " mit einer Ähnlichkeit von {$highestSimilarity}%.";
+                return [
+                    'status' => 'success',
+                    'message' => "Ich konnte keine Person finden, die genau genug auf '{$name}' zutrifft. (Schwellenwert > 60% nicht erreicht). DEBUG-INFO: " . $debugInfo,
+                    'profile' => null
+                ];
+            }
+
+            // Combine fields to give the AI context
+            $contextParts = [
+                "Name: {$profile->full_name} " . ($profile->nickname ? "(\"{$profile->nickname}\")" : ''),
+                "Beziehung: " . ($profile->relation_type ?? 'Unbekannt'),
+                "Geburtstag: " . ($profile->birthday ? $profile->birthday->format('Y-m-d') : 'Unbekannt'),
+                "E-Mail: " . ($profile->email ?? 'Keine'),
+                "Telefon: " . ($profile->phone ?? 'Keine'),
+            ];
+
+            if ($profile->system_instructions) {
+                $contextParts[] = "\n--- SYSTEM INSTRUKTIONEN (WICHTIG!) ---\n" . $profile->system_instructions;
+            }
+
+            if ($profile->ai_learned_facts) {
+                $contextParts[] = "\n--- DEINE GELERNTEN FAKTEN ---\n" . $profile->ai_learned_facts;
+            }
+
+            return [
+                'status' => 'success',
+                'message' => "Profil erfolgreich geladen.",
+                'profile_data' => implode("\n", $contextParts)
+                // HINWEIS: Es darf KEIN _frontend_event oder _fast_track gesendet werden!
+                // Ansonsten setzt der FunkiraChat $hasNavigation = true und bricht die Audioausgabe ab.
+            ];
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Abrufen des Profils: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAddFactToPerson(array $args)
+    {
+        try {
+            if (empty($args['person_name']) || empty($args['new_fact'])) {
+                return ['status' => 'error', 'message' => 'Name und Fakt sind erforderlich.'];
+            }
+
+            $name = $args['person_name'];
+            $fact = $args['new_fact'];
+
+            $nameLower = strtolower(trim($name));
+            $allProfiles = PersonProfile::all();
+            
+            $bestMatch = null;
+            $highestSimilarity = 0;
+            
+            foreach ($allProfiles as $p) {
+                $dbFullName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name . ' ' . $p->last_name));
+                $dbFirstName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name));
+                $dbLastName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->last_name));
+                $dbNickname = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->nickname ?? ''));
+                
+                $searchName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $nameLower));
+                
+                if (str_contains($dbFullName, $searchName) || 
+                    str_contains($dbFirstName, $searchName) || 
+                    str_contains($dbLastName, $searchName) || 
+                    ($dbNickname && str_contains($dbNickname, $searchName))) {
+                    $bestMatch = $p;
+                    $highestSimilarity = 100;
+                    break;
+                }
+                
+                $simFull = 0; similar_text($dbFullName, $searchName, $simFull);
+                $simFirst = 0; similar_text($dbFirstName, $searchName, $simFirst);
+                $simLast = 0; similar_text($dbLastName, $searchName, $simLast);
+                $simNick = 0; if($dbNickname) similar_text($dbNickname, $searchName, $simNick);
+                
+                $maxSim = max($simFull, $simFirst, $simLast, $simNick);
+                
+                if (str_contains($searchName, 'christmas') && str_contains($dbLastName, 'gruessmer')) { $maxSim = 85; }
+                if (str_contains($searchName, 'grüß') && str_contains($dbLastName, 'gruessmer')) { $maxSim = 95; }
+
+                if ($maxSim > $highestSimilarity) {
+                    $highestSimilarity = $maxSim;
+                    $bestMatch = $p;
+                }
+            }
+
+            $profile = ($highestSimilarity > 60) ? $bestMatch : null;
+
+            if (!$profile) {
+                return [
+                    'status' => 'error',
+                    'message' => "Fehler: Du versuchst dir etwas über '{$name}' zu merken, aber diese Person existiert noch nicht im Profil-System. Bitte Alina, die Person zuerst anzulegen."
+                ];
+            }
+
+            $dateStr = now()->format('d.m.Y');
+            $newEntry = "\n[{$dateStr}] {$fact}";
+            
+            $profile->ai_learned_facts = ($profile->ai_learned_facts ?? '') . $newEntry;
+            $profile->save();
+
+            return [
+                'status' => 'success',
+                'message' => "Du hast dir erfolgreich für {$profile->first_name} gemerkt: '{$fact}'."
+            ];
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Speichern des Fakts: ' . $e->getMessage()];
+        }
     }
 }

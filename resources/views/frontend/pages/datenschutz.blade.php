@@ -22,17 +22,24 @@
                 </div>
 
                 <div>
-                    <h2 class="text-2xl font-bold text-gray-900 mb-4">2. Hosting</h2>
-                    <p><strong>Externes Hosting (Mittwald)</strong><br>
-                        Diese Website wird bei der <strong>Mittwald CM Service GmbH & Co. KG</strong>, Königsberger Straße 4-6, 32339 Espelkamp (nachfolgend Mittwald) gehostet.
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">2. Hosting & Datenverarbeitung</h2>
+                    <p><strong>Externes Web- und KI-Hosting (Mittwald)</strong><br>
+                        Diese Website sowie unsere internen Systeme zur Künstlichen Intelligenz (KI) werden bei der <strong>Mittwald CM Service GmbH & Co. KG</strong>, Königsberger Straße 4-6, 32339 Espelkamp (nachfolgend Mittwald) gehostet.
                     </p>
                     <p class="mt-2">
                         Wenn Sie unsere Website besuchen, erfasst Mittwald verschiedene personenbezogene Daten (insbesondere IP-Adressen in Form von Server-Logfiles). Mittwald speichert diese Daten, um den Betrieb der Website technisch zu ermöglichen, die Sicherheit zu gewährleisten und die Stabilität unseres Online-Angebots zu verbessern.
                     </p>
-                    <p class="mt-2 text-sm text-gray-500">
-                        <strong>Rechtsgrundlage:</strong> Die Verwendung von Mittwald erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO. Wir haben ein berechtigtes Interesse an einer möglichst zuverlässigen und sicheren Darstellung unserer Website.
+                    <p class="mt-4">
+                        <strong>Einsatz von Künstlicher Intelligenz (KI-Hosting)</strong><br>
+                        Zur Optimierung unseres Kundenservices und zur Automatisierung interner Prozesse (z. B. Bestellabwicklung, Ticket-Bearbeitung) setzen wir eigens implementierte KI-Modelle ein. Das Hosting und die Auswertung dieser Modelle erfolgen <strong>ausschließlich auf Servern in Deutschland</strong> über die gesicherte Infrastruktur von Mittwald.
+                    </p>
+                    <p class="mt-2">
+                        Ihre Daten, die beispielsweise durch Support-Anfragen (Tickets), E-Mails oder Bestellungen an uns übermittelt werden, werden von der KI <strong>strikt nur für interne Zwecke</strong> unserer Manufaktur verarbeitet, um Ihr Anliegen schneller und effizienter zu lösen. Es findet ausdrücklich <strong>keine</strong> Datenübermittlung an externe, außereuropäische KI-Anbieter statt. Zudem werden Ihre personenbezogenen Daten nicht genutzt, um öffentliche oder fremde KI-Modelle zu trainieren.
+                    </p>
+                    <p class="mt-4 text-sm text-gray-500">
+                        <strong>Rechtsgrundlage:</strong> Die Verwendung von Mittwald (Web- und KI-Hosting) erfolgt auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO. Wir haben ein berechtigtes Interesse an einer möglichst zuverlässigen, sicheren und effizienten Bereitstellung unserer Website sowie der zügigen Bearbeitung von Kundenanfragen. Sofern die KI zur Erfüllung eines Vertrages oder zur Durchführung vorvertraglicher Maßnahmen eingesetzt wird (z. B. bei Fragen zu einer konkreten Bestellung), ist Art. 6 Abs. 1 lit. b DSGVO die zusätzliche Rechtsgrundlage.
                         <br><br>
-                        <strong>Auftragsverarbeitung:</strong> Wir haben mit Mittwald einen Vertrag über Auftragsverarbeitung (AVV) geschlossen. Dies ist ein datenschutzrechtlich vorgeschriebener Vertrag, der gewährleistet, dass Mittwald die personenbezogenen Daten unserer Websitebesucher nur nach unseren Weisungen und unter Einhaltung der DSGVO verarbeitet.
+                        <strong>Auftragsverarbeitung:</strong> Wir haben mit Mittwald einen Vertrag über Auftragsverarbeitung (AVV) geschlossen. Dies ist ein datenschutzrechtlich vorgeschriebener Vertrag, der sich vollumfänglich auch auf das KI-Hosting erstreckt. Er gewährleistet, dass Mittwald die personenbezogenen Daten unserer Websitebesucher und Kunden nur nach unseren strengen Weisungen und unter Einhaltung der DSGVO verarbeitet.
                     </p>
                 </div>
 

@@ -131,9 +131,8 @@ class AIController extends Controller
 
             if (!empty($apiKey)) {
                 try {
-                    // Filtere Markdown und Tags (*, _, #, usw) heraus
-                    $cleanText = preg_replace('/\[.*?\]/s', '', $result['response']);
-                    $cleanText = preg_replace('/[*_#`~>]/', '', $cleanText);
+                    // Neu: Nutze den exklusiven TTS Helper für bessere ElevenLabs Sprachausgabe
+                    $cleanText = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($result['response']);
 
                     $ttsResponse = \Illuminate\Support\Facades\Http::withHeaders([
                         'xi-api-key' => $apiKey,

@@ -125,10 +125,10 @@
                 </div>
 
                 {{-- Team Grid --}}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto mb-16">
 
                     {{-- 1. ALINA (VISION & LEITUNG) --}}
-                    <div class="flex flex-col sm:flex-row items-center gap-6 p-6 bg-white border-2 border-primary/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
+                    <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-primary/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
                         <div class="absolute top-0 right-0 bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
                             Geschäftsführung
                         </div>
@@ -138,7 +138,7 @@
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-primary object-cover shadow-md flex-shrink-0" />
 
-                        <div class="text-center sm:text-left">
+                        <div class="text-center sm:text-left lg:text-center xl:text-left">
                             <h4 class="text-2xl font-bold text-gray-900">Alina Steinhauer</h4>
                             <p class="text-primary font-bold uppercase tracking-wide text-xs mt-1">
                                 Gründerin & Laserschutzbeauftragte
@@ -149,8 +149,30 @@
                         </div>
                     </div>
 
-                    {{-- 2. FUNKI (DER ALLESKÖNNER) --}}
-                    <div class="flex flex-col sm:flex-row items-center gap-6 p-6 bg-white border-2 border-indigo-500/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
+                    {{-- 2. FUNKIRA (DIE ALLWISSENDE STIMME) --}}
+                    <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-purple-500/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
+                        <div class="absolute top-0 right-0 bg-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
+                            Expertise & Stimme
+                        </div>
+
+                        <img src="{{ asset('funkira/images/funkira_selfie.png') }}"
+                             alt="Funkira, die allwissende KI-Expertin von Mein Seelenfunke"
+                             loading="lazy"
+                             class="w-32 h-32 rounded-2xl border-4 border-purple-500 object-cover shadow-md flex-shrink-0" />
+
+                        <div class="text-center sm:text-left lg:text-center xl:text-left">
+                            <h4 class="text-2xl font-bold text-gray-900">Funkira</h4>
+                            <p class="text-purple-600 font-bold uppercase tracking-wide text-xs mt-1">
+                                Allwissende KI-Expertin
+                            </p>
+                            <p class="text-gray-600 mt-3 text-sm">
+                                Von Gründerin Alina eigens erschaffen, ist Funkira das ultimative, allwissende Gehirn und die direkte Stimme der Manufaktur. Als weitaus größere und stärkere KI-Instanz kennt sie jedes Detail unserer Produkte und steht jederzeit als absolute Expertin zur Seite.
+                            </p>
+                        </div>
+                    </div>
+
+                    {{-- 3. FUNKI (DER ALLESKÖNNER) --}}
+                    <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-indigo-500/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
                         <div class="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
                             System & Support
                         </div>
@@ -160,7 +182,7 @@
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-indigo-500 object-cover shadow-md flex-shrink-0" />
 
-                        <div class="text-center sm:text-left">
+                        <div class="text-center sm:text-left lg:text-center xl:text-left">
                             <h4 class="text-2xl font-bold text-gray-900">Funki</h4>
                             <p class="text-indigo-600 font-bold uppercase tracking-wide text-xs mt-1">
                                 Digitale Seele & Alleskönner
@@ -170,9 +192,10 @@
                             </p>
                         </div>
                     </div>
+
                 </div>
 
-                {{-- Produktion & Service Bereich (Volle Breite, keine Kachel) --}}
+                {{-- Produktion & Service Bereich --}}
                 <div class="max-w-5xl mx-auto pt-12 border-t border-gray-100">
                     <div class="flex flex-col md:flex-row items-center gap-8 md:gap-12">
                         <div class="w-24 h-24 rounded-2xl bg-primary/10 flex items-center justify-center text-5xl flex-shrink-0 text-primary shadow-inner">
