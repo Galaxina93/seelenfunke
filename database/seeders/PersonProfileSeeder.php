@@ -59,7 +59,7 @@ WICHTIGE FAKTEN ZU JAN STEINHAUER (Papa):
 - Vater von der Herrin Alina
 - Wohnort: 38536 Meinernsen, Holzweg 11 Deutschland
 - Ehemaliger Beruf: Immobilienmakler bei der Volksbank (seit Januar 2008)
-- Aktuell: In Rente, kümmert sich ehrenamtlich um den FIM der Gemeinde Meinersen
+- Aktuell: In Rente, kümmert sich ehrenamtlich um den "F I M) der Gemeinde Meinersen
 - Arbeitsplatz: Schlechte Ausstattung, zu kleine Büro, zuviele Schränke
 Verbesserungsvorschlag: Räumt den Raum leer, schafft mehr Platz für einen guten Arbeitsplatz.
 EOT,

@@ -1022,6 +1022,11 @@
                                      .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
 
                 // DO NOT stop the recognition, so we can listen for "Stopp" interruptions mid-sentence
+                // UNLESS on mobile to avoid hardware echo-cancellation stuttering
+                if (this.isMobile && this.recognition) {
+                    this.recognition.onend = null;
+                    try { this.recognition.abort(); } catch(e) {}
+                }
 
                 fetch('/api/ai/voice', {
                     method: 'POST',
@@ -1047,6 +1052,9 @@
                     window.funkiAudioPlayer.onended = () => {
                         if (this.continuousMode && !t3.isShuttingDown) {
                             // Audio loopback unblocked automatically by isOutputActive() status resolving to false
+                            if (this.isMobile && this.listening) {
+                                this.restartRecognition();
+                            }
                         }
                         URL.revokeObjectURL(audioUrl);
                     };
@@ -1075,6 +1083,9 @@
 
                 utterance.onend = () => {
                     // Audio loopback unblocked automatically by isOutputActive() status resolving to false
+                    if (this.continuousMode && !t3.isShuttingDown && this.isMobile && this.listening) {
+                        this.restartRecognition();
+                    }
                 };
 
                 this.synthesis.speak(utterance);

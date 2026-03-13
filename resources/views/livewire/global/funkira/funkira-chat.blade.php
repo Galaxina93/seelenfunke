@@ -196,6 +196,7 @@
                  lastActivityTime: Date.now(),
                  restartCount: 0,
                  lastRestartTime: 0,
+                 isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
                  toggleWakeWord() {
                      this.useWakeWord = !this.useWakeWord;
                  },
@@ -371,6 +372,12 @@
                      
                      this.isSpeaking = true;
 
+                     // Disable mic temporarily on mobile so playback doesn't stutter (hardware echo cancellation issue)
+                     if (this.isMobile && this.recognition) {
+                         this.recognition.onend = null;
+                         try { this.recognition.abort(); } catch(e) {}
+                     }
+
                      let cleanText = text.replace(/\[COMPONENT\].*?\[\/COMPONENT\]/gs, 'Visualisiere Komponente.');
                      cleanText = cleanText.replace(/\[NAVIGATE\].*?\[\/NAVIGATE\]/gs, 'Navigiere dorthin.');
                      cleanText = cleanText.replace(/\[TEXTBOX\].*?\[\/TEXTBOX\]/gs, 'Zeige Daten im Textfeld.');
@@ -400,6 +407,9 @@
                          this.currentAudio.onended = () => {
                              this.isSpeaking = false;
                              URL.revokeObjectURL(audioUrl);
+                             if (this.isMobile && this.isListening) {
+                                 this.restartRecognition();
+                             }
                          };
                          this.currentAudio.play().catch(e => {
                              this.fallbackToBrowserTTS(cleanText);
@@ -424,6 +434,9 @@
 
                      utterance.onend = () => {
                          this.isSpeaking = false;
+                         if (this.isMobile && this.isListening) {
+                             this.restartRecognition();
+                         }
                      };
                      this.synthesis.speak(utterance);
                  }
