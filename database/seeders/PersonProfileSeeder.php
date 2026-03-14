@@ -17,6 +17,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Tim',
                 'last_name' => 'Steinhauer',
+                'is_favorite' => true,
                 'nickname' => 'Tim, Bruder',
                 'relation_type' => 'Bruder',
                 'avatar_path' => 'person_profiles/tim_steinhauer.jpg',
@@ -58,6 +59,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Jan',
                 'last_name' => 'Steinhauer',
+                'is_favorite' => true,
                 'nickname' => 'Papa',
                 'relation_type' => 'Vater/Papa',
                 'avatar_path' => 'person_profiles/jan_steinhauer.jpg',
@@ -83,6 +85,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Kerstin',
                 'last_name' => 'Steinhauer',
+                'is_favorite' => true,
                 'nickname' => 'Mum / Mutter / Mama',
                 'relation_type' => 'Mutter',
                 'avatar_path' => 'person_profiles/kerstin_steinhauer.jpg',
@@ -109,6 +112,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Gloria',
                 'last_name' => 'Rolinska',
+                'is_favorite' => true,
                 'nickname' => 'Prinzessin ❤️❤️❤️ oder Glorchik 💋💕',
                 'relation_type' => 'Mitbewohnerin / Prinzessin',
                 'avatar_path' => 'person_profiles/gloria_rolinska.jpg',
@@ -126,6 +130,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Philip',
                 'last_name' => 'Goik',
+                'is_favorite' => true,
                 'nickname' => 'Liebster Mensch',
                 'relation_type' => 'Guter Freund mit Sternchen',
                 'avatar_path' => 'person_profiles/philip_goik.jpg',
@@ -144,6 +149,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Alexander',
                 'last_name' => 'Grüssmer',
+                'is_favorite' => true,
                 'nickname' => 'Alex',
                 'relation_type' => 'Aller bester Freund',
                 'avatar_path' => 'person_profiles/alexander_gruessmer.jpg',
@@ -191,7 +197,7 @@ class PersonProfileSeeder extends Seeder
                 'first_name' => 'Lisa',
                 'last_name' => 'Siemers',
                 'nickname' => 'Lisa',
-                'relation_type' => 'Bekannte/Freundin',
+                'relation_type' => 'Freundin/Familie',
                 'avatar_path' => 'person_profiles/lisa_siemers.jpg',
                 'birthday' => null,
                 'email' => null,
@@ -256,6 +262,7 @@ class PersonProfileSeeder extends Seeder
             [
                 'first_name' => 'Frauenarztpraxis',
                 'last_name' => 'BS',
+                'is_favorite' => true,
                 'nickname' => 'Frauenarzt / Praxis',
                 'relation_type' => 'Arztpraxis',
                 'avatar_path' => 'person_profiles/judith_bollmann.jpg',
