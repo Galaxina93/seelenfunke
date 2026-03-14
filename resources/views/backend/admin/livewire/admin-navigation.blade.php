@@ -2,7 +2,7 @@
     @php
         $currentPage = basename(request()->path());
 
-        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'todos', 'funki-kalender']);
+        $isFunkiActive = in_array($currentPage, ['funki-routine', 'tasks', 'funki-kalender']);
 
         // Neu aufgeteilt in Produkte und Marketing
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
@@ -10,7 +10,7 @@
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemFunkiraActive = in_array($currentPage, ['funkira-methods', 'funkira-structure', 'funkira-log', 'knowledge_base', 'funkira-genui', 'person-profiles']);
+        $isSystemFunkiraActive = in_array($currentPage, ['funkira-methods', 'funkira-log', 'knowledge_base', 'funkira-genui', 'person-profiles']);
     @endphp
 
     {{--Funkis Zentrale--}}
@@ -25,9 +25,8 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
-                    <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="sparkles" />
                     <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="arrow-path" />
-                    <x-forms.list-item route="/admin/todos" title="Aufgaben" pageName="todos" icon="check-circle" />
+                    <x-forms.list-item route="/admin/tasks" title="Aufgaben" pageName="tasks" icon="check-circle" />
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
                 </ul>
             </li>
@@ -118,7 +117,6 @@
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/funkira-log" title="Log" pageName="funkira-log" icon="document-text" />
                     <x-forms.list-item route="/admin/knowledge_base" title="Wiki" pageName="knowledge_base" icon="book-open" />
-                    <x-forms.list-item route="/admin/funkira-structure" title="Struktur" pageName="funkira-structure" icon="rectangle-group" />
                     <x-forms.list-item route="/admin/funkira-methods" title="Fähigkeiten" pageName="funkira-methods" icon="chart-bar-square" />
                     <x-forms.list-item route="/admin/funkira-genui" title="UI Visualisierung" pageName="funkira-genui" icon="window" />
                     <x-forms.list-item route="/admin/person-profiles" title="Personen & Familie" pageName="person-profiles" icon="users" />

@@ -17,9 +17,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki-routine', function () {
         return view('backend.admin.pages.funki-routine');
     })->name('admin.funki-routine');
-    Route::get('/admin/todos', function () {
-        return view('backend.admin.pages.todos');
-    })->name('admin.todos');
+    Route::get('/admin/tasks', function () {
+        return view('backend.admin.pages.tasks');
+    })->name('admin.tasks');
     Route::get('/admin/funki-kalender', function () {
         return view('backend.admin.pages.funki-kalender');
     })->name('admin.funki-kalender');
@@ -108,9 +108,6 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.funkira-log');
     })->name('admin.funkira-log');
 
-    Route::get('/admin/funkira-structure', function () {
-        return view('backend.admin.pages.funkira-structure');
-    })->name('admin.funkira-structure');
 
     Route::get('/admin/funkira-methods', function () {
         return view('backend.admin.pages.funkira-methods');

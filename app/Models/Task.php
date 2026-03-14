@@ -7,12 +7,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Todo extends Model
+class Task extends Model
 {
     use HasUuids;
 
     protected $fillable = [
-        'todo_list_id',
+        'task_list_id',
         'parent_id',
         'title',
         'is_completed',
@@ -25,11 +25,11 @@ class Todo extends Model
     ];
 
     /**
-     * Die Liste, zu der dieses To-Do gehört.
+     * Die Liste, zu der diese Aufgabe gehört.
      */
     public function list(): BelongsTo
     {
-        return $this->belongsTo(TodoList::class, 'todo_list_id');
+        return $this->belongsTo(TaskList::class, 'task_list_id');
     }
 
     /**
@@ -37,7 +37,7 @@ class Todo extends Model
      */
     public function parent(): BelongsTo
     {
-        return $this->belongsTo(Todo::class, 'parent_id');
+        return $this->belongsTo(Task::class, 'parent_id');
     }
 
     /**
@@ -45,7 +45,7 @@ class Todo extends Model
      */
     public function subtasks(): HasMany
     {
-        return $this->hasMany(Todo::class, 'parent_id')
+        return $this->hasMany(Task::class, 'parent_id')
             ->orderBy('is_completed', 'asc')
             ->orderBy('created_at', 'asc');
     }

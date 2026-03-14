@@ -38,13 +38,14 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             @foreach($methods as $method)
-                <div class="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-white/10 p-5 shadow-lg shadow-black/20 hover:shadow-cyan-900/20 hover:border-cyan-500/30 transition-all group flex flex-col h-full relative overflow-hidden">
+                <div x-data="{ open: false }" class="bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-white/10 p-5 shadow-lg shadow-black/20 hover:shadow-cyan-900/20 hover:border-cyan-500/30 transition-all group flex flex-col h-full relative overflow-hidden">
                     <!-- Deco Glow -->
                     <div class="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition-colors pointer-events-none"></div>
 
-                    <div class="flex items-start justify-between mb-3 relative z-10">
-                        <h3 class="font-black text-white text-sm group-hover:text-cyan-400 transition-colors font-mono">
+                    <div class="flex items-start justify-between mb-3 relative z-10 cursor-pointer select-none" @click="open = !open">
+                        <h3 class="font-black text-white text-sm group-hover:text-cyan-400 transition-colors font-mono flex items-center gap-2">
                             {{ $method['name'] }}
+                            <i class="bi transition-transform duration-300" :class="open ? 'bi-chevron-up text-cyan-400' : 'bi-chevron-down text-slate-500'"></i>
                         </h3>
                         <div class="flex flex-col items-end gap-1">
                             <span class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold px-2 py-1 rounded w-fit capitalize h-fit shadow-[0_0_10px_rgba(34,211,238,0.1)]">
@@ -58,27 +59,29 @@
                         </div>
                     </div>
                     
-                    <p class="text-xs text-slate-400 mb-5 flex-1 leading-relaxed relative z-10">
-                        {{ $method['description'] }}
-                    </p>
-                    
-                    @if(!empty($method['parameters']))
-                        <div class="bg-black/20 rounded-xl p-3 border border-white/5 mt-auto relative z-10">
-                            <div class="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Geforderte Parameter</div>
-                            <ul class="text-[10px] text-slate-400 space-y-1.5 font-mono">
-                                @foreach($method['parameters'] as $paramName => $paramData)
-                                    <li class="flex items-start gap-2">
-                                        <span class="text-cyan-400 font-bold shrink-0">{{ $paramName }}:</span>
-                                        <span class="text-slate-500 break-words">{{ $paramData['description'] ?? 'Keine Beschreibung' }}</span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    @else
-                        <div class="bg-black/20 rounded-xl p-2.5 border border-white/5 mt-auto text-center relative z-10">
-                            <span class="text-[10px] text-slate-500 italic">Keine Parameter benötigt</span>
-                        </div>
-                    @endif
+                    <div x-show="open" x-transition class="flex flex-col flex-1">
+                        <p class="text-xs text-slate-400 mb-5 flex-1 leading-relaxed relative z-10">
+                            {{ $method['description'] }}
+                        </p>
+                        
+                        @if(!empty($method['parameters']))
+                            <div class="bg-black/20 rounded-xl p-3 border border-white/5 mt-auto relative z-10">
+                                <div class="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Geforderte Parameter</div>
+                                <ul class="text-[10px] text-slate-400 space-y-1.5 font-mono">
+                                    @foreach($method['parameters'] as $paramName => $paramData)
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-cyan-400 font-bold shrink-0">{{ $paramName }}:</span>
+                                            <span class="text-slate-500 break-words">{{ $paramData['description'] ?? 'Keine Beschreibung' }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @else
+                            <div class="bg-black/20 rounded-xl p-2.5 border border-white/5 mt-auto text-center relative z-10">
+                                <span class="text-[10px] text-slate-500 italic">Keine Parameter benötigt</span>
+                            </div>
+                        @endif
+                    </div>
                 </div>
             @endforeach
         </div>

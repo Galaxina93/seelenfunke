@@ -80,7 +80,7 @@ class MapSeeder extends Seeder
                 ['source' => 'js', 'target' => 'livewire', 'label' => 'Transkript (Text)', 'desc' => 'Browser übersetzt Audio in String', 'status' => 'active'],
                 ['source' => 'livewire', 'target' => 'agent', 'label' => 'sendMessage()', 'desc' => 'Context & Historie wird verpackt', 'status' => 'active'],
                 ['source' => 'agent', 'target' => 'llm', 'label' => 'Prompt Request', 'desc' => 'Remote API Call an LLM', 'status' => 'active'],
-                ['source' => 'llm', 'target' => 'agent', 'label' => 'Tool Call', 'desc' => 'z.B. create_todo() angefragt', 'status' => 'active'],
+                ['source' => 'llm', 'target' => 'agent', 'label' => 'Tool Call', 'desc' => 'z.B. create_task() angefragt', 'status' => 'active'],
                 ['source' => 'agent', 'target' => 'registry', 'label' => 'Execute Tool', 'desc' => 'Verifikation & Parameter Übergabe', 'status' => 'active'],
                 ['source' => 'registry', 'target' => 'db', 'label' => 'ORM Action', 'desc' => 'Datenbank read/write Action', 'status' => 'active'],
                 ['source' => 'db', 'target' => 'registry', 'label' => 'Result[]', 'desc' => 'Eloquent Model Collection / Array', 'status' => 'active'],

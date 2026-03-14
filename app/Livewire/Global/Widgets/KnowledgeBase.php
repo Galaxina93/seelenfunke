@@ -14,10 +14,19 @@ class KnowledgeBase extends Component
     public $search = '';
     public $selectedCategory = '';
     public $activeArticleId = null;
-    
+
     public $wikiFiles = []; // For dragging & dropping files
     
     public $uploadedWikiFiles = []; // List of existing files
+
+    public $isEditing = false;
+    public $editForm = ['id' => null, 'title' => '', 'category' => '', 'tags' => '', 'content' => ''];
+
+    protected $rules = [
+        'editForm.title' => 'required|string|max:255',
+        'editForm.category' => 'required|string|max:100',
+        'editForm.content' => 'required|string',
+    ];
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -27,12 +36,14 @@ class KnowledgeBase extends Component
     public function selectArticle($id)
     {
         $this->activeArticleId = $id;
+        $this->isEditing = false;
     }
 
     public function setCategory($category)
     {
         $this->selectedCategory = $category;
         $this->activeArticleId = null; // Reset article when category changes
+        $this->isEditing = false;
     }
 
     public function clearFilters()
@@ -40,6 +51,84 @@ class KnowledgeBase extends Component
         $this->search = '';
         $this->selectedCategory = '';
         $this->activeArticleId = null;
+        $this->isEditing = false;
+    }
+
+    public function createNewArticle()
+    {
+        $this->activeArticleId = null;
+        $this->isEditing = true;
+        $this->editForm = [
+            'id' => null,
+            'title' => '',
+            'category' => $this->selectedCategory ?: 'Allgemein',
+            'tags' => '',
+            'content' => ''
+        ];
+    }
+
+    public function editArticle($id)
+    {
+        $article = KB::findOrFail($id);
+        $this->activeArticleId = $article->id;
+        $this->isEditing = true;
+        
+        $this->editForm = [
+            'id' => $article->id,
+            'title' => $article->title,
+            'category' => $article->category,
+            'tags' => $article->tags ? implode(', ', $article->tags) : '',
+            'content' => $article->content
+        ];
+    }
+
+    public function cancelEditing()
+    {
+        $this->isEditing = false;
+    }
+
+    public function saveArticle()
+    {
+        $this->validate();
+
+        $tagsArray = array_filter(array_map('trim', explode(',', $this->editForm['tags'])));
+
+        if ($this->editForm['id']) {
+            $article = KB::findOrFail($this->editForm['id']);
+            $article->update([
+                'title' => $this->editForm['title'],
+                'category' => $this->editForm['category'],
+                'tags' => $tagsArray,
+                'content' => $this->editForm['content'],
+            ]);
+            session()->flash('success', 'Eintrag erfolgreich aktualisiert.');
+        } else {
+            $article = KB::create([
+                'title' => $this->editForm['title'],
+                'slug' => \Illuminate\Support\Str::slug($this->editForm['title']) . '-' . rand(1000, 9999),
+                'category' => $this->editForm['category'],
+                'tags' => $tagsArray,
+                'content' => $this->editForm['content'],
+                'is_published' => true,
+            ]);
+            $this->activeArticleId = $article->id;
+            session()->flash('success', 'Neuer Eintrag erfolgreich angelegt.');
+        }
+
+        $this->isEditing = false;
+    }
+
+    public function deleteArticle($id)
+    {
+        $article = KB::findOrFail($id);
+        $article->delete();
+        
+        if ($this->activeArticleId == $id) {
+            $this->activeArticleId = null;
+            $this->isEditing = false;
+        }
+
+        session()->flash('success', 'Eintrag wurde gelöscht.');
     }
 
     public function mount()

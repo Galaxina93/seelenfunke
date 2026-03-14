@@ -197,8 +197,9 @@ class FunkiraChat extends Component
                     'action_text' => 'Ausgabe via Web Speech API...',
                     'pulse_color' => 'emerald'
                 ], 60);
-                
-                $this->dispatch('funkira-spoke', text: $result['response']);
+
+                $spokenText = $this->sanitizeForTTS($result['response']);
+                $this->dispatch('funkira-spoke', text: $spokenText);
             }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Chat Error: " . $e->getMessage() . "\nTrace:\n" . $e->getTraceAsString());
@@ -241,5 +242,75 @@ class FunkiraChat extends Component
         }
 
         return 'Unbekannte Seite';
+    }
+
+    /**
+     * Bereinigt den LLM-Output massiv, damit die Web Speech API (oder ElevenLabs)
+     * den Text absolut natürlich und fehlerfrei vorliest.
+     */
+    private function sanitizeForTTS(string $text): string
+    {
+        // 1. Markdown entfernen (Sterne, Rauten, Backticks)
+        $text = preg_replace('/[\*#`]+/', '', $text);
+
+        // 2. Ersetze " - " bei Zahlen durch " bis " (z.B. "100 - 200" -> "100 bis 200")
+        $text = preg_replace('/(\d+)\s*-\s*(\d+)/', '$1 bis $2', $text);
+
+        // 3. Währungen sauber ausschreiben, damit sie nicht verschluckt oder als "Eurozeichen" gelesen werden
+        $text = str_replace(['€', '$'], [' Euro', ' Dollar'], $text);
+        
+        // Formatiere Beträge wie 1.500,50 Euro -> "1500 Komma 50 Euro" für die Engine
+        // Verhindert, dass die Engine "1 Punkt 500" liest
+        $text = preg_replace_callback('/(\d+)[.,](\d+)\s*(Euro|Dollar)/i', function($matches) {
+            $whole = str_replace('.', '', $matches[1]); // Tausendertrennzeichen raus
+            return $whole . ' Komma ' . $matches[2] . ' ' . $matches[3];
+        }, $text);
+
+        // 4. Datumsangaben besser formatieren
+        // Aus "01.01.2024" wird "1. Januar 2024" um "Null eins Punkt Null eins" zu verhindern
+        $months = [
+            '01' => 'Januar', '02' => 'Februar', '03' => 'März', '04' => 'April',
+            '05' => 'Mai', '06' => 'Juni', '07' => 'Juli', '08' => 'August',
+            '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Dezember'
+        ];
+        $text = preg_replace_callback('/(\d{1,2})\.(\d{2})\.(\d{4})/', function($matches) use ($months) {
+            $day = (int)$matches[1];
+            $month = $months[$matches[2]] ?? $matches[2];
+            return $day . '. ' . $month . ' ' . $matches[3];
+        }, $text);
+
+        // 5. Typische Prozent und Sonderzeichen ausschreiben
+        $text = str_replace('%', ' Prozent', $text);
+        $text = str_replace('&', 'und', $text);
+        $text = str_replace('+', 'plus', $text);
+        $text = str_replace('=', 'gleich', $text);
+
+        // 6. Abkürzungen ausschreiben, die oft falsch gelesen werden
+        $replacements = [
+            ' bzgl. ' => ' bezüglich ',
+            ' z.B. ' => ' zum Beispiel ',
+            ' bzw. ' => ' beziehungsweise ',
+            ' ca. ' => ' circa ',
+            ' inkl. ' => ' inklusive ',
+            ' exkl. ' => ' exklusive ',
+            ' zzgl. ' => ' zuzüglich ',
+            ' d.h. ' => ' das heißt ',
+            ' evtl. ' => ' eventuell ',
+            ' u.a. ' => ' unter anderem '
+        ];
+        $text = str_ireplace(array_keys($replacements), array_values($replacements), $text);
+
+        // 7. Smileys und Emoticons komplett entfernen, da sie als "Lachendes Gesicht" vorgelesen werden
+        $text = preg_replace('/[\x{1F600}-\x{1F64F}]/u', '', $text); // Emoticons
+        $text = preg_replace('/[\x{1F300}-\x{1F5FF}]/u', '', $text); // Symbols & Pictographs
+        $text = preg_replace('/[\x{1F680}-\x{1F6FF}]/u', '', $text); // Transport & Map
+        $text = preg_replace('/[\x{2600}-\x{26FF}]/u', '', $text);   // Misc symbols
+        $text = preg_replace('/[\x{2700}-\x{27BF}]/u', '', $text);   // Dingbats
+
+        // 8. Multiple Leerzeichen und Zeilenumbrüche glätten für flüssigeres Sprechen
+        $text = preg_replace('/\s+/', ' ', $text);
+        $text = str_replace(["\n", "\r"], ' ', $text);
+
+        return trim($text);
     }
 }

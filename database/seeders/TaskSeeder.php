@@ -6,7 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class TodoSeeder extends Seeder
+class TaskSeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -22,7 +22,7 @@ class TodoSeeder extends Seeder
                     'icon' => 'exclamation-circle',
                     'color' => '#E53E3E', // Rot für hohe Dringlichkeit
                 ],
-                'todos' => [
+                'taks' => [
                     ['title' => '15.02.2026 -> Gründungszuschuss beantragen', 'priority' => 'high'],
                     ['title' => 'Krankenkasse bescheid geben Selbständigkeit ab Mitte Februar spätestens 01.04.2026', 'priority' => 'high'],
                     ['title' => 'Laserschulung durchführen -> https://luminus-laserschutz.de/kurse/laserschutzbeauftragter-industrie-gewerbe/?_gl=1*tzjq9u*_up*MQ..*_ga*MQ..&gclid=Cj0KCQiAo4TKBhDRARIsAGW29bcTods5PR5OMiWtKsHmbh-TmpQfEYU4HeXs2Sw_lWt40yYZRhrkot4aAqSfEALw_wcB&gbra', 'priority' => 'high'],
@@ -47,7 +47,7 @@ class TodoSeeder extends Seeder
                     'icon' => 'flag',
                     'color' => '#D69E2E', // Gelb/Gold für den Start
                 ],
-                'todos' => [
+                'taks' => [
                     ['title' => 'AB GEWERBESTART 01.04.2026', 'priority' => 'high'],
                     ['title' => 'ab 01.04.2026 Gewerbe anmelden https://gewerbe.buergerdienste-online.de/webclient/app/m/3151009/gewerbeanzeige?startPage=0', 'priority' => 'high'],
                     ['title' => 'Konto bei Finom eröffnen -> https://app.finom.co/de/signup/?fnm_product=business&source=finom.de&utm_source=google&utm_medium=cpc&utm_campaign=search-tofu-banking-brand-de-germany-10209387005&utm_content=cid%7C10209387005%7Cgid%7C181322099254%7Caid%7C7644', 'priority' => 'high'],
@@ -62,7 +62,7 @@ class TodoSeeder extends Seeder
                     'icon' => 'document-text',
                     'color' => '#3182CE', // Blau für Orga & Verwaltung
                 ],
-                'todos' => [
+                'taks' => [
                     ['title' => 'DATEV Anbindung', 'priority' => 'high'],
                     ['title' => 'STEUER - ABSCHLUSS', 'priority' => 'high'],
                     ['title' => 'Umsatzsteuererklärung erstellen', 'priority' => 'high'],
@@ -81,7 +81,7 @@ class TodoSeeder extends Seeder
                     'icon' => 'cog',
                     'color' => '#805AD5', // Lila für Features
                 ],
-                'todos' => [
+                'taks' => [
                     ['title' => 'System Check fehlende Daten usw alles rot statt in gold anzeigen', 'priority' => 'medium'],
                     ['title' => 'Die Glocke oben im Backend Header mit dem System Check Koppeln', 'priority' => 'medium'],
                     ['title' => 'Angebote sollten Archiviert werden können & muss bei der Hauptübersicht angezeigt werden "Archiv öffnen"', 'priority' => 'medium'],
@@ -111,7 +111,7 @@ class TodoSeeder extends Seeder
                     'icon' => 'sparkles',
                     'color' => '#38A169', // Grün für Wachstum/Zukunft
                 ],
-                'todos' => [
+                'taks' => [
                     ['title' => 'Google Bewertungen aktivieren', 'priority' => 'low'],
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'low'],
                     ['title' => 'Produktbewertungen sollten möglich sein', 'priority' => 'low'],
@@ -145,12 +145,12 @@ class TodoSeeder extends Seeder
                 'updated_at' => $now,
             ]);
 
-            // Dazugehörige Todos einfügen
-            $todosToInsert = [];
+            // Dazugehörige taks einfügen
+            $taksToInsert = [];
             $position = 0;
 
-            foreach ($phase['todos'] as $todo) {
-                $todosToInsert[] = [
+            foreach ($phase['taks'] as $todo) {
+                $taksToInsert[] = [
                     'id' => Str::uuid()->toString(),
                     'todo_list_id' => $listId,
                     'parent_id' => null, // Wir halten es flach, wie gewünscht
@@ -163,7 +163,7 @@ class TodoSeeder extends Seeder
                 ];
             }
 
-            DB::table('todos')->insert($todosToInsert);
+            DB::table('taks')->insert($taksToInsert);
         }
     }
 }

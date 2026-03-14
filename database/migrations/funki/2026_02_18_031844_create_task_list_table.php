@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        Schema::create('todo_lists', function (Blueprint $table) {
+        Schema::create('task_lists', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
             $table->string('icon')->default('list-bullet');
@@ -14,10 +14,10 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        Schema::create('todos', function (Blueprint $table) {
+        Schema::create('tasks', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('todo_list_id')->constrained()->onDelete('cascade');
-            $table->foreignUuid('parent_id')->nullable()->constrained('todos')->onDelete('cascade');
+            $table->foreignUuid('task_list_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('parent_id')->nullable()->constrained('tasks')->onDelete('cascade');
             $table->text('title');
             $table->boolean('is_completed')->default(false);
             $table->integer('position')->default(0);
@@ -27,7 +27,7 @@ return new class extends Migration {
     }
 
     public function down(): void {
-        Schema::dropIfExists('todos');
-        Schema::dropIfExists('todo_lists');
+        Schema::dropIfExists('tasks');
+        Schema::dropIfExists('task_lists');
     }
 };

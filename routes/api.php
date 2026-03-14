@@ -31,8 +31,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Tagesroutine
     require __DIR__ . '/api/routine.php';
 
-    // To-Do Listen
-    require __DIR__ . '/api/todos.php';
+    // Tasks (Aufgaben)
+    require __DIR__ . '/api/tasks.php';
 
     // Kalender & Termine
     require __DIR__ . '/api/calendar.php';

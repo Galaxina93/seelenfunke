@@ -28,13 +28,21 @@ class VisualizationRegistry extends Component
             ],
             'status' => 'pending'
         ],
-        'todo' => [
-            'name' => 'Aufgaben & ToDos',
+        'task' => [
+            'name' => 'Aufgaben & Tasks',
             'description' => 'Zeigt die persönliche Aufgabenliste.',
             'views' => [
                 'Listen-Ansicht' => 'Fehlt noch (Fallback JSON)'
             ],
             'status' => 'pending'
+        ],
+        'person' => [
+            'name' => 'Personenprofile',
+            'description' => 'Zeigt strukturierte Kontaktkarten und Personendaten mit interaktiven Links.',
+            'views' => [
+                'Profil-Karte' => 'livewire.global.funkira.blocks.person-profile'
+            ],
+            'status' => 'active'
         ]
     ];
 

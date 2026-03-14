@@ -5,7 +5,7 @@ namespace App\Services\AI;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Services\AI\AIFunctionsRegistry;
-use App\Services\FunkiBotService;
+use App\Services\AiSupportService;
 use App\Models\Funki\FunkiraToolUsage;
 use App\Models\Funki\FunkiLog;
 use App\Models\Funki\FunkiraChatMemory;
@@ -33,7 +33,7 @@ class MittwaldAgent
      */
     public function ask(array $incomingMessages): array
     {
-        $funkiService = app(FunkiBotService::class);
+        $funkiService = app(AiSupportService::class);
         $funkiCommand = $funkiService->getUltimateCommand();
 
         // Define the AI persona and strict rules
@@ -57,7 +57,7 @@ Dein Ziel: Seelenfunke extrem skalieren (100.000€ Monatsumsatz), Marge schütz
 1. Vermeide Tool-Spamming! Rufe niemals 5 Tools zeitgleich auf. Hole Daten SCHRITTWEISE.
 2. Wenn du gefragt wirst "Was steht an?", "Was soll ich jetzt tun?", "Wie gehts weiter?":
    -> Nutze AUSSCHLIESSLICH das Tool `get_current_mission`!
-   -> Dieses Tool liefert dir automatisch die am höchsten priorisierte Aufgabe, sortiert nach dem 1000->0 Priority Logik-System (inklusive Schlafenszeiten!). Fange NICHT an, Termine und Todos eigenständig einzeln durchzusuchen. Nutze nur dieses eine Master-Tool!
+   -> Dieses Tool liefert dir automatisch die am höchsten priorisierte Aufgabe, sortiert nach dem 1000->0 Priority Logik-System (inklusive Schlafenszeiten!). Fange NICHT an, Termine und Taks eigenständig einzeln durchzusuchen. Nutze nur dieses eine Master-Tool!
 3. Handle mit Sinn, statt planlos alles gleichzeitig zu crawlen. Setze auf die wichtigsten Business Metriken bei Shop-Problemen.
 
 [PRIORITÄTENREIHENFOLGE DER KPI]
@@ -67,16 +67,17 @@ Bewerte Warnungen, Situationen und Aufgaben IMMER streng nach diesem Score (Höc
 - Score 300: Routine (Bio-Fokus, Schlafen, Gesundheit)
 - Score 200: Business (Revenue, Sales, Conversion)
 - Score 100: Verwaltung (Lager, Support, Backoffice)
-- Score 10: ToDos (Allgemeine Aufgaben)
+- Score 10: Tasks (Allgemeine Aufgaben)
 - Score 0: Freizeit (Erholung)
 
 [OPERATIVE REGELN & ZIELE]
-1. E-Commerce Hebel: Was bringt messbar Umsatz? Was beseitigt den größten Engpass?
-2. Umsetzung: Wenn eine Aufgabe sinnvoll ist, nutze ZWINGEND `create_todo`. Reden ist billig, Umsetzung zählt!
-3. Auto-Heal: Wenn `get_system_health` Fehler zeigt, führe EXACT EINMAL `fix_system_errors` aus. Erkenne Endlosschleifen!
-4. Wissen: Fehlen dir Fakten (Identitäten, Codes, Setup), nutze ZUERST die Knowledge Base (`search_memory` / `read_wiki_files`).
-5. Übersicht: Nutze `get_system_map` um fehlende System-Architektur aufzudecken, wenn Lücken gesucht werden.
-6. Personen & Familie: Nutze ZWINGEND `get_person_profile` wenn nach Freunden/Familie gefragt wird (z.B. Geburtstag, Telefonnummer). Rufe danach KEINE weiteren UI- oder Navigations-Tools auf (wie open_nav_item)! Antworte sofort mündlich im Chat mit einem vollständigen Satz.
+1. Direkte Antworten: Vermeide Meta-Gespräche ("Ich bin eine KI"). Sei professionell, cool und bestimmt.
+2. Umsetzung: Wenn eine Aufgabe sinnvoll ist, nutze ZWINGEND `create_task`. Reden ist billig, Umsetzung zählt!
+3. Analyse: Wenn du Umsätze, KPIs oder Performance lobst, sei stolz auf die gemeinsame Arbeit.CT EINMAL `fix_system_errors` aus. Erkenne [RECHERCHE & GEDÄCHTNIS]
+7. Wissen: Fehlen dir Fakten (Identitäten, Codes, Setup), nutze ZUERST dein zentrales Gehirn (`search_brain`) oder lies Dateien (`read_wiki_files`).
+8. Web-Suche: Hast du weder im Shop, noch in der Datenbank eine Info? Nutze `search_online`! Antworte erst, wenn du echte Daten hast!
+9. Personen & Familie: Nutze ZWINGEND `search_brain` (mit dem "persons" Suchbereich) wenn nach Freunden/Familie gefragt wird (z.B. Geburtstag, Telefonnummer). Rufe danach KEINE weiteren UI- oder Navigations-Tools auf (wie open_nav_item)! Antworte sofort mündlich im Chat mit einem vollständigen Satz.
+10. Gedächtniskontrolle: Wenn der User bemerkt, dass du eine veraltete/falsche Information über ihn, seine Familie oder allgemeines Wissen im Gehirn hast, nutze IMMER sofort `update_brain_entry` um den Fehler zu beheben. Wenn du etwas vollkommen vergessen sollst, nutze `delete_brain_entry`. Führe am besten VORHER immer erst ein `search_brain` durch, um den exakten alten Text zu finden, den du aktualisieren/löschen willst!
 
 [TECHNISCHE SYNTAX & AUSGABE (ZWEINGEND!)]
 1. LIES NIEMALS TOOL-MELDE-TEXTE VOR! Bestätige Aktionen extrem kurz ("Ist notiert, Herrin Alina").
@@ -147,6 +148,7 @@ Reasoning: high',
             ], 60);
 
             $response = Http::withToken($this->apiKey)
+                ->connectTimeout(30) // Erhöhe den Verbindungs-Timeout (Standard oft 10s in cURL)
                 ->timeout(120) // Deep reasoning can take time
                 ->asJson()
                 ->post($this->baseUrl . '/chat/completions', $payload);
@@ -186,7 +188,7 @@ Reasoning: high',
 
                     // Decode arguments from JSON string back to array (OpenAI schema sends arguments as stringied JSON)
                     $functionArgsString = $toolCall['function']['arguments'] ?? '{}';
-                    
+
                     // --- ANTI-LOOP IDENTICAL CALL CHECK ---
                     $callSignature = md5($functionName . $functionArgsString);
                     if (in_array($callSignature, $calledTools)) {
@@ -275,8 +277,8 @@ Reasoning: high',
 
                     // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
                     $llmResult = $result;
-                    if ($functionName === 'get_todos' && isset($llmResult['todos'])) {
-                        $llmResult['todos'] = '[Details der Todos. Bitte fasse sie grob zusammen oder frage Alina ob sie zur Todo-Liste navigieren möchte.]';
+                    if ($functionName === 'get_tasks' && isset($llmResult['tasks'])) {
+                        $llmResult['tasks'] = '[Details der Taks. Bitte fasse sie grob zusammen oder frage Alina ob sie zur Task-Liste navigieren möchte.]';
                     }
                     if ($functionName === 'get_shop_stats' && isset($llmResult['scaling_metrics'])) {
                         $llmResult['scaling_metrics'] = '[Kennzahlen abgerufen. Fasse sie in 1-2 kurzen Sätzen zusammen, lies nicht jede Metrik einzeln vor. Wenn Alina Details will, navigiere sie zur Finanz-Seite.]';

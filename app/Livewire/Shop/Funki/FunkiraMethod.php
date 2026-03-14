@@ -25,7 +25,7 @@ class FunkiraMethod extends Component
         // 2. Timeline chart (last 7 days)
         $chartData = ['labels' => [], 'data' => []];
         $startDate = Carbon::now()->subDays(6)->startOfDay();
-        
+
         $dailyUsages = FunkiraToolUsage::where('used_at', '>=', $startDate)
             ->selectRaw('DATE(used_at) as date, COUNT(*) as count')
             ->groupBy('date')
@@ -35,7 +35,7 @@ class FunkiraMethod extends Component
         for ($i = 0; $i < 7; $i++) {
             $dateStr = $startDate->copy()->addDays($i)->format('Y-m-d');
             $displayDate = $startDate->copy()->addDays($i)->format('d.m.');
-            
+
             $dayData = $dailyUsages->firstWhere('date', $dateStr);
             $chartData['labels'][] = $displayDate;
             $chartData['data'][] = $dayData ? $dayData->count : 0;
@@ -62,7 +62,7 @@ class FunkiraMethod extends Component
         if (!empty($this->search)) {
             $searchTerm = strtolower($this->search);
             $methods = $methods->filter(function($m) use ($searchTerm) {
-                return str_contains(strtolower($m['name']), $searchTerm) || 
+                return str_contains(strtolower($m['name']), $searchTerm) ||
                        str_contains(strtolower($m['description']), $searchTerm);
             })->values();
         }
@@ -78,7 +78,7 @@ class FunkiraMethod extends Component
     {
         // Wir holen die rohen Schema-Daten vom AIFunctionsRegistry
         $schema = AIFunctionsRegistry::getSchema();
-        
+
         $methods = [];
         foreach ($schema as $tool) {
             $methods[] = [
@@ -87,7 +87,7 @@ class FunkiraMethod extends Component
                 'parameters' => $tool['function']['parameters']['properties'] ?? []
             ];
         }
-        
+
         // Priorisierte Reihenfolge der wichtigsten Tools (von extrem wichtig nach unwichtig)
         $priorityOrder = [
             'get_current_mission',
@@ -98,11 +98,13 @@ class FunkiraMethod extends Component
             'get_finances',
             'get_order',
             'check_inventory',
-            'get_todos',
-            'create_todo',
-            'complete_todo',
-            'search_memory',
-            'save_memory',
+            'get_tasks',
+            'create_task',
+            'complete_task',
+            'search_brain',
+            'save_to_brain',
+            'update_brain_entry',
+            'delete_brain_entry',
             'get_tickets',
             'get_system_health',
             'get_system_logs',
@@ -117,7 +119,7 @@ class FunkiraMethod extends Component
             'close_ui',
             'open_nav_item',
             'open_zentrum',
-            'delete_todo'
+            'delete_task'
         ];
 
         // Sortieren nach Priorität
@@ -129,7 +131,7 @@ class FunkiraMethod extends Component
             if ($posA === false && $posB === false) {
                 return strcmp($a['name'], $b['name']);
             }
-            
+
             // Unbekannte Tools kommen ans Ende
             if ($posA === false) return 1;
             if ($posB === false) return -1;
@@ -141,7 +143,7 @@ class FunkiraMethod extends Component
     }
 
     /**
-     * Erstellt eine "Coverage-Matrix", was die KI derzeit kann im Vergleich 
+     * Erstellt eine "Coverage-Matrix", was die KI derzeit kann im Vergleich
      * zu dem, was das System potenziell an Features anbietet.
      */
     private function getSystemCoverage()
@@ -184,7 +186,7 @@ class FunkiraMethod extends Component
                 'icon' => 'bi-cpu',
                 'description' => 'Selbstregulation, Aufgabenverwaltung und Error-Handling.',
                 'features' => [
-                    'To-Do Listen verwalten' => in_array('create_todo', $toolNames),
+                    'Task Listen verwalten' => in_array('create_task', $toolNames),
                     'System-Gesundheit prüfen' => in_array('get_system_health', $toolNames),
                     'Fehler beheben (Auto-Heal)' => in_array('fix_system_errors', $toolNames),
                     'Logbücher lesen' => in_array('get_system_logs', $toolNames),
@@ -197,7 +199,8 @@ class FunkiraMethod extends Component
                 'description' => 'Abruf von Unternehmenswissen und Langzeitgedächtnis.',
                 'features' => [
                     'Kurzzeitgedächtnis (Chat-History)' => true, // Ist im Agent fest verbaut
-                    'Langzeitgedächtnis (Wiki)' => in_array('search_memory', $toolNames) || in_array('save_memory', $toolNames),
+                    'Langzeitgedächtnis (Gehirn & Wiki)' => in_array('search_brain', $toolNames) || in_array('save_to_brain', $toolNames),
+                    'Wissensnetz modifizieren' => in_array('update_brain_entry', $toolNames) || in_array('delete_brain_entry', $toolNames),
                     'Dokumente lesen (.docx, .pdf)' => in_array('read_wiki_files', $toolNames),
                     'System-Architektur kennen' => in_array('get_system_map', $toolNames),
                 ]

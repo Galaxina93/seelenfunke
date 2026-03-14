@@ -531,34 +531,34 @@
                     }
                 }
 
-                // 2. Check for ToDos
-                const todoData = contextData.find(c => c.function === 'get_todos');
-                if (!foundData && todoData && todoData.data && todoData.data.todos) {
-                    title = 'Meine ToDos';
+                // 2. Check for Tasks
+                const taskData = contextData.find(c => c.function === 'get_tasks');
+                if (!foundData && taskData && taskData.data && taskData.data.tasks) {
+                    title = 'Meine Aufgaben';
                     foundData = true;
 
-                    if (todoData.data.todos.length === 0) {
+                    if (taskData.data.tasks.length === 0) {
                         this.chartListData.push({
                             title: 'Alles erledigt!',
                             titleColor: 'text-emerald-400',
-                            badge: 'ToDos',
-                            subtitle: 'Du hast aktuell keine offenen ToDos.'
+                            badge: 'Aufgaben',
+                            subtitle: 'Du hast aktuell keine offenen Aufgaben.'
                         });
                     } else if (userRequestedGraphic) {
                         // user wants a chart!
                         chartType = 'bar';
                         chartLabels = ['Hoch', 'Mittel', 'Niedrig'];
                         let high = 0, med = 0, low = 0;
-                        todoData.data.todos.forEach(t => {
-                            if (t.priority === 'high') high++;
-                            else if (t.priority === 'medium') med++;
+                        taskData.data.tasks.forEach(t => {
+                            if (t.priority === 'hoch') high++;
+                            else if (t.priority === 'mittel') med++;
                             else low++;
                         });
                         chartDataset = [high, med, low];
                     } else {
                         // Default: render as structured Table
                         this.tableHeaders = ['Titel', 'Priorität', 'Erstellt am'];
-                        todoData.data.todos.forEach(t => {
+                        taskData.data.tasks.forEach(t => {
                             let pColor = 'text-gray-300';
                             let renderPriority = (t.priority || 'Normal').toString().toUpperCase();
                             let rawPrio = renderPriority.toLowerCase();
@@ -584,8 +584,8 @@
                     }
                 }
 
-                // 2b. Check for ToDo Actions (Visually represent as a List Item)
-                const actionData = contextData.find(c => c.function === 'create_todo' || c.function === 'complete_todo');
+                // 2b. Check for Task Actions (Visually represent as a List Item)
+                const actionData = contextData.find(c => c.function === 'create_task' || c.function === 'complete_task' || c.function === 'delete_task');
                 if (!foundData && actionData && actionData.data && actionData.data.status === 'success') {
                     title = 'System-Aktion';
                     foundData = true;

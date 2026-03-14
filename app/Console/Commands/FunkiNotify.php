@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Services\FunkiBotService;
+use App\Services\AiSupportService;
 use Illuminate\Support\Facades\Cache;
 
 class FunkiNotify extends Command
@@ -25,7 +25,7 @@ class FunkiNotify extends Command
     /**
      * Execute the console command.
      */
-    public function handle(FunkiBotService $service)
+    public function handle(AiSupportService $service)
     {
         $data = $service->getUltimateCommand();
 

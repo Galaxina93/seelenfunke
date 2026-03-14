@@ -32,7 +32,7 @@
                     Gutschein Daten
                 @elseif($category === 'customer')
                     Kundenakte
-                @elseif($category === 'todo')
+                @elseif($category === 'task')
                     Aufgaben Liste
                 @else
                     System Analyse

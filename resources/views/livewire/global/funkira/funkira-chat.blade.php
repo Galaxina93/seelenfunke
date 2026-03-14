@@ -132,7 +132,7 @@
                                         @endphp
                                         <div class="w-4 h-4 rounded-full border-4 border-white z-10 relative {{ $dotColor }}"></div>
                                     </div>
-                                    
+
                                     {{-- Log Content Box --}}
                                     <div class="flex-1 min-w-0 {{ in_array($entry->type, ['chat_ai', 'chat_user', 'ai_tool']) ? '' : 'pb-2' }}">
                                         <div class="flex flex-wrap items-baseline justify-between mb-1 gap-2">
@@ -181,9 +181,9 @@
             </div>
         </div>
 
-        {{-- TRIGGER BUTTON / MINI AVATAR --}}
+        {{-- TRIGGER BUTTON / MINI AVATAR (Unified Alpine Scope) --}}
         <div class="relative items-center flex pointer-events-auto z-50"
-             x-data="{ 
+             x-data="{
                  showMenu: false,
                  isListening: $persist(false),
                  isMuted: $persist(false),
@@ -197,6 +197,14 @@
                  restartCount: 0,
                  lastRestartTime: 0,
                  isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+
+                 // --- Audio Context for Visual Pulsing ---
+                 audioContext: null,
+                 mediaStreamSource: null,
+                 analyser: null,
+                 volumeLevel: 1.0,
+                 animationFrameId: null,
+
                  toggleWakeWord() {
                      this.useWakeWord = !this.useWakeWord;
                  },
@@ -231,10 +239,12 @@
                          if (!this.recognition) this.initSpeech();
                          try {
                              this.recognition.start();
+                             this.startVolumeMonitoring(); // Start pulsating effect
                          } catch(e) {
                              if(e.name !== 'InvalidStateError') {
                                  console.error(e);
                                  this.isListening = false;
+                                 this.stopVolumeMonitoring();
                              }
                          }
                      }
@@ -242,7 +252,7 @@
                  restartRecognition() {
                      if (!this.isListening) return;
                      if (this.isMobile && this.isSpeaking) return; // STRICT BLOCK during audio playback
-                     
+
                      if (Date.now() - this.lastRestartTime < 1000) {
                          this.restartCount++;
                          if (this.restartCount > 5) {
@@ -271,7 +281,7 @@
                      if (this.watchdogTimer) clearInterval(this.watchdogTimer);
                      this.watchdogTimer = setInterval(() => {
                          if (this.isMobile && this.isSpeaking) return; // STRICT BLOCK during audio playback
-                         
+
                          if (this.isListening && (Date.now() - this.lastActivityTime > 45000)) {
                              console.log('Voice watchdog restarting mic...');
                              if (this.recognition) {
@@ -285,13 +295,73 @@
                          }
                      }, 10000);
                  },
+                 startVolumeMonitoring() {
+                     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+                     navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                         .then(stream => {
+                             if (!this.audioContext) {
+                                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                             }
+                             if (this.audioContext.state === 'suspended') {
+                                 this.audioContext.resume();
+                             }
+
+                             this.analyser = this.audioContext.createAnalyser();
+                             this.analyser.fftSize = 256;
+                             this.mediaStreamSource = this.audioContext.createMediaStreamSource(stream);
+                             this.mediaStreamSource.connect(this.analyser);
+
+                             const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+
+                             const updateVolume = () => {
+                                 if (!this.isListening) {
+                                     this.stopVolumeMonitoring();
+                                     return;
+                                 }
+
+                                 this.analyser.getByteFrequencyData(dataArray);
+                                 let sum = 0;
+                                 for (let i = 0; i < dataArray.length; i++) {
+                                     sum += dataArray[i];
+                                 }
+                                 let average = sum / dataArray.length;
+
+                                 // Map average (usually 0 to ~100) to a scale factor between 1.0 and 2.0
+                                 let scale = 1.0 + (average / 60);
+                                 if (scale > 2.2) scale = 2.2;
+
+                                 // Smooth descent / fast ascent
+                                 if (scale > this.volumeLevel) {
+                                     this.volumeLevel = scale; // instant react
+                                 } else {
+                                     this.volumeLevel = this.volumeLevel * 0.85 + scale * 0.15; // smooth fall
+                                 }
+
+                                 this.animationFrameId = requestAnimationFrame(updateVolume);
+                             };
+                             updateVolume();
+                         })
+                         .catch(err => console.error('Audio monitoring failed:', err));
+                 },
+                 stopVolumeMonitoring() {
+                     this.volumeLevel = 1.0;
+                     if (this.animationFrameId) {
+                         cancelAnimationFrame(this.animationFrameId);
+                         this.animationFrameId = null;
+                     }
+                     if (this.mediaStreamSource) {
+                         this.mediaStreamSource.disconnect();
+                         this.mediaStreamSource = null;
+                     }
+                 },
                  init() {
                      // Stop any ongoing browser TTS from a previous page
                      this.synthesis.cancel();
                      window.addEventListener('beforeunload', () => {
                          this.synthesis.cancel();
                      });
-                     
+
                      // Auto-Restart on Page load if the user left it 'Listening'
                      if (this.isListening) {
                          setTimeout(() => { this.toggleListening(true); }, 500);
@@ -312,12 +382,12 @@
                      this.recognition.continuous = true;
                      this.recognition.interimResults = false;
 
-                     this.recognition.onstart = () => { 
-                         this.isListening = true; 
+                     this.recognition.onstart = () => {
+                         this.isListening = true;
                          this.lastActivityTime = Date.now();
                          this.restartCount = 0;
                      };
-                     
+
                      this.recognition.onspeechend = () => {
                          this.lastActivityTime = Date.now();
                      };
@@ -372,7 +442,7 @@
                          this.currentAudio.pause();
                          this.currentAudio.currentTime = 0;
                      }
-                     
+
                      this.isSpeaking = true;
 
                      // Disable mic temporarily on mobile so playback doesn't stutter (hardware echo cancellation issue)
@@ -400,13 +470,20 @@
                          body: JSON.stringify({ text: cleanText })
                      })
                      .then(response => {
-                         if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                         if (!response.ok) {
+                             if (response.status === 402 || response.status === 401) {
+                                 console.warn('Voice API Payment/Auth Required. Falling back to Browser TTS.');
+                             } else {
+                                 console.warn(`Voice API Error: ${response.status}. Falling back to Browser TTS.`);
+                             }
+                             throw new Error('API Unavailable');
+                         }
                          return response.blob();
                      })
                      .then(blob => {
                          const audioUrl = URL.createObjectURL(blob);
                          this.currentAudio = new Audio(audioUrl);
-                         
+
                          this.currentAudio.onended = () => {
                              this.isSpeaking = false;
                              URL.revokeObjectURL(audioUrl);
@@ -515,7 +592,7 @@
                 <div class="absolute inset-0 rounded-full blur-xl opacity-30 group-hover/btn:opacity-60 transition-colors duration-500 animate-pulse" :class="isListening ? 'bg-red-600' : '{{ $isTyping ? "bg-pink-500" : "bg-emerald-400" }}'"></div>
 
                 {{-- CSS ORB 3D CORE --}}
-                <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-[1.2rem] sm:rounded-[1.4rem] shadow-2xl transition-all duration-500 transform group-hover/btn:scale-105 flex items-center justify-center relative z-10 overflow-hidden shrink-0 bg-slate-900 border" :class="isListening ? 'border-red-500/50' : '{{ $isTyping ? "border-pink-500/50" : "border-emerald-400/30" }}'">
+                <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow-2xl transition-all duration-500 transform group-hover/btn:scale-105 flex items-center justify-center relative z-10 overflow-hidden shrink-0 bg-slate-900 border" :class="isListening ? 'border-red-500/50' : '{{ $isTyping ? "border-pink-500/50" : "border-emerald-400/30" }}'">
 
                     {{-- Inner Glowing Sphere --}}
                     <div class="absolute inset-2 rounded-full border animate-[spin_4s_linear_infinite] group-hover/btn:[animation-duration:15s]" :class="isListening ? 'border-red-500/60' : '{{ $isTyping ? "border-pink-400/60" : "border-emerald-400/40" }}'"></div>
@@ -525,27 +602,25 @@
                     <div class="absolute w-6 h-6 rounded-full blur-md animate-pulse transition-colors duration-700" :class="isListening ? 'bg-red-500 scale-125' : '{{ $isTyping ? "bg-pink-400 scale-110" : "bg-emerald-400" }}'"></div>
                     <div class="absolute w-3 h-3 bg-white rounded-full blur-[2px]"></div>
 
-                    {{-- Grid Lines Overlay --}}
-                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.8)_100%)]"></div>
-
-                    {{-- AI Badge --}}
-                    <div x-show="!$wire.isOpen && !isListening" x-transition.opacity class="absolute top-1 right-1 flex h-4 w-4 sm:h-5 sm:w-5">
-                        <span class="animate-ping absolute inset-0 rounded-full opacity-75 {{ $isTyping ? 'bg-pink-400' : 'bg-emerald-400' }}"></span>
-                        <span class="relative h-4 w-4 sm:h-5 sm:w-5 bg-slate-800 border sm:border rounded-full flex items-center justify-center text-[6px] sm:text-[8px] font-black italic shadow-lg {{ $isTyping ? 'text-pink-400 border-pink-400/30' : 'text-emerald-400 border-emerald-400/30' }}">
-                            AI
-                        </span>
+                    {{-- Grid Lines Overlay & Listening Pulse --}}
+                    <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.8)_100%)] flex items-center justify-center">
+                        <div x-show="isListening" class="absolute border-[3px] border-emerald-400 rounded-full opacity-60 pointer-events-none transition-all duration-75 ease-out"
+                             :style="`width: ${80 * volumeLevel}%; height: ${80 * volumeLevel}%;`"></div>
+                        <div x-show="isListening" class="absolute border-[3px] border-emerald-500 rounded-full shadow-[inset_0_0_20px_rgba(16,185,129,1),0_0_20px_rgba(16,185,129,1)] transition-all duration-75 pointer-events-none"
+                             :style="`width: ${95 * (1 + (volumeLevel - 1) * 0.5)}%; height: ${95 * (1 + (volumeLevel - 1) * 0.5)}%;`"></div>
                     </div>
+
                 </div>
             </button>
         </div>
-        
+
         <script>
             document.addEventListener('livewire:initialized', () => {
                 Livewire.on('message-sent', () => {
                     setTimeout(() => {
                         const el = document.getElementById('funkira-chat-messages');
                         if(el) { el.scrollTop = el.scrollHeight; }
-                        
+
                         const elLog = document.getElementById('funkira-log-messages');
                         if(elLog) { elLog.scrollTop = elLog.scrollHeight; }
                     }, 100);

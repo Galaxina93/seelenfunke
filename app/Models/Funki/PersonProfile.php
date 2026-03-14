@@ -12,19 +12,28 @@ class PersonProfile extends Model
     protected $table = 'person_profiles';
 
     protected $fillable = [
+        'is_favorite',
         'first_name',
         'last_name',
         'nickname',
         'relation_type',
+        'avatar_path',
+        'links',
         'birthday',
         'email',
         'phone',
         'system_instructions',
         'ai_learned_facts',
+        'street',
+        'postal_code',
+        'city',
+        'country'
     ];
 
     protected $casts = [
         'birthday' => 'date',
+        'links' => 'array',
+        'is_favorite' => 'boolean'
     ];
 
     /**

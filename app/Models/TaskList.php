@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class TodoList extends Model
+class TaskList extends Model
 {
     use HasUuids;
 
@@ -19,16 +19,16 @@ class TodoList extends Model
     /**
      * Alle Aufgaben dieser Liste.
      */
-    public function todos(): HasMany
+    public function tasks(): HasMany
     {
-        return $this->hasMany(Todo::class);
+        return $this->hasMany(Task::class);
     }
 
     /**
      * Nur die Hauptaufgaben (ohne Eltern-Task).
      */
-    public function rootTodos(): HasMany
+    public function rootTasks(): HasMany
     {
-        return $this->hasMany(Todo::class)->whereNull('parent_id');
+        return $this->hasMany(Task::class)->whereNull('parent_id');
     }
 }

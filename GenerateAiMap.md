@@ -84,7 +84,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
     - FunkiBot.php
     - FunkiDayRoutine.php
     - FunkiKalender.php
-    - FunkiToDo.php
+    - FunkiTask.php
   - **Invoice/**
     - InvoicePreview.php
     - Invoices.php
@@ -419,8 +419,8 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - SystemCheckConfig.php
 - Ticket.php
 - TicketMessage.php
-- Todo.php
-- TodoList.php
+- Task.php
+- TaskList.php
 - User.php
 - UserDevice.php
 - Voucher.php

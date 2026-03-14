@@ -2,8 +2,8 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Todo;
-use App\Models\TodoList;
+use App\Models\Task;
+use App\Models\TaskList;
 use App\Models\Funki\FunkiDayRoutine;
 
 trait DashboardFunctions
@@ -39,17 +39,17 @@ trait DashboardFunctions
                 'callable' => [self::class, 'executeGetSystemLogs']
             ],
             [
-                'name' => 'get_todos',
-                'description' => 'Ruft alle aktuell offenen To-Do-Aufgaben aus dem Shopsystem ab. Nutze dies, um herauszufinden, was Herrin Alina als Nächstes tun muss.',
+                'name' => 'get_tasks',
+                'description' => 'Ruft alle aktuell offenen Aufgaben aus dem Shopsystem ab. Nutze dies, um herauszufinden, was Herrin Alina als Nächstes tun muss.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
                 ],
-                'callable' => [self::class, 'executeGetTodos']
+                'callable' => [self::class, 'executeGetTasks']
             ],
             [
-                'name' => 'create_todo',
-                'description' => 'Erstellt eine neue To-Do-Aufgabe basierend auf deinen Empfehlungen. Halte den Titel kurz und umsetzbar. VERWENDE DIES IMMER, wenn du Alina eine bestimmte Aufgabe zuweist.',
+                'name' => 'create_task',
+                'description' => 'Erstellt eine neue Aufgabe basierend auf deinen Empfehlungen. Halte den Titel kurz und umsetzbar. VERWENDE DIES IMMER, wenn du Alina eine bestimmte Aufgabe zuweist.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -65,37 +65,37 @@ trait DashboardFunctions
                     ],
                     'required' => ['title', 'priority']
                 ],
-                'callable' => [self::class, 'executeCreateTodo']
+                'callable' => [self::class, 'executeCreateTask']
             ],
             [
-                'name' => 'complete_todo',
-                'description' => 'Markiert eine offene To-Do-Aufgabe als abgeschlossen. Verwende dies, wenn Herrin Alina sagt, dass sie eine bestimmte Aufgabe beendet hat.',
+                'name' => 'complete_task',
+                'description' => 'Markiert eine offene Aufgabe als abgeschlossen. Verwende dies, wenn Herrin Alina sagt, dass sie eine bestimmte Aufgabe beendet hat.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'todo_id' => [
+                        'task_id' => [
                             'type' => 'string',
-                            'description' => 'Die ID des Todos, das abgeschlossen wurde. (Erhältst du durch get_todos)'
+                            'description' => 'Die ID der Aufgabe, die abgeschlossen wurde. (Erhältst du durch get_tasks)'
                         ]
                     ],
-                    'required' => ['todo_id']
+                    'required' => ['task_id']
                 ],
-                'callable' => [self::class, 'executeCompleteTodo']
+                'callable' => [self::class, 'executeCompleteTask']
             ],
             [
-                'name' => 'delete_todo',
-                'description' => 'Löscht eine offene To-Do-Aufgabe vollständig. Verwende dies, wenn Herrin Alina verlangt, eine Aufgabe zu löschen, abzubrechen oder zu entfernen.',
+                'name' => 'delete_task',
+                'description' => 'Löscht eine offene Aufgabe vollständig. Verwende dies, wenn Herrin Alina verlangt, eine Aufgabe zu löschen, abzubrechen oder zu entfernen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'todo_title' => [
+                        'task_title' => [
                             'type' => 'string',
                             'description' => 'Der ungefährer Name der Aufgabe, die gelöscht werden soll (z.B. "Finnum anrufen").'
                         ]
                     ],
-                    'required' => ['todo_title']
+                    'required' => ['task_title']
                 ],
-                'callable' => [self::class, 'executeDeleteTodo']
+                'callable' => [self::class, 'executeDeleteTask']
             ],
             [
                 'name' => 'get_day_routines',
@@ -121,7 +121,7 @@ trait DashboardFunctions
     public static function executeGetCurrentMission(array $args)
     {
         try {
-            $botService = app(\App\Services\FunkiBotService::class);
+            $botService = app(\App\Services\AiSupportService::class);
             $missionData = $botService->getUltimateCommand();
 
             return [
@@ -227,10 +227,10 @@ trait DashboardFunctions
         }
     }
 
-    public static function executeGetTodos(array $args)
+    public static function executeGetTasks(array $args)
     {
         try {
-            $todos = Todo::where('is_completed', false)
+            $tasks = Task::where('is_completed', false)
                 ->whereNull('parent_id')
                 ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
@@ -239,118 +239,118 @@ trait DashboardFunctions
 
             return [
                 'status' => 'success',
-                'open_todos_count' => $todos->count(),
-                'todos' => $todos->toArray()
+                'open_tasks_count' => $tasks->count(),
+                'tasks' => $tasks->toArray()
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
         }
     }
 
-    public static function executeCreateTodo(array $args)
+    public static function executeCreateTask(array $args)
     {
         try {
             if (empty($args['title'])) {
-                return ['status' => 'error', 'message' => 'Es wurde kein Titel für das ToDo angegeben.'];
+                return ['status' => 'error', 'message' => 'Es wurde kein Titel für die Aufgabe angegeben.'];
             }
 
             // --- DUPLICATE CHECK ---
-            // If there's already an active todo with roughly the same title (check the first 20 chars)
+            // If there's already an active task with roughly the same title (check the first 20 chars)
             $shortTitle = substr($args['title'], 0, 20);
-            $existing = Todo::where('is_completed', false)
+            $existing = Task::where('is_completed', false)
                 ->where('title', 'LIKE', '%' . $shortTitle . '%')
                 ->first();
 
             if ($existing) {
                 return [
                     'status' => 'success',
-                    'message' => 'Oh ich sehe gerade, das steht schon auf unserer Todo Liste',
-                    'todo_id' => $existing->id
+                    'message' => 'Oh ich sehe gerade, das steht schon auf unserer Aufgaben Liste',
+                    'task_id' => $existing->id
                 ];
             }
 
-            $list = TodoList::firstOrCreate(
+            $list = TaskList::firstOrCreate(
                 ['name' => 'Funkiras Empfehlungen'],
                 ['icon' => 'sparkles', 'color' => '#10B981']
             );
 
-            $todo = Todo::create([
+            $task = Task::create([
                 'title' => substr($args['title'], 0, 255),
                 'priority' => $args['priority'] ?? 'mittel',
                 'is_completed' => false,
-                'todo_list_id' => $list->id
+                'task_list_id' => $list->id
             ]);
 
             return [
                 'status' => 'success',
-                'message' => "Die Aufgabe '{$todo->title}' wurde erfolgreich aufgenommen.",
-                'todo_id' => $todo->id
+                'message' => "Die Aufgabe '{$task->title}' wurde erfolgreich aufgenommen.",
+                'task_id' => $task->id
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Erstellen des ToDos: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Erstellen der Aufgabe: ' . $e->getMessage()];
         }
     }
 
-    public static function executeCompleteTodo(array $args)
+    public static function executeCompleteTask(array $args)
     {
         try {
-            if (empty($args['todo_id'])) {
-                return ['status' => 'error', 'message' => 'Es wurde keine ToDo ID angegeben.'];
+            if (empty($args['task_id'])) {
+                return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID angegeben.'];
             }
 
-            $todo = Todo::find($args['todo_id']);
-            if (!$todo) {
+            $task = Task::find($args['task_id']);
+            if (!$task) {
                 return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
             }
 
-            $todo->is_completed = true;
-            $todo->save();
+            $task->is_completed = true;
+            $task->save();
 
             return [
                 'status' => 'success',
-                'message' => "Die Aufgabe '{$todo->title}' wurde als erledigt markiert."
+                'message' => "Die Aufgabe '{$task->title}' wurde als erledigt markiert."
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Abschließen des ToDos: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Abschließen der Aufgabe: ' . $e->getMessage()];
         }
     }
 
-    public static function executeDeleteTodo(array $args)
+    public static function executeDeleteTask(array $args)
     {
         try {
-            if (empty($args['todo_title'])) {
+            if (empty($args['task_title'])) {
                 return ['status' => 'error', 'message' => 'Kein Aufgaben-Titel angegeben.'];
             }
 
-            $term = $args['todo_title'];
+            $term = $args['task_title'];
 
-            $todo = Todo::where('is_completed', false)
+            $task = Task::where('is_completed', false)
                 ->where('title', 'LIKE', '%' . $term . '%')
                 ->first();
 
-            if (!$todo) {
+            if (!$task) {
                 // Fuzzy fallback using DB matching (just try the first word)
                 $firstWord = explode(' ', $term)[0];
                 if(strlen($firstWord) > 3) {
-                    $todo = Todo::where('is_completed', false)
+                    $task = Task::where('is_completed', false)
                         ->where('title', 'LIKE', '%' . $firstWord . '%')
                         ->first();
                 }
 
-                if(!$todo) {
+                if(!$task) {
                     return ['status' => 'error', 'message' => "Aufgabe '$term' wurde nicht gefunden."];
                 }
             }
 
-            $title = $todo->title;
-            $todo->delete();
+            $title = $task->title;
+            $task->delete();
 
             return [
                 'status' => 'success',
                 'message' => "Die Aufgabe '$title' wurde gelöscht."
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Löschen des ToDos: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Löschen der Aufgabe: ' . $e->getMessage()];
         }
     }
 

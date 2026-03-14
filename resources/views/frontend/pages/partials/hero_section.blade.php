@@ -51,7 +51,7 @@
                 <a href="{{ route('shop') }}"
                    class="bg-primary text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-white hover:text-primary-dark transition-all transform hover:scale-105 shadow-lg shadow-primary/30 pulse-button"
                    aria-label="Jetzt personalisieren">
-                    JETZT Unikat bestellen
+                    Sortiment öffnen
                 </a>
 
                 {{-- Button 2: Sekundär (Kosten Kalkulator B2B) --}}

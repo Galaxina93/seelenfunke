@@ -37,6 +37,12 @@
                     @endforeach
                 </div>
 
+                <div class="p-3 border-b border-gray-800 shrink-0">
+                    <button wire:click="createNewArticle" class="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-primary/20 hover:border-primary/40 transition-all flex items-center justify-center gap-2">
+                        <x-heroicon-o-plus class="w-4 h-4" /> Neuer Eintrag
+                    </button>
+                </div>
+
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
                     @forelse($articles as $article)
                         <button wire:click="selectArticle('{{$article->id}}')" class="w-full text-left p-4 rounded-2xl transition-all duration-200 border {{ $activeArticleId == $article->id ? 'bg-gray-800/80 border-primary/30 shadow-[inset_4px_0_0_rgba(197,160,89,1)]' : 'bg-transparent border-transparent hover:bg-gray-900/50 hover:border-gray-800' }}">
@@ -59,8 +65,51 @@
             </div>
 
             <div class="flex-1 bg-transparent relative overflow-hidden flex flex-col">
-                @if($activeArticle)
-                    <div class="p-8 lg:p-12 pb-6 border-b border-gray-800 bg-gray-900/30 shrink-0">
+                @if($isEditing)
+                    <div class="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-12">
+                         <h2 class="text-2xl font-serif text-white mb-6">{{ $editForm['id'] ? 'Eintrag bearbeiten' : 'Neuen Eintrag erstellen' }}</h2>
+                         
+                         <div class="space-y-4">
+                             <div>
+                                 <label class="block text-xs uppercase tracking-widest text-gray-500 mb-1">Titel</label>
+                                 <input type="text" wire:model="editForm.title" class="w-full bg-gray-950 border border-gray-800 rounded-lg text-white px-4 py-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                                 @error('editForm.title') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                             </div>
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div>
+                                     <label class="block text-xs uppercase tracking-widest text-gray-500 mb-1">Kategorie</label>
+                                     <input type="text" wire:model="editForm.category" class="w-full bg-gray-950 border border-gray-800 rounded-lg text-white px-4 py-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                                     @error('editForm.category') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                 </div>
+                                 <div>
+                                     <label class="block text-xs uppercase tracking-widest text-gray-500 mb-1">Tags (kommagetrennt)</label>
+                                     <input type="text" wire:model="editForm.tags" placeholder="z.B. ai_memory, funki_core" class="w-full bg-gray-950 border border-gray-800 rounded-lg text-white px-4 py-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                                 </div>
+                             </div>
+                             <div>
+                                 <label class="block text-xs uppercase tracking-widest text-gray-500 mb-1">Inhalt</label>
+                                 <textarea wire:model="editForm.content" rows="15" class="w-full bg-gray-950 border border-gray-800 rounded-lg text-white px-4 py-3 focus:ring-primary focus:border-primary outline-none transition-all custom-scrollbar"></textarea>
+                                 @error('editForm.content') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                             </div>
+                             
+                             <div class="flex gap-4 pt-4">
+                                 <button wire:click="saveArticle" class="px-6 py-2.5 bg-primary text-gray-900 rounded-xl font-bold hover:bg-primary/90 hover:shadow-[0_0_15px_rgba(197,160,89,0.4)] transition-all flex items-center gap-2">
+                                     <x-heroicon-o-check class="w-5 h-5"/> Speichern
+                                 </button>
+                                 <button wire:click="cancelEditing" class="px-6 py-2.5 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-colors">Abbrechen</button>
+                             </div>
+                         </div>
+                    </div>
+                @elseif($activeArticle)
+                    <div class="p-8 lg:p-12 pb-6 border-b border-gray-800 bg-gray-900/30 shrink-0 relative">
+                        <div class="absolute top-8 right-8 flex gap-2">
+                             <button wire:click="editArticle({{ $activeArticle->id }})" class="p-2 bg-gray-800 border border-gray-700 hover:bg-primary/20 hover:text-primary hover:border-primary/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
+                                 <x-heroicon-o-pencil class="w-5 h-5" />
+                             </button>
+                             <button wire:click="deleteArticle({{ $activeArticle->id }})" wire:confirm="Möchtest du diesen Eintrag wirklich aus dem Gehirn endgültig löschen?" class="p-2 bg-gray-800 border border-gray-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Löschen">
+                                 <x-heroicon-o-trash class="w-5 h-5" />
+                             </button>
+                        </div>
                     <span class="inline-block px-3 py-1 bg-gray-800 border border-gray-700 rounded-md text-[9px] font-black uppercase tracking-widest text-primary mb-4 shadow-inner">
                         {{$activeArticle->category}}
                     </span>

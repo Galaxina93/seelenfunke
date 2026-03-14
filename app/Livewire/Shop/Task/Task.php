@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Livewire\Shop\Todo;
+namespace App\Livewire\Shop\Task;
 
-use App\Models\Todo as Task;
-use App\Models\TodoList;
+use App\Models\Task as TaskModel;
+use App\Models\TaskList;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
-class ToDo extends Component
+class Task extends Component
 {
     public $search = '';
     public $selectedListId = null;
@@ -22,9 +22,9 @@ class ToDo extends Component
     public function mount()
     {
         // One-time auto-migration of old English priorities
-        Task::where('priority', 'low')->update(['priority' => 'niedrig']);
-        Task::where('priority', 'medium')->update(['priority' => 'mittel']);
-        Task::where('priority', 'high')->update(['priority' => 'hoch']);
+        TaskModel::where('priority', 'low')->update(['priority' => 'niedrig']);
+        TaskModel::where('priority', 'medium')->update(['priority' => 'mittel']);
+        TaskModel::where('priority', 'high')->update(['priority' => 'hoch']);
 
         // Auto-run map_id migrations and seeder (for easy update deployment without terminal)
         if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
@@ -33,7 +33,7 @@ class ToDo extends Component
         }
 
         // Wähle standardmäßig die erste Liste, falls vorhanden
-        $firstList = TodoList::orderBy('created_at', 'asc')->first();
+        $firstList = TaskList::orderBy('created_at', 'asc')->first();
         if ($firstList) {
             $this->selectedListId = $firstList->id;
         }
@@ -43,7 +43,7 @@ class ToDo extends Component
     {
         $this->validate(['newList_name' => 'required|min:2|max:30']);
 
-        $list = TodoList::create([
+        $list = TaskList::create([
             'id' => (string) Str::uuid(),
             'name' => $this->newList_name,
             'icon' => $this->newList_icon,
@@ -67,7 +67,7 @@ class ToDo extends Component
 
         if (!$this->selectedListId) {
             // Fallback: Falls keine Liste existiert, erstelle eine Standardliste
-            $list = TodoList::create([
+            $list = TaskList::create([
                 'id' => (string) Str::uuid(),
                 'name' => 'Allgemein',
                 'icon' => 'inbox'
@@ -75,9 +75,9 @@ class ToDo extends Component
             $this->selectedListId = $list->id;
         }
 
-        Task::create([
+        TaskModel::create([
             'id' => (string) Str::uuid(),
-            'todo_list_id' => $this->selectedListId,
+            'task_list_id' => $this->selectedListId,
             'title' => $this->newTask_title,
             'priority' => 'niedrig',
         ]);
@@ -89,79 +89,79 @@ class ToDo extends Component
     {
         if (empty($title)) return;
 
-        Task::create([
+        TaskModel::create([
             'id' => (string) Str::uuid(),
-            'todo_list_id' => $this->selectedListId,
+            'task_list_id' => $this->selectedListId,
             'parent_id' => $parentId,
             'title' => $title,
             'priority' => 'niedrig',
         ]);
     }
 
-    public function updateTodoTitle($id, $newTitle)
+    public function updateTaskTitle($id, $newTitle)
     {
         if(empty(trim($newTitle))) return;
 
-        $todo = Task::find($id);
-        if($todo) {
-            $todo->update(['title' => $newTitle]);
+        $task = TaskModel::find($id);
+        if($task) {
+            $task->update(['title' => $newTitle]);
         }
     }
 
-    public function updateTodoPriority($id, $priority)
+    public function updateTaskPriority($id, $priority)
     {
         if(empty($priority)) return;
 
-        $todo = Task::find($id);
-        if($todo && in_array($priority, ['niedrig', 'mittel', 'hoch'])) {
-            $todo->update(['priority' => $priority]);
+        $task = TaskModel::find($id);
+        if($task && in_array($priority, ['niedrig', 'mittel', 'hoch'])) {
+            $task->update(['priority' => $priority]);
         }
     }
 
     public function toggleComplete($id)
     {
-        $todo = Task::find($id);
-        if($todo) {
-            $todo->update(['is_completed' => !$todo->is_completed]);
+        $task = TaskModel::find($id);
+        if($task) {
+            $task->update(['is_completed' => !$task->is_completed]);
 
-            if ($todo->is_completed) {
-                $this->dispatch('todo-completed');
+            if ($task->is_completed) {
+                $this->dispatch('task-completed');
             }
         }
     }
 
     public function promoteToTask($id)
     {
-        $todo = Task::find($id);
-        if($todo) {
-            $todo->update(['parent_id' => null]);
+        $task = TaskModel::find($id);
+        if($task) {
+            $task->update(['parent_id' => null]);
         }
     }
 
-    public function deleteTodo($id)
+    public function deleteTask($id)
     {
-        Task::destroy($id);
+        TaskModel::destroy($id);
     }
 
     public function deleteList($id)
     {
-        $list = TodoList::find($id);
+        $list = TaskList::find($id);
         if($list) {
             $list->delete();
-            $first = TodoList::first();
+            $first = TaskList::first();
             $this->selectedListId = $first ? $first->id : null;
         }
     }
 
     public function render()
     {
-        $lists = TodoList::withCount(['todos as open_count' => function($q) {
+        $lists = TaskList::withCount(['tasks as open_count' => function($q) {
             $q->where('is_completed', false)->whereNull('parent_id');
         }])->orderBy('created_at', 'asc')->get();
 
-        $todos = collect();
+        $tasks = collect();
         if ($this->selectedListId) {
-            $todos = Task::where('todo_list_id', $this->selectedListId)
+            $tasks = TaskModel::where('task_list_id', $this->selectedListId)
                 ->whereNull('parent_id')
                 ->with(['subtasks' => function($q) {
                     $q->orderBy('is_completed', 'asc')->orderBy('created_at', 'asc');
@@ -173,9 +173,9 @@ class ToDo extends Component
                 ->get();
         }
 
-        return view('livewire.shop.todo.to-do', [
+        return view('livewire.shop.task.task', [
             'lists' => $lists,
-            'todos' => $todos
+            'tasks' => $tasks
         ]);
     }
 }

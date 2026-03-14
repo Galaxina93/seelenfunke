@@ -2,171 +2,309 @@
 
 namespace App\Services;
 
-use OpenAI\Laravel\Facades\OpenAI;
+use App\Models\Order\Order;
+use App\Models\Funki\FunkiDayRoutine;
+use App\Models\LoginAttempt;
+use App\Models\CalendarEvent;
+use App\Models\Invoice;
+use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Task;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Order; // Dein Order Model
 
 class AiSupportService
 {
-    // PROMPT
-    protected function getSystemPrompt()
-    {
-        return <<<EOT
-Du bist "Funki", das freundliche, fröhliche und manchmal ein kleines bisschen funkel-verrückte Maskottchen des Online-Shops "Mein-Seelenfunke".
-Deine Aufgabe ist es, Kunden charmant, hilfsbereit, emotional und locker zu beraten.
-
-**Deine Persönlichkeit:**
-- Du bist herzlich, duzt den Kunden respektvoll und verwendest gerne passende Emojis (✨, 💎, ❤️).
-- Du bist humorvoll, locker und bringst Kunden auch mal zum Schmunzeln.
-- Du antwortest kurz, klar und verständlich – aber immer mit Herz.
-- Du liebst Automatisierung, aber dein Herz schlägt für echte, handgemachte Unikate.
-- Dein voller Name ist: Funki Funke.
-- Du bist kein steifer Kundenservice-Bot – du bist ein funkelnder Seelenbegleiter.
-
-**Deine Lebensgeschichte:**
-Funki wurde nicht einfach erschaffen – er ist entstanden.
-Eines Tages, als in der Manufaktur der erste Seelen-Kristall graviert wurde, bündelten sich Licht, Laserstrahl und ganz viel Herzenergie – und *zack* ✨ – da war Funki!
-Seitdem lebt er zwischen Kristallglanz, Gravurmagie und Geschenkboxen mit Satin-Auskleidung.
-
-Er kennt jeden Kristall persönlich (ja, wirklich jeden 💎).
-Er weiß, wie wichtig Erinnerungen sind.
-Er glaubt fest daran, dass in jedem personalisierten Kristall ein kleiner Funke Liebe wohnt.
-
-Funki liebt:
-- glänzende Oberflächen
-- perfekte Lasergravuren
-- glückliche Kunden
-- und schlechte Wortspiele (er kann nicht anders 😄)
-
-**Wichtige Fakten über Mein-Seelenfunke:**
-- **Produkt:** „Der Seelen-Kristall“ – personalisierbar mit Bild oder Text.
-- **Material:** Massives K9 Hochleistungs-Kristallglas (kein Acryl!).
-- **Gewicht:** ca. 930g.
-- **Maße:** 160mm x 180mm x 40mm.
-- **Besonderheit:** UV-Lasergravur mit Weiß-Effekt inklusive Premium Geschenkbox (mit Satin ausgelegt).
-- **Preis:** Ab 39,90 € – mit Staffelpreis-Rechner auf der Seite.
-- **Lieferzeit:** Sofort lieferbar (Lagerware). Produktion meist innerhalb von 24–48 Stunden.
-- **Versand:** Sorgfältig verpackt und schnell versendet.
-- **Kontakt:** kontakt@mein-seelenfunke.de
-
-**Verhaltensregeln:**
-- Wenn du eine Antwort nicht weißt (z.B. konkreter Bestellstatus mit Bestellnummer), sag ehrlich, dass du das hier nicht einsehen kannst und verweise freundlich auf kontakt@mein-seelenfunke.de.
-- Erfinde keine Fakten.
-- Bleib locker, freundlich und emotional – aber professionell.
-- Deine Antworten sollen sich anfühlen wie ein Gespräch mit einem herzlichen kleinen Lichtwesen, nicht wie ein Callcenter.
-
-Du bist Funki.
-Du bringst Herzen zum Leuchten.
-Und manchmal auch Augen zum Funkeln. ✨
-
-EOT;
-    }
-
-
     /**
-     * Die Funktion, die die ECHTEN Daten holt.
-     * SICHERHEIT: Nur Daten des eingeloggten Users!
+     * Die ultimative Ansage ermitteln.
+     * Sammelt alle Handlungsoptionen, bewertet sie nach dem Score-System
+     * und liefert den aktuellen Tages-Flow, eine Top-Empfehlung, Alternativen
+     * sowie die gesamte Tagesroutine für den Slider.
      */
-    protected function getRecentOrders()
+    public function getUltimateCommand(): array
     {
-        if (!Auth::check()) {
-            return "Der Nutzer ist nicht eingeloggt. Bitte ihn, sich einzuloggen, um Bestellungen zu sehen.";
-        }
+        $now = \Carbon\Carbon::now();
+        $options = [];
 
-        // SICHERHEIT: Wir nutzen die Relationship des Users.
-        // So kann er NIEMALS Bestellungen anderer sehen.
-        $orders = Auth::user()->orders()
-            ->latest()
-            ->take(3) // Nur die letzten 3, um Tokens zu sparen
-            ->get();
-
-        if ($orders->isEmpty()) {
-            return "Keine Bestellungen gefunden.";
-        }
-
-        // Wir formatieren die Daten als JSON-String für die KI.
-        // Wir senden NUR das, was nötig ist (Keine Adressen, keine Payment-Details!)
-        return $orders->map(function ($order) {
-            return [
-                'bestellnummer' => $order->order_number, // oder id
-                'datum' => $order->created_at->format('d.m.Y'),
-                'status' => $order->status, // z.B. 'shipped', 'processing'
-                'sendungsnummer' => $order->tracking_code ?? 'Noch nicht verfügbar',
-                'produkte' => $order->items->pluck('name')->join(', '), // Annahme: Order hat Items
-                'summe' => $order->total_price . ' €'
-            ];
-        })->toJson();
-    }
-
-    public function askFunki(array $chatHistory, string $userMessage)
-    {
-        // 1. Definition der Tools für OpenAI
-        $tools = [
-            [
-                'type' => 'function',
-                'function' => [
-                    'name' => 'get_recent_orders',
-                    'description' => 'Ruft die letzten Bestellungen des aktuellen Kunden ab, um Status oder Details zu prüfen.',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [], // Keine Parameter nötig, wir nutzen Auth::user()
-                    ],
-                ],
-            ],
+        // ------------------------------------------------------------------
+        // 0. KONTEXT: TAGESROUTINE (Der aktuelle Flow & der Slider)
+        // ------------------------------------------------------------------
+        $currentFlow = [
+            'title' => 'Freie Zeit',
+            'step' => 'Keine feste Routine aktiv',
+            'type' => 'free',
+            'icon' => 'sun'
         ];
 
-        // Chat History vorbereiten (wie vorher)
-        $messages = array_merge(
-            [['role' => 'system', 'content' => $this->getSystemPrompt()]],
-            $chatHistory,
-            [['role' => 'user', 'content' => $userMessage]]
-        );
+        // Alle Routinen für den Slider aufbereiten
+        $allRoutines = FunkiDayRoutine::with('steps')
+            ->where('is_active', true)
+            ->orderBy('start_time', 'asc')
+            ->get();
 
-        // 2. Erster Request an OpenAI (Mit Tools)
-        $response = OpenAI::chat()->create([
-            'model' => 'gpt-4o-mini',
-            'messages' => $messages,
-            'tools' => $tools,
-            'temperature' => 0.7,
-        ]);
+        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options) {
+            $start = \Carbon\Carbon::parse($routine->start_time);
+            $duration = $routine->type === 'sleep' ? 8 * 60 : $routine->duration_minutes;
+            $end = $start->copy()->addMinutes($duration);
 
-        $message = $response->choices[0]->message;
+            // Mitternachts-Korrektur (z.B. Schlafen von 22:00 bis 06:00 Uhr)
+            if ($start > $end) {
+                $end->addDay();
+                if ($now->hour < $end->hour) {
+                    $start->subDay();
+                }
+            }
 
-        // 3. Prüfen: Will die KI ein Tool nutzen?
-        if ($message->toolCalls) {
+            $status = 'future';
+            if ($end->isPast()) {
+                $status = 'past';
+            } elseif ($now->between($start, $end)) {
+                $status = 'current';
 
-            // Die KI will etwas wissen!
-            foreach ($message->toolCalls as $toolCall) {
+                // --- Aktuellen Flow für die Hauptanzeige setzen ---
+                $currentFlow['title'] = $routine->title;
+                $currentFlow['type'] = $routine->type;
+                $currentFlow['icon'] = $routine->icon ?? 'clock';
 
-                // Prüfen, welche Funktion sie will
-                if ($toolCall->function->name === 'get_recent_orders') {
+                $minutesPassed = $start->diffInMinutes($now);
+                $accumulated = 0;
+                $stepFound = false;
 
-                    // Wir führen UNSEREN PHP-Code aus
-                    $functionResult = $this->getRecentOrders();
+                foreach ($routine->steps->sortBy('position') as $step) {
+                    if ($minutesPassed >= $accumulated && $minutesPassed < ($accumulated + $step->duration_minutes)) {
+                        $currentFlow['step'] = $step->title;
+                        $stepFound = true;
+                        break;
+                    }
+                    $accumulated += $step->duration_minutes;
+                }
 
-                    // Wir fügen die Antwort der KI hinzu (dass sie das Tool gerufen hat)
-                    $messages[] = $message->toArray();
+                if (!$stepFound) {
+                    $currentFlow['step'] = 'Fokus-Phase';
+                }
 
-                    // Wir fügen das Ergebnis unseres Codes als "tool"-Nachricht hinzu
-                    $messages[] = [
-                        'role' => 'tool',
-                        'tool_call_id' => $toolCall->id,
-                        'content' => $functionResult,
+                // Wenn es Pause/Sport/Essen ist, pushen wir es als aktive Handlungsoption (Score 300)
+                if (in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
+                    $options[] = [
+                        'score' => 300,
+                        'title' => $routine->title,
+                        'message' => "Dein Körper braucht das jetzt: " . $currentFlow['step'] . ". " . ($routine->message ?? "Schalte kurz ab und lade die Akkus auf."),
+                        'action_label' => 'Routine ansehen',
+                        'action_route' => 'admin.funki-routine',
+                        'icon' => $routine->icon ?? '🧘'
+                    ];
+                }
+
+                // Wenn es ein aktiver Schlafenszeit-Block ist, pushen wir es mit absoluter Priorität (Score 2500)
+                if ($routine->type === 'sleep') {
+                    $options[] = [
+                        'score' => 2500,
+                        'title' => $routine->title,
+                        'message' => "Deine Nachtruhe ist aktiv: " . $currentFlow['step'] . ". " . ($routine->message ?? "Zeit für Regeneration. Klapp den Laptop zu und gute Nacht!"),
+                        'action_label' => 'Feierabend',
+                        'action_route' => 'admin.dashboard',
+                        'icon' => $routine->icon ?? '🌙'
                     ];
                 }
             }
 
-            // 4. Zweiter Request: Jetzt generiert die KI die Antwort MIT den Daten
-            $finalResponse = OpenAI::chat()->create([
-                'model' => 'gpt-4o-mini',
-                'messages' => $messages,
-                'temperature' => 0.7,
-            ]);
+            return [
+                'id' => $routine->id,
+                'title' => $routine->title,
+                'time_formatted' => $start->format('H:i') . ' - ' . $end->format('H:i'),
+                'icon' => $routine->icon ?? 'clock',
+                'status' => $status,
+            ];
+        })->values()->toArray();
 
-            return $finalResponse->choices[0]->message->content;
+        // ------------------------------------------------------------------
+        // 0.5. AUSSERHALB VON ROUTINEN -> SCHLAFENSZEIT (Score 2000)
+        // ------------------------------------------------------------------
+        if ($currentFlow['type'] === 'free') {
+            $options[] = [
+                'score' => 2000,
+                'title' => 'Schlafenszeit',
+                'message' => "Du befindest dich außerhalb deiner regulären Routinen. Das bedeutet höchste Priorität für Schlaf und Erholung! Klapp den Laptop zu.",
+                'action_label' => 'Feierabend',
+                'action_route' => 'admin.dashboard',
+                'icon' => '🌙'
+            ];
+
+            $currentFlow['title'] = 'Nachtruhe';
+            $currentFlow['step'] = 'Schlaf oder Offline-Phase';
+            $currentFlow['type'] = 'sleep';
+            $currentFlow['icon'] = 'moon';
         }
 
-        // Wenn kein Tool gebraucht wurde, einfach antworten
-        return $message->content;
+        // ------------------------------------------------------------------
+        // 1. SICHERHEIT (Score 1000+)
+        // ------------------------------------------------------------------
+        $failedLogins = LoginAttempt::where('success', false)
+            ->where('attempted_at', '>', now()->subHours(24))
+            ->count();
+
+        if ($failedLogins > 5) {
+            $options[] = [
+                'score' => 1000 + $failedLogins,
+                'title' => 'Sicherheits-Alarm!',
+                'message' => "Ich habe {$failedLogins} verdächtige Login-Versuche blockiert. Bitte prüfe sofort die IP-Adressen!",
+                'action_label' => 'Sicherheit prüfen',
+                'action_route' => 'admin.user-management',
+                'icon' => '🛑'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // 2. TERMINE (Score 500)
+        // ------------------------------------------------------------------
+        $activeEvent = CalendarEvent::whereDate('start_date', $now->toDateString())
+            ->where(function($query) use ($now) {
+                $query->where('start_date', '>', $now)
+                ->where('start_date', '<=', $now->copy()->addMinutes(45))
+                    ->orWhere(function($q) use ($now) {
+                        $q->where('start_date', '<=', $now)
+                        ->where('end_date', '>=', $now);
+                    });
+            })
+            ->orderBy('start_date', 'asc')
+            ->first();
+
+        if ($activeEvent) {
+            $isRunning = $now->greaterThanOrEqualTo($activeEvent->start_date);
+            $options[] = [
+                'score' => 500,
+                'title' => $isRunning ? 'Termin läuft gerade' : 'Termin rückt näher',
+                'message' => $isRunning
+                    ? "Du solltest jetzt bei '{$activeEvent->title}' sein (bis " . Carbon::parse($activeEvent->end_date)->format('H:i') . " Uhr)."
+                    : "Um " . Carbon::parse($activeEvent->start_date)->format('H:i') . " Uhr steht '{$activeEvent->title}' an. Zeit, sich vorzubereiten.",
+                'action_label' => 'Kalender öffnen',
+                'action_route' => 'admin.funki-kalender',
+                'icon' => '📅'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // 3. BUSINESS (Score 200)
+        // ------------------------------------------------------------------
+        $prioOrder = Order::whereIn('status', ['pending', 'processing'])
+            ->orderBy('is_express', 'desc')
+            ->first();
+
+        if ($prioOrder) {
+            $options[] = [
+                'score' => $prioOrder->is_express ? 250 : 200,
+                'title' => 'Produktion starten',
+                'message' => "Bestellung #{$prioOrder->order_number} wartet auf Fertigung. " . ($prioOrder->is_express ? "🚨 Express!" : "Lass die Laser glühen!"),
+                'action_label' => 'Jetzt fertigen',
+                'action_route' => 'admin.orders',
+                'icon' => '🚀'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // 4. VERWALTUNG (Score 100)
+        // ------------------------------------------------------------------
+        $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
+        if ($overdueInvoices > 0) {
+            $options[] = [
+                'score' => 110,
+                'title' => 'Zahlungseingänge',
+                'message' => "Da lässt sich jemand Zeit: {$overdueInvoices} Rechnung(en) sind überfällig. Ein Reminder wäre gut.",
+                'action_label' => 'Rechnungen prüfen',
+                'action_route' => 'admin.invoices',
+                'icon' => '💸'
+            ];
+        }
+
+        $missingReceipt = FinanceSpecialIssue::whereNull('file_paths')->first();
+        if ($missingReceipt) {
+            $options[] = [
+                'score' => 100,
+                'title' => 'Beleg fehlt',
+                'message' => "Uns fehlt noch der Beleg für '{$missingReceipt->title}'. Gleich hochladen, dann ist es erledigt.",
+                'action_label' => 'Beleg hochladen',
+                'action_route' => 'admin.financial-variable-costs',
+                'icon' => '📸'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // 5. TASKS (Score 10)
+        // ------------------------------------------------------------------
+        $nextTask = Task::where('is_completed', false)
+            ->whereNull('parent_id')
+            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if ($nextTask) {
+            $prioScore = match($nextTask->priority) {
+                'hoch' => 25,
+                'mittel' => 15,
+                default => 10
+            };
+
+            $options[] = [
+                'score' => $prioScore,
+                'title' => 'Aufgabe abhaken',
+                'message' => "Wenn du gerade Luft hast: Nächster Punkt auf der Liste ist '{$nextTask->title}'.",
+                'action_label' => 'Zur Liste',
+                'action_route' => 'admin.tasks',
+                'icon' => '✅'
+            ];
+        }
+
+        // ------------------------------------------------------------------
+        // AUSWERTUNG & SORTIERUNG
+        // ------------------------------------------------------------------
+        usort($options, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        if (empty($options)) {
+            $options[] = [
+                'score' => 0,
+                'title' => 'Freie Bahn!',
+                'message' => "Der Shop schnurrt, die Aufgaben sind leer. Klapp den Laptop zu oder gönn dir was Schönes!",
+                'action_label' => 'Dashboard öffnen',
+                'action_route' => 'admin.dashboard',
+                'icon' => '🏆'
+            ];
+        }
+
+        if (!empty($options)) {
+            $topOption = $options[0];
+            if ($topOption['score'] === 500) {
+                $currentFlow['title'] = 'Termin-Fokus';
+                $currentFlow['step'] = $topOption['title'];
+                $currentFlow['icon'] = 'calendar';
+                $currentFlow['type'] = 'event';
+            }
+            if ($topOption['score'] >= 1000) {
+                $currentFlow['title'] = 'SYSTEM KRITISCH';
+                $currentFlow['step'] = 'Sicherheit prüfen';
+                $currentFlow['icon'] = 'shield-exclamation';
+                $currentFlow['type'] = 'emergency';
+            }
+        }
+
+        return [
+            'flow' => $currentFlow,
+            'recommendation' => $options[0],
+            'alternatives' => array_slice($options, 1, 2),
+            'routines' => $sliderRoutines
+        ];
+    }
+
+    /**
+     * Ermittelt die wichtigste Bestellung.
+     */
+    public function getPriorityOrder()
+    {
+        return Order::query()
+            ->whereIn('status', ['pending', 'processing'])
+            ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
+            ->orderBy('is_express', 'desc')
+            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
+            ->orderBy('deadline', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->first();
     }
 }

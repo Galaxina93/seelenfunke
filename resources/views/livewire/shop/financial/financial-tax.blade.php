@@ -235,7 +235,7 @@
                 {{-- RECHTE SPALTE: Checkliste & Details --}}
                 <div class="lg:col-span-7 flex flex-col gap-6">
 
-                    {{-- ToDos / Fehlende Belege Box --}}
+                    {{-- Tasks / Fehlende Belege Box --}}
                     @if($isMissing)
                         <div class="bg-red-500/5 border border-red-500/20 rounded-[2rem] p-6 sm:p-8 shadow-inner">
                             <h4 class="text-xs font-black text-red-400 uppercase tracking-widest mb-6 flex items-center gap-2">
