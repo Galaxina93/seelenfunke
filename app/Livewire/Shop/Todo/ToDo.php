@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Livewire\Shop\Funki;
+namespace App\Livewire\Shop\Todo;
 
-use App\Models\Todo;
+use App\Models\Todo as Task;
 use App\Models\TodoList;
-use Livewire\Component;
 use Illuminate\Support\Str;
+use Livewire\Component;
 
-class FunkiToDo extends Component
+class ToDo extends Component
 {
     public $search = '';
     public $selectedListId = null;
@@ -22,9 +22,9 @@ class FunkiToDo extends Component
     public function mount()
     {
         // One-time auto-migration of old English priorities
-        Todo::where('priority', 'low')->update(['priority' => 'niedrig']);
-        Todo::where('priority', 'medium')->update(['priority' => 'mittel']);
-        Todo::where('priority', 'high')->update(['priority' => 'hoch']);
+        Task::where('priority', 'low')->update(['priority' => 'niedrig']);
+        Task::where('priority', 'medium')->update(['priority' => 'mittel']);
+        Task::where('priority', 'high')->update(['priority' => 'hoch']);
 
         // Auto-run map_id migrations and seeder (for easy update deployment without terminal)
         if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
@@ -75,7 +75,7 @@ class FunkiToDo extends Component
             $this->selectedListId = $list->id;
         }
 
-        Todo::create([
+        Task::create([
             'id' => (string) Str::uuid(),
             'todo_list_id' => $this->selectedListId,
             'title' => $this->newTask_title,
@@ -89,7 +89,7 @@ class FunkiToDo extends Component
     {
         if (empty($title)) return;
 
-        Todo::create([
+        Task::create([
             'id' => (string) Str::uuid(),
             'todo_list_id' => $this->selectedListId,
             'parent_id' => $parentId,
@@ -102,7 +102,7 @@ class FunkiToDo extends Component
     {
         if(empty(trim($newTitle))) return;
 
-        $todo = Todo::find($id);
+        $todo = Task::find($id);
         if($todo) {
             $todo->update(['title' => $newTitle]);
         }
@@ -112,7 +112,7 @@ class FunkiToDo extends Component
     {
         if(empty($priority)) return;
 
-        $todo = Todo::find($id);
+        $todo = Task::find($id);
         if($todo && in_array($priority, ['niedrig', 'mittel', 'hoch'])) {
             $todo->update(['priority' => $priority]);
         }
@@ -120,10 +120,10 @@ class FunkiToDo extends Component
 
     public function toggleComplete($id)
     {
-        $todo = Todo::find($id);
+        $todo = Task::find($id);
         if($todo) {
             $todo->update(['is_completed' => !$todo->is_completed]);
-            
+
             if ($todo->is_completed) {
                 $this->dispatch('todo-completed');
             }
@@ -132,7 +132,7 @@ class FunkiToDo extends Component
 
     public function promoteToTask($id)
     {
-        $todo = Todo::find($id);
+        $todo = Task::find($id);
         if($todo) {
             $todo->update(['parent_id' => null]);
         }
@@ -140,7 +140,7 @@ class FunkiToDo extends Component
 
     public function deleteTodo($id)
     {
-        Todo::destroy($id);
+        Task::destroy($id);
     }
 
     public function deleteList($id)
@@ -161,7 +161,7 @@ class FunkiToDo extends Component
 
         $todos = collect();
         if ($this->selectedListId) {
-            $todos = Todo::where('todo_list_id', $this->selectedListId)
+            $todos = Task::where('todo_list_id', $this->selectedListId)
                 ->whereNull('parent_id')
                 ->with(['subtasks' => function($q) {
                     $q->orderBy('is_completed', 'asc')->orderBy('created_at', 'asc');
@@ -173,7 +173,7 @@ class FunkiToDo extends Component
                 ->get();
         }
 
-        return view('livewire.shop.funki.funki-to-do', [
+        return view('livewire.shop.todo.to-do', [
             'lists' => $lists,
             'todos' => $todos
         ]);

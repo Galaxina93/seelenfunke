@@ -252,7 +252,7 @@ class FunkiBotService
                 'title' => 'ToDo abhaken',
                 'message' => "Wenn du gerade Luft hast: Nächster Punkt auf der Liste ist '{$nextTodo->title}'.",
                 'action_label' => 'Zur Liste',
-                'action_route' => 'admin.funki-todos',
+                'action_route' => 'admin.todos',
                 'icon' => '✅'
             ];
         }

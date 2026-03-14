@@ -1,4 +1,4 @@
-<div class="flex flex-col h-[calc(100vh-10rem)] bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[700px] animate-fade-in-up">
+<div class="flex flex-col h-[85vh] md:h-[calc(100vh-10rem)] bg-gray-900/80 backdrop-blur-xl rounded-2xl md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[500px] md:min-h-[700px] animate-fade-in-up">
 
     {{-- HEADER BEREICH --}}
     <div class="bg-gray-950/50 border-b border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md">
@@ -29,7 +29,7 @@
         </div>
     </div>
 
-    <div class="flex flex-col lg:flex-row flex-1 overflow-hidden">
+    <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
 
         {{-- SIDEBAR: LISTEN --}}
         <div class="w-full lg:w-72 bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-row lg:flex-col overflow-x-auto lg:overflow-y-auto custom-scrollbar p-4 gap-3 shrink-0">
@@ -111,19 +111,20 @@
         </div>
 
         {{-- MAIN CONTENT: TASKS --}}
-        <div class="flex-1 flex flex-col bg-gray-950/20 min-w-0 relative">
+        <div class="flex-1 flex flex-col bg-gray-950/20 min-w-0 min-h-0 relative">
 
-            <div class="p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm">
-                <form wire:submit.prevent="createTask" class="relative group max-w-3xl mx-auto">
-                    <div class="absolute inset-0 bg-primary/10 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+            <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm relative">
+                <form wire:submit.prevent="createTask" class="relative group max-w-4xl mx-auto">
+                    <div class="absolute inset-0 bg-primary/10 rounded-2xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                     <input wire:model="newTask_title" type="text"
                            placeholder="{{ $selectedListId ? 'Was gibt es zu tun?' : 'Wähle links eine Liste...' }}"
                            @disabled(!$selectedListId)
-                           class="relative w-full pl-6 pr-16 py-4.5 bg-gray-950 border border-gray-800 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-base font-bold text-white placeholder:text-gray-700 shadow-inner outline-none">
+                           class="relative w-full pl-6 pr-20 py-5 md:py-6 md:pl-8 md:pr-40 bg-gray-950 border-2 border-gray-800 rounded-2xl md:rounded-3xl focus:ring-4 focus:ring-primary/20 focus:border-primary transition-all text-lg md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
 
                     <button type="submit" @disabled(!$selectedListId)
-                    class="absolute right-2 top-2 bottom-2 px-4 bg-primary text-gray-900 rounded-xl flex items-center justify-center hover:bg-white transition-all shadow-lg active:scale-95 disabled:bg-gray-800 disabled:text-gray-600">
-                        <x-heroicon-o-plus-small class="w-7 h-7 stroke-2" />
+                    class="absolute right-2 top-2 bottom-2 px-5 md:px-8 bg-primary text-gray-900 rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-white transition-all shadow-lg active:scale-95 disabled:bg-gray-800 disabled:text-gray-600">
+                        <x-heroicon-o-plus class="w-6 h-6 md:w-8 md:h-8 stroke-[3]" />
+                        <span class="hidden md:inline-block ml-2 font-black uppercase text-sm tracking-widest">Hinzufügen</span>
                     </button>
                 </form>
             </div>

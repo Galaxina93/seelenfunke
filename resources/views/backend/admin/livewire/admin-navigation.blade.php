@@ -2,7 +2,7 @@
     @php
         $currentPage = basename(request()->path());
 
-        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'funki-todos', 'funki-kalender']);
+        $isFunkiActive = in_array($currentPage, ['funki', 'funki-routine', 'todos', 'funki-kalender']);
 
         // Neu aufgeteilt in Produkte und Marketing
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
@@ -27,7 +27,7 @@
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/funki" title="Funki" pageName="funki" icon="sparkles" />
                     <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="arrow-path" />
-                    <x-forms.list-item route="/admin/funki-todos" title="Aufgaben" pageName="funki-todos" icon="check-circle" />
+                    <x-forms.list-item route="/admin/todos" title="Aufgaben" pageName="todos" icon="check-circle" />
                     <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
                 </ul>
             </li>

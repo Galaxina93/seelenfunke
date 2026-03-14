@@ -21,7 +21,7 @@
 
     @section('content')
 
-        @livewire('shop.funki.funki-to-do')
+        @livewire('shop.todo.to-do')
 
     @endsection
 

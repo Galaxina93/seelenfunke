@@ -17,9 +17,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki-routine', function () {
         return view('backend.admin.pages.funki-routine');
     })->name('admin.funki-routine');
-    Route::get('/admin/funki-todos', function () {
-        return view('backend.admin.pages.funki-todos');
-    })->name('admin.funki-todos');
+    Route::get('/admin/todos', function () {
+        return view('backend.admin.pages.todos');
+    })->name('admin.todos');
     Route::get('/admin/funki-kalender', function () {
         return view('backend.admin.pages.funki-kalender');
     })->name('admin.funki-kalender');
@@ -183,7 +183,7 @@ Route::middleware(['auth:admin'])->group(function () {
                 // Falls es keine Base64-URL ist, sondern ein lokaler Pfad, wandeln wir es für die SVG um
                 if (!str_starts_with($url, 'data:image')) {
                     $urlPath = parse_url($url, PHP_URL_PATH);
-                    
+
                     if (str_contains($urlPath, '/storage/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
                         $localPath = storage_path('app/public/' . $relativePath);
@@ -201,7 +201,7 @@ Route::middleware(['auth:admin'])->group(function () {
                             $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $data);
                             $innerSvg = preg_replace('/<!--.*?-->/is', '', $innerSvg);
                             $innerSvg = preg_replace('/<!DOCTYPE.*?>/is', '', $innerSvg);
-                            
+
                             $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
                             if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {
                                 $vParts = preg_split('/[\s,]+/', trim($m[1]));
@@ -233,7 +233,7 @@ Route::middleware(['auth:admin'])->group(function () {
                             // Failsafe: Falls in der Datei kein "fill=" deklariert ist, sicherheitshalber ins <g> Tag packen.
                             $fillAttr = !str_contains($innerSvg, 'fill=') ? ' fill="#000000"' : '';
 
-                            $scaleS = $logoWidth / max(1, $viewBoxW); 
+                            $scaleS = $logoWidth / max(1, $viewBoxW);
                             $cx = $vX + ($viewBoxW / 2);
                             $cy = $vY + ($viewBoxH / 2);
 

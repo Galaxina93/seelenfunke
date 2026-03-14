@@ -4,7 +4,6 @@ namespace App\Services\AI\Functions;
 
 use App\Models\Todo;
 use App\Models\TodoList;
-use App\Models\CalendarEvent;
 use App\Models\Funki\FunkiDayRoutine;
 
 trait DashboardFunctions
@@ -124,7 +123,7 @@ trait DashboardFunctions
         try {
             $botService = app(\App\Services\FunkiBotService::class);
             $missionData = $botService->getUltimateCommand();
-            
+
             return [
                 'status' => 'success',
                 'mission' => $missionData
@@ -143,11 +142,11 @@ trait DashboardFunctions
             $analytics = new \App\Livewire\Global\Widgets\FunkiAnalytics();
             $analytics->checkSystemHealth();
             $isHealthy = $analytics->isSystemHealthy();
-            
+
             $analytics->dateStart = now()->startOfMonth()->format('Y-m-d');
             $analytics->dateEnd = now()->endOfMonth()->format('Y-m-d');
             $analytics->filterType = 'all';
-            
+
             $service = app(\App\Services\FunkiAnalyticsService::class);
             $analytics->loadStats($service);
             $stats = $analytics->stats;
@@ -175,7 +174,7 @@ trait DashboardFunctions
             \Illuminate\Support\Facades\Artisan::call('cache:clear');
             \Illuminate\Support\Facades\Artisan::call('config:clear');
             \Illuminate\Support\Facades\Artisan::call('queue:restart');
-            
+
             if (class_exists(\App\Models\Funki\FunkiLog::class)) {
                 \App\Models\Funki\FunkiLog::create([
                     'title' => 'System Healing durch Funkira',
@@ -213,7 +212,7 @@ trait DashboardFunctions
                 ->orderByDesc('started_at')
                 ->limit(10)
                 ->get(['title', 'message', 'status', 'type', 'started_at']);
-            
+
             if ($logs->isEmpty()) {
                 return ['status' => 'success', 'message' => 'Das Systemprotokoll verzeichnet keine Fehler oder Warnungen in den letzten 24 Stunden. Alles läuft perfekt.'];
             }
@@ -237,7 +236,7 @@ trait DashboardFunctions
                 ->orderBy('created_at', 'desc')
                 ->limit(15)
                 ->get(['id', 'title', 'priority', 'created_at']);
-            
+
             return [
                 'status' => 'success',
                 'open_todos_count' => $todos->count(),
@@ -254,7 +253,7 @@ trait DashboardFunctions
             if (empty($args['title'])) {
                 return ['status' => 'error', 'message' => 'Es wurde kein Titel für das ToDo angegeben.'];
             }
-            
+
             // --- DUPLICATE CHECK ---
             // If there's already an active todo with roughly the same title (check the first 20 chars)
             $shortTitle = substr($args['title'], 0, 20);
@@ -274,14 +273,14 @@ trait DashboardFunctions
                 ['name' => 'Funkiras Empfehlungen'],
                 ['icon' => 'sparkles', 'color' => '#10B981']
             );
-            
+
             $todo = Todo::create([
                 'title' => substr($args['title'], 0, 255),
                 'priority' => $args['priority'] ?? 'mittel',
                 'is_completed' => false,
                 'todo_list_id' => $list->id
             ]);
-            
+
             return [
                 'status' => 'success',
                 'message' => "Die Aufgabe '{$todo->title}' wurde erfolgreich aufgenommen.",
@@ -298,7 +297,7 @@ trait DashboardFunctions
             if (empty($args['todo_id'])) {
                 return ['status' => 'error', 'message' => 'Es wurde keine ToDo ID angegeben.'];
             }
-            
+
             $todo = Todo::find($args['todo_id']);
             if (!$todo) {
                 return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
@@ -324,7 +323,7 @@ trait DashboardFunctions
             }
 
             $term = $args['todo_title'];
-            
+
             $todo = Todo::where('is_completed', false)
                 ->where('title', 'LIKE', '%' . $term . '%')
                 ->first();
@@ -364,7 +363,7 @@ trait DashboardFunctions
                 }])
                 ->orderBy('start_time', 'asc')
                 ->get(['id', 'title', 'start_time', 'duration_minutes', 'type']);
-            
+
             return [
                 'status' => 'success',
                 'active_routines_count' => $routines->count(),
