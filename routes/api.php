@@ -34,7 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Tasks (Aufgaben)
     require __DIR__ . '/api/tasks.php';
 
-    // Kalender & Termine
+    // Calender & Termine
     require __DIR__ . '/api/calendar.php';
 
 });

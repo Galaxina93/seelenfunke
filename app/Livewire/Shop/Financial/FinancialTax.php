@@ -21,8 +21,8 @@ class FinancialTax extends Component
     public $showStorageVault = false;
     public $archivedExports = [];
 
-    // NEU: Das Funki-Log System für absolute Transparenz
-    public $funkiLogs = [];
+    // NEU: Das Global-Log System für absolute Transparenz
+    public $globalLogs = [];
 
     public function mount()
     {
@@ -38,7 +38,7 @@ class FinancialTax extends Component
     // --- LOGGING SYSTEM ---
     private function addLog($type, $message)
     {
-        $this->funkiLogs[] = [
+        $this->globalLogs[] = [
             'time' => now()->format('H:i:s.v'),
             'type' => $type, // 'system', 'info', 'success', 'error', 'warning'
             'message' => $message
@@ -48,7 +48,7 @@ class FinancialTax extends Component
     public function selectMonth($month)
     {
         $this->selectedMonth = $month;
-        $this->funkiLogs = []; // Logs beim Monatswechsel leeren
+        $this->globalLogs = []; // Logs beim Monatswechsel leeren
         $this->addLog('system', "Monat " . str_pad($month, 2, '0', STR_PAD_LEFT) . "/{$this->selectedYear} geladen. Analysiere Belege...");
     }
 

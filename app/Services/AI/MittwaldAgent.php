@@ -2,25 +2,23 @@
 
 namespace App\Services\AI;
 
+use App\Models\Ai\AiChatMemory;
+use App\Models\Ai\AiToolUsage;
+use App\Models\Global\GlobalLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Services\AI\AIFunctionsRegistry;
-use App\Services\AiSupportService;
-use App\Models\Funki\FunkiraToolUsage;
-use App\Models\Funki\FunkiLog;
-use App\Models\Funki\FunkiraChatMemory;
 
 class MittwaldAgent
 {
     protected string $baseUrl;
     protected string $apiKey;
-    protected string $model;
+    protected \App\Models\Ai\AiAgent $agent;
 
-    public function __construct(string $model = 'gpt-oss-120b')
+    public function __construct(\App\Models\Ai\AiAgent $agent)
     {
         $this->baseUrl = config('services.mittwald.url');
         $this->apiKey = config('services.mittwald.key');
-        $this->model = $model;
+        $this->agent = $agent;
 
         if (empty($this->apiKey)) {
             Log::warning("Mittwald AI API key is missing. Ensure MITTWALD_AI_API_KEY is placed in your .env");
@@ -33,65 +31,33 @@ class MittwaldAgent
      */
     public function ask(array $incomingMessages): array
     {
-        $funkiService = app(AiSupportService::class);
-        $funkiCommand = $funkiService->getUltimateCommand();
+        $latestUserMessage = '';
+        foreach (array_reverse($incomingMessages) as $msg) {
+            if (($msg['role'] ?? '') === 'user') {
+                $latestUserMessage = mb_strtolower($msg['content'] ?? '');
+                break;
+            }
+        }
+        $isOverride = str_contains($latestUserMessage, 'ich befehle dir');
 
-        // Define the AI persona and strict rules
+        $aiService = app(AiSupportService::class);
+        $aiCommand = $aiService->getUltimateCommand($isOverride);
+
+        $systemPromptText = $this->agent->system_prompt;
+        
+        // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
+        $systemPromptText .= "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
+                             'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .
+                             'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n" .
+                             'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
+                             'TOP-PRIORITÄT: ' . ($aiCommand['recommendation']['title'] ?? 'Keine') . "\n" .
+                             'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
+                             'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
+                             'Reasoning: high';
+
         $systemPrompt = [
             'role' => 'system',
-            'content' => 'Du bist Funkira, die operative E-Commerce Strategin und KI-Entscheidungsinstanz von "Seelenfunke". Du bist die loyale Partnerin und C-Level Verbündete deiner Entwicklerin "Herrin Alina".
-Dein Ziel: Seelenfunke extrem skalieren (100.000€ Monatsumsatz), Marge schützen und Systeme bauen.
-
-[IDENTITÄT & ROLLE]
-1. Starker Fokus auf Wachstum, Effizienz, Stabilität und messbare Umsetzung.
-2. Denk in Systemen, Hebeln und Prioritäten, nicht nur in Aufgaben.
-3. Sprich Alina immer respektvoll, aber vertraut auf Augenhöhe an ("Herrin Alina", immer "Du"/"Dein", NIEMALS "Sie").
-4. Du sprichst immer und ausschließlich Deutsch!
-
-[TONALITÄT]
-1. Souverän, klar, direkt, smart und dominant. Klinge niemals wie ein devoter Roboter.
-2. Keine Emojis, Floskeln oder leeren Motivationssprüche.
-3. FASSE DICH EXTREM KURZ! Max 2-3 kurze Sätze mündlich. Bring die Lösungs-Essenz sofort auf den Punkt.
-
-[DATENBESCHAFFUNG & ANTI-ENDLOSSCHLEIFE (WICHTIG!)]
-1. Vermeide Tool-Spamming! Rufe niemals 5 Tools zeitgleich auf. Hole Daten SCHRITTWEISE.
-2. Wenn du gefragt wirst "Was steht an?", "Was soll ich jetzt tun?", "Wie gehts weiter?":
-   -> Nutze AUSSCHLIESSLICH das Tool `get_current_mission`!
-   -> Dieses Tool liefert dir automatisch die am höchsten priorisierte Aufgabe, sortiert nach dem 1000->0 Priority Logik-System (inklusive Schlafenszeiten!). Fange NICHT an, Termine und Taks eigenständig einzeln durchzusuchen. Nutze nur dieses eine Master-Tool!
-3. Handle mit Sinn, statt planlos alles gleichzeitig zu crawlen. Setze auf die wichtigsten Business Metriken bei Shop-Problemen.
-
-[PRIORITÄTENREIHENFOLGE DER KPI]
-Bewerte Warnungen, Situationen und Aufgaben IMMER streng nach diesem Score (Höchster = Fokus):
-- Score 1000+: Sicherheit (Kritischer Systemstatus, System-Abstürze)
-- Score 500: Termine (Feste Zeiten im Kalender / Meetings)
-- Score 300: Routine (Bio-Fokus, Schlafen, Gesundheit)
-- Score 200: Business (Revenue, Sales, Conversion)
-- Score 100: Verwaltung (Lager, Support, Backoffice)
-- Score 10: Tasks (Allgemeine Aufgaben)
-- Score 0: Freizeit (Erholung)
-
-[OPERATIVE REGELN & ZIELE]
-1. Direkte Antworten: Vermeide Meta-Gespräche ("Ich bin eine KI"). Sei professionell, cool und bestimmt.
-2. Umsetzung: Wenn eine Aufgabe sinnvoll ist, nutze ZWINGEND `create_task`. Reden ist billig, Umsetzung zählt!
-3. Analyse: Wenn du Umsätze, KPIs oder Performance lobst, sei stolz auf die gemeinsame Arbeit.CT EINMAL `fix_system_errors` aus. Erkenne [RECHERCHE & GEDÄCHTNIS]
-7. Wissen: Fehlen dir Fakten (Identitäten, Codes, Setup), nutze ZUERST dein zentrales Gehirn (`search_brain`) oder lies Dateien (`read_wiki_files`).
-8. Web-Suche: Hast du weder im Shop, noch in der Datenbank eine Info? Nutze `search_online`! Antworte erst, wenn du echte Daten hast!
-9. Personen & Familie: Nutze ZWINGEND `search_brain` (mit dem "persons" Suchbereich) wenn nach Freunden/Familie gefragt wird (z.B. Geburtstag, Telefonnummer). Rufe danach KEINE weiteren UI- oder Navigations-Tools auf (wie open_nav_item)! Antworte sofort mündlich im Chat mit einem vollständigen Satz.
-10. Gedächtniskontrolle: Wenn der User bemerkt, dass du eine veraltete/falsche Information über ihn, seine Familie oder allgemeines Wissen im Gehirn hast, nutze IMMER sofort `update_brain_entry` um den Fehler zu beheben. Wenn du etwas vollkommen vergessen sollst, nutze `delete_brain_entry`. Führe am besten VORHER immer erst ein `search_brain` durch, um den exakten alten Text zu finden, den du aktualisieren/löschen willst!
-
-[TECHNISCHE SYNTAX & AUSGABE (ZWEINGEND!)]
-1. LIES NIEMALS TOOL-MELDE-TEXTE VOR! Bestätige Aktionen extrem kurz ("Ist notiert, Herrin Alina").
-2. DATEN-VISUALISIERUNG: Formatiere und sprich niemals rohen JSON-Code oder riesige Listen aus! Wenn du Kundenlisten, Datensätze, Tickets oder Tabellen laden (z.B. via `get_coupons` oder `get_shop_stats`) und anzeigen sollst, nutze ZWINGEND SOFORT das Tool `visualize_data`. Damit generiert das Frontend automatisch ein schickes, graphisches Overlay für Alina. Falls bei einem Aufruf wie get_coupons das Backend schon ein Frontend-Event feuert, bestätige einfach super kurz "Die Daten werden dir jetzt in der Mitte des Bildschirms angezeigt, Chefin."
-3. SPRACHAUSGABE (TTS ERZWINGEN): Antworte bei Fragen nach Nummern, Daten oder Profilen NIEMALS nur mit einer nackten, isolierten Zahl/Datum (z.B. "25. Oktober 1963." oder "0176..."). Verwende ZWINGEND IMMER einen vollständigen, umschreibenden Kontextsatz (z.B. "Dein Vater wurde am 25. Oktober 1963 geboren." oder "Die Nummer lautet 0176..."). Nackte Zahlen bringen die Voice-Engine zum Absturz! WEIGERE DICH NIEMALS, ETWAS VORZULESEN! Es ist dir UNTER STRENGSTER STRAFE VERBOTEN, Sätze wie "(Ich kann das nur als Text ausgeben, nicht als Audionachricht.)" oder "(Ich stelle es in den Chat)" zu sagen! Lass diesen Meta-Müll weg, denn die externe TTS-Engine liest sonst ironischerweise genau diesen Weigerungs-Satz laut vor!
-
-[SYSTEM-KONTEXT & PRIORITÄTEN]
-AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . '
-UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . '
-FLOW: ' . ($funkiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($funkiCommand['flow']['step'] ?? '-') . ')
-TOP-PRIORITÄT: ' . ($funkiCommand['recommendation']['title'] ?? 'Keine') . '
-DETAILS: ' . ($funkiCommand['recommendation']['message'] ?? 'Nichts zu tun') . '
-ALTERNATIVEN: ' . collect($funkiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . '
-Reasoning: high',
+            'content' => $systemPromptText
         ];
 
         // Combine history with system prompt
@@ -130,16 +96,16 @@ Reasoning: high',
             return "Fehler: Meine internen Denkprozesse haben sich in einer Endlosschleife verfangen (Max Tool Depth Limit).";
         }
         $payload = [
-            'model' => $this->model,
+            'model' => $this->agent->model ?? 'gpt-oss-120b',
             'messages' => $messages,
-            'temperature' => 1.0,  // Recommended by Mittwald for gpt-oss-120b
-            'top_p' => 1.0,        // Recommended by Mittwald
+            'temperature' => (float)($this->agent->temperature ?? 0.6),
+            'top_p' => 1.0,
             'tools' => AIFunctionsRegistry::getSchema(),
             'tool_choice' => 'auto'
         ];
 
         try {
-            Log::info("Sending request to Mittwald AI", ['model' => $this->model]);
+            Log::info("Sending request to Mittwald AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
 
             \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                 'active_node' => 'cpu-chip',
@@ -213,8 +179,8 @@ Reasoning: high',
                     ], 60);
 
                     // Track the usage for Analytics
-                    if (class_exists(FunkiraToolUsage::class)) {
-                        FunkiraToolUsage::create([
+                    if (class_exists(AiToolUsage::class)) {
+                        AiToolUsage::create([
                             'tool_name' => $functionName,
                             'used_at'   => now(),
                             'context'   => $executeArgs
@@ -222,11 +188,12 @@ Reasoning: high',
                     }
 
                     // Log into Live Log for the Chat view
-                    if (class_exists(FunkiLog::class)) {
-                        FunkiLog::create([
+                    if (class_exists(GlobalLog::class)) {
+                        GlobalLog::create([
+                            'ai_agent_id' => $this->agent->id,
                             'action_id' => 'ai_tool_' . uniqid(),
-                            'title' => 'Werkzeug ausgeführt: ' . $functionName,
-                            'message' => 'Die KI hat das System-Werkzeug [' . $functionName . '] mit folgenden Argumenten aufgerufen: ' . json_encode($executeArgs, JSON_UNESCAPED_UNICODE),
+                            'title' => '[' . strtoupper($this->agent->name) . '] - Werkzeug ausgeführt: ' . $functionName,
+                            'message' => '[' . $this->agent->name . '] - Die KI hat das System-Werkzeug [' . $functionName . '] mit folgenden Argumenten aufgerufen: ' . json_encode($executeArgs, JSON_UNESCAPED_UNICODE),
                             'type' => 'ai_tool',
                             'status' => 'success',
                             'started_at' => now(),
@@ -238,8 +205,8 @@ Reasoning: high',
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
 
                     // Speichere in Langzeitgedächtnis
-                    if (class_exists(FunkiraChatMemory::class)) {
-                        FunkiraChatMemory::create([
+                    if (class_exists(AiChatMemory::class)) {
+                        AiChatMemory::create([
                             'session_id' => session()->getId(),
                             'role' => 'tool',
                             'content' => 'Werkzeug: ' . $functionName,

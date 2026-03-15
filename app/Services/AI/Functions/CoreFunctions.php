@@ -3,7 +3,7 @@
 namespace App\Services\AI\Functions;
 
 use App\Models\KnowledgeBase;
-use App\Models\Funki\PersonProfile;
+use App\Models\PersonProfile;
 use App\Services\AI\Functions\SearchChatHistory;
 
 trait CoreFunctions
@@ -183,7 +183,7 @@ trait CoreFunctions
             $query = strtolower(trim($args['search_query'] ?? ''));
             $newContent = $args['new_content'] ?? '';
             $isPersonFact = $args['is_person_fact'] ?? false;
-            
+
             if (empty($query) || empty($newContent)) {
                 return ['status' => 'error', 'message' => 'Suchbegriff und neuer Inhalt sind erforderlich.'];
             }
@@ -195,7 +195,7 @@ trait CoreFunctions
                 foreach (PersonProfile::all() as $p) {
                     $dbFullName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name . ' ' . $p->last_name));
                     $dbFirstName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name));
-                    
+
                     if (str_contains($query, $dbFirstName) || str_contains($query, $dbFullName)) {
                         $bestMatch = $p;
                         break;
@@ -208,14 +208,14 @@ trait CoreFunctions
                         // Suchen und Ersetzen
                         $currentFacts = $bestMatch->ai_learned_facts ?? '';
                         $updatedFacts = str_ireplace($oldSub, $newContent, $currentFacts);
-                        
+
                         if ($currentFacts !== $updatedFacts) {
                             $bestMatch->ai_learned_facts = $updatedFacts;
                             $bestMatch->save();
                             return ['status' => 'success', 'message' => "Der spezifische Fakt bei {$bestMatch->first_name} wurde aktualisiert."];
                         }
                     }
-                    
+
                     // Fallback: Einfach hinten dranhängen (wie save_to_brain)
                     $dateStr = now()->format('d.m.Y');
                     $$bestMatch->ai_learned_facts = ($bestMatch->ai_learned_facts ?? '') . "\n[{$dateStr}] KORRIGIERT: {$newContent}";
@@ -245,7 +245,7 @@ trait CoreFunctions
         try {
             $query = strtolower(trim($args['search_query'] ?? ''));
             $isPersonFact = $args['is_person_fact'] ?? false;
-            
+
             if (empty($query)) {
                 return ['status' => 'error', 'message' => 'Suchbegriff zum Löschen ist erforderlich.'];
             }
@@ -255,7 +255,7 @@ trait CoreFunctions
                 foreach (PersonProfile::all() as $p) {
                     $dbFullName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name . ' ' . $p->last_name));
                     $dbFirstName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name));
-                    
+
                     if (str_contains($query, $dbFirstName) || str_contains($query, $dbFullName)) {
                         $bestMatch = $p;
                         break;
@@ -302,33 +302,33 @@ trait CoreFunctions
             if (empty($args['title']) || empty($args['content'])) {
                 return ['status' => 'error', 'message' => 'Titel und Inhalt sind für das Speichern erforderlich.'];
             }
-            
+
             $tags = $args['tags'] ?? [];
             $searchStrings = array_merge([$args['title']], $tags);
-            
+
             $bestMatch = null;
             $highestSimilarity = 0;
             $allProfiles = PersonProfile::all();
-            
+
             foreach ($searchStrings as $str) {
                 $strLower = strtolower(trim($str));
                 if (empty($strLower) || in_array($strLower, ['person', 'wissen', 'einstellung'])) continue;
-                
+
                 foreach ($allProfiles as $p) {
                     $dbFullName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name . ' ' . $p->last_name));
                     $dbFirstName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name));
                     $dbNickname = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->nickname ?? ''));
-                    
+
                     if ($dbFirstName === $strLower || $dbNickname === $strLower || $dbFullName === $strLower) {
                         $bestMatch = $p;
                         $highestSimilarity = 100;
                         break 2;
                     }
-                    
+
                     $simFirst = 0; similar_text($dbFirstName, $strLower, $simFirst);
                     $simFull = 0; similar_text($dbFullName, $strLower, $simFull);
                     $maxSim = max($simFirst, $simFull);
-                    
+
                     // Fange Fälle ab, in denen AI "Alina Steinhauer" übergibt, in DB aber nur "Alina" steht
                     if (str_contains($strLower, $dbFirstName) && strlen($dbFirstName) > 2) {
                          $maxSim = max($maxSim, 90);
@@ -349,14 +349,14 @@ trait CoreFunctions
                 // Anti-Duplikat Check für Personen
                 if (str_contains(strtolower($bestMatch->ai_learned_facts ?? ''), strtolower($args['content']))) {
                     return [
-                        'status' => 'success', 
+                        'status' => 'success',
                         'message' => "Diese Information merke ich mir kein zweites Mal, da sie mir bezüglich {$bestMatch->first_name} bereits bekannt ist."
                     ];
                 }
 
                 $dateStr = now()->format('d.m.Y');
                 $newEntry = "\n[{$dateStr}] {$args['content']} (Notiz: {$args['title']})";
-                
+
                 $bestMatch->ai_learned_facts = ($bestMatch->ai_learned_facts ?? '') . $newEntry;
                 $bestMatch->save();
 
@@ -372,7 +372,7 @@ trait CoreFunctions
                                        ->exists();
             if ($existingKb) {
                 return [
-                    'status' => 'success', 
+                    'status' => 'success',
                     'message' => 'Dieser identische Fakten-Eintrag existiert bereits in meinem generellen Wiki. Ich habe ihn nicht doppelt gespeichert.'
                 ];
             }
@@ -399,12 +399,12 @@ trait CoreFunctions
     public static function executeVisualizeData(array $args)
     {
         $category = strtolower($args['category'] ?? 'general');
-        
+
         // Safety Fallbacks & Aliases
         if ($category === 'coupon' || $category === 'gutschein' || $category === 'coupons') {
             $category = 'voucher';
         }
-        
+
         $data = $args['data'] ?? [];
 
         return [
@@ -431,7 +431,7 @@ trait CoreFunctions
             $queryStr = $args['query'];
             $areas = $args['search_areas'] ?? ['persons', 'general_knowledge'];
             $queryLower = strtolower(trim($queryStr));
-            
+
             $results = [];
 
             // 1. Suche in Personen (falls erlaubt)
@@ -439,27 +439,27 @@ trait CoreFunctions
                 $allProfiles = PersonProfile::all();
                 $bestMatch = null;
                 $highestSimilarity = 0;
-                
+
                 foreach ($allProfiles as $p) {
                     $dbFullName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name . ' ' . $p->last_name));
                     $dbFirstName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->first_name));
                     $dbLastName = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->last_name));
                     $dbNickname = strtolower(str_replace(['ä', 'ö', 'ü', 'ß'], ['ae', 'oe', 'ue', 'ss'], $p->nickname ?? ''));
-                    
-                    if (str_contains($queryLower, $dbFirstName) || str_contains($queryLower, $dbLastName) || 
+
+                    if (str_contains($queryLower, $dbFirstName) || str_contains($queryLower, $dbLastName) ||
                         ($dbNickname && str_contains($queryLower, $dbNickname))) {
                         $bestMatch = $p;
                         $highestSimilarity = 100;
                         break;
                     }
-                    
+
                     $simFirst = 0; similar_text($dbFirstName, $queryLower, $simFirst);
                     if ($simFirst > $highestSimilarity) {
                         $highestSimilarity = $simFirst;
                         $bestMatch = $p;
                     }
                 }
-                
+
                 if ($bestMatch && $highestSimilarity > 60) {
                     $contextParts = [
                         "[PERSONEN PROFIL GEFUNDEN]",
@@ -475,7 +475,7 @@ trait CoreFunctions
                     if ($bestMatch->ai_learned_facts) {
                         $contextParts[] = "\n--- GELERNTES GEDAETCHNIS ---\n" . $bestMatch->ai_learned_facts;
                     }
-                    
+
                     $results[] = [
                         'type' => 'person_profile',
                         'data' => implode("\n", $contextParts)
@@ -494,7 +494,7 @@ trait CoreFunctions
                     ->orderBy('created_at', 'desc')
                     ->limit(3)
                     ->get(['title', 'content', 'category', 'created_at']);
-                    
+
                 foreach ($kbResults as $kb) {
                     $results[] = [
                         'type' => 'knowledge_base',

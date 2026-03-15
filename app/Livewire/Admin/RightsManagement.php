@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Admin;
 
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Support\Facades\Auth;
@@ -31,7 +31,7 @@ class RightsManagement extends Component
         $role->permissions()->attach($permissionId);
 
         // Logging
-        FunkiLog::create([
+        GlobalLog::create([
             'type' => 'system',
             'action_id' => 'rights:attach',
             'title' => 'Recht zugewiesen',
@@ -56,7 +56,7 @@ class RightsManagement extends Component
         $role->permissions()->detach($permissionId);
 
         // Logging
-        FunkiLog::create([
+        GlobalLog::create([
             'type' => 'warning',
             'action_id' => 'rights:detach',
             'title' => 'Recht entzogen',
@@ -81,7 +81,7 @@ class RightsManagement extends Component
 
         $roles = Role::with('permissions')->get();
 
-        $logs = FunkiLog::where('action_id', 'like', 'rights:%')
+        $logs = GlobalLog::where('action_id', 'like', 'rights:%')
             ->latest()
             ->paginate(10, ['*'], 'logPage');
 

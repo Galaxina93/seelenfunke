@@ -22,7 +22,7 @@ trait SettingsFunctions
                             'type' => 'string',
                             'description' => 'EXAKTER Dateiname. ACHTUNG: Nutze dies NUR, wenn du eine ganz bestimmte Datei meinst (z.B. "Richtlinien.pdf") und deren Name exakt kennst. Wenn du eine Information / ein Thema suchst, lass diesen Parameter ZWINGEND LEER!'
                         ]
-                    ], 
+                    ],
                 ],
                 'callable' => [self::class, 'executeReadWikiFiles']
             ],
@@ -43,6 +43,25 @@ trait SettingsFunctions
                     'properties' => new \stdClass(),
                 ],
                 'callable' => [self::class, 'executeGetSystemMap']
+            ],
+            [
+                'name' => 'update_funkira_configuration',
+                'description' => 'Ändere deine eigenen System-Einstellungen (z.B. Modus auf chill, business, default setzen, oder Token-Limit verändern).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'active_mode' => ['type' => 'string', 'description' => 'Setzt den Modus: business, default oder chill'],
+                        'ai_model' => ['type' => 'string', 'description' => 'Das verwendete LLM Modell'],
+                        'token_limit' => ['type' => 'integer', 'description' => 'Maximales Token-Limit'],
+                        'human_in_the_loop' => ['type' => 'boolean', 'description' => 'Human in the loop erzwingen'],
+                        'execution_limit' => ['type' => 'integer', 'description' => 'Anti-Loop Ausführungs-Limit'],
+                        'voice_enabled' => ['type' => 'boolean', 'description' => 'Sprachausgabe (TTS) aktivieren/deaktivieren'],
+                        'cap_shop_support' => ['type' => 'boolean', 'description' => 'Shop-Steuerung aktivieren/deaktivieren'],
+                        'cap_system_diagnostics' => ['type' => 'boolean', 'description' => 'System-Diagnose aktivieren/deaktivieren'],
+                        'cap_family_crm' => ['type' => 'boolean', 'description' => 'Familien-CRM aktivieren/deaktivieren'],
+                    ]
+                ],
+                'callable' => [self::class, 'executeUpdateFunkiraConfiguration']
             ]
         ];
     }
@@ -52,27 +71,27 @@ trait SettingsFunctions
         try {
             $query = $args['filename_query'] ?? null;
             $files = Storage::disk('public')->files('wiki');
-            
+
             if (empty($files)) {
                 return ['status' => 'error', 'message' => "Es befinden sich aktuell keine Dateien im Wiki-Ordner. Der Benutzer muss erst Dateien hochladen."];
             }
-            
+
             $output = "Gefundene Dateien im Wiki:\n\n";
             $contentFound = false;
-            
+
             foreach ($files as $file) {
                 $filename = basename($file);
-                
+
                 if ($query && stripos($filename, $query) === false) continue;
-                
+
                 \Illuminate\Support\Facades\Log::info("Funkira liest Wiki-Datei: " . $filename);
                 $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
                 $output .= "### Datei: $filename\n";
                 $contentFound = true;
-                
+
                 if (in_array($ext, ['txt', 'md', 'csv', 'json', 'log'])) {
                     $content = Storage::disk('public')->get($file);
-                    $content = Str::limit($content, 8000); 
+                    $content = Str::limit($content, 8000);
                     $output .= "- Inhalt:\n" . $content . "\n\n";
                 } elseif ($ext === 'docx') {
                     $zip = new ZipArchive;
@@ -81,16 +100,16 @@ trait SettingsFunctions
                         if (($index = $zip->locateName('word/document.xml')) !== false) {
                             $data = $zip->getFromIndex($index);
                             $zip->close();
-                            
+
                             // Remove all XML tags except for w:p (paragraphs) to create clean breaks
                             $data = str_replace('</w:p>', "\n\n", $data);
                             $data = str_replace('</w:tr>', "\n", $data); // Table rows
                             $data = strip_tags($data);
-                            
+
                             $text = html_entity_decode($data, ENT_QUOTES, 'UTF-8');
                             // Clean up multiple newlines
                             $text = preg_replace("/\n{3,}/", "\n\n", $text);
-                            
+
                             $text = Str::limit(trim($text), 8000);
                             $output .= "- Inhalt:\n" . $text . "\n\n";
                         } else {
@@ -108,11 +127,11 @@ trait SettingsFunctions
                     $output .= "- Format `.$ext` wird aktuell nicht von der KI unterstützt.\n\n";
                 }
             }
-            
+
             if (!$contentFound) {
                 return ['status' => 'error', 'message' => "Es wurde keine Datei gefunden, die auf '$query' passt."];
             }
-            
+
             return ['status' => 'success', 'content' => $output];
 
         } catch (\Exception $e) {
@@ -152,25 +171,25 @@ trait SettingsFunctions
     {
         try {
             $modelsPath = app_path('Models');
-            
+
             if (!is_dir($modelsPath)) {
                 return ['status' => 'error', 'message' => 'Models Verzeichnis nicht gefunden.'];
             }
 
             $map = [];
             $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($modelsPath));
-            
+
             foreach ($iterator as $file) {
                 if ($file->isDir()) continue;
-                
+
                 if ($file->getExtension() === 'php') {
                     $relativePath = str_replace($modelsPath . '/', '', $file->getPathname());
                     $parts = explode('/', $relativePath);
-                    
+
                     if (count($parts) > 1) {
                         $module = $parts[0];
                         $modelName = str_replace('.php', '', $parts[1]);
-                        
+
                         if (!isset($map[$module])) {
                             $map[$module] = [];
                         }
@@ -187,14 +206,14 @@ trait SettingsFunctions
 
             $output = "System Architektur (Datenstruktur):\n";
             ksort($map);
-            
+
             foreach ($map as $module => $models) {
                 $output .= "\n[$module]\n";
                 foreach ($models as $model) {
                     $output .= "- $model\n";
                 }
             }
-            
+
             $output .= "\nINFO FÜR FUNKIRA: Vergleiche diese Entitäten mit deinen verfügbaren Werkzeugen (tools). Wenn in der App Daten existieren (z.B. Returns, Newsletter, Tracking), für die dir noch Werkzeuge fehlen, weise den Benutzer darauf hin, dass diese programmiert werden müssen, damit du darüber Kontrolle erlangst.";
 
             // --- NEU: Admin Routen (Navigation) parsen ---
@@ -202,10 +221,10 @@ trait SettingsFunctions
             if (file_exists($routesPath)) {
                 $routesContent = file_get_contents($routesPath);
                 $output .= "\n\nVERFÜGBARE SEITEN (NAVIGATION):\nFolgende Seiten existieren im System und können von dir mit dem Tool 'open_nav_item' aufgerufen werden:\n";
-                
+
                 // Extrahiere Route::get('/admin/...', function
                 preg_match_all("/Route::get\('(\/admin\/[^']+)'/i", $routesContent, $routeMatches);
-                
+
                 if (!empty($routeMatches[1])) {
                     $uniqueRoutes = array_unique($routeMatches[1]);
                     foreach ($uniqueRoutes as $routeUrl) {
@@ -222,5 +241,62 @@ trait SettingsFunctions
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Generieren der System-Map: ' . $e->getMessage()];
         }
+    }
+
+    public static function executeUpdateFunkiraConfiguration(array $args)
+    {
+        $restrictedKeys = ['api_provider', 'api_key', 'local_tts_url'];
+        $changes = [];
+        $errors = [];
+
+        foreach ($args as $key => $value) {
+            // 1. API-Schlüssel und API-Provider dürfen nicht geändert oder gelöscht werden.
+            if (in_array($key, $restrictedKeys)) {
+                $errors[] = "Sicherheits-Sperre: Du darfst die Einstellung '$key' nicht verändern.";
+                continue;
+            }
+
+            // 2. Der Human-in-the-Loop-Schalter darf nicht von ihr deaktiviert werden.
+            if ($key === 'human_in_the_loop' && filter_var($value, FILTER_VALIDATE_BOOLEAN) === false) {
+                $errors[] = "Sicherheits-Sperre: Du darfst Human-in-the-Loop nicht deaktivieren.";
+                continue;
+            }
+
+            // 3. Das Ausführungs-Limit (Anti-Loop) darf nicht von ihr erhöht werden.
+            if ($key === 'execution_limit') {
+                $currentLimit = (int) (\App\Models\Ai\AiAgentSetting::where('key', 'execution_limit')->value('value') ?? 3);
+                if ((int)$value > $currentLimit) {
+                    $errors[] = "Sicherheits-Sperre: Du darfst dein Ausführungs-Limit nicht erhöhen (Aktuell: $currentLimit, Versucht: $value).";
+                    continue;
+                }
+            }
+
+            // Save the valid setting
+            if (is_bool($value)) {
+                $valueToSave = $value ? '1' : '0';
+            } else {
+                $valueToSave = (string) $value;
+            }
+
+            \App\Models\Ai\AiAgentSetting::updateOrCreate(
+                ['key' => $key],
+                ['value' => $valueToSave]
+            );
+            $changes[] = "$key => " . ($valueToSave === '' ? 'leer' : $valueToSave);
+        }
+
+        $result = [];
+        if (!empty($changes)) {
+            $result['success'] = "Folgendes wurde geändert: " . implode(', ', $changes);
+        }
+        if (!empty($errors)) {
+            $result['failed'] = implode(' ', $errors);
+        }
+
+        if (empty($changes) && empty($errors)) {
+            return ['status' => 'success', 'message' => 'Keine Einstellungen übergeben.'];
+        }
+
+        return ['status' => 'success', 'result' => $result];
     }
 }

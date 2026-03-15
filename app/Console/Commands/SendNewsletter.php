@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Mail\AutomaticNewsletterMail;
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 use App\Models\Newsletter\Newsletter;
 use App\Models\Newsletter\NewsletterSubscriber;
 use Carbon\Carbon;
@@ -60,8 +60,8 @@ class SendNewsletter extends Command
             if ($sendDate->isSameDay($today)) {
                 $this->info("   🎯 TREFFER! Versand ist für HEUTE geplant.");
 
-                if (class_exists(FunkiLog::class)) {
-                    $log = FunkiLog::start(
+                if (class_exists(GlobalLog::class)) {
+                    $log = GlobalLog::start(
                         'newsletter:send',
                         "Newsletter-Kampagne: {$template->title}",
                         'system'

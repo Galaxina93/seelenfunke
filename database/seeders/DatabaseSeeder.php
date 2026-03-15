@@ -26,13 +26,14 @@ class DatabaseSeeder extends Seeder
             MonthlyVoucherSeeder::class,            // Für den Livegang notwendig
 
             /*TaskSeeder::class,*/                  // DEAKTIVIEREN BEI LIVEGANG
-            FunkiDayRoutineSeeder::class,           // Für den Livegang notwendig
+            DayRoutineSeeder::class,                // Für den Livegang notwendig
             MapSeeder::class,                       // Für den Livegang notwendig
             /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
 
-           /* GamificationTestSeeder::class,*/          // DEAKTIVIEREN BEI LIVEGANG
+           /* GamificationTestSeeder::class,*/        // DEAKTIVIEREN BEI LIVEGANG
             FinancialData2028Seeder::class,          // DEAKTIVIEREN BEI LIVEGANG
             PersonProfileSeeder::class,             // Für den Livegang notwendig
+            AiAgentSeeder::class,                   // Für den Livegang notwendig
         ]);
 
     }

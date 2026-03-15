@@ -4,7 +4,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Cache;
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,8 +49,8 @@ Schedule::command('backup:run --only-db')
     })
     ->onFailure(function () {
         // Bei Absturz: Sofort einen Error-Log aufs Dashboard feuern
-        if (class_exists(FunkiLog::class)) {
-            FunkiLog::create([
+        if (class_exists(GlobalLog::class)) {
+            GlobalLog::create([
                 'type' => 'system',
                 'action_id' => 'system:backup_failed',
                 'title' => 'Backup fehlgeschlagen',

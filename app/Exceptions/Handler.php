@@ -4,7 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 
 class Handler extends ExceptionHandler
 {
@@ -44,9 +44,9 @@ class Handler extends ExceptionHandler
     {
         $this->reportable(function (Throwable $e) {
             try {
-                // Fange echte System-Fehler ab und schiebe sie direkt ins Funki-Dashboard
-                if (class_exists(FunkiLog::class)) {
-                    FunkiLog::create([
+                // Fange echte System-Fehler ab und schiebe sie direkt ins Dashboard
+                if (class_exists(GlobalLog::class)) {
+                    GlobalLog::create([
                         'type' => 'system',
                         'action_id' => 'system:exception',
                         'title' => 'System-Fehler (Exception)',

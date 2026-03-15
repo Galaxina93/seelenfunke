@@ -217,7 +217,7 @@ return [
             'from' => [
                 // Holt sich die Standard-Kontakt-Mail aus der .env
                 'address' => env('MAIL_FROM_ADDRESS', 'kontakt@mein-seelenfunke.de'),
-                'name' => env('BACKUP_FROM_NAME', 'Funki System-Backup'),
+                'name' => env('BACKUP_FROM_NAME', 'System-Backup'),
             ],
         ],
 

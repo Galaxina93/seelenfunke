@@ -12,7 +12,7 @@ use App\Models\LoginAttempt;
 use App\Models\Product\Product;
 use App\Models\Financial\FinanceCostItem;
 use App\Models\Financial\FinanceSpecialIssue;
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 use App\Services\FunkiAnalyticsService;
 
 class FunkiAnalytics extends Component
@@ -105,7 +105,7 @@ class FunkiAnalytics extends Component
         $cacheKey = 'sys_fail_log_' . $serviceName;
 
         if (!Cache::has($cacheKey)) {
-            FunkiLog::create([
+            GlobalLog::create([
                 'type' => 'system',
                 'action_id' => 'system:health_fail',
                 'title' => 'Infrastruktur-Ausfall: ' . ucfirst($serviceName),
@@ -240,20 +240,20 @@ class FunkiAnalytics extends Component
         // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob)
         try {
             $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
-            
+
             if ($lastRunRaw) {
                 // Cache-Wert in Carbon umwandeln (könnte Unix-Timestamp sein)
                 $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
-                
+
                 // Wir nutzen absoluteTo() oder einfach abs() mit diffInMinutes()
                 $diffMinutes = (int) abs(now()->diffInMinutes($lastRun));
-                
+
                 if ($diffMinutes < 10) {
                     $text = $diffMinutes == 1 ? "Minute" : "Minuten";
                     $health['scheduler'] = ['status' => 'connected', 'value' => "Aktiv ({$diffMinutes} {$text})", 'error' => null];
                 }
             }
-            
+
             if (!isset($health['scheduler'])) {
                 if (app()->environment('local')) {
                     $health['scheduler'] = ['status' => 'connected', 'value' => 'Inaktiv (Lokal OK)', 'error' => null];
@@ -298,7 +298,7 @@ class FunkiAnalytics extends Component
             if ($lastRun) {
                 $hoursAgo = abs((int)now()->diffInHours($lastRun));
                 $text = $hoursAgo == 1 ? "Stunde" : "Stunden";
-                
+
                 if ($hoursAgo < 48) {
                     $health['backup'] = ['status' => 'connected', 'value' => "Sicher ({$hoursAgo} {$text})", 'error' => null, 'path' => $pathInfo];
                 } else {
@@ -524,8 +524,8 @@ class FunkiAnalytics extends Component
         $logs = collect();
 
         // 1. Echte Funki Logs holen
-        if (class_exists(FunkiLog::class)) {
-            $funki = FunkiLog::orderByDesc('started_at')->limit(30)->get()->map(function($log) {
+        if (class_exists(GlobalLog::class)) {
+            $funki = GlobalLog::orderByDesc('started_at')->limit(30)->get()->map(function($log) {
                 return [
                     'id' => 'fl_'.$log->id,
                     'title' => $log->title,
@@ -562,18 +562,18 @@ class FunkiAnalytics extends Component
         // Start des Repair-Logs
         $this->repairLogs = [];
         $this->addRepairLog("--- SYSTEM HEALING INITIERT ---", 'info');
-        
+
         $targets = $service ? [$service] : array_keys($this->systemHealth);
 
         // Gehe alle Targets durch
         foreach ($targets as $target) {
-            
+
             // Wenn man selektiv klickt ODER wenn im universellen Modus der Status NICHT connected ist
             $healthStatus = $this->systemHealth[$target]['status'] ?? 'connected';
-            
+
             if ($service || $healthStatus !== 'connected') {
                 $this->addRepairLog("Analysiere Problem bei: " . strtoupper($target), 'warning');
-                
+
                 try {
                     switch ($target) {
                         case 'storage':
@@ -598,7 +598,7 @@ class FunkiAnalytics extends Component
                             $this->addRepairLog("Sende Restart-Signal an Queue Worker...");
                             \Illuminate\Support\Facades\Artisan::call('queue:restart');
                             $this->addRepairLog("✓ Signal gesendet. Supervisor/Daemon sollte Worker neu starten.", 'success');
-                            
+
                             $failed = \Illuminate\Support\Facades\Schema::hasTable('failed_jobs') ? DB::table('failed_jobs')->count() : 0;
                             if ($failed > 0) {
                                 $this->addRepairLog("Versuche $failed fehlgeschlagene Jobs neu zu starten...");
@@ -612,21 +612,21 @@ class FunkiAnalytics extends Component
                             \Illuminate\Support\Facades\Artisan::call('schedule:run');
                             $this->addRepairLog("✓ Scheduler manuell getriggert.", 'success');
                             break;
-                            
+
                         case 'backup':
                             $this->addRepairLog("Starte Notfall-Datenbank-Backup im Hintergrund...");
                             // Queueing the backup command to not block the UI
                             \Illuminate\Support\Facades\Artisan::queue('backup:run', ['--only-db' => true]);
                             $this->addRepairLog("✓ Backup-Auftrag erfolgreich in die Warteschlange eingereiht.", 'success');
                             break;
-                            
+
                         case 'stripe':
                         case 'smtp':
                             $this->addRepairLog("Führe Netzwerk Reset durch (Lösche Config Caches)...");
                             \Illuminate\Support\Facades\Artisan::call('config:clear');
                             $this->addRepairLog("✓ Caches geleert. Die API/SMTP Schlüssel werden neu geladen.", 'success');
                             break;
-                            
+
                         case 'ws':
                             $this->addRepairLog("WebSocket Daemon muss serverseitig neugestartet werden.", 'error');
                             $this->addRepairLog("Hinweis: Logge dich via SSH ein und führe 'php artisan reverb:start' oder 'pm2 restart reverb' aus.", 'warning');
@@ -641,20 +641,20 @@ class FunkiAnalytics extends Component
                 }
             }
         }
-        
+
         $this->addRepairLog("Heilungsprozess abgeschlossen. Überprüfe Systemstatus...", 'info');
-        
+
         // Nach einer Sekunde die System-Health neu abfragen
         sleep(1);
         $this->checkSystemHealth();
-        
+
         $this->addRepairLog("Systemstatus wurde aktualisiert. Lade Ansicht neu...", 'success');
-        
+
         // Die Komponente/Seite automatisch neuladen lassen (mit kurzer Verzögerung, damit man den Log lesen kann)
         $this->js('setTimeout(() => window.location.reload(), 2500)');
     }
-    
-    private function addRepairLog($message, $type = 'info') 
+
+    private function addRepairLog($message, $type = 'info')
     {
         $this->repairLogs[] = [
             'time' => now()->format('H:i:s'),

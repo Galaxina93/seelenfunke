@@ -4,7 +4,7 @@ namespace App\Services\AI\Functions;
 
 use App\Models\Task;
 use App\Models\TaskList;
-use App\Models\Funki\FunkiDayRoutine;
+use App\Models\DayRoutine;
 
 trait DashboardFunctions
 {
@@ -121,7 +121,7 @@ trait DashboardFunctions
     public static function executeGetCurrentMission(array $args)
     {
         try {
-            $botService = app(\App\Services\AiSupportService::class);
+            $botService = app(\App\Services\Ai\AiSupportService::class);
             $missionData = $botService->getUltimateCommand();
 
             return [
@@ -175,10 +175,12 @@ trait DashboardFunctions
             \Illuminate\Support\Facades\Artisan::call('config:clear');
             \Illuminate\Support\Facades\Artisan::call('queue:restart');
 
-            if (class_exists(\App\Models\Funki\FunkiLog::class)) {
-                \App\Models\Funki\FunkiLog::create([
-                    'title' => 'System Healing durch Funkira',
-                    'message' => 'Caches, Configs und Views wurden geleert. Queue-Worker Restart angefragt.',
+            if (class_exists(\App\Models\Global\GlobalLog::class)) {
+                $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+                \App\Models\Global\GlobalLog::create([
+                    'ai_agent_id' => $agent ? $agent->id : null,
+                    'title' => '[FUNKIRA] - System Healing',
+                    'message' => '[Funkira] - Caches, Configs und Views wurden geleert. Queue-Worker Restart angefragt.',
                     'status' => 'success',
                     'type' => 'ai',
                     'started_at' => now(),
@@ -202,12 +204,12 @@ trait DashboardFunctions
     public static function executeGetSystemLogs(array $args)
     {
         try {
-            if (!class_exists(\App\Models\Funki\FunkiLog::class)) {
-                return ['status' => 'error', 'message' => 'FunkiLog-Klasse ist im System nicht existent.'];
+            if (!class_exists(\App\Models\Global\GlobalLog::class)) {
+                return ['status' => 'error', 'message' => 'GlobalLog-Klasse ist im System nicht existent.'];
             }
 
             // Hole nur die echten System/KI/Auto-Warnungen und Fehler der letzten 24h
-            $logs = \App\Models\Funki\FunkiLog::whereIn('status', ['error', 'warning'])
+            $logs = \App\Models\Global\GlobalLog::whereIn('status', ['error', 'warning'])
                 ->where('started_at', '>=', now()->subHours(24))
                 ->orderByDesc('started_at')
                 ->limit(10)
@@ -357,9 +359,9 @@ trait DashboardFunctions
     public static function executeGetDayRoutines(array $args)
     {
         try {
-            $routines = FunkiDayRoutine::where('is_active', true)
+            $routines = DayRoutine::where('is_active', true)
                 ->with(['steps' => function($q) {
-                    $q->select('funki_day_routine_id', 'title', 'duration_minutes', 'position');
+                    $q->select('day_routine_id', 'title', 'duration_minutes', 'position');
                 }])
                 ->orderBy('start_time', 'asc')
                 ->get(['id', 'title', 'start_time', 'duration_minutes', 'type']);

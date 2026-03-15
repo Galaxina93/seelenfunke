@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Funki\FunkiraChatMemory;
+use App\Models\Ai\AiChatMemory;
 use Carbon\Carbon;
 
 class SearchChatHistory
@@ -44,10 +44,10 @@ class SearchChatHistory
     {
         $timeFilter = $args['time_filter'] ?? 'all';
         $keyword = $args['keyword'] ?? null;
-        
+
         // Hole alle Chat Memories der aktuellen Session (oder global vom aktuellen Benutzer)
         // Einfachheitshalber filtern wir nach Datum und dem Keyword weltweit (falls es nur eine Alina gibt)
-        $query = FunkiraChatMemory::query()->orderBy('created_at', 'desc');
+        $query = AiChatMemory::query()->orderBy('created_at', 'desc');
 
         // Zeitfilter
         switch ($timeFilter) {

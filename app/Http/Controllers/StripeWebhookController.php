@@ -37,28 +37,6 @@ class StripeWebhookController extends Controller
         if ($event->type == 'checkout.session.completed') {
             $session = $event->data->object;
 
-            // NEU: Logik für Funki Cosmetic Shop
-            if (isset($session->metadata->type) && $session->metadata->type === 'funki_cosmetic') {
-                $customerId = $session->client_reference_id;
-                $itemId = $session->metadata->funki_item_id;
-
-                if ($customerId && $itemId) {
-                    // Verhindern von doppelten Einträgen
-                    $exists = \App\Models\Customer\CustomerFunkiItem::where('customer_id', $customerId)
-                        ->where('funki_item_id', $itemId)->exists();
-
-                    if (!$exists) {
-                        \App\Models\Customer\CustomerFunkiItem::create([
-                            'customer_id' => $customerId,
-                            'funki_item_id' => $itemId,
-                            'purchased_via' => 'stripe'
-                        ]);
-                        Log::info("Webhook: Cosmetic Item {$itemId} für Kunde {$customerId} freigeschaltet.");
-                    }
-                }
-                return response('Success', 200); // Wichtig: Hier abbrechen, da es keine normale Shop-Bestellung ist!
-            }
-
             // Order ID aus den Metadata holen (haben wir beim Erstellen des Links dort gespeichert)
             $orderId = $session->metadata->order_id ?? null;
 

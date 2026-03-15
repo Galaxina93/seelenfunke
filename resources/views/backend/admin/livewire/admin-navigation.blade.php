@@ -2,7 +2,7 @@
     @php
         $currentPage = basename(request()->path());
 
-        $isFunkiActive = in_array($currentPage, ['funki-routine', 'tasks', 'funki-kalender']);
+        $isFunkiActive = in_array($currentPage, ['routine', 'tasks', 'calender']);
 
         // Neu aufgeteilt in Produkte und Marketing
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
@@ -10,10 +10,10 @@
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemFunkiraActive = in_array($currentPage, ['funkira-methods', 'funkira-log', 'knowledge_base', 'funkira-genui', 'person-profiles']);
+        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'knowledge_base', 'ai-genui', 'person-profiles', 'ai-logs']);
     @endphp
 
-    {{--Funkis Zentrale--}}
+    {{--CEO Zentrale--}}
     <li>
         <ul role="list" class="-mx-2 space-y-1">
             <x-forms.list-item route="/admin/dashboard" title="Dashboard" pageName="dashboard" icon="home" />
@@ -21,13 +21,13 @@
             <li x-data="{ open: {{ $isFunkiActive ? 'true' : 'false' }} }">
                 <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isFunkiActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
                     <x-heroicon-o-bolt class="h-5 w-5 shrink-0 transition-colors {{ $isFunkiActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
-                    <span class="flex-1">Funkis Zentrale</span>
+                    <span class="flex-1">CEO Zentrale</span>
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
-                    <x-forms.list-item route="/admin/funki-routine" title="Routine" pageName="funki-routine" icon="arrow-path" />
+                    <x-forms.list-item route="/admin/routine" title="Routine" pageName="routine" icon="arrow-path" />
                     <x-forms.list-item route="/admin/tasks" title="Aufgaben" pageName="tasks" icon="check-circle" />
-                    <x-forms.list-item route="/admin/funki-kalender" title="Kalender" pageName="funki-kalender" icon="calendar-days" />
+                    <x-forms.list-item route="/admin/calender" title="Kalender" pageName="calender" icon="calendar-days" />
                 </ul>
             </li>
         </ul>
@@ -108,18 +108,18 @@
         <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">System</div>
         <ul role="list" class="-mx-2 space-y-1">
 
-            <li x-data="{ open: {{ $isSystemFunkiraActive ? 'true' : 'false' }} }">
-                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isSystemFunkiraActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                    <x-heroicon-o-cpu-chip class="h-5 w-5 shrink-0 transition-colors {{ $isSystemFunkiraActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
-                    <span class="flex-1">Funkira</span>
+            <li x-data="{ open: {{ $isSystemAiActive ? 'true' : 'false' }} }">
+                <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isSystemAiActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                    <x-heroicon-o-cpu-chip class="h-5 w-5 shrink-0 transition-colors {{ $isSystemAiActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                    <span class="flex-1">Ai Agents</span>
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
-                    <x-forms.list-item route="/admin/funkira-log" title="Log" pageName="funkira-log" icon="document-text" />
+                    <x-forms.list-item route="/admin/agenten" title="Agenten" pageName="agenten" icon="cpu-chip" />
+                    <x-forms.list-item route="/admin/ai-logs" title="Log" pageName="ai-logs" icon="document-text" />
                     <x-forms.list-item route="/admin/knowledge_base" title="Wiki" pageName="knowledge_base" icon="book-open" />
-                    <x-forms.list-item route="/admin/funkira-methods" title="Fähigkeiten" pageName="funkira-methods" icon="chart-bar-square" />
                     <x-forms.list-item route="/admin/funkira-genui" title="UI Visualisierung" pageName="funkira-genui" icon="window" />
-                    <x-forms.list-item route="/admin/person-profiles" title="Personen & Familie" pageName="person-profiles" icon="users" />
+                    <x-forms.list-item route="/admin/person-profiles" title="Kontakte" pageName="person-profiles" icon="users" />
                 </ul>
             </li>
 

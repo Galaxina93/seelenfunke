@@ -316,7 +316,7 @@
                         <div class="absolute top-0 left-0 w-1 h-full bg-orange-500/20"></div>
 
                         <div class="space-y-1.5 pl-3">
-                            @forelse($funkiLogs as $log)
+                            @forelse($Logs as $log)
                                 @php
                                     $colorClass = match($log['type']) {
                                         'success' => 'text-emerald-400',

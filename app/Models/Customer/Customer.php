@@ -108,12 +108,4 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
     {
         return $this->hasMany(\App\Models\Product\ProductReview::class);
     }
-
-    /**
-     * Die gekauften Items aus dem Funki-Shop
-     */
-    public function funkiItems()
-    {
-        return $this->hasMany(CustomerFunkiItem::class);
-    }
 }

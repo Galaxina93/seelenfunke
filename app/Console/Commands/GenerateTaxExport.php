@@ -21,7 +21,7 @@ class GenerateTaxExport extends Command
      *
      * @var string
      */
-    protected $signature = 'funki:generate-tax-export {--month=} {--year=} {--force}';
+    protected $signature = 'generate-tax-export {--month=} {--year=} {--force}';
 
     /**
      * The console command description.
@@ -35,7 +35,7 @@ class GenerateTaxExport extends Command
      */
     public function handle()
     {
-        $this->info('🚀 Funki startet die automatisierte Umsatzsteuer-Auswertung...');
+        $this->info('🚀 Starte die automatisierte Umsatzsteuer-Auswertung...');
 
         // Wenn keine Parameter übergeben wurden, nehmen wir standardmäßig den Vormonat
         $targetDate = Carbon::now()->subMonth();

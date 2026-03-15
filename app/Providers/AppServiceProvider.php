@@ -40,7 +40,7 @@ class AppServiceProvider extends ServiceProvider
             'financial_special_issue' => 'App\Models\Financial\FinanceSpecialIssue',
             'order' => 'App\Models\Order\Order',
             'order_item' => 'App\Models\Order\OrderItem',
-            'day_routine' => 'App\Models\Funki\FunkiDayRoutine',
+            'day_routine' => 'App\Models\DayRoutine',
             'finance_cost_item' => 'App\Models\Financial\FinanceCostItem',
             'product' => 'App\Models\Product\Product',
             'page_visit' => 'App\Models\Tracking\PageVisit',

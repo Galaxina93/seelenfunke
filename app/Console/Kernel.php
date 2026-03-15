@@ -4,8 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-use Illuminate\Support\Facades\Cache;
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 
 class Kernel extends ConsoleKernel
 {

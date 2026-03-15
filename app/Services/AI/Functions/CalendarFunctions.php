@@ -12,7 +12,7 @@ trait CalendarFunctions
         return [
             [
                 'name' => 'get_calendar_events',
-                'description' => 'Sucht Termine im lokalen Kalender. WICHTIG: Das aktuelle Datum auf dem Server ist: ' . now()->format('Y-m-d H:i:s') . ' (' . now()->locale('de')->dayName . '). Wandle Aussagen wie "nächsten Dienstag" anhand dieses Datums selbstständig in echte Y-m-d Daten um.',
+                'description' => 'Sucht Termine im lokalen Calender. WICHTIG: Das aktuelle Datum auf dem Server ist: ' . now()->format('Y-m-d H:i:s') . ' (' . now()->locale('de')->dayName . '). Wandle Aussagen wie "nächsten Dienstag" anhand dieses Datums selbstständig in echte Y-m-d Daten um.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -38,7 +38,7 @@ trait CalendarFunctions
             ],
             [
                 'name' => 'create_calendar_event',
-                'description' => 'Erstellt einen neuen Termin im lokalen Kalender. Nutze dieses Tool, wenn der User sagt "Trag mir ein", "Erstelle einen Termin" etc.',
+                'description' => 'Erstellt einen neuen Termin im lokalen Calender. Nutze dieses Tool, wenn der User sagt "Trag mir ein", "Erstelle einen Termin" etc.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -122,9 +122,9 @@ trait CalendarFunctions
             $dateTo = $args['date_to'] ?? null;
             $keyword = $args['keyword'] ?? null;
             $limit = $args['limit'] ?? null;
-            
+
             $query = CalendarEvent::query()->orderBy('start_date', 'asc');
-            
+
             if ($dateFrom) {
                 $query->where('start_date', '>=', Carbon::parse($dateFrom));
             } else {
@@ -154,7 +154,7 @@ trait CalendarFunctions
             }
 
             $events = $query->get(['id', 'title', 'start_date', 'end_date', 'is_all_day', 'category', 'description']);
-            
+
             if ($events->isEmpty()) {
                  return [
                     'status' => 'success',
@@ -200,7 +200,7 @@ trait CalendarFunctions
 
             $start = Carbon::parse($args['start_date']);
             $isAllDay = filter_var($args['is_all_day'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            
+
             if (!empty($args['end_date'])) {
                  $end = Carbon::parse($args['end_date']);
             } else {
@@ -238,7 +238,7 @@ trait CalendarFunctions
 
             $event = CalendarEvent::find($args['event_id']);
             if (!$event) {
-                return ['status' => 'error', 'message' => 'Termin mit dieser ID nicht in der Kalender-Datenbank gefunden.'];
+                return ['status' => 'error', 'message' => 'Termin mit dieser ID nicht in der Calender-Datenbank gefunden.'];
             }
 
             if (!empty($args['title'])) $event->title = substr($args['title'], 0, 255);
@@ -280,7 +280,7 @@ trait CalendarFunctions
 
             return [
                 'status' => 'success',
-                'message' => "Der Termin '{$title}' wurde restlos aus dem Kalender gelöscht."
+                'message' => "Der Termin '{$title}' wurde restlos aus dem Calender gelöscht."
             ];
 
          } catch (\Exception $e) {

@@ -43,7 +43,7 @@ class CompanyMap extends Component
         if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
             \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
         }
-        
+
         $this->loadMap();
     }
 
@@ -88,30 +88,30 @@ class CompanyMap extends Component
                     $this->apiStatuses[$node['id']] = $isUp ? 'up' : 'down';
 
                     if (!$isUp) {
-                        $this->writeFunkiLog("API Error: {$node['label']} ist nicht erreichbar (Code: {$response->status()}).", 'error');
+                        $this->writeGlobalLog("API Error: {$node['label']} ist nicht erreichbar (Code: {$response->status()}).", 'error');
                         $errorCount++;
                     }
                 } catch (\Exception $e) {
                     $this->apiStatuses[$node['id']] = 'down';
-                    $this->writeFunkiLog("API Timeout: {$node['label']} antwortet nicht.", 'error');
+                    $this->writeGlobalLog("API Timeout: {$node['label']} antwortet nicht.", 'error');
                     $errorCount++;
                 }
             }
         }
 
         if ($errorCount === 0) {
-            $this->writeFunkiLog("System-Check: Alle konfigurierten APIs sind erreichbar.", 'success');
+            $this->writeGlobalLog("System-Check: Alle konfigurierten APIs sind erreichbar.", 'success');
         }
 
         $this->dispatch('apis-checked');
     }
 
-    private function writeFunkiLog($message, $type = 'info')
+    private function writeGlobalLog($message, $type = 'info')
     {
         try {
             // Speichere in DB, falls Model existiert (basiert auf deinen anderen Dateien)
-            if (class_exists(\App\Models\Funki\FunkiLog::class)) {
-                \App\Models\Funki\FunkiLog::create([
+            if (class_exists(\App\Models\Global\GlobalLog::class)) {
+                \App\Models\Global\GlobalLog::create([
                     'title'   => 'Architektur Monitor',
                     'message' => $message,
                     'type'    => $type,

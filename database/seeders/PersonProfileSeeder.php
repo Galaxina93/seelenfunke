@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Funki\PersonProfile;
+use App\Models\PersonProfile;
 use Carbon\Carbon;
 
 class PersonProfileSeeder extends Seeder

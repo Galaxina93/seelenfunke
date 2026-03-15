@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\AI;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Ai\AiChatMemory;
 use App\Services\AI\AIFunctionsRegistry;
-use App\Models\Funki\FunkiraChatMemory;
+use Illuminate\Http\Request;
 
 class AIController extends Controller
 {
@@ -14,7 +14,7 @@ class AIController extends Controller
      */
     public function schema(Request $request)
     {
-        // Here you would implement rudimentary security check. 
+        // Here you would implement rudimentary security check.
         // Example: if($request->header('X-AI-TOKEN') !== env('AI_SECRET')) return abort(403);
 
         return response()->json([
@@ -28,9 +28,9 @@ class AIController extends Controller
      */
     public function execute(Request $request)
     {
-        // Example Payload: 
+        // Example Payload:
         // { "function": "get_system_health", "args": { "param1": "val1" } }
-        
+
         $request->validate([
             'function' => 'required|string',
             'args' => 'sometimes|array'
@@ -55,7 +55,7 @@ class AIController extends Controller
                 'status' => 'error',
                 'message' => $e->getMessage()
             ], 404);
-            
+
         } catch (\Exception $e) {
             // Internal execution error
             return response()->json([
@@ -76,7 +76,7 @@ class AIController extends Controller
         ]);
 
         $history = $request->input('history', []);
-        
+
         // Backwards compatibility or single-shot prompts
         if (empty($history) && $request->has('prompt')) {
             $history[] = [
@@ -98,16 +98,22 @@ class AIController extends Controller
                          "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!"
         ];
 
-        $agent = new \App\Services\AI\MittwaldAgent();
-        $result = $agent->ask($history);
+        $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
         
+        if (!$aiAgent) {
+            return response()->json(['status' => 'error', 'message' => 'No AI Agent found in database.'], 500);
+        }
+
+        $agent = new \App\Services\AI\MittwaldAgent($aiAgent);
+        $result = $agent->ask($history);
+
         // Speichere finalen Dialog-Verlauf in der Datenbank
         $sessionId = session()->getId();
-        
+
         // Was hat der User gesagt? (Finde die neuste User-Nachricht)
         $userMsg = collect($history)->reverse()->firstWhere('role', 'user');
         if ($userMsg) {
-            FunkiraChatMemory::create([
+            AiChatMemory::create([
                 'session_id' => $sessionId,
                 'role' => 'user',
                 'content' => $userMsg['content'],
@@ -116,7 +122,7 @@ class AIController extends Controller
 
         // Was hat die KI final geantwortet?
         if (!empty($result['response'])) {
-            FunkiraChatMemory::create([
+            AiChatMemory::create([
                 'session_id' => $sessionId,
                 'role' => 'assistant',
                 'content' => $result['response'],
@@ -125,9 +131,9 @@ class AIController extends Controller
 
         // Generiere ElevenLabs Audio (Base64) falls möglich
         $base64Audio = null;
-        if (!empty($result['response'])) {
+        if (!empty($result['response']) && $aiAgent && $aiAgent->tts_provider === 'elevenlabs') {
             $apiKey = env('ELEVENLABS_API_KEY');
-            $voiceId = env('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM');
+            $voiceId = $aiAgent->tts_voice ?: env('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM');
 
             if (!empty($apiKey)) {
                 try {
@@ -155,7 +161,7 @@ class AIController extends Controller
                         if (($ttsResponse->status() === 400 || $ttsResponse->status() === 404) && str_contains($ttsResponse->body(), 'voice_not_found')) {
                             \Illuminate\Support\Facades\Log::warning("Voice {$voiceId} not found in AIController. Attempting auto-fallback.");
                             $voices = \Illuminate\Support\Facades\Http::withHeaders(['xi-api-key' => $apiKey])->get("https://api.elevenlabs.io/v1/voices")->json();
-                            
+
                             if (!empty($voices['voices'])) {
                                 $firstVoice = $voices['voices'][0]['voice_id'];
                                 $retry = \Illuminate\Support\Facades\Http::withHeaders([
@@ -170,7 +176,7 @@ class AIController extends Controller
                                         'similarity_boost' => 0.75,
                                     ]
                                 ]);
-                                
+
                                 if ($retry->successful()) {
                                     $base64Audio = base64_encode($retry->body());
                                 } else {
@@ -185,10 +191,40 @@ class AIController extends Controller
                     \Illuminate\Support\Facades\Log::error("ElevenLabs TTS Fetch failed: " . $e->getMessage());
                 }
             }
+        } elseif (!empty($result['response']) && $aiAgent && in_array($aiAgent->tts_provider, ['local_rtx2080', 'coqui_xttsv2'])) {
+            try {
+                $cleanText = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($result['response']);
+                $speed = $aiAgent->tts_speed ?? 1.0;
+                $apiUrl = $aiAgent->tts_api_url ?: env('XTTS_LOCAL_URL', 'http://127.0.0.1:5002/api/tts');
+                
+                // Standard payload design for an XTTSv2 / Local API (can be adapted on external server)
+                $payload = [
+                    'text' => $cleanText,
+                    'language' => 'de',
+                    'speed' => $speed,
+                    'provider' => $aiAgent->tts_provider
+                ];
+                
+                if ($aiAgent->tts_voice) {
+                    $payload['voice'] = $aiAgent->tts_voice;
+                }
+
+                $ttsResponse = \Illuminate\Support\Facades\Http::timeout(30)->post($apiUrl, $payload);
+
+                if ($ttsResponse->successful()) {
+                    // Expecting raw audio (wav/mp3)
+                    $base64Audio = base64_encode($ttsResponse->body());
+                } else {
+                    \Illuminate\Support\Facades\Log::warning("Local TTS Error in AIController: " . $ttsResponse->body());
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Local TTS Fetch failed: " . $e->getMessage());
+            }
         }
 
         return response()->json([
             'status' => 'success',
+            'agent_name' => $aiAgent ? $aiAgent->name : 'Funkira',
             'response' => $result['response'],
             'history' => $result['history'] ?? [],
             'context_data' => $result['context_data'] ?? [],

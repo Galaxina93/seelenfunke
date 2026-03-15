@@ -14,15 +14,15 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki', function () {
         return view('backend.admin.pages.funki');
     })->name('admin.funki');
-    Route::get('/admin/funki-routine', function () {
-        return view('backend.admin.pages.funki-routine');
-    })->name('admin.funki-routine');
+    Route::get('/admin/routine', function () {
+        return view('backend.admin.pages.routine');
+    })->name('admin.routine');
     Route::get('/admin/tasks', function () {
         return view('backend.admin.pages.tasks');
     })->name('admin.tasks');
-    Route::get('/admin/funki-kalender', function () {
-        return view('backend.admin.pages.funki-kalender');
-    })->name('admin.funki-kalender');
+    Route::get('/admin/calender', function () {
+        return view('backend.admin.pages.calender');
+    })->name('admin.calender');
     Route::get('/admin/company-map', function () {
         return view('backend.admin.pages.company-map');
     })->name('admin.partials');
@@ -104,22 +104,25 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.configuration');
     })->name('admin.configuration');
 
-    Route::get('/admin/funkira-log', function () {
-        return view('backend.admin.pages.funkira-log');
-    })->name('admin.funkira-log');
+    Route::get('/admin/ai-logs', function () {
+        return view('backend.admin.pages.ai-logs');
+    })->name('admin.ai-logs');
 
-
-    Route::get('/admin/funkira-methods', function () {
-        return view('backend.admin.pages.funkira-methods');
-    })->name('admin.funkira-methods');
-
-    Route::get('/admin/funkira-genui', function () {
-        return view('backend.admin.pages.funkira-genui');
-    })->name('admin.funkira-genui');
+    Route::get('/admin/ai-genui', function () {
+        return view('backend.admin.pages.ai-genui');
+    })->name('admin.ai-genui');
 
     Route::get('/admin/person-profiles', function () {
         return view('backend.admin.pages.person-profile');
     })->name('admin.person-profiles');
+
+    Route::get('/admin/agenten', function () {
+        return view('backend.admin.pages.ai-agent-manager');
+    })->name('admin.ai-agents');
+
+    Route::get('/admin/ki-agenten/{id}', function ($id) {
+        return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
+    })->name('admin.ai-agents.editor');
 
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');

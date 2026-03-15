@@ -194,19 +194,21 @@
                     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="animate-fade-in-up">
                             @yield('content')
+                            {{ $slot ?? '' }}
                         </div>
                     </div>
                 @else
                     @yield('content')
+                    {{ $slot ?? '' }}
                 @endif
             </main>
         </div>
     </div>
 
     @if($guard !== 'customer')
-        <livewire:global.funkira.funkira-chat />
-        <livewire:global.funkira.funkira-widget />
-        <livewire:global.funkira.ai-data-visualization />
+        <livewire:global.ai.ai-chat />
+        <livewire:global.ai.ai-widget />
+        <livewire:global.ai.ai-data-visualization />
     @endif
 
 </div> {{-- ENDE DES GLOBALEN ALPINE STATES --}}

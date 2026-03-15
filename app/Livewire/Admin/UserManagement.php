@@ -5,7 +5,7 @@ namespace App\Livewire\Admin;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\Funki\FunkiLog;
+use App\Models\Global\GlobalLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
@@ -121,7 +121,7 @@ class UserManagement extends Component
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
 
-        FunkiLog::create([
+        GlobalLog::create([
             'type' => 'system',
             'action_id' => 'user:create',
             'title' => 'Neuer Benutzer angelegt',
@@ -255,7 +255,7 @@ class UserManagement extends Component
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
 
         if (count($changes) > 0) {
-            FunkiLog::create([
+            GlobalLog::create([
                 'type' => 'system',
                 'action_id' => 'user:update',
                 'title' => 'Benutzerprofil modifiziert',
@@ -282,7 +282,7 @@ class UserManagement extends Component
         $model->delete();
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
-        FunkiLog::create([
+        GlobalLog::create([
             'type' => 'system',
             'action_id' => 'user:archive',
             'title' => 'Benutzer archiviert',
@@ -300,7 +300,7 @@ class UserManagement extends Component
         $model->restore();
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
-        FunkiLog::create([
+        GlobalLog::create([
             'type' => 'system',
             'action_id' => 'user:restore',
             'title' => 'Benutzer wiederhergestellt',
@@ -319,7 +319,7 @@ class UserManagement extends Component
         $model->forceDelete();
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
-        FunkiLog::create([
+        GlobalLog::create([
             'type' => 'system',
             'action_id' => 'user:force_delete',
             'title' => 'Benutzer endgültig gelöscht',
@@ -370,7 +370,7 @@ class UserManagement extends Component
 
         return view('livewire.admin.user-management', [
             'users' => $pagedResults,
-            'logs' => FunkiLog::where('action_id', 'like', 'user:%')->latest()->paginate(10, ['*'], 'logPage')
+            'logs' => GlobalLog::where('action_id', 'like', 'user:%')->latest()->paginate(10, ['*'], 'logPage')
         ]);
     }
 }

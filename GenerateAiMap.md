@@ -5,8 +5,6 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 ## 1. Projekt-DNA
 - Laravel 11, Livewire 3, Tailwind CSS
 - Kein klassischer Controller-Ansatz für das Frontend, stattdessen reine Livewire-Komponenten.
-- **Global Rules:** Verwende NIEMALS `x-layouts` oder `x-slots` für die Erstellung oder Einbindung von Komponenten/Ansichten. Die Komponenten rendern sich selbst oder werden traditionell via `@livewire` eingebunden.
-- **Global Design Rules:** Wenn du einen Button im Standard-Design verwendest (z. B. mit `bg-primary`), dann **MUSS** dieser zwingend auch die Tailwind-Klasse `hover:text-white` erhalten.
 
 ## 2. Verzeichnis-Struktur
 
@@ -29,8 +27,17 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - **Employee/**
   - EmployeeNavigation.php
 - **Frontend/**
-  - VoucherSlider.php
 - **Global/**
+  - **Ai/**
+    - AiAgentEditor.php
+    - AiAgentManager.php
+    - AiChat.php
+    - AiDataVisualization.php
+    - AiLogManager.php
+    - AiMethod.php
+    - AiVisualizationRegistry.php
+    - AiWidget.php
+    - PersonProfilesManager.php
   - **Auth/**
     - Login.php
     - LoginDropdown.php
@@ -44,7 +51,6 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
   - **Widgets/**
     - ContactForm.php
     - FunkiAnalytics.php
-    - FunkiChat.php
     - GoogleReviews.php
     - HeaderSlider.php
     - KnowledgeBase.php
@@ -56,6 +62,8 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
     - BlogFrontendShow.php
   - **Calculator/**
     - Calculator.php
+  - **Calender/**
+    - Calender.php
   - **Cart/**
     - Cart.php
     - CartIcon.php
@@ -72,7 +80,10 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
     - **Traits/**
       - HandlesConfiguratorLogic.php
     - Configurator.php
+  - **DayRoutine/**
+    - DayRoutine.php
   - **Financial/**
+    - CreditManagement.php
     - FinancialBank.php
     - FinancialCategoriesSpecialEditions.php
     - FinancialContractsGroups.php
@@ -80,11 +91,6 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
     - FinancialLiquidityPlanner.php
     - FinancialQuickEntry.php
     - FinancialTax.php
-  - **Funki/**
-    - FunkiBot.php
-    - FunkiDayRoutine.php
-    - FunkiKalender.php
-    - FunkiTask.php
   - **Invoice/**
     - InvoicePreview.php
     - Invoices.php
@@ -116,8 +122,11 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
   - **Shipping/**
     - DeliveryDisplay.php
     - Shipping.php
+  - **Task/**
+    - Task.php
   - **Voucher/**
     - Voucher.php
+    - VoucherSlider.php
 
 ### Livewire Blade Views (`resources/views/livewire/`)
 - **admin/**
@@ -135,6 +144,8 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
         - alpine.blade.php
         - audio.blade.php
         - engine.blade.php
+        - funkenflug-alpine.blade.php
+        - funkenflug-engine.blade.php
       - scripts.blade.php
       - styles.blade.php
     - **scripts-partials/**
@@ -161,6 +172,27 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - **frontend/**
   - voucher-slider.blade.php
 - **global/**
+  - **ai/**
+    - **blocks/**
+      - person-profile.blade.php
+      - voucher-single.blade.php
+      - voucher-table.blade.php
+    - ai-agent-editor.blade.php
+    - ai-agent-manager.blade.php
+    - ai-chat.blade.php
+    - ai-data-visualization.blade.php
+    - ai-log-manager.blade.php
+    - ai-method.blade.php
+    - ai-widget-part1.blade.php
+    - ai-widget-part2.blade.php
+    - ai-widget-part3.blade.php
+    - ai-widget-part4.blade.php
+    - ai-widget-part5.blade.php
+    - ai-widget-part6.blade.php
+    - ai-widget.blade.php
+    - funkira-settings.blade.php
+    - person-profiles-manager.blade.php
+    - visualization-registry.blade.php
   - **gamification/**
     - spark-hunt-component.blade.php
   - **widgets/**
@@ -172,11 +204,11 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
         - history.blade.php
         - kpis.blade.php
         - podest.blade.php
+        - profit.blade.php
         - scripts.blade.php
         - traffic.blade.php
       - funki-analytics.blade.php
     - contact-form.blade.php
-    - funki-chat.blade.php
     - google-reviews.blade.php
     - header-slider.blade.php
     - login-log.blade.php
@@ -200,6 +232,8 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
       - selected_items.blade.php
       - sortiment.blade.php
     - calculator.blade.php
+  - **calender/**
+    - calender.blade.php
   - **cart/**
     - cart-icon.blade.php
     - cart.blade.php
@@ -226,6 +260,8 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
       - scripts_frontend_1.blade.php
       - scripts_frontend_2.blade.php
     - configurator.blade.php
+  - **day-routine/**
+    - day-routine.blade.php
   - **financial/**
     - **financial-categories-special-editions/**
       - **partials/**
@@ -252,17 +288,10 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
       - bill_check.blade.php
       - category_management.blade.php
       - special_issue_list.blade.php
+    - credit-management.blade.php
     - financial-bank.blade.php
     - financial-liquidity-planner.blade.php
     - financial-tax.blade.php
-  - **funki/**
-    - **partials/**
-      - automation.blade.php
-      - instructions.blade.php
-    - funki-bot.blade.php
-    - funki-day-routine.blade.php
-    - funki-kalender.blade.php
-    - funki-to-do.blade.php
   - **invoice/**
     - **partials/**
       - invoice_create.blade.php
@@ -289,7 +318,6 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
       - yearly_table.blade.php
     - newsletter-page.blade.php
     - newsletter-signup.blade.php
-    - newsletter.blade.php
     - shop-newsletter.blade.php
   - **offer/**
     - quote-acceptance.blade.php
@@ -343,6 +371,10 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
   - **shipping/**
     - delivery-display.blade.php
     - shipping.blade.php
+  - **task/**
+    - task.blade.php
+  - **todo/**
+    - to-do.blade.php
   - **voucher/**
     - voucher.blade.php
 
@@ -350,6 +382,12 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - **Admin/**
   - Admin.php
   - AdminProfile.php
+- **Ai/**
+  - AiAgent.php
+  - AiAgentSetting.php
+  - AiChatMemory.php
+  - AiTool.php
+  - AiToolUsage.php
 - **Blog/**
   - BlogCategory.php
   - BlogPost.php
@@ -358,7 +396,6 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
   - CartItem.php
 - **Customer/**
   - Customer.php
-  - CustomerFunkiItem.php
   - CustomerGamification.php
   - CustomerProfile.php
 - **Delivery/**
@@ -374,11 +411,8 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
   - FinanceCostItem.php
   - FinanceGroup.php
   - FinanceSpecialIssue.php
-- **Funki/**
-  - FunkiDayRoutine.php
-  - FunkiDayRoutineStep.php
-  - FunkiItem.php
-  - FunkiLog.php
+- **Global/**
+  - GlobalLog.php
 - **Map/**
   - MapEdge.php
   - MapNode.php
@@ -405,22 +439,25 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - CalendarEvent.php
 - Category.php
 - Coupon.php
+- DayRoutine.php
+- DayRoutineStep.php
 - Directory.php
 - Invoice.php
 - KnowledgeBase.php
 - LoginAttempt.php
 - PasswordResetToken.php
 - Permission.php
+- PersonProfile.php
 - Role.php
 - SchedulerLog.php
 - Session.php
 - ShopAttribute.php
 - ShopSetting.php
 - SystemCheckConfig.php
-- Ticket.php
-- TicketMessage.php
 - Task.php
 - TaskList.php
+- Ticket.php
+- TicketMessage.php
 - User.php
 - UserDevice.php
 - Voucher.php
@@ -460,3 +497,12 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - new_order_shipped_to_customer.blade.php
 - payment_received.blade.php
 - ticket_update_mail_to_customer.blade.php
+
+## 3. Globale Projekt-Regeln (Zwingend beachten!)
+
+- **Sprache:** Antworte und kommentiere Code immer auf Deutsch.
+- **Ticketsystem:** Der Schlüssel für Tickets lautet im gesamten Code zwingend `funki_ticket_id` (nicht `ticket_id`). Die zugehörige View liegt unter `backend.admin.livewire.funki-ticket-system-component`.
+- **Mail-Klassen:** Updates an Kunden werden über die Klasse `TicketUpdateMailToCustomer` gesendet (liegt direkt unter `app/Mail`). Für Newsletter-Tests ist zwingend die View `global.mails.newsletter.new_newsletter_test_mail_to_admin` zu nutzen.
+- **Auth-Flow:** Die Registrierungs-View liegt unter `livewire.auth.register`. Der Namespace für die Livewire-Komponente ist `App\Livewire\Global\Auth`. Nach erfolgreicher Registrierung muss der User zwingend zur Login-Seite weitergeleitet werden.
+- **Gamification:** Der korrekte Namespace für neue Komponenten in diesem Bereich ist `App\Livewire\Global\Gamification`.
+- **Shop-Parameter:** In der Produkt-Template View (`livewire.shop.product.product-templates`) werden die Variablen strikt als `['templates' => $templates, 'products' => $products]` übergeben.

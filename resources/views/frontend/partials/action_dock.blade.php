@@ -115,6 +115,6 @@
          x-transition:leave="transition ease-in duration-300"
          class="absolute right-full mr-2 bg-white/95 backdrop-blur-2xl w-[77vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 overflow-hidden flex flex-col"
     >
-        @livewire('frontend.voucher-slider')
+        @livewire('shop.voucher.voucher-slider')
     </div>
 </div>
