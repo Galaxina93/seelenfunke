@@ -13,15 +13,27 @@
                 <p class="text-sm text-gray-400 font-medium">Live-Synchronisation deiner Geschäftskonten via finAPI.</p>
             </div>
 
-            {{-- Der Button triggert jetzt die Livewire Methode, die das finAPI WebForm erstellt und weiterleitet --}}
-            <button wire:click="connectNewBank"
-                    wire:loading.attr="disabled"
-                    class="shrink-0 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-black font-bold uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                <svg wire:loading.remove wire:target="connectNewBank" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"/></svg>
-                <svg wire:loading wire:target="connectNewBank" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                <span wire:loading.remove wire:target="connectNewBank">Neue Bank verbinden</span>
-                <span wire:loading wire:target="connectNewBank">Leite weiter...</span>
-            </button>
+            <div class="flex items-center gap-4">
+                {{-- Manueller Sync Button falls der Redirect verloren geht --}}
+                <button wire:click="syncAllAccounts"
+                        wire:loading.attr="disabled"
+                        class="shrink-0 flex items-center gap-2 bg-gray-900 border border-gray-700 hover:border-gray-500 text-gray-300 font-bold uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg wire:loading.remove wire:target="syncAllAccounts" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <svg wire:loading wire:target="syncAllAccounts" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                    <span wire:loading.remove wire:target="syncAllAccounts">Sync</span>
+                    <span wire:loading wire:target="syncAllAccounts">Lade...</span>
+                </button>
+
+                {{-- Der Button triggert jetzt die Livewire Methode, die das finAPI WebForm erstellt und weiterleitet --}}
+                <button wire:click="connectNewBank"
+                        wire:loading.attr="disabled"
+                        class="shrink-0 flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-black font-bold uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.5)] transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg wire:loading.remove wire:target="connectNewBank" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"/></svg>
+                    <svg wire:loading wire:target="connectNewBank" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                    <span wire:loading.remove wire:target="connectNewBank">Neue Bank verbinden</span>
+                    <span wire:loading wire:target="connectNewBank">Leite weiter...</span>
+                </button>
+            </div>
         </div>
 
         {{-- System-Meldungen --}}
@@ -51,7 +63,7 @@
                 <h3 class="text-[10px] font-black uppercase tracking-widest text-gray-500 pl-2">Aktive Bankkonten</h3>
 
                 @forelse($bankAccounts as $account)
-                    <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-3xl p-5 shadow-inner group hover:border-orange-500/50 transition-colors relative overflow-hidden">
+                    <div wire:click="selectBank('{{ $account['id'] }}')" class="cursor-pointer bg-gray-900/60 backdrop-blur-md border {{ $selectedAccountId == $account['id'] ? 'border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.2)]' : 'border-gray-800 hover:border-orange-500/50' }} rounded-3xl p-5 shadow-inner group transition-all relative overflow-hidden">
 
                         {{-- Deko-Glow im Hintergrund --}}
                         <div class="absolute -top-10 -right-10 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -87,6 +99,16 @@
                             </span>
                             </div>
                             <div class="flex items-center gap-2">
+                                <button wire:click="toggleBankBusiness('{{ $account['id'] }}')" wire:loading.attr="disabled" class="p-2 rounded-lg bg-gray-950 border border-gray-800 {{ $account['is_business'] ? 'text-primary hover:border-primary/50' : 'text-blue-400 hover:text-blue-500 hover:border-blue-500/50' }} transition-colors" title="{{ $account['is_business'] ? 'Gewerbliches Konto - Klick für Privat' : 'Privates Konto - Klick für Gewerblich' }}">
+                                    @if($account['is_business'])
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                    @else
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                    @endif
+                                </button>
+                                <button wire:click="toggleBankActive('{{ $account['id'] }}')" wire:loading.attr="disabled" class="p-2 rounded-lg bg-gray-950 border border-gray-800 {{ $account['is_active_for_analysis'] ? 'text-emerald-400 hover:border-emerald-500/50' : 'text-gray-600 hover:text-emerald-500 hover:border-emerald-500/50' }} transition-colors" title="{{ $account['is_active_for_analysis'] ? 'Analyse Aktiv - Klick zum Deaktivieren' : 'Analyse Inaktiv - Klick zum Aktivieren' }}">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                </button>
                                 <button wire:click="syncAccount('{{ $account['id'] }}')" wire:loading.attr="disabled" class="p-2 rounded-lg bg-gray-950 border border-gray-800 text-gray-400 hover:text-orange-400 hover:border-orange-500/50 transition-colors" title="Jetzt synchronisieren">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                                 </button>
@@ -110,35 +132,120 @@
                 <h3 class="text-[10px] font-black uppercase tracking-widest text-gray-500 pl-2">Neueste Umsätze</h3>
 
                 <div class="bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-3xl overflow-hidden shadow-inner">
-                    @if(count($recentTransactions) > 0)
+
+                    {{-- Filter Toolbar --}}
+                    <div class="p-4 border-b border-gray-800/50 flex flex-wrap gap-4 items-center justify-between bg-gray-950/30">
+                        <div class="flex-1 min-w-[200px] relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </div>
+                            <input wire:model.live.debounce.300ms="searchTx" type="text" placeholder="Suche in Zweck, Name oder IBAN..." class="w-full pl-10 pr-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all placeholder-gray-600">
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <select wire:model.live="filterType" class="bg-gray-900 border border-gray-800 text-sm rounded-xl py-2 pl-3 pr-8 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer">
+                                <option value="">Alle Buchungen</option>
+                                <option value="income">Nur Einnahmen</option>
+                                <option value="expense">Nur Ausgaben</option>
+                            </select>
+
+                            <select wire:model.live="filterCategoryId" class="bg-gray-900 border border-gray-800 text-sm rounded-xl py-2 pl-3 pr-8 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none cursor-pointer">
+                                <option value="">Alle Kategorien</option>
+                                <option value="unassigned">-- Unkategorisiert --</option>
+                                @foreach($availableCategories as $cat)
+                                    <option value="{{ $cat['id'] }}">{{ $cat['name'] }}</option>
+                                @endforeach
+                            </select>
+
+                            <input wire:model.live="dateFrom" type="date" class="bg-gray-900 border border-gray-800 text-sm rounded-xl px-3 py-2 text-gray-300 focus:border-orange-500 outline-none cursor-pointer">
+                            <span class="text-gray-600">-</span>
+                            <input wire:model.live="dateTo" type="date" class="bg-gray-900 border border-gray-800 text-sm rounded-xl px-3 py-2 text-gray-300 focus:border-orange-500 outline-none cursor-pointer">
+
+                            @if($searchTx || $filterType || $filterCategoryId || $dateFrom || $dateTo)
+                                <button wire:click="resetFilters" class="p-2 text-gray-500 hover:text-red-400 transition-colors" title="Filter zurücksetzen">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+
+                    @if(count($paginatedTransactions) > 0)
                         <div class="divide-y divide-gray-800/50">
-                            @foreach($recentTransactions as $tx)
-                                <div class="p-4 flex items-center justify-between hover:bg-gray-800/30 transition-colors">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-inner {{ $tx['amount'] > 0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-950 text-gray-400 border border-gray-800' }}">
-                                            @if($tx['amount'] > 0)
+                            @foreach($paginatedTransactions as $tx)
+                                @php
+                                    $isAssigned = !empty($tx->finance_category_id) || !empty($tx->finance_cost_item_id);
+                                    $rowBgClass = $isAssigned
+                                        ? 'bg-emerald-900/10 hover:bg-emerald-900/20 border-l-4 border-l-emerald-500'
+                                        : 'bg-red-900/10 hover:bg-red-900/20 border-l-4 border-l-red-500';
+                                @endphp
+                                <div class="p-4 flex items-center justify-between gap-4 transition-colors {{ $rowBgClass }}">
+
+                                    {{-- Left Side: Icon & Title/Tag --}}
+                                    <div class="flex items-center gap-4 flex-1 min-w-0">
+                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-inner {{ $tx->amount > 0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-gray-950 text-gray-400 border border-gray-800' }}">
+                                            @if($tx->amount > 0)
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/></svg>
                                             @else
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/></svg>
                                             @endif
                                         </div>
-                                        <div>
-                                            <div class="text-sm font-bold text-white">{{ $tx['description'] }}</div>
-                                            <div class="text-xs text-gray-500 font-mono mt-0.5">{{ \Carbon\Carbon::parse($tx['date'])->format('d.m.Y') }}</div>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="text-sm font-bold text-white truncate" title="{{ $tx->counterpart_name ?? $tx->purpose ?? 'Kein Verwendungszweck' }}">{{ $tx->counterpart_name ?? $tx->purpose ?? 'Kein Verwendungszweck' }}</div>
+                                            <div class="flex items-center gap-2 mt-1">
+                                                <span class="text-xs text-gray-400 font-mono">{{ $tx->transaction_date ? \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y') : 'Unbekannt' }}</span>
+                                                @if($isAssigned)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                        Vermerkt
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+                                                        Nicht zugeordnet
+                                                    </span>
+                                                @endif
+                                                @if(optional($tx->bankAccount)->is_business)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30" title="Gewerblich">
+                                                        <svg class="w-3 h-3 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                                        Gewerblich
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30" title="Privat">
+                                                        <svg class="w-3 h-3 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                                        Privat
+                                                    </span>
+                                                @endif
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="text-right">
-                                        <div class="font-mono font-bold text-base {{ $tx['amount'] > 0 ? 'text-emerald-400' : 'text-white' }}">
-                                            {{ $tx['amount'] > 0 ? '+' : '' }}{{ number_format($tx['amount'], 2, ',', '.') }} €
+
+                                    {{-- Right Side: Dropdowns & Amount --}}
+                                    <div class="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-6 shrink-0">
+
+                                        {{-- Dropdowns Container (Fixed Width) --}}
+                                        <div class="flex flex-col gap-2 w-32 sm:w-40 shrink-0">
+                                            <select wire:change="assignCategory('{{ $tx->id }}', $event.target.value)" class="bg-gray-950 border {{ !empty($tx->finance_category_id) ? 'border-emerald-500/50 text-emerald-400' : 'border-gray-800 text-gray-300' }} text-[10px] sm:text-xs rounded-lg p-1.5 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none w-full cursor-pointer transition-colors" onclick="event.stopPropagation()">
+                                                <option value="" class="text-gray-500">Kategorie wählen...</option>
+                                                @foreach($availableCategories as $cat)
+                                                    <option value="{{ $cat['id'] }}" {{ $tx->finance_category_id === $cat['id'] ? 'selected' : '' }}>{{ $cat['name'] }}</option>
+                                                @endforeach
+                                            </select>
+                                            <select wire:change="assignCostItem('{{ $tx->id }}', $event.target.value)" class="bg-gray-950 border {{ !empty($tx->finance_cost_item_id) ? 'border-emerald-500/50 text-emerald-400' : 'border-gray-800 text-gray-300' }} text-[10px] sm:text-xs rounded-lg p-1.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none w-full cursor-pointer transition-colors" onclick="event.stopPropagation()">
+                                                <option value="" class="text-gray-500">Fixkosten wählen...</option>
+                                                @foreach($availableCostItems as $item)
+                                                    <option value="{{ $item['id'] }}" {{ $tx->finance_cost_item_id === $item['id'] ? 'selected' : '' }}>{{ \Illuminate\Support\Str::limit($item['name'], 20) }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+
+                                        {{-- Amount (Fixed Width) --}}
+                                        <div class="font-mono font-bold text-sm sm:text-base w-24 text-right whitespace-nowrap shrink-0 {{ $tx->amount > 0 ? 'text-emerald-400' : 'text-white' }}">
+                                            {{ $tx->amount > 0 ? '+' : '' }}{{ number_format($tx->amount, 2, ',', '.') }} €
                                         </div>
                                     </div>
                                 </div>
                             @endforeach
                         </div>
-                        <div class="p-3 border-t border-gray-800 bg-gray-950/30 text-center">
-                            <button class="text-[10px] font-black uppercase tracking-widest text-orange-400 hover:text-orange-300 transition-colors">
-                                Alle Umsätze anzeigen
-                            </button>
+                        <div class="p-4 border-t border-gray-800 bg-gray-950/30">
+                            {{ $paginatedTransactions->links() }}
                         </div>
                     @else
                         <div class="p-12 text-center flex flex-col items-center">

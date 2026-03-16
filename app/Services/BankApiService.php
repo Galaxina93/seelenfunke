@@ -16,7 +16,7 @@ class BankApiService
     {
         $this->clientId = env('FINAPI_CLIENT_ID');
         $this->clientSecret = env('FINAPI_CLIENT_SECRET');
-        $env = env('FINAPI_ENV', 'sandbox');
+        $env = env('FINAPI_ENV', 'live'); // Auf Live zwingen laut User Wunsch
 
         // Die "Access" API
         $this->baseUrl = $env === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
@@ -122,18 +122,35 @@ class BankApiService
         return $response->json('url');
     }
 
-    /**
-     * Holt alle verbundenen Bankkonten des Users
-     */
     public function getAccounts($userToken)
     {
+        // 1. Hole alle BankConnections um die echten Banknamen zuzuordnen
+        $connsResponse = Http::withToken($userToken)->get("{$this->baseUrl}/api/v2/bankConnections");
+        $bankNames = [];
+        if ($connsResponse->successful()) {
+            $connections = $connsResponse->json('connections') ?? [];
+            foreach ($connections as $conn) {
+                // $conn['bank']['name'] enthält den echten Namen z.B. "Sparkasse"
+                $bankNames[$conn['id']] = $conn['bank']['name'] ?? 'Unbekannte Bank';
+            }
+        }
+
+        // 2. Hole alle Accounts
         $response = Http::withToken($userToken)->get("{$this->baseUrl}/api/v2/accounts");
 
         if ($response->failed()) {
             throw new \Exception('Fehler beim Abrufen der finAPI Konten: ' . $response->body());
         }
 
-        return $response->json('accounts');
+        $accounts = $response->json('accounts') ?? [];
+        
+        // 3. Mappe den echten Banknamen in das Account Array
+        foreach ($accounts as &$acc) {
+            $connId = $acc['bankConnectionId'] ?? null;
+            $acc['bankName'] = $connId && isset($bankNames[$connId]) ? $bankNames[$connId] : 'Meine Bank';
+        }
+
+        return $accounts;
     }
 
     /**
@@ -147,5 +164,28 @@ class BankApiService
         ]);
 
         return $response->successful();
+    }
+
+    /**
+     * Holt Transaktionen eines spezifischen Kontos 
+     * @param string $userToken
+     * @param int|string $accountId (Die finAPI Account ID, hier im System als plaid_account_id)
+     * @param int $limit Default: 50
+     */
+    public function getTransactions($userToken, $accountId, $limit = 50)
+    {
+        $response = Http::withToken($userToken)->get("{$this->baseUrl}/api/v2/transactions", [
+            'view' => 'userView',
+            'accountIds' => $accountId,
+            'order' => 'bankBookingDate,desc',
+            'perPage' => $limit
+        ]);
+
+        if ($response->failed()) {
+            \Illuminate\Support\Facades\Log::error('finAPI Transactions Fetch Fehler: ' . $response->body());
+            return [];
+        }
+
+        return $response->json('transactions') ?? [];
     }
 }

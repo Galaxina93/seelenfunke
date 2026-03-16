@@ -1,4 +1,5 @@
-<div class="flex flex-col sm:flex-row justify-between items-start group">
+<div x-data="{ expanded: false }" class="w-full">
+<div class="flex flex-col sm:flex-row justify-between items-start group relative z-10">
     <div class="flex-1 min-w-0 pr-4">
         <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
             @if(!$item->contract_file_path)
@@ -42,6 +43,12 @@
     <div class="text-left sm:text-right mt-3 sm:mt-0 w-full sm:w-auto">
         <div class="font-mono font-bold text-xl whitespace-nowrap {{ $item->amount > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_currentColor]' : ($item->amount < 0 ? 'text-red-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500') }}">{{ number_format($item->amount, 2, ',', '.') }}€ </div>
         <div class="flex gap-4 justify-start sm:justify-end mt-3 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            @if(isset($item->transactions) && count($item->transactions) > 0)
+                <button @click.stop="expanded = !expanded" class="text-[9px] text-blue-400 hover:text-blue-300 font-black uppercase tracking-widest border-b border-blue-500/50 hover:border-blue-400 pb-0.5 transition-colors flex items-center gap-1">
+                    <span x-text="expanded ? 'Umsätze ausblenden' : '{{ count($item->transactions) }} Umsätze anzeigen'"></span>
+                    <svg class="w-3 h-3 transition-transform duration-300" :class="expanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+            @endif
             <button wire:click="openItemForm('{{ $group->id }}', '{{ $item->id }}')" class="text-[9px] text-gray-500 hover:text-primary font-black uppercase tracking-widest border-b border-gray-500 hover:border-primary pb-0.5 transition-colors">Bearbeiten</button>
             <button wire:click.stop="deleteItem('{{ $item->id }}')" wire:confirm="Wirklich löschen?" class="text-[9px] text-gray-600 hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-600 hover:border-red-400 pb-0.5 transition-colors">Löschen</button>
         </div>
@@ -79,4 +86,33 @@
             </button>
         @endif
     </div>
+</div>
+
+{{-- Accordion for Mapped Bank Transactions --}}
+<div x-show="expanded" x-collapse class="mt-4 border-t border-gray-800/50 pt-4 cursor-default" @dragstart.prevent.stop>
+    <div class="bg-gray-950/80 rounded-2xl border border-gray-800/80 p-4 shadow-inner">
+        <h4 class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 ml-1 flex items-center gap-2">
+            <svg class="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            Verknüpfte Bankumsätze
+        </h4>
+        <div class="divide-y divide-gray-800/50">
+            @forelse($item->transactions ?? [] as $tx)
+                <div class="py-2.5 flex items-center justify-between text-sm hover:bg-gray-900/40 px-2 rounded-lg transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full {{ $tx->amount > 0 ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-gray-600' }}"></div>
+                        <div>
+                            <div class="font-bold text-gray-300 text-xs">{{ $tx->counterpart_name ?? $tx->purpose ?? 'Kein Verwendungszweck' }}</div>
+                            <div class="text-[10px] text-gray-500 font-mono">{{ $tx->transaction_date ? \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y') : 'Unbekannt' }}</div>
+                        </div>
+                    </div>
+                    <div class="font-mono font-bold text-xs whitespace-nowrap {{ $tx->amount > 0 ? 'text-emerald-400' : 'text-gray-400' }}">
+                        {{ $tx->amount > 0 ? '+' : '' }}{{ number_format($tx->amount, 2, ',', '.') }} €
+                    </div>
+                </div>
+            @empty
+                <div class="text-xs text-gray-600 italic py-2">Keine Umsätze verknüpft.</div>
+            @endforelse
+        </div>
+    </div>
+</div>
 </div>

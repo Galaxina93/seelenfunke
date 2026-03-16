@@ -41,9 +41,14 @@
         // Init on load
         initCharts();
 
-        // Re-init on Livewire update
+        // Re-init on Livewire update (only for this specific component to avoid global polls triggering it)
         Livewire.hook('morph.updated', ({ el, component }) => {
-            initCharts();
+            if (component.el.id === document.querySelector('[wire\\:id]').id) {
+                // To be safe, wait a tick for DOM to settle
+                setTimeout(() => {
+                    initCharts();
+                }, 10);
+            }
         });
     });
 </script>

@@ -34,4 +34,9 @@ class FinanceCostItem extends Model
     {
         return $this->belongsTo(FinanceGroup::class, 'finance_group_id');
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(BankTransaction::class, 'finance_cost_item_id');
+    }
 }

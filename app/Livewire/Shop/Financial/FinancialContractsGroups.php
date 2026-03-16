@@ -475,7 +475,7 @@ class FinancialContractsGroups extends Component
 
     public function render()
     {
-        $groups = FinanceGroup::with('items')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
+        $groups = FinanceGroup::with('items.transactions')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
 
         $chartLabels = [];
         $chartData = [];

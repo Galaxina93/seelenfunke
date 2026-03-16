@@ -20,7 +20,9 @@ return new class extends Migration
             $table->string('bank_name');
             $table->string('account_name');
             $table->string('iban')->nullable();
-            $table->decimal('balance', 12, 2)->default(0);
+            $table->boolean('is_active_for_analysis')->default(true);
+            $table->boolean('is_business')->default(true);
+            $table->decimal('balance', 10, 2)->default(0);
             $table->string('currency')->default('EUR');
             $table->timestamp('last_synced_at')->nullable();
             $table->timestamps();

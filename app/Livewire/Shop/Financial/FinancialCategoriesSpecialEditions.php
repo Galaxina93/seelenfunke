@@ -268,19 +268,87 @@ class FinancialCategoriesSpecialEditions extends Component
     {
         $adminId = $this->getAdminId();
 
-        $specialsQuery = FinanceSpecialIssue::where('admin_id', $adminId);
+        // 1. Fetch Special Issues
+        $specialsData = FinanceSpecialIssue::where('admin_id', $adminId)->get()->map(function($item) {
+            return [
+                'type' => 'special',
+                'id' => $item->id,
+                'title' => $item->title,
+                'category' => $item->category,
+                'amount' => $item->amount,
+                'execution_date' => $item->execution_date,
+                'location' => $item->location,
+                'is_business' => $item->is_business,
+                'invoice_number' => $item->invoice_number,
+                'tax_rate' => $item->tax_rate,
+                'file_paths' => $item->file_paths,
+                'created_at' => $item->created_at
+            ];
+        });
+
+        // 2. Fetch Unassigned Bank Transactions
+        $bankTxData = collect();
+        if (class_exists(\App\Models\Financial\BankTransaction::class)) {
+            $bankTxData = \App\Models\Financial\BankTransaction::whereHas('account', function($query) use ($adminId) {
+                    $query->where('admin_id', $adminId);
+                })
+                ->whereNull('finance_cost_item_id')
+                ->where(function($q) {
+                    $q->whereNull('finance_category_id')->orWhereNotIn('finance_category_id', function($sub) {
+                        $sub->select('id')->from('finance_categories');
+                    });
+                })
+                ->get()
+                ->map(function($tx) {
+                    $isBusiness = false;
+                    if ($tx->account) {
+                        $isBusiness = $tx->account->is_business;
+                    }
+
+                    return [
+                        'type' => 'bank_tx',
+                        'id' => $tx->id,
+                        'title' => '🏦 ' . ($tx->counterpart_name ?? $tx->purpose ?? 'Unbekannte Abbuchung'),
+                        'category' => 'Nicht zugeordnet',
+                        'amount' => $tx->amount,
+                        'execution_date' => $tx->transaction_date ? \Carbon\Carbon::parse($tx->transaction_date) : null,
+                        'location' => $tx->counterpart_iban ?? '',
+                        'is_business' => $isBusiness,
+                        'invoice_number' => null,
+                        'tax_rate' => 0,
+                        'file_paths' => [],
+                        'created_at' => clone $tx->created_at
+                    ];
+                });
+        }
+
+        // 3. Merge and Sort
+        $merged = $specialsData->concat($bankTxData);
 
         if (!empty($this->specialSearch)) {
-            $specialsQuery->where(function($q) {
-                $q->where('title', 'like', '%'.$this->specialSearch.'%')
-                    ->orWhere('category', 'like', '%'.$this->specialSearch.'%')
-                    ->orWhere('location', 'like', '%'.$this->specialSearch.'%');
+            $search = strtolower($this->specialSearch);
+            $merged = $merged->filter(function($item) use ($search) {
+                return str_contains(strtolower($item['title']), $search) ||
+                       str_contains(strtolower($item['category']), $search) ||
+                       str_contains(strtolower($item['location']), $search);
             });
         }
 
-        $specials = $specialsQuery->orderBy('execution_date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+        $merged = $merged->sortByDesc(function($item) {
+            return ($item['execution_date'] ? $item['execution_date']->format('Y-m-d') : '1970-01-01') . '-' . $item['created_at']->timestamp;
+        })->values();
+
+        // 4. Manually Paginate
+        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
+        $perPage = 10;
+        $currentItems = $merged->slice(($currentPage - 1) * $perPage, $perPage)->all();
+        $specials = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems,
+            $merged->count(),
+            $perPage,
+            $currentPage,
+            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+        );
 
         // Initiale Chart Data
         $chartDataObj = FinanceSpecialIssue::where('admin_id', $adminId)

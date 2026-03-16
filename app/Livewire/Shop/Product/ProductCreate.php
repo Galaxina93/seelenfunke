@@ -293,7 +293,7 @@ class ProductCreate extends Component
         $originalName = $this->new_digital_file->getClientOriginalName();
 
         // Datei speichern (privat)
-        $path = $this->new_digital_file->storeAs($folder, time() . '_' . $originalName); // Default disk ist meist 'local' (storage/app)
+        $path = $this->new_digital_file->storeAs($folder, time() . '_' . $originalName, 'local'); // Default disk ist meist 'local' (storage/app)
 
         // Datenbank Update
         $this->product->update([

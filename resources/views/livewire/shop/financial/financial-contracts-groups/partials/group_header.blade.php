@@ -22,9 +22,21 @@
                     <svg class="w-4 h-4 text-gray-600 opacity-0 group-hover/edit:opacity-100 hover:text-primary transition-all shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                 </span>
             @endif
-            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1 block">
-                {{ $group->items->count() }} Positionen
-            </span>
+            <div class="flex items-center gap-3 mt-2">
+                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block">
+                    {{ $group->items->count() }} Positionen
+                </span>
+                
+                @php
+                    $mappedTxCount = $group->items->sum(fn($item) => $item->transactions->count());
+                @endphp
+                @if($mappedTxCount > 0)
+                    <span class="flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest shadow-inner">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        {{ $mappedTxCount }} Zahlungen
+                    </span>
+                @endif
+            </div>
         </div>
     </div>
 
