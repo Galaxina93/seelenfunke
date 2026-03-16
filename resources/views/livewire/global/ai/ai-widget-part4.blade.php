@@ -57,7 +57,18 @@
                     this.$nextTick(() => {
                         this.initThreeJS();
                         setTimeout(() => {
-                            this.toggleSpeech();
+                            if (!isRestore) {
+                                // Upon intentional open, toggle speech if it makes sense (or maybe just start it if not active)
+                                if (!this.continuousMode) {
+                                    this.toggleSpeech();
+                                }
+                            } else {
+                                // On page restore, make sure microphone is started if continuousMode is true
+                                if (this.continuousMode && !this.listening) {
+                                    this.listening = true;
+                                    try { this.recognition.start(); } catch(e) {}
+                                }
+                            }
                         }, 500);
                     });
                 };

@@ -23,7 +23,7 @@ class AiAgentEditor extends Component
     public $is_active = true;
     public $color = 'cyan-500';
     public $icon = 'sparkles'; // Default to a heroicon name
-    public $tts_provider = 'elevenlabs';
+    public $tts_provider = 'toni_xttsv2';
     public $tts_voice = '';
     public $tts_api_url = '';
     public $tts_speed = 1.0;
@@ -52,28 +52,12 @@ class AiAgentEditor extends Component
     ];
 
     public $ttsProviders = [
-        'elevenlabs' => 'ElevenLabs (Online API)',
-        'local_rtx2080' => 'Lokal (RTX 2080 Ti) - Custom Script',
-        'coqui_xttsv2' => 'Lokal (RTX 2080 Ti) - Coqui XTTSv2',
+        'toni_xttsv2' => 'Toni - Coqui XTTSv2',
         'none' => 'Deaktiviert (Nur Text)'
     ];
 
     public $ttsVoices = [
-        'elevenlabs' => [
-            '21m00Tcm4TlvDq8ikWAM' => 'Rachel (Weiblich)',
-            'AZnzlk1XvdvUeBnXmlld' => 'Domi (Weiblich, Deutsch)',
-            'EXAVITQu4vr4xnSDxMaL' => 'Bella (Weiblich)',
-            'ErXwobaYiN019PkySvjV' => 'Antoni (Männlich)'
-        ],
-        'local_rtx2080' => [
-            'xtts_v2_de_female' => 'Local XTTS (Weiblich, DE)',
-            'xtts_v2_de_male' => 'Local XTTS (Männlich, DE)'
-        ],
-        'coqui_xttsv2' => [
-            'kira_base' => 'Funkira (Klon-Stimme)',
-            'female_1' => 'Standard Weiblich',
-            'male_1' => 'Standard Männlich'
-        ]
+        'toni_xttsv2' => [] // Dynamische Keys
     ];
 
     public $modelDetails = [
@@ -148,7 +132,13 @@ class AiAgentEditor extends Component
                 $oldIcon = 'sparkles'; // Fallback
             }
             $this->icon = $oldIcon;
-            $this->tts_provider = $agent->tts_provider ?? 'elevenlabs';
+            $this->tts_provider = $agent->tts_provider ?? 'toni_xttsv2';
+            
+            // Absolute purge of ElevenLabs for existing agents
+            if ($this->tts_provider === 'elevenlabs') {
+                $this->tts_provider = 'toni_xttsv2';
+            }
+
             $this->tts_voice = $agent->tts_voice ?? '';
             $this->tts_api_url = $agent->tts_api_url ?? '';
             $this->tts_speed = $agent->tts_speed ?? 1.0;

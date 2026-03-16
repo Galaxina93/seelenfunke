@@ -88,16 +88,17 @@
                 @forelse($logs as $log)
                     <tbody x-data="{ expanded: false }" class="font-mono text-sm border-b border-emerald-900/20 hover:bg-emerald-900/10 transition-colors">
                         <tr @click="expanded = !expanded" class="cursor-pointer">
-                            <td class="p-4 text-emerald-700/70 text-xs text-nowrap">
+                            <td class="p-4 text-emerald-700/70 text-xs text-nowrap relative">
+                                <div class="absolute inset-y-0 left-0 w-1 bg-{{ $log->agent ? $log->agent->color : 'gray-700' }}"></div>
                                 {{ $log->created_at->format('d.m.Y H:i:s') }}
                             </td>
                             <td class="p-4">
                                 @if($log->agent)
                                     <div class="flex items-center gap-2">
-                                        <div class="w-6 h-6 rounded bg-{{ $log->agent->color }}-500/20 flex items-center justify-center border border-{{ $log->agent->color }}-500/30 text-{{ $log->agent->color }}-500">
+                                        <div class="w-6 h-6 rounded bg-{{ $log->agent->color }}/20 flex items-center justify-center border border-{{ $log->agent->color }}/30 text-{{ $log->agent->color }}">
                                             <i class="{{ $log->agent->icon }} text-xs"></i>
                                         </div>
-                                        <span class="text-{{ $log->agent->color }}-500 font-bold text-xs">{{ $log->agent->name }}</span>
+                                        <span class="text-{{ $log->agent->color }} font-bold text-xs">{{ $log->agent->name }}</span>
                                     </div>
                                 @else
                                     <span class="text-gray-500 text-xs text-nowrap">

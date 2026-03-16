@@ -41,6 +41,8 @@ class AiAgentSeeder extends Seeder
                 'color' => 'cyan-500',
                 'icon' => 'sparkles',
                 'profile_picture' => file_exists($sourceImage) ? $targetImage : null,
+                'tts_provider' => 'toni_xttsv2',
+                'tts_voice' => 'voice_bab36a97',
             ]
         );
 

@@ -180,11 +180,15 @@ class MittwaldAgent
 
                     // Track the usage for Analytics
                     if (class_exists(AiToolUsage::class)) {
-                        AiToolUsage::create([
-                            'tool_name' => $functionName,
-                            'used_at'   => now(),
-                            'context'   => $executeArgs
-                        ]);
+                        try {
+                            AiToolUsage::create([
+                                'tool_name' => $functionName,
+                                'used_at'   => now(),
+                                'context'   => $executeArgs
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::warning("Could not log AiToolUsage for $functionName: " . $e->getMessage());
+                        }
                     }
 
                     // Log into Live Log for the Chat view

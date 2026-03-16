@@ -49,9 +49,9 @@
         <div wire:poll.5s class="text-[10px] font-mono p-2 space-y-2 flex flex-col-reverse">
             @forelse($logs as $log)
                 <div x-data="{ expanded: false }" @click="expanded = !expanded" class="border border-emerald-900/40 bg-emerald-950/20 p-2 rounded relative overflow-hidden group cursor-pointer hover:bg-emerald-950/40 transition-colors">
-                    <div class="absolute inset-y-0 left-0 w-1 bg-{{ $log->agent ? $log->agent->color : 'gray' }}-500 opacity-60"></div>
+                    <div class="absolute inset-y-0 left-0 w-1 bg-{{ $log->agent ? $log->agent->color : 'gray-500' }} opacity-60"></div>
                     <div class="flex justify-between items-start pl-2 mb-1">
-                        <span class="text-{{ $log->agent ? $log->agent->color : 'gray' }}-500 font-bold uppercase tracking-wider text-[9px] flex items-center gap-1">
+                        <span class="text-{{ $log->agent ? $log->agent->color : 'gray-500' }} font-bold uppercase tracking-wider text-[9px] flex items-center gap-1">
                             @if($log->agent)
                                 @if(str_contains($log->agent->icon, 'bi-'))
                                     <i class="{{ $log->agent->icon }}"></i>

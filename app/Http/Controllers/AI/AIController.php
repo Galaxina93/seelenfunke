@@ -129,9 +129,16 @@ class AIController extends Controller
             ]);
         }
 
-        // Generiere ElevenLabs Audio (Base64) falls möglich
+        // Generiere Audio (Base64) falls möglich
         $base64Audio = null;
-        if (!empty($result['response']) && $aiAgent && $aiAgent->tts_provider === 'elevenlabs') {
+        
+        $ttsProvider = $aiAgent ? $aiAgent->tts_provider : 'elevenlabs';
+        // Zwinge das System auf Toni, wenn der User in der UI den Cloudflare-Link eingegeben hat
+        if ($ttsProvider === 'elevenlabs' && $aiAgent && !empty($aiAgent->tts_api_url)) {
+            $ttsProvider = 'toni_xttsv2';
+        }
+
+        if (!empty($result['response']) && $aiAgent && $ttsProvider === 'elevenlabs') {
             $apiKey = env('ELEVENLABS_API_KEY');
             $voiceId = $aiAgent->tts_voice ?: env('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM');
 
@@ -191,34 +198,52 @@ class AIController extends Controller
                     \Illuminate\Support\Facades\Log::error("ElevenLabs TTS Fetch failed: " . $e->getMessage());
                 }
             }
-        } elseif (!empty($result['response']) && $aiAgent && in_array($aiAgent->tts_provider, ['local_rtx2080', 'coqui_xttsv2'])) {
+        } elseif (!empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
             try {
                 $cleanText = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($result['response']);
                 $speed = $aiAgent->tts_speed ?? 1.0;
-                $apiUrl = $aiAgent->tts_api_url ?: env('XTTS_LOCAL_URL', 'http://127.0.0.1:5002/api/tts');
+                $apiUrl = $aiAgent->tts_api_url ?: env('TONI_AI_URL', 'http://192.168.188.32:8000');
+                if (!str_ends_with(parse_url($apiUrl, PHP_URL_PATH) ?? '', '/api/toni/tts')) {
+                    $apiUrl = rtrim($apiUrl, '/') . '/api/toni/tts';
+                }
+                $apiKey = env('TONI_AI_API_KEY');
                 
-                // Standard payload design for an XTTSv2 / Local API (can be adapted on external server)
+                // Standard payload design for Toni / XTTS API
                 $payload = [
                     'text' => $cleanText,
                     'language' => 'de',
-                    'speed' => $speed,
-                    'provider' => $aiAgent->tts_provider
+                    'speed' => $speed
                 ];
                 
                 if ($aiAgent->tts_voice) {
-                    $payload['voice'] = $aiAgent->tts_voice;
+                    $payload['voice_key'] = $aiAgent->tts_voice;
                 }
 
-                $ttsResponse = \Illuminate\Support\Facades\Http::timeout(30)->post($apiUrl, $payload);
+                $request = \Illuminate\Support\Facades\Http::timeout(30);
+                if (!empty($apiKey)) {
+                    $request = $request->withToken($apiKey);
+                }
 
-                if ($ttsResponse->successful()) {
-                    // Expecting raw audio (wav/mp3)
+                $ttsResponse = $request->post($apiUrl, $payload);
+                
+                $isAudio = str_contains($ttsResponse->header('Content-Type'), 'audio/');
+
+                // Fallback: If Toni fails (HTTP error or JSON error payload instead of audio), retry with 'default'
+                if ((!$ttsResponse->successful() || !$isAudio) && isset($payload['voice_key'])) {
+                    \Illuminate\Support\Facades\Log::warning("Toni rejected voice_key '{$payload['voice_key']}'. Retrying with default voice: " . $ttsResponse->body());
+                    unset($payload['voice_key']);
+                    $ttsResponse = $request->post($apiUrl, $payload);
+                    $isAudio = str_contains($ttsResponse->header('Content-Type'), 'audio/');
+                }
+
+                if ($ttsResponse->successful() && $isAudio) {
+                    // Alles gut, Bytestream empfangen
                     $base64Audio = base64_encode($ttsResponse->body());
                 } else {
-                    \Illuminate\Support\Facades\Log::warning("Local TTS Error in AIController: " . $ttsResponse->body());
+                    \Illuminate\Support\Facades\Log::warning("Toni TTS Soft-Error in AIController: " . $ttsResponse->body());
                 }
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Local TTS Fetch failed: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Toni TTS Fetch failed: " . $e->getMessage());
             }
         }
 

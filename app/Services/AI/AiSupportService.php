@@ -61,7 +61,7 @@ class AiSupportService
             ->orderBy('start_time', 'asc')
             ->get();
 
-        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options) {
+        $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options, $sleepMessage) {
             $start = \Carbon\Carbon::parse($routine->start_time);
             $duration = $routine->type === 'sleep' ? 8 * 60 : $routine->duration_minutes;
             $end = $start->copy()->addMinutes($duration);

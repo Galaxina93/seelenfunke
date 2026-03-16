@@ -124,6 +124,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
     })->name('admin.ai-agents.editor');
 
+    Route::get('/admin/externe-agenten/{id}', function ($id) {
+        return view('backend.admin.pages.external-agent-editor', ['id' => $id]);
+    })->name('admin.external-agents.editor');
+
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');
     })->name('admin.blog');

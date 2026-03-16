@@ -18,7 +18,7 @@
                     this.isSpeaking = false;
                     if (this.continuousMode) {
                         this.listening = true;
-                        try { this.recognition.start(); } catch(e) {}
+                        this.startSafeRecognition(100);
                     }
                 };
             },
@@ -29,7 +29,7 @@
                 this.isSpeaking = false;
                 if (this.continuousMode && !this.listening) {
                     this.listening = true;
-                    try { this.recognition.start(); } catch(e) {}
+                    this.startSafeRecognition(100);
                 }
             },
 
@@ -185,6 +185,60 @@
                 };
 
                 this.initSpeech();
+
+                document.addEventListener('livewire:navigating', () => {
+                    this.destroy();
+                });
+
+                document.addEventListener('livewire:navigated', () => {
+                    if (this.continuousMode) {
+                        this.listening = true;
+                        if (!this.recognition) this.initSpeech();
+                        this.startSafeRecognition(1000);
+                    }
+                });
+
+                if (this.continuousMode) {
+                    this.listening = true;
+                    if (!this.recognition) this.initSpeech();
+                    this.startSafeRecognition(1000);
+                }
+            },
+
+            destroy() {
+                if (this.recognition) {
+                    // Fully detach to prevent Chrome from holding the media stream
+                    this.recognition.onstart = null;
+                    this.recognition.onresult = null;
+                    this.recognition.onerror = null;
+                    this.recognition.onspeechend = null;
+                    this.recognition.onend = null;
+                    try { this.recognition.abort(); } catch(e) {}
+                    try { this.recognition.stop(); } catch(e) {}
+                    this.recognition = null;
+                }
+                if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+            },
+
+            startSafeRecognition(delay = 1000) {
+                setTimeout(() => {
+                    if (this.recognition && !t3.isShuttingDown) {
+                        if (this.isRecognizing) return; // Prevent InvalidStateError entirely
+                        try { 
+                            this.recognition.start(); 
+                            console.log('Orb Voice: continuous listening started.');
+                        } catch(e) {
+                            if (e.name !== 'InvalidStateError') {
+                                console.error('Orb Voice SDK failed to start:', e);
+                                setTimeout(() => { 
+                                    if(!this.isRecognizing) {
+                                        try { this.recognition.start(); } catch(e2) {} 
+                                    }
+                                }, 1500);
+                            }
+                        }
+                    }
+                }, delay);
             },
 
             resetWatchdog() {
@@ -200,7 +254,7 @@
                             this.recognition = null;
                         }
                         this.initSpeech();
-                        try { this.recognition.start(); } catch(e) {}
+                        this.startSafeRecognition(300);
                         this.lastActivityTime = Date.now();
                     }
                 }, 10000);
@@ -224,18 +278,7 @@
                 }
                 this.lastRestartTime = Date.now();
 
-                setTimeout(() => {
-                    if (!this.listening || !this.continuousMode || t3.isShuttingDown) return;
-                    try {
-                        if (!this.recognition) this.initSpeech();
-                        this.recognition.start();
-                    } catch(e) {
-                        if (e.name !== 'InvalidStateError') {
-                            this.listening = false;
-                            if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
-                        }
-                    }
-                }, 300);
+                        this.startSafeRecognition(100);
             },
 
             initSpeech() {
@@ -246,16 +289,19 @@
                 }
 
                 if (this.recognition) {
+                    this.recognition.onstart = null;
                     this.recognition.onend = null;
                     try { this.recognition.abort(); } catch(e) {}
                 }
 
+                this.isRecognizing = false;
                 this.recognition = new SpeechRecognition();
                 this.recognition.lang = 'de-DE';
                 this.recognition.continuous = true;
                 this.recognition.interimResults = false;
 
                 this.recognition.onstart = () => {
+                    this.isRecognizing = true;
                     this.lastActivityTime = Date.now();
                     this.restartCount = 0;
                 };
@@ -265,6 +311,7 @@
                 };
 
                 this.recognition.onerror = (e) => {
+                    this.isRecognizing = false;
                     if (e.error === 'not-allowed' || e.error === 'audio-capture') {
                         this.listening = false;
                         if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
@@ -274,6 +321,7 @@
                 };
 
                 this.recognition.onend = () => {
+                    this.isRecognizing = false;
                     if (!this.continuousMode) {
                         this.listening = false;
                         if (window.t3 && window.t3.coreMesh) this.updateCoreColor();

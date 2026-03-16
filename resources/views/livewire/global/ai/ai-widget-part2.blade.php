@@ -73,7 +73,7 @@
 
                     this.listening = true;
                     this.updateCoreColor();
-                    try { this.recognition.start(); } catch(e) {}
+                    this.startSafeRecognition(200);
                 } else {
                     this.listening = false;
                     this.updateCoreColor();
@@ -104,12 +104,7 @@
                     this.listening = true;
                     this.restartCount = 0;
                     if (!this.recognition) this.initSpeech();
-                    try {
-                        this.recognition.start();
-                    } catch (e) {
-                        console.error('Failed to start recognition', e);
-                        if (e.name !== 'InvalidStateError') this.listening = false;
-                    }
+                    this.startSafeRecognition(200);
                     this.resetWatchdog();
                 }
             },
@@ -127,9 +122,7 @@
                 this.restartCount = 0;
 
                 this.initSpeech();
-                try {
-                    this.recognition.start();
-                } catch(e) {}
+                this.startSafeRecognition(100);
             },
 
             stopPushToTalk() {
@@ -170,12 +163,17 @@
 
                     let data;
                     try {
+                        const clonedResponse = response.clone();
                         data = await response.json();
                     } catch (jsonErr) {
                         this.thinking = false;
                         this.updateCoreColor();
 
-                        const errorTextHTML = await response.text();
+                        let errorTextHTML = "Unbekannter Fehler beim Lesen der Antwort.";
+                        try {
+                            errorTextHTML = await clonedResponse.text(); 
+                        } catch(e) { /* Ignore */ }
+                        
                         console.error("SyntaxError Fallback:", errorTextHTML);
 
                         this.errorText = "⚠️ Subraum Kommunikation abgebrochen:\nDer Server hat eine HTML-Fehlerseite (Status " + response.status + ") statt JSON zurückgegeben.\n\nDies bedeutet meist, dass der API Code abgestürzt ist.\n\nAuszug:\n" + errorTextHTML.substring(0, 300) + "...\n\nBitte sende diesen Fehler an Gemini!";

@@ -249,8 +249,8 @@
 
                     <!-- Voice Select -->
                     <div x-data="{ 
-                        provider: @entangle('tts_provider').defer, 
-                        voice: @entangle('tts_voice').defer,
+                        provider: $wire.entangle('tts_provider'), 
+                        voice: $wire.entangle('tts_voice'),
                         voicesMap: @js($ttsVoices) 
                     }">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
@@ -269,30 +269,40 @@
                                 </div>
                             </div>
 
-                            <!-- Voice (only visible if provider is not "none") -->
+                            <!-- Voice (Select for predefined, Text for Toni) -->
                             <div class="relative" x-show="provider !== 'none'">
-                                <select x-model="voice" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
-                                    <option value="" disabled>-- Stimme wählen --</option>
-                                    <template x-if="voicesMap[provider]">
-                                        <template x-for="(vLabel, vKey) in voicesMap[provider]" :key="vKey">
-                                            <option :value="vKey" x-text="vLabel" class="bg-gray-900 text-gray-300"></option>
+                                <template x-if="provider !== 'toni_xttsv2'">
+                                    <select x-model="voice" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
+                                        <option value="" disabled>-- Stimme wählen --</option>
+                                        <template x-if="voicesMap[provider]">
+                                            <template x-for="(vLabel, vKey) in voicesMap[provider]" :key="vKey">
+                                                <option :value="vKey" x-text="vLabel" class="bg-gray-900 text-gray-300"></option>
+                                            </template>
                                         </template>
-                                    </template>
-                                </select>
+                                    </select>
+                                </template>
+                                
+                                <template x-if="provider === 'toni_xttsv2'">
+                                    <input type="text" x-model="voice" placeholder="Voice Key (z.B. voice_bab36a97)" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all">
+                                </template>
+
                                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 11-1.06-1.06 8.25 8.25 0 000-11.668.75.75 0 010-1.06z" /><path d="M15.932 7.757a.75.75 0 011.061 0 6 6 0 010 8.486.75.75 0 01-1.06-1.061 4.5 4.5 0 000-6.364.75.75 0 010-1.06z" /></svg>
                                 </div>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </div>
+                                
+                                <template x-if="provider !== 'toni_xttsv2'">
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </div>
+                                </template>
                             </div>
                             
                             <!-- Custom URL and Speed (Only for Local/XTTS) -->
-                            <div x-show="provider === 'local_rtx2080' || provider === 'coqui_xttsv2'" class="space-y-4 pt-2 border-t border-gray-800/80 mt-2" style="display: none;">
+                            <div x-show="provider === 'toni_xttsv2'" class="space-y-4 pt-2 border-t border-gray-800/80 mt-2" x-cloak>
                                 <div>
-                                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Lokale API (Endpoint URL)</label>
-                                    <input type="url" wire:model.defer="tts_api_url" placeholder="http://192.168.178.50:5002/api/tts" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all">
-                                    <p class="text-[9px] text-gray-500 mt-1 font-mono">Leer lassen für Fallback aus .env (z.B. XTTS_LOCAL_URL).</p>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">API Endpoint URL (Optional)</label>
+                                    <input type="url" wire:model.defer="tts_api_url" placeholder="http://192.168.188.32:8000" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <p class="text-[9px] text-gray-500 mt-1 font-mono">Das System ergänzt '/api/tts' automatisch. Leer lassen für Fallback aus .env (TONI_AI_URL).</p>
                                     @error('tts_api_url') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
@@ -310,11 +320,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Offline Hint -->
-                            <div x-show="provider === 'elevenlabs'" class="mt-2 text-red-400 text-[10px] font-mono flex items-start gap-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 mt-0.5 shrink-0"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>
-                                ElevenLabs API Tokens sind aufgebraucht. Bitte Lokal (RTX 2080 Ti) wählen!
-                            </div>
+                            <!-- Offline Hint entfernt -->
                         </div>
                     </div>
                 </div>

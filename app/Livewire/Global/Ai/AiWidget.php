@@ -13,6 +13,7 @@ class AiWidget extends Component
     {
         if (class_exists(GlobalLog::class)) {
             GlobalLog::create([
+                'title' => 'Widget Fehler',
                 'type' => 'Funkira Widget',
                 'action_id' => 'widget:error',
                 'message' => $message ?? 'Unbekannter Fehler',
