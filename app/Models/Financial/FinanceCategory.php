@@ -12,7 +12,16 @@ class FinanceCategory extends Model
 {
     use HasUuids, SoftDeletes;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'admin_id',
+        'name',
+        'is_business',
+        'usage_count'
+    ];
+
+    protected $casts = [
+        'is_business' => 'boolean',
+    ];
 
     public function admin(): BelongsTo
     {

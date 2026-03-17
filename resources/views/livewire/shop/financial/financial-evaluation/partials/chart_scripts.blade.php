@@ -42,13 +42,16 @@
         initCharts();
 
         // Re-init on Livewire update (only for this specific component to avoid global polls triggering it)
-        Livewire.hook('morph.updated', ({ el, component }) => {
-            if (component.el.id === document.querySelector('[wire\\:id]').id) {
-                // To be safe, wait a tick for DOM to settle
-                setTimeout(() => {
-                    initCharts();
-                }, 10);
-            }
+        Livewire.hook('commit', ({ component, succeed }) => {
+            succeed(() => {
+                // Check if the component that just updated is the Evaluation Component
+                if (component.name === 'shop.financial.financial-evaluation') {
+                    // Give DOM a tick to replace elements
+                    setTimeout(() => {
+                        initCharts();
+                    }, 50);
+                }
+            })
         });
     });
 </script>

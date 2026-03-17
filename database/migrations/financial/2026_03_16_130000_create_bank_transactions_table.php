@@ -20,6 +20,14 @@ return new class extends Migration
             $table->decimal('amount', 12, 2);
             $table->string('currency')->default('EUR');
 
+            $table->boolean('is_business')->nullable();
+            $table->json('tags')->nullable();
+
+            $table->string('assigned_by_type')->nullable(); // e.g. 'admin' or 'agent'
+            $table->string('assigned_by_name')->nullable(); // e.g. 'Alina' or 'Agent: Funkira'
+
+            $table->json('file_paths')->nullable();
+
             // Zweck / Verwendungszweck (oft lang)
             $table->text('purpose')->nullable();
 

@@ -17,6 +17,9 @@ return new class extends Migration
             $table->string('search_term')->index();
             $table->foreignUuid('finance_category_id')->nullable()->constrained('finance_categories')->nullOnDelete();
             $table->foreignUuid('finance_cost_item_id')->nullable()->constrained('finance_cost_items')->nullOnDelete();
+            $table->string('amount_type')->default('variable');
+            $table->decimal('amount_value', 10, 2)->nullable();
+            $table->integer('priority')->default(0);
             $table->timestamps();
         });
     }

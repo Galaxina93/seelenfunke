@@ -20,7 +20,12 @@ class BankTransaction extends Model
         'is_pending',
         'raw_data',
         'finance_category_id',
-        'finance_cost_item_id'
+        'finance_cost_item_id',
+        'assigned_by_type',
+        'assigned_by_name',
+        'is_business',
+        'tags',
+        'file_paths',
     ];
 
     protected $casts = [
@@ -28,7 +33,10 @@ class BankTransaction extends Model
         'value_date' => 'datetime',
         'is_pending' => 'boolean',
         'raw_data' => 'array',
-        'amount' => 'decimal:2'
+        'amount' => 'decimal:2',
+        'file_paths' => 'array',
+        'is_business' => 'boolean',
+        'tags' => 'array',
     ];
 
     public function account()
@@ -39,5 +47,10 @@ class BankTransaction extends Model
     public function costItem()
     {
         return $this->belongsTo(\App\Models\Financial\FinanceCostItem::class, 'finance_cost_item_id');
+    }
+
+    public function financeCategory()
+    {
+        return $this->belongsTo(\App\Models\Financial\FinanceCategory::class, 'finance_category_id');
     }
 }

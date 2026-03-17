@@ -127,11 +127,12 @@
                                                 <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 peer-checked:text-blue-400 transition-colors">B2B</span>
                                             </label>
                                         @else
-                                            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900/10">
-                                                <span class="text-[9px] font-black uppercase tracking-widest {{ $special['is_business'] ? 'text-orange-400' : 'text-blue-400' }}">
-                                                    {{ $special['is_business'] ? 'Gewerblich' : 'Privat' }}
+                                            <button wire:click="toggleBusinessStatus('{{ $special['type'] }}', '{{ $special['id'] }}')" class="relative flex-shrink-0 inline-flex h-6 w-32 items-center rounded-full transition-colors {{ $special['is_business'] ? 'bg-orange-500/20 shadow-[0_0_10px_rgba(249,115,22,0.2)] border border-orange-500/50' : 'bg-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)] border border-blue-500/50' }}">
+                                                <span class="absolute left-2 text-[9px] font-black uppercase tracking-widest {{ $special['is_business'] ? 'text-orange-400' : 'text-blue-400' }} drop-shadow-md">
+                                                    {{ $special['is_business'] ? 'Gewerbe' : 'Privat' }}
                                                 </span>
-                                            </div>
+                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 {{ $special['is_business'] ? 'translate-x-26 shadow-[0_0_8px_rgba(249,115,22,0.8)]' : 'translate-x-1 shadow-[0_0_8px_rgba(59,130,246,0.8)]' }}"></span>
+                                            </button>
                                         @endif
 
                                         @if($special['is_business'] && $special['type'] === 'special')
@@ -147,22 +148,50 @@
 
                             {{-- Kategorie --}}
                             <td class="px-4 py-4 align-top">
-                                @if($special['type'] === 'special')
-                                    <input type="text" list="cat-list-{{$special['id']}}"
-                                           value="{{ $special['category'] }}"
-                                           wire:change="updateSpecialField('{{ $special['id'] }}', 'category', $event.target.value)"
-                                           placeholder="Kategorie..."
-                                           class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2.5 outline-none transition-all shadow-inner">
-                                    <datalist id="cat-list-{{$special['id']}}">
-                                        @foreach($this->manageableCategories as $cat)
-                                            <option value="{{ $cat->name }}">
-                                        @endforeach
-                                    </datalist>
-                                @else
-                                    <div class="px-3 py-2.5 text-xs font-black uppercase tracking-widest text-gray-500">
-                                        {{ $special['category'] }}
-                                    </div>
-                                @endif
+                                <div class="flex flex-col gap-2">
+                                    @if($special['type'] === 'special')
+                                        <input type="text" list="cat-list-{{$special['id']}}"
+                                               value="{{ $special['category'] }}"
+                                               wire:change="updateSpecialField('{{ $special['id'] }}', 'category', $event.target.value)"
+                                               placeholder="Kategorie..."
+                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2.5 outline-none transition-all shadow-inner">
+                                        <datalist id="cat-list-{{$special['id']}}">
+                                            @foreach($this->manageableCategories as $cat)
+                                                @if($special['is_business'] || !$cat->is_business)
+                                                    <option value="{{ $cat->name }}">
+                                                @endif
+                                            @endforeach
+                                        </datalist>
+                                    @else
+                                        <div class="px-3 py-2.5 text-xs font-black uppercase tracking-widest text-gray-500">
+                                            {{ $special['category'] }}
+                                            @if($special['type'] === 'bank_tx' && !empty($special['assigned_by_type']))
+                                                <div class="mt-1 text-[9px] {{ $special['assigned_by_type'] === 'admin' ? 'text-emerald-400' : 'text-blue-400' }}">
+                                                    Zugeordnet durch: {{ $special['assigned_by_name'] ?? ucfirst($special['assigned_by_type']) }}
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endif
+
+                                    {{-- Tags --}}
+                                    @if($special['type'] === 'bank_tx')
+                                        <div class="w-full" x-data="{ newTag: '' }">
+                                            <div class="flex flex-wrap gap-1 mb-1.5">
+                                                @if(!empty($special['tags']))
+                                                    @foreach($special['tags'] as $tag)
+                                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-gray-800 text-gray-300 border border-gray-700">
+                                                            #{{ $tag }}
+                                                            <button wire:click="removeTag('{{ $special['type'] }}', '{{ $special['id'] }}', '{{ $tag }}')" class="text-gray-500 hover:text-red-400 focus:outline-none">
+                                                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                            </button>
+                                                        </span>
+                                                    @endforeach
+                                                @endif
+                                            </div>
+                                            <input type="text" x-model="newTag" @keydown.enter.prevent="$wire.addTag('{{ $special['type'] }}', '{{ $special['id'] }}', newTag); newTag = ''" placeholder="+ Tag (Enter)" class="w-full bg-gray-900/50 border border-gray-800 hover:border-gray-700 text-[10px] rounded-lg px-2 py-1.5 text-gray-300 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none placeholder-gray-600 transition-colors">
+                                        </div>
+                                    @endif
+                                </div>
                             </td>
 
                             {{-- Betrag --}}
@@ -184,7 +213,6 @@
 
                             {{-- Belege (Inline Upload & Löschen) --}}
                             <td class="px-4 py-4 align-top text-center">
-                                @if($special['type'] === 'special')
                                     <div class="flex flex-col items-center gap-2">
                                         @php
                                             $files = is_string($special['file_paths']) ? json_decode($special['file_paths'], true) : $special['file_paths'];
@@ -197,7 +225,7 @@
                                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                         </a>
                                                         {{-- Rotes X zum Löschen des einzelnen Belegs --}}
-                                                        <button type="button" wire:click="deleteSpecialFile('{{ $special['id'] }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full items-center justify-center hidden group-hover/file:flex shadow-lg hover:scale-110 transition-transform z-20">
+                                                        <button type="button" wire:click="deleteSpecialFile('{{ $special['type'] }}', '{{ $special['id'] }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/file:opacity-100 shadow-lg hover:scale-110 transition-all z-20">
                                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                                                         </button>
                                                     </div>
@@ -205,22 +233,19 @@
                                             </div>
                                         @endif
 
-                                        <div class="relative group/upload flex justify-center w-full">
+                                        <div class="relative group/upload flex justify-center w-full mt-1">
                                             <label class="w-full cursor-pointer text-[9px] font-black uppercase tracking-widest text-gray-400 bg-gray-900/50 hover:bg-gray-900 py-2 rounded-lg border border-transparent hover:border-gray-700 transition-all hover:text-orange-400 flex items-center justify-center gap-1 shadow-inner">
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                 Upload
-                                                <input type="file" class="hidden" wire:model="quickUploadFile" wire:click="$set('uploadingMissingSpecialId', '{{ $special['id'] }}')">
+                                                <input type="file" class="hidden" wire:model.live="quickUploadFile" wire:loading.attr="disabled" wire:click="$set('uploadingMissingSpecialId', '{{ $special['type'] }}-{{ $special['id'] }}')">
                                             </label>
-                                            @if($uploadingMissingSpecialId === $special['id'])
-                                                <div wire:loading wire:target="quickUploadFile" class="absolute -top-1 -right-1 bg-gray-900 rounded-full p-1 border border-gray-800 shadow-sm z-10">
+                                            @if($uploadingMissingSpecialId === ($special['type'] . '-' . $special['id']))
+                                                <div class="absolute -top-1 -right-1 bg-gray-900 rounded-full p-1 border border-gray-800 shadow-sm z-10">
                                                     <svg class="animate-spin h-4 w-4 text-orange-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                                                 </div>
                                             @endif
                                         </div>
                                     </div>
-                                @else
-                                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-600 block pt-3">Nur via<br>Bank-Modul</span>
-                                @endif
                             </td>
 
                             {{-- Aktion (Nur noch Komplett Löschen) --}}
@@ -320,7 +345,9 @@
                                                class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2 outline-none transition-all shadow-inner">
                                         <datalist id="cat-list-mobile-{{$special['id']}}">
                                             @foreach($this->manageableCategories as $cat)
-                                                <option value="{{ $cat->name }}">
+                                                @if($special['is_business'] || !$cat->is_business)
+                                                    <option value="{{ $cat->name }}">
+                                                @endif
                                             @endforeach
                                         </datalist>
                                     @else

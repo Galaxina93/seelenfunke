@@ -63,7 +63,7 @@ class FinancialCategoriesSpecialEditions extends Component
                     ->whereColumn('category', 'finance_categories.name')
                     ->whereColumn('admin_id', 'finance_categories.admin_id')
             ])
-            ->orderByDesc('usage_count')
+            ->orderBy('name')
             ->get();
     }
 
@@ -166,6 +166,15 @@ class FinancialCategoriesSpecialEditions extends Component
 
     // --- ACTIONS: SPECIAL ISSUES (INLINE EDITING) ---
 
+    public function updateCategoryType($categoryId, $isBusiness)
+    {
+        $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($categoryId);
+        if ($cat) {
+            $cat->update(['is_business' => filter_var($isBusiness, FILTER_VALIDATE_BOOLEAN)]);
+            session()->flash('success', 'Kategorie Typ aktualisiert.');
+        }
+    }
+
     public function updateSpecialField($id, $field, $value)
     {
         $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
@@ -186,18 +195,78 @@ class FinancialCategoriesSpecialEditions extends Component
         }
     }
 
-    public function deleteSpecialFile($id, $fileIndex)
+    public function toggleBusinessStatus($type, $id)
     {
-        $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
-        if ($special) {
-            $files = is_string($special->file_paths) ? json_decode($special->file_paths, true) : $special->file_paths;
+        $model = null;
+        if ($type === 'special') {
+            $model = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+        } elseif ($type === 'bank_tx') {
+            $model = \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+        }
+
+        if ($model) {
+            if ($type === 'special') {
+                $model->update(['is_business' => !$model->is_business]);
+            } else {
+                $currentStatus = $model->is_business ?? $model->account->is_business;
+                $model->update(['is_business' => !$currentStatus]);
+            }
+        }
+    }
+
+    public function addTag($type, $id, $tag)
+    {
+        $model = null;
+        if ($type === 'special') {
+            // Not supported for legacy yet
+            return;
+        } elseif ($type === 'bank_tx') {
+            $model = \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+        }
+
+        $cleanTag = trim(strtolower($tag));
+        if ($model && !empty($cleanTag)) {
+            $tags = is_array($model->tags) ? $model->tags : [];
+            if (!in_array($cleanTag, $tags)) {
+                $tags[] = $cleanTag;
+                $model->update(['tags' => $tags]);
+            }
+        }
+    }
+
+    public function removeTag($type, $id, $tag)
+    {
+        $model = null;
+        if ($type === 'special') {
+            return;
+        } elseif ($type === 'bank_tx') {
+            $model = \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+        }
+
+        if ($model && is_array($model->tags)) {
+            $tags = array_filter($model->tags, fn($t) => strcasecmp($t, $tag) !== 0);
+            $model->update(['tags' => array_values($tags)]);
+        }
+    }
+
+    public function deleteSpecialFile($type, $id, $fileIndex)
+    {
+        $model = null;
+        if ($type === 'special') {
+            $model = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+        } elseif ($type === 'bank_tx') {
+            $model = \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+        }
+
+        if ($model) {
+            $files = is_string($model->file_paths) ? json_decode($model->file_paths, true) : $model->file_paths;
             if (isset($files[$fileIndex])) {
                 $path = $files[$fileIndex];
                 if (Storage::disk('public')->exists($path)) {
                     Storage::disk('public')->delete($path);
                 }
                 unset($files[$fileIndex]);
-                $special->update(['file_paths' => array_values($files)]);
+                $model->update(['file_paths' => array_values($files)]);
                 session()->flash('success', 'Beleg gelöscht.');
             }
         }
@@ -230,18 +299,30 @@ class FinancialCategoriesSpecialEditions extends Component
     public function updatedQuickUploadFile()
     {
         if($this->uploadingMissingSpecialId && $this->quickUploadFile) {
-            $special = FinanceSpecialIssue::find($this->uploadingMissingSpecialId);
-            if($special) {
-                $path = $this->quickUploadFile->store('financial/receipts', 'public');
-
-                $files = is_string($special->file_paths) ? json_decode($special->file_paths, true) : $special->file_paths;
-                if (!is_array($files)) {
-                    $files = [];
+            $parts = explode('-', $this->uploadingMissingSpecialId, 2);
+            if(count($parts) === 2) {
+                $type = $parts[0];
+                $id = $parts[1];
+                
+                $model = null;
+                if ($type === 'special') {
+                    $model = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+                } elseif ($type === 'bank_tx') {
+                    $model = \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
                 }
-                $files[] = $path;
 
-                $special->update(['file_paths' => $files]);
-                session()->flash('success', 'Beleg hochgeladen.');
+                if($model) {
+                    $path = $this->quickUploadFile->store('financial/receipts', 'public');
+
+                    $files = is_string($model->file_paths) ? json_decode($model->file_paths, true) : $model->file_paths;
+                    if (!is_array($files)) {
+                        $files = [];
+                    }
+                    $files[] = $path;
+
+                    $model->update(['file_paths' => $files]);
+                    session()->flash('success', 'Beleg hochgeladen.');
+                }
             }
             $this->reset(['quickUploadFile', 'uploadingMissingSpecialId']);
         }
@@ -282,6 +363,7 @@ class FinancialCategoriesSpecialEditions extends Component
                 'invoice_number' => $item->invoice_number,
                 'tax_rate' => $item->tax_rate,
                 'file_paths' => $item->file_paths,
+                'tags' => [], // Legacy Special Issue currently has no JSON tags natively
                 'created_at' => $item->created_at
             ];
         });
@@ -313,10 +395,13 @@ class FinancialCategoriesSpecialEditions extends Component
                         'amount' => $tx->amount,
                         'execution_date' => $tx->transaction_date ? \Carbon\Carbon::parse($tx->transaction_date) : null,
                         'location' => $tx->counterpart_iban ?? '',
-                        'is_business' => $isBusiness,
+                        'is_business' => $tx->is_business ?? $isBusiness,
                         'invoice_number' => null,
                         'tax_rate' => 0,
-                        'file_paths' => [],
+                        'file_paths' => is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths,
+                        'tags' => is_string($tx->tags) ? json_decode($tx->tags, true) : ($tx->tags ?? []),
+                        'assigned_by_type' => $tx->assigned_by_type,
+                        'assigned_by_name' => $tx->assigned_by_name,
                         'created_at' => clone $tx->created_at
                     ];
                 });

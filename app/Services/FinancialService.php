@@ -50,6 +50,18 @@ class FinancialService
             }
             $netSpecialSum += $amount;
         }
+        
+        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
+            ? \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+                ->whereNotNull('finance_category_id')
+                ->whereYear('transaction_date', $year)
+                ->whereMonth('transaction_date', $month)
+                ->get()
+            : collect();
+            
+        foreach ($bankTxs as $tx) {
+            $netSpecialSum += $tx->amount;
+        }
 
         $specialExpenses = 0;
         $specialIncome = 0;
@@ -145,6 +157,13 @@ class FinancialService
 
         // 2. Sonderausgaben (Variable Kosten)
         $specials = FinanceSpecialIssue::where('admin_id', $adminId)->whereYear('execution_date', $year)->get();
+        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
+            ? \App\Models\Financial\BankTransaction::with(['account', 'financeCategory'])
+                ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+                ->whereNotNull('finance_category_id')
+                ->whereYear('transaction_date', $year)
+                ->get()
+            : collect();
 
         foreach ($specials as $special) {
             $m = $special->execution_date->month;
@@ -169,6 +188,24 @@ class FinancialService
             $structure[$catKey]['year_sum'] += $amount;
 
             $groupName = $special->category ?: 'Sonstiges';
+            if (!isset($structure[$catKey]['items'][$groupName])) {
+                $structure[$catKey]['items'][$groupName] = ['name' => $groupName . ' (Kumuliert)', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
+            }
+            $structure[$catKey]['items'][$groupName]['months'][$m] += $amount;
+            $structure[$catKey]['items'][$groupName]['year_sum'] += $amount;
+        }
+
+        foreach ($bankTxs as $tx) {
+            $m = \Carbon\Carbon::parse($tx->transaction_date)->month;
+            $isBusiness = $tx->is_business ?? ($tx->account ? $tx->account->is_business : false);
+            $catKey = $isBusiness ? 'special_business' : 'special_private';
+
+            $amount = $tx->amount;
+
+            $structure[$catKey]['months'][$m] += $amount;
+            $structure[$catKey]['year_sum'] += $amount;
+
+            $groupName = $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges';
             if (!isset($structure[$catKey]['items'][$groupName])) {
                 $structure[$catKey]['items'][$groupName] = ['name' => $groupName . ' (Kumuliert)', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
             }
@@ -217,17 +254,35 @@ class FinancialService
 
     public function getPieChartData($adminId, $from, $to)
     {
-        $data = FinanceSpecialIssue::where('admin_id', $adminId)
+        $specialsData = FinanceSpecialIssue::where('admin_id', $adminId)
             ->whereBetween('execution_date', [$from, $to])
             ->where('amount', '<', 0) // Pie Chart zeigt nur echte Ausgabenverteilung
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')
-            ->orderByDesc('total')
             ->get();
 
+        $bankTxData = class_exists(\App\Models\Financial\BankTransaction::class)
+            ? \App\Models\Financial\BankTransaction::with('financeCategory')
+                ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+                ->whereNotNull('finance_category_id')
+                ->whereBetween('transaction_date', [$from, $to])
+                ->where('amount', '<', 0)
+                ->get()
+                ->groupBy(fn($tx) => $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges')
+                ->map(fn($group, $key) => (object)['category' => $key, 'total' => $group->sum(fn($tx) => abs($tx->amount))])
+                ->values()
+            : collect();
+
+        // Merge two collections and group
+        $merged = $specialsData->concat($bankTxData)
+            ->groupBy('category')
+            ->map(fn($group, $key) => (object)['category' => $key, 'total' => $group->sum('total')])
+            ->sortByDesc('total')
+            ->values();
+
         return [
-            'labels' => $data->pluck('category'),
-            'data' => $data->pluck('total'),
+            'labels' => $merged->pluck('category'),
+            'data' => $merged->pluck('total'),
         ];
     }
 
@@ -289,6 +344,21 @@ class FinancialService
                 $this->addToChartData($days[$key], $amount);
             }
         }
+        
+        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
+            ? \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+                ->whereNotNull('finance_category_id')
+                ->whereBetween('transaction_date', [$from, $to])
+                ->get()
+            : collect();
+
+        foreach($bankTxs as $tx) {
+            $date = \Carbon\Carbon::parse($tx->transaction_date);
+            $key = $isMonthly ? $date->format('Y-m') : $date->format('Y-m-d');
+            if(isset($days[$key])) {
+                $this->addToChartData($days[$key], $tx->amount);
+            }
+        }
 
         // Shop Invoices (anstatt Orders)
         $invoices = \App\Models\Invoice::whereBetween('invoice_date', [$from, $to])
@@ -335,6 +405,16 @@ class FinancialService
             ->whereMonth('execution_date', $month)
             ->orderBy('execution_date')
             ->get();
+            
+        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
+            ? \App\Models\Financial\BankTransaction::with(['account', 'financeCategory'])
+                ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+                ->whereNotNull('finance_category_id')
+                ->whereYear('transaction_date', $year)
+                ->whereMonth('transaction_date', $month)
+                ->orderBy('transaction_date')
+                ->get()
+            : collect();
 
         $fixedGroups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
         $fixedCosts = collect();
@@ -421,6 +501,28 @@ class FinancialService
                             $ext = pathinfo($filePath, PATHINFO_EXTENSION);
                             $cleanTitle = \Illuminate\Support\Str::slug($s->title);
                             $newName = "Belege/{$s->execution_date->format('Y-m-d')}_{$cleanTitle}_{$index}.{$ext}";
+                            $zip->addFile(storage_path("app/public/{$filePath}"), $newName);
+                        }
+                    }
+                }
+            }
+            
+            foreach ($bankTxs as $tx) {
+                $catName = $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges';
+                $title = '🏦 ' . ($tx->counterpart_name ?? $tx->purpose ?? 'Unbekannte Abbuchung');
+                fputcsv($csvHandle, [
+                    \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y'), 'Variabel (Bank)', $title, $catName,
+                    number_format($tx->amount, 2, ',', '.'), '0%', 
+                    number_format($tx->amount, 2, ',', '.'), '0,00'
+                ], ';');
+
+                if($tx->file_paths) {
+                    foreach($tx->file_paths as $index => $filePath) {
+                        if(Storage::disk('public')->exists($filePath)) {
+                            $ext = pathinfo($filePath, PATHINFO_EXTENSION);
+                            $cleanTitle = \Illuminate\Support\Str::slug($title);
+                            $dateStr = \Carbon\Carbon::parse($tx->transaction_date)->format('Y-m-d');
+                            $newName = "Belege_Bank/{$dateStr}_{$cleanTitle}_{$index}.{$ext}";
                             $zip->addFile(storage_path("app/public/{$filePath}"), $newName);
                         }
                     }
