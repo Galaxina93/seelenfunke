@@ -255,16 +255,17 @@
                                     <div class="space-y-4">
                                         @foreach($group->items as $item)
                                             {{-- ITEM CARD (Draggable) --}}
-                                            <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner hover:border-primary/30 hover:shadow-[0_0_15px_rgba(197,160,89,0.1)] transition-all cursor-grab active:cursor-grabbing group/item overflow-hidden"
+                                            <div wire:key="item-card-{{ $item->id }}"
+                                                 class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner hover:border-primary/30 hover:shadow-[0_0_15px_rgba(197,160,89,0.1)] transition-all cursor-grab active:cursor-grabbing group/item overflow-hidden"
                                                  draggable="true"
                                                  @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
                                                  @dragend.stop="draggingItemId = null">
                                                 @if($editingItemId === $item->id)
-                                                    <div class="p-4 sm:p-6 bg-gray-800/30">
+                                                    <div wire:key="edit-view-{{ $item->id }}" class="p-4 sm:p-6 bg-gray-800/30">
                                                         @include('livewire.shop.financial.financial-contracts-groups.partials.edit_cost_item')
                                                     </div>
                                                 @else
-                                                    <div class="p-4 sm:p-6">
+                                                    <div wire:key="read-view-{{ $item->id }}" class="p-4 sm:p-6">
                                                         @include('livewire.shop.financial.financial-contracts-groups.partials.cost_item')
                                                     </div>
                                                 @endif

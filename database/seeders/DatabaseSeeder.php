@@ -30,8 +30,8 @@ class DatabaseSeeder extends Seeder
             MapSeeder::class,                       // Für den Livegang notwendig
             /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
 
-           /* GamificationTestSeeder::class,*/        // DEAKTIVIEREN BEI LIVEGANG
-            FinancialData2028Seeder::class,          // DEAKTIVIEREN BEI LIVEGANG
+            /* GamificationTestSeeder::class,*/     // DEAKTIVIEREN BEI LIVEGANG
+            /*FinancialData2028Seeder::class,*/     // DEAKTIVIEREN BEI LIVEGANG
             PersonProfileSeeder::class,             // Für den Livegang notwendig
             AiAgentSeeder::class,                   // Für den Livegang notwendig
         ]);

@@ -43,16 +43,32 @@ class FinancialSeeder extends Seeder
             'Sprit',
             // Gewerbliche Kategorien aus den Daten
             'Arbeitsmaterial',
+            'Wareneinkauf',
             'Rohmaterial',
             'Verpackungen',
-            'Software & Lizenzen'
+            'Software & Lizenzen',
+            'Werbung & Marketing'
+        ];
+
+        $businessNames = [
+            'Arbeitsmaterial',
+            'Wareneinkauf',
+            'Rohmaterial',
+            'Verpackungen',
+            'Software & Lizenzen',
+            'Werbung & Marketing'
         ];
 
         foreach ($categories as $catName) {
-            FinanceCategory::firstOrCreate([
-                'admin_id' => $admin->id,
-                'name'     => $catName
-            ]);
+            FinanceCategory::updateOrCreate(
+                [
+                    'admin_id' => $admin->id,
+                    'name'     => $catName
+                ],
+                [
+                    'is_business' => in_array($catName, $businessNames)
+                ]
+            );
         }
 
         // --- 1. Gruppen erstellen ---
@@ -87,7 +103,8 @@ class FinancialSeeder extends Seeder
                 'name'        => 'ALG 1 + GZ',
                 'amount'      => 1806.30,
                 'interval'    => 1, // monthly
-                'start_date'  => '2021-09-08',
+                'start_date'  => '2026-01-30',
+                'last_date'   => '2027-01-30',
                 'description' => null,
                 'tags'        => ['Einnahme', 'Staat', 'Förderung', 'Einkommen'],
             ],
@@ -383,7 +400,8 @@ class FinancialSeeder extends Seeder
                 'name'               => $item['name'],
                 'amount'             => $item['amount'],
                 'interval_months'    => $item['interval'],
-                'first_payment_date' => $item['start_date'],
+                'first_payment_date' => $item['start_date'] ?? null,
+                'last_payment_date'  => $item['last_date'] ?? null,
                 'description'        => $item['description'],
                 'is_business'        => $item['is_business'] ?? false,
                 'tags'               => $item['tags'] ?? [],
@@ -393,6 +411,13 @@ class FinancialSeeder extends Seeder
         // --- 3. Sonderausgaben erstellen (Gewerblich) ---
 
         $specialIssues = [
+            [
+                'title'    => 'Lenovo Docking Station',
+                'location' => 'AFB Social & Green IT',
+                'amount'   => -84,90,
+                'date'     => '2026-02-27',
+                'category' => 'Arbeitsmaterial',
+            ],
             [
                 'title'    => 'Gemini Ultra',
                 'location' => 'Online',

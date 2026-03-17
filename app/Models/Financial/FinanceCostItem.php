@@ -20,10 +20,13 @@ class FinanceCostItem extends Model
         'contract_file_path',
         'tags',
         'tax_rate',
+        'first_payment_date',
+        'last_payment_date',
     ];
 
     protected $casts = [
         'first_payment_date' => 'date',
+        'last_payment_date'  => 'date',
         'amount'             => 'decimal:2',
         'is_business'        => 'boolean',
         'tags'               => 'array',
@@ -38,5 +41,10 @@ class FinanceCostItem extends Model
     public function transactions()
     {
         return $this->hasMany(BankTransaction::class, 'finance_cost_item_id');
+    }
+
+    public function histories()
+    {
+        return $this->hasMany(FinanceCostItemHistory::class, 'finance_cost_item_id')->orderBy('created_at', 'desc');
     }
 }

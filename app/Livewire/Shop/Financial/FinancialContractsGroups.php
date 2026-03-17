@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Financial;
 
 use App\Models\Financial\FinanceGroup;
 use App\Models\Financial\FinanceCostItem;
+use App\Models\Financial\FinanceCostItemHistory;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
@@ -53,10 +54,12 @@ class FinancialContractsGroups extends Component
     public $itemIsBusiness = false;
     public ?string $itemExistingFile = null;
     public $itemTaxRate = 0;
+    public $itemLastPaymentDate;
 
     public ?string $editingItemId = null;
     public ?string $addingToGroupId = null;
     public ?string $targetGroupId = null;
+    public $isRestoring = false;
 
     // --- Tagging Properties ---
     public $addingTagToItemId = null;
@@ -340,6 +343,7 @@ class FinancialContractsGroups extends Component
             $this->itemIsBusiness = (bool) $item->is_business;
             $this->itemTaxRate = $item->tax_rate ?? 0;
             $this->itemExistingFile = $item->contract_file_path;
+            $this->itemLastPaymentDate = $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null;
             $this->targetGroupId = $item->finance_group_id;
         }
     }
@@ -367,6 +371,7 @@ class FinancialContractsGroups extends Component
             'amount'             => $this->itemAmount,
             'interval_months'    => $this->itemInterval,
             'first_payment_date' => $this->itemDate,
+            'last_payment_date'  => $this->itemLastPaymentDate ?: null,
             'description'        => $this->itemDescription,
             'is_business'        => $this->itemIsBusiness ? 1 : 0,
             'tax_rate'           => (int) $this->itemTaxRate,
@@ -388,9 +393,72 @@ class FinancialContractsGroups extends Component
                 }
             }
 
-            $item->update($data);
-            $this->editingItemId = null;
+            // SNAPSHOT LOGIC: Check if dirty
+            $originalSnapshot = $item->toArray();
+            $item->fill($data);
+
+            $amountChanged = abs((float)($originalSnapshot['amount'] ?? 0) - (float)$item->amount) > 0.001;
+            $intervalChanged = (int)($originalSnapshot['interval_months'] ?? 1) !== (int)$item->interval_months;
+            $nameChanged = ($originalSnapshot['name'] ?? '') !== ($item->name ?? '');
+            $descChanged = ($originalSnapshot['description'] ?? '') !== ($item->description ?? '');
+            $businessChanged = (bool)($originalSnapshot['is_business'] ?? false) !== (bool)$item->is_business;
+            $taxChanged = (int)($originalSnapshot['tax_rate'] ?? 0) !== (int)$item->tax_rate;
+                   $oldFirstDate = isset($originalSnapshot['first_payment_date'])
+                ? \Carbon\Carbon::parse($originalSnapshot['first_payment_date'])->timezone(config('app.timezone'))->format('Y-m-d')
+                : null;
+            $newFirstDate = $item->first_payment_date
+                ? \Carbon\Carbon::parse($item->first_payment_date)->timezone(config('app.timezone'))->format('Y-m-d')
+                : null;
+            $firstDateChanged = $oldFirstDate !== $newFirstDate;
+
+            $oldLastDate = isset($originalSnapshot['last_payment_date'])
+                ? \Carbon\Carbon::parse($originalSnapshot['last_payment_date'])->timezone(config('app.timezone'))->format('Y-m-d')
+                : null;
+            $newLastDate = $item->last_payment_date
+                ? \Carbon\Carbon::parse($item->last_payment_date)->timezone(config('app.timezone'))->format('Y-m-d')
+                : null;
+            $lastDateChanged = $oldLastDate !== $newLastDate;
+
+            $isDirty = $amountChanged || $intervalChanged || $nameChanged || $descChanged || $businessChanged || $taxChanged || $firstDateChanged || $lastDateChanged || $this->itemFile;
+
+            if ($isDirty && !$this->isRestoring) {
+                $description = $amountChanged
+                    ? 'Betrag wurde von ' . number_format($originalSnapshot['amount'] ?? 0, 2, ',', '.') . '€ auf ' . number_format((float)$this->itemAmount, 2, ',', '.') . '€ geändert.'
+                    : 'Details der Kostenstelle wurden aktualisiert.';
+
+                if ($this->itemFile && !$amountChanged && !$intervalChanged && !$nameChanged && !$descChanged && !$businessChanged && !$taxChanged && !$firstDateChanged && !$lastDateChanged) {
+                    $description = 'Vertragsdokument wurde hochgeladen/aktualisiert.';
+                }
+
+                $item->save(); // Save to database first to ensure updated timestamps etc if needed
+
+                FinanceCostItemHistory::create([
+                    'finance_cost_item_id' => $item->id,
+                    'name'                 => $item->name,
+                    'amount'               => $item->amount,
+                    'interval_months'      => $item->interval_months,
+                    'first_payment_date'   => $item->first_payment_date ? $item->first_payment_date->format('Y-m-d') : null,
+                    'last_payment_date'    => $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null,
+                    'is_business'          => $item->is_business,
+                    'tax_rate'             => $item->tax_rate,
+                    'contract_file_path'   => $item->contract_file_path,
+                    'tags'                 => $item->tags,
+                    'finance_group_id'     => $item->finance_group_id,
+                    'description'          => $description,
+                ]);
+            } else {
+                $item->save();
+            }
+
+            // UI Refresh für Datei-Upload
+            if ($this->itemFile) {
+                $this->itemExistingFile = $item->contract_file_path;
+                $this->itemFile = null;
+            }
+
+            // Formular absichtlich offen lassen
             session()->flash('success', 'Kostenstelle aktualisiert.');
+            $this->dispatchChartUpdate();
         } else {
             if (!$this->addingToGroupId) {
                 session()->flash('error', 'Fehler: Keine Zielgruppe gefunden.');
@@ -400,13 +468,67 @@ class FinancialContractsGroups extends Component
             $group = FinanceGroup::findOrFail($this->addingToGroupId);
             if ($group->admin_id !== $this->getAdminId()) abort(403);
 
-            FinanceCostItem::create(array_merge($data, ['finance_group_id' => $this->addingToGroupId]));
+            $newItem = FinanceCostItem::create(array_merge($data, ['finance_group_id' => $this->addingToGroupId]));
+            // Log initial creation
+            if (!$this->isRestoring) {
+                FinanceCostItemHistory::create([
+                    'finance_cost_item_id' => $newItem->id,
+                    'name'                 => $newItem->name,
+                    'amount'               => $newItem->amount,
+                    'interval_months'      => $newItem->interval_months,
+                    'first_payment_date'   => $newItem->first_payment_date ? $newItem->first_payment_date->format('Y-m-d') : null,
+                    'last_payment_date'    => $newItem->last_payment_date ? $newItem->last_payment_date->format('Y-m-d') : null,
+                    'is_business'          => $newItem->is_business,
+                    'tax_rate'             => $newItem->tax_rate,
+                    'contract_file_path'   => $newItem->contract_file_path,
+                    'tags'                 => $newItem->tags,
+                    'finance_group_id'     => $newItem->finance_group_id,
+                    'description'          => 'Initiale Anlage der Kostenstelle.',
+                ]);
+            }
+
             $this->showAddItemFormForGroup = null;
             session()->flash('success', 'Kostenstelle erstellt.');
+            $this->dispatchChartUpdate();
+            $this->resetItemForm();
+        }
+    }
+
+    public function restoreHistory($historyId)
+    {
+        $history = FinanceCostItemHistory::with('costItem.group')->findOrFail($historyId);
+        
+        if ($history->costItem->group->admin_id !== $this->getAdminId()) {
+            abort(403);
         }
 
+        $this->isRestoring = true;
+
+        $this->itemName            = $history->name ?? $history->costItem->name;
+        $this->itemAmount          = $history->amount;
+        $this->itemInterval        = $history->interval_months;
+        $this->itemDate            = $history->first_payment_date ? $history->first_payment_date->format('Y-m-d') : null;
+        $this->itemLastPaymentDate = $history->last_payment_date ? $history->last_payment_date->format('Y-m-d') : null;
+        $this->itemDescription     = $history->description ?? null;
+        $this->itemIsBusiness      = (bool) $history->is_business;
+        $this->itemTaxRate         = $history->tax_rate ?? 0;
+        
+        // Auto-save the restored state instantly
+        $this->saveItem();
+        $this->isRestoring = false;
+        session()->flash('success', 'Historischer Zustand erfolgreich wiederhergestellt!');
+    }
+
+    public function deleteHistory($historyId)
+    {
+        $history = FinanceCostItemHistory::with('costItem.group')->findOrFail($historyId);
+        
+        if ($history->costItem->group->admin_id !== $this->getAdminId()) {
+            abort(403);
+        }
+
+        $history->delete();
         $this->dispatchChartUpdate();
-        $this->resetItemForm();
     }
 
     public function removeFileFromItem($itemId)
@@ -443,7 +565,7 @@ class FinancialContractsGroups extends Component
         $this->reset([
             'itemName', 'itemAmount', 'itemInterval', 'itemDate', 'itemDescription',
             'itemFile', 'addingToGroupId', 'itemIsBusiness', 'editingItemId',
-            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId', 'itemTaxRate'
+            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId', 'itemTaxRate', 'itemLastPaymentDate'
         ]);
         $this->itemDate = date('Y-m-d');
     }

@@ -35,6 +35,7 @@ return new class extends Migration
             // Intervall: 1=monatlich, 3=quartalsweise, 6=halbjährlich, 12=jährlich, 24=alle 2 jahre
             $table->integer('interval_months')->default(1);
             $table->date('first_payment_date');
+            $table->date('last_payment_date')->nullable();
 
             $table->boolean('is_business')->default(false); // Neu: Gewerblich/Privat Trennung
             $table->integer('tax_rate')->nullable(); // 0, 7, 19
@@ -71,6 +72,7 @@ return new class extends Migration
         Schema::create('finance_categories', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('admin_id')->constrained('admins')->onDelete('cascade');
+            $table->boolean('is_business')->default(false);
             $table->string('name');
             $table->integer('usage_count')->default(0);
             $table->softDeletes(); // Fix für: Call to undefined method withTrashed()
