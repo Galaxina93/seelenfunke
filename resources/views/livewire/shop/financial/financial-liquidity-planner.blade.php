@@ -112,8 +112,9 @@
                     {{-- EINZAHLUNGEN HEADER --}}
                     <tr class="bg-emerald-900/10 border-y-2 border-emerald-500/30">
                         <td class="sticky left-0 bg-[#061810] z-20 p-0 border-r border-emerald-500/30 align-middle shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)]">
-                            <div class="px-3 md:px-6 py-2 md:py-3 font-bold text-emerald-400 text-[10px] md:text-sm whitespace-normal leading-tight">
-                                Einzahlungen (brutto), Summe
+                            <div class="px-3 md:px-6 py-2 md:py-3 font-bold text-emerald-400 text-[10px] md:text-sm whitespace-normal leading-tight flex items-center justify-between gap-1">
+                                <span>Einzahlungen (brutto), Summe</span>
+                                <x-heroicon-o-information-circle class="w-3 h-3 md:w-4 md:h-4 text-emerald-600 hover:text-emerald-400 cursor-help shrink-0" title="Summe aller voraussichtlichen monatlichen Zahlungseingänge auf dem Konto (inklusive möglicher Umsatzsteuer und staatlicher Zuschüsse)." />
                             </div>
                         </td>
                         @for($m = 1;$m <= 12;$m++)
@@ -162,8 +163,9 @@
                     {{-- AUSZAHLUNGEN HEADER --}}
                     <tr class="bg-red-900/10 border-y-2 border-red-500/30">
                         <td class="sticky left-0 bg-[#180a0a] z-20 p-0 border-r border-red-500/30 align-middle shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)]">
-                            <div class="px-3 md:px-6 py-2 md:py-3 font-bold text-red-400 text-[10px] md:text-sm whitespace-normal leading-tight">
-                                Auszahlungen (brutto), Summe
+                            <div class="px-3 md:px-6 py-2 md:py-3 font-bold text-red-400 text-[10px] md:text-sm whitespace-normal leading-tight flex items-center justify-between gap-1">
+                                <span>Auszahlungen (brutto), Summe</span>
+                                <x-heroicon-o-information-circle class="w-3 h-3 md:w-4 md:h-4 text-red-600 hover:text-red-400 cursor-help shrink-0" title="Summe aller voraussichtlichen monatlichen Zahlungsausgänge (inklusive Fixkosten, variabler Kosten, Vorsteuerbeträge und privater Entnahmen)." />
                             </div>
                         </td>
                         @for($m = 1;$m <= 12;$m++)
@@ -212,8 +214,9 @@
                     {{-- ÜBER/UNTERDECKUNG MONAT --}}
                     <tr class="bg-orange-500/10 border-y-2 border-orange-500/30">
                         <td class="sticky left-0 bg-[#160c04] z-20 p-0 border-r border-orange-500/30 align-middle shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)]">
-                            <div class="px-3 md:px-6 py-2 md:py-3 font-bold text-orange-400 text-[10px] md:text-sm whitespace-normal leading-tight">
-                                Über-/Unterdeckung / Monat
+                            <div class="px-3 md:px-6 py-2 md:py-3 font-bold text-orange-400 text-[10px] md:text-sm whitespace-normal leading-tight flex items-center justify-between gap-1">
+                                <span>Über-/Unterdeckung / Monat</span>
+                                <x-heroicon-o-information-circle class="w-3 h-3 md:w-4 md:h-4 text-orange-600 hover:text-orange-400 cursor-help shrink-0" title="Differenz aus Einzahlungen minus Auszahlungen in diesem Monat. Eine Unterdeckung (Minus) zehrt die Liquiditätsreserven auf." />
                             </div>
                         </td>
                         @for($m = 1;$m <= 12;$m++)
@@ -223,6 +226,25 @@
                                     <span class="text-[9px] md:text-[10px] text-orange-900 font-normal pr-1">0,00&nbsp;€</span>
                                 @else
                                     <span class="text-xs md:text-sm {{ $net < 0 ? 'text-red-400' : 'text-orange-400' }} pr-1">{{ number_format($net, 2, ',', '.') }}&nbsp;€</span>
+                                @endif
+                            </td>
+                        @endfor
+                    </tr>
+
+                    {{-- AUTO-DARLEHEN HINWEIS --}}
+                    <tr class="bg-indigo-900/10 border-b border-indigo-500/30">
+                        <td class="sticky left-0 bg-[#0f0c1b] z-20 p-0 border-r border-indigo-500/30 align-middle shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)]">
+                            <div class="px-3 md:px-6 py-1 md:py-2 text-[10px] md:text-xs whitespace-normal leading-tight text-indigo-400 italic">
+                                ↳ Automatisch durch Darlehen gedeckt
+                            </div>
+                        </td>
+                        @for($m = 1;$m <= 12;$m++)
+                            @php $loanVal = $data[$activeYear][$m]['adj']['loan'] ?? 0; @endphp
+                            <td class="px-2 md:px-3 py-1 md:py-2 text-right border-r border-indigo-500/10 font-mono text-[9px] md:text-[11px] align-middle">
+                                @if($loanVal > 0)
+                                    <span class="text-indigo-400 font-bold">+{{ number_format($loanVal, 2, ',', '.') }}&nbsp;€</span>
+                                @else
+                                    <span class="text-indigo-900/50">-</span>
                                 @endif
                             </td>
                         @endfor
@@ -495,10 +517,99 @@
             </div>
         </div>
 
+        {{-- STEUERN & ABGABEN TABELLEN --}}
+        <div class="space-y-6 md:space-y-8 mt-6 md:mt-8">
+            <div class="bg-gray-900/80 backdrop-blur-md rounded-2xl md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden w-full">
+                <div class="p-4 sm:p-6 md:p-8 border-b border-gray-800 bg-gray-950">
+                    <h3 class="text-lg md:text-xl font-serif font-bold text-white tracking-wide flex items-center gap-2 md:gap-3">
+                        <x-heroicon-o-scale class="w-5 h-5 md:w-6 md:h-6 text-primary shrink-0" />
+                        <span>Steuern & Abgaben (Vorausschau)</span>
+                    </h3>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:gap-px bg-gray-800">
+                    {{-- UMSATZSTEUER --}}
+                    <div class="bg-gray-950 p-4 sm:p-6 md:p-8 flex flex-col h-full">
+                        <h4 class="text-xs md:text-sm font-black text-gray-300 uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">Umsatzsteuer (Zahllast)</h4>
+                        
+                        <div class="space-y-3 mb-6 flex-grow">
+                            @foreach($years as $y)
+                                @php $vatTotal = $taxCalculations['vat'][$y]['total'] ?? 0; @endphp
+                                <div class="flex justify-between items-center py-2 border-b border-gray-800/50 hover:bg-gray-900 transition-colors px-2 rounded">
+                                    <span class="text-gray-500 font-bold text-xs md:text-sm">Jahr {{ $y }}</span>
+                                    <span class="font-mono font-bold text-xs md:text-sm {{ $vatTotal > 0 ? 'text-red-400' : ($vatTotal < 0 ? 'text-emerald-400' : 'text-gray-600') }}">
+                                        {{ number_format($vatTotal, 2, ',', '.') }} €
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+                        
+                        <div class="h-32 md:h-40 w-full mt-auto">
+                            <canvas id="vatChart"></canvas>
+                        </div>
+                    </div>
+
+                    {{-- GEWERBESTEUER --}}
+                    <div class="bg-gray-950 p-4 sm:p-6 md:p-8 flex flex-col h-full">
+                        <h4 class="text-xs md:text-sm font-black text-gray-300 uppercase tracking-widest mb-2">Gewerbesteuer</h4>
+                        <p class="text-[9px] md:text-[10px] text-gray-500 mb-4 border-b border-gray-800 pb-2">Freibetrag: 24.500 € / Hebesatz: ~380%</p>
+                        
+                        <div class="space-y-3 mb-6 flex-grow">
+                            @foreach($years as $y)
+                                @php $tradeTax = $taxCalculations['trade_tax'][$y]['steuer'] ?? 0; @endphp
+                                <div class="flex justify-between items-center py-2 border-b border-gray-800/50 hover:bg-gray-900 transition-colors px-2 rounded">
+                                    <span class="text-gray-500 font-bold text-xs md:text-sm">Jahr {{ $y }}</span>
+                                    <span class="font-mono font-bold text-xs md:text-sm {{ $tradeTax > 0 ? 'text-red-400' : 'text-gray-600' }}">
+                                        {{ number_format($tradeTax, 2, ',', '.') }} €
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="h-32 md:h-40 w-full mt-auto">
+                            <canvas id="tradeTaxChart"></canvas>
+                        </div>
+                    </div>
+
+                    {{-- EINKOMMENSTEUER --}}
+                    <div class="bg-gray-950 p-4 sm:p-6 md:p-8 flex flex-col h-full">
+                        <h4 class="text-xs md:text-sm font-black text-gray-300 uppercase tracking-widest mb-2">Einkommensteuer</h4>
+                        <p class="text-[9px] md:text-[10px] text-gray-500 mb-4 border-b border-gray-800 pb-2">Inkl. Progressionsvorbehalt (ALG 1)</p>
+                        
+                        <div class="space-y-3 mb-6 flex-grow">
+                            @foreach($years as $y)
+                                @php 
+                                    $incomeTax = $taxCalculations['income_tax'][$y]['steuer'] ?? 0;
+                                    $satz = $taxCalculations['income_tax'][$y]['steuersatz'] ?? 0;
+                                @endphp
+                                <div class="flex justify-between items-center py-2 border-b border-gray-800/50 hover:bg-gray-900 transition-colors px-2 rounded">
+                                    <div class="flex flex-col">
+                                        <span class="text-gray-500 font-bold text-xs md:text-sm">Jahr {{ $y }}</span>
+                                        <span class="text-[8px] md:text-[9px] text-gray-600">Satz: {{ number_format($satz, 1, ',', '.') }} %</span>
+                                    </div>
+                                    <span class="font-mono font-bold text-xs md:text-sm {{ $incomeTax > 0 ? 'text-red-400' : 'text-gray-600' }}">
+                                        {{ number_format($incomeTax, 2, ',', '.') }} €
+                                    </span>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="h-32 md:h-40 w-full mt-auto">
+                            <canvas id="incomeTaxChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
             document.addEventListener('livewire:initialized',()=>{
                 const ctx = document.getElementById('liquidityChart');
+                const vatCtx = document.getElementById('vatChart');
+                const tradeCtx = document.getElementById('tradeTaxChart');
+                const incomeCtx = document.getElementById('incomeTaxChart');
+                
                 if(!ctx) return;
 
                 let chartInstance = new Chart(ctx,{
@@ -528,12 +639,51 @@
                     }
                 });
 
+                // Helper für kleine Tax-Charts
+                const getTaxChartConfig = (color, bg) => ({
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ data: [], backgroundColor: bg, borderColor: color, borderWidth: 1, borderRadius: 4 }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 9 } } },
+                            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7280', font: { size: 9 }, callback: (val) => val + '€' } }
+                        }
+                    }
+                });
+
+                let vatChartInstance = vatCtx ? new Chart(vatCtx, getTaxChartConfig('#ef4444', 'rgba(239, 68, 68, 0.2)')) : null;
+                let tradeChartInstance = tradeCtx ? new Chart(tradeCtx, getTaxChartConfig('#f59e0b', 'rgba(245, 158, 11, 0.2)')) : null;
+                let incomeChartInstance = incomeCtx ? new Chart(incomeCtx, getTaxChartConfig('#3b82f6', 'rgba(59, 130, 246, 0.2)')) : null;
+
                 Livewire.on('update-liquidity-chart',(event)=>{
                     const data = event.chartData || event[0]?.chartData;
                     if(data){
+                        // Update Main Chart
                         chartInstance.data.labels = data.labels;
                         chartInstance.data.datasets[0].data = data.balances;
                         chartInstance.update();
+
+                        // Update Tax Charts (aus den tax_calculations generieren wir mini Arrays)
+                        if(data.taxCharts && data.taxCharts.years) {
+                            if(vatChartInstance) {
+                                vatChartInstance.data.labels = data.taxCharts.years;
+                                vatChartInstance.data.datasets[0].data = data.taxCharts.vat;
+                                vatChartInstance.data.datasets[0].backgroundColor = data.taxCharts.vat.map(v => v < 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)');
+                                vatChartInstance.data.datasets[0].borderColor = data.taxCharts.vat.map(v => v < 0 ? '#10b981' : '#ef4444');
+                                vatChartInstance.update();
+                            }
+                            if(tradeChartInstance) {
+                                tradeChartInstance.data.labels = data.taxCharts.years;
+                                tradeChartInstance.data.datasets[0].data = data.taxCharts.trade;
+                                tradeChartInstance.update();
+                            }
+                            if(incomeChartInstance) {
+                                incomeChartInstance.data.labels = data.taxCharts.years;
+                                incomeChartInstance.data.datasets[0].data = data.taxCharts.income;
+                                incomeChartInstance.update();
+                            }
+                        }
                     }
                 });
             });

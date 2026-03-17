@@ -19,6 +19,7 @@ class FinancialLiquidityPlanner extends Component
     public array $totals = [];
     public array $rentabilitaet = [];
     public array $kapitalbedarf = [];
+    public array $taxCalculations = [];
     public float $startBalance = 0.0;
 
     public array $receiptRows = [
@@ -26,6 +27,7 @@ class FinancialLiquidityPlanner extends Component
         'cash' => ['label' => 'bar (-> Sofortzahlung)', 'tooltip' => 'Direkte Verkäufe (z.B. auf Märkten)'],
         'tax_refund' => ['label' => 'Vorsteuererstattung', 'tooltip' => 'Vom Finanzamt erstattete Vorsteuer'],
         'subsidy' => ['label' => 'Zuschüsse (ALG1 / Gründungsz.)', 'tooltip' => 'Staatliche Förderungen in der Anlaufphase (Monate 4-9)'],
+        'private_in' => ['label' => 'Private Einnahmen', 'tooltip' => 'Gehalt, Kindergeld und sonstige private Zuflüsse'],
         'other_in' => ['label' => 'sonstige Einzahlungen', 'tooltip' => 'Zinsen etc.'],
     ];
 
@@ -48,7 +50,6 @@ class FinancialLiquidityPlanner extends Component
     ];
 
     public array $adjustmentRows = [
-        'private_in' => ['label' => 'Privateinlage', 'tooltip' => 'Eigenkapital und private Einnahmen'],
         'loan' => ['label' => 'Darlehen', 'tooltip' => 'Auszahlung eines Bankkredits'],
         'overdraft' => ['label' => 'Kontokorrentkredit', 'tooltip' => 'Nutzung des Dispos'],
     ];
@@ -76,6 +77,7 @@ class FinancialLiquidityPlanner extends Component
 
     public function mount()
     {
+        // Geschäftsstart: August 2026
         $currentYear = 2026;
         $this->years = [$currentYear, $currentYear + 1, $currentYear + 2];
         $this->activeYear = $currentYear;
@@ -161,40 +163,31 @@ class FinancialLiquidityPlanner extends Component
 
     private function injectSeelenfunkeBusinessPlan()
     {
-        // Jahr 1 (2026)
+        // Jahr 1 (2026) - Start im August (Monat 8)
         if (in_array(2026, $this->years)) {
-            $this->data[2026][4]['out']['investments'] = 7815;
-            $this->data[2026][4]['out']['other_out'] = 600;
+            $this->data[2026][8]['out']['investments'] = 7815;
+            $this->data[2026][8]['out']['other_out'] = 600;
 
-            for ($m = 4; $m <= 9; $m++) {
-                $this->data[2026][$m]['in']['subsidy'] = 2100;
-                $this->data[2026][$m]['out']['private'] = 2100;
-            }
+            // ALG 1 Zuschüsse und dazugehörige private Entnahmen
+            // werden NICHT mehr hartgecodet, sondern in injectLiveData() dynamisch
+            // anhand der "ALG 1 + GZ" Kostenstelle ermittelt.
 
-            $this->data[2026][4]['in']['sales'] = 800;  $this->data[2026][4]['out']['goods'] = 120;
-            $this->data[2026][5]['in']['sales'] = 1200; $this->data[2026][5]['out']['goods'] = 180;
-            $this->data[2026][6]['in']['sales'] = 1800; $this->data[2026][6]['out']['goods'] = 270;
-            $this->data[2026][7]['in']['sales'] = 2000; $this->data[2026][7]['out']['goods'] = 300;
-            $this->data[2026][8]['in']['sales'] = 2500; $this->data[2026][8]['out']['goods'] = 375;
-            $this->data[2026][9]['in']['sales'] = 3200; $this->data[2026][9]['out']['goods'] = 480;
-
-            $salesSelfSustaining = [
-                10 => ['sales' => 4200, 'goods' => 630, 'marketing' => 150],
-                11 => ['sales' => 5800, 'goods' => 870, 'marketing' => 200],
-                12 => ['sales' => 6500, 'goods' => 975, 'marketing' => 200]
-            ];
-
-            foreach ($salesSelfSustaining as $m => $val) {
-                $this->data[2026][$m]['in']['sales'] = $val['sales'];
-                $this->data[2026][$m]['out']['goods'] = $val['goods'];
-                $this->data[2026][$m]['out']['marketing'] = $val['marketing'];
+            // Basis-Privatentnahme für Monate nach ALG 1 (falls ALG 1 schon 2026 endet)
+            for ($m = 8; $m <= 12; $m++) {
                 $this->data[2026][$m]['out']['private'] = 1600;
             }
+
+            // Start Sales im August
+            $this->data[2026][8]['in']['sales'] = 800;  $this->data[2026][8]['out']['goods'] = 120;
+            $this->data[2026][9]['in']['sales'] = 1200; $this->data[2026][9]['out']['goods'] = 180;
+            $this->data[2026][10]['in']['sales'] = 1800; $this->data[2026][10]['out']['goods'] = 270;
+            $this->data[2026][11]['in']['sales'] = 2000; $this->data[2026][11]['out']['goods'] = 300;
+            $this->data[2026][12]['in']['sales'] = 2500; $this->data[2026][12]['out']['goods'] = 375;
         }
 
         // Jahr 2 (2027)
         if (in_array(2027, $this->years)) {
-            $salesY2 = [1=>2200, 2=>3800, 3=>2800, 4=>3200, 5=>4200, 6=>2500, 7=>2400, 8=>2500, 9=>3000, 10=>3500, 11=>5200, 12=>5800];
+            $salesY2 = [1=>3200, 2=>3800, 3=>2800, 4=>3200, 5=>4200, 6=>2500, 7=>2400, 8=>2500, 9=>3000, 10=>3500, 11=>5200, 12=>5800];
             foreach($salesY2 as $m => $val) {
                 $this->data[2027][$m]['in']['sales'] = $val;
                 $this->data[2027][$m]['out']['goods'] = $val * 0.15;
@@ -224,6 +217,7 @@ class FinancialLiquidityPlanner extends Component
         foreach ($orders as $order) {
             $y = $order->created_at->year;
             $m = $order->created_at->month;
+            
             if (in_array($y, $this->years)) {
                 $dbData[$y][$m]['in']['sales'] = ($dbData[$y][$m]['in']['sales'] ?? 0) + ($order->total_price / 100);
             }
@@ -232,6 +226,25 @@ class FinancialLiquidityPlanner extends Component
         $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
             foreach ($group->items as $item) {
+                // Dynamische Behandlung von "ALG / Gründerzuschuss" (maximal robustes Keyword Matching)
+                $nameForCheck = mb_strtolower($item->name . ' ' . $group->name . ' ' . (is_string($item->tags) ? $item->tags : json_encode($item->tags)));
+                
+                if (Str::contains($nameForCheck, ['alg', 'gz', 'gründerzuschuss', 'zuschuss', 'arbeitslos', 'förderung', 'amt', 'agentur'])) {
+                    $start = Carbon::parse($item->first_payment_date);
+                    $end = $item->last_payment_date ? Carbon::parse($item->last_payment_date) : $start;
+
+                    foreach ($this->years as $y) {
+                        for ($m = 1; $m <= 12; $m++) {
+                            $checkDate = Carbon::createFromDate($y, $m, 1)->startOfMonth();
+                            if ($checkDate->betweenIncluded($start->copy()->startOfMonth(), $end->copy()->startOfMonth())) {
+                                $amt = abs($item->amount);
+                                $dbData[$y][$m]['in']['subsidy'] = ($dbData[$y][$m]['in']['subsidy'] ?? 0) + $amt;
+                            }
+                        }
+                    }
+                    continue; // Skip the standard mapping for this item
+                }
+
                 $mapping = $this->mapItemToRow($item->name, $group->name, $item->is_business, $item->amount >= 0 ? 'receipt' : 'expense', $item->tags);
                 $type = $mapping['type'];
                 $rowKey = $mapping['key'];
@@ -252,6 +265,7 @@ class FinancialLiquidityPlanner extends Component
             $date = Carbon::parse($special->execution_date);
             $y = $date->year;
             $m = $date->month;
+
             if (in_array($y, $this->years)) {
                 $rowType = $special->amount >= 0 ? 'receipt' : 'expense';
                 $mapping = $this->mapItemToRow($special->title, $special->category, $special->is_business, $rowType, []);
@@ -279,6 +293,8 @@ class FinancialLiquidityPlanner extends Component
                     if (isset($dbData[$y][$m]['out'][$key])) {
                         if (in_array($key, ['goods', 'marketing', 'investments', 'other_out']) && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
                             // Behalte Businessplan
+                        } elseif ($key === 'private' && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
+                            // Behalte Businessplan Entnahmen, wenn keine Livedaten vorhanden sind
                         } else {
                             $this->data[$y][$m]['out'][$key] = round($dbData[$y][$m]['out'][$key], 2);
                         }
@@ -313,7 +329,7 @@ class FinancialLiquidityPlanner extends Component
             if ($type === 'expense') return ['type' => 'out', 'key' => 'private'];
             if ($type === 'receipt') {
                 if (Str::contains($text, ['zuschuss', 'alg', 'amt'])) return ['type' => 'in', 'key' => 'subsidy'];
-                return ['type' => 'adj', 'key' => 'private_in'];
+                return ['type' => 'in', 'key' => 'private_in'];
             }
         }
 
@@ -339,12 +355,14 @@ class FinancialLiquidityPlanner extends Component
         return ['type' => 'out', 'key' => 'other_out'];
     }
 
-    private function calculate()
+    public function calculate()
     {
-        $currentBalance = (float) $this->startBalance;
+        $lastEnd = $this->startBalance;
         $this->totals = [];
 
         foreach ($this->years as $year) {
+            $this->totals[$year] = [];
+
             for ($month = 1; $month <= 12; $month++) {
                 $sumIn = 0; $sumOut = 0; $sumAdj = 0;
 
@@ -352,21 +370,67 @@ class FinancialLiquidityPlanner extends Component
                 foreach ($this->expenseRows as $key => $row) { $sumOut += (float) ($this->data[$year][$month]['out'][$key] ?? 0); }
                 foreach ($this->adjustmentRows as $key => $row) { $sumAdj += (float) ($this->data[$year][$month]['adj'][$key] ?? 0); }
 
+                // LOGIK: Smarte Trennung des privaten Cashflows vom Firmen-Cashflow
+                $privIn = (float)($this->data[$year][$month]['in']['private_in'] ?? 0) + (float)($this->data[$year][$month]['in']['subsidy'] ?? 0);
+                $privOut = (float)($this->data[$year][$month]['out']['private'] ?? 0);
+                
+                $businessNet = ($sumIn - $privIn) - ($sumOut - $privOut);
+                $privateNet = $privIn - $privOut;
+
+                // LOGIK: "Für Doofe" - Einfach und Transparent
+                // Wir fügen eine pauschale, realistische Lebenshaltung (Essen, Auto, Freizeit) von 450€ hinzu,
+                // anstatt komplexe "Nullsummen"-Logiken aufzubauen. Das restliche Geld baut sich als ehrlicher Puffer auf.
+                $this->data[$year][$month]['out']['private'] = ($this->data[$year][$month]['out']['private'] ?? 0) + 450;
+
+                $privOut = $this->data[$year][$month]['out']['private'];
+                
+                // Ab 2027/28 muss die Firma als echte Lebensgrundlage ein festes Mindestgehalt abwerfen
+                if ($year == 2027 && $privOut < 1800) {
+                    $this->data[$year][$month]['out']['private'] += (1800 - $privOut);
+                } else if ($year >= 2028 && $privOut < 2000) {
+                    $this->data[$year][$month]['out']['private'] += (2000 - $privOut);
+                }
+
+                $sumIn = 0; $sumOut = 0; $sumAdj = 0;
+
+                foreach ($this->receiptRows as $key => $row) { $sumIn += (float) ($this->data[$year][$month]['in'][$key] ?? 0); }
+                foreach ($this->expenseRows as $key => $row) { $sumOut += (float) ($this->data[$year][$month]['out'][$key] ?? 0); }
+                foreach ($this->adjustmentRows as $key => $row) { $sumAdj += (float) ($this->data[$year][$month]['adj'][$key] ?? 0); }
+
                 $net = $sumIn - $sumOut;
+                $preEnd = $lastEnd + $net + $sumAdj;
+
+                // Automatische Darlehens-Injection (ab August 2026)
+                if ($preEnd < 0 && ($year > 2026 || ($year == 2026 && $month >= 8))) {
+                    $neededLoan = abs($preEnd);
+                    
+                    // Realistische Kredit-Rundung auf 1000er Schritte (niemand nimmt exakt 7.815,12€ auf)
+                    // Dies verhindert unlogische "exakt 0,00€" Kontostände nach der Kreditaufnahme.
+                    $roundedLoan = ceil($neededLoan / 1000) * 1000;
+                    
+                    if ($roundedLoan < 3000) $roundedLoan = 3000; // Minimales Gründerdarlehen
+
+                    $this->data[$year][$month]['adj']['loan'] = ($this->data[$year][$month]['adj']['loan'] ?? 0) + $roundedLoan;
+                    $sumAdj += $roundedLoan;
+                    $preEnd = $lastEnd + $net + $sumAdj; // Neu berechnen
+                }
+
                 $this->totals[$year][$month] = [
-                    'start' => $currentBalance,
-                    'in' => $sumIn,
+                    'start' => $lastEnd,
+                    'in'  => $sumIn,
                     'out' => $sumOut,
-                    'net' => $net,
                     'adj' => $sumAdj,
-                    'end' => $currentBalance + $net + $sumAdj
+                    'net' => $net,
+                    'end' => $preEnd
                 ];
-                $currentBalance = $this->totals[$year][$month]['end'];
+
+                $lastEnd = $this->totals[$year][$month]['end'];
             }
         }
 
         $this->calculateRentabilitaet();
         $this->calculateKapitalbedarf();
+        $this->calculateTaxes();
         $this->dispatch('update-liquidity-chart', chartData: $this->generateChartData());
     }
 
@@ -441,12 +505,101 @@ class FinancialLiquidityPlanner extends Component
 
         if (count($this->years) > 0) {
             $firstY = $this->years[0];
-            $this->kapitalbedarf['investitionen']['maschinen'] = (float) ($this->data[$firstY][4]['out']['investments'] ?? 0);
-            $this->kapitalbedarf['investitionen']['waren'] = (float) ($this->data[$firstY][4]['out']['goods'] ?? 0) + (float) ($this->data[$firstY][5]['out']['goods'] ?? 0);
-            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][4]['out']['marketing'] ?? 0);
-            $this->kapitalbedarf['gruendung']['beratung'] = (float) ($this->data[$firstY][4]['out']['other_out'] ?? 0);
-            $this->kapitalbedarf['finanzierung']['eigenmittel'] += (float) ($this->data[$firstY][4]['adj']['private_in'] ?? 0);
-            $this->kapitalbedarf['finanzierung']['darlehen'] = (float) ($this->data[$firstY][4]['adj']['loan'] ?? 0);
+            $this->kapitalbedarf['investitionen']['maschinen'] = (float) ($this->data[$firstY][8]['out']['investments'] ?? 0);
+            $this->kapitalbedarf['investitionen']['waren'] = (float) ($this->data[$firstY][8]['out']['goods'] ?? 0) + (float) ($this->data[$firstY][9]['out']['goods'] ?? 0);
+            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][8]['out']['marketing'] ?? 0);
+            $this->kapitalbedarf['gruendung']['beratung'] = (float) ($this->data[$firstY][8]['out']['other_out'] ?? 0);
+            $this->kapitalbedarf['finanzierung']['eigenmittel'] += (float) ($this->data[$firstY][8]['adj']['private_in'] ?? 0);
+            $this->kapitalbedarf['finanzierung']['darlehen'] = (float) ($this->data[$firstY][8]['adj']['loan'] ?? 0);
+        }
+    }
+
+    private function calculateTaxes()
+    {
+        $this->taxCalculations = [
+            'vat' => [],
+            'trade_tax' => [],
+            'income_tax' => []
+        ];
+
+        foreach ($this->years as $year) {
+            $yearVatSum = 0;
+            $this->taxCalculations['vat'][$year] = [];
+
+            for ($m = 1; $m <= 12; $m++) {
+                // Umsatzsteuer (USt) Kalkulation:
+                // Zu vereinfachungszwecken rechnen wir 19% aus Sales (brutto = Einnahmen) USt.
+                // Und 19% Vorsteuer aus ausgaben, die idR. 19% haben (Goods, Investments, Marketing, Office, RoomExtra)
+                $bruttoSales = (float) ($this->data[$year][$m]['in']['sales'] ?? 0);
+                $ustKunde = $bruttoSales - ($bruttoSales / 1.19);
+
+                $bruttoAusgaben = (float) ($this->data[$year][$m]['out']['goods'] ?? 0)
+                    + (float) ($this->data[$year][$m]['out']['investments'] ?? 0)
+                    + (float) ($this->data[$year][$m]['out']['marketing'] ?? 0)
+                    + (float) ($this->data[$year][$m]['out']['office'] ?? 0)
+                    + (float) ($this->data[$year][$m]['out']['room_extra'] ?? 0);
+
+                $vorsteuer = $bruttoAusgaben - ($bruttoAusgaben / 1.19);
+                $zahllast = $ustKunde - $vorsteuer;
+
+                $this->taxCalculations['vat'][$year][$m] = [
+                    'ust' => $ustKunde,
+                    'vorsteuer' => $vorsteuer,
+                    'zahllast' => $zahllast
+                ];
+                $yearVatSum += $zahllast;
+            }
+
+            $this->taxCalculations['vat'][$year]['total'] = $yearVatSum;
+
+            // Gewerbesteuer (GewSt) Kalkulation:
+            // Gewinn aus der Rentabilitätsvorschau
+            $gewinn = $this->rentabilitaet[$year]['gewinn'] ?? 0;
+
+            // Freibetrag 24.500 EUR
+            $gewerbeErtrag = max(0, $gewinn - 24500);
+            
+            // Steuermessbetrag (3,5%)
+            $messbetrag = $gewerbeErtrag * 0.035;
+
+            // Hebesatz Gifhorn (ca. 380%)
+            $gewerbesteuer = $messbetrag * 3.8;
+
+            $this->taxCalculations['trade_tax'][$year] = [
+                'gewinn' => $gewinn,
+                'freibetrag' => 24500,
+                'ertrag' => $gewerbeErtrag,
+                'steuer' => $gewerbesteuer
+            ];
+
+            // Einkommensteuer (ESt) Kalkulation:
+            // Vereinfachte Formel mit Progressionsvorbehalt
+            $subsidy = 0;
+            for ($m = 1; $m <= 12; $m++) {
+                $subsidy += (float) ($this->data[$year][$m]['in']['subsidy'] ?? 0);
+            }
+
+            $zuVersteuerndesEinkommen = max(0, $gewinn - $gewerbesteuer);
+            $progressionsBasis = $zuVersteuerndesEinkommen + $subsidy;
+
+            // Vereinfachter ESt-Tarif (Grundtabelle 2024+ Basis)
+            $estSatz = 0;
+            if ($progressionsBasis > 11604) {
+               if ($progressionsBasis <= 66760) {
+                   $estSatz = 0.14 + (($progressionsBasis - 11604) / 55156) * 0.28; // Ansteigend 14% bis 42%
+               } else {
+                   $estSatz = 0.42;
+               }
+            }
+
+            $einkommensteuer = $zuVersteuerndesEinkommen * $estSatz;
+
+            $this->taxCalculations['income_tax'][$year] = [
+                'zvE' => $zuVersteuerndesEinkommen,
+                'subsidy' => $subsidy,
+                'steuersatz' => $estSatz * 100, // in %
+                'steuer' => $einkommensteuer
+            ];
         }
     }
 
@@ -467,22 +620,44 @@ class FinancialLiquidityPlanner extends Component
         $scoreRent = 0;
         if ($avgCostsAfterSubsidy > 0) {
             $ratio = $avgSalesAfterSubsidy / $avgCostsAfterSubsidy;
-            if ($ratio >= 1.5) $scoreRent = 40;
-            elseif ($ratio >= 1.2) $scoreRent = 30;
-            elseif ($ratio >= 1.0) $scoreRent = 20;
-            else $scoreRent = 5;
+            if ($ratio >= 1.3) $scoreRent = 40;
+            elseif ($ratio >= 1.1) $scoreRent = 30;
+            elseif ($ratio >= 0.9) $scoreRent = 20;
+            else $scoreRent = 10;
         }
 
         $scoreLiq = 30;
         $liqWarning = false;
+        $preLaunchDeficit = false;
+
         foreach($this->years as $y) {
             for($m=1; $m<=12; $m++) {
-                if(($this->totals[$y][$m]['end'] ?? 0) < 0) {
-                    $scoreLiq = 0;
-                    $liqWarning = true;
-                    break 2;
+                if(($this->totals[$y][$m]['end'] ?? 0) < -10) { // Toleranz von 10€
+                    if ($y == 2026 && $m < 8) {
+                        $preLaunchDeficit = true;
+                    } else {
+                        $scoreLiq = 0;
+                        $liqWarning = true;
+                        break 2;
+                    }
                 }
             }
+        }
+
+        if ($preLaunchDeficit && !$liqWarning) {
+            $scoreLiq = 20; // 10 Punkte Abzug für Vorfinanzierung, aber keine Insolvenzgefahr
+        }
+
+        $liqColor = '#3b82f6';
+        if ($liqWarning) {
+            $liqDesc = 'KRITISCH: Kontostand rutscht nach der eigentlichen Gründung ins Minus (Insolvenzgefahr). Anpassung der Finanzierungsbausteine (z.B. Erhöhung Darlehen) zwingend erforderlich!';
+            $liqColor = '#ef4444';
+        } elseif ($preLaunchDeficit) {
+            $liqDesc = 'HINWEIS: Leichte Unterdeckung in der Vorgründungsphase aufgrund von Erstinvestitionen/Rüstkosten (Vorfinanzierung aus privaten Rücklagen). Dies ist in der E-Commerce Vorbereitungsphase branchenüblich und unkritisch, da sich der Kassenbestand zum offiziellen Start stabilisiert.';
+            $liqColor = '#f59e0b';
+        } else {
+            $liqDesc = 'SEHR GUT: Der Kassenbestand bleibt über den gesamten Planungs- und Vorbereitungszeitraum durchgehend im positiven Bereich. Die Zahlungsfähigkeit (Liquidität) ist jederzeit gewährleistet.';
+            $liqColor = '#10b981';
         }
 
         $scoreMarge = 0;
@@ -491,8 +666,8 @@ class FinancialLiquidityPlanner extends Component
             $gewinn = $this->rentabilitaet[2027]['gewinn'];
             if ($umsatz > 0) {
                 $marge = ($gewinn / $umsatz) * 100;
-                if ($marge >= 20) $scoreMarge = 30;
-                elseif ($marge >= 10) $scoreMarge = 20;
+                if ($marge >= 15) $scoreMarge = 30;
+                elseif ($marge >= 5) $scoreMarge = 20;
                 elseif ($marge > 0) $scoreMarge = 10;
             }
         }
@@ -506,9 +681,9 @@ class FinancialLiquidityPlanner extends Component
             'liqWarning' => $liqWarning,
             'breakEvenDate' => $breakEvenDate,
             'details' => [
-                ['label' => 'Umsatz-Kosten-Relation (Cashflow)', 'score' => $scoreRent, 'max' => 40, 'color' => '#10b981', 'desc' => 'Bewertet ob die Umsätze nach der Förderung die laufenden Kosten & Entnahmen decken.'],
-                ['label' => 'Liquiditäts-Sicherheit (Kassenbestand)', 'score' => $scoreLiq, 'max' => 30, 'color' => '#3b82f6', 'desc' => $liqWarning ? 'KRITISCH: Kontostand rutscht in mindestens einem Monat ins Minus (Insolvenzgefahr).' : 'Der Kassenbestand bleibt über den gesamten Planungszeitraum positiv.'],
-                ['label' => 'Gewinn-Marge (Skalierbarkeit)', 'score' => $scoreMarge, 'max' => 30, 'color' => '#8b5cf6', 'desc' => 'Bewertet den prozentualen Gewinn am Umsatz im ersten vollen Geschäftsjahr.'],
+                ['label' => 'Umsatz-Kosten-Relation', 'score' => $scoreRent, 'max' => 40, 'color' => '#10b981', 'desc' => 'Bewertet ob die Einnahmen nach Auslauf der Gründungsszuschüsse die laufenden Geschäftskosten decken (Positiver Cashflow).'],
+                ['label' => 'Liquiditäts-Sicherheit', 'score' => $scoreLiq, 'max' => 30, 'color' => $liqColor, 'desc' => $liqDesc],
+                ['label' => 'Gewinn-Marge (Skalierbarkeit)', 'score' => $scoreMarge, 'max' => 30, 'color' => '#8b5cf6', 'desc' => 'Bewertet den prozentualen Gewinn am Umsatz im ersten vollen Geschäftsjahr (ab 15% sehr gut).'],
             ]
         ];
     }
@@ -525,7 +700,25 @@ class FinancialLiquidityPlanner extends Component
             }
         }
 
-        return ['labels' => $labels, 'balances' => $balances];
+        $taxCharts = [
+            'years' => [],
+            'vat' => [],
+            'trade' => [],
+            'income' => []
+        ];
+
+        foreach ($this->years as $year) {
+            $taxCharts['years'][] = (string) $year;
+            $taxCharts['vat'][] = $this->taxCalculations['vat'][$year]['total'] ?? 0;
+            $taxCharts['trade'][] = $this->taxCalculations['trade_tax'][$year]['steuer'] ?? 0;
+            $taxCharts['income'][] = $this->taxCalculations['income_tax'][$year]['steuer'] ?? 0;
+        }
+
+        return [
+            'labels' => $labels, 
+            'balances' => $balances,
+            'taxCharts' => $taxCharts
+        ];
     }
 
     public function exportPdf()
@@ -540,6 +733,7 @@ class FinancialLiquidityPlanner extends Component
             'data' => $this->data,
             'totals' => $this->totals,
             'rentabilitaet' => $this->rentabilitaet,
+            'taxCalculations' => $this->taxCalculations,
             'kapitalbedarf' => $this->kapitalbedarf,
             'scoreData' => $scoreData,
             'rentRows' => $this->rentRows,

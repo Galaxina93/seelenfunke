@@ -167,6 +167,14 @@
             @endfor
         </tr>
 
+        <tr style="background-color: #f0f4ff; color: #4338ca; font-style: italic; font-size: 8px;">
+            <td class="text-left" style="padding-left: 10px;">↳ Automatisch durch Darlehen gedeckt</td>
+            @for($m = 1; $m <= 12; $m++)
+                @php $loanVal = $data[$year][$m]['adj']['loan'] ?? 0; @endphp
+                <td class="{{ $loanVal > 0 ? '' : 'zero-val' }}">{{ $loanVal > 0 ? '+' . number_format($loanVal, 2, ',', '.') . ' €' : '-' }}</td>
+            @endfor
+        </tr>
+
         <tr class="sum-row">
             <td class="text-left">Ausgleichsmaßnahmen</td>
             @for($m = 1; $m <= 12; $m++)
@@ -291,21 +299,123 @@
 
 <div class="header">
     <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Logo" class="logo">
+    <div class="doc-title" style="color: #C5A059;">Steuerliche Vorausschau & Rückstellungen</div>
+    <div class="erp-tag">Pflicht-Rückstellungen nach IHK Richtlinien</div>
+</div>
+
+<p style="font-size: 7.5px; color: #374151; line-height: 1.4; margin-bottom: 12px; margin-top: 8px;">
+    <strong>Betriebswirtschaftliche Notwendigkeit:</strong> Die nachfolgende Berechnung kalkuliert die zwingend aufzubauenden Steuerrückstellungen pro Geschäftsjahr. Einer der primären Insolvenzgründe im E-Commerce sind unerwartete Steuernachzahlungen im zweiten und dritten Geschäftsjahr. Diese granulare Vorausschau stellt sicher, dass anfallende Umsatz-, Gewerbe- und Einkommensteuern nicht fälschlicherweise als freier Cashflow-Gewinn entnommen werden, sondern rechtzeitig liquiditätssichernd auf dem Firmenkonto verbleiben.
+</p>
+
+<div style="width: 100%;">
+    <div style="float: left; width: 32%;">
+        <div class="statement-box" style="border-left-color: #3b82f6; background-color: #eff6ff; height: 35px; margin-bottom: 8px;">
+            <h3 style="color: #1d4ed8; font-size: 8px;">1. Umsatzsteuer (Zahllast)</h3>
+            <p style="color: #1e3a8a; font-size: 6.5px;"><strong>Aufschlüsselung:</strong> Differenz aus vereinnahmter 19% USt. (Kundenverkäufe) abzüglich abziehbarer 19% Vorsteuer (Materialeinkauf, Werbekosten, Anlagen). Dieser Wert muss monatlich/quartalsweise direkt an das Finanzamt abgeführt werden.</p>
+        </div>
+    </div>
+    <div style="float: left; width: 32%; margin-left: 2%;">
+        <div class="statement-box" style="border-left-color: #f59e0b; background-color: #fffbeb; height: 35px; margin-bottom: 8px;">
+            <h3 style="color: #b45309; font-size: 8px;">2. Gewerbesteuer (Hebesatz: ~380%)</h3>
+            <p style="color: #78350f; font-size: 6.5px;"><strong>Aufschlüsselung:</strong> Auf den erzielten Gewerbeertrag wird unter Annahme des lokalen Hebesatzes (Gifhorn) Gewerbesteuer berechnet. <strong>WICHTIG:</strong> Für Einzelunternehmen greift ein hoher Freibetrag von 24.500 €. Gewinne unter dieser Schwelle sind steuerfrei.</p>
+        </div>
+    </div>
+    <div style="float: left; width: 32%; margin-left: 2%;">
+        <div class="statement-box" style="border-left-color: #8b5cf6; background-color: #f5f3ff; height: 35px; margin-bottom: 8px;">
+            <h3 style="color: #5b21b6; font-size: 8px;">3. Einkommensteuer (Progression)</h3>
+            <p style="color: #4c1d95; font-size: 6.5px;"><strong>Aufschlüsselung:</strong> Basierend auf der vereinfachten Grundtabelle. Im Gründungsjahr fließen staatliche Zahlungen (ALG 1 / GZ) in den sogenannten <strong>Progressionsvorbehalt</strong> ein. Sie sind steuerfrei, erhöhen aber den ESt-Satz für den restlichen Gewinn.</p>
+        </div>
+    </div>
+    <div class="clearfix"></div>
+</div>
+
+<h3 class="section-heading" style="margin-top: 5px;">Zusammenfassung der Theoretischen Steuerrückstellungen pro Jahr</h3>
+<table class="auto-table" style="margin-bottom: 5px;">
+    <thead>
+    <tr>
+        <th class="category-col" style="text-align: left;">Steuerarten (Beträge in EUR)</th>
+        @foreach($years as $index => $y)
+            <th>{{ $index + 1 }}. Jahr ({{ $y }})</th>
+        @endforeach
+    </tr>
+    </thead>
+    <tbody>
+    <tr class="sum-row"><td colspan="{{ count($years) + 1 }}" class="text-left" style="font-size: 6px; text-transform: uppercase;">1. Umsatzsteuer (Jahressumme Zahllast)</td></tr>
+    <tr>
+        <td class="text-left" style="font-weight: normal; color: #4b5563;">Zahllast aus Einnahmen abzgl. Vorsteuer</td>
+        @foreach($years as $y)
+            @php $vat = $taxCalculations['vat'][$y]['total'] ?? 0; @endphp
+            <td class="{{ $vat > 0 ? 'negative' : ($vat == 0 ? 'zero-val' : '') }}" style="{{ $vat > 0 ? 'color: #dc2626; font-weight: bold;' : ($vat < 0 ? 'color: #10b981; font-weight: bold;' : '') }}">
+                {{ number_format($vat, 2, ',', '.') }}&nbsp;€
+            </td>
+        @endforeach
+    </tr>
+
+    <tr class="sum-row"><td colspan="{{ count($years) + 1 }}" class="text-left" style="font-size: 6px; text-transform: uppercase;">2. Gewerbesteuer (Hebesatz ~380%)</td></tr>
+    @php $hasTradeTax = false; @endphp
+    <tr>
+        <td class="text-left" style="font-weight: normal; color: #4b5563;">Gewerbeertrag abzügl. 24.500 € Freibetrag</td>
+        @foreach($years as $y)
+            @php 
+                $trade = $taxCalculations['trade_tax'][$y]['steuer'] ?? 0;
+                if($trade > 0) $hasTradeTax = true;
+            @endphp
+            <td class="{{ $trade > 0 ? 'negative' : ($trade == 0 ? 'zero-val' : '') }}" style="{{ $trade > 0 ? 'color: #dc2626; font-weight: bold;' : '' }}">
+                {{ number_format($trade, 2, ',', '.') }}&nbsp;€
+            </td>
+        @endforeach
+    </tr>
+
+    <tr class="sum-row"><td colspan="{{ count($years) + 1 }}" class="text-left" style="font-size: 6px; text-transform: uppercase;">3. Voraussichtliche Einkommensteuer</td></tr>
+    <tr>
+        <td class="text-left" style="font-weight: normal; color: #4b5563;">Errechnet inkl. ALG 1 Progressionsvorbehalt</td>
+        @foreach($years as $y)
+            @php $income = $taxCalculations['income_tax'][$y]['steuer'] ?? 0; @endphp
+            <td class="{{ $income > 0 ? 'negative' : ($income == 0 ? 'zero-val' : '') }}" style="{{ $income > 0 ? 'color: #dc2626; font-weight: bold;' : '' }}">
+                {{ number_format($income, 2, ',', '.') }}&nbsp;€
+            </td>
+        @endforeach
+    </tr>
+    
+    <tr class="end-row" style="background-color: #f3f4f6; color: #111827;">
+        <td class="text-left" style="border-color: #d1d5db; color: #374151;">Gesamte Theoretische Steuerrückstellung pro Jahr</td>
+        @foreach($years as $y)
+            @php 
+                $v = $taxCalculations['vat'][$y]['total'] ?? 0;
+                $t = $taxCalculations['trade_tax'][$y]['steuer'] ?? 0;
+                $i = $taxCalculations['income_tax'][$y]['steuer'] ?? 0;
+                $totalTax = max(0, $v) + $t + $i; 
+            @endphp
+            <td style="border-color: #d1d5db; font-weight: bold; color: #dc2626;">{{ number_format($totalTax, 2, ',', '.') }}&nbsp;€</td>
+        @endforeach
+    </tr>
+    </tbody>
+</table>
+
+@if(!$hasTradeTax)
+<div class="legend-box" style="margin-top: 5px; margin-bottom: 15px;">
+    <strong>* Hinweis Gewerbesteuer:</strong> Im Planungszeitraum wird der Freibetrag für Einzelunternehmen von 24.500 € Jahresgewinn nicht überschritten, daher fällt 0,00 € Gewerbesteuer an.
+</div>
+@endif
+
+<div class="header">
     <div class="doc-title" style="color: #C5A059;">Auswertung & Glossar</div>
-    <div class="erp-tag">Liquiditätsplanung generiert durch: Seelenfunke ERP System</div>
 </div>
 
 <div class="score-container">
     <div class="statement-box" style="border-left: 3px solid #10b981; background-color: #f0fdf4; margin-top: 0;">
         <h3 style="color: #065f46;">Management Summary & Tragfähigkeitsnachweis</h3>
         <p style="font-size: 7px; color: #064e3b; margin-bottom: 2px;">
-            <strong>1. Anlaufphase:</strong> Der private Lebensunterhalt in den ersten 6 Monaten (April bis September 2026) ist durch externe Zuschüsse vollständig gedeckt. Erwirtschaftete Umsätze verbleiben liquiditätsschonend im Unternehmen.<br>
-            <strong>2. Tragfähigkeit:</strong> Ab dem 7. Monat entfallen die staatlichen Hilfen. Die Planung belegt, dass sich das Unternehmen ab diesem Zeitpunkt selbst trägt. Die <strong>Privatentnahme von 1.600 €</strong> ist fix kalkuliert. Der nötige Durchschnittsumsatz liegt bei realistischen&nbsp;<strong>{{ number_format($scoreData['avgSales'], 2, ',', '.') }}&nbsp;€ brutto</strong>.<br>
+            <strong>1. Anlaufphase:</strong> Der private Lebensunterhalt in der frühen Gründungsphase ist durch externe Zuschüsse (wie ALG 1/GZ) primär gedeckt. Erwirtschaftete Umsätze verbleiben liquiditätsschonend im Unternehmen.<br>
+            <strong>2. Tragfähigkeit:</strong> Nach Auslaufen der staatlichen Hilfen belegt die Planung, dass sich das Unternehmen selbst trägt. Die notwendige monatliche Entnahme ist fix einkalkuliert. Der nötige Durchschnittsumsatz zur Deckung liegt bei realistischen&nbsp;<strong>{{ number_format($scoreData['avgSales'], 2, ',', '.') }}&nbsp;€ brutto</strong>.<br>
             <strong>3. Break-Even:</strong> Dank Eigennutzung vorhandener Räumlichkeiten sind Fixkosten minimal.
         </p>
     </div>
 
-    <h3 style="margin-top: 10px; color: #111827; font-size: 10px; margin-bottom: 5px;">Gesamt-Tragfähigkeits-Score: {{ $scoreData['total'] }} / 100</h3>
+    <h3 style="margin-top: 10px; color: #111827; font-size: 10px; margin-bottom: 2px;">Gesamt-Tragfähigkeits-Score: {{ $scoreData['total'] }} / 100</h3>
+    <p style="font-size: 6px; color: #6b7280; margin-top: 0; margin-bottom: 8px; font-style: italic;">
+        Dieser Score bewertet die betriebswirtschaftliche Stabilität nach gängigen IHK-Businessplan-Richtlinien (Fokus auf Cashflow, Liquiditätsreserven in der Anlaufphase und realistische E-Commerce-Margen).
+    </p>
 
     @foreach($scoreData['details'] as $detail)
         @php $w = ($detail['score'] / max(1, $detail['max'])) * 100; @endphp
@@ -381,7 +491,32 @@
             <p>Jahresüberschuss zuzüglich der nicht zahlungswirksamen Abschreibungen. Definiert die wahre, selbst erwirtschaftete Finanzkraft des Unternehmens.</p>
         </div>
     </div>
-    <div class="clearfix"></div>
+    </div>
+    
+    <div class="clearfix" style="margin-bottom: 10px;"></div>
+    
+    <div style="width: 100%; clear: both; page-break-inside: avoid;">
+        <h3 style="font-size: 8px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">4. Steuern & Abgaben</h3>
+        <div style="float: left; width: 31%; margin-right: 2%;">
+            <div class="glossary-item">
+                <strong>Umsatzsteuer (Zahllast)</strong>
+                <p>Die an das Finanzamt abzuführende Differenz aus vereinnahmter Umsatzsteuer (Kunden) und gezahlter Vorsteuer (Einkauf/Investitionen).</p>
+            </div>
+        </div>
+        <div style="float: left; width: 31%; margin-right: 2%;">
+            <div class="glossary-item">
+                <strong>Gewerbesteuer (GewSt.)</strong>
+                <p>Gemeindesteuer auf den Gewinn. Für Einzel-Gründer greift ein hoher Freibetrag von 24.500 €. Gewinne darunter sind gewerbesteuerfrei.</p>
+            </div>
+        </div>
+        <div style="float: left; width: 31%;">
+            <div class="glossary-item">
+                <strong>Einkommensteuer (ESt.)</strong>
+                <p>Private Steuer auf Gewinne. ALG 1 und Gründungszuschuss sind zwar steuerfrei, erhöhen aber den Einkommensteuersatz (Progressionsvorbehalt).</p>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+    </div>
 </div>
 
 </body>
