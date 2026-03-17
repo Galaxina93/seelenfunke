@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\System\Admin;
+use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Financial\FinanceCategory;
 use App\Models\Financial\FinanceSpecialIssue;
@@ -147,6 +147,8 @@ class FinancialDataSeeder extends Seeder
                     'subtotal_price' => (int) round($totalCents / 1.19),
                     'tax_amount' => $totalCents - (int) round($totalCents / 1.19),
                     'shipping_price' => 0,
+                    'billing_address' => json_encode(['first_name' => 'Demo', 'last_name' => 'Kunde', 'street' => 'Musterweg 1', 'zip' => '12345', 'city' => 'Musterstadt', 'country' => 'DE']),
+                    'shipping_address' => json_encode(['first_name' => 'Demo', 'last_name' => 'Kunde', 'street' => 'Musterweg 1', 'zip' => '12345', 'city' => 'Musterstadt', 'country' => 'DE']),
                     'created_at' => $date,
                     'updated_at' => $date
                 ]);

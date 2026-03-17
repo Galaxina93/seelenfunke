@@ -31,7 +31,7 @@ class DatabaseSeeder extends Seeder
             /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
 
             /* GamificationTestSeeder::class,*/     // DEAKTIVIEREN BEI LIVEGANG
-            FinancialData2028Seeder::class,         // DEAKTIVIEREN BEI LIVEGANG
+            FinancialDataSeeder::class,         // DEAKTIVIEREN BEI LIVEGANG
             PersonProfileSeeder::class,             // Für den Livegang notwendig
             AiAgentSeeder::class,                   // Für den Livegang notwendig
         ]);
