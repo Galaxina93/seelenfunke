@@ -24,6 +24,9 @@ Artisan::command('inspire', function () {
 // Täglich um 08:00 Uhr prüfen und Newsletter senden
 Schedule::command('send-newsletters')->dailyAt('08:00');
 
+// E-Mails via IMAP asynchron vom Server abrufen (Posteingang sync)
+Schedule::command('crm:fetch-mails')->everyFiveMinutes();
+
 // Sendet die ultimative Anweisung an die App
 Schedule::command('funki:notify')->everyMinute();
 

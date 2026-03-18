@@ -45,6 +45,10 @@ class AppServiceProvider extends ServiceProvider
             'product' => 'App\Models\Product\Product',
             'page_visit' => 'App\Models\Tracking\PageVisit',
             'ticket' => 'App\Models\Ticket',
+            'mail_account' => 'App\Models\System\MailAccount',
+            'mail_message' => 'App\Models\System\MailMessage',
+            'mail_rule' => 'App\Models\System\MailRule',
+            'mail_folder' => 'App\Models\System\MailFolder',
 
             // Füge hier bei Bedarf weitere Models hinzu
         ]);

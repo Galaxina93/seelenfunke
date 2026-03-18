@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.task.task')
+        @livewire('global.crm-inbox')
 
     @endsection
 

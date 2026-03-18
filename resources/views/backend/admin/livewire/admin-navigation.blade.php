@@ -2,7 +2,7 @@
     @php
         $currentPage = basename(request()->path());
 
-        $isFunkiActive = in_array($currentPage, ['routine', 'tasks', 'calender']);
+        $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender']);
 
         // Neu aufgeteilt in Produkte und Marketing
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
@@ -25,6 +25,7 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/inbox" title="E-Mail" pageName="inbox" icon="envelope-open" />
                     <x-forms.list-item route="/admin/routine" title="Routine" pageName="routine" icon="arrow-path" />
                     <x-forms.list-item route="/admin/tasks" title="Aufgaben" pageName="tasks" icon="check-circle" />
                     <x-forms.list-item route="/admin/calender" title="Kalender" pageName="calender" icon="calendar-days" />
@@ -143,8 +144,7 @@
                 </a>
             </li>
 
-            <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />
-            <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="right-management" icon="shield-check" />
+            <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />            <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="right-management" icon="shield-check" />
 
             <x-forms.list-item route="/admin/company-map" title="Architektur-Map" pageName="company-map" icon="map" />
 

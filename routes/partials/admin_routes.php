@@ -140,6 +140,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.newsletter');
     })->name('admin.newsletter');
 
+    Route::get('/admin/inbox', function () {
+        return view('backend.admin.pages.crm-inbox');
+    })->name('admin.inbox');
+
 
 
     Route::get('/admin/orders/laser-file/{itemId}', function (Illuminate\Http\Request $request, $itemId) {
