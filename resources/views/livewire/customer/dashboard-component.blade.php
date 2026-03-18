@@ -21,8 +21,23 @@
                 <span class="inline-block px-4 py-1.5 sm:px-5 sm:py-2 bg-primary/10 text-primary font-black uppercase tracking-widest rounded-xl mb-4 sm:mb-6 border border-primary/30 shadow-[0_0_15px_rgba(197,160,89,0.2)] animate-pulse text-[10px] sm:text-xs">Dein neues Erlebnis</span>
                 <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-white mb-4 sm:mb-6 leading-[1.1] drop-shadow-md tracking-tight">Einkaufen,<br>weit weg vom <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-amber-300">Standard.</span></h2>
                 <p class="text-gray-400 text-sm sm:text-base md:text-lg mb-8 sm:mb-10 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-medium">Willkommen in der Manufaktur! Dein Dashboard ist kein einfaches Kundenkonto mehr – es ist <strong class="text-white">spielerisch, interaktiv und lebendig</strong>. Begleite deinen persönlichen 3D-Gefährten auf seiner Reise.</p>
-                <button @click="triggerEpicStart()" class="w-full sm:w-auto group relative px-8 sm:px-12 py-4 sm:py-5 bg-gradient-to-r from-primary to-primary-dark text-gray-900 rounded-xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_0_40px_rgba(197,160,89,0.5)] hover:scale-105 hover:shadow-[0_0_60px_rgba(197,160,89,0.8)] transition-all flex items-center justify-center gap-4 overflow-hidden transform-gpu mx-auto lg:mx-0">
-                    <div class="absolute inset-0 bg-white/30 transform -skew-x-12 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
+                
+                <div class="mb-6 flex flex-col gap-2 max-w-xl mx-auto lg:mx-0 text-left">
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        <div class="relative flex items-center justify-center shrink-0 mt-0.5">
+                            <input type="checkbox" x-model="agreedToTerms" class="peer appearance-none w-5 h-5 border-2 border-gray-600 rounded bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
+                            <svg class="absolute w-3 h-3 text-gray-900 opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <span class="text-xs sm:text-sm text-gray-400 group-hover:text-gray-300 transition-colors leading-relaxed">
+                            Ich habe die <a href="{{ route('agb') }}#agb-gamification" target="_blank" @click.stop class="text-primary hover:underline hover:text-amber-400 relative z-20">Spielregeln & Teilnahmebedingungen</a> gelesen und stimme diesen zu. Zudem nehme ich die <a href="{{ route('datenschutz') }}#datenschutz-gamification" target="_blank" @click.stop class="text-primary hover:underline hover:text-amber-400 relative z-20">Datenschutzhinweise</a> bezüglich der Speicherung meines Spielfortschritts zur Kenntnis.
+                        </span>
+                    </label>
+                </div>
+
+                <button :disabled="!agreedToTerms" @click="if(agreedToTerms) triggerEpicStart()" class="w-full sm:w-auto group relative px-8 sm:px-12 py-4 sm:py-5 bg-gradient-to-r from-primary to-primary-dark text-gray-900 rounded-xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_0_40px_rgba(197,160,89,0.5)] transition-all flex items-center justify-center gap-4 overflow-hidden transform-gpu mx-auto lg:mx-0 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed hover:scale-105 hover:shadow-[0_0_60px_rgba(197,160,89,0.8)] disabled:hover:scale-100 disabled:hover:shadow-[0_0_40px_rgba(197,160,89,0.5)]">
+                    <div x-show="agreedToTerms" class="absolute inset-0 bg-white/30 transform -skew-x-12 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
                     <span>Magie aktivieren</span>
                     <svg class="w-5 h-5 group-hover:translate-x-2 group-hover:scale-110 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -426,6 +441,7 @@
     <script>
         window.optInScreen = function() {
             return {
+                agreedToTerms: false,
                 isWarping: false,
                 isActivating: false,
                 phase: 0,
@@ -509,6 +525,11 @@
                         return;
                     }
 
+                    // Remove existing canvases if Livewire/Alpine re-initializes while wire:ignore kept the DOM
+                    while (container.firstChild) {
+                        container.removeChild(container.firstChild);
+                    }
+
                     scene = new window.THREE.Scene();
                     camera = new window.THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 1000);
                     renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -528,9 +549,32 @@
 
                     window._funki3DLoader = (path, cb) => {
                         if (!path || path.trim() === '') return;
+                        
+                        // Set the latest requested path to prevent async race conditions
+                        window._funkiLatestRequestedPath = path;
+                        
                         const loader = new window.GLTFLoader();
-                        if (currentModel) scene.remove(currentModel);
                         loader.load(path, (gltf) => {
+                            // Abort if a different model was requested while this one was downloading
+                            if (window._funkiLatestRequestedPath !== path) return;
+
+                            if (currentModel) {
+                                scene.remove(currentModel);
+                                // Dispose geometries and materials to avoid memory leaks
+                                currentModel.traverse((child) => {
+                                    if (child.isMesh) {
+                                        if (child.geometry) child.geometry.dispose();
+                                        if (child.material) {
+                                            if (Array.isArray(child.material)) {
+                                                child.material.forEach(m => m.dispose());
+                                            } else {
+                                                child.material.dispose();
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                            
                             currentModel = gltf.scene;
                             const box = new window.THREE.Box3().setFromObject(currentModel);
                             const center = box.getCenter(new window.THREE.Vector3());

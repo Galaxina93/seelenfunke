@@ -74,6 +74,7 @@ class CrmInbox extends Component
     {
         $this->selectedFolder = $folder;
         $this->selectedMessageId = null;
+        $this->dispatch('folder-selected');
     }
 
     public function selectAccountAndFolder($accountId, $folder)
@@ -82,6 +83,7 @@ class CrmInbox extends Component
         $this->selectedFolder = $folder;
         $this->selectedMessageId = null;
         $this->viewMode = 'inbox';
+        $this->dispatch('folder-selected');
     }
 
     public function openAccountSettings($id = null)
@@ -105,12 +107,14 @@ class CrmInbox extends Component
             }
         }
         $this->viewMode = 'account_settings';
+        $this->dispatch('settings-opened');
     }
 
     public function closeAccountSettings()
     {
         $this->viewMode = 'inbox';
         $this->editAccountId = null;
+        $this->dispatch('folder-selected');
     }
 
     public function updatedEmail($value)
@@ -219,6 +223,7 @@ class CrmInbox extends Component
         if ($msg && !$msg->is_read) {
             $msg->update(['is_read' => true]);
         }
+        $this->dispatch('message-selected');
     }
 
     public function markAsSpam($id)
@@ -241,6 +246,7 @@ class CrmInbox extends Component
 
             $this->selectedMessageId = null;
             session()->flash('success_message', 'E-Mail als Spam markiert und Absender dauerhaft blockiert.');
+            $this->dispatch('folder-selected');
         }
     }
 
@@ -259,6 +265,7 @@ class CrmInbox extends Component
             }
             $this->selectedMessageId = null;
             session()->flash('success_message', 'Markierung aufgehoben. E-Mail ist wieder im Posteingang.');
+            $this->dispatch('folder-selected');
         }
     }
 
@@ -287,6 +294,7 @@ class CrmInbox extends Component
             if ($this->selectedMessageId === $messageId && $this->selectedFolder !== $targetFolder) {
                 // If the user moved the currently viewed message out of the current folder, close the reading pane
                 $this->selectedMessageId = null;
+                $this->dispatch('folder-selected');
             }
         }
     }
@@ -301,6 +309,7 @@ class CrmInbox extends Component
                 $msg->update(['folder' => 'Trash']);
             }
             $this->selectedMessageId = null;
+            $this->dispatch('folder-selected');
         }
     }
 
@@ -311,6 +320,7 @@ class CrmInbox extends Component
             $msg->update(['is_archived' => true]);
             if ($this->selectedMessageId === $id) {
                 $this->selectedMessageId = null;
+                $this->dispatch('folder-selected');
             }
             session()->flash('success_message', 'E-Mail archiviert.');
         }
@@ -342,6 +352,7 @@ class CrmInbox extends Component
             $msg->update(['folder' => $this->routingTargetFolder]);
             if ($this->selectedMessageId === $msg->id && $this->selectedFolder !== $this->routingTargetFolder) {
                 $this->selectedMessageId = null;
+                $this->dispatch('folder-selected');
             }
 
             $this->showRoutingModal = false;

@@ -4,27 +4,8 @@
     <div class="bg-gray-950/50 border-b border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md">
         <div class="max-w-7xl mx-auto px-6 py-5">
             <div class="flex flex-col md:flex-row justify-between items-center gap-6 mb-6">
-                <div class="flex items-center gap-5">
-                    <div class="relative group">
-                        <div class="absolute inset-0 bg-primary/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                        <div class="h-14 w-14 rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center p-2 shadow-inner relative z-10">
-                            <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}" class="w-full h-full object-contain" alt="Funki">
-                            <div class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-gray-900 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-serif font-bold text-white tracking-tight">Funkis Zentrale</h1>
-                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Dein Autopilot für deine Tasks</p>
-                    </div>
-                </div>
-
-                <div class="relative w-full md:w-80 group">
-                    <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
-                           class="w-full pl-11 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-600 group-focus-within:text-primary transition-colors">
-                        <x-heroicon-o-magnifying-glass class="w-4 h-4" />
-                    </div>
-                </div>
+                <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
+                       class="w-full pl-11 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
             </div>
         </div>
     </div>
@@ -275,7 +256,7 @@
 
     {{-- AUDIO FEEDBACK --}}
     <audio id="taskDoneSound" src="{{ asset('todo/sounds/todo_done.mp3') }}" preload="auto"></audio>
-    
+
     @script
     <script>
         $wire.on('task-completed', () => {

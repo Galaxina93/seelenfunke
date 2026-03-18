@@ -264,6 +264,36 @@
                     </p>
                 </div>
 
+                <div id="datenschutz-gamification" class="scroll-mt-28">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4">8. Gamification & Mini-Spiele (3D-Dashboard)</h2>
+
+                    <h3 class="font-bold text-lg mt-4">Urheberrecht und Bereitstellung</h3>
+                    <p>
+                        In unserem Kundenbereich stellen wir interaktive 3D-Ansichten und Mini-Spiele auf Basis von JavaScript (Three.js) zur Verfügung.
+                        Diese Elemente dienen der zusätzlichen Unterhaltung.
+                        <strong>Alle darin verwendeten 3D-Modelle, Texturen und Soundeffekte wurden von Mein-Seelenfunke selbst entworfen und erstellt.</strong>
+                        Sie unterliegen dem Urheberrecht und dürfen ohne ausdrückliche, schriftliche Genehmigung weder kopiert, modifiziert noch anderweitig gewerblich genutzt werden.
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">Lokale Datenspeicherung (Local Storage) und Spieldaten</h3>
+                    <p>
+                        Um Ihnen die Mini-Spiele und interaktiven Begleiter nahtlos zur Verfügung zu stellen, speichern wir bestimmte technische Daten lokal in Ihrem Browser (sog. <strong>Local Storage / Session Storage</strong>) sowie in unserer Datenbank.
+                        Hierzu gehören insbesondere:
+                    </p>
+                    <ul class="list-disc list-inside mt-2 space-y-1">
+                        <li>Der aktuelle Spielstand und erreichte Highscores</li>
+                        <li>Die aufgebrauchte und verbleibende Energie Ihres Gefährten</li>
+                        <li>Visuelle und funktionelle Einstellungen (z.B. Audio-Lautstärken, Kamera-Positionen im 3D-Raum)</li>
+                    </ul>
+                    <p class="mt-4">
+                        Diese Datenverarbeitung ist zwingend erforderlich, um Ihnen das interaktive Erlebnis technisch bereitstellen zu können.
+                        Die Nutzung unseres Gamification-Angebots erfolgt freiwillig. Durch das initiale Aktivieren ("Magie aktivieren") in Ihrem Dashboard willigen Sie in diese lokale und temporäre Speicherung ein.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        <strong>Rechtsgrundlage:</strong> Die Verarbeitung erfolgt auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO) sowie – hinsichtlich der absolut notwendigen technischen Bereitstellung – gemäß § 25 Abs. 1 TTDSG bzw. Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse am reibungslosen Ablauf des gebotenen Funktionsumfangs).
+                    </p>
+                </div>
+
             </div>
         </section>
     </x-sections.page-container>

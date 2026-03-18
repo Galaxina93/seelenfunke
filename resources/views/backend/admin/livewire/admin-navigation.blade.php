@@ -2,7 +2,7 @@
     @php
         $currentPage = basename(request()->path());
 
-        $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender']);
+        $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender', 'person-profiles']);
 
         // Neu aufgeteilt in Produkte und Marketing
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
@@ -10,7 +10,7 @@
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'knowledge_base', 'ai-genui', 'person-profiles', 'ai-logs']);
+        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'knowledge_base', 'ai-genui', 'ai-logs']);
     @endphp
 
     {{--CEO Zentrale--}}
@@ -26,6 +26,7 @@
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/inbox" title="E-Mail" pageName="inbox" icon="envelope-open" />
+                    <x-forms.list-item route="/admin/person-profiles" title="Kontakte" pageName="person-profiles" icon="users" />
                     <x-forms.list-item route="/admin/routine" title="Routine" pageName="routine" icon="arrow-path" />
                     <x-forms.list-item route="/admin/tasks" title="Aufgaben" pageName="tasks" icon="check-circle" />
                     <x-forms.list-item route="/admin/calender" title="Kalender" pageName="calender" icon="calendar-days" />
@@ -120,7 +121,6 @@
                     <x-forms.list-item route="/admin/ai-logs" title="Log" pageName="ai-logs" icon="document-text" />
                     <x-forms.list-item route="/admin/knowledge_base" title="Wiki" pageName="knowledge_base" icon="book-open" />
                     <x-forms.list-item route="/admin/funkira-genui" title="UI Visualisierung" pageName="funkira-genui" icon="window" />
-                    <x-forms.list-item route="/admin/person-profiles" title="Kontakte" pageName="person-profiles" icon="users" />
                 </ul>
             </li>
 

@@ -106,7 +106,7 @@
                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
                 </span>
             </div>
-            Support Desk
+            Hilfe
         </a>
 
         @if($hasOptedIn)
@@ -144,11 +144,11 @@
 <nav class="lg:hidden fixed bottom-0 left-0 w-full bg-gray-900/98 backdrop-blur-xl border-t border-gray-800 z-50 flex items-center justify-around px-2 py-2 pb-safe shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
     <a href="{{ route('customer.dashboard') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.dashboard') ? 'text-primary' : 'text-gray-500' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-        <span class="text-[9px] font-black uppercase tracking-widest">Home</span>
+        <span class="text-[9px] font-black uppercase tracking-widest">Zentrale</span>
     </a>
     <a href="{{ route('customer.orders') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-        <span class="text-[9px] font-black uppercase tracking-widest">Orders</span>
+        <span class="text-[9px] font-black uppercase tracking-widest">Bestellungen</span>
     </a>
 
     {{-- NEU: MOBILE SUPPORT LINK --}}
@@ -160,7 +160,7 @@
                 <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
             </span>
         </div>
-        <span class="text-[9px] font-black uppercase tracking-widest">Support</span>
+        <span class="text-[9px] font-black uppercase tracking-widest">Hilfe</span>
     </a>
 
     @if($hasOptedIn)

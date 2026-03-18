@@ -100,20 +100,11 @@ class FinancialEvaluation extends Component
         $pieData = $service->getPieChartData($adminId, $this->dateFrom, $this->dateTo);
         $barData = $service->getBarChartData($adminId, $this->dateFrom, $this->dateTo, $this->isNet);
 
-        // Bank Balance
-        $activeBankBalance = 0;
-        if (class_exists(\App\Models\Financial\BankAccount::class)) {
-            $activeBankBalance = \App\Models\Financial\BankAccount::where('admin_id', $adminId)
-                ->where('is_active_for_analysis', true)
-                ->sum('balance');
-        }
-
         return view('livewire.shop.financial.financial-evaluation.financial-evaluation', [
             'stats' => $stats,
             'yearlyMatrix' => $matrix,
             'pieData' => $pieData,
-            'barData' => $barData,
-            'activeBankBalance' => $activeBankBalance
+            'barData' => $barData
         ]);
     }
 }

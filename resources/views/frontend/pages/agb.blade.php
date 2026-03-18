@@ -155,6 +155,26 @@
                             </p>
                         </div>
 
+                        {{-- §8 Gamification & Bonusprogramm --}}
+                        <div id="agb-gamification" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">8. Gamification, Mini-Spiele und Bonusprogramm (Spielregeln)</h3>
+                            <p>
+                                (1) <strong>Zweck:</strong> Mein-Seelenfunke stellt im zugangsbeschränkten Kundenkonto ("Dashboard") interaktive 3D-Welten und Mini-Spiele (z.B. "Kristall-Kollaps 3D") zur zusätzlichen, kostenfrei bereitgestellten Unterhaltung zur Verfügung. Die Teilnahme an diesen Funktionen ist absolut freiwillig.
+                            </p>
+                            <p class="mt-2">
+                                (2) <strong>Bonusprogramm:</strong> Kunden haben durch Aktivität im Kundenkonto und das Absolvieren von Spielen die Möglichkeit, virtuelle Punkte ("Seelenfunken"), Level-Aufstiege oder virtuelle Abzeichen zu sammeln. Diese rein virtuellen "Spieldaten" stellen kein echtes Geld dar und können nicht ausgezahlt werden.
+                            </p>
+                            <p class="mt-2">
+                                (3) <strong>Prämien und Einlösung:</strong> Unter bestimmten Voraussetzungen (z.B. dem Erreichen bestimmter Level-Meilensteine) gewährt Mein-Seelenfunke den Kunden als Anerkennung Rabattcodes für echte, personalisierte Laser-Produkte. Diese Codes (Prämien) sind an das jeweilige Benutzerkonto gebunden, nicht übertragbar, nicht mit anderen Aktionen kombinierbar und nur einmalig gültig. Mein-Seelenfunke behält sich das Recht vor, die Bedingungen für das Erreichen von Prämien sowie deren Wert und Beschaffenheit jederzeit, auch während laufender Fortschritte, anzupassen.
+                            </p>
+                            <p class="mt-2">
+                                (4) <strong>Manipulation und Sanktionen:</strong> Jede Form der technischen Manipulation, Ausnutzung von Software-Fehlern (Bugs, Glitches) oder der Einsatz von automatisierten Skripten ("Bots") im Rahmen der Mini-Spiele ist strengstens untersagt und führt zum sofortigen, ersatzlosen Verlust aller gesammelten virtuellen Güter und Prämien sowie zum Ausschluss aus dem Bonusprogramm.
+                            </p>
+                            <p class="mt-2 text-sm bg-gray-50 border-l-4 border-gray-400 p-3 rounded">
+                                (5) <strong>Verfügbarkeit & Haftungsausschluss:</strong> Ein rechtlicher Anspruch auf eine bestimmte Laufzeit, Mindestverfügbarkeit oder Spielfunktionalität der Mini-Spiele oder des generellen 3D-Bereichs besteht nicht. Wir behalten uns hiermit ausdrücklich das Recht vor, den Spielebereich, die Punkte-Ökonomie sowie das Bonusprogramm ohne vorherige Ankündigung und unter Ausschluss von Ersatzansprüchen technisch anzupassen, einzuschränken oder vollständig einzustellen. <strong>Bei sämtlichen Mini-Spielen und Vergaben aus dem Bonusprogramm ist der Rechtsweg vollständig ausgeschlossen.</strong>
+                            </p>
+                        </div>
+
                     </div>
                 </div>
 

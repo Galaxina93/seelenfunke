@@ -8,19 +8,20 @@ use Illuminate\Support\Facades\Http;
 class ExternalAgentManager extends Component
 {
     public $llm_model = '';
-    public $connectionError = null;
+    public $pingRan = false;
 
     private $toniUrl = 'http://192.168.188.32:8000';
 
     public function mount()
     {
-        $this->fetchStatus();
+        // Removed fetchStatus() to prevent the 5-second blocking payload on page load!
     }
 
     public function fetchStatus()
     {
+        $this->pingRan = true;
         try {
-            $response = Http::timeout(5)->withToken(env('TONI_AI_API_KEY'))->get($this->toniUrl . '/api/toni/config');
+            $response = Http::timeout(3)->withToken(env('TONI_AI_API_KEY'))->get($this->toniUrl . '/api/toni/config');
             if ($response->successful()) {
                 $data = $response->json();
                 $this->llm_model = $data['llm_model'] ?? '';

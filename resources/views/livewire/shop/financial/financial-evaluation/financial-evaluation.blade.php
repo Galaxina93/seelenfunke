@@ -69,7 +69,7 @@
                     </label>
                 </div>
             </div>
-            
+
             {{-- Mobile Brutto/Netto Toggle --}}
             <div class="sm:hidden px-4 pb-4 flex justify-end">
                 <label class="inline-flex items-center cursor-pointer group px-3 py-2 bg-gray-950 rounded-xl border border-gray-800 shadow-inner">
@@ -127,10 +127,6 @@
 
                         {{-- Rechte Seite der Stats --}}
                         <div class="flex flex-col sm:flex-row gap-4 sm:gap-6 text-center sm:text-left w-full xl:w-auto overflow-x-auto no-scrollbar pb-2">
-                            <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px]">
-                                <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Aktuelles Saldo</div>
-                                <div class="text-xl sm:text-2xl font-bold {{ $activeBankBalance >= 0 ? 'text-primary' : 'text-red-400' }}">{{ number_format($activeBankBalance, 2, ',', '.') }}&nbsp;€</div>
-                            </div>
 
                             <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px]">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Monatsbudget</div>

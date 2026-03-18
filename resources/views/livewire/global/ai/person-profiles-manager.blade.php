@@ -28,10 +28,10 @@
         @endif
 
         <!-- Split View -->
-        <div class="flex flex-col lg:flex-row h-[calc(100vh-18rem)] min-h-[700px] bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden">
+        <div class="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-18rem)] lg:min-h-[700px] bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-visible lg:overflow-hidden">
 
             <!-- Sidebar List -->
-            <div class="w-full lg:w-1/3 xl:w-1/4 bg-gray-950/50 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-10 shadow-inner">
+            <div class="w-full lg:w-1/3 xl:w-1/4 h-[50vh] lg:h-auto bg-gray-950/50 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-10 shadow-inner">
                 <div class="p-6 border-b border-gray-800">
                     <div class="relative group">
                         <input wire:model.live.debounce.300ms="search" type="text" placeholder="Personen durchsuchen..." class="w-full pl-11 pr-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-gray-950 focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-500">
@@ -50,7 +50,7 @@
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
                     @forelse($profiles as $profile)
-                        <div wire:click="selectProfile({{ $profile->id }})" role="button" class="cursor-pointer w-full text-left p-4 rounded-2xl transition-all duration-200 border flex items-center gap-3 relative overflow-visible group/btn {{ $activeProfileId == $profile->id ? 'bg-gray-800/80 border-primary/30 shadow-[inset_4px_0_0_rgba(197,160,89,1)]' : 'bg-transparent border-transparent hover:bg-gray-900/50 hover:border-gray-800' }}">
+                        <div wire:click="selectProfile('{{ $profile->id }}')" x-on:click="if(window.innerWidth < 1024) { setTimeout(() => { document.getElementById('kontakt-details').scrollIntoView({ behavior: 'smooth', block: 'start' }) }, 200); }" role="button" class="cursor-pointer w-full text-left p-4 rounded-2xl transition-all duration-200 border flex items-center gap-3 relative overflow-visible group/btn {{ $activeProfileId == $profile->id ? 'bg-gray-800/80 border-primary/30 shadow-[inset_4px_0_0_rgba(197,160,89,1)]' : 'bg-transparent border-transparent hover:bg-gray-900/50 hover:border-gray-800' }}">
                             <div class="relative shrink-0">
                                 @if($profile->avatar_path)
                                     <img src="{{ Storage::url($profile->avatar_path) }}" class="w-10 h-10 rounded-full object-cover border border-primary/30">
@@ -60,7 +60,7 @@
                                     </div>
                                 @endif
 
-                                <button wire:click.stop="toggleFavorite({{ $profile->id }})" class="absolute -bottom-1.5 -right-1.5 p-0.5 rounded-full bg-gray-900 border border-gray-800 transition-opacity outline-none {{ $profile->is_favorite ? 'opacity-100' : 'opacity-0 group-hover/btn:opacity-100' }} hover:scale-110 shadow-sm z-20">
+                                <button wire:click.stop="toggleFavorite('{{ $profile->id }}')" class="absolute -bottom-1.5 -right-1.5 p-0.5 rounded-full bg-gray-900 border border-gray-800 transition-opacity outline-none {{ $profile->is_favorite ? 'opacity-100' : 'opacity-0 group-hover/btn:opacity-100' }} hover:scale-110 shadow-sm z-20">
                                     @if($profile->is_favorite)
                                         <x-heroicon-s-star class="w-4 h-4 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
                                     @else
@@ -90,7 +90,7 @@
             </div>
 
             <!-- Detail / Edit Area -->
-            <div class="flex-1 bg-transparent relative overflow-hidden flex flex-col">
+            <div id="kontakt-details" class="flex-1 bg-transparent relative overflow-visible lg:overflow-hidden flex flex-col">
                 @if($isEditing)
                     <!-- Form Area -->
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-12">
@@ -266,10 +266,10 @@
                     <!-- Detail View -->
                     <div class="p-8 lg:p-12 pb-6 border-b border-gray-800 bg-gray-900/30 shrink-0 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')]">
                         <div class="absolute top-8 right-8 flex gap-2">
-                            <button wire:click="editProfile({{ $activeProfile->id }})" class="p-2 bg-gray-800 border border-gray-700 hover:bg-primary/20 hover:text-primary hover:border-primary/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
+                            <button wire:click="editProfile('{{ $activeProfile->id }}')" class="p-2 bg-gray-800 border border-gray-700 hover:bg-primary/20 hover:text-primary hover:border-primary/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
                                 <x-heroicon-o-pencil class="w-5 h-5" />
                             </button>
-                            <button wire:click="deleteProfile({{ $activeProfile->id }})" wire:confirm="Dieses Profil und das KI-Gedächtnis wirklich löschen?" class="p-2 bg-gray-800 border border-gray-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Löschen">
+                            <button wire:click="deleteProfile('{{ $activeProfile->id }}')" wire:confirm="Dieses Profil und das KI-Gedächtnis wirklich löschen?" class="p-2 bg-gray-800 border border-gray-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Löschen">
                                 <x-heroicon-o-trash class="w-5 h-5" />
                             </button>
                         </div>
@@ -338,10 +338,10 @@
                         <!-- Info Grid -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             @if($activeProfile->phone)
-                            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center gap-4">
-                                <div class="w-10 h-10 rounded-full bg-gray-800 text-gray-400 flex items-center justify-center"><x-heroicon-o-phone class="w-5 h-5" /></div>
-                                <div><p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Telefon</p><p class="text-gray-300">{{ $activeProfile->phone }}</p></div>
-                            </div>
+                            <a href="tel:{{ preg_replace('/[^0-9+]/', '', $activeProfile->phone) }}" class="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center gap-4 hover:border-primary/50 hover:bg-gray-800 transition-colors cursor-pointer group">
+                                <div class="w-10 h-10 rounded-full bg-gray-800 text-gray-400 flex items-center justify-center group-hover:text-primary group-hover:bg-primary/10 transition-colors shadow-inner"><x-heroicon-o-phone class="w-5 h-5 group-hover:scale-110 transition-transform" /></div>
+                                <div><p class="text-[10px] text-gray-400 group-hover:text-primary uppercase tracking-widest font-bold transition-colors">Telefon</p><p class="text-gray-200 font-medium">{{ $activeProfile->phone }}</p></div>
+                            </a>
                             @endif
                             @if($activeProfile->email)
                             <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center gap-4">

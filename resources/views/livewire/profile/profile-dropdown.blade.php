@@ -1,8 +1,6 @@
 <div x-data="{
         showProfileModal: false,
         activeProfileTab: 'profile',
-        isMusicPlaying: false,
-        volume: 0.2, // Standard-Lautstärke (20%)
         openAvatar: false,
         showProfileSuccess: false,
         showPasswordSuccess: false
@@ -24,35 +22,10 @@
 
     <div class="w-px h-8 bg-gray-800 mx-1 shrink-0 snap-start"></div>
 
-    {{-- MUSIK TOGGLE BUTTON --}}
-    <button @click="isMusicPlaying = !isMusicPlaying; isMusicPlaying ? $refs.funkiAudio.play() : $refs.funkiAudio.pause();" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl border border-transparent transition-all shadow-none hover:scale-105 group shrink-0 snap-start" :class="isMusicPlaying ? 'bg-primary/10 hover:border-primary/30 text-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-gray-800/50 hover:border-gray-500/30 text-gray-500 hover:text-white hover:shadow-lg'" title="Musik On/Off" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
-        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 transition-colors" x-text="isMusicPlaying ? 'Musik An' : 'Musik Aus'"></span>
-        <x-heroicon-s-musical-note x-show="isMusicPlaying" class="w-6 h-6 animate-[bounce_2s_infinite]" />
-        <x-heroicon-s-speaker-x-mark x-show="!isMusicPlaying" style="display: none;" class="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
-    </button>
-
-    {{-- LAUTSTÄRKE REGLER --}}
-    <div class="flex flex-col items-center justify-center w-20 md:w-24 h-16 md:h-[4.5rem] rounded-xl bg-gray-950/50 border border-gray-800 hover:border-gray-700 transition-all shadow-inner px-3 shrink-0 snap-start group" title="Lautstärke">
-        <div class="flex items-center justify-between w-full mb-1.5 px-0.5">
-            <x-heroicon-s-speaker-wave class="w-3.5 h-3.5 text-gray-500 group-hover:text-primary transition-colors" />
-            <span class="text-[9px] font-black font-mono text-gray-500 group-hover:text-white transition-colors" x-text="Math.round(volume * 100) + '%'"></span>
-        </div>
-        <input type="range" min="0" max="1" step="0.01" x-model="volume"
-               class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer outline-none shadow-inner
-                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
-                      [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(197,160,89,0.8)]
-                      [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full">
-    </div>
-
-    <div class="w-px h-8 bg-gray-800 mx-1 shrink-0 snap-start"></div>
-
     <button wire:click="logout" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-red-500/5 border border-transparent hover:border-red-500/30 text-gray-500 hover:bg-red-500/10 hover:text-red-400 transition-all shadow-none hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:scale-105 group shrink-0 snap-start" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
         <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 group-hover:text-red-400 transition-colors">Logout</span>
         <x-heroicon-s-power class="w-6 h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </button>
-
-    {{-- AUDIO PLAYER (mit Alpine Verknüpfung) --}}
-    <audio x-ref="funkiAudio" src="{{ asset('funki/audio/bgm.mp3') }}" loop preload="auto" class="hidden" x-init="$el.volume = volume; $watch('volume', val => $el.volume = val)"></audio>
 
     {{-- GLOBALES MODAL (Teleportiert in den Body, um Z-Index Probleme zu lösen) --}}
     <template x-teleport="body">
@@ -82,6 +55,7 @@
                         <button @click="activeProfileTab = 'password'" :class="activeProfileTab === 'password' ? 'bg-amber-500 text-gray-900 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-gray-900 border border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white shadow-inner'" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap">Passwort</button>
                         <button @click="activeProfileTab = '2fa'" :class="activeProfileTab === '2fa' ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-gray-900 border border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white shadow-inner'" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap">2-FA Schutz</button>
                         <button @click="activeProfileTab = 'sessions'" :class="activeProfileTab === 'sessions' ? 'bg-purple-500 text-gray-900 shadow-[0_0_15px_rgba(168,85,247,0.3)]' : 'bg-gray-900 border border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white shadow-inner'" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap">Geräte</button>
+                        <button @click="activeProfileTab = 'delete_account'" :class="activeProfileTab === 'delete_account' ? 'bg-red-500 text-gray-900 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-gray-900 border border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-white shadow-inner'" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap">Konto löschen</button>
                     </div>
                 </div>
 
@@ -97,8 +71,11 @@
                     {{-- TAB: 2-FA SCHUTZ --}}
                     @include('livewire.profile.partials.tab_2fa')
 
-                    {{-- TAB: GERÄTE & SITZUNGEN (Inklusive Löschen) --}}
+                    {{-- TAB: GERÄTE & SITZUNGEN --}}
                     @include('livewire.profile.partials.tab_devices')
+
+                    {{-- TAB: KONTO LÖSCHEN --}}
+                    @include('livewire.profile.partials.tab_delete_account')
 
                 </div>
             </div>

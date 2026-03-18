@@ -1,7 +1,12 @@
-<div class="h-[calc(100vh-8rem)] flex bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+<div x-data="{ mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}' }"
+     @message-selected.window="mobileView = 'detail'"
+     @folder-selected.window="mobileView = 'list'"
+     @settings-opened.window="mobileView = 'settings'"
+     class="h-[calc(100vh-8rem)] flex bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-800 overflow-hidden shadow-2xl relative w-full">
     
     {{-- COLUMN 1: Folders & Accounts --}}
-    <div class="w-80 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 z-10 relative">
+    <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full lg:w-80 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
+         :class="mobileView === 'folders' ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
         <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
             <h2 class="text-white font-serif text-xl tracking-wide">CRM Inbox</h2>
             <div class="flex gap-1">
@@ -185,16 +190,24 @@
     </div>
 
     {{-- RIGHT SIDE WRAPPER (Inbox & Settings) --}}
-    <div class="flex-1 relative overflow-hidden flex" x-data="{ mode: @entangle('viewMode') }">
+    <div class="absolute inset-0 z-20 lg:relative lg:z-auto lg:flex-1 overflow-hidden flex transition-transform duration-300 pointer-events-none lg:pointer-events-auto"
+         :class="(mobileView === 'list' || mobileView === 'detail' || mobileView === 'settings') ? 'translate-x-0 pointer-events-auto' : 'translate-x-full lg:translate-x-0 lg:pointer-events-auto'"
+         x-data="{ mode: @entangle('viewMode') }">
         
         {{-- INBOX VIEW --}}
-        <div x-show="mode === 'inbox'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-8" class="absolute inset-0 flex bg-gray-950/50">
+        <div x-show="mode === 'inbox'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 flex bg-gray-950/50">
             
             {{-- COLUMN 2: Message List --}}
-            <div class="w-80 bg-gray-950/80 border-r border-gray-800 flex flex-col shrink-0">
+            <div class="absolute inset-0 z-20 lg:relative lg:z-10 w-full lg:w-80 bg-gray-950/80 border-r border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
+                 :class="(mobileView === 'list' || mobileView === 'folders') ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
         <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950">
-            <h3 class="text-white font-bold">{{ $selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails') }}</h3>
-            <button wire:click="openCompose('new')" class="bg-primary/20 text-primary hover:bg-primary hover:text-black p-1.5 rounded-lg transition-colors" title="Neue E-Mail schreiben">
+            <div class="flex items-center gap-2">
+                <button @click="mobileView = 'folders'" class="lg:hidden p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors">
+                    <x-heroicon-o-chevron-left class="w-5 h-5"/>
+                </button>
+                <h3 class="text-white font-bold truncate">{{ $selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails') }}</h3>
+            </div>
+            <button wire:click="openCompose('new')" class="bg-primary/20 text-primary hover:bg-primary hover:text-black p-1.5 rounded-lg transition-colors shrink-0" title="Neue E-Mail schreiben">
                 <x-heroicon-o-pencil-square class="w-5 h-5"/>
             </button>
         </div>
@@ -298,7 +311,8 @@
     </div>
 
     {{-- COLUMN 3: Reading Pane --}}
-    <div class="flex-1 bg-gray-950 flex flex-col relative">
+    <div class="absolute inset-0 z-10 lg:relative lg:z-auto w-full lg:flex-1 bg-gray-950 flex flex-col transition-transform duration-300"
+         :class="(mobileView === 'detail' || mobileView === 'settings') ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'">
         @if (session()->has('success_message'))
             <div class="absolute top-4 right-4 z-40 p-3 text-sm text-green-400 bg-green-900/90 border border-green-800 rounded-lg shadow-xl backdrop-blur-sm">
                 {{ session('success_message') }}
@@ -314,14 +328,17 @@
         @if($selectedMessage)
             {{-- Toolbar --}}
             <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
-                <div class="flex gap-2">
+                <div class="flex gap-1 sm:gap-2 items-center flex-wrap">
+                    <button @click="mobileView = 'list'" class="lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors mr-1" title="Zurück">
+                        <x-heroicon-o-chevron-left class="w-5 h-5"/>
+                    </button>
                     <button wire:click="openCompose('reply', {{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Antworten">
                         <x-heroicon-o-arrow-uturn-left class="w-5 h-5" />
                     </button>
                     <button wire:click="openCompose('forward', {{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Weiterleiten">
                         <x-heroicon-o-arrow-uturn-right class="w-5 h-5" />
                     </button>
-                    <div class="w-px h-6 bg-gray-700 mx-1 my-auto"></div>
+                    <div class="hidden sm:block w-px h-6 bg-gray-700 mx-1 my-auto"></div>
                     <button wire:click="archiveMessage({{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Archivieren">
                         <x-heroicon-o-archive-box class="w-5 h-5" />
                     </button>
@@ -338,16 +355,16 @@
             </div>
 
             {{-- Mail Header --}}
-            <div class="p-6 border-b border-gray-800/50">
-                <h2 class="text-2xl font-bold text-white mb-4">{{ $selectedMessage->subject }}</h2>
+            <div class="p-4 sm:p-6 border-b border-gray-800/50">
+                <h2 class="text-xl sm:text-2xl font-bold text-white mb-4 break-words">{{ $selectedMessage->subject }}</h2>
                 <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700">
+                    <div class="flex items-center gap-3 w-full">
+                        <div class="w-10 h-10 shrink-0 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700">
                             <span class="text-primary font-serif font-bold">{{ substr($selectedMessage->from_name ?: $selectedMessage->from_email, 0, 1) }}</span>
                         </div>
-                        <div>
-                            <div class="text-white font-medium">{{ $selectedMessage->from_name ?: $selectedMessage->from_email }}</div>
-                            <div class="text-xs text-gray-400">&lt;{{ $selectedMessage->from_email }}&gt; an {{ $selectedMessage->to_email }}</div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-white font-medium truncate">{{ $selectedMessage->from_name ?: $selectedMessage->from_email }}</div>
+                            <div class="text-[10px] sm:text-xs text-gray-400 truncate">&lt;{{ $selectedMessage->from_email }}&gt; an {{ $selectedMessage->to_email }}</div>
                         </div>
                     </div>
                 </div>
@@ -373,21 +390,24 @@
         </div> {{-- End INBOX VIEW --}}
 
         {{-- SETTINGS VIEW --}}
-        <div x-show="mode === 'account_settings'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-8" class="absolute inset-0 bg-gray-950 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
-            <div class="p-8 max-w-5xl mx-auto">
+        <div x-show="mode === 'account_settings'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 bg-gray-950 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
+            <div class="p-4 sm:p-8 max-w-5xl mx-auto">
                 {{-- Settings Form Header --}}
-                <div class="flex justify-between items-center mb-8 pb-6 border-b border-gray-800">
-                    <h3 class="text-2xl font-serif text-white tracking-wide flex items-center gap-3">
-                        <x-heroicon-o-cog class="w-8 h-8 text-primary" />
-                        {{ $editAccountId ? 'E-Mail Konto bearbeiten' : 'Neues E-Mail Konto anbinden' }}
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-800">
+                    <h3 class="text-xl sm:text-2xl font-serif text-white tracking-wide flex items-center gap-3">
+                        <button @click.prevent="mobileView = 'folders'" wire:click="closeAccountSettings" class="lg:hidden p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors mr-1 text-sm font-sans flex items-center gap-1">
+                            <x-heroicon-o-chevron-left class="w-5 h-5"/>
+                        </button>
+                        <x-heroicon-o-cog class="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+                        <span class="truncate">{{ $editAccountId ? 'E-Mail Konto bearbeiten' : 'Neues E-Mail Konto anbinden' }}</span>
                     </h3>
-                    <div class="flex gap-3">
+                    <div class="flex gap-2 sm:gap-3 w-full sm:w-auto">
                         @if($editAccountId)
-                            <button wire:click="deleteAccount({{ $editAccountId }})" wire:confirm="Sicher, dass dieses Postfach gelöscht werden soll?" class="text-red-500 hover:text-red-400 transition-colors flex items-center gap-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 px-4 py-2 rounded-lg font-bold">
-                                <x-heroicon-o-trash class="w-5 h-5" /> Löschen
+                            <button wire:click="deleteAccount({{ $editAccountId }})" wire:confirm="Sicher, dass dieses Postfach gelöscht werden soll?" class="text-red-500 hover:text-red-400 transition-colors flex items-center justify-center gap-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 px-3 py-2 sm:px-4 sm:py-2 rounded-lg font-bold flex-1 sm:flex-none text-xs sm:text-base">
+                                <x-heroicon-o-trash class="w-4 h-4 sm:w-5 sm:h-5" /> Löschen
                             </button>
                         @endif
-                        <button wire:click="closeAccountSettings" class="text-gray-400 hover:text-white transition-colors flex items-center gap-2 bg-gray-800/50 hover:bg-gray-800 px-4 py-2 rounded-lg font-bold">
+                        <button wire:click="closeAccountSettings" class="hidden sm:flex text-gray-400 hover:text-white transition-colors items-center gap-2 bg-gray-800/50 hover:bg-gray-800 px-4 py-2 rounded-lg font-bold">
                             <x-heroicon-o-arrow-left class="w-5 h-5" /> Zurück
                         </button>
                     </div>

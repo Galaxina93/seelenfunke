@@ -17,14 +17,16 @@
                 <div class="relative z-10 flex items-start justify-between mb-5">
                     <div class="flex items-center gap-4">
                         <div class="h-14 w-14 rounded-2xl flex items-center justify-center bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-[0_0_15px_currentColor] group-hover:scale-110 transition-transform relative">
-                            <div class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full {{ $connectionError ? 'bg-red-500' : 'bg-emerald-500' }} border-2 border-gray-900 shadow-sm z-20"></div>
+                            <div class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full {{ !$pingRan ? 'bg-gray-500' : ($connectionError ? 'bg-red-500' : 'bg-emerald-500') }} border-2 border-gray-900 shadow-sm z-20"></div>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Z" />
                             </svg>
                         </div>
                         <div>
                             <h3 class="text-xl font-bold text-white mb-0.5 group-hover:text-indigo-400 transition-colors font-mono">Toni (Python)</h3>
-                            @if($connectionError)
+                            @if(!$pingRan)
+                                <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-500/20 text-gray-500 border border-gray-500/30 uppercase tracking-widest inline-block">Ungeprüft</span>
+                            @elseif($connectionError)
                                 <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-500 border border-red-500/30 uppercase tracking-widest inline-block">Offline</span>
                             @else
                                 <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest inline-block">Online</span>
@@ -42,17 +44,36 @@
                             Port 8000
                         </span>
                         <span class="flex items-center gap-1.5 text-indigo-500/70 group-hover:text-indigo-400 transition-colors truncate max-w-[120px]">
-                            <span class="w-1.5 h-1.5 shrink-0 rounded-full {{ $connectionError ? 'bg-red-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]' }}"></span>
-                            LLM: {{ $llm_model ?: '?' }}
+                            <span class="w-1.5 h-1.5 shrink-0 rounded-full {{ !$pingRan ? 'bg-gray-500' : ($connectionError ? 'bg-red-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]') }}"></span>
+                            LLM: {{ $pingRan ? ($llm_model ?: '?') : 'Unbekannt' }}
                         </span>
                     </div>
                     <div class="flex items-center justify-end">
                         <span class="flex items-center gap-1.5 text-pink-500/70 group-hover:text-pink-400 transition-colors">
-                            <span class="w-1.5 h-1.5 rounded-full {{ $connectionError ? 'bg-red-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]' }}"></span>
+                            <span class="w-1.5 h-1.5 rounded-full {{ !$pingRan ? 'bg-gray-500' : ($connectionError ? 'bg-red-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]') }}"></span>
                             TTS: Toni XTTS
                         </span>
                     </div>
                 </div>
+
+                <!-- Ping Test Button Action Area -->
+                <div class="mt-4 pt-4 border-t border-gray-800/80 flex items-center justify-between">
+                    <button wire:click.stop="fetchStatus" class="px-3 py-1.5 bg-gray-900/50 hover:bg-indigo-500/20 hover:text-indigo-400 text-gray-400 border border-gray-700 hover:border-indigo-500/50 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shadow-inner flex items-center gap-2 group/ping">
+                        <span wire:loading.remove wire:target="fetchStatus" class="flex items-center gap-2"><x-heroicon-o-signal class="w-3.5 h-3.5 group-hover/ping:animate-pulse" /> Ping Test</span>
+                        <span wire:loading wire:target="fetchStatus" class="flex items-center gap-2 text-indigo-400 opacity-80"><svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Pinging...</span>
+                    </button>
+                    
+                    <div class="flex flex-col text-right text-[10px] uppercase font-bold tracking-widest w-1/2">
+                        @if(!$pingRan)
+                            <span class="text-gray-600 opacity-50 block mt-1">Status Unbekannt</span>
+                        @elseif($connectionError)
+                            <span class="text-red-400 truncate">Fehler / Offline</span>
+                        @else
+                            <span class="text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)] truncate">Verbunden</span>
+                        @endif
+                    </div>
+                </div>
+
             </div>
 
         </div>
