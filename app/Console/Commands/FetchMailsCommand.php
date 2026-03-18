@@ -2,11 +2,10 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\System\MailAccount;
-use App\Models\System\MailMessage;
-use Webklex\IMAP\Facades\Client;
+use App\Models\Mail\MailAccount;
+use App\Models\Mail\MailMessage;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class FetchMailsCommand extends Command
@@ -38,7 +37,7 @@ class FetchMailsCommand extends Command
 
         foreach ($accounts as $account) {
             $this->info("Postfach wird verarbeitet: {$account->email}...");
-            
+
             try {
                 // Dynamically build IMAP config array
                 $client = \Webklex\IMAP\Facades\Client::make([
@@ -63,7 +62,7 @@ class FetchMailsCommand extends Command
                 foreach ($messages as $message) {
                     $uid = $message->getUid();
                     $messageId = $message->getMessageId();
-                    
+
                     // Skip if we already stored it
                     if (MailMessage::where('message_id', $messageId)->exists()) {
                         continue;
@@ -71,21 +70,21 @@ class FetchMailsCommand extends Command
 
                     $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;
                     $bodyText = $message->hasTextBody() ? $message->getTextBody() : null;
-                    
+
                     $fromObj = $message->getFrom()[0] ?? null;
                     $fromEmail = $fromObj ? $fromObj->mail : 'unknown';
                     $fromName = $fromObj ? $fromObj->personal : '';
-                    
+
                     $toObj = $message->getTo()[0] ?? null;
                     $toEmail = $toObj ? $toObj->mail : $account->email;
 
                     // Execute Auto-Routing Rules here (Spam/Folders)
                     $targetFolder = 'INBOX';
-                    $routingRule = \App\Models\System\MailRule::where('mail_account_id', $account->id)
+                    $routingRule = \App\Models\Mail\MailRule::where('mail_account_id', $account->id)
                         ->where('condition_field', 'from_email')
                         ->where('condition_value', $fromEmail)
                         ->first();
-                        
+
                     if ($routingRule) {
                         if ($routingRule->action === 'mark_spam') {
                             $targetFolder = 'Junk';

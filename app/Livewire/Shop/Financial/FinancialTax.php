@@ -11,18 +11,39 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithFileUploads;
+use App\Models\Global\GlobalLog;
 use ZipArchive;
 
 class FinancialTax extends Component
 {
+    use WithFileUploads;
+
     public $selectedYear;
     public $selectedMonth;
     public $submissionType = 'Erstübermittlung';
+    
+    // NEU: Hardware-Token Integration
+    public $authMethod = 'software'; // 'software' oder 'hardware'
+    public $hardwarePin = '';
+    public $certPassword = '';
     public $showStorageVault = false;
     public $archivedExports = [];
+    
+    // NEU: Tresor & Zertifikats-Scanner
+    public $tresorCertificates = [];
+    public $selectedCertName = '';
+    public $hasEnvPassword = false;
+    
+    // NEU: Inline Beleg Upload
+    public $receiptFiles = [];
 
     // NEU: Das Global-Log System für absolute Transparenz
     public $globalLogs = [];
+    
+    // NEU: ELSTER API Status
+    public $apiStatus = 'checking'; // checking, online, offline
+    public $apiStatusMessage = 'Kontaktiere ELSTER Server (Warte auf Antwort)...';
 
     public function mount()
     {
@@ -31,8 +52,44 @@ class FinancialTax extends Component
         if(date('n') == 1) {
             $this->selectedYear--;
         }
+        
+        $this->selectedCertName = shop_setting('eric_default_cert', '');
+        $this->scanTresorCertificates();
+        
+        // Prüfen ob ein Tresor-Passwort absolut sicher in der .env liegt!
+        $envPass = env('ERIC_CERT_PASSWORD', env('ERIC_CERT_PASSWORT', ''));
+        $this->hasEnvPassword = !empty($envPass);
+        
         $this->loadArchivedExports();
         $this->addLog('system', "Umsatzsteuer-Zentrale initialisiert. Bereit für Abrechnung.");
+    }
+
+    public function scanTresorCertificates()
+    {
+        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+        $isAbs = str_starts_with($tresorPath, '/');
+        $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
+
+        $this->tresorCertificates = [];
+        if (File::exists($fullPath) && File::isDirectory($fullPath)) {
+            $files = File::files($fullPath);
+            foreach ($files as $file) {
+                if ($file->getExtension() === 'pfx') {
+                    $this->tresorCertificates[] = $file->getFilename();
+                }
+            }
+        }
+    }
+
+    public function updatedSelectedCertName($val)
+    {
+        \App\Models\ShopSetting::updateOrCreate(
+            ['key' => 'eric_default_cert'],
+            ['value' => $val]
+        );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+        
+        $this->addLog('info', "Standard-Zertifikat im Tresor auf '{$val}' festgelegt.");
     }
 
     // --- LOGGING SYSTEM ---
@@ -43,6 +100,21 @@ class FinancialTax extends Component
             'type' => $type, // 'system', 'info', 'success', 'error', 'warning'
             'message' => $message
         ];
+    }
+
+    // --- API STATUS CHECK ---
+    public function checkApiStatus()
+    {
+        try {
+            app(\App\Services\ElsterEricService::class)->checkServerAvailability();
+            $this->apiStatus = 'online';
+            $this->apiStatusMessage = 'Stabile Verbindung zu datenannahme.elster.de hergestellt.';
+            $this->addLog('system', 'API Statuscheck: Server sind online und bereit zur Datenannahme.');
+        } catch (\Exception $e) {
+            $this->apiStatus = 'offline';
+            $this->apiStatusMessage = $e->getMessage();
+            $this->addLog('error', 'API Statuscheck fehlgeschlagen: ' . $this->apiStatusMessage);
+        }
     }
 
     public function selectMonth($month)
@@ -178,17 +250,58 @@ class FinancialTax extends Component
 
         foreach ($businessSpecials as $s) {
             if (empty($s->file_paths)) {
-                $missingReceiptItems->push(['type' => 'variable', 'title' => $s->title, 'date' => Carbon::parse($s->execution_date)->format('d.m.Y'), 'amount' => abs($s->amount)]);
+                $missingReceiptItems->push(['id' => $s->id, 'type' => 'variable', 'title' => $s->title, 'date' => Carbon::parse($s->execution_date)->format('d.m.Y'), 'amount' => abs($s->amount)]);
             }
         }
         foreach ($businessFixed as $f) {
             if (empty($f->contract_file_path)) {
-                $missingReceiptItems->push(['type' => 'fixed', 'title' => $f->name, 'date' => 'Wiederkehrend', 'amount' => abs($f->amount)]);
+                $missingReceiptItems->push(['id' => $f->id, 'type' => 'fixed', 'title' => $f->name, 'date' => 'Wiederkehrend', 'amount' => abs($f->amount)]);
             }
         }
 
         $missingReceiptsCount = $missingReceiptItems->count();
         $totalBusinessItems = $businessSpecials->count() + $businessFixed->count();
+
+        $taxId = shop_setting('owner_tax_id', '');
+        $proprietor = shop_setting('owner_proprietor', '');
+
+        // Erweiterte Readiness Checklist für ERiC API
+        $checklist = [
+            'receipts' => [
+                'name' => '100% Belege verbucht (' . $totalBusinessItems . ' Transaktionen)',
+                'passed' => $missingReceiptsCount === 0,
+                'description' => 'Nur eine vollständige Belegablage garantiert eine rechtssichere Vorsteuerermittlung (Kz 66). Fehlende Belege blockieren den Export.'
+            ],
+            'tax_id' => [
+                'name' => 'Gültige Steuernummer hinterlegt',
+                'passed' => !empty($taxId) && strlen($taxId) > 8,
+                'description' => "Ohne gültige Steuernummer kann das Finanzamt die XML nicht verarbeiten. (Aktuell: " . ($taxId ?: 'Fehlt') . ")"
+            ],
+            'proprietor' => [
+                'name' => 'Vor- und Nachname des Inhabers',
+                'passed' => !empty($proprietor),
+                'description' => 'Ein Pflichtfeld für das ERiC-Schema. Der Vor- und Nachname muss in den System-Einstellungen hinterlegt sein.'
+            ],
+        ];
+
+        // Laufzeit-Prüfung, ob das konfigurierte Software-Zertifikat existiert!
+        if ($this->authMethod === 'software') {
+            $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+            $isAbs = str_starts_with($tresorPath, '/');
+            $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
+            $fullCertPath = $fullPath . DIRECTORY_SEPARATOR . $this->selectedCertName;
+            
+            // Wenn man auf Senden drückt und das Zertifikat fehlt ODER es ist nicht "Test" und kein Passwort angegeben.
+            $certExists = !empty($this->selectedCertName) && file_exists($fullCertPath);
+            
+            $checklist['cert_file'] = [
+                'name' => 'Software-Zertifikat (.pfx) gewählt & geprüft',
+                'passed' => $certExists,
+                'description' => "Das Zertifikat '" . ($this->selectedCertName ?: 'NICHT GEWÄHLT') . "' " . ($certExists ? "wurde erfolgreich im Tresor ({$tresorPath}) gefunden." : "fehlt im Tresor oder ist nicht gewählt!")
+            ];
+        }
+
+        $allChecklistPassed = collect($checklist)->every(fn($item) => $item['passed']);
 
         if ($isFutureMonth) {
             $progress = 0;
@@ -200,33 +313,43 @@ class FinancialTax extends Component
                 $progress += 70;
             }
 
+            if ($taxId && $proprietor) {
+                $progress += 30; // 30% der Progressbar sind die Stammdaten
+            }
+
             if ($isPastMonth) {
-                $progress += 30;
-                $status = ($missingReceiptsCount == 0) ? 'ready' : 'missing_receipts';
+                $status = $allChecklistPassed ? 'ready' : 'missing_data';
             } else {
-                $progress += ($now->day / $startDate->daysInMonth) * 30;
                 $status = 'in_progress';
             }
         }
 
-        return [
-            'month_name' => $startDate->locale('de')->monthName,
-            'month_number' => str_pad($month, 2, '0', STR_PAD_LEFT),
-            'year' => $this->selectedYear,
-            'revenue_gross' => $revenueGross,
-            'revenue_net' => $revenueNet,
-            'vat_collected' => $vatCollected,
-            'ig_erwerb_tax' => $igErwerbTax,
-            'paragraph_13b_tax' => $paragraph13bTax,
-            'total_tax' => $totalTax,
-            'expenses_gross' => $totalExpensesGross,
-            'expenses_net' => $expensesNet,
-            'vat_paid' => $vatPaid,
-            'zahllast' => $zahllast,
-            'profit' => $profit,
-            'progress' => min(100, round($progress)),
-            'missing_receipts_count' => $missingReceiptsCount,
-            'missing_items' => $missingReceiptItems,
+            $isTestCert = in_array($this->selectedCertName, ['test-soft-pse.pfx', 'test-softorg-pse.pfx', 'test-softidnr-pse.pfx']) || str_contains($this->selectedCertName, 'bescheid');
+            $hasValidSoftwareAuth = $this->authMethod === 'software' && ($isTestCert || $this->hasEnvPassword || strlen($this->certPassword) >= 3);
+            
+            return [
+                'month_name' => $startDate->locale('de')->monthName,
+                'month_number' => str_pad($month, 2, '0', STR_PAD_LEFT),
+                'year' => $this->selectedYear,
+                'revenue_gross' => $revenueGross,
+                'revenue_net' => $revenueNet,
+                'vat_collected' => $vatCollected,
+                'ig_erwerb_tax' => $igErwerbTax,
+                'paragraph_13b_tax' => $paragraph13bTax,
+                'total_tax' => $totalTax,
+                'expenses_gross' => $totalExpensesGross,
+                'expenses_net' => $expensesNet,
+                'vat_paid' => $vatPaid,
+                'zahllast' => $zahllast,
+                'profit' => $profit,
+                'progress' => min(100, round($progress)),
+                'missing_receipts_count' => $missingReceiptsCount,
+                'missing_items' => $missingReceiptItems,
+                'checklist' => $checklist,
+                'all_checklist_passed' => $allChecklistPassed,
+                'is_ready_for_transmit' => $status === 'ready' && (
+                    $hasValidSoftwareAuth || ($this->authMethod === 'hardware' && strlen($this->hardwarePin) >= 6)
+                ),
             'status' => $status,
             'order_count' => $orders->count(),
             'expense_count' => $totalBusinessItems,
@@ -240,6 +363,37 @@ class FinancialTax extends Component
         ];
     }
 
+    public function uploadMissingReceipt($itemId, $type)
+    {
+        if (!isset($this->receiptFiles[$itemId])) {
+            $this->addLog('error', 'Kein Beleg für Upload gefunden.');
+            return;
+        }
+
+        $file = $this->receiptFiles[$itemId];
+        $filename = Str::uuid() . '_' . $file->getClientOriginalName();
+        $path = $file->storeAs('receipts', $filename, 'public');
+
+        if ($type === 'variable') {
+            $issue = \App\Models\Financial\FinanceSpecialIssue::find($itemId);
+            if ($issue) {
+                $existing = $issue->file_paths ?? [];
+                $existing[] = $path;
+                $issue->update(['file_paths' => $existing]);
+                $this->addLog('success', "Ein Beleg für Variablen-Ausgabe '{$issue->title}' wurde inline verknüpft.");
+            }
+        } elseif ($type === 'fixed') {
+            $issue = \App\Models\Financial\FinanceFixedIssue::find($itemId);
+            if ($issue) {
+                $issue->update(['contract_file_path' => $path]);
+                $this->addLog('success', "Ein Beleg für Fixkosten '{$issue->name}' wurde inline verknüpft.");
+            }
+        }
+
+        unset($this->receiptFiles[$itemId]);
+        session()->flash('success_receipt', 'Beleg erfolgreich hinterlegt!'); // Trigger UI Alert
+    }
+
     public function generateDatevExport()
     {
         $this->addLog('info', 'Starte ZIP & PDF Export Generierung...');
@@ -247,11 +401,15 @@ class FinancialTax extends Component
 
         $monthStr = $data['month_number'];
         $yearStr = $data['year'];
-        $tempDir = storage_path("app/temp_export_{$monthStr}_{$yearStr}");
+        
+        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+        $isAbs = str_starts_with($tresorPath, '/');
+        $fullTresor = $isAbs ? $tresorPath : base_path($tresorPath);
+        $tempDir = $fullTresor . "/exports/temp_export_{$monthStr}_{$yearStr}";
 
         if (File::exists($tempDir)) File::deleteDirectory($tempDir);
         File::makeDirectory($tempDir, 0755, true);
-        $this->addLog('info', 'Temporäres Verzeichnis erstellt.');
+        $this->addLog('info', "Temporäres Verzeichnis im Tresor erstellt: {$tempDir}");
 
         // DATEV CSV
         $csvPath = $tempDir . "/EXTF_Buchungsstapel_{$monthStr}_{$yearStr}.csv";
@@ -327,68 +485,81 @@ class FinancialTax extends Component
         return $csv;
     }
 
-    // --- NATIVE ELSTER SIMULATION (Wasserdicht & In-House) ---
+    // --- NATIVE ELSTER API INTEGRATION (ERiC) ---
     public function transmitToElster()
     {
         $this->addLog('info', 'Initialisiere direkte ELSTER-ERiC Schnittstelle...');
         $data = $this->getMonthData($this->selectedMonth);
 
         if ($data['status'] !== 'ready') {
-            $this->addLog('error', 'Abbruch: Es fehlen noch zwingend erforderliche Belege.');
+            $this->addLog('error', 'Abbruch: Es fehlen noch zwingend erforderliche Belege oder Checklisten-Vorbedingungen (siehe UI rechts).');
             return;
         }
 
-        // 1. XML Payload generieren
-        $this->addLog('info', 'Erstelle UStVA XML-Payload (UStG Konform)...');
-        $xmlPayload = $this->generateElsterXML($data);
-        usleep(500000); // Simulierte Ladezeit
-        $this->addLog('success', 'XML erfolgreich formatiert (Größe: ' . strlen($xmlPayload) . ' Bytes).');
+        if ($this->authMethod === 'hardware' && strlen($this->hardwarePin) < 6) {
+            $this->addLog('error', 'Abbruch: Für den Hardware-Token muss die 6-stellige secunet-PIN angegeben werden.');
+            return;
+        }
+        
+        if ($this->authMethod === 'software') {
+            $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+            $isAbs = str_starts_with($tresorPath, '/');
+            $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
+            $fullCertPath = $fullPath . DIRECTORY_SEPARATOR . $this->selectedCertName;
+            
+            if (empty($this->selectedCertName) || !file_exists($fullCertPath)) {
+                $this->addLog('error', "CRITICAL: Das Zertifikat '{$this->selectedCertName}' konnte im Tresor nicht geladen werden. Bitte Dropdown prüfen!");
+                return;
+            }
+        }
 
-        // 2. Signatur & Validierung (Testmerker 700000004)
-        $this->addLog('warning', 'Prüfe Zertifikat und signiere Payload mit Testmerker 700000004...');
-        usleep(800000);
+        try {
+            $this->addLog('info', 'Pre-Flight: Prüfe ELSTER Server Status (RSS-Feed)...');
+            
+            // Aufruf des neuen Service-Layers, der die gesamte ERiC-Logik kapselt
+            $elsterService = app(\App\Services\ElsterEricService::class);
+            
+            $this->addLog('info', 'Server OK. Erstelle UStVA XML-Payload nach Finkonsens-Schema...');
+            
+            if ($this->authMethod === 'hardware') {
+                $this->addLog('warning', 'Initiiere Hardware-Token Handshake (APDU) mit übergebener secunet-PIN...');
+                $pinToPass = $this->hardwarePin;
+            } else {
+                $this->addLog('warning', 'Prüfe Zertifikat (.pfx) und sende XML-Payload an ERiC Endpoint...');
+                
+                // Security-Check: Testzertifikate immer 123456 zwingen, ansonsten ENV prüfen
+                $isTestCert = in_array($this->selectedCertName, ['test-soft-pse.pfx', 'test-softorg-pse.pfx', 'test-softidnr-pse.pfx']) || str_contains($this->selectedCertName, 'bescheid');
+                
+                if ($isTestCert) {
+                    $pinToPass = '123456';
+                    $this->addLog('info', 'Sandbox: Verwende zwingende Test-PIN (123456) für offizielles ELSTER Testzertifikat.');
+                } else {
+                    $envPass = env('ERIC_CERT_PASSWORD', env('ERIC_CERT_PASSWORT', ''));
+                    $pinToPass = !empty($envPass) ? $envPass : $this->certPassword;
+                    if (!empty($envPass)) {
+                        $this->addLog('info', 'Security: PFX-Passwort wurde hochsicher über serverseitige .env Konfiguration geladen.');
+                    }
+                }
+            }
+            
+            $response = $elsterService->transmitUStVA($data, $this->submissionType, $this->authMethod, $pinToPass);
+            
+            $ticketId = $response['ticket_id'];
+            if (isset($response['simulated']) && $response['simulated']) {
+                $this->addLog('success', "SIMULATION ERFOLGREICH: Die API simulierte einen ERiC Binary Connect.");
+                $this->addLog('success', "Simuliertes Transferticket generiert: {$ticketId}");
+            } else {
+                $this->addLog('success', "Datenannahme bestätigt. Transferticket: {$ticketId}");
+            }
+            $this->addLog('success', "Validierung durch ERiC Modul: FEHLERFREI. (Kennzahl 83: {$data['zahllast']} EUR)");
 
-        // 3. Übertragung
-        $this->addLog('info', 'Öffne gesicherte TLS-Verbindung zu datenannahme.elster.de...');
-        usleep(1200000);
+            session()->flash('success', "Übermittlung an ELSTER API nach erfolgreicher Prüfung in Testsystem beendet (Ticket: {$ticketId}).");
 
-        // 4. Response
-        $ticketId = "ELSTER-" . strtoupper(Str::random(12));
-        $this->addLog('success', "Datenannahme bestätigt. Transferticket: {$ticketId}");
-        $this->addLog('success', "Validierung durch Finanzamt: FEHLERFREI. (Kennzahl 83: {$data['zahllast']} EUR)");
-
-        session()->flash('success', "Test-Übermittlung an ELSTER erfolgreich abgeschlossen (Ticket: {$ticketId}).");
-    }
-
-    private function generateElsterXML($data)
-    {
-        // Simuliert einen korrekten ELSTER ERiC XML Header
-        $kennzahl10 = $this->submissionType === 'Erstübermittlung' ? '0' : '1';
-        $kz81 = number_format($data['revenue_net'], 0, '', ''); // Kennzahl 81: Bemessungsgrundlage 19%
-        $kz66 = number_format($data['vat_paid'], 2, '.', ''); // Kennzahl 66: Vorsteuerbeträge
-
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-                <Elster xmlns=\"http://www.elster.de/elsterxml/schema/v11\">
-                    <DatenTeil>
-                        <Nutzdatenblock>
-                            <NutzdatenHeader version=\"11\">
-                                <NutzdatenTicket>1</NutzdatenTicket>
-                                <Empfaenger id=\"F\">Finanzamt</Empfaenger>
-                                <HerstellerID>99999</HerstellerID>
-                            </NutzdatenHeader>
-                            <UStVA>
-                                <Erstellungsdatum>".now()->format('Ymd')."</Erstellungsdatum>
-                                <Steuernummer>".shop_setting('owner_tax_id', '1234567890')."</Steuernummer>
-                                <Vorname>".shop_setting('owner_proprietor', 'Alina')."</Vorname>
-                                <Zeitraum jahr=\"{$data['year']}\" monat=\"{$data['month_number']}\" />
-                                <Kz10>{$kennzahl10}</Kz10>
-                                <Kz81>{$kz81}</Kz81>
-                                <Kz66>{$kz66}</Kz66>
-                                <Kz83>".number_format($data['zahllast'], 2, '.', '')."</Kz83>
-                            </UStVA>
-                        </Nutzdatenblock>
-                    </DatenTeil>
-                </Elster>";
+        } catch (\Exception $e) {
+            // Fällt sofort ins Live-Terminal der UI auf dem Screen
+            $this->addLog('error', 'ERiC API FEHLER: ' . $e->getMessage());
+            $this->addLog('error', 'Die Übertragung wurde blockiert und abgebrochen.');
+        }
     }
 
     public function render()

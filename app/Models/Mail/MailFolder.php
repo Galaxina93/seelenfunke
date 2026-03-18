@@ -1,11 +1,10 @@
 <?php
 
-namespace App\Models\System;
+namespace App\Models\Mail;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\System\MailAccount;
 
-class MailRule extends Model
+class MailFolder extends Model
 {
     protected $guarded = [];
 

@@ -1,15 +1,14 @@
 <?php
 
-namespace App\Livewire\Global;
+namespace App\Livewire\Global\MailAccounts;
 
-use Livewire\Component;
-use App\Models\System\MailAccount;
-use App\Models\System\MailMessage;
-use App\Models\System\MailRule;
-
+use App\Models\Mail\MailAccount;
+use App\Models\Mail\MailMessage;
+use App\Models\Mail\MailRule;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Livewire\Component;
 
 class CrmInbox extends Component
 {
@@ -19,7 +18,7 @@ class CrmInbox extends Component
 
     // View State (inbox, account_settings)
     public $viewMode = 'inbox';
-    
+
     // Account Settings Form
     public $editAccountId = null;
     public $account_name = '';
@@ -193,7 +192,7 @@ class CrmInbox extends Component
     private function resetAccountForm()
     {
         $this->reset([
-            'email', 'password', 'imap_host', 'account_name', 
+            'email', 'password', 'imap_host', 'account_name',
             'smtp_host', 'editAccountId', 'signature',
             'imap_username', 'smtp_username'
         ]);
@@ -215,7 +214,7 @@ class CrmInbox extends Component
     public function selectMessage($id)
     {
         $this->selectedMessageId = $id;
-        
+
         $msg = MailMessage::find($id);
         if ($msg && !$msg->is_read) {
             $msg->update(['is_read' => true]);
@@ -228,7 +227,7 @@ class CrmInbox extends Component
         if ($msg) {
             // 1. Move to Spam folder (or delete)
             $msg->update(['folder' => 'Junk']);
-            
+
             // 2. Add rule to automatically block this sender in the future
             if ($msg->from_email) {
                 MailRule::firstOrCreate([
@@ -239,7 +238,7 @@ class CrmInbox extends Component
                     'action' => 'mark_spam'
                 ]);
             }
-            
+
             $this->selectedMessageId = null;
             session()->flash('success_message', 'E-Mail als Spam markiert und Absender dauerhaft blockiert.');
         }
@@ -250,7 +249,7 @@ class CrmInbox extends Component
         $msg = MailMessage::find($id);
         if ($msg && $msg->folder === 'Junk') {
             $msg->update(['folder' => 'INBOX']);
-            
+
             // Remove the auto-blacklist rule if it exists
             if ($msg->from_email) {
                 MailRule::where('mail_account_id', $msg->mail_account_id)
@@ -266,13 +265,13 @@ class CrmInbox extends Component
     public function createFolder()
     {
         $this->validate(['newFolderName' => 'required|string|max:50']);
-        
+
         if ($this->selectedAccountId) {
-            \App\Models\System\MailFolder::firstOrCreate([
+            \App\Models\Mail\MailFolder::firstOrCreate([
                 'mail_account_id' => $this->selectedAccountId,
                 'name' => trim($this->newFolderName)
             ]);
-            
+
             $this->showNewFolderModal = false;
             $this->newFolderName = '';
             session()->flash('success_message', 'Ordner erfolgreich erstellt.');
@@ -284,7 +283,7 @@ class CrmInbox extends Component
         $msg = MailMessage::find($messageId);
         if ($msg && $msg->folder !== $targetFolder) {
             $msg->update(['folder' => $targetFolder]);
-            
+
             if ($this->selectedMessageId === $messageId && $this->selectedFolder !== $targetFolder) {
                 // If the user moved the currently viewed message out of the current folder, close the reading pane
                 $this->selectedMessageId = null;
@@ -327,7 +326,7 @@ class CrmInbox extends Component
     public function saveRoutingRule()
     {
         $this->validate(['routingTargetFolder' => 'required|string']);
-        
+
         $msg = MailMessage::find($this->routingMessageId);
         if ($msg && $msg->from_email) {
             MailRule::firstOrCreate([
@@ -338,13 +337,13 @@ class CrmInbox extends Component
                 'action' => 'move_to_folder',
                 'action_value' => $this->routingTargetFolder
             ]);
-            
+
             // Move the current one too
             $msg->update(['folder' => $this->routingTargetFolder]);
             if ($this->selectedMessageId === $msg->id && $this->selectedFolder !== $this->routingTargetFolder) {
                 $this->selectedMessageId = null;
             }
-            
+
             $this->showRoutingModal = false;
             session()->flash('success_message', 'Regel aktiv! Zukünftige Mails von '.$msg->from_email.' landen automatisch in '.$this->routingTargetFolder.'.');
         }
@@ -387,7 +386,7 @@ class CrmInbox extends Component
         ]);
 
         $account = MailAccount::find($this->selectedAccountId);
-        
+
         if (!$account || !$account->smtp_host) {
             session()->flash('error_message', 'SMTP Konfiguration für dieses Konto fehlt!');
             return;
@@ -416,10 +415,10 @@ class CrmInbox extends Component
             // Senden ausführen
             Mail::mailer('dynamic')->to($this->composeTo)->send(
                 new \App\Mail\CrmOutgoingMail(
-                    $this->composeSubject, 
-                    $bodyHtml, 
-                    $signatureHtml, 
-                    $account->email, 
+                    $this->composeSubject,
+                    $bodyHtml,
+                    $signatureHtml,
+                    $account->email,
                     $account->name
                 )
             );
@@ -453,7 +452,7 @@ class CrmInbox extends Component
         $accounts = MailAccount::all();
         $messages = [];
         $selectedMessage = $this->selectedMessageId ? MailMessage::find($this->selectedMessageId) : null;
-        
+
         $baseFolders = [
             'INBOX' => 'Posteingang',
             'Sent' => 'Gesendet',
@@ -469,7 +468,7 @@ class CrmInbox extends Component
         foreach ($accounts as $acc) {
             $accFolders = $baseFolders;
             // Append Custom Folders
-            $customFolders = \App\Models\System\MailFolder::where('mail_account_id', $acc->id)->pluck('name')->toArray();
+            $customFolders = \App\Models\Mail\MailFolder::where('mail_account_id', $acc->id)->pluck('name')->toArray();
             foreach ($customFolders as $cf) {
                 $accFolders[$cf] = $cf;
             }
@@ -486,7 +485,7 @@ class CrmInbox extends Component
                     $count = $qc->where('folder', $key)->where('is_archived', false)->where('is_read', false)->count();
                 }
                 $folderCounts[$key] = $count;
-                
+
                 // Usually we only sum up INBOX (or all explicit folders depending on choice) for the account-level badge
                 // Let's just sum all unread for the account badge:
                 $totalUnreadForAccount += $count;
@@ -503,7 +502,7 @@ class CrmInbox extends Component
         // Fetch actual messages for the currently selected folder
         if ($this->selectedAccountId) {
             $query = MailMessage::where('mail_account_id', $this->selectedAccountId);
-            
+
             if ($this->selectedFolder === 'Archive') {
                 $query->where('is_archived', true);
             } else {
@@ -530,7 +529,7 @@ class CrmInbox extends Component
             $messages = $query->orderBy('received_at', 'desc')->get();
         }
 
-        return view('livewire.global.crm-inbox', [
+        return view('livewire.global.mail-accounts.crm-inbox', [
             'accounts' => $accounts,
             'messages' => $messages,
             'selectedMessage' => $selectedMessage,
