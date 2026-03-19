@@ -28,6 +28,7 @@ class ProductTemplate extends Model
         'name',
         'configuration',
         'is_active',
+        'holiday',
         'preview_image',
     ];
 

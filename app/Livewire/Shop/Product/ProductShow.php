@@ -27,6 +27,17 @@ class ProductShow extends Component
 
         if ($templates->isNotEmpty()) {
             $this->productTemplates = $templates->toArray();
+
+            // Template Projection Deep-Link Check
+            $requestedTemplateId = request()->query('t');
+            if ($requestedTemplateId) {
+                $matchingTemplate = $templates->firstWhere('id', $requestedTemplateId);
+                if ($matchingTemplate) {
+                    $this->selectTemplate($matchingTemplate->id);
+                    return;
+                }
+            }
+
             $this->showTemplateSelection = true;
         }
     }

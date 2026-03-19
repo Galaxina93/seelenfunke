@@ -184,6 +184,11 @@ class Product extends Model
         return $this->belongsToMany(Category::class);
     }
 
+    public function templates()
+    {
+        return $this->hasMany(ProductTemplate::class);
+    }
+
     public function reviews()
     {
         return $this->hasMany(ProductReview::class);

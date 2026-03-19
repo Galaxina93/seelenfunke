@@ -5,12 +5,12 @@
         $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender', 'person-profiles']);
 
         // Neu aufgeteilt in Produkte und Marketing
-        $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews']);
+        $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews', 'nischen-scout']);
         $isMarketingActive = in_array($currentPage, ['newsletter', 'voucher', 'blog']);
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'knowledge_base', 'ai-genui', 'ai-logs']);
+        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'knowledge_base', 'ai-genui', 'ai-logs', 'ai-chat']);
     @endphp
 
     {{--CEO Zentrale--}}
@@ -50,6 +50,7 @@
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
                     <x-forms.list-item route="/admin/product-templates" title="Vorlagen" pageName="product-templates" icon="clipboard-document-list" />
+                    <x-forms.list-item route="/admin/products/nischen-scout" title="Nischen-Scout" pageName="nischen-scout" icon="magnifying-glass" />
                     <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="star" />
                 </ul>
             </li>
@@ -117,10 +118,11 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
-                    <x-forms.list-item route="/admin/agenten" title="Agenten" pageName="agenten" icon="cpu-chip" />
                     <x-forms.list-item route="/admin/ai-logs" title="Log" pageName="ai-logs" icon="document-text" />
+                    <x-forms.list-item route="/admin/ai-chat" title="Chat" pageName="ai-chat" icon="chat-bubble-left-ellipsis" />
                     <x-forms.list-item route="/admin/knowledge_base" title="Wiki" pageName="knowledge_base" icon="book-open" />
-                    <x-forms.list-item route="/admin/funkira-genui" title="UI Visualisierung" pageName="funkira-genui" icon="window" />
+                    <x-forms.list-item route="/admin/agenten" title="Agenten" pageName="agenten" icon="cpu-chip" />
+                    <x-forms.list-item route="/admin/ai-genui" title="Gen-Ui" pageName="ai-genui" icon="window" />
                 </ul>
             </li>
 

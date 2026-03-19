@@ -16,15 +16,22 @@ class ProductIndex extends Component
     public $search = '';
     public $filterType = 'all'; // all, physical, digital, service
     public $filterCategory = '';
+    public $filterHoliday = '';
 
     // Wir speichern den Query-String in der URL für besseres Teilen von Links
     protected $queryString = [
         'search' => ['except' => ''],
         'filterType' => ['except' => 'all'],
         'filterCategory' => ['except' => ''],
+        'filterHoliday' => ['except' => ''],
     ];
 
     public function updatedSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterHoliday()
     {
         $this->resetPage();
     }
@@ -41,7 +48,7 @@ class ProductIndex extends Component
 
     public function resetFilters()
     {
-        $this->reset(['search', 'filterType', 'filterCategory']);
+        $this->reset(['search', 'filterType', 'filterCategory', 'filterHoliday']);
         $this->resetPage();
     }
 
@@ -79,6 +86,17 @@ class ProductIndex extends Component
             $query->whereHas('categories', function($q) {
                 $q->where('categories.id', $this->filterCategory);
             });
+        }
+
+        // 4. Filter nach Anlass / Feiertag (Template Projection Feature)
+        if (!empty($this->filterHoliday)) {
+            $query->whereHas('templates', function($q) {
+                $q->where('holiday', $this->filterHoliday)->where('is_active', true);
+            });
+            // Eager Load Templates for the thumbnail swap in blade view
+            $query->with(['templates' => function($q) {
+                $q->where('holiday', $this->filterHoliday)->where('is_active', true);
+            }]);
         }
 
         $products = $query->latest()->paginate(12);

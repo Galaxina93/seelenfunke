@@ -21,6 +21,7 @@ class ProductTemplates extends Component
     public $selectedProductId = null;
     public $templateName = '';
     public $templateIsActive = true;
+    public $templateHoliday = '';
     public $templateConfig = [];
     public $editingTemplateId = null;
     public $templateImage;
@@ -51,6 +52,7 @@ class ProductTemplates extends Component
         $this->selectedProductId = $template->product_id;
         $this->templateName = $template->name;
         $this->templateIsActive = $template->is_active;
+        $this->templateHoliday = $template->holiday ?? '';
         $this->templateConfig = $template->configuration ?? [];
         $this->templateImage = null;
 
@@ -97,6 +99,7 @@ class ProductTemplates extends Component
         $template->name = $this->templateName;
         $template->configuration = $configData;
         $template->is_active = $this->templateIsActive;
+        $template->holiday = $this->templateHoliday ?: null;
 
         // Bild-Verarbeitung
         if ($this->templateImage) {
@@ -119,6 +122,7 @@ class ProductTemplates extends Component
         $this->selectedProductId = null;
         $this->templateName = '';
         $this->templateIsActive = true;
+        $this->templateHoliday = '';
         $this->templateConfig = [];
         $this->editingTemplateId = null;
         $this->templateImage = null;

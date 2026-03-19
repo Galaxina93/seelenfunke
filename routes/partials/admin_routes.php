@@ -14,6 +14,14 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/funki', function () {
         return view('backend.admin.pages.funki');
     })->name('admin.funki');
+
+    Route::get('/admin/ai-genui', function () {
+        return view('backend.admin.pages.ai-genui');
+    })->name('admin.ai-genui');
+    
+    Route::get('/admin/ai-chat', function () {
+        return view('backend.admin.pages.ai-chat');
+    })->name('admin.ai-chat');
     Route::get('/admin/routine', function () {
         return view('backend.admin.pages.routine');
     })->name('admin.routine');
@@ -51,6 +59,50 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/products', function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');
+
+    Route::get('/admin/products/nischen-scout', function () {
+        return view('backend.admin.pages.product-niche-scanner');
+    })->name('admin.products.niche');
+
+    Route::get('/admin/products/nischen-scout/pdf', function () {
+        $runId = request('run_id');
+        $top40 = collect();
+        $aiRecommendation = null;
+        $aiAgentName = 'KI-Agent';
+        $docTitle = 'Marktanalyse: Top 40 Nischen-Produkte';
+        $filenamePrefix = 'Top40-Nischen-Produkte';
+
+        if ($runId) {
+            $run = \App\Models\Product\NicheCrawlerRun::findOrFail($runId);
+            $allData = is_array($run->products_data) ? collect($run->products_data) : collect(json_decode($run->products_data, true));
+            $top40 = $allData->sortByDesc('niche_score')->take(40)->values();
+            $top40 = $top40->map(function($item) { return (object)$item; });
+            $aiRecommendation = $run->ai_recommendation;
+
+            if ($run->ai_agent_id) {
+                $agent = \App\Models\Ai\AiAgent::find($run->ai_agent_id);
+                if ($agent) $aiAgentName = $agent->name;
+            }
+
+            $docTitle = 'Crawler Anfrage: ' . $run->name;
+            $filenamePrefix = \Illuminate\Support\Str::slug($run->name) . '_Crawler_Ergebnis';
+        } else {
+            $top40 = \App\Models\Product\NicheProduct::orderBy('niche_score', 'desc')->take(40)->get();
+        }
+
+        if ($top40->isEmpty()) abort(404, 'Keine Produkte gefunden.');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.top5-niche-products', [
+            'products' => $top40,
+            'aiRecommendation' => $aiRecommendation,
+            'aiAgentName' => $aiAgentName,
+            'docTitle' => $docTitle,
+            'date' => now()->format('d.m.Y H:i')
+        ]);
+
+        $finalFilename = now()->format('Y-m-d_H-i') . '_' . $filenamePrefix . '.pdf';
+        return $pdf->download($finalFilename);
+    })->name('shop.pdf.top5-niche');
 
     Route::get('/admin/product-templates', function () {
         return view('backend.admin.pages.product-templates');
@@ -146,7 +198,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Mail\MailAttachment::findOrFail($id);
-        
+
         // Security check handled securely by 'auth:admin' middleware
         $path = $attachment->path;
         if (!\Illuminate\Support\Facades\Storage::exists($path)) {

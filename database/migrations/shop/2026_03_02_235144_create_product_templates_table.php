@@ -29,6 +29,9 @@ return new class extends Migration
             // Status, ob die Vorlage für Kunden sichtbar ist
             $table->boolean('is_active')->default(true);
 
+            //Feiertage
+            $table->string('holiday')->nullable();
+
             $table->timestamps();
         });
     }

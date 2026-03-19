@@ -41,6 +41,27 @@
                     </div>
 
                     <div class="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-1">
+                        {{-- Anlass Dropdown --}}
+                        <div class="relative w-full sm:w-1/3">
+                            <select wire:model.live="filterHoliday" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all cursor-pointer appearance-none">
+                                <option value="">Alle Anlässe</option>
+                                <option value="muttertag">Muttertag</option>
+                                <option value="valentinstag">Valentinstag</option>
+                                <option value="weihnachten">Weihnachten</option>
+                                <option value="vatertag">Vatertag</option>
+                                <option value="ostern">Ostern</option>
+                                <option value="geburtstag">Geburtstag</option>
+                                <option value="hochzeit">Hochzeit</option>
+                                <option value="taufe">Taufe</option>
+                                <option value="einschulung">Einschulung</option>
+                                <option value="jubilaeum">Jubiläum</option>
+                                <option value="trauer">Trauer</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
+
                         {{-- Kategorie Dropdown --}}
                         <div class="relative w-full sm:w-1/3">
                             <select wire:model.live="filterCategory" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all cursor-pointer appearance-none">
@@ -71,7 +92,7 @@
                 </div>
 
                 {{-- Aktive Filter anzeigen (Nur wenn etwas ausgewählt ist) --}}
-                @if($search !== '' || $filterType !== 'all' || $filterCategory !== '')
+                @if($search !== '' || $filterType !== 'all' || $filterCategory !== '' || $filterHoliday !== '')
                     <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3 animate-fade-in">
                         <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Aktive Filter:</span>
 
@@ -86,6 +107,13 @@
                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary-dark text-xs font-bold uppercase tracking-wider">
                                 Typ: {{ match($filterType) { 'physical' => 'Physisch', 'digital' => 'Digital', 'service' => 'Service', default => $filterType } }}
                                 <button wire:click="$set('filterType', 'all')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            </span>
+                        @endif
+
+                        @if($filterHoliday !== '')
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 text-pink-600 text-xs font-bold uppercase tracking-wider border border-pink-100">
+                                Anlass: {{ ucfirst($filterHoliday) }}
+                                <button wire:click="$set('filterHoliday', '')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
@@ -119,6 +147,13 @@
                                 $isSoldOut = ($product->track_quantity && $product->quantity <= 0 && !$product->continue_selling_when_out_of_stock);
                                 $isBackorder = ($product->track_quantity && $product->quantity <= 0 && $product->continue_selling_when_out_of_stock);
                                 $lowStock = ($product->track_quantity && $product->quantity > 0 && $product->quantity <= 5);
+
+                                // Template Projection Swap Logik
+                                $projectedTemplate = null;
+                                if (!empty($filterHoliday) && $product->relationLoaded('templates') && $product->templates->isNotEmpty()) {
+                                    $projectedTemplate = $product->templates->first();
+                                }
+                                $productUrl = $projectedTemplate ? route('product.show', ['product' => $product->slug, 't' => $projectedTemplate->id]) : route('product.show', $product->slug);
                             @endphp
 
                             <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 hover:border-primary/30 {{ $isSoldOut ? 'opacity-80' : '' }}">
@@ -144,10 +179,14 @@
                                         </div>
                                     @endif
 
-                                    <a href="{{ route('product.show', $product->slug) }}" class="block w-full h-full">
+                                    <a href="{{ $productUrl }}" class="block w-full h-full">
 
                                         <div class="w-full h-full {{ $isSoldOut ? 'grayscale opacity-50' : '' }}">
-                                            @if(is_array($product->media_gallery) && count($product->media_gallery) > 0)
+                                            @if($projectedTemplate && $projectedTemplate->preview_image)
+                                                <img src="{{ asset('storage/'.$projectedTemplate->preview_image) }}"
+                                                     alt="{{ $projectedTemplate->name }}"
+                                                     class="w-full h-full object-cover transition-transform duration-1000 ease-out {{ !$isSoldOut ? 'group-hover:scale-110' : '' }}">
+                                            @elseif(is_array($product->media_gallery) && count($product->media_gallery) > 0)
                                                 @if(isset($product->media_gallery[0]['type']) && $product->media_gallery[0]['type'] === 'video')
                                                     <video src="{{ asset('storage/'.$product->media_gallery[0]['path']) }}" class="w-full h-full object-cover" muted autoplay loop playsinline></video>
                                                 @else
@@ -211,7 +250,7 @@
                                     @endif
 
                                     <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-primary transition-colors' }} mb-1 leading-tight line-clamp-2">
-                                        <a href="{{ route('product.show', $product->slug) }}">
+                                        <a href="{{ $productUrl }}">
                                             {{ $product->name }}
                                         </a>
                                     </h3>
@@ -252,7 +291,7 @@
                                         </div>
 
                                         {{-- Circle Action Button --}}
-                                        <a href="{{ route('product.show', $product->slug) }}" class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 transform group-hover:scale-110 {{ $isSoldOut ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-primary shadow-lg' }}">
+                                        <a href="{{ $productUrl }}" class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 transform group-hover:scale-110 {{ $isSoldOut ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-primary shadow-lg' }}">
                                             @if($isSoldOut)
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                                             @else

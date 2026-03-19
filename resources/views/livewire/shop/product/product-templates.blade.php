@@ -85,6 +85,24 @@
                     @error('templateName') <span class="text-red-400 text-[10px] font-bold mt-2 block ml-1 uppercase tracking-widest">{{$message}}</span> @enderror
                 </div>
 
+                <div class="w-full xl:w-56 shrink-0">
+                    <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Anlass (Feiertag)</label>
+                    <select wire:model="templateHoliday" class="w-full bg-gray-950 border border-gray-800 rounded-2xl px-5 py-4 text-sm font-bold text-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none shadow-inner transition-all appearance-none cursor-pointer">
+                        <option value="">Kein spezifischer Anlass</option>
+                        <option value="muttertag">Muttertag</option>
+                        <option value="valentinstag">Valentinstag</option>
+                        <option value="weihnachten">Weihnachten</option>
+                        <option value="vatertag">Vatertag</option>
+                        <option value="ostern">Ostern</option>
+                        <option value="geburtstag">Geburtstag</option>
+                        <option value="hochzeit">Hochzeit</option>
+                        <option value="taufe">Taufe</option>
+                        <option value="einschulung">Einschulung</option>
+                        <option value="jubilaeum">Jubiläum</option>
+                        <option value="trauer">Trauer</option>
+                    </select>
+                </div>
+
                 <div class="w-full xl:w-96 shrink-0">
                     <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Eigenes Vorschaubild (Optional)</label>
                     <input type="file" wire:model="templateImage" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-2xl px-4 py-3 text-xs text-gray-400 file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-white hover:file:bg-gray-700 cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">

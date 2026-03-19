@@ -207,7 +207,6 @@
     </div>
 
     @if($guard !== 'customer')
-        <livewire:global.ai.ai-chat />
         <livewire:global.ai.ai-widget />
         <livewire:global.ai.ai-data-visualization />
     @endif

@@ -30,6 +30,8 @@
         "ramsey/uuid": "^4.7",
         "spatie/laravel-backup": "^9.3",
         "stripe/stripe-php": "^19.2",
+        "symfony/css-selector": "^8.0",
+        "symfony/dom-crawler": "^8.0",
         "webklex/laravel-imap": "^6.2"
     },
     "require-dev": {
