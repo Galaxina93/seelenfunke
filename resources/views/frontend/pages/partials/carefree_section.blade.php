@@ -72,7 +72,7 @@
                 <img src="{{ asset('images/projekt/logo/logo-up.webp') }}"
                      alt="Mein Seelenfunke - Ihre Full-Service Manufaktur für personalisierte Geschenke"
                      loading="lazy"
-                     class="relative w-full max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">
+                     class="relative w-[400px] max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">
             </div>
         </div>
     </div>

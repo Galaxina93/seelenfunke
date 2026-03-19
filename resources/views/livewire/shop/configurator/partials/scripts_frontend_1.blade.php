@@ -40,6 +40,7 @@
             fileRobotInstance: null,
             _isRendering: false,
             _needsAnotherRender: false,
+            isCapturing: false, // UI-Status während Snapshot
 
             hasSavedDesign: false,
             showMessage: false,
@@ -243,8 +244,16 @@
                 this.selectedType = null;
                 this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
                 
-                // Kurze Pause, damit die UI (Hervorhebungsboxen etc.) verschwindet
-                await new Promise(r => setTimeout(r, 100));
+                // Wir speichern den Original-Zustand des DrawingBoards
+                let wasDrawingBoardVisible = this.showDrawingBoard;
+                let is2DModeOnly = !this.config.modelPath;
+
+                // UI Elemente (Guides, Box-Shadow Masken) vor dem Screenshot verstecken
+                this.isCapturing = true;
+
+                // Kurz warten, bis Alpine die UI-Overlays (Grüne Ränder) versteckt hat
+                await new Promise(r => requestAnimationFrame(r));
+                await new Promise(r => setTimeout(r, 150));
 
                 let snapshotBase64 = null;
                 let snapshotBackBase64 = null;
@@ -305,18 +314,18 @@
                                     
                                     this.activeSide = 'front';
                                     await new Promise(r => setTimeout(r, 200)); // wait for DOM
-                                    let canvasF = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: null, scale: 2 });
+                                    let canvasF = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 2 });
                                     snapshotBase64 = canvasF.toDataURL('image/jpeg', 0.85);
 
                                     this.activeSide = 'back';
                                     await new Promise(r => setTimeout(r, 200)); // wait for DOM
-                                    let canvasB = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: null, scale: 2 });
+                                    let canvasB = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 2 });
                                     snapshotBackBase64 = canvasB.toDataURL('image/jpeg', 0.85);
 
                                     this.activeSide = origSide;
                                     await new Promise(r => setTimeout(r, 100)); // restore
                                 } else {
-                                    let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: null, scale: 2 });
+                                    let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 2 });
                                     snapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
                                 }
                             }
@@ -324,6 +333,8 @@
                     }
                 } catch(e) {
                     console.error("Konnte keinen Snapshot erstellen:", e);
+                } finally {
+                    this.isCapturing = false;
                 }
 
                 // 2. An Livewire übergeben

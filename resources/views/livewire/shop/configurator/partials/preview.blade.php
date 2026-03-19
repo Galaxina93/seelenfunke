@@ -24,7 +24,7 @@
                 <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-20 mix-blend-screen filter invert brightness-0 group-hover:opacity-40' : 'opacity-40 mix-blend-multiply group-hover:opacity-60' }}">
             </template>
 
-            <div class="absolute border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
+            <div x-show="!isCapturing" class="absolute border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
                  :style="`
                     top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
                     left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
@@ -41,8 +41,8 @@
             </div>
 
             {{-- Hilfslinien fürs Snapping --}}
-            <div x-show="showGuideX" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" style="left: 50%; z-index: 10;"></div>
-            <div x-show="showGuideY" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" style="top: 50%; z-index: 10;"></div>
+            <div x-show="showGuideX && !isCapturing" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" style="left: 50%; z-index: 10;"></div>
+            <div x-show="showGuideY && !isCapturing" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" style="top: 50%; z-index: 10;"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
             <div class="absolute overflow-hidden pointer-events-none transition-all duration-300"
@@ -59,7 +59,7 @@
                         };
                      `">
 
-                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview'" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
+                <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !isCapturing" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
                     <button @click="addFallbackText()" class="px-6 py-3 backdrop-blur-sm border rounded-2xl shadow-lg text-[10px] font-black uppercase tracking-widest transition-all {{ $isDark ? 'bg-gray-900/90 text-gray-300 border-gray-700 hover:bg-primary hover:text-gray-900 hover:border-primary' : 'bg-white/90 text-gray-800 border-gray-200 hover:bg-primary hover:text-white hover:border-primary' }}">
                         + Text hinzufügen
                     </button>

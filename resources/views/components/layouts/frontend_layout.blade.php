@@ -36,14 +36,16 @@
     <link rel="icon" href="{{ asset('images/projekt/logo/favicon.ico') }}" type="image/x-icon"/>
 
     {{-- Styles --}}
+    <link rel="preload" href="{{ mix('css/app.css') }}" as="style">
     <link rel="stylesheet" href="{{ mix('css/app.css') }}">
 
     <!-- cookieconsent -->
     <link rel="stylesheet" href="{{ asset('lib/dp_cookieconsent/css/cookieconsent.css') }}" media="print" onload="this.media='all'">
+    <link rel="modulepreload" href="{{ asset('lib/dp_cookieconsent/js/cookieconsent.umd.js') }}">
     <script type="module" src="{{ asset('lib/dp_cookieconsent/js/cookieconsent-config.js') }}"></script>
 
     {{-- Swiper --}}
-    <link href="{{ asset('components/swiper/swiper-bundle.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('components/swiper/swiper-bundle.min.css') }}" rel="stylesheet" media="print" onload="this.media='all'">
     <script src="{{ asset('components/swiper/swiper-bundle.min.js') }}" defer></script>
 
     {{-- Scripts --}}
