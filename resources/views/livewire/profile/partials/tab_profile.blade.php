@@ -39,7 +39,12 @@
                 <div class="relative w-12 h-12 rounded-full bg-gray-950 border border-gray-700 overflow-hidden shadow-inner flex items-center justify-center shrink-0 cursor-pointer hover:border-primary transition-colors" @click="$refs.photo.click()">
                     <div x-show="!photoPreview" class="w-full h-full">
                         @if($user && $user->profile && $user->profile->photo_path)
-                            <img src="{{Storage::url($user->profile->photo_path)}}" class="w-full h-full object-cover">
+                            @php
+                                $pp = $user->profile->photo_path;
+                                $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/')) 
+                                       ? asset($pp) : Storage::url($pp);
+                            @endphp
+                            <img src="{{ $src }}" class="w-full h-full object-cover">
                         @else
                             <span class="text-gray-500 font-bold text-sm flex items-center justify-center h-full">{{substr($firstName ?? 'U', 0, 1)}}</span>
                         @endif

@@ -8,9 +8,13 @@
 
         <label for="photo">
             @if($user->profile->photo_path != null)
-                {{-- WICHTIG: str_replace entfernt 'public/', damit der Link stimmt --}}
+                @php
+                    $pp = str_replace('public/', '', $user->profile->photo_path);
+                    $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/')) 
+                           ? asset($pp) : Storage::url($pp);
+                @endphp
                 <img class="h-24 w-24 object-cover rounded-full cursor-pointer border border-gray-200"
-                     src="{{ Storage::url(str_replace('public/', '', $user->profile->photo_path)) }}"
+                     src="{{ $src }}"
                      alt="{{ $user->first_name }}"
                      title="Klicken Sie hier, um das Foto zu ändern">
             @else

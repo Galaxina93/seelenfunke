@@ -108,7 +108,12 @@
                     <div class="flex items-center gap-3 mb-1.5 {{ $msg['role'] === 'user' ? 'flex-row-reverse' : '' }}">
                         <div class="w-12 h-12 rounded shrink-0 flex justify-center items-center bg-{{ $msg['color'] ?: 'emerald-500' }}/10 border border-{{ $msg['color'] ?: 'emerald-500' }}/40 shadow-[0_0_10px_currentColor] text-{{ $msg['color'] ?: 'emerald-500' }} overflow-hidden">
                             @if(isset($msg['profile_picture']) && $msg['profile_picture'])
-                                <img src="{{ Storage::url($msg['profile_picture']) }}" class="w-full h-full object-cover" alt="Profile">
+                                @php
+                                    $pp = $msg['profile_picture'];
+                                    $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/')) 
+                                           ? asset($pp) : Storage::url($pp);
+                                @endphp
+                                <img src="{{ $src }}" class="w-full h-full object-cover" alt="Profile">
                             @else
                                 <x-dynamic-component :component="'heroicon-o-' . ($msg['icon'] ?: 'cpu-chip')" class="w-7 h-7" />
                             @endif
@@ -134,7 +139,12 @@
                     <div class="flex items-center gap-3 mb-1.5 ">
                         <div class="w-12 h-12 rounded shrink-0 flex justify-center items-center bg-{{ $tAgent->color }}/10 border border-{{ $tAgent->color }}/40 shadow-[0_0_10px_currentColor] text-{{ $tAgent->color }} overflow-hidden">
                             @if($tAgent->profile_picture)
-                                <img src="{{ Storage::url($tAgent->profile_picture) }}" class="w-full h-full object-cover grayscale opacity-80">
+                                @php
+                                    $pp2 = $tAgent->profile_picture;
+                                    $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, '/')) 
+                                           ? asset($pp2) : Storage::url($pp2);
+                                @endphp
+                                <img src="{{ $src2 }}" class="w-full h-full object-cover grayscale opacity-80">
                             @else
                                 <x-dynamic-component :component="'heroicon-o-' . ($tAgent->icon ?: 'cpu-chip')" class="w-7 h-7" />
                             @endif

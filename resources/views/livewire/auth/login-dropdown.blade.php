@@ -9,9 +9,17 @@
             <div class="h-8 w-8 rounded-full overflow-hidden border-2 border-primary/50 bg-gray-100 flex items-center justify-center">
                 {{-- Hinweis: Prüfen ob profile relationship existiert, analog zu deinem ProfileDropdown --}}
                 @if(!empty($user->profile_photo_path))
-                    <img src="{{ Storage::url($user->profile_photo_path) }}" class="h-full w-full object-cover" alt="{{ $user->firstname }}">
+                    @php 
+                        $pp = $user->profile_photo_path; 
+                        $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/')) ? asset($pp) : Storage::url($pp); 
+                    @endphp
+                    <img src="{{ $src }}" class="h-full w-full object-cover" alt="{{ $user->firstname }}">
                 @elseif(isset($user->profile) && !empty($user->profile->photo_path))
-                    <img src="{{ Storage::url($user->profile->photo_path) }}" class="h-full w-full object-cover" alt="">
+                    @php 
+                        $pp2 = $user->profile->photo_path; 
+                        $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, '/')) ? asset($pp2) : Storage::url($pp2); 
+                    @endphp
+                    <img src="{{ $src2 }}" class="h-full w-full object-cover" alt="">
                 @else
                     <span class="text-xs font-bold text-gray-700 leading-none">
                         {{ substr($user->firstname ?? $user->name ?? 'K', 0, 1) }}
