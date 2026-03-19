@@ -40,7 +40,7 @@
                     <div class="bg-white rounded-2xl p-8 shadow-xl border-t-4 border-primary">
                         <div class="flex items-start gap-4 mb-6">
                             {{-- Hier dein Profilbild einfügen --}}
-                            <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}"
+                            <img src="{{ asset('images/projekt/about/gruender-profil.webp') }}"
                                  alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
                                  loading="lazy"
                                  class="w-16 h-16 rounded-full object-cover border-2 border-primary" />
@@ -133,7 +133,7 @@
                             Geschäftsführung
                         </div>
 
-                        <img src="{{ asset('images/projekt/about/gruender-profil.jpg') }}"
+                        <img src="{{ asset('images/projekt/about/gruender-profil.webp') }}"
                              alt="Alina Steinhauer - Gründerin von Mein Seelenfunke"
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-primary object-cover shadow-md flex-shrink-0" />
@@ -177,7 +177,7 @@
                             System & Support
                         </div>
 
-                        <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}"
+                        <img src="{{ asset('images/projekt/funki/funki_selfie.webp') }}"
                              alt="Funki, das digitale Maskottchen von Mein Seelenfunke"
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-indigo-500 object-cover shadow-md flex-shrink-0" />
@@ -268,7 +268,7 @@
             @for ($i = 0; $i < 10; $i++)
                 <div class="flex items-center group">
                     {{-- Logo: Harmonische Größe (h-12 auf Mobile, h-20 auf Desktop) --}}
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
+                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
                          alt="Mein Seelenfunke Logo"
                          loading="lazy"
                          class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
@@ -280,7 +280,7 @@
         <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0 ml-20 md:ml-32">
             @for ($i = 0; $i < 10; $i++)
                 <div class="flex items-center group">
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
+                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
                          alt="Mein Seelenfunke Logo"
                          loading="lazy"
                          class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">

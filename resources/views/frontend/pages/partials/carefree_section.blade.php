@@ -69,7 +69,7 @@
                 {{-- Dekorativer Hintergrundkreis --}}
                 <div class="absolute inset-0 bg-primary/5 rounded-full transform scale-90 blur-3xl"></div>
 
-                <img src="{{ asset('images/projekt/logo/logo-up.png') }}"
+                <img src="{{ asset('images/projekt/logo/logo-up.webp') }}"
                      alt="Mein Seelenfunke - Ihre Full-Service Manufaktur für personalisierte Geschenke"
                      loading="lazy"
                      class="relative w-full max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">

@@ -22,7 +22,7 @@
                                 <!-- Item -->
                                 <div class="flex items-center gap-4 text-left w-full sm:w-80 mx-auto">
                                     <div class="w-24 h-24 flex-shrink-0 bg-white rounded-full shadow-sm flex items-center justify-center border border-primary/20">
-                                        <img src="{{ asset('images/projekt/other/unikat.png') }}"
+                                        <img src="{{ asset('images/projekt/other/unikat.webp') }}"
                                              alt="Unikat auswählen"
                                              class="w-16 h-16 object-contain">
                                     </div>
@@ -37,7 +37,7 @@
                                 <!-- Item -->
                                 <div class="flex items-center gap-4 text-left w-full sm:w-80 mx-auto">
                                     <div class="w-24 h-24 flex-shrink-0 bg-white rounded-full shadow-sm flex items-center justify-center border border-primary/20">
-                                        <img src="{{ asset('images/projekt/other/menge.png') }}"
+                                        <img src="{{ asset('images/projekt/other/menge.webp') }}"
                                              alt="Menge bestimmen"
                                              class="w-16 h-16 object-contain">
                                     </div>
@@ -52,7 +52,7 @@
                                 <!-- Item -->
                                 <div class="flex items-center gap-4 text-left w-full sm:w-80 mx-auto">
                                     <div class="w-24 h-24 flex-shrink-0 bg-white rounded-full shadow-sm flex items-center justify-center border border-primary/20">
-                                        <img src="{{ asset('images/projekt/other/angebot.png') }}"
+                                        <img src="{{ asset('images/projekt/other/angebot.webp') }}"
                                              alt="Angebot erhalten"
                                              class="w-16 h-16 object-contain">
                                     </div>

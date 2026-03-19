@@ -6,7 +6,7 @@
     {{-- FUNKI STATT GRÜNEM HAKEN --}}
     <div class="mb-6 flex justify-center">
         {{-- h-40 macht ihn schön groß und präsent --}}
-        <img src="{{ asset('images/projekt/funki/checkout/funki_kiss.png') }}"
+        <img src="{{ asset('images/projekt/funki/checkout/funki_kiss.webp') }}"
              alt="Vielen Dank"
              class="h-40 w-auto object-contain filter drop-shadow-sm animate-bounce-slow">
     </div>

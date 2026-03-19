@@ -24,31 +24,31 @@
                     $steps = [
                         [
                             'video' => 'beratung',
-                            'image' => '/images/projekt/process/beratung.png',
+                            'image' => '/images/projekt/process/beratung.webp',
                             'title' => 'Auftrag & Design',
                             'text' => 'Alles beginnt mit Ihrer Idee. Wir prüfen Ihre Daten oder erstellen gemeinsam ein Layout, das perfekt auf das Glas abgestimmt ist.'
                         ],
                         [
                             'video' => 'lasergravur',
-                            'image' => '/images/projekt/process/lasergravur.png',
+                            'image' => '/images/projekt/process/lasergravur.webp',
                             'title' => 'High-End Laser',
                             'text' => 'Mit modernster Lasertechnologie wird Ihr Motiv dauerhaft und gestochen scharf in das Material eingearbeitet. Präzision im Mikrometerbereich.'
                         ],
                         [
                             'video' => '4_augen',
-                            'image' => '/images/projekt/process/handveredelung.png',
+                            'image' => '/images/projekt/process/handveredelung.webp',
                             'title' => 'Veredelung & Check',
                             'text' => 'Jedes Stück wird von Hand gereinigt, poliert und durchläuft unsere strenge 4-Augen-Qualitätsprüfung. Nur Makelloses verlässt das Haus.'
                         ],
                         [
                             'video' => 'edle_verpackung',
-                            'image' => '/images/projekt/process/edle_verpackung.png',
+                            'image' => '/images/projekt/process/edle_verpackung.webp',
                             'title' => 'Edle Verpackung',
                             'text' => 'Der erste Eindruck zählt. Ihr Unikat wird direkt in unserer hochwertigen Geschenkbox verpackt und ist somit bereit zur feierlichen Übergabe.'
                         ],
                         [
                             'video' => 'sicherer_versand',
-                            'image' => '/images/projekt/process/sicherer_versand.png',
+                            'image' => '/images/projekt/process/sicherer_versand.webp',
                             'title' => 'Sorgfältiger Versand',
                             'text' => 'Wir verpacken bruchsicher in speziellen Kartonagen. Ihr Paket wird sicher und gut gepolstert an unseren Logistikpartner übergeben.'
                         ]

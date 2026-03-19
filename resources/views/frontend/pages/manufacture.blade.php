@@ -18,7 +18,7 @@
 
                             {{-- Das Bild mit Rahmen-Animation --}}
                             <div class="relative overflow-hidden rounded-2xl shadow-2xl aspect-[4/5] border-4 border-white transform transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-primary/20">
-                                <img src="{{ asset('images/projekt/about/gruender-profil-b.jpg') }}"
+                                <img src="{{ asset('images/projekt/about/gruender-profil-b.webp') }}"
                                      alt="Alina Steinhauer – Gründerin von Mein-Seelenfunke"
                                      class="object-cover w-full h-full transform transition-scale duration-1000 group-hover:scale-110">
 
@@ -198,7 +198,7 @@
                 <article class="flex flex-col md:flex-row items-center gap-12">
                     <div class="w-full md:w-1/2 relative group">
                         <div class="absolute -inset-4 bg-primary/20 rounded-xl transform rotate-2 transition-transform group-hover:rotate-1" aria-hidden="true"></div>
-                        <img src="{{ asset('images/projekt/other/k9_glas.png') }}"
+                        <img src="{{ asset('images/projekt/other/k9_glas.webp') }}"
                              alt="Hochreiner K9 Kristallglas Rohling vor der Gravur"
                              loading="lazy"
                              class="relative rounded-lg shadow-xl w-full object-cover h-80">
@@ -230,7 +230,7 @@
                 <article class="flex flex-col md:flex-row-reverse items-center gap-12">
                     <div class="w-full md:w-1/2 relative group">
                         <div class="absolute -inset-4 bg-gray-200 rounded-xl transform -rotate-2 transition-transform group-hover:-rotate-1" aria-hidden="true"></div>
-                        <img src="{{ asset('images/projekt/process/lasergravur.png') }}"
+                        <img src="{{ asset('images/projekt/process/lasergravur.webp') }}"
                              onerror="this.src='https://placehold.co/600x400/333/FFF?text=Laser+Technologie'"
                              alt="Präzise 3D-Lasergravur im Inneren des Glases"
                              loading="lazy"
@@ -255,7 +255,7 @@
                 <article class="flex flex-col md:flex-row items-center gap-12">
                     <div class="w-full md:w-1/2 relative group">
                         <div class="absolute -inset-4 bg-primary/20 rounded-xl transform rotate-2 transition-transform group-hover:rotate-1" aria-hidden="true"></div>
-                        <img src="{{ asset('images/projekt/other/white_hands.png') }}"
+                        <img src="{{ asset('images/projekt/other/white_hands.webp') }}"
                              alt="Manuelle Endkontrolle und Reinigung des Kristalls mit Handschuhen"
                              loading="lazy"
                              class="relative rounded-lg shadow-xl w-full object-cover h-80">

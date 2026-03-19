@@ -45,7 +45,7 @@
     <div class="relative z-10 pointer-events-none select-none text-center max-w-xl mx-auto bg-white/60 backdrop-blur-xl p-8 md:p-12 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.08)] border border-white my-12 flex flex-col items-center">
 
         <div class="mb-6 flex justify-center">
-            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}" alt="Mein Seelenfunke" class="h-20 w-auto drop-shadow-xl">
+            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}" alt="Mein Seelenfunke" class="h-20 w-auto drop-shadow-xl">
         </div>
 
         <h1 class="text-3xl md:text-4xl font-serif font-bold text-gray-900 mb-2 tracking-tight">

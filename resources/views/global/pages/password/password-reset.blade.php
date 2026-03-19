@@ -12,7 +12,7 @@
             <div class="flex flex-col items-center">
                 <a href="/" class="transition-transform hover:scale-105 duration-500 ease-in-out">
                     <img class="h-24 md:h-28 w-auto drop-shadow-sm"
-                         src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}"
+                         src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}"
                          alt="Mein-Seelenfunken">
                 </a>
             </div>

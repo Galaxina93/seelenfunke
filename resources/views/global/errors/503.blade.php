@@ -69,7 +69,7 @@
     {{-- Logo --}}
     <div class="mb-10 flex justify-center">
         {{-- FIX: asset() statt public_path() für Browser-Anzeige --}}
-        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.png') }}"
+        <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
              alt="Mein Seelenfunke Logo"
              class="h-32 w-auto drop-shadow-md object-contain mx-auto">
     </div>

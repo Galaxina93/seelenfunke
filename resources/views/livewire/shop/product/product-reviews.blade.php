@@ -61,11 +61,11 @@
                                  hoverRating: 0,
                                  selectedRating: @entangle('rating'),
                                  funkiImages: {
-                                     1: '{{ asset('images/projekt/funki/reviews/1_funki_1_star.png') }}',
-                                     2: '{{ asset('images/projekt/funki/reviews/2_funki_2_stars.png') }}',
-                                     3: '{{ asset('images/projekt/funki/reviews/3_funki_3_stars.png') }}',
-                                     4: '{{ asset('images/projekt/funki/reviews/4_funki_4_stars.png') }}',
-                                     5: '{{ asset('images/projekt/funki/reviews/5_funki_5_stars.png') }}'
+                                     1: '{{ asset('images/projekt/funki/reviews/1_funki_1_star.webp') }}',
+                                     2: '{{ asset('images/projekt/funki/reviews/2_funki_2_stars.webp') }}',
+                                     3: '{{ asset('images/projekt/funki/reviews/3_funki_3_stars.webp') }}',
+                                     4: '{{ asset('images/projekt/funki/reviews/4_funki_4_stars.webp') }}',
+                                     5: '{{ asset('images/projekt/funki/reviews/5_funki_5_stars.webp') }}'
                                  },
                                  currentFunki() {
                                      let r = this.hoverRating !== 0 ? this.hoverRating : this.selectedRating;

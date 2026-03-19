@@ -80,7 +80,7 @@
 <aside class="hidden lg:flex flex-col w-72 bg-gray-900/80 backdrop-blur-xl border-r border-gray-800 relative z-40 shadow-2xl h-full shrink-0">
     <div class="p-8 border-b border-gray-800 flex justify-center shrink-0">
         <a href="{{ route('customer.dashboard') }}" class="block hover:scale-105 transition-transform">
-            <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" class="h-16 w-auto" alt="Logo">
+            <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="h-16 w-auto" alt="Logo">
         </a>
     </div>
 

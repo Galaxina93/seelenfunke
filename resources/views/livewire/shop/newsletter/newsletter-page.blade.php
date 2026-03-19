@@ -96,15 +96,15 @@
                     <div class="relative w-32 h-32 transition-transform duration-500"
                          :class="state !== 'normal' ? 'scale-110 rotate-2' : 'scale-100'">
 
-                        <img src="{{ asset('images/projekt/funki/funki_cry.png') }}"
+                        <img src="{{ asset('images/projekt/funki/funki_cry.webp') }}"
                              class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
                              :class="state === 'normal' ? 'opacity-100' : 'opacity-0'">
 
-                        <img src="{{ asset('images/projekt/funki/funki_cry_more.png') }}"
+                        <img src="{{ asset('images/projekt/funki/funki_cry_more.webp') }}"
                              class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
                              :class="state === 'focus' ? 'opacity-100' : 'opacity-0'">
 
-                        <img src="{{ asset('images/projekt/funki/funki_gave_up.png') }}"
+                        <img src="{{ asset('images/projekt/funki/funki_gave_up.webp') }}"
                              class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
                              :class="state === 'hover' ? 'opacity-100' : 'opacity-0'">
                     </div>

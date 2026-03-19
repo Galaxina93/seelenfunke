@@ -19,7 +19,7 @@
                 <div class="absolute top-4 right-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full z-20 shadow-md animate-pulse">
                     JETZT VERFÜGBAR
                 </div>
-                <img src="{{ asset('images/projekt/products/seelen-kristall_w.jpg') }}"
+                <img src="{{ asset('images/projekt/products/seelen-kristall_w.webp') }}"
                      alt="K9-Kristallglas mit präziser 3D-Lasergravur und Weiß-Effekt"
                      loading="lazy"
                      class="w-full h-56 object-cover transform group-hover:scale-110 transition-transform duration-500">
@@ -60,7 +60,7 @@
             </div>
 
             <figure class="overflow-hidden">
-                <img src="{{ asset('images/projekt/products/schiefer.png') }}"
+                <img src="{{ asset('images/projekt/products/schiefer.webp') }}"
                      alt="Personalisierte Schieferplatten mit Lasergravur"
                      loading="lazy"
                      class="w-full h-56 object-cover">
@@ -86,7 +86,7 @@
                 <div class="bg-black/80 text-white px-6 py-2 rounded-full font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">DEMNÄCHST</div>
             </div>
             <figure class="overflow-hidden">
-                <img src="{{ asset('images/projekt/products/liebesfunke-metallkarte.png') }}"
+                <img src="{{ asset('images/projekt/products/liebesfunke-metallkarte.webp') }}"
                      alt="Lasergravur auf Metallkarten und Aluminium"
                      loading="lazy"
                      class="w-full h-56 object-cover">
@@ -111,7 +111,7 @@
 
             <figure class="overflow-hidden">
                 {{-- Bild-Pfad bitte entsprechend anpassen, z.B. auf einen Schlüsselanhänger --}}
-                <img src="{{ asset('images/projekt/products/flaschenoeffner.png') }}"
+                <img src="{{ asset('images/projekt/products/flaschenoeffner.webp') }}"
                      alt="Personalisierte Schlüsselanhänger und Flaschenöffner"
                      loading="lazy"
                      class="w-full h-56 object-cover">
@@ -140,7 +140,7 @@
                 <div class="bg-black/80 text-white px-6 py-2 rounded-full font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">DEMNÄCHST</div>
             </div>
             <figure class="overflow-hidden">
-                <img src="{{ asset('images/projekt/products/geschenkpapier.jpg') }}"
+                <img src="{{ asset('images/projekt/products/geschenkpapier.webp') }}"
                      alt="Exklusive Geschenkverpackung für Ihr Unikat"
                      loading="lazy"
                      class="w-full h-56 object-cover">
@@ -162,7 +162,7 @@
                 <div class="bg-black/80 text-white px-6 py-2 rounded-full font-bold tracking-widest border border-white/20 shadow-xl transform -rotate-12">DEMNÄCHST</div>
             </div>
             <figure class="overflow-hidden">
-                <img src="{{ asset('images/projekt/products/individuell.png') }}"
+                <img src="{{ asset('images/projekt/products/individuell.webp') }}"
                      alt="Sonderanfertigungen und individuelle Laser-Projekte"
                      loading="lazy"
                      class="w-full h-56 object-cover">

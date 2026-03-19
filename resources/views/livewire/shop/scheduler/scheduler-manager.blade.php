@@ -5,7 +5,7 @@
                 <div class="absolute inset-0 bg-blue-400 rounded-full blur-2xl opacity-10 animate-pulse"></div>
                 <div class="relative">
                     <div class="absolute -inset-1 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-400 opacity-20 animate-spin-slow"></div>
-                    <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}"
+                    <img src="{{ asset('images/projekt/funki/funki_selfie.webp') }}"
                          alt="Funki Selfie"
                          class="relative w-28 h-28 lg:w-32 lg:h-32 rounded-full object-cover border-4 border-white shadow-xl z-10">
                     <span class="absolute bottom-2 right-2 w-5 h-5 bg-green-500 border-4 border-white rounded-full z-20 shadow-sm" title="Funki ist aktiv"></span>

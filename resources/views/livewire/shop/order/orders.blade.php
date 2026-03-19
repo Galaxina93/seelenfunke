@@ -11,21 +11,21 @@
             // Stimmung & Bild setzen
             if ($hasPrio && ($prio->is_express || ($prio->deadline && $prio->deadline->isPast()))) {
                 $mood = 'alarm';
-                $funkiImg = 'funki_selfie.png';
+                $funkiImg = 'funki_selfie.webp';
                 $statusText = "HOCHDRUCK";
                 $statusColor = "text-red-400 bg-red-500/10 border-red-500/30";
                 $glowColor = "from-red-500/20";
                 $iconBg = "bg-red-500/10 text-red-500 border-red-500/20";
             } elseif ($hasPrio) {
                 $mood = 'work';
-                $funkiImg = 'funki_selfie.png';
+                $funkiImg = 'funki_selfie.webp';
                 $statusText = "PRODUKTIV";
                 $statusColor = "text-blue-400 bg-blue-500/10 border-blue-500/30";
                 $glowColor = "from-blue-500/20";
                 $iconBg = "bg-blue-500/10 text-blue-500 border-blue-500/20";
             } else {
                 $mood = 'chill';
-                $funkiImg = 'funki.png';
+                $funkiImg = 'funki.webp';
                 $statusText = "STANDBY";
                 $statusColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
                 $glowColor = "from-emerald-500/20";

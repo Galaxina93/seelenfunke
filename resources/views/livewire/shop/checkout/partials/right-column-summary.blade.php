@@ -15,7 +15,7 @@
 
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
             <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-40 h-40">
-                <img src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
+                <img src="{{ asset('images/projekt/funki/checkout/funki_party.webp') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
             </div>
             <div class="text-center space-y-2">
                 <h3 class="text-xl font-bold text-gray-900 flex items-center justify-center gap-3">
@@ -129,11 +129,11 @@
             <div class="flex justify-center items-center py-6">
                 <div class="relative w-32 h-32 transition-transform duration-300" :class="funkiState === 'party' ? 'scale-110' : 'scale-100'">
                     <img x-show="funkiState === 'normal'"
-                         src="{{ asset('images/projekt/funki/checkout/funki_l_n.png') }}"
+                         src="{{ asset('images/projekt/funki/checkout/funki_l_n.webp') }}"
                          class="absolute inset-0 w-full h-full object-contain animate-fade-in"
                          alt="Funki wartet">
                     <img x-show="funkiState === 'party'"
-                         src="{{ asset('images/projekt/funki/checkout/funki_party.png') }}"
+                         src="{{ asset('images/projekt/funki/checkout/funki_party.webp') }}"
                          class="absolute inset-0 w-full h-full object-contain animate-fade-in"
                          alt="Funki feiert">
                 </div>

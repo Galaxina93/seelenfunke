@@ -15,7 +15,7 @@
                 {{-- FUNKI AVATAR --}}
                 <div class="shrink-0 relative group">
                     <div class="absolute inset-0 bg-blue-500 rounded-full blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-500"></div>
-                    <img src="{{ asset('images/projekt/funki/funki_selfie.png') }}"
+                    <img src="{{ asset('images/projekt/funki/funki_selfie.webp') }}"
                          class="relative w-24 h-24 md:w-32 md:h-32 object-contain drop-shadow-xl transform group-hover:scale-105 group-hover:rotate-3 transition-transform duration-500"
                          alt="Funki">
 

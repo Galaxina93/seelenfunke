@@ -21,7 +21,7 @@
                     <div class="relative z-10">
                         <div class="relative inline-block mb-10">
                             <div class="absolute inset-0 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-                            <img src="{{ asset('images/projekt/funki/funki_yoga.png') }}"
+                            <img src="{{ asset('images/projekt/funki/funki_yoga.webp') }}"
                                  class="w-56 h-56 object-contain relative z-10 drop-shadow-[0_20px_30px_rgba(0,0,0,0.8)] transform group-hover:scale-105 group-hover:-rotate-2 transition-transform duration-700"
                                  alt="Funki Yoga">
                         </div>

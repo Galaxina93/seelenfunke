@@ -4,7 +4,7 @@
         <div class="relative w-full bg-gray-950/80 backdrop-blur-xl flex flex-col xl:flex-row items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-800 z-[250] gap-4 md:gap-6 shadow-lg">
             <div class="flex items-center justify-between w-full xl:w-auto xl:pr-6 xl:border-r border-gray-800 shrink-0">
                 <a href="/" target="_blank" class="shrink-0">
-                    <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.png') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
+                    <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
                 </a>
             </div>
 
