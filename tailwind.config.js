@@ -8,11 +8,11 @@ module.exports = {
     ],
     darkMode: 'class',
 
-    // Die Safelist schützt deine dynamischen Livewire-Farben davor, gelöscht zu werden
+    // Die Safelist schützt dynamische Livewire-Farben ohne CSS Explosion
     safelist: [
         {
-            pattern: /(bg|text|border|shadow|ring)-(cyan|emerald|blue|indigo|purple|pink|rose|red|orange|amber|yellow|green)-(400|500|600|900)/,
-            variants: ['hover', 'focus', 'peer-checked', 'group-hover'],
+            pattern: /(bg|text)-(cyan|emerald|blue|indigo|purple|pink|rose|red|orange|amber|yellow|green)-(500|600)/,
+            variants: ['hover'],
         }
     ],
 
