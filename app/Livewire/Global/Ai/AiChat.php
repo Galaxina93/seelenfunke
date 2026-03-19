@@ -37,6 +37,12 @@ class AiChat extends Component
                 ];
             }
             // Aktive Agenten aus dem Verlauf rekonstruieren? (Optional, aktuell überspringen)
+            
+            // Wähle standardmäßig Funkira aus, wenn die Seite geladen wird
+            $ceo = AiAgent::where('name', 'Funkira')->first();
+            if ($ceo && !in_array($ceo->id, $this->activeAgentIds)) {
+                $this->activeAgentIds[] = $ceo->id;
+            }
         } else {
             // Hole zum Start den CEO (Funkira) oder falle auf System zurück
             $ceo = AiAgent::where('name', 'Funkira')->first();

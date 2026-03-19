@@ -67,6 +67,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 'phone_number' => '+49 1590 1966864',
                 'email_verified_at' => now(),
                 'birthday' => '1993-09-01',
+                'photo_path' => 'images/projekt/about/gruender-profil.webp',
             ]
         );
 
