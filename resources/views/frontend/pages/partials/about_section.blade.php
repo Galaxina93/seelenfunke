@@ -272,9 +272,9 @@
             @for ($i = 0; $i < 10; $i++)
                 <div class="flex items-center group">
                     {{-- Logo: Harmonische Größe (h-12 auf Mobile, h-20 auf Desktop) --}}
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
+                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}"
                          alt="Mein Seelenfunke Logo"
-                         width="147" height="96"
+                         width="600" height="229"
                          loading="lazy"
                          class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
                 </div>
@@ -285,9 +285,9 @@
         <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0 ml-20 md:ml-32">
             @for ($i = 0; $i < 10; $i++)
                 <div class="flex items-center group">
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
+                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}"
                          alt="Mein Seelenfunke Logo"
-                         width="147" height="96"
+                         width="600" height="229"
                          loading="lazy"
                          class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
                 </div>

@@ -201,6 +201,15 @@ class Configurator extends Component
         $this->calculatePrice();
     }
 
+    public function messages()
+    {
+        return [
+            'new_files.*.max' => 'Fehler: Die Datei ist zu groß! Maximal 20 MB sind erlaubt.',
+            'new_files.0' => 'Beim Hochladen ist ein Fehler aufgetreten. Ist die Datei größer als 20 MB?',
+            'new_files' => 'Beim Hochladen ist ein Fehler aufgetreten. Ist die Datei größer als 20 MB?',
+        ];
+    }
+
     public function updated($propertyName)
     {
         if ($this->context === 'preview') return;

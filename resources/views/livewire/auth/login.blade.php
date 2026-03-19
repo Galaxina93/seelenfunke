@@ -42,7 +42,7 @@
                 <div class="text-center mb-10 relative z-10">
                     {{-- LOGO --}}
                     <a href="/" class="inline-block mb-8 hover:scale-105 transition-transform duration-500 drop-shadow-[0_0_15px_rgba(197,160,89,0.3)]">
-                        <img class="h-28 mx-auto object-contain" src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}" alt="mein-seelenfunke">
+                        <img class="h-28 mx-auto object-contain" src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="mein-seelenfunke">
                     </a>
 
                     <h1 class="text-3xl font-serif font-bold text-white tracking-wide">

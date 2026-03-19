@@ -56,7 +56,7 @@
 <table class="header">
     <tr>
         <td style="width: 50%;">
-            <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="logo" alt="Logo">
+            <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="logo" alt="Logo">
         </td>
         <td class="report-meta" style="width: 50%;">
             <h1>Steuer- & Umsatzprotokoll</h1>

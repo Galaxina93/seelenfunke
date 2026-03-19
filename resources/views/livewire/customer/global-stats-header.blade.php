@@ -3,7 +3,7 @@
     {{-- LOGO (Nur Mobile - deutlich größer!) --}}
     <div class="lg:hidden shrink-0 flex items-center h-full mr-2">
         <a href="{{ route('customer.dashboard') }}" class="flex items-center">
-            <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="h-12 sm:h-14 w-auto object-contain drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]" alt="Logo">
+            <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-12 sm:h-14 w-auto object-contain drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]" alt="Logo">
         </a>
     </div>
 

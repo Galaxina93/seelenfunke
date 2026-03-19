@@ -132,7 +132,7 @@
                             {{-- MOBILE LOGO MIT LINK --}}
                             <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
                                 <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
-                                    <img class="h-16 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}" alt="Mein-Seelenfunke">
+                                    <img class="h-24 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                                 </a>
                             </div>
 
@@ -150,7 +150,7 @@
                     {{-- DESKTOP LOGO MIT LINK --}}
                     <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
                         <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
-                            <img class="h-16 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}" alt="Mein-Seelenfunke">
+                            <img class="h-24 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                         </a>
                     </div>
 

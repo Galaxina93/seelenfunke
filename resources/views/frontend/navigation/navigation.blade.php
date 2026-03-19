@@ -14,10 +14,10 @@
                 {{-- Logo --}}
                 <div class="flex items-center">
                     <a href="{{ route('home') }}" class="flex items-center gap-2 group">
-                        <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}"
+                        <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}"
                              alt="Mein Seelenfunke Logo"
-                             width="147" height="96"
-                             class="h-24 transition-transform duration-300 group-hover:scale-105">
+                             width="600" height="229"
+                             class="h-24 w-auto transition-transform duration-300 group-hover:scale-105">
                     </a>
                 </div>
 

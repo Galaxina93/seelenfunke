@@ -151,7 +151,7 @@
 
                         {{-- Kleines Detailbild Overlay --}}
                         <div class="absolute -bottom-8 -right-8 w-40 h-40 bg-white p-3 rounded-2xl shadow-xl hidden md:block border border-gray-100 animate-float" aria-hidden="true">
-                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="w-full h-full object-contain rounded-lg" alt="">
+                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-full h-full object-contain rounded-lg" alt="">
                         </div>
                     </div>
 

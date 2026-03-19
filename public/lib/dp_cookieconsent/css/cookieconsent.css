@@ -1,6 +1,6 @@
 #cc-main {
     background: transparent;
-    color: var(--cc-primary-color);
+    color: var(--cc-text-color, #1A1A1A);
     font-family: var(--cc-font-family);
     font-size: 16px;
     font-weight: 400;
@@ -57,6 +57,7 @@
 
     /* GRUNDFARBEN */
     --cc-bg: #fff;
+    --cc-text-color: #1A1A1A; /* Textfarbe (Soft-Black) */
     --cc-primary-color: #C9A66B; /* Dein Gold */
     --cc-secondary-color: #1A1A1A; /* Dein Soft-Black (für Text) */
 
@@ -77,7 +78,7 @@
     --cc-btn-secondary-hover-border-color: #E0C28F;
 
     /* LINKS */
-    --cc-link-color: #C9A66B; /* Gold */
+    --cc-link-color: #8a6820; /* Dunkles Gold für Kontrast auf Weiß */
 
     /* TRENNLINIEN */
     --cc-separator-border-color: #f0f0f0;
@@ -191,8 +192,10 @@ html.disable--interaction.show--consent, html.disable--interaction.show--consent
 
 .cc--darkmode {
     --cc-bg: #1A1A1A; /* Dein Soft-Black als Basis */
+    --cc-text-color: #F9F5F0; /* Fast weißes Beige */
     --cc-primary-color: #F9F5F0; /* Fast weißes Beige für gute Lesbarkeit */
     --cc-secondary-color: #b0b0b0; /* Gedimmtes Grau für Nebentexte */
+    --cc-link-color: #C9A66B; /* Helles Gold für Dunkelmodus */
 
     /* PRIMÄR BUTTON ("Alle akzeptieren") */
     --cc-btn-primary-bg: #C9A66B; /* Gold */

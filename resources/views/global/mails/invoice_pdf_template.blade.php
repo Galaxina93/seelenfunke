@@ -106,7 +106,7 @@
         <tr>
             <td>
                 {{-- Logo Pfad fixen für PDF Generierung --}}
-                <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="logo" alt="{{ $ownerName }}">
+                <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="logo" alt="{{ $ownerName }}">
             </td>
             <td class="text-right">
                 <div class="invoice-title">

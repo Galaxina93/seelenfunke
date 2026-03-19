@@ -2,7 +2,7 @@
 
     <div class="flex flex-col xl:flex-row items-center w-full xl:w-auto xl:pr-6 xl:border-r border-gray-800 shrink-0 gap-3 xl:gap-4">
         <a href="/" target="_blank" class="shrink-0 mb-1 xl:mb-0 relative z-30">
-            <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
+            <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
         </a>
 
         <div class="flex items-center justify-center gap-4 sm:gap-6 w-full xl:w-auto xl:ml-2">
