@@ -44,7 +44,7 @@
 
     {{-- Swiper --}}
     <link href="{{ asset('components/swiper/swiper-bundle.min.css') }}" rel="stylesheet">
-    <script src="{{ asset('components/swiper/swiper-bundle.min.js') }}"></script>
+    <script src="{{ asset('components/swiper/swiper-bundle.min.js') }}" defer></script>
 
     {{-- Scripts --}}
     <script src="{{ asset('js/app.js') }}" defer></script>
