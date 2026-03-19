@@ -37,4 +37,5 @@ window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
  * allow your team to quickly build robust real-time web applications.
  */
 
-import './echo';
+// Echo / Pusher import moved to admin-bundle.js to prevent global Pusher payload
+// import './echo';
