@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class CalculatorTest extends TestCase
@@ -28,7 +29,7 @@ class CalculatorTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_can_calculate_multiple_products_and_volumes()
     {
         // 1. Create a base product
@@ -81,7 +82,7 @@ class CalculatorTest extends TestCase
                   ->assertSet('volumeDiscount', 10.00); // 100 - 90 = 10 discount
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_express_delivery_and_validation()
     {
         $product = Product::create([
@@ -116,7 +117,7 @@ class CalculatorTest extends TestCase
                   ->assertSet('step', 3);
     }
 
-    /** @test */
+    #[Test]
     public function it_submits_quote_and_sends_mails()
     {
         Mail::fake();

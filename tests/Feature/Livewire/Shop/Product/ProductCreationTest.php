@@ -12,6 +12,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class ProductCreationTest extends TestCase
@@ -32,7 +33,7 @@ class ProductCreationTest extends TestCase
         // For simplicity, we assume helper handles this or default is appropriate.
     }
 
-    /** @test */
+    #[Test]
     public function it_creates_a_draft_product()
     {
         Livewire::test(ProductCreate::class)
@@ -48,7 +49,7 @@ class ProductCreationTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function basic_product_validation_and_step_navigation()
     {
         $product = Product::create([
@@ -87,7 +88,7 @@ class ProductCreationTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_changes_type_and_adjusts_total_steps()
     {
         $product = Product::create([
@@ -109,7 +110,7 @@ class ProductCreationTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_file_uploads_for_digital_products()
     {
         Storage::fake('local');
@@ -130,7 +131,7 @@ class ProductCreationTest extends TestCase
         Storage::disk('local')->assertExists($product->digital_download_path);
     }
 
-    /** @test */
+    #[Test]
     public function tax_component_updates_tax_class_and_emits_event()
     {
         $product = Product::create([
@@ -151,7 +152,7 @@ class ProductCreationTest extends TestCase
         ]);
     }
 
-    /** @test */
+    #[Test]
     public function index_component_filters_products()
     {
         // Maintenance bypass

@@ -139,7 +139,7 @@
             $glowClass = $isMissingData ? 'shadow-[inset_0_0_50px_rgba(239,68,68,0.1)]' : ($isReady ? 'shadow-[inset_0_0_50px_rgba(16,185,129,0.05)]' : '');
         @endphp
 
-        <div class="bg-gray-950/50 rounded-[2.5rem] border border-gray-800 p-6 sm:p-10 shadow-inner relative animate-fade-in {{ $glowClass }}">
+        <div x-data="{ showPreview: false }" class="bg-gray-950/50 rounded-[2.5rem] border border-gray-800 p-6 sm:p-10 shadow-inner relative animate-fade-in {{ $glowClass }}">
 
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 relative z-10">
 
@@ -337,7 +337,7 @@
                     </div>
 
                     {{-- Aktions-Buttons --}}
-                    <div x-data="{ showPreview: false }" class="grid grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                         <button wire:click="generateDatevExport" wire:loading.attr="disabled" @disabled($isFuture)
                         class="py-4 bg-gray-900 border border-gray-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 hover:text-white hover:border-blue-500 text-gray-400">
                             <x-heroicon-o-document-arrow-down class="w-6 h-6 group-hover:text-blue-400 transition-colors" />

@@ -378,7 +378,7 @@ class Calender extends Component
             }
         }
 
-        return $normalEvents->merge($generatedEvents)->sortBy('start_date');
+        return $normalEvents->toBase()->concat($generatedEvents)->sortBy('start_date')->values();
     }
 
     public function getCalendarGridProperty()
