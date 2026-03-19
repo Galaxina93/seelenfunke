@@ -15,6 +15,7 @@
                     <div class="swiper-slide relative">
                         <img src="{{ $slide['image'] }}"
                              alt="{{ $slide['title'] }}"
+                             @if($loop->first) fetchpriority="high" loading="eager" @else loading="lazy" @endif
                              class="w-full h-full object-cover rounded-xl" />
 
                         @if ($config['image_title_active'] || $config['image_description_active'])
