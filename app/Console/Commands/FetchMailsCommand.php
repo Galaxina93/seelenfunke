@@ -4,9 +4,12 @@ namespace App\Console\Commands;
 
 use App\Models\Mail\MailAccount;
 use App\Models\Mail\MailMessage;
+use App\Models\Mail\MailAttachment;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class FetchMailsCommand extends Command
 {
@@ -71,9 +74,19 @@ class FetchMailsCommand extends Command
                     $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;
                     $bodyText = $message->hasTextBody() ? $message->getTextBody() : null;
 
+                    // Sanitize HTML body to strip out tracking pixels (like stat.alibaba.com)
+                    if ($bodyHtml) {
+                        // 1. Remove img tags containing known tracking domain patterns
+                        $bodyHtml = preg_replace('/<img[^>]+src=["\'][^"\']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"\']*["\'][^>]*>/i', '', $bodyHtml);
+                        // 2. Remove any img tags trying to render as 1x1 or 0x0
+                        $bodyHtml = preg_replace('/<img[^>]+(?:width=["\']?[01]["\']?[^>]*height=["\']?[01]["\']?|height=["\']?[01]["\']?[^>]*width=["\']?[01]["\']?)[^>]*>/i', '', $bodyHtml);
+                    }
+
                     $fromObj = $message->getFrom()[0] ?? null;
                     $fromEmail = $fromObj ? $fromObj->mail : 'unknown';
-                    $fromName = $fromObj ? $fromObj->personal : '';
+                    // Decode MIME strings for names (like "=?utf-8?Q?..." to readable names)
+                    $rawFromName = $fromObj ? $fromObj->personal : '';
+                    $fromName = mb_decode_mimeheader((string)$rawFromName) ?: $rawFromName;
 
                     $toObj = $message->getTo()[0] ?? null;
                     $toEmail = $toObj ? $toObj->mail : $account->email;
@@ -93,11 +106,15 @@ class FetchMailsCommand extends Command
                         }
                     }
 
-                    MailMessage::create([
+                    // Decode MIME encoded subjects
+                    $rawSubject = (string)$message->getSubject();
+                    $decodedSubject = mb_decode_mimeheader($rawSubject) ?: $rawSubject;
+
+                    $mailMessage = MailMessage::create([
                         'mail_account_id' => $account->id,
                         'message_id' => $messageId[0] ?? uniqid('msg_'),
                         'folder' => $targetFolder,
-                        'subject' => $message->getSubject() ?: 'Kein Betreff',
+                        'subject' => $decodedSubject ?: 'Kein Betreff',
                         'from_name' => str_replace('"', '', $fromName),
                         'from_email' => $fromEmail,
                         'to_email' => $toEmail,
@@ -108,6 +125,31 @@ class FetchMailsCommand extends Command
                         'has_attachments' => $message->hasAttachments(),
                         'received_at' => Carbon::parse($message->getDate())
                     ]);
+
+                    if ($message->hasAttachments()) {
+                        $attachments = $message->getAttachments();
+                        foreach ($attachments as $attachment) {
+                            $rawFilename = (string)$attachment->getName();
+                            $decodedFilename = mb_decode_mimeheader($rawFilename) ?: $rawFilename;
+                            $filename = $decodedFilename ?: 'unknown_file_' . Str::random(5);
+                            
+                            $extension = $attachment->getExtension() ?: 'dat';
+                            $safeFilename = Str::slug(pathinfo($filename, PATHINFO_FILENAME)) . '.' . $extension;
+
+                            // Save to a secure local folder
+                            $filePath = 'crm/mail-attachments/' . $mailMessage->id . '/' . uniqid() . '_' . $safeFilename;
+                            Storage::put($filePath, $attachment->getContent());
+
+                            MailAttachment::create([
+                                'mail_message_id' => $mailMessage->id,
+                                'filename' => $filename,
+                                'content_type' => $attachment->getMimeType(),
+                                'size' => $attachment->getSize() ?? 0,
+                                'path' => $filePath,
+                                'content_id' => $attachment->getId()
+                            ]);
+                        }
+                    }
 
                     // Set message as SEEN on remote server so we don't fetch it again next poll loop
                     $message->setFlag('Seen');

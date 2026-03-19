@@ -19,4 +19,9 @@ class MailMessage extends Model
     {
         return $this->belongsTo(MailAccount::class, 'mail_account_id');
     }
+
+    public function attachments()
+    {
+        return $this->hasMany(MailAttachment::class, 'mail_message_id');
+    }
 }

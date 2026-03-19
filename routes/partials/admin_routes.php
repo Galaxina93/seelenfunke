@@ -144,6 +144,21 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.crm-inbox');
     })->name('admin.inbox');
 
+    Route::get('/admin/inbox/attachment/{id}', function ($id) {
+        $attachment = \App\Models\Mail\MailAttachment::findOrFail($id);
+        
+        // Security check handled securely by 'auth:admin' middleware
+        $path = $attachment->path;
+        if (!\Illuminate\Support\Facades\Storage::exists($path)) {
+            abort(404, 'Datei im Tresor nicht gefunden.');
+        }
+
+        return response()->file(\Illuminate\Support\Facades\Storage::path($path), [
+            'Content-Type' => $attachment->content_type,
+            'Content-Disposition' => 'inline; filename="' . $attachment->filename . '"'
+        ]);
+    })->name('crm.mail-attachment');
+
 
 
     Route::get('/admin/orders/laser-file/{itemId}', function (Illuminate\Http\Request $request, $itemId) {

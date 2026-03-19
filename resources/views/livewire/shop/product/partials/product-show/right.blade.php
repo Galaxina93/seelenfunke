@@ -205,6 +205,20 @@
                             </button>
                         </div>
 
+                        <div class="bg-blue-50/70 border border-blue-200/60 rounded-xl p-4 mb-6 relative overflow-hidden backdrop-blur-sm shadow-sm transition-all hover:shadow-md">
+                            <div class="relative flex items-start gap-3">
+                                <div class="bg-blue-100/50 text-blue-600 p-2 rounded-lg shrink-0 mt-0.5">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </div>
+                                <div class="pt-1">
+                                    <h4 class="font-bold text-blue-900 text-sm mb-1">Ausschluss vom Widerrufsrecht</h4>
+                                    <p class="text-[11px] text-blue-800/90 leading-relaxed">
+                                        Bitte beachte, dass unsere Design-Vorlagen als Basis für deine Personalisierung dienen. Da der Artikel nach deiner Bestellung individuell für dich angefertigt wird, ist er – <span class="font-bold">auch wenn du keine Änderungen an der Vorlage vornimmst</span> – als personalisiertes Produkt vom <a href="{{ route('agb') }}#widerruf" target="_blank" class="underline font-bold hover:text-blue-900 transition-colors">Widerrufsrecht ausgeschlossen</a>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             @foreach($productTemplates as $tpl)
                                 <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-primary transition-all cursor-pointer group">

@@ -8,6 +8,7 @@ use App\Models\Mail\MailRule;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Artisan;
 use Livewire\Component;
 
 class CrmInbox extends Component
@@ -68,6 +69,11 @@ class CrmInbox extends Component
         $this->selectedAccountId = $id;
         $this->selectedFolder = 'INBOX';
         $this->selectedMessageId = null;
+    }
+
+    public function syncMails()
+    {
+        Artisan::call('crm:fetch-mails');
     }
 
     public function selectFolder($folder)
@@ -317,7 +323,7 @@ class CrmInbox extends Component
     {
         $msg = MailMessage::find($id);
         if ($msg && !$msg->is_archived) {
-            $msg->update(['is_archived' => true]);
+            $msg->update(['is_archived' => true, 'folder' => 'Archive']);
             if ($this->selectedMessageId === $id) {
                 $this->selectedMessageId = null;
                 $this->dispatch('folder-selected');
@@ -344,8 +350,7 @@ class CrmInbox extends Component
                 'type' => 'routing',
                 'condition_field' => 'from_email',
                 'condition_value' => $msg->from_email,
-                'action' => 'move_to_folder',
-                'action_value' => $this->routingTargetFolder
+                'action' => $this->routingTargetFolder
             ]);
 
             // Move the current one too

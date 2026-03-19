@@ -200,7 +200,7 @@
                                         Das Widerrufsrecht besteht <strong>nicht</strong> bei Verträgen zur Lieferung von Waren, die nicht vorgefertigt sind und für deren Herstellung eine individuelle Auswahl oder Bestimmung durch den Verbraucher maßgeblich ist oder die eindeutig auf die persönlichen Bedürfnisse des Verbrauchers zugeschnitten sind (§ 312g Abs. 2 Nr. 1 BGB).
                                     </p>
                                     <p class="text-red-900 mt-3 font-bold text-sm bg-white/50 p-2 rounded inline-block border border-red-100">
-                                        Dies gilt für alle Produkte, die speziell für Sie graviert oder anderweitig personalisiert werden.
+                                        Dies gilt für alle Produkte, die speziell für Sie graviert oder anderweitig personalisiert werden. Hierunter fallen ausdrücklich auch alle unsere Design-Vorlagen. Da diese Artikel erst nach Bestelleingang individuell auf Ihren Wunsch hin gefertigt werden, erlischt das Widerrufsrecht auch dann, wenn Sie an der Basis-Vorlage keine weiteren Änderungen vorgenommen haben.
                                     </p>
                                 </div>
                             </div>

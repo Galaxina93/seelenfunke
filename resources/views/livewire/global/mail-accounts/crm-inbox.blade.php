@@ -10,6 +10,9 @@
         <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
             <h2 class="text-white font-serif text-xl tracking-wide">CRM Inbox</h2>
             <div class="flex gap-1">
+                <button wire:click="syncMails" class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors" title="Postfächer jetzt synchronisieren">
+                    <x-heroicon-o-arrow-path class="w-5 h-5" wire:loading.class="animate-spin" wire:target="syncMails"/>
+                </button>
                 <button wire:click="openAccountSettings('new')" class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors" title="Neues E-Mail Konto anbinden">
                     <x-heroicon-o-plus class="w-5 h-5"/>
                 </button>
@@ -258,45 +261,45 @@
                          style="display: none;" 
                          class="absolute z-50 left-10 top-10 w-48 bg-[#1E1E1E] border border-gray-700 rounded-lg shadow-2xl py-1 text-sm font-medium overflow-hidden">
                         
-                        <button wire:click="selectMessage({{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Öffnen <x-heroicon-m-chevron-right class="w-4 h-4 text-gray-500"/>
+                        <button wire:click="selectMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                            Öffnen <x-heroicon-m-envelope-open class="w-4 h-4 text-gray-500"/>
                         </button>
                         
                         <div class="h-px bg-gray-700 my-1"></div>
 
-                        <button wire:click="archiveMessage({{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                        <button wire:click="archiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
                             Archivieren <x-heroicon-m-archive-box class="w-4 h-4 text-gray-500"/>
                         </button>
                         
                         <div class="h-px bg-gray-700 my-1"></div>
 
-                        <button wire:click="openCompose('reply', {{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Antworten <x-heroicon-m-chevron-right class="w-4 h-4 text-gray-500"/>
+                        <button wire:click="openCompose('reply', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                            Antworten <x-heroicon-m-arrow-uturn-left class="w-4 h-4 text-gray-500"/>
                         </button>
                         
-                        <button wire:click="openCompose('forward', {{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Weiterleiten <x-heroicon-m-chevron-right class="w-4 h-4 text-gray-500"/>
+                        <button wire:click="openCompose('forward', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                            Weiterleiten <x-heroicon-m-arrow-uturn-right class="w-4 h-4 text-gray-500"/>
                         </button>
                         
                         <div class="h-px bg-gray-700 my-1"></div>
                         
-                        <button wire:click="openRoutingModal({{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Abonnieren (Autom. in Ordner) <x-heroicon-m-arrow-right-circle class="w-4 h-4 text-primary"/>
+                        <button wire:click="openRoutingModal({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                            Abonnieren (Autom. in Ordner) <x-heroicon-m-inbox-arrow-down class="w-4 h-4 text-primary"/>
                         </button>
 
                         <div class="h-px bg-gray-700 my-1"></div>
 
                         @if($msg->folder === 'Junk')
-                            <button wire:click="unmarkSpam({{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-400 hover:bg-emerald-900/30 flex justify-between items-center">
+                            <button wire:click="unmarkSpam({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-400 hover:bg-emerald-900/30 flex justify-between items-center">
                                 Kein Spam (Entsperren) <x-heroicon-m-shield-check class="w-4 h-4 text-emerald-500"/>
                             </button>
                         @else
-                            <button wire:click="markAsSpam({{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-400 hover:bg-red-900/30 flex justify-between items-center">
-                                Als Spam markieren <x-heroicon-m-chevron-right class="w-4 h-4 text-red-500"/>
+                            <button wire:click="markAsSpam({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-400 hover:bg-red-900/30 flex justify-between items-center">
+                                Als Spam markieren <x-heroicon-m-shield-exclamation class="w-4 h-4 text-red-500"/>
                             </button>
                         @endif
 
-                        <button wire:click="deleteMessage({{ $msg->id }})" @click="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-500 hover:bg-red-900/30 flex justify-between items-center">
+                        <button wire:click="deleteMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-500 hover:bg-red-900/30 flex justify-between items-center">
                             Löschen <x-heroicon-m-trash class="w-4 h-4 text-red-500"/>
                         </button>
                     </div>
@@ -369,6 +372,54 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Attachments Section --}}
+            @if($selectedMessage->attachments && $selectedMessage->attachments->count() > 0)
+                <div x-data="{ showAttachments: false, previewFile: null }" class="border-b border-gray-800/50 bg-gray-900/30 shrink-0">
+                    <button @click="showAttachments = !showAttachments" class="w-full flex items-center justify-between p-3 sm:px-6 text-sm font-medium text-gray-400 hover:text-white transition-colors bg-gray-900/50">
+                        <div class="flex items-center gap-2">
+                            <x-heroicon-o-paper-clip class="w-4 h-4" />
+                            <span>{{ $selectedMessage->attachments->count() }} Anhang/Anhänge</span>
+                        </div>
+                        <x-heroicon-o-chevron-down class="w-4 h-4 transition-transform duration-200" x-bind:class="showAttachments ? 'rotate-180' : ''" />
+                    </button>
+                    
+                    <div x-show="showAttachments" x-collapse>
+                        <div class="p-3 sm:px-6 flex flex-wrap gap-2">
+                            @foreach($selectedMessage->attachments as $attachment)
+                                <div class="flex items-center p-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-primary hover:bg-gray-800/80 cursor-pointer transition-colors max-w-xs w-full sm:w-auto" @click="previewFile = '{{ $attachment->stream_url }}'">
+                                    <div class="w-10 h-10 shrink-0 rounded bg-gray-900 flex items-center justify-center mr-3 border border-gray-700">
+                                        @php
+                                            $ext = strtolower(pathinfo($attachment->filename, PATHINFO_EXTENSION));
+                                            $icon = 'document';
+                                            if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])) $icon = 'photo';
+                                            elseif (in_array($ext, ['pdf'])) $icon = 'document-text';
+                                        @endphp
+                                        <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-5 h-5 text-gray-400" />
+                                    </div>
+                                    <div class="min-w-0 pr-2 flex-col flex justify-center">
+                                        <div class="text-xs text-white font-medium truncate" title="{{ $attachment->filename }}">{{ Str::limit($attachment->filename, 20) }}</div>
+                                        <div class="text-[10px] text-gray-500">{{ round($attachment->size / 1024, 1) }} KB</div>
+                                    </div>
+                                    <a href="{{ $attachment->stream_url }}" download="{{ $attachment->filename }}" class="ml-auto p-1.5 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-md transition-colors" @click.stop title="Herunterladen">
+                                        <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
+                                    </a>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- Preview Overlay Modal/Inline --}}
+                    <div x-show="previewFile" class="relative bg-black/50 border-t border-gray-800 p-2 h-[50vh] transition-all" style="display: none;">
+                        <div class="absolute top-4 right-4 z-20">
+                            <button @click="previewFile = null" class="p-2 bg-gray-900/90 backdrop-blur-md border border-gray-700 text-gray-400 hover:text-white hover:bg-red-500/20 hover:border-red-500/50 rounded-lg shadow-xl transition-all" title="Vorschau schließen">
+                                <x-heroicon-m-x-mark class="w-5 h-5" />
+                            </button>
+                        </div>
+                        <iframe :src="previewFile" class="w-full h-full border-0 rounded-xl bg-white shadow-inner" frameborder="0"></iframe>
+                    </div>
+                </div>
+            @endif
 
             {{-- Mail Body --}}
             <div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
