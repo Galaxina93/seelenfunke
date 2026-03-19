@@ -19,3 +19,6 @@ yarn-error.log
 /.vscode
 project_context.txt
 migrations.txt
+
+/venv
+/venv/
