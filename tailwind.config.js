@@ -8,13 +8,7 @@ module.exports = {
     ],
     darkMode: 'class',
 
-    // Die Safelist schützt dynamische Livewire-Farben ohne CSS Explosion
-    safelist: [
-        {
-            pattern: /(bg|text)-(cyan|emerald|blue|indigo|purple|pink|rose|red|orange|amber|yellow|green)-(500|600)/,
-            variants: ['hover'],
-        }
-    ],
+    // Safelist komplett deaktiviert (verursachte Node.js infinite loop im Tailwind JIT)
 
     theme: {
         extend: {
