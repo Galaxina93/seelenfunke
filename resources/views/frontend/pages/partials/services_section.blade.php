@@ -16,7 +16,7 @@
         <article class="bg-white rounded-2xl shadow-xl overflow-hidden transition-transform hover:scale-105 duration-300 group ring-2 ring-primary ring-offset-4 relative z-10">
             <figure class="overflow-hidden relative">
                 {{-- Badge: JETZT VERFÜGBAR --}}
-                <div class="absolute top-4 right-4 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full z-20 shadow-md animate-pulse">
+                <div class="absolute top-4 right-4 bg-primary text-gray-900 text-xs font-bold px-3 py-1 rounded-full z-20 shadow-md animate-pulse">
                     JETZT VERFÜGBAR
                 </div>
                 <img src="{{ asset('images/projekt/products/seelen-kristall_w.webp') }}"
@@ -44,7 +44,7 @@
                 </ul>
                 <a href="{{ route('shop') }}"
                    title="Zur Kategorie Glas & Kristall im Shop"
-                   class="block text-center w-full bg-primary text-white py-2 rounded-md font-bold hover:bg-primary-dark transition-colors">
+                   class="block text-center w-full bg-primary text-gray-900 py-2 rounded-md font-bold hover:bg-primary-dark hover:text-white transition-colors">
                     Zum Shop
                 </a>
             </div>

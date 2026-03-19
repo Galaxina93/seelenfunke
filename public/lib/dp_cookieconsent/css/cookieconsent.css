@@ -62,7 +62,7 @@
 
     /* PRIMÄR BUTTON ("Alle akzeptieren") */
     --cc-btn-primary-bg: #C9A66B; /* Gold */
-    --cc-btn-primary-color: #fff; /* Weiße Schrift */
+    --cc-btn-primary-color: #1A1A1A; /* Dark Soft-Black Schrift für Kontrast */
     --cc-btn-primary-border-color: #C9A66B;
     --cc-btn-primary-hover-bg: #1A1A1A; /* Hover wird Soft-Black (Edler Kontrast) */
     --cc-btn-primary-hover-color: #fff;
@@ -196,7 +196,7 @@ html.disable--interaction.show--consent, html.disable--interaction.show--consent
 
     /* PRIMÄR BUTTON ("Alle akzeptieren") */
     --cc-btn-primary-bg: #C9A66B; /* Gold */
-    --cc-btn-primary-color: #ffffff;
+    --cc-btn-primary-color: #1A1A1A;
     --cc-btn-primary-border-color: #C9A66B;
     --cc-btn-primary-hover-bg: #E0C28F; /* Helleres Gold beim Hover (leuchtend) */
     --cc-btn-primary-hover-color: #1A1A1A; /* Text wird Schwarz für starken Kontrast */

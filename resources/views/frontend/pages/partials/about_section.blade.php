@@ -4,7 +4,7 @@
         {{-- HEADLINE & VISION --}}
         <div class="text-center mb-16 fade-in">
             <h2 id="about-heading" class="text-4xl md:text-5xl font-serif font-bold text-gray-900 mb-6">
-                Warum <span class="text-primary">Mein Seelenfunke?</span><br>
+                Warum <span class="text-[#8a6820]">Mein Seelenfunke?</span><br>
                 <span class="text-2xl md:text-3xl text-gray-500 font-sans font-light mt-2 block">Ihre Manufaktur für personalisierte Geschenke</span>
             </h2>
             <p class="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
@@ -18,7 +18,7 @@
 
                 <a href="{{ route('shop') }}"
                    title="Zum Online-Shop für handgefertigte Unikate"
-                   class="inline-flex items-center px-8 py-3 bg-primary text-white text-base font-medium rounded-full shadow-lg hover:bg-primary-dark transition transform hover:scale-105">
+                   class="inline-flex items-center px-8 py-3 bg-primary text-gray-900 text-base font-medium rounded-full shadow-lg hover:bg-primary-dark hover:text-white transition transform hover:scale-105">
                     <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.25 2.25a.75.75 0 000 1.5h1.386c.17 0 .318.114.362.278l2.558 9.592a3.752 3.752 0 00-2.806 3.63c0 .414.336.75.75.75h15.75a.75.75 0 000-1.5H5.378A2.25 2.25 0 017.5 15h11.218a.75.75 0 00.674-.421 60.358 60.358 0 002.96-7.228.75.75 0 00-.525-.965A60.864 60.864 0 005.68 4.509l-.232-.867A1.875 1.875 0 003.636 2.25H2.25zM3.75 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM16.5 20.25a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" /></svg>
                     Zum Shop
                 </a>
@@ -26,7 +26,7 @@
                 {{-- 2. Button: E-Mail Kontakt --}}
                 <a href="mailto:kontakt@mein-seelenfunke.de"
                    title="Kontaktieren Sie uns per E-Mail"
-                   class="inline-flex items-center px-8 py-3 bg-white text-primary border-2 border-primary text-base font-medium rounded-full shadow hover:bg-gray-50 transition transform hover:scale-105">
+                   class="inline-flex items-center px-8 py-3 bg-white text-[#8a6820] border-2 border-primary text-base font-medium rounded-full shadow hover:bg-gray-50 transition transform hover:scale-105">
                     ✉️ E-Mail schreiben
                 </a>
             </div>
@@ -42,12 +42,13 @@
                             {{-- Hier dein Profilbild einfügen --}}
                             <img src="{{ asset('images/projekt/about/gruender-profil.webp') }}"
                                  alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
+                                 width="64" height="64"
                                  loading="lazy"
                                  class="w-16 h-16 rounded-full object-cover border-2 border-primary" />
                             <div>
-                                <div class="text-primary text-4xl font-serif leading-none mb-1" aria-hidden="true">“</div>
+                                <div class="text-[#8a6820] text-4xl font-serif leading-none mb-1" aria-hidden="true">“</div>
                                 <h3 class="text-xl font-bold text-gray-800">Alina Steinhauer</h3>
-                                <p class="text-sm text-primary font-semibold">Gründerin & Inhaberin</p>
+                                <p class="text-sm text-[#8a6820] font-semibold">Gründerin & Inhaberin</p>
                             </div>
                         </div>
                         <p class="text-gray-700 mb-4 leading-relaxed">
@@ -60,7 +61,7 @@
                         </p>
                         <div class="p-4 bg-primary/10 rounded-lg">
                             <p class="font-medium text-gray-800">
-                                Unser Versprechen: <span class="text-primary font-bold">Ein Funke, der bleibt.</span>
+                                Unser Versprechen: <span class="text-[#8a6820] font-bold">Ein Funke, der bleibt.</span>
                             </p>
                         </div>
                     </div>
@@ -129,18 +130,19 @@
 
                     {{-- 1. ALINA (VISION & LEITUNG) --}}
                     <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-primary/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
-                        <div class="absolute top-0 right-0 bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
+                        <div class="absolute top-0 right-0 bg-primary text-gray-900 text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
                             Geschäftsführung
                         </div>
 
                         <img src="{{ asset('images/projekt/about/gruender-profil.webp') }}"
                              alt="Alina Steinhauer - Gründerin von Mein Seelenfunke"
+                             width="128" height="128"
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-primary object-cover shadow-md flex-shrink-0" />
 
                         <div class="text-center sm:text-left lg:text-center xl:text-left">
                             <h4 class="text-2xl font-bold text-gray-900">Alina Steinhauer</h4>
-                            <p class="text-primary font-bold uppercase tracking-wide text-xs mt-1">
+                            <p class="text-[#8a6820] font-bold uppercase tracking-wide text-xs mt-1">
                                 Gründerin & Laserschutzbeauftragte
                             </p>
                             <p class="text-gray-600 mt-3 text-sm italic">
@@ -157,6 +159,7 @@
 
                         <img src="{{ asset('funkira/images/funkira_selfie.png') }}"
                              alt="Funkira, die allwissende KI-Expertin von Mein Seelenfunke"
+                             width="128" height="128"
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-purple-500 object-cover shadow-md flex-shrink-0" />
 
@@ -179,6 +182,7 @@
 
                         <img src="{{ asset('images/projekt/funki/funki_selfie.webp') }}"
                              alt="Funki, das digitale Maskottchen von Mein Seelenfunke"
+                             width="128" height="128"
                              loading="lazy"
                              class="w-32 h-32 rounded-2xl border-4 border-indigo-500 object-cover shadow-md flex-shrink-0" />
 
@@ -205,7 +209,7 @@
                             <div class="flex flex-col md:flex-row md:items-center gap-2 mb-4">
                                 <h3 class="text-2xl font-bold text-gray-900">Produktion & Service</h3>
                                 <span class="hidden md:block text-gray-300">|</span>
-                                <span class="text-primary font-bold uppercase tracking-widest text-sm">Made in Gifhorn</span>
+                                <span class="text-[#8a6820] font-bold uppercase tracking-widest text-sm">Made in Gifhorn</span>
                             </div>
                             <p class="text-gray-600 text-lg leading-relaxed">
                                 Unser Anspruch ist absolute Präzision. Von der ersten individuellen Beratung bis zum sicheren, liebevollen Versand Ihres Unikats. Wir kombinieren traditionelle handwerkliche Werte mit zertifizierter, modernster Sicherheitstechnik. Egal ob persönliches Einzelstück oder komplexer Firmenauftrag: Unser eingespieltes Team sorgt für einen reibungslosen Ablauf und Ergebnisse, die begeistern.
@@ -270,6 +274,7 @@
                     {{-- Logo: Harmonische Größe (h-12 auf Mobile, h-20 auf Desktop) --}}
                     <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
                          alt="Mein Seelenfunke Logo"
+                         width="147" height="96"
                          loading="lazy"
                          class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
                 </div>
@@ -282,6 +287,7 @@
                 <div class="flex items-center group">
                     <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.webp') }}"
                          alt="Mein Seelenfunke Logo"
+                         width="147" height="96"
                          loading="lazy"
                          class="h-24 md:h-20 w-auto opacity-40 group-hover:opacity-100 transition-all duration-700 ease-in-out transform group-hover:scale-110">
                 </div>

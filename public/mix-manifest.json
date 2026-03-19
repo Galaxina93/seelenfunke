@@ -1,12 +1,8 @@
 {
-    "/js/app.js": "/js/app.js?id=6224e940d2337025ce673e9baccf5121",
-    "/js/app.js.map": "/js/app.js.map?id=1b06dbcf13ad83e11bcdf4389b70d834",
-    "/js/admin-bundle.js": "/js/admin-bundle.js?id=cfc0645bb7d2522bedb74f62c8d3345f",
-    "/js/admin-bundle.js.map": "/js/admin-bundle.js.map?id=ee076e71b4daa24a05e04c2f9a2672db",
-    "/css/app.css": "/css/app.css?id=13fdef92f9064a999751c76c2f143af2",
-    "/css/app.css.map": "/css/app.css.map?id=845cad3234c062bf2f30dcbc303f20ea",
-    "/css/bootstrap.css": "/css/bootstrap.css?id=fb71a063a338e475fd88614d6e5fb6ea",
-    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366?id=9ad5aa740d7d5e6a0191b309b9b1986c",
-    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8?id=d1af9af6052c51b169be6c628ae99bb5",
-    "/css/bootstrap.css.map": "/css/bootstrap.css.map?id=bf16d31ef1bce2fe7221a2f1161907b0"
+    "/js/app.js": "/js/app.js",
+    "/js/admin-bundle.js": "/js/admin-bundle.js",
+    "/css/app.css": "/css/app.css",
+    "/css/bootstrap.css": "/css/bootstrap.css",
+    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366",
+    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8"
 }

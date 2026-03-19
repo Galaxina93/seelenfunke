@@ -4,7 +4,7 @@
         {{-- HEADLINE --}}
         <div class="text-center mb-20 fade-in">
             <h2 id="process-heading" class="text-3xl md:text-5xl font-serif font-bold text-gray-900 mb-6">
-                Vom Rohling zum <span class="text-primary">personalisierten Unikat</span>
+                Vom Rohling zum <span class="text-[#8a6820]">personalisierten Unikat</span>
             </h2>
             <p class="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
                 Transparenz schafft Vertrauen. Ihr Unikat ist keine Lagerware. Erfahren Sie hier, wie wir Ihr Produkt Schritt für Schritt in unserer Manufaktur in Gifhorn fertigen – von der Datenprüfung bis zum sicheren Versand.
@@ -94,8 +94,10 @@
                                         muted
                                         playsinline
                                         preload="none"
+                                        aria-hidden="true"
                                         poster="{{ asset($step['image']) }}"
                                         class="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+                                        <track kind="captions" src="" srclang="de" label="Keine Untertitel" default>
 
                                         {{-- Fallback Image falls Video vom Browser blockiert wird --}}
                                         <img src="{{ asset($step['image']) }}"
@@ -114,7 +116,7 @@
                             </div>
 
                             {{-- Nummer Badge --}}
-                            <div class="absolute -top-1 -right-1 w-8 h-8 bg-primary text-white font-bold rounded-full flex items-center justify-center border-2 border-white shadow-md z-20" aria-hidden="true">
+                            <div class="absolute -top-1 -right-1 w-8 h-8 bg-primary text-gray-900 font-bold rounded-full flex items-center justify-center border-2 border-white shadow-md z-20" aria-hidden="true">
                                 {{ $index + 1 }}
                             </div>
                         </div>
@@ -139,7 +141,7 @@
 
             <a href="{{ route('calculator') }}"
                title="Kalkulieren Sie jetzt den Preis für Ihr individuelles Geschenk"
-               class="inline-flex items-center gap-3 bg-primary text-white px-10 py-4 rounded-full font-bold text-lg shadow-lg hover:bg-primary-dark transition-all transform hover:scale-105 hover:shadow-2xl">
+               class="inline-flex items-center gap-3 bg-primary text-gray-900 px-10 py-4 rounded-full font-bold text-lg shadow-lg hover:bg-primary-dark hover:text-white transition-all transform hover:scale-105 hover:shadow-2xl">
                 <span>Jetzt Preis berechnen</span>
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
             </a>

@@ -16,6 +16,7 @@
                     <a href="{{ route('home') }}" class="flex items-center gap-2 group">
                         <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.webp') }}"
                              alt="Mein Seelenfunke Logo"
+                             width="147" height="96"
                              class="h-24 transition-transform duration-300 group-hover:scale-105">
                     </a>
                 </div>
@@ -54,7 +55,7 @@
                         </a>
 
                         {{-- Button Angebot --}}
-                        <a href="{{ route('calculator') }}" class="px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-white rounded transition-all duration-300 font-semibold shadow-md hover:shadow-primary/30">
+                        <a href="{{ route('calculator') }}" class="px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-gray-900 rounded transition-all duration-300 font-semibold shadow-md hover:shadow-primary/30">
                             Angebot kalkulieren
                         </a>
 
@@ -75,6 +76,7 @@
 
                     <button @click="open = !open"
                             type="button"
+                            aria-label="Menü öffnen"
                             class="text-white hover:text-primary focus:outline-none transition-colors">
 
                         {{-- Icon: Hamburger (angezeigt wenn geschlossen) --}}
@@ -133,7 +135,7 @@
                     Kontakt
                 </a>
 
-                <a href="{{ route('calculator') }}" class="block mt-4 px-3 py-3 text-center bg-primary text-white font-bold rounded-md hover:bg-primary-light">
+                <a href="{{ route('calculator') }}" class="block mt-4 px-3 py-3 text-center bg-primary text-gray-900 font-bold rounded-md hover:bg-primary-light">
                     Angebot kalkulieren
                 </a>
 

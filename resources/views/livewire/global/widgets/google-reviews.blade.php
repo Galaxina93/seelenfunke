@@ -87,9 +87,9 @@
                                             </div>
 
                                             <div class="ml-4 overflow-hidden">
-                                                <h4 class="font-bold text-gray-900 dark:text-white text-base truncate">
+                                                <h3 class="font-bold text-gray-900 dark:text-white text-base truncate">
                                                     {{ $review['author_name'] }}
-                                                </h4>
+                                                </h3>
                                                 <div class="flex items-center text-xs mt-0.5">
                                                     <div class="flex text-yellow-400 mr-2 flex-shrink-0">
                                                         @for($i = 0; $i < 5; $i++)

@@ -59,6 +59,7 @@
 
                             <img :src="showRose ? '{{ asset('images/projekt/funki/funki_rose.webp') }}' : '{{ asset('images/projekt/funki/funki_shy.webp') }}'"
                                  alt="Funki Maskottchen hilft bei Kontaktanfragen und Beratung"
+                                 width="256" height="256"
                                  loading="lazy"
                                  class="relative z-10 h-48 sm:h-64 object-contain drop-shadow-2xl hover:scale-105 transition-all duration-500 ease-in-out">
                         </div>
