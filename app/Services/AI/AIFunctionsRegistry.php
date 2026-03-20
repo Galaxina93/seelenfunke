@@ -6,15 +6,12 @@ use Illuminate\Support\Facades\Log;
 
 class AIFunctionsRegistry
 {
-    use Functions\DashboardFunctions;
-    use Functions\ShopFunctions;
-    use Functions\OrderFunctions;
-    use Functions\AccountingFunctions;
-    use Functions\SettingsFunctions;
-    use Functions\CoreFunctions;
-    use Functions\CalendarFunctions;
-    use Functions\MarketingFunctions;
-    use Functions\AgentFunctions;
+    use Functions\AiSystemFuncs;
+    use Functions\AiSupportFuncs;
+    use Functions\AiMarketingFuncs;
+    use Functions\AiSalesFuncs;
+    use Functions\AiFinanceFuncs;
+    use Functions\AiScoutFuncs;
 
     /**
      * Define all available functions the AI can call.
@@ -23,15 +20,12 @@ class AIFunctionsRegistry
     public static function getFunctions(): array
     {
         return array_merge(
-            self::getDashboardFunctionsSchema(),
-            self::getShopFunctionsSchema(),
-            self::getOrderFunctionsSchema(),
-            self::getAccountingFunctionsSchema(),
-            self::getSettingsFunctionsSchema(),
-            self::getCoreFunctionsSchema(),
-            self::getCalendarFunctionsSchema(),
-            self::getMarketingFunctionsSchema(),
-            self::getAgentFunctionsSchema()
+            self::getAiSystemFuncsSchema(),
+            self::getAiSupportFuncsSchema(),
+            self::getAiMarketingFuncsSchema(),
+            self::getAiSalesFuncsSchema(),
+            self::getAiFinanceFuncsSchema(),
+            self::getAiScoutFuncsSchema()
         );
     }
 

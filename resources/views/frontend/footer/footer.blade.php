@@ -88,10 +88,12 @@
 
                         <li><a href="/impressum" title="Impressum ansehen" class="hover:text-white transition opacity-80 hover:opacity-100">Impressum</a></li>
                         <li><a href="/datenschutz" title="Datenschutzerklärung lesen" class="hover:text-white transition opacity-80 hover:opacity-100">Datenschutzerklärung</a></li>
-                        <li><a href="/agb" title="Allgemeine Geschäftsbedingungen" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerruf</a></li>
+                        <li><a href="/agb" title="Allgemeine Geschäftsbedingungen" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerrufsbelehrung</a></li>
                         <li><a href="/verhaltenskodex" title="Unser Verhaltenskodex" class="hover:text-white transition opacity-80 hover:opacity-100">Verhaltenskodex</a></li>
                         <li><a href="/versand" title="Informationen zu Versand & Lieferung" class="hover:text-white transition opacity-80 hover:opacity-100">Versand</a></li>
                         <li><a href="/barrierefreiheit" title="Erklärung zur Barrierefreiheit" class="hover:text-white transition opacity-80 hover:opacity-100">Barrierefreiheit</a></li>
+                        
+                        <li class="pt-2"><a href="{{ route('widerruf') }}" title="Vertrag elektronisch widerrufen" class="text-red-400/80 hover:text-red-400 transition flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" /></svg>Vertrag widerrufen</a></li>
                     </ul>
                 </nav>
             </div>

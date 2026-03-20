@@ -142,16 +142,18 @@ class StealthCrawlerService
                         }
 
                         if (!empty($title) && !empty($url) && !$isBulky) {
+                            $safeTitle = mb_substr(trim($title), 0, 250);
+                            $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
                             NicheProduct::updateOrCreate(
-                                ['url' => $this->cleanUrl($url)],
+                                ['url' => $safeUrl],
                                 [
-                                    'title' => trim($title),
+                                    'title' => $safeTitle,
                                     'platform' => 'Etsy',
                                     'price' => $price,
                                     'sales_volume' => $sales_volume,
                                     'rating' => $rating,
                                     'review_count' => $review_count,
-                                    'image_url' => $image_url,
+                                    'image_url' => mb_substr($image_url, 0, 250),
                                     'niche_score' => $score,
                                     'scraped_at' => now(),
                                 ]
@@ -268,16 +270,18 @@ class StealthCrawlerService
                     }
                     
                     if (!empty($title) && !empty($url) && !$isBulky) {
+                        $safeTitle = mb_substr(trim($title), 0, 250);
+                        $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
                         NicheProduct::updateOrCreate(
-                            ['url' => $this->cleanUrl($url)],
+                            ['url' => $safeUrl],
                             [
-                                'title' => trim($title),
+                                'title' => $safeTitle,
                                 'platform' => 'Amazon',
                                 'price' => $price,
                                 'sales_volume' => $sales_volume,
                                 'rating' => $rating,
                                 'review_count' => $review_count,
-                                'image_url' => $image_url,
+                                'image_url' => mb_substr($image_url, 0, 250),
                                 'niche_score' => $score,
                                 'scraped_at' => now(),
                             ]
@@ -380,16 +384,18 @@ class StealthCrawlerService
                     }
                     
                     if (!empty($title) && !empty($url) && !$isBulky) {
+                        $safeTitle = mb_substr(trim($title), 0, 250);
+                        $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
                         NicheProduct::updateOrCreate(
-                            ['url' => $this->cleanUrl($url)],
+                            ['url' => $safeUrl],
                             [
-                                'title' => trim($title),
+                                'title' => $safeTitle,
                                 'platform' => 'Alibaba',
                                 'price' => $price,
                                 'sales_volume' => $sales_volume,
                                 'rating' => $rating,
                                 'review_count' => $review_count,
-                                'image_url' => $image_url,
+                                'image_url' => mb_substr($image_url, 0, 250),
                                 'niche_score' => $score,
                                 'scraped_at' => now(),
                             ]

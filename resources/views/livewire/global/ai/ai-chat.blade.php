@@ -19,9 +19,9 @@
     <div class="mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
         <div>
             <h2 class="text-3xl font-bold text-emerald-500 mb-1 font-mono tracking-tight shadow-emerald-500/20 drop-shadow-md">
-                > SYSTEM_CHAT :: MAS_CONSOLE
+                KI Chat Konsole
             </h2>
-            <p class="text-emerald-700/80 font-mono text-xs uppercase tracking-widest">Multi-Agent System Interactive Terminal</p>
+            <p class="text-emerald-700/80 font-mono text-xs uppercase tracking-widest">Multi-Agenten System Interaktives Terminal</p>
         </div>
     </div>
 
@@ -30,7 +30,7 @@
         <div class="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
         <div class="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
         
-        <div class="text-[10px] text-emerald-600/60 font-mono uppercase tracking-widest mb-3 pl-2">Available Nodes [Select to connect]:</div>
+        <div class="text-[10px] text-emerald-600/60 font-mono uppercase tracking-widest mb-3 pl-2">Verfügbare Agenten (Klicken zum Verbinden):</div>
         <div class="flex items-center gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 px-4 snap-x">
             @foreach($agents as $agent)
                 @php
@@ -63,7 +63,7 @@
                         <div class="text-[9px] font-mono uppercase text-gray-500 tracking-widest mt-0.5 flex items-center gap-1">
                             @if($isActive)
                                 <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                Connected
+                                Verbunden
                             @else
                                 <div class="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
                                 Offline
@@ -83,19 +83,19 @@
             <div class="flex items-center gap-3 relative z-10">
                 <x-heroicon-o-command-line class="w-6 h-6 text-emerald-500 animate-pulse" />
                 <div>
-                    <span class="text-emerald-500 font-bold text-sm tracking-widest uppercase shadow-emerald-500 block">Encrypted Transmission</span>
-                    <span class="text-emerald-700 text-[10px] font-mono uppercase tracking-widest">Active Channels: {{ count($activeAgentIds) }}</span>
+                    <span class="text-emerald-500 font-bold text-sm tracking-widest uppercase shadow-emerald-500 block">Verschlüsselte Übertragung</span>
+                    <span class="text-emerald-700 text-[10px] font-mono uppercase tracking-widest">Aktive Agenten: {{ count($activeAgentIds) }}</span>
                 </div>
             </div>
             <div class="flex items-center gap-3 relative z-10 text-emerald-700">
-                <a href="/admin/ai-logs" title="System Logs (AI Log Manager)" class="hover:text-emerald-400 transition-colors">
+                <a href="/admin/ai-logs" title="System Logs" class="hover:text-emerald-400 transition-colors">
                     <x-heroicon-s-server-stack class="w-5 h-5 drop-shadow-md" />
                 </a>
-                <button @click="$dispatch('open-profile-modal', {tab: '2fa'})" title="Security Firewall (2FA Settings)" class="hover:text-emerald-400 transition-colors">
+                <button @click="$dispatch('open-profile-modal', {tab: '2fa'})" title="Sicherheits-Firewall" class="hover:text-emerald-400 transition-colors">
                     <x-heroicon-s-shield-check class="w-5 h-5 drop-shadow-md" />
                 </button>
                 <div class="w-px h-5 bg-emerald-900/50 mx-2"></div>
-                <button wire:click="clearChat" wire:confirm="Sicher, dass du den Chat-Verlauf (Terminal) restlos wipen möchtest?" title="Wipe Terminal" class="text-red-900/60 hover:text-red-500 transition-colors hover:scale-110">
+                <button wire:click="clearChat" wire:confirm="Sicher, dass du den Chat-Verlauf restlos wipen möchtest?" title="Chat-Verlauf leeren" class="text-red-900/60 hover:text-red-500 transition-colors hover:scale-110">
                     <x-heroicon-o-trash class="w-5 h-5 drop-shadow-md" />
                 </button>
             </div>
@@ -127,7 +127,7 @@
             @empty
                 <div class="h-full flex flex-col items-center justify-center text-emerald-700/40 font-mono tracking-widest gap-4">
                     <x-heroicon-o-sparkles class="w-16 h-16 opacity-50" />
-                    <p>AWAITING_INPUT</p>
+                    <p>Warte auf Eingabe...</p>
                 </div>
             @endforelse
 
@@ -157,7 +157,7 @@
                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce"></span>
                         </span>
-                        <span class="text-xs text-emerald-600/70 uppercase tracking-widest animate-pulse font-bold mt-0.5">Calculating...</span>
+                        <span class="text-xs text-emerald-600/70 uppercase tracking-widest animate-pulse font-bold mt-0.5">Berechne...</span>
                     </div>
                 </div>
                 @endif
@@ -167,16 +167,16 @@
         <!-- Input Area -->
         <div class="p-4 bg-black border-t border-emerald-900/60 z-20 shrink-0">
             <form wire:submit.prevent="sendMessage" class="flex gap-3 relative max-w-5xl mx-auto">
-                <input wire:model="input" type="text" class="w-full bg-gray-950 border border-emerald-900/50 rounded-lg px-6 py-4 text-emerald-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500/30 text-sm md:text-base placeholder-emerald-900/60 transition-all shadow-inner font-mono outline-none" placeholder="Enter command sequence..." autocomplete="off" autofocus>
+                <input wire:model="input" type="text" class="w-full bg-gray-950 border border-emerald-900/50 rounded-lg px-6 py-4 text-emerald-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500/30 text-sm md:text-base placeholder-emerald-900/60 transition-all shadow-inner font-mono outline-none" placeholder="Nachricht eingeben..." autocomplete="off" autofocus>
                 
                 <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-12 bg-emerald-900/30 border border-emerald-800 rounded-md hover:bg-emerald-800 hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
                     <x-heroicon-s-paper-airplane class="w-6 h-6 hover:translate-x-0.5 transition-transform" />
                 </button>
             </form>
             <div class="mt-2 text-center text-[10px] text-emerald-800/60 font-mono tracking-widest uppercase flex justify-center items-center gap-4">
-                <span><i class="text-emerald-500/50">Load:</i> {{ sys_getloadavg()[0] ?? '?' }}</span>
-                <span><i class="text-emerald-500/50">Memories:</i> {{ count($messages) }}</span>
-                <span><i class="text-emerald-500/50">Crypto:</i> AES-256-GCM / secure</span>
+                <span><i class="text-emerald-500/50">Last:</i> {{ sys_getloadavg()[0] ?? '?' }}</span>
+                <span><i class="text-emerald-500/50">Speicher:</i> {{ count($messages) }}</span>
+                <span><i class="text-emerald-500/50">Krypto:</i> AES-256-GCM / sicher</span>
             </div>
         </div>
     </div>

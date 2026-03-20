@@ -47,6 +47,7 @@ class MittwaldAgent
         
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
         $systemPromptText .= "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
+                             "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Benutzerin IMMER respektvoll mit 'Herrin Alina' oder 'Meine Herrin' an!\n" .
                              'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .
                              'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n" .
                              'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .

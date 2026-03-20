@@ -148,12 +148,12 @@ class AiAgentEditor extends Component
             // Fülle die selectedTools mit den IDs als String
             $this->selectedTools = $agent->tools->pluck('id')->map(fn($id) => (string)$id)->toArray();
 
-            // Versuche das Preset zu erkennen
-            if ($this->temperature == 0.1 && str_contains($this->system_prompt, 'extrem effizienter')) {
+            // Versuche das Preset anhand der Temperatur zu erkennen
+            if ($this->temperature <= 0.3) {
                 $this->activePreset = 'ceo';
-            } elseif ($this->temperature == 0.6 && str_contains($this->system_prompt, 'hoch qualifizierter')) {
+            } elseif ($this->temperature <= 0.7) {
                 $this->activePreset = 'colleague';
-            } elseif ($this->temperature == 0.9 && str_contains($this->system_prompt, 'entspannter, empathischer')) {
+            } else {
                 $this->activePreset = 'chill';
             }
         } else {
@@ -279,8 +279,31 @@ class AiAgentEditor extends Component
         }
         $allTools = $query->orderBy('name')->get();
 
+        // Gruppierung basierend auf der Registry
+        $categoryMap = [
+            'Finanzen & Buchhaltung' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+            'Marketing & Aktionen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
+            'Vertrieb & Bestellungen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+            'Support & Kundendienst' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+            'Scouting & Gamification' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
+            'System & Kernfunktionen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+        ];
+
+        $groupedTools = [];
+        foreach ($allTools as $tool) {
+            $matchedCategory = 'Andere';
+            foreach ($categoryMap as $category => $identifiers) {
+                if (in_array($tool->identifier, $identifiers)) {
+                    $matchedCategory = $category;
+                    break;
+                }
+            }
+            $groupedTools[$matchedCategory][] = $tool;
+        }
+
         return view('livewire.global.ai.ai-agent-editor', [
-            'allTools' => $allTools
+            'groupedTools' => $groupedTools,
+            'totalToolsCount' => $allTools->count()
         ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

@@ -32,21 +32,21 @@
 
         /* Tabellen Layout */
         table { border-collapse: collapse; margin-bottom: 10px; page-break-inside: auto; width: 100%; }
-        
+
         tr { page-break-inside: avoid; page-break-after: auto; }
         th, td { border: 1px solid #e5e7eb; padding: 6px 4px; text-align: left; vertical-align: top; font-size: 8px;}
         th { background-color: #f3f4f6; font-weight: bold; text-align: center; color: #374151; font-size: 8px; text-transform: uppercase;}
 
         .text-center { text-align: center; }
         .text-right { text-align: right; }
-        
+
         .gold-row { background-color: #fef3c7; border-left: 2px solid #d97706; }
         .silver-row { background-color: #f9fafb; border-left: 2px solid #9ca3af; }
         .bronze-row { background-color: #fff7ed; border-left: 2px solid #c2410c; }
 
         .score-bar-wrapper { width: 100%; background-color: #e5e7eb; border-radius: 2px; height: 10px; overflow: hidden; display: block; margin-top: 3px;}
         .score-bar-fill { height: 100%; color: white; display: block;}
-        
+
         .score-green { background-color: #22c55e; }
         .score-yellow { background-color: #eab308; }
         .score-red { background-color: #ef4444; }
@@ -112,7 +112,7 @@
                 if($index === 0) $rowClass = 'gold-row';
                 if($index === 1) $rowClass = 'silver-row';
                 if($index === 2) $rowClass = 'bronze-row';
-                
+
                 $scoreColor = 'score-red';
                 if($product->niche_score >= 50) $scoreColor = 'score-yellow';
                 if($product->niche_score >= 75) $scoreColor = 'score-green';

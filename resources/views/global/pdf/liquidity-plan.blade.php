@@ -356,7 +356,7 @@
     <tr>
         <td class="text-left" style="font-weight: normal; color: #4b5563;">Gewerbeertrag abzügl. 24.500 € Freibetrag</td>
         @foreach($years as $y)
-            @php 
+            @php
                 $trade = $taxCalculations['trade_tax'][$y]['steuer'] ?? 0;
                 if($trade > 0) $hasTradeTax = true;
             @endphp
@@ -376,15 +376,15 @@
             </td>
         @endforeach
     </tr>
-    
+
     <tr class="end-row" style="background-color: #f3f4f6; color: #111827;">
         <td class="text-left" style="border-color: #d1d5db; color: #374151;">Gesamte Theoretische Steuerrückstellung pro Jahr</td>
         @foreach($years as $y)
-            @php 
+            @php
                 $v = $taxCalculations['vat'][$y]['total'] ?? 0;
                 $t = $taxCalculations['trade_tax'][$y]['steuer'] ?? 0;
                 $i = $taxCalculations['income_tax'][$y]['steuer'] ?? 0;
-                $totalTax = max(0, $v) + $t + $i; 
+                $totalTax = max(0, $v) + $t + $i;
             @endphp
             <td style="border-color: #d1d5db; font-weight: bold; color: #dc2626;">{{ number_format($totalTax, 2, ',', '.') }}&nbsp;€</td>
         @endforeach
@@ -492,9 +492,9 @@
         </div>
     </div>
     </div>
-    
+
     <div class="clearfix" style="margin-bottom: 10px;"></div>
-    
+
     <div style="width: 100%; clear: both; page-break-inside: avoid;">
         <h3 style="font-size: 8px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 2px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">4. Steuern & Abgaben</h3>
         <div style="float: left; width: 31%; margin-right: 2%;">

@@ -10,18 +10,6 @@ Route::middleware(['auth:admin'])->group(function () {
     return view('backend.admin.pages.dashboard');
     })->name('admin.dashboard');
 
-    // Funki
-    Route::get('/admin/funki', function () {
-        return view('backend.admin.pages.funki');
-    })->name('admin.funki');
-
-    Route::get('/admin/ai-genui', function () {
-        return view('backend.admin.pages.ai-genui');
-    })->name('admin.ai-genui');
-    
-    Route::get('/admin/ai-chat', function () {
-        return view('backend.admin.pages.ai-chat');
-    })->name('admin.ai-chat');
     Route::get('/admin/routine', function () {
         return view('backend.admin.pages.routine');
     })->name('admin.routine');
@@ -37,11 +25,39 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/tickets', function () {
         return view('backend.admin.pages.tickets');
     })->name('admin.tickets');
-    Route::get('/admin/knowledge_base', function () {
-        return view('backend.admin.pages.knowledge-base');
-    })->name('admin.knowledge_base');
 
 
+    // AI AGENT UNVIVERSE
+    Route::get('/admin/ai-logs', function () {
+        return view('backend.admin.pages.ai-logs');
+    })->name('admin.ai-logs');
+    Route::get('/admin/ai-genui', function () {
+        return view('backend.admin.pages.ai-genui');
+    })->name('admin.ai-genui');
+    Route::get('/admin/person-profiles', function () {
+        return view('backend.admin.pages.person-profile');
+    })->name('admin.person-profiles');
+    Route::get('/admin/agenten', function () {
+        return view('backend.admin.pages.ai-agent-manager');
+    })->name('admin.ai-agents');
+    Route::get('/admin/ki-agenten/{id}', function ($id) {
+        return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
+    })->name('admin.ai-agents.editor');
+    Route::get('/admin/externe-agenten/{id}', function ($id) {
+        return view('backend.admin.pages.external-agent-editor', ['id' => $id]);
+    })->name('admin.external-agents.editor');
+    Route::get('/admin/ai-genui', function () {
+        return view('backend.admin.pages.ai-genui');
+    })->name('admin.ai-genui');
+    Route::get('/admin/ai-chat', function () {
+        return view('backend.admin.pages.ai-chat');
+    })->name('admin.ai-chat');
+    Route::get('/admin/ai-knowledge_base', function () {
+        return view('backend.admin.pages.ai-knowledge-base');
+    })->name('admin.ai-knowledge_base');
+    Route::get('/admin/ai-system-info', function () {
+        return view('backend.admin.pages.ai-system-info');
+    })->name('admin.ai-system-info');
 
     // Benutzerverwaltung
     Route::get('/admin/user-management', function () {
@@ -128,6 +144,10 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.quote-requests');
     })->name('admin.quote-requests');
 
+    Route::get('/admin/widerruf', function () {
+        return view('backend.admin.pages.widerruf');
+    })->name('admin.widerruf');
+
     Route::get('/admin/financial-evaluation', function () {
         return view('backend.admin.pages.financial-evaluation');
     })->name('admin.financial-evaluation');
@@ -155,30 +175,6 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/configuration', function () {
         return view('backend.admin.pages.configuration');
     })->name('admin.configuration');
-
-    Route::get('/admin/ai-logs', function () {
-        return view('backend.admin.pages.ai-logs');
-    })->name('admin.ai-logs');
-
-    Route::get('/admin/ai-genui', function () {
-        return view('backend.admin.pages.ai-genui');
-    })->name('admin.ai-genui');
-
-    Route::get('/admin/person-profiles', function () {
-        return view('backend.admin.pages.person-profile');
-    })->name('admin.person-profiles');
-
-    Route::get('/admin/agenten', function () {
-        return view('backend.admin.pages.ai-agent-manager');
-    })->name('admin.ai-agents');
-
-    Route::get('/admin/ki-agenten/{id}', function ($id) {
-        return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
-    })->name('admin.ai-agents.editor');
-
-    Route::get('/admin/externe-agenten/{id}', function ($id) {
-        return view('backend.admin.pages.external-agent-editor', ['id' => $id]);
-    })->name('admin.external-agents.editor');
 
     Route::get('/admin/blog', function () {
         return view('backend.admin.pages.blog');

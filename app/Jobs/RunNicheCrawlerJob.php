@@ -28,8 +28,14 @@ class RunNicheCrawlerJob implements ShouldQueue
 
     public function handle(StealthCrawlerService $crawler)
     {
-        if (strtolower($this->platform) === 'etsy') {
+        $platform = strtolower($this->platform);
+        
+        if ($platform === 'etsy') {
             $crawler->crawlEtsy($this->jobId, $this->keyword, 2);
+        } elseif ($platform === 'amazon') {
+            $crawler->crawlAmazon($this->jobId, $this->keyword, 2);
+        } elseif ($platform === 'alibaba') {
+            $crawler->crawlAlibaba($this->jobId, $this->keyword, 2);
         }
     }
 }

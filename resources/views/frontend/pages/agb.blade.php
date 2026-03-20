@@ -66,15 +66,21 @@
 
                         {{-- §2 Vertragsschluss --}}
                         <div id="vertragsschluss" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Vertragsschluss</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">2. Vertragsschluss & Bestellablauf</h3>
                             <p>
                                 (1) Die Präsentation der Waren im Online-Shop stellt kein rechtlich bindendes Angebot, sondern einen unverbindlichen Online-Katalog dar.
                             </p>
                             <p class="mt-2">
-                                (2) <strong>Bestellungen über Etsy:</strong> Soweit Sie Waren über unseren Shop auf der Plattform Etsy bestellen, gelten vorrangig die dortigen technischen Schritte zum Vertragsschluss sowie die AGB und Nutzungsbedingungen von Etsy.
+                                (2) <strong>Bestellungen über Etsy:</strong> Soweit Sie Waren über unseren Shop auf der Plattform Etsy bestellen, gelten vorrangig die dortigen technischen Schritte zum Vertragsschluss sowie die AGB und Nutzungsbedingungen von Etsy. Über den dortigen Warenkorb-Prozess können Sie vor verbindlicher Abgabe der Bestellung laufend Eingabefehler erkennen und mittels der üblichen Tastatur- und Mausfunktionen korrigieren.
                             </p>
                             <p class="mt-2">
                                 (3) <strong>Individuelle Aufträge:</strong> Bei Bestellungen, die individuell per E-Mail, Telefon oder über das Anfrageformular dieser Website vereinbart werden, erhalten Sie von uns zunächst ein verbindliches Angebot. Der Vertrag kommt zustande, wenn Sie dieses Angebot durch eine Bestätigung (z.B. per E-Mail) oder durch Zahlung des Rechnungsbetrages annehmen.
+                            </p>
+                            <p class="mt-2">
+                                (4) <strong>Vertragssprache:</strong> Die für den Vertragsschluss zur Verfügung stehende Sprache ist ausschließlich Deutsch.
+                            </p>
+                            <p class="mt-2">
+                                (5) <strong>Speicherung des Vertragstextes:</strong> Der finale Vertragstext wird von uns nicht permanent für Sie speicherbar im Shop-System hinterlegt und ist nach Abschluss Ihrer Bestellung für Sie nicht mehr über eine Online-Oberfläche abrufbar. Wir bestätigen Ihnen den Inhalt des Vertrages (Bestelldaten & AGB) jedoch unverzüglich auf einem dauerhaften Datenträger (per E-Mail), sodass Sie diesen selbst abspeichern können.
                             </p>
                         </div>
 
@@ -229,6 +235,12 @@
                     </div>
 
                     <div class="prose prose-gray max-w-none text-gray-700">
+                        <div class="bg-gray-100 border-l-4 border-gray-500 p-6 rounded-r-xl shadow-sm mb-8">
+                            <h3 class="font-bold text-gray-800 text-lg mb-2">Präventiver Hinweis zur Widerrufsbutton-Pflicht (ab 19. Juni 2026)</h3>
+                            <p class="text-gray-700 text-sm leading-relaxed">
+                                Gemäß der neuen EU-Richtlinie stellen wir bereits jetzt präventiv einen leicht zugänglichen <strong>„Vertrag widerrufen“-Button</strong> (im Seitenmenü) zur Verfügung. Obwohl wir derzeit primär nach Kundenspezifikation personalisierte Waren anbieten – für die das gesetzliche Widerrufsrecht ausgeschlossen ist –, bereitet diese technische Maßnahme den Shop langfristig auf den potenziellen künftigen Verkauf von nicht-personalisierten Standardartikeln vor.
+                            </p>
+                        </div>
                         <p class="font-medium bg-gray-100 p-2 inline-block rounded text-sm mb-4">
                             Für alle anderen Waren (z.B. Standard-Zubehör ohne Personalisierung) gilt folgendes Widerrufsrecht:
                         </p>

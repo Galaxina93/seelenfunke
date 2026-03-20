@@ -28,6 +28,14 @@ class AiAgentManager extends Component
         return redirect()->route('admin.ai-agents.editor', ['id' => $id]);
     }
 
+    public function syncAll()
+    {
+        $agents = AiAgent::all();
+        foreach ($agents as $agent) {
+            $this->pingTest($agent->id);
+        }
+    }
+
     public function pingTest($id)
     {
         $agent = AiAgent::find($id);

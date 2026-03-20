@@ -1,18 +1,21 @@
 <div>
     <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 mt-4 border-t border-gray-800/80">
         
-        <div class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4">
-            <div>
-                <h2 class="text-3xl font-black text-white mb-2 uppercase tracking-wider font-mono">Externe Agenten (Headless)</h2>
-                <p class="text-gray-400 font-mono text-sm max-w-2xl">Fernsteuerung externer KI-Engines über REST-API Endpunkte. Konfigurationen werden direkt live auf dem Zielsystem persistiert.</p>
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-black/90 backdrop-blur-md p-6 sm:p-10 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-900/40 relative overflow-hidden mb-8 mt-4">
+            <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
+                <x-heroicon-o-server-stack class="w-40 h-40 text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,1)]" />
+            </div>
+            <div class="relative z-10">
+                <h1 class="text-3xl sm:text-4xl font-black text-emerald-500 tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md font-mono">Externe Agenten (Headless)</h1>
+                <p class="text-emerald-700 mt-2 text-sm font-bold uppercase tracking-widest font-mono">Fernsteuerung externer KI-Engines über REST-API Endpunkte. Konfigurationen werden live persistiert.</p>
             </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             <!-- Toni Agent Card (View Mode Only) -->
-            <div wire:click="editExternalAgent('toni')" class="bg-black/40 backdrop-blur-md border border-gray-800/60 shadow-[0_0_20px_rgba(0,0,0,0.3)] hover:border-indigo-500 rounded-3xl p-6 transition-all cursor-pointer group relative overflow-hidden col-span-1">
-                <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div wire:click="editExternalAgent('toni')" class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-indigo-500 text-indigo-500 hover:shadow-[0_0_25px_currentColor] rounded-3xl p-6 transition-all cursor-pointer group relative overflow-hidden col-span-1 font-mono">
+                <div class="absolute inset-0 bg-current/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-10 transition-opacity"></div>
                 
                 <div class="relative z-10 flex items-start justify-between mb-5">
                     <div class="flex items-center gap-4">
@@ -23,7 +26,7 @@
                             </svg>
                         </div>
                         <div>
-                            <h3 class="text-xl font-bold text-white mb-0.5 group-hover:text-indigo-400 transition-colors font-mono">Toni (Python)</h3>
+                            <h3 class="text-xl font-bold text-gray-200 mb-0.5 group-hover:text-current transition-colors font-mono">Toni (Python)</h3>
                             @if(!$pingRan)
                                 <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-gray-500/20 text-gray-500 border border-gray-500/30 uppercase tracking-widest inline-block">Ungeprüft</span>
                             @elseif($connectionError)
@@ -58,9 +61,9 @@
 
                 <!-- Ping Test Button Action Area -->
                 <div class="mt-4 pt-4 border-t border-gray-800/80 flex items-center justify-between">
-                    <button wire:click.stop="fetchStatus" class="px-3 py-1.5 bg-gray-900/50 hover:bg-indigo-500/20 hover:text-indigo-400 text-gray-400 border border-gray-700 hover:border-indigo-500/50 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shadow-inner flex items-center gap-2 group/ping">
+                    <button wire:click.stop="fetchStatus" class="px-3 py-1.5 bg-gray-900/50 hover:bg-current/10 hover:text-current text-gray-400 border border-gray-700 hover:border-current/50 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shadow-inner flex items-center gap-2 group/ping">
                         <span wire:loading.remove wire:target="fetchStatus" class="flex items-center gap-2"><x-heroicon-o-signal class="w-3.5 h-3.5 group-hover/ping:animate-pulse" /> Ping Test</span>
-                        <span wire:loading wire:target="fetchStatus" class="flex items-center gap-2 text-indigo-400 opacity-80"><svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Pinging...</span>
+                        <span wire:loading wire:target="fetchStatus" class="flex items-center gap-2 text-current opacity-80"><svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Pinging...</span>
                     </button>
                     
                     <div class="flex flex-col text-right text-[10px] uppercase font-bold tracking-widest w-1/2">

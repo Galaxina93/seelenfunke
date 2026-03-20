@@ -158,6 +158,8 @@
                             <!-- Color Palette -->
                             <div>
                                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Aura Farbe wählen</label>
+                                <!-- Tailwind Safelist Fix for Dynamic Colors in loops -->
+                                <div class="hidden bg-cyan-500 text-cyan-500 bg-emerald-500 text-emerald-500 bg-blue-500 text-blue-500 bg-indigo-500 text-indigo-500 bg-purple-500 text-purple-500 bg-pink-500 text-pink-500 bg-rose-500 text-rose-500 bg-red-500 text-red-500 bg-orange-500 text-orange-500 bg-amber-500 text-amber-500 bg-yellow-500 text-yellow-500 bg-green-500 text-green-500 bg-sky-500 text-sky-500"></div>
                                 <div class="grid grid-cols-8 gap-2">
                                     @foreach($availableColors as $col)
                                         <button type="button" wire:click="$set('color', '{{ $col }}')" 
@@ -214,7 +216,7 @@
 
                 <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <!-- Modell Select -->
-                    <div x-data="{ selectedModel: @entangle('model').defer, details: @js($modelDetails) }">
+                    <div x-data="{ selectedModel: $wire.entangle('model'), details: @js($modelDetails) }">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
                             Künstliches Intelligenz Modell <span class="text-red-500">*</span>
                         </label>
@@ -349,50 +351,63 @@
                             </div>
                         </div>
                         <span class="text-xs font-mono text-cyan-400 font-bold bg-cyan-500/10 px-3 py-1.5 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)] inline-block text-right">
-                            <span x-data x-text="$wire.selectedTools.filter(x => x).length"></span> von {{ count($allTools) }} {{ !empty($searchTool) ? 'Gefilterte' : 'Aktiviert' }}
+                            <span x-data x-text="$wire.selectedTools.filter(x => x).length"></span> von {{ $totalToolsCount }} {{ !empty($searchTool) ? 'Gefilterte' : 'Aktiviert' }}
                         </span>
                     </div>
                 </div>
 
-            <!-- Matrix Style Skill Selection -->
-            <div class="relative z-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                @foreach($allTools as $tool)
-                    <div x-data="{ 
-                            expanded: false, 
-                            get isChecked() { return Array.isArray($wire.selectedTools) && $wire.selectedTools.includes('{{ $tool->id }}'); } 
-                         }" 
-                         class="rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden shadow-inner cursor-pointer"
-                         :class="isChecked ? 'bg-cyan-900/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'bg-black/30 border-gray-800/80 hover:border-gray-600'">
-                        
-                        <!-- Header / Brief -->
-                        <div class="p-4 flex items-start gap-4">
-                            <!-- Checkbox Replika -->
-                            <button type="button" @click.stop="if(isChecked) { $wire.selectedTools = $wire.selectedTools.filter(t => t !== '{{ $tool->id }}'); } else { $wire.selectedTools.push('{{ $tool->id }}'); }"
-                                class="shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors border mt-1"
-                                :class="isChecked ? 'bg-cyan-500 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-gray-900 border-gray-700 text-transparent'">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
-                            </button>
-                            
-                            <div class="flex-1 min-w-0" @click="expanded = !expanded">
-                                <div class="flex justify-between items-center mb-1">
-                                    <h4 class="text-sm font-bold truncate transition-colors font-mono" :class="isChecked ? 'text-cyan-300' : 'text-gray-200'">{{ $tool->name }}</h4>
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
-                                </div>
-                                <div class="text-[9px] font-mono tracking-widest uppercase mb-1 truncate" :class="isChecked ? 'text-cyan-600' : 'text-gray-600'">
-                                    {{ $tool->identifier }}
-                                </div>
+                <!-- Grouped Tools Rendering -->
+                <div class="space-y-12">
+                    @foreach($groupedTools as $category => $tools)
+                        @if(count($tools) > 0)
+                            <div>
+                                <h4 class="text-lg font-black text-white mb-6 flex items-center gap-3 border-b border-gray-800/80 pb-3 uppercase tracking-widest font-mono">
+                                    <span class="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]"></span>
+                                    {{ $category }}
+                                </h4>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                                    @foreach($tools as $tool)
+                                        <div x-data="{ 
+                                                expanded: false, 
+                                                get isChecked() { return Array.isArray($wire.selectedTools) && $wire.selectedTools.includes('{{ $tool->id }}'); } 
+                                             }" 
+                                             class="rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden shadow-inner cursor-pointer"
+                                             :class="isChecked ? 'bg-cyan-900/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'bg-black/30 border-gray-800/80 hover:border-gray-600'">
+                                            
+                                            <!-- Header / Brief -->
+                                            <div class="p-4 flex items-start gap-4">
+                                                <!-- Checkbox Replika -->
+                                                <button type="button" @click.stop="if(isChecked) { $wire.selectedTools = $wire.selectedTools.filter(t => t !== '{{ $tool->id }}'); } else { $wire.selectedTools.push('{{ $tool->id }}'); }"
+                                                    class="shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors border mt-1"
+                                                    :class="isChecked ? 'bg-cyan-500 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-gray-900 border-gray-700 text-transparent'">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
+                                                </button>
+                                                
+                                                <div class="flex-1 min-w-0" @click="expanded = !expanded">
+                                                    <div class="flex justify-between items-center mb-1">
+                                                        <h4 class="text-sm font-bold truncate transition-colors font-mono uppercase" :class="isChecked ? 'text-cyan-300' : 'text-gray-200'" title="{{ $tool->name }}">{{ $tool->name }}</h4>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+                                                    </div>
+                                                    <div class="text-[9px] font-mono tracking-widest lowercase mb-1 truncate" :class="isChecked ? 'text-cyan-600' : 'text-gray-600'">
+                                                        ({{ $tool->identifier }})
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Expandable Details -->
+                                            <div x-show="expanded" x-collapse style="display: none;">
+                                                <div class="px-4 pb-4 pt-0 border-t border-white/5 mt-2 bg-black/40">
+                                                    <p class="text-[11px] text-gray-400 mt-3 leading-relaxed font-mono whitespace-pre-line">{{ $tool->description ?? 'Keine Dokumentation hinterlegt.' }}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <input type="checkbox" wire:model.defer="selectedTools" value="{{ $tool->id }}" class="hidden" id="hidden-tool-{{ $tool->id }}">
+                                    @endforeach
                                 </div>
                             </div>
-
-                            <!-- Expandable Details -->
-                            <div x-show="expanded" x-collapse style="display: none;">
-                                <div class="px-4 pb-4 pt-0 border-t border-white/5 mt-2 bg-black/40">
-                                    <p class="text-[11px] text-gray-400 mt-3 leading-relaxed font-mono whitespace-pre-line">{{ $tool->description ?? 'Keine Dokumentation hinterlegt.' }}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <input type="checkbox" wire:model.defer="selectedTools" value="{{ $tool->id }}" class="hidden" id="hidden-tool-{{ $tool->id }}">
+                        @endif
                     @endforeach
                 </div>
             </section>

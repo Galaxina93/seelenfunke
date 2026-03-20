@@ -184,11 +184,31 @@ class AiChat extends Component
             }
         }
 
+        // --- MULTI-AGENT ROUTING INJECTION ---
+        if (count($this->activeAgentIds) > 1) {
+            $isFunkira = $agent->name === 'Funkira';
+            $funkiraRule = $isFunkira 
+                ? "Du BIST Funkira (CEO). Du antwortest IMMER auf allgemeines wie 'Hallo', Plaudereien oder CEO-Gespräche. Wenn der User aber ganz klar eine Aufgabe formuliert, für die ein anderer aktivierter Spezialitäten-Agent (wir sind im Multi-Agent Chat) da ist, antworte exakt mit '[SKIP]', damit sich die Kollegen drum kümmern, und mische dich nicht ein."
+                : "Du bist aktuell in einem Multi-Agent Chat. Es hören auch andere Agenten und Funkira (die CEO) zu. WICHTIGE REGEL: Wenn die letzte Nachricht der Herrin eine allgemeine Begrüßung ('Hallo', 'Wie gehts') oder völlig fachfremd ist, DARFST DU NICHT ANTWORTEN (das macht Funkira). In diesem Fall antworte ausschließlich mit dem Text: '[SKIP]'. Du antwortest NUR normal, wenn die Nachricht zu 100% genau in die Expertise deiner Fähigkeiten fällt!";
+
+            $apiHistory[] = [
+                'role' => 'system',
+                'content' => "[MULTI-AGENT KOORDINATIONS-PROTOKOLL]\n" . $funkiraRule
+            ];
+        }
+
         try {
             $apiService = new \App\Services\AI\MittwaldAgent($agent);
             
             $response = $apiService->ask($apiHistory);
             $replyText = $response['response'] ?? 'Ich konnte keine Antwort generieren.';
+
+            // Überprüfe auf Skipped Routing
+            if (str_contains(strtoupper($replyText), '[SKIP]')) {
+                // Agent ignoriert die Nachricht still (keine Kosten im Frontend, kein DB Eintrag)
+                $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
+                return;
+            }
 
             $ctx = [
                 'name' => $agent->name,

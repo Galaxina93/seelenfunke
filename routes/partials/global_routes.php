@@ -132,6 +132,10 @@ Route::get('/agb', function () {
     return view('frontend.pages.agb');
 })->name('agb');
 
+Route::get('/widerruf', function () {
+    return view('frontend.pages.widerruf');
+})->name('widerruf');
+
 Route::get('/verhaltenskodex', function () {
     return view('frontend.pages.verhaltenskodex');
 })->name('verhaltenskodex');

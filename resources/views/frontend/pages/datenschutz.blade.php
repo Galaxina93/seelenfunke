@@ -160,6 +160,14 @@
                     <p class="mt-2 text-sm text-gray-500">
                         Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer zielgruppengerechten Ansprache).
                     </p>
+                    <h3 class="font-bold text-lg mt-6">Elektronischer Widerruf (Widerrufsbutton)</h3>
+                    <p>
+                        Über unseren gut sichtbaren „Vertrag widerrufen“-Button (Menüleiste) bieten wir Ihnen die Möglichkeit, Verträge über nicht-personalisierte Waren (falls angeboten) direkt auf elektronischem Wege zu widerrufen (Umsetzung der EU-Richtlinie ab 19. Juni 2026).
+                        Wenn Sie diese Funktion nutzen, verarbeiten wir Ihre eingegebenen Daten (z. B. Name, Adressdaten, E-Mail-Adresse, Datum des Vorfalls) ausschließlich zum Zweck der Identifikation, der Bearbeitung des Vorgangs und der gesetzlich zwingend vorgeschriebenen, unverzüglichen Eingangsbestätigung (per E-Mail).
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        Rechtsgrundlage: Art. 6 Abs. 1 lit. c DSGVO (Erfüllung einer rechtlichen Verpflichtung zur Zurverfügungstellung und Bestätigung des Widerrufs) sowie Art. 6 Abs. 1 lit. b DSGVO (Rückabwicklung des Vertrages).
+                    </p>
                 </div>
 
                 <div>

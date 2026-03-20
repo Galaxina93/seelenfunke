@@ -161,7 +161,14 @@ class ProductNicheScanner extends Component
     public function cancelCrawler($jobId)
     {
         Cache::put("cancel_crawler_{$jobId}", true, 600);
-        session()->flash('message', 'Sende Abbruch-Signal an Crawler Job...');
+        
+        $activeJobs = Cache::get('active_crawler_jobs', []);
+        $activeJobs = array_filter($activeJobs, fn($id) => $id !== $jobId);
+        Cache::put('active_crawler_jobs', array_values($activeJobs), 3600);
+        
+        Cache::forget("crawler_job_{$jobId}");
+        
+        session()->flash('message', 'Abbruch erzwungen: Crawler Job wurde aus der Anzeige entfernt.');
     }
     
     public function clearData()

@@ -53,7 +53,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
     - FunkiAnalytics.php
     - GoogleReviews.php
     - HeaderSlider.php
-    - KnowledgeBase.php
+    - AiKnowledgeBase.php
     - LoginLog.php
 - **Shop/**
   - **Blog/**
@@ -443,7 +443,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
 - DayRoutineStep.php
 - Directory.php
 - Invoice.php
-- KnowledgeBase.php
+- AiKnowledgeBase.php
 - LoginAttempt.php
 - PasswordResetToken.php
 - Permission.php
