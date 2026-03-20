@@ -10,7 +10,7 @@
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'widerruf']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'ai-knowledge_base', 'ai-genui', 'ai-logs', 'ai-chat']);
+        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'ai-knowledge_base', 'ai-genui', 'ai-logs', 'ai-chat', 'ai-system-info']);
     @endphp
 
     {{--CEO Zentrale--}}
