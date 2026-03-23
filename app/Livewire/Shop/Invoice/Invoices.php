@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Models\Global\GlobalLog;
 
 class Invoices extends Component
 {
@@ -311,7 +312,8 @@ class Invoices extends Component
         // Variable für PDF-Fehler (Initialisierung)
         $pdfError = null;
 
-        DB::transaction(function () use ($finalStatus, $currentId, &$pdfError) {
+        try {
+            DB::transaction(function () use ($finalStatus, $currentId, &$pdfError) {
             $itemsGrossSum = 0; // Summe der Brutto-Werte der Positionen
             $totalTaxAmount = 0; // Gesamte Steuer (Items + Versand)
             $items = [];
@@ -465,6 +467,12 @@ class Invoices extends Component
                 session()->flash('success', 'Entwurf gespeichert.');
             }
         }
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logInvoiceError('save_manual_invoice', $e, ['invoice_id' => $this->manualInvoice['id'] ?? null]);
+            session()->flash('error', 'Fehler beim Speichern der Rechnung: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -529,33 +537,54 @@ class Invoices extends Component
             return;
         }
 
-        DB::transaction(function () use ($invoice) {
-            // 1. Ursprüngliche Rechnung als storniert markieren
-            $invoice->update(['status' => 'cancelled']);
+        try {
+            DB::transaction(function () use ($invoice) {
+                // 1. Ursprüngliche Rechnung als storniert markieren
+                $invoice->update(['status' => 'cancelled']);
 
-            // 2. Stornorechnung (Gutschrift) erstellen
-            $cancellationInvoice = $invoice->replicate();
-            $cancellationInvoice->invoice_number = 'ST-' . $invoice->invoice_number;
-            $cancellationInvoice->type = 'cancellation';
-            $cancellationInvoice->status = 'paid';
-            $cancellationInvoice->invoice_date = now();
-            $cancellationInvoice->parent_id = $invoice->id; // Verknüpfung zur Originalrechnung
+                // 2. Stornorechnung (Gutschrift) erstellen
+                $cancellationInvoice = $invoice->replicate();
+                $cancellationInvoice->invoice_number = 'ST-' . $invoice->invoice_number;
+                $cancellationInvoice->type = 'cancellation';
+                $cancellationInvoice->status = 'paid';
+                $cancellationInvoice->invoice_date = now();
+                $cancellationInvoice->parent_id = $invoice->id; // Verknüpfung zur Originalrechnung
 
-            // Beträge ins Negative drehen für eine Gutschrift
-            $cancellationInvoice->subtotal = -$invoice->subtotal;
-            $cancellationInvoice->tax_amount = -$invoice->tax_amount;
-            $cancellationInvoice->shipping_cost = -$invoice->shipping_cost;
-            $cancellationInvoice->discount_amount = -$invoice->discount_amount;
-            $cancellationInvoice->volume_discount = -$invoice->volume_discount;
-            $cancellationInvoice->total = -$invoice->total;
+                // Beträge ins Negative drehen für eine Gutschrift
+                $cancellationInvoice->subtotal = -$invoice->subtotal;
+                $cancellationInvoice->tax_amount = -$invoice->tax_amount;
+                $cancellationInvoice->shipping_cost = -$invoice->shipping_cost;
+                $cancellationInvoice->discount_amount = -$invoice->discount_amount;
+                $cancellationInvoice->volume_discount = -$invoice->volume_discount;
+                $cancellationInvoice->total = -$invoice->total;
 
-            $cancellationInvoice->save();
+                $cancellationInvoice->save();
 
-            // Auch Stornobeleg archivieren
-            app(InvoiceService::class)->storePdf($cancellationInvoice);
-        });
+                // Auch Stornobeleg archivieren
+                app(InvoiceService::class)->storePdf($cancellationInvoice);
+            });
 
-        session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');
+            session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');
+        } catch (\Exception $e) {
+            $this->logInvoiceError('cancel_invoice', $e, ['invoice_id' => $id]);
+            session()->flash('error', 'Fehler beim Stornieren der Rechnung: ' . $e->getMessage());
+        }
+    }
+
+    private function logInvoiceError($action, \Exception $e, $payload = [])
+    {
+        GlobalLog::create([
+            'type' => 'error',
+            'agent_id' => null,
+            'action_id' => 'admin_invoice_generation',
+            'message' => "Fehler bei Invoice Aktion ($action): " . $e->getMessage(),
+            'details' => json_encode([
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'payload' => $payload,
+                'trace' => $e->getTraceAsString()
+            ])
+        ]);
     }
 
     /**

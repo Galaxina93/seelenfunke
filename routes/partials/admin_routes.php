@@ -28,9 +28,11 @@ Route::middleware(['auth:admin'])->group(function () {
 
 
     // AI AGENT UNVIVERSE
-    Route::get('/admin/ai-logs', function () {
-        return view('backend.admin.pages.ai-logs');
-    })->name('admin.ai-logs');
+    Route::get('/admin/ai-analytics', \App\Livewire\Global\Ai\AiAnalytics::class)->name('admin.ai-analytics');
+
+    Route::get('/admin/global-logs', function () {
+        return view('backend.admin.pages.global-logs');
+    })->name('admin.global-logs');
     Route::get('/admin/ai-genui', function () {
         return view('backend.admin.pages.ai-genui');
     })->name('admin.ai-genui');
@@ -40,6 +42,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/agenten', function () {
         return view('backend.admin.pages.ai-agent-manager');
     })->name('admin.ai-agents');
+    Route::get('/admin/agenten-rollen', function () {
+        return view('backend.admin.pages.ai-role-manager');
+    })->name('admin.ai-roles');
     Route::get('/admin/ki-agenten/{id}', function ($id) {
         return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
     })->name('admin.ai-agents.editor');
@@ -55,9 +60,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/ai-knowledge_base', function () {
         return view('backend.admin.pages.ai-knowledge-base');
     })->name('admin.ai-knowledge_base');
-    Route::get('/admin/ai-system-info', function () {
-        return view('backend.admin.pages.ai-system-info');
-    })->name('admin.ai-system-info');
+    Route::get('/admin/system-info', function () {
+        return view('backend.admin.pages.system-info');
+    })->name('admin.system-info');
 
     // Benutzerverwaltung
     Route::get('/admin/user-management', function () {
@@ -65,9 +70,7 @@ Route::middleware(['auth:admin'])->group(function () {
     })->name('admin.user-management');
 
     // Benutzerverwaltung
-    Route::get('/admin/right-management', function () {
-        return view('backend.admin.pages.right-management');
-    })->name('admin.right-management');
+
 
 
 
@@ -147,6 +150,10 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/widerruf', function () {
         return view('backend.admin.pages.widerruf');
     })->name('admin.widerruf');
+    
+    // Revocation File Download
+    Route::get('/admin/widerruf/file/{revocation}/{fileName}', [\App\Http\Controllers\Backend\Admin\RevocationFileController::class, 'download'])
+        ->name('admin.widerruf.file');
 
     Route::get('/admin/financial-evaluation', function () {
         return view('backend.admin.pages.financial-evaluation');

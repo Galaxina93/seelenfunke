@@ -1,6 +1,6 @@
 <script>
     document.addEventListener('livewire:initialized', () => {
-        let profitChart, expensesChart, customersChart, visitsChart;
+        let profitChart, expensesChart, customersChart, visitsChart, acquisitionChart;
 
         // Standardvorgaben für dunkles Design
         Chart.defaults.color = '#9ca3af'; // gray-400
@@ -251,6 +251,65 @@
                         scales: {
                             y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)' }, border: { display: false }, ticks: { precision: 0 } },
                             x: { grid: { display: false }, border: { display: false } }
+                        }
+                    }
+                });
+            }
+
+            // --- 3. KUNDENGEWINNUNG CHART (NEU) ---
+            const acqCtx = document.getElementById('acquisitionChart');
+            if(acqCtx) {
+                if (acquisitionChart) acquisitionChart.destroy();
+                const ctxAcq = acqCtx.getContext('2d');
+
+                const gradAcq = ctxAcq.createLinearGradient(0, 0, 0, 300);
+                gradAcq.addColorStop(0, 'rgba(217, 70, 239, 0.4)'); // fuchsia-500
+                gradAcq.addColorStop(1, 'rgba(217, 70, 239, 0.0)');
+
+                acquisitionChart = new Chart(ctxAcq, {
+                    type: 'line',
+                    data: {
+                        labels: data.customer_labels,
+                        datasets: [
+                            {
+                                label: 'Neue Registrierungen',
+                                data: data.customer_counts,
+                                borderColor: '#d946ef', // fuchsia-500
+                                backgroundColor: gradAcq,
+                                borderWidth: 3,
+                                pointBackgroundColor: '#111827',
+                                pointBorderColor: '#d946ef',
+                                pointBorderWidth: 2,
+                                fill: true,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(17, 24, 39, 0.9)',
+                                borderColor: 'rgba(217, 70, 239, 0.3)',
+                                borderWidth: 1,
+                                padding: 10
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
+                                border: { display: false }, 
+                                ticks: { precision: 0, color: '#9ca3af' } 
+                            },
+                            x: { 
+                                grid: { display: false }, 
+                                border: { display: false },
+                                ticks: { color: '#9ca3af' } 
+                            }
                         }
                     }
                 });

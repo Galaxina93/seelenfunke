@@ -45,6 +45,66 @@
             </div>
         </div>
 
+        {{-- CONFIGURATION PANEL --}}
+        <div class="bg-gray-900/60 backdrop-blur-md rounded-2xl md:rounded-[2.5rem] border border-gray-800 p-4 sm:p-6 mb-2 mt-4 shadow-xl">
+            <h3 class="text-[10px] sm:text-xs font-black uppercase text-[#d4af37] tracking-widest mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Projekt-Start & Darlehens-Parameter
+            </h3>
+            
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-6">
+                {{-- Start Year --}}
+                <div class="space-y-1">
+                    <label class="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-gray-400">
+                        Gründungsjahr
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Das Kalenderjahr, ab dem das Projekt offiziell startet und ab dem das System bei Engpässen ggf. automatische Darlehen genehmigt."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </label>
+                    <input type="number" wire:model.live.debounce.800ms="configStartYear" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                </div>
+                {{-- Start Month --}}
+                <div class="space-y-1">
+                    <label class="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-gray-400">
+                        Gründungsmonat (1-12)
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Der Monat im angegebenen Gründungsjahr, ab dem die Liquiditätsberechnung startet."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </label>
+                    <input type="number" min="1" max="12" wire:model.live.debounce.800ms="configStartMonth" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                </div>
+                {{-- Interest Rate --}}
+                <div class="space-y-1">
+                    <label class="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-gray-400">
+                        Autokredit-Zins p.a. (%)
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Die Kredithöhe berechnet das System komplett selbst (min. 3.000 €, immer passend in 1.000 € Schritten), sobald das Konto theoretisch ins Minus rutscht. Hier legst du lediglich den Zins für diese vollautomatischen Kredite fest."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </label>
+                    <input type="number" step="0.1" wire:model.live.debounce.800ms="configInterestRate" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                </div>
+                {{-- Repayment Months --}}
+                <div class="space-y-1">
+                    <label class="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-gray-400">
+                        Tilgungsdauer (Monate)
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Gibt an, über wie viele Monate ein automatisch aufgenommener Kredit linear abbezahlt werden soll (z. B. 60 Monate = 5 Jahre)."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </label>
+                    <input type="number" min="1" wire:model.live.debounce.800ms="configRepaymentMonths" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                </div>
+                {{-- Demo Data Toggle --}}
+                <div class="space-y-1 flex flex-col justify-start mt-1 col-span-2 md:col-span-1">
+                    <label class="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-gray-400 mb-2">
+                        Muster-Plan laden?
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Lädt realistische Musterdaten (Anfangsinvestitionen, fiktive Start-Umsätze). Deaktivieren für einen komplett leeren Plan, der sich rein aus Live-Daten speist. Wirkt sich direkt inkl. aller Folgen auf den PDF-Export aus!"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </label>
+                    <label class="flex items-center cursor-pointer group">
+                        <div class="relative">
+                            <input type="checkbox" wire:model.live="configLoadDemoData" class="sr-only">
+                            <div class="block bg-gray-800 w-10 h-6 rounded-full transition-colors {{ $configLoadDemoData ? 'bg-[#d4af37]' : 'group-hover:bg-gray-700' }}"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform {{ $configLoadDemoData ? 'transform translate-x-4' : '' }}"></div>
+                        </div>
+                        <div class="ml-3 text-[10px] md:text-xs text-gray-300 font-bold uppercase tracking-wider">
+                            {{ $configLoadDemoData ? 'Aktiv' : 'Deaktiviert' }}
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
         {{-- GOLDENER JAHRES SELECTOR --}}
         <div class="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 md:gap-2 bg-gray-950 p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-gray-800 shadow-[0_0_20px_rgba(0,0,0,0.5)] w-full sm:w-max mx-auto sm:mx-0">
             @foreach($years as $year)
@@ -136,9 +196,9 @@
                             for($i=1; $i<=12; $i++) { $rowSum += abs((float) ($data[$activeYear][$i]['in'][$key] ?? 0)); }
                             $isZeroRow = $rowSum == 0;
                         @endphp
-                        <tr class="hover:bg-gray-800/30 transition-colors group {{ $isZeroRow ? 'opacity-40' : '' }}">
+                        <tr class="hover:bg-gray-800/30 transition-colors group {{ $isZeroRow ? 'opacity-30 grayscale' : '' }}">
                             <td class="sticky left-0 bg-gray-950 z-20 p-0 border-r border-gray-800 shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)] align-middle">
-                                <div class="px-3 md:px-6 py-2 md:py-2.5 flex items-center justify-between gap-1 h-full min-h-[44px] group-hover:bg-gray-900 transition-colors {{ $isZeroRow ? 'text-gray-600 line-through' : 'text-gray-300' }}">
+                                <div class="px-3 md:px-6 py-2 md:py-2.5 flex items-center justify-between gap-1 h-full min-h-[44px] group-hover:bg-gray-900 transition-colors {{ $isZeroRow ? 'text-gray-600' : 'text-gray-300' }}">
                                         <span class="text-[10px] md:text-sm whitespace-normal break-words leading-tight text-left {{$key === 'subsidy' && !$isZeroRow ? 'text-primary font-bold' : ''}}">
                                             {{$rowData['label']}}
                                         </span>
@@ -151,7 +211,7 @@
                                     <div class="flex items-center justify-end gap-0.5 md:gap-1">
                                         <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}"
                                                wire:change="updateValue({{ $activeYear }}, {{ $m }}, 'in', '{{ $key }}', $event.target.value)"
-                                               class="w-full min-w-[60px] md:min-w-[80px] bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors text-xs md:text-sm {{ empty($val) ? 'text-gray-600/50 font-normal' : 'text-gray-200' }} {{ $isZeroRow ? 'line-through text-gray-600' : '' }}"
+                                               class="w-full min-w-[60px] md:min-w-[80px] bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors text-xs md:text-sm {{ empty($val) ? 'text-gray-600/50 font-normal' : 'text-gray-200' }} {{ $isZeroRow ? 'text-gray-600' : '' }}"
                                                placeholder="0.00">
                                         <span class="text-gray-600 {{ empty($val) ? 'text-[9px] md:text-[10px]' : 'text-xs md:text-sm font-bold text-gray-500' }}">&nbsp;€</span>
                                     </div>
@@ -187,9 +247,9 @@
                             for($i=1; $i<=12; $i++) { $rowSum += abs((float) ($data[$activeYear][$i]['out'][$key] ?? 0)); }
                             $isZeroRow = $rowSum == 0;
                         @endphp
-                        <tr class="hover:bg-gray-800/30 transition-colors group {{ $isZeroRow ? 'opacity-40' : '' }}">
+                        <tr class="hover:bg-gray-800/30 transition-colors group {{ $isZeroRow ? 'opacity-30 grayscale' : '' }}">
                             <td class="sticky left-0 bg-gray-950 z-20 p-0 border-r border-gray-800 shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)] align-middle">
-                                <div class="px-3 md:px-6 py-2 md:py-2.5 flex items-center justify-between gap-1 h-full min-h-[44px] group-hover:bg-gray-900 transition-colors {{ $isZeroRow ? 'text-gray-600 line-through' : 'text-gray-300' }}">
+                                <div class="px-3 md:px-6 py-2 md:py-2.5 flex items-center justify-between gap-1 h-full min-h-[44px] group-hover:bg-gray-900 transition-colors {{ $isZeroRow ? 'text-gray-600' : 'text-gray-300' }}">
                                         <span class="text-[10px] md:text-sm whitespace-normal break-words leading-tight text-left {{$key === 'private' && !$isZeroRow ? 'text-primary font-bold' : ''}}">
                                             {{$rowData['label']}}
                                         </span>
@@ -202,7 +262,7 @@
                                     <div class="flex items-center justify-end gap-0.5 md:gap-1">
                                         <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}"
                                                wire:change="updateValue({{ $activeYear }}, {{ $m }}, 'out', '{{ $key }}', $event.target.value)"
-                                               class="w-full min-w-[60px] md:min-w-[80px] bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors text-xs md:text-sm {{ empty($val) ? 'text-gray-600/50 font-normal' : 'text-gray-200' }} {{ $isZeroRow ? 'line-through text-gray-600' : '' }}"
+                                               class="w-full min-w-[60px] md:min-w-[80px] bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors text-xs md:text-sm {{ empty($val) ? 'text-gray-600/50 font-normal' : 'text-gray-200' }} {{ $isZeroRow ? 'text-gray-600' : '' }}"
                                                placeholder="0.00">
                                         <span class="text-gray-600 {{ empty($val) ? 'text-[9px] md:text-[10px]' : 'text-xs md:text-sm font-bold text-gray-500' }}">&nbsp;€</span>
                                     </div>
@@ -276,9 +336,9 @@
                             for($i=1; $i<=12; $i++) { $rowSum += abs((float) ($data[$activeYear][$i]['adj'][$key] ?? 0)); }
                             $isZeroRow = $rowSum == 0;
                         @endphp
-                        <tr class="hover:bg-gray-800/30 transition-colors group {{ $isZeroRow ? 'opacity-40' : '' }}">
+                        <tr class="hover:bg-gray-800/30 transition-colors group {{ $isZeroRow ? 'opacity-30 grayscale' : '' }}">
                             <td class="sticky left-0 bg-gray-950 z-20 p-0 border-r border-gray-800 shadow-[5px_0_15px_-5px_rgba(0,0,0,0.5)] align-middle">
-                                <div class="px-3 md:px-6 py-2 md:py-2.5 flex items-center justify-between gap-1 h-full min-h-[44px] group-hover:bg-gray-900 transition-colors {{ $isZeroRow ? 'text-gray-600 line-through' : 'text-gray-300' }}">
+                                <div class="px-3 md:px-6 py-2 md:py-2.5 flex items-center justify-between gap-1 h-full min-h-[44px] group-hover:bg-gray-900 transition-colors {{ $isZeroRow ? 'text-gray-600' : 'text-gray-300' }}">
                                         <span class="text-[10px] md:text-sm whitespace-normal break-words leading-tight text-left">
                                             {{$rowData['label']}}
                                         </span>
@@ -291,7 +351,7 @@
                                     <div class="flex items-center justify-end gap-0.5 md:gap-1">
                                         <input type="number" step="0.01" value="{{ $val !== null ? number_format((float)$val, 2, '.', '') : '' }}"
                                                wire:change="updateValue({{ $activeYear }}, {{ $m }}, 'adj', '{{ $key }}', $event.target.value)"
-                                               class="w-full min-w-[60px] md:min-w-[80px] bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors text-xs md:text-sm {{ empty($val) ? 'text-gray-600/50 font-normal' : 'text-gray-200' }} {{ $isZeroRow ? 'line-through text-gray-600' : '' }}"
+                                               class="w-full min-w-[60px] md:min-w-[80px] bg-transparent text-right font-mono focus:bg-gray-950 focus:ring-1 focus:ring-primary rounded px-1 outline-none transition-colors text-xs md:text-sm {{ empty($val) ? 'text-gray-600/50 font-normal' : 'text-gray-200' }} {{ $isZeroRow ? 'text-gray-600' : '' }}"
                                                placeholder="0.00">
                                         <span class="text-gray-600 {{ empty($val) ? 'text-[9px] md:text-[10px]' : 'text-xs md:text-sm font-bold text-gray-500' }}">&nbsp;€</span>
                                     </div>
@@ -322,10 +382,6 @@
                 </table>
             </div>
 
-            {{-- Legende Backend --}}
-            <div class="text-[10px] md:text-xs text-gray-500 px-4 md:px-6 mt-4">
-                * <strong>Legende:</strong> Grau durchgestrichene Positionen (wie z. B. <span class="line-through text-gray-600">Sonstige Kosten</span>) weisen im ausgewählten Planungsjahr keine Liquiditätsbewegungen auf (0,00 €).
-            </div>
         </div>
 
         {{-- ZUSATZ TABELLEN (Gepackt untereinander) --}}

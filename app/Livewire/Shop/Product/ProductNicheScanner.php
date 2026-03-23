@@ -30,7 +30,7 @@ class ProductNicheScanner extends Component
     
     public function mount()
     {
-        $this->availableAgents = \App\Models\Ai\AiAgent::orderBy('name')->get()->toArray();
+        $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)->with('role')->orderBy('name')->get()->toArray();
         $this->loadSavedRuns();
         
         $this->aiRecommendation = \Illuminate\Support\Facades\Cache::get('niche_scanner_live_ai_rec');

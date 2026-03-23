@@ -56,10 +56,18 @@ class AiAgentService
         // Key-Reset nach array_filter
         $filteredSchema = array_values($filteredSchema);
 
+        $roleInfo = "";
+        if ($agent->role) {
+            $roleInfo = "\n\n[DEINE ZUGEWIESENE ROLLE & IDENTITÄT]\n" .
+                        "Rollen-Bezeichnung: " . $agent->role->name . "\n" .
+                        "Rollen-Beschreibung: " . ($agent->role->description ?? 'Keine spezifische Beschreibung definiert.') . "\n" .
+                        "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
+        }
+
         return [
             'model' => $agent->model ?? 'gpt-oss-120b',
             'temperature' => (float) ($agent->temperature ?? 0.4),
-            'system_prompt' => $agent->system_prompt,
+            'system_prompt' => $agent->system_prompt . $roleInfo,
             'tools' => empty($filteredSchema) ? null : $filteredSchema,
         ];
     }

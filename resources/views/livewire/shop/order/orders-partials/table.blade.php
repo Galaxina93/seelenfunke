@@ -136,21 +136,35 @@
 
                 {{-- SPALTE 6: STATUS (SELECT) --}}
                 <td class="px-6 py-5 text-center align-middle">
-                    <div class="relative inline-block w-40" wire:click.stop>
-                        <select
-                            wire:change="updateStatus('{{ $order->id }}', $event.target.value)"
-                            wire:loading.attr="disabled"
-                            class="appearance-none w-full text-[10px] font-black uppercase tracking-widest rounded-xl border border-transparent py-2 pl-4 pr-8 cursor-pointer focus:ring-2 focus:ring-primary/20 transition-all outline-none {{ $statusColors[$order->status] ?? 'bg-gray-800 text-gray-400' }}"
-                        >
-                            @foreach($statusMap as $value => $label)
-                                <option value="{{ $value }}" class="bg-gray-900 text-white font-bold" {{ $order->status === $value ? 'selected' : '' }}>
-                                    {{ $label }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-current opacity-50">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="relative inline-block w-40" wire:click.stop>
+                            <select
+                                wire:change="updateStatus('{{ $order->id }}', $event.target.value)"
+                                wire:loading.attr="disabled"
+                                class="appearance-none w-full text-[10px] font-black uppercase tracking-widest rounded-xl border border-transparent py-2 pl-4 pr-8 cursor-pointer focus:ring-2 focus:ring-primary/20 transition-all outline-none {{ $statusColors[$order->status] ?? 'bg-gray-800 text-gray-400' }}"
+                            >
+                                @foreach($statusMap as $value => $label)
+                                    <option value="{{ $value }}" class="bg-gray-900 text-white font-bold" {{ $order->status === $value ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-current opacity-50">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
                         </div>
+
+                        {{-- Progress Bar --}}
+                        @php
+                            $totalItems = $order->items->count();
+                            $completedItems = $order->items->where('is_completed', true)->count();
+                            $progressPct = $totalItems > 0 ? ($completedItems / $totalItems) * 100 : 0;
+                        @endphp
+                        @if($totalItems > 0 && !in_array($order->status, ['cancelled', 'refunded']))
+                            <div class="w-32 bg-gray-950 rounded-full h-1 overflow-hidden border border-gray-800 shadow-inner flex cursor-help" title="{{ $completedItems }} von {{ $totalItems }} Positionen erledigt">
+                                <div class="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: {{ $progressPct }}%"></div>
+                            </div>
+                        @endif
                     </div>
                 </td>
 
@@ -247,8 +261,20 @@
                                 @endif
                             </div>
                         </div>
-                        <div class="text-right font-serif font-bold text-xl text-primary whitespace-nowrap">
-                            {{ number_format($order->total_price / 100, 2, ',', '.') }} €
+                        <div class="text-right flex flex-col items-end">
+                            <span class="font-serif font-bold text-xl text-primary whitespace-nowrap">
+                                {{ number_format($order->total_price / 100, 2, ',', '.') }} €
+                            </span>
+                            @php
+                                $totalItems = $order->items->count();
+                                $completedItems = $order->items->where('is_completed', true)->count();
+                                $progressPct = $totalItems > 0 ? ($completedItems / $totalItems) * 100 : 0;
+                            @endphp
+                            @if($totalItems > 0 && !in_array($order->status, ['cancelled', 'refunded']))
+                                <div class="mt-2 w-20 bg-gray-950 rounded-full h-1 overflow-hidden border border-gray-800 shadow-inner flex">
+                                    <div class="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: {{ $progressPct }}%"></div>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>

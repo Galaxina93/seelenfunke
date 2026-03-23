@@ -24,7 +24,6 @@ class AiWidget extends Component
 
     public function render()
     {
-        $logs = GlobalLog::with('agent')->latest()->take(10)->get();
-        return view('livewire.global.ai.ai-widget', ['logs' => $logs]);
+        return view('livewire.global.ai.ai-widget');
     }
 }

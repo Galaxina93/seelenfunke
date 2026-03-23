@@ -209,22 +209,7 @@
                                 </button>
                                 
                                 <!-- AI Agent Sorting -->
-                                <div class="flex items-center bg-gray-900/50 border border-purple-500/20 rounded-xl overflow-hidden pl-2">
-                                    <div class="text-xs font-semibold text-purple-400 uppercase tracking-wider pr-2 border-r border-gray-800 hidden sm:block">Agent</div>
-                                    <select wire:model="selectedAgentId" class="bg-transparent text-sm py-1.5 pl-2 pr-6 focus:outline-none cursor-pointer text-gray-300">
-                                        <option value="" class="bg-gray-900 text-white">Agent wählen...</option>
-                                        @foreach($availableAgents as $agent)
-                                            <option value="{{ $agent['id'] }}" class="bg-gray-900 text-white">{{ $agent['name'] }}</option>
-                                        @endforeach
-                                    </select>
-                                    <button wire:click="startAgentSorting" wire:loading.attr="disabled" class="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-500/10 to-transparent hover:from-purple-500/20 text-purple-400 font-medium transition-all disabled:opacity-50 border-l border-gray-800 focus:outline-none">
-                                        <span wire:loading.remove wire:target="startAgentSorting">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                        </span>
-                                        <span wire:loading wire:target="startAgentSorting" class="animate-spin w-4 h-4 rounded-full border-t-2 border-r-2 border-purple-500"></span>
-                                        <span class="text-sm">Sortieren</span>
-                                    </button>
-                                </div>
+                                @include('livewire.global.ai.ask-ai-dropdown', ['actionMethod' => 'startAgentSorting', 'buttonText' => 'Sortieren'])
                             </div>
                         </div>
                     </div>

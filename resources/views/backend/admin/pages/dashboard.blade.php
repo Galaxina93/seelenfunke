@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('global.widgets.funki-analytics')
+        @livewire('global.widgets.analytics')
 
     @endsection
 

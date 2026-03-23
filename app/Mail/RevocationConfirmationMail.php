@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class RevocationConfirmationMail extends Mailable
+class RevocationConfirmationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -50,6 +50,12 @@ class RevocationConfirmationMail extends Mailable
      */
     public function attachments(): array
     {
-        return [];
+        $attachments = [];
+        if (!empty($this->revocationData['attachments'])) {
+            foreach ($this->revocationData['attachments'] as $path) {
+                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('private', $path);
+            }
+        }
+        return $attachments;
     }
 }

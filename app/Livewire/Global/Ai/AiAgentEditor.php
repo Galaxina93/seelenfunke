@@ -13,6 +13,7 @@ class AiAgentEditor extends Component
     use WithFileUploads;
 
     public $agentId;
+    public $ai_role_id = null;
     public $name = '';
     public $wake_word = '';
     public $role_description = '';
@@ -28,13 +29,8 @@ class AiAgentEditor extends Component
     public $tts_api_url = '';
     public $tts_speed = 1.0;
     
-    public $searchTool = ''; // Suchleiste für Werkzeuge
-    
-    public $profile_picture;
     public $existing_profile_picture = null;
-
-    // Speichert die IDs der aktivierten Tools
-    public $selectedTools = [];
+    public $profile_picture;
 
     // Validierte Paletten
     public $availableColors = [
@@ -118,6 +114,7 @@ class AiAgentEditor extends Component
         if ($id !== 'new') {
             $agent = AiAgent::findOrFail($id);
             $this->name = $agent->name;
+            $this->ai_role_id = $agent->ai_role_id;
             $this->wake_word = $agent->wake_word;
             $this->role_description = $agent->role_description;
             $this->system_prompt = $agent->system_prompt;
@@ -145,9 +142,6 @@ class AiAgentEditor extends Component
             
             $this->existing_profile_picture = $agent->profile_picture;
 
-            // Fülle die selectedTools mit den IDs als String
-            $this->selectedTools = $agent->tools->pluck('id')->map(fn($id) => (string)$id)->toArray();
-
             // Versuche das Preset anhand der Temperatur zu erkennen
             if ($this->temperature <= 0.3) {
                 $this->activePreset = 'ceo';
@@ -158,6 +152,16 @@ class AiAgentEditor extends Component
             }
         } else {
             $this->applyPreset('colleague');
+        }
+    }
+
+    public function updatedAiRoleId($value)
+    {
+        if ($value) {
+            $role = \App\Models\Ai\AiRole::find($value);
+            if ($role) {
+                $this->role_description = $role->description;
+            }
         }
     }
 
@@ -180,6 +184,7 @@ class AiAgentEditor extends Component
     public function save()
     {
         $this->validate([
+            'ai_role_id' => 'nullable|exists:ai_roles,id',
             'name' => 'required|string|max:255',
             'wake_word' => 'nullable|string|max:255',
             'role_description' => 'nullable|string',
@@ -201,6 +206,7 @@ class AiAgentEditor extends Component
         }
 
         $agent->name = $this->name;
+        $agent->ai_role_id = $this->ai_role_id;
         $agent->wake_word = empty($this->wake_word) ? $this->name : $this->wake_word;
         $agent->role_description = $this->role_description;
         $agent->system_prompt = $this->system_prompt;
@@ -225,12 +231,6 @@ class AiAgentEditor extends Component
         }
 
         $agent->save();
-
-        // Checkbox Array bereinigen (null/false Werte entfernen), UUIDs als Strings beibehalten
-        $toolIds = array_filter($this->selectedTools);
-
-        // Pivot-Tabelle aktualisieren
-        $agent->tools()->sync($toolIds);
 
         session()->flash('message', 'Agent Profil erfolgreich gespeichert.');
 
@@ -258,52 +258,8 @@ class AiAgentEditor extends Component
 
     public function render()
     {
-        // Automatically sync tools from Registry to DB before loading
-        $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();
-        foreach ($schemaTools as $t) {
-            AiTool::updateOrCreate(
-                ['identifier' => $t['function']['name']],
-                [
-                    'name' => \Illuminate\Support\Str::title(str_replace('_', ' ', $t['function']['name'])),
-                    'description' => $t['function']['description'] ?? 'Keine Beschreibung vorhanden.',
-                ]
-            );
-        }
-
-        // Lädt alle verfügbaren Tools für die Checkbox-Liste, gefiltert
-        $query = AiTool::query();
-        if (!empty($this->searchTool)) {
-            $query->where('name', 'like', '%' . $this->searchTool . '%')
-                  ->orWhere('identifier', 'like', '%' . $this->searchTool . '%')
-                  ->orWhere('description', 'like', '%' . $this->searchTool . '%');
-        }
-        $allTools = $query->orderBy('name')->get();
-
-        // Gruppierung basierend auf der Registry
-        $categoryMap = [
-            'Finanzen & Buchhaltung' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-            'Marketing & Aktionen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
-            'Vertrieb & Bestellungen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
-            'Support & Kundendienst' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-            'Scouting & Gamification' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
-            'System & Kernfunktionen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
-        ];
-
-        $groupedTools = [];
-        foreach ($allTools as $tool) {
-            $matchedCategory = 'Andere';
-            foreach ($categoryMap as $category => $identifiers) {
-                if (in_array($tool->identifier, $identifiers)) {
-                    $matchedCategory = $category;
-                    break;
-                }
-            }
-            $groupedTools[$matchedCategory][] = $tool;
-        }
-
         return view('livewire.global.ai.ai-agent-editor', [
-            'groupedTools' => $groupedTools,
-            'totalToolsCount' => $allTools->count()
+            'aiRoles' => \App\Models\Ai\AiRole::orderBy('name')->get()
         ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

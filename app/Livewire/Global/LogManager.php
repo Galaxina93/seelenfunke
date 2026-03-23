@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Livewire\Global\Ai;
+namespace App\Livewire\Global;
 
 use App\Models\Global\GlobalLog;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-class AiLogManager extends Component
+class LogManager extends Component
 {
     use WithPagination;
 
@@ -100,7 +100,7 @@ class AiLogManager extends Component
         $agents = \App\Models\Ai\AiAgent::orderBy('name')->get();
         $uniqueTypes = GlobalLog::select('type')->distinct()->pluck('type');
 
-        return view('livewire.global.ai.ai-log-manager', [
+        return view('livewire.global.log-manager', [
             'logs' => $logs,
             'totalLogs' => $totalLogs,
             'totalErrors' => $totalErrors,

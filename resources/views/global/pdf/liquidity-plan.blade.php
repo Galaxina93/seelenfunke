@@ -46,7 +46,7 @@
 
         .negative { color: #dc2626; }
         .zero-val { color: #9ca3af; font-weight: normal; font-size: 5.5px; }
-        .line-through { text-decoration: line-through; opacity: 0.3; }
+        .dimmed-row { opacity: 0.3; filter: grayscale(100%); }
         .legend-box { font-size: 6px; color: #6b7280; margin-top: 2px; margin-bottom: 10px; }
 
         /* Layout für Glossar & Textblöcke */
@@ -129,10 +129,10 @@
                 $isZero = $rowSum == 0;
             @endphp
             <tr>
-                <td class="text-left {{ $isZero ? 'line-through' : '' }}" style="padding-left: 10px; font-weight: normal;">{{ $row['label'] }}</td>
+                <td class="text-left {{ $isZero ? 'dimmed-row' : '' }}" style="padding-left: 10px; font-weight: normal;">{{ $row['label'] }}</td>
                 @for($m = 1; $m <= 12; $m++)
                     @php $val = $data[$year][$m]['in'][$key] ?? 0; @endphp
-                    <td class="{{ $val == 0 ? 'zero-val' : '' }} {{ $isZero ? 'line-through' : '' }}">{{ number_format($val, 2, ',', '.') }}&nbsp;€</td>
+                    <td class="{{ $val == 0 ? 'zero-val' : '' }} {{ $isZero ? 'dimmed-row' : '' }}">{{ number_format($val, 2, ',', '.') }}&nbsp;€</td>
                 @endfor
             </tr>
         @endforeach
@@ -151,10 +151,10 @@
                 $isZero = $rowSum == 0;
             @endphp
             <tr>
-                <td class="text-left {{ $isZero ? 'line-through' : '' }}" style="padding-left: 10px; font-weight: normal;">{{ $row['label'] }}</td>
+                <td class="text-left {{ $isZero ? 'dimmed-row' : '' }}" style="padding-left: 10px; font-weight: normal;">{{ $row['label'] }}</td>
                 @for($m = 1; $m <= 12; $m++)
                     @php $val = $data[$year][$m]['out'][$key] ?? 0; @endphp
-                    <td class="{{ $val == 0 ? 'zero-val' : '' }} {{ $isZero ? 'line-through' : '' }}">{{ number_format($val, 2, ',', '.') }}&nbsp;€</td>
+                    <td class="{{ $val == 0 ? 'zero-val' : '' }} {{ $isZero ? 'dimmed-row' : '' }}">{{ number_format($val, 2, ',', '.') }}&nbsp;€</td>
                 @endfor
             </tr>
         @endforeach
@@ -168,7 +168,7 @@
         </tr>
 
         <tr style="background-color: #f0f4ff; color: #4338ca; font-style: italic; font-size: 8px;">
-            <td class="text-left" style="padding-left: 10px;">↳ Automatisch durch Darlehen gedeckt</td>
+            <td class="text-left" style="padding-left: 10px;">Automatisch durch Darlehen gedeckt</td>
             @for($m = 1; $m <= 12; $m++)
                 @php $loanVal = $data[$year][$m]['adj']['loan'] ?? 0; @endphp
                 <td class="{{ $loanVal > 0 ? '' : 'zero-val' }}">{{ $loanVal > 0 ? '+' . number_format($loanVal, 2, ',', '.') . ' €' : '-' }}</td>
@@ -189,10 +189,10 @@
                 $isZero = $rowSum == 0;
             @endphp
             <tr>
-                <td class="text-left {{ $isZero ? 'line-through' : '' }}" style="padding-left: 10px; font-weight: normal;">{{ $row['label'] }}</td>
+                <td class="text-left {{ $isZero ? 'dimmed-row' : '' }}" style="padding-left: 10px; font-weight: normal;">{{ $row['label'] }}</td>
                 @for($m = 1; $m <= 12; $m++)
                     @php $val = $data[$year][$m]['adj'][$key] ?? 0; @endphp
-                    <td class="{{ $val == 0 ? 'zero-val' : '' }} {{ $isZero ? 'line-through' : '' }}">{{ number_format($val, 2, ',', '.') }}&nbsp;€</td>
+                    <td class="{{ $val == 0 ? 'zero-val' : '' }} {{ $isZero ? 'dimmed-row' : '' }}">{{ number_format($val, 2, ',', '.') }}&nbsp;€</td>
                 @endfor
             </tr>
         @endforeach
@@ -206,10 +206,6 @@
         </tr>
         </tbody>
     </table>
-
-    <div class="legend-box">
-        <strong>* Legende:</strong> Grau durchgestrichene Positionen weisen im angezeigten Planungsjahr keine Liquiditätsbewegungen auf (0,00 €).
-    </div>
 
     <div class="page-break"></div>
 @endforeach

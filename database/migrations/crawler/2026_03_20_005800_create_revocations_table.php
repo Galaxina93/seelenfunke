@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email');
             $table->string('order_number');
             $table->text('items')->nullable();
+            $table->json('attachments')->nullable();
             $table->string('status')->default('pending'); // 'pending', 'processed', 'declined'
             $table->timestamps();
         });

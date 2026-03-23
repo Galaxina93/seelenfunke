@@ -761,7 +761,7 @@ trait AiSystemFuncs
     public static function executeGetSystemHealth(array $args)
     {
         try {
-            $analytics = new \App\Livewire\Global\Widgets\FunkiAnalytics();
+            $analytics = new \App\Livewire\Global\Widgets\Analytics();
             $analytics->checkSystemHealth();
             $isHealthy = $analytics->isSystemHealthy();
 
@@ -769,7 +769,7 @@ trait AiSystemFuncs
             $analytics->dateEnd = now()->endOfMonth()->format('Y-m-d');
             $analytics->filterType = 'all';
 
-            $service = app(\App\Services\FunkiAnalyticsService::class);
+            $service = app(\App\Services\AnalyticsService::class);
             $analytics->loadStats($service);
             $stats = $analytics->stats;
 
@@ -798,7 +798,7 @@ trait AiSystemFuncs
             \Illuminate\Support\Facades\Artisan::call('queue:restart');
 
             if (class_exists(\App\Models\Global\GlobalLog::class)) {
-                $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+                $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
                 \App\Models\Global\GlobalLog::create([
                     'ai_agent_id' => $agent ? $agent->id : null,
                     'title' => '[FUNKIRA] - System Healing',
@@ -1050,7 +1050,7 @@ trait AiSystemFuncs
 
         return ['status' => 'success', 'result' => $result];
     }
-    
+
     public static function executeAgentConfig(array $args) {
         $key = $args['setting_key'] ?? null;
         $val = $args['setting_value'] ?? null;
@@ -1059,7 +1059,7 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'Missing key or value'];
         }
 
-        $agent = AiAgent::where('name', 'Funkira')->first() ?? AiAgent::first();
+        $agent = AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? AiAgent::where('is_active', true)->first();
 
         if (!$agent) {
             return ['status' => 'error', 'message' => 'No agent found to edit'];

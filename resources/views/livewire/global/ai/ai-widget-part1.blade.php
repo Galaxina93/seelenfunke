@@ -3,8 +3,16 @@
     <div x-show="showLog" x-collapse x-transition class="w-80 mt-2 p-3 bg-black/90 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-2 max-h-80 overflow-y-auto pointer-events-auto custom-scrollbar mb-4" style="display: none;">
         <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-2 mb-2 sticky top-0 bg-black/80 z-10 flex flex-col gap-2">
             <div class="flex justify-between items-center">
-                <span>KI Aktionen (Live-Log)</span>
+                <span>KI Schnell-Steuerung</span>
                 <div class="flex items-center gap-2">
+                    <button @click="$dispatch('funki-force-stop');" class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/30 transition-colors" title="Sprache Stoppen">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                            <rect x="5" y="5" width="10" height="10" rx="1" />
+                        </svg>
+                        <span>Stopp</span>
+                    </button>
+                    @php $funkiraActive = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->exists(); @endphp
+                    @if($funkiraActive)
                     <button @click="$dispatch('open-funkira'); showLog = false" class="text-emerald-500 hover:text-emerald-400 flex items-center gap-1 bg-emerald-900/30 px-2 py-0.5 rounded border border-emerald-500/30 transition-colors" title="Zentrum Öffnen">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
                             <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
@@ -12,6 +20,7 @@
                         </svg>
                         <span>KI-3D-Zentrum</span>
                     </button>
+                    @endif
                     <button @click="showLog = false" class="text-emerald-500/50 hover:text-emerald-400">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
                             <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
@@ -45,40 +54,7 @@
             </div>
         </div>
         
-        <!-- Livewire Stream / DB Logs -->
-        <div wire:poll.5s class="text-[10px] font-mono p-2 space-y-2 flex flex-col-reverse">
-            @forelse($logs as $log)
-                <div x-data="{ expanded: false }" @click="expanded = !expanded" class="border border-emerald-900/40 bg-emerald-950/20 p-2 rounded relative overflow-hidden group cursor-pointer hover:bg-emerald-950/40 transition-colors">
-                    <div class="absolute inset-y-0 left-0 w-1 bg-{{ $log->agent ? $log->agent->color : 'gray-500' }} opacity-60"></div>
-                    <div class="flex justify-between items-start pl-2 mb-1">
-                        <span class="text-{{ $log->agent ? $log->agent->color : 'gray-500' }} font-bold uppercase tracking-wider text-[9px] flex items-center gap-1">
-                            @if($log->agent)
-                                @if(str_contains($log->agent->icon, 'bi-'))
-                                    <i class="{{ $log->agent->icon }}"></i>
-                                @else
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
-                                @endif
-                                {{ $log->agent->name }}
-                            @else
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg> SYSTEM
-                            @endif
-                        </span>
-                        <span class="text-emerald-700/60 text-[8px] flex items-center gap-1">
-                            {{ $log->created_at->format('H:i:s') }}
-                            <svg x-show="!expanded" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
-                            <svg x-show="expanded" style="display: none;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M14.78 11.78a.75.75 0 0 1-1.06 0L10 8.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06l4.25-4.25a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd"/></svg>
-                        </span>
-                    </div>
-                    <div class="pl-2 text-emerald-400 font-bold text-[9px] uppercase tracking-wider">{{ $log->action_id }}</div>
-                    <div class="pl-2 text-emerald-600/90 text-[10px] mt-1 leading-snug break-words">
-                        <div x-show="!expanded">{{ \Illuminate\Support\Str::limit($log->message, 80) }}</div>
-                        <div x-show="expanded" style="display: none;" class="whitespace-pre-wrap">{{ $log->message }}</div>
-                    </div>
-                </div>
-            @empty
-                <div class="text-center text-emerald-600/80">> SYSTEM::STREAM_INITIALIZED<span class="animate-pulse">_</span></div>
-            @endforelse
-        </div>
+
     </div>
 
     <!-- Toggle Button -->
@@ -97,6 +73,7 @@
      wire:ignore
      @open-funkira.window="openFunkiView()"
      @funki-event.window="updateFunkiStatus($event.detail.state)"
+     @funki-force-stop.window="stopSpeech()"
      @keyup.escape.window="closeFunkiView()">
     <template x-teleport="body">
         <div x-show="showFunkiView"

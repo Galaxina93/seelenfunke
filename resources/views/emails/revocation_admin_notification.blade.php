@@ -27,6 +27,9 @@
             @if(!empty($revocationData['items']))
                 <p><strong>Zusatz/Artikel:</strong> {{ $revocationData['items'] }}</p>
             @endif
+            @if(!empty($revocationData['attachments']))
+                <p><strong>Nachweise:</strong> {{ count($revocationData['attachments']) }} Datei(en) angehängt</p>
+            @endif
         </div>
 
         <div class="info">

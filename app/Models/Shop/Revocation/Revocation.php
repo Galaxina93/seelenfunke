@@ -14,6 +14,11 @@ class Revocation extends Model
         'email',
         'order_number',
         'items',
+        'attachments',
         'status',
+    ];
+
+    protected $casts = [
+        'attachments' => 'array',
     ];
 }

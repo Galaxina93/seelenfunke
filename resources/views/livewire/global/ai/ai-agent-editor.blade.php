@@ -35,10 +35,15 @@
                         </h3>
                         <p class="text-xs text-gray-500">Wer ist dieser Agent und was ist sein Hauptzweck (System Prompt)?</p>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer" title="Agent aktivieren/deaktivieren">
-                        <input type="checkbox" wire:model.defer="is_active" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-800 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500/80 peer-checked:border-emerald-500 peer-checked:shadow-[0_0_15px_rgba(16,185,129,0.4)] peer-checked:after:bg-white"></div>
-                    </label>
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-black tracking-widest uppercase transition-colors duration-300 drop-shadow-md {{ $is_active ? 'text-emerald-500' : 'text-red-500' }}">
+                            {{ $is_active ? 'Aktiv' : 'Inaktiv' }}
+                        </span>
+                        <label class="relative inline-flex items-center cursor-pointer" title="Agent aktivieren/deaktivieren">
+                            <input type="checkbox" wire:model.live="is_active" class="sr-only peer">
+                            <div class="w-11 h-6 bg-red-500/80 border border-red-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-red-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500/80 peer-checked:border-emerald-500 peer-checked:shadow-[0_0_15px_rgba(16,185,129,0.4)] shadow-[0_0_15px_rgba(239,68,68,0.4)]"></div>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="relative z-10 space-y-8">
@@ -88,9 +93,26 @@
                                     @error('wake_word') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Rollen-Kurzbeschreibung (für UI)</label>
-                                <input type="text" wire:model.defer="role_description" placeholder="z.B. Kümmert sich um Fehlermeldungen..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 font-mono transition-all">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aufgaben-Rolle</label>
+                                    <div class="relative">
+                                        <select wire:model.live="ai_role_id" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
+                                            <option value="">-- Keine spezifische Rolle --</option>
+                                            @foreach($aiRoles as $role)
+                                                <option value="{{ $role->id }}" class="bg-gray-900 text-gray-300">{{ $role->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                    @error('ai_role_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Rollen-Kurzbeschreibung (für UI)</label>
+                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                </div>
                             </div>
                             <!-- Personality Presets -->
                             <div class="mt-4 mb-6 pt-4">
@@ -325,90 +347,6 @@
                             <!-- Offline Hint entfernt -->
                         </div>
                     </div>
-                </div>
-            </section>
-
-            <!-- Fähigkeiten (Tools) -->
-            <section class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.3)]">
-                <div class="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent pointer-events-none"></div>
-
-                <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between border-b border-gray-800/80 pb-4 mb-8">
-                    <div class="mb-4 md:mb-0">
-                        <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
-                            <div class="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M11.828 2.25c-.916 0-1.699.663-1.85 1.567l-.091.549a3.375 3.375 0 01-2.423 2.423l-.549.091c-.904.15-1.567.933-1.567 1.85v.682c0 .916.663 1.699 1.567 1.85l.549.091a3.375 3.375 0 012.423 2.423l.091.549c.15.904.933 1.567 1.85 1.567h.682c.916 0 1.699-.663 1.85-1.567l.091-.549a3.375 3.375 0 012.423-2.423l.549-.091c.904-.15 1.567-.933 1.567-1.85v-.682c0-.916-.663-1.699-1.567-1.85l-.549-.091a3.375 3.375 0 01-2.423-2.423l-.091-.549c-.15-.904-.933-1.567-1.85-1.567h-.682zM6 15a.75.75 0 01-.75.75H4.5a.75.75 0 010-1.5h.75A.75.75 0 016 15zm13.5-.75a.75.75 0 000 1.5h.75a.75.75 0 000-1.5h-.75zM15 6a.75.75 0 01-.75.75H13.5a.75.75 0 010-1.5h.75A.75.75 0 0115 6zM5.25 6a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H5.25z" clip-rule="evenodd" /></svg>
-                            </div>
-                            3. Fähigkeiten & Werkzeuge
-                        </h3>
-                        <p class="text-xs text-gray-500">Klicke eine Fähigkeit an, um sie diesem Agenten zuzuweisen oder zu entfernen. <br>Der Agent kann Aktionen nur per System-Call ausführen, wenn er das Werkzeug kennt.</p>
-                    </div>
-                    
-                    <div class="w-full md:w-auto flex flex-col items-end gap-3 mt-4 md:mt-0">
-                        <div class="relative w-full md:w-64">
-                            <input type="text" wire:model.live.debounce.300ms="searchTool" placeholder="Werkzeuge filtern..." class="w-full bg-black/40 border border-cyan-900/50 rounded-lg focus:border-cyan-500 focus:ring focus:ring-cyan-500/20 text-white sm:text-sm p-2 pl-9 font-mono transition-all">
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg class="h-4 w-4 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                            </div>
-                        </div>
-                        <span class="text-xs font-mono text-cyan-400 font-bold bg-cyan-500/10 px-3 py-1.5 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)] inline-block text-right">
-                            <span x-data x-text="$wire.selectedTools.filter(x => x).length"></span> von {{ $totalToolsCount }} {{ !empty($searchTool) ? 'Gefilterte' : 'Aktiviert' }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Grouped Tools Rendering -->
-                <div class="space-y-12">
-                    @foreach($groupedTools as $category => $tools)
-                        @if(count($tools) > 0)
-                            <div>
-                                <h4 class="text-lg font-black text-white mb-6 flex items-center gap-3 border-b border-gray-800/80 pb-3 uppercase tracking-widest font-mono">
-                                    <span class="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]"></span>
-                                    {{ $category }}
-                                </h4>
-                                
-                                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                                    @foreach($tools as $tool)
-                                        <div x-data="{ 
-                                                expanded: false, 
-                                                get isChecked() { return Array.isArray($wire.selectedTools) && $wire.selectedTools.includes('{{ $tool->id }}'); } 
-                                             }" 
-                                             class="rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden shadow-inner cursor-pointer"
-                                             :class="isChecked ? 'bg-cyan-900/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'bg-black/30 border-gray-800/80 hover:border-gray-600'">
-                                            
-                                            <!-- Header / Brief -->
-                                            <div class="p-4 flex items-start gap-4">
-                                                <!-- Checkbox Replika -->
-                                                <button type="button" @click.stop="if(isChecked) { $wire.selectedTools = $wire.selectedTools.filter(t => t !== '{{ $tool->id }}'); } else { $wire.selectedTools.push('{{ $tool->id }}'); }"
-                                                    class="shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors border mt-1"
-                                                    :class="isChecked ? 'bg-cyan-500 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-gray-900 border-gray-700 text-transparent'">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
-                                                </button>
-                                                
-                                                <div class="flex-1 min-w-0" @click="expanded = !expanded">
-                                                    <div class="flex justify-between items-center mb-1">
-                                                        <h4 class="text-sm font-bold truncate transition-colors font-mono uppercase" :class="isChecked ? 'text-cyan-300' : 'text-gray-200'" title="{{ $tool->name }}">{{ $tool->name }}</h4>
-                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
-                                                    </div>
-                                                    <div class="text-[9px] font-mono tracking-widest lowercase mb-1 truncate" :class="isChecked ? 'text-cyan-600' : 'text-gray-600'">
-                                                        ({{ $tool->identifier }})
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <!-- Expandable Details -->
-                                            <div x-show="expanded" x-collapse style="display: none;">
-                                                <div class="px-4 pb-4 pt-0 border-t border-white/5 mt-2 bg-black/40">
-                                                    <p class="text-[11px] text-gray-400 mt-3 leading-relaxed font-mono whitespace-pre-line">{{ $tool->description ?? 'Keine Dokumentation hinterlegt.' }}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <input type="checkbox" wire:model.defer="selectedTools" value="{{ $tool->id }}" class="hidden" id="hidden-tool-{{ $tool->id }}">
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endif
-                    @endforeach
                 </div>
             </section>
 

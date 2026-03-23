@@ -31,7 +31,20 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 text-gray-400">
-                            {{ $revocation->items ?: '-' }}
+                            <div class="mb-1">{{ $revocation->items ?: '-' }}</div>
+                            @if(!empty($revocation->attachments) && is_array($revocation->attachments) && count($revocation->attachments) > 0)
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @foreach($revocation->attachments as $attachment)
+                                        @php $fileName = basename($attachment); @endphp
+                                        <a href="{{ route('admin.widerruf.file', ['revocation' => $revocation->id, 'fileName' => $fileName]) }}" target="_blank" class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-[11px] font-medium text-gray-300 rounded-md border border-gray-700 transition-colors" title="{{ $fileName }}">
+                                            <svg class="w-3.5 h-3.5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                            </svg>
+                                            <span class="truncate max-w-[120px]">{{ $fileName }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @endif
                         </td>
                         <td class="px-6 py-4 text-center">
                             @if($revocation->status === 'pending')

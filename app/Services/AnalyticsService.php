@@ -18,7 +18,7 @@ use App\Models\Financial\FinanceSpecialIssue;
 use App\Models\Financial\FinanceCostItem;
 use Spatie\Backup\Tasks\Monitor\BackupDestinationStatusFactory;
 
-class FunkiAnalyticsService
+class AnalyticsService
 {
     public function getHealthChecks(): array
     {
@@ -180,6 +180,58 @@ class FunkiAnalyticsService
         }
 
         // ==========================================
+        // KUNDENGEWINNUNG (Customer Acquisition)
+        // ==========================================
+        $customerQuery = Customer::whereBetween('created_at', [$start, $end])->whereHas('profile', function ($query) {
+            $query->whereNotNull('email_verified_at');
+        });
+        $totalCustomers = (clone $customerQuery)->count();
+
+        $latestCustomers = (clone $customerQuery)
+            ->orderByDesc('created_at')
+            ->take(5)
+            ->get(['first_name', 'last_name', 'email', 'created_at']);
+
+        $customerLabels = [];
+        $customerCounts = [];
+
+        if ($diffInDays <= 31) {
+            $customersByDay = (clone $customerQuery)
+                ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as total'))
+                ->groupBy('date')
+                ->get()
+                ->keyBy('date');
+
+            $periodCustomers = CarbonPeriod::create($start, $end);
+            foreach ($periodCustomers as $date) {
+                $dateString = $date->format('Y-m-d');
+                $customerLabels[] = $date->format('d.m.');
+                
+                $customerCounts[] = $customersByDay->has($dateString) ? $customersByDay[$dateString]->total : 0;
+            }
+        } else {
+            $customersByMonth = (clone $customerQuery)
+                ->select(DB::raw('YEAR(created_at) as year'), DB::raw('MONTH(created_at) as month'), DB::raw('count(*) as total'))
+                ->groupBy('year', 'month')
+                ->get();
+
+            $currentDate = $start->copy()->startOfMonth();
+            $finalDate = $end->copy()->endOfMonth();
+
+            while ($currentDate <= $finalDate) {
+                $y = $currentDate->year;
+                $m = $currentDate->month;
+                
+                $cMatch = $customersByMonth->first(fn($v) => $v->year == $y && $v->month == $m);
+
+                $customerLabels[] = $currentDate->locale('de')->shortMonthName . ' ' . $currentDate->format('y');
+                $customerCounts[] = $cMatch ? $cMatch->total : 0;
+                
+                $currentDate->addMonth();
+            }
+        }
+
+        // ==========================================
         // FINANZEN & SHOP (Dein bestehender Code)
         // ==========================================
         $chartData = ['labels' => [], 'revenue' => [], 'expenses' => [], 'profit' => []];
@@ -315,6 +367,56 @@ class FunkiAnalyticsService
         $breakEvenValue = ($fixGewerbe + $fixPrivat) / max(1, ($durationInDays / 30.42));
         $qualityScore = $this->calculateShopQualityScore($margin, $revenueGrowth, $totalRevenuePeriod - $totalExpensesPeriod, $totalRevenuePeriod, $breakEvenValue * ($durationInDays / 30.42));
 
+        // Vorberechnung für Health Score & Return Array
+        $fixedIncomeTotal = $allCostItems->where('amount', '>', 0)->sum(fn($i) => $i->amount / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
+        $pendingInvoicesCount = Invoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->count();
+        $pendingInvoicesSum = Invoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->sum('total') / 100;
+
+        // ==========================================
+        // SHOP HEALTH SCORE (0 - 100)
+        // ==========================================
+        $healthScore = 0;
+
+        // 1. Break-Even (+30)
+        $totalIncome = $totalRevenuePeriod + $fixedIncomeTotal;
+        $totalCosts = $fixPrivat + $fixGewerbe + $variableExpensesTotal;
+        if ($totalIncome > 0 && $totalIncome >= $totalCosts) {
+            $healthScore += 30;
+        } elseif ($totalIncome > 0 && $totalIncome >= ($totalCosts * 0.8)) {
+            $healthScore += 15; // Fast erreicht
+        }
+
+        // 2. Netto-Ziel (+20)
+        if ($avgProfit >= 1600) {
+            $healthScore += 20;
+        } elseif ($avgProfit >= 1000) {
+            $healthScore += 10;
+        }
+
+        // 3. Gewinn-Marge (+25)
+        if ($margin >= 30) {
+            $healthScore += 25;
+        } elseif ($margin >= 15) {
+            $healthScore += 12;
+        }
+
+        // 4. Umsatz-Trend (+15)
+        if ($revenueGrowth > 0) {
+            $healthScore += 15;
+        } elseif ($revenueGrowth == 0) {
+            $healthScore += 5;
+        }
+
+        // 5. Offene Posten (+10)
+        if ($pendingInvoicesSum == 0) {
+            $healthScore += 10;
+        } else {
+            $deduction = min(10, floor($pendingInvoicesSum / 100));
+            $healthScore += max(0, 10 - $deduction);
+        }
+
+        $healthScore = max(0, min(100, $healthScore));
+
         return [
             'total_users' => Admin::count() + Customer::count() + Employee::count(),
             'active_users_today' => collect($lastLogins)->whereBetween('last_seen', [Carbon::today(), Carbon::now()])->count(),
@@ -335,6 +437,12 @@ class FunkiAnalyticsService
             'visit_counts' => $visitCounts,
             'unique_counts' => $uniqueCounts,
 
+            // KUNDENGEWINNUNG DATEN
+            'total_new_customers_period' => $totalCustomers ?? 0,
+            'customer_labels' => $customerLabels ?? [],
+            'customer_counts' => $customerCounts ?? [],
+            'latest_customers' => $latestCustomers ?? [],
+
             // SHOP DATEN
             'chart_data' => $chartData,
             'total_revenue' => $totalRevenuePeriod,
@@ -345,14 +453,15 @@ class FunkiAnalyticsService
             'margin' => round($margin, 1),
             'break_even_monthly' => ($fixGewerbe + $fixPrivat) / ($durationInDays / 30.42),
             'shop_quality_score' => $qualityScore,
-            'fixed_income_total' => $allCostItems->where('amount', '>', 0)->sum(fn($i) => $i->amount / ($i->interval_months ?: 1)) * ($durationInDays / 30.42),
+            'health_score' => $healthScore,
+            'fixed_income_total' => $fixedIncomeTotal,
             'shop_revenue' => ($filterType !== 'private') ? Order::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0,
             'fixed_expenses_priv' => $fixPrivat,
             'fixed_expenses_gew' => $fixGewerbe,
             'variable_expenses' => $variableExpensesTotal,
             'pending_invoices' => [
-                'count' => Invoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->count(),
-                'sum' => Invoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->sum('total') / 100
+                'count' => $pendingInvoicesCount,
+                'sum' => $pendingInvoicesSum
             ],
             'top_expenses' => $topExpenses,
             'top_customers' => $filterType !== 'private' ? Order::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->select('email', DB::raw('SUM(total_price)/100 as total'))->groupBy('email')->orderByDesc('total')->take(5)->get()->map(fn($o) => ['category' => $o->email, 'total' => $o->total]) : collect(),

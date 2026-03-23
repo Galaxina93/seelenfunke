@@ -16,6 +16,8 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\DB;
+use App\Models\Global\GlobalLog;
 
 class Calculator extends Component
 {
@@ -492,54 +494,73 @@ class Calculator extends Component
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
         $cleanDeadline = ($this->isExpress && !empty($this->deadline)) ? $this->deadline : null;
 
-        $quote = QuoteRequest::create([
-            'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
-            'email' => $this->form['email'],
-            'first_name' => $this->form['vorname'],
-            'last_name' => $this->form['nachname'],
-            'company' => $this->form['firma'] ?? null,
-            'phone' => $this->form['telefon'] ?? null,
-            'customer_id' => $existingCustomer ? $existingCustomer->id : null,
-            'status' => 'open',
-            'net_total' => (int) round($this->totalNetto * 100),
-            'tax_total' => (int) round($this->totalMwst * 100),
-            'gross_total' => (int) round($this->totalBrutto * 100),
-            'shipping_price' => (int) round($this->shippingCost * 100),
-            'volume_discount' => (int) round($this->volumeDiscount * 100),
-            'is_express' => $this->isExpress,
-            'deadline' => $cleanDeadline,
-            'admin_notes' => $this->form['anmerkung'] ?? null,
-        ]);
-
-        foreach($this->cartItems as $item) {
-            $conf = $item['configuration'] ?? [];
-            QuoteRequestItem::create([
-                'quote_request_id' => $quote->id,
-                'product_id' => $item['product_id'],
-                'product_name' => $item['name'],
-                'quantity' => $item['qty'],
-                'unit_price' => (int) round($item['calculated_single_price'] * 100),
-                'total_price' => (int) round($item['calculated_total'] * 100),
-                'configuration' => $conf,
-            ]);
-        }
-
-        $data = $quote->toFormattedArray();
-
         try {
-            Mail::to($this->form['email'])->send(new CalcMailToCustomer($data));
-            $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
-            Mail::to($owner_mail)->send(new CalcMailToAdmin($data));
-            \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
-        }
+            DB::transaction(function () use ($existingCustomer, $cleanDeadline) {
+                $quote = QuoteRequest::create([
+                    'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
+                    'email' => $this->form['email'],
+                    'first_name' => $this->form['vorname'],
+                    'last_name' => $this->form['nachname'],
+                    'company' => $this->form['firma'] ?? null,
+                    'phone' => $this->form['telefon'] ?? null,
+                    'customer_id' => $existingCustomer ? $existingCustomer->id : null,
+                    'status' => 'open',
+                    'net_total' => (int) round($this->totalNetto * 100),
+                    'tax_total' => (int) round($this->totalMwst * 100),
+                    'gross_total' => (int) round($this->totalBrutto * 100),
+                    'shipping_price' => (int) round($this->shippingCost * 100),
+                    'volume_discount' => (int) round($this->volumeDiscount * 100),
+                    'is_express' => $this->isExpress,
+                    'deadline' => $cleanDeadline,
+                    'admin_notes' => $this->form['anmerkung'] ?? null,
+                ]);
 
-        session()->forget(['calc_cart', 'calc_form']);
-        $this->cartItems = [];
-        $this->gesamtKosten = 0;
-        $this->step = 4;
-        $this->dispatch('scroll-top');
+                foreach($this->cartItems as $item) {
+                    $conf = $item['configuration'] ?? [];
+                    QuoteRequestItem::create([
+                        'quote_request_id' => $quote->id,
+                        'product_id' => $item['product_id'],
+                        'product_name' => $item['name'],
+                        'quantity' => $item['qty'],
+                        'unit_price' => (int) round($item['calculated_single_price'] * 100),
+                        'total_price' => (int) round($item['calculated_total'] * 100),
+                        'configuration' => $conf,
+                    ]);
+                }
+
+                $data = $quote->toFormattedArray();
+
+                try {
+                    Mail::to($this->form['email'])->send(new CalcMailToCustomer($data));
+                    $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+                    Mail::to($owner_mail)->send(new CalcMailToAdmin($data));
+                    \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
+                }
+
+                session()->forget(['calc_cart', 'calc_form']);
+                $this->cartItems = [];
+                $this->gesamtKosten = 0;
+                $this->step = 4;
+                $this->dispatch('scroll-top');
+            });
+        } catch (\Exception $e) {
+            GlobalLog::create([
+                'type' => 'error',
+                'agent_id' => null,
+                'action_id' => 'calculator_quote_creation',
+                'message' => 'Kritischer Fehler bei der Anfrage-Erstellung: ' . $e->getMessage(),
+                'details' => json_encode([
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'email' => $this->form['email'] ?? null
+                ])
+            ]);
+
+            session()->flash('error', 'Ihre Anfrage konnte nicht verarbeitet werden. Bitte versuchen Sie es später erneut.');
+        }
     }
 
     public function restartCalculator()

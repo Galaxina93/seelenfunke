@@ -98,7 +98,7 @@ class AIController extends Controller
                          "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!"
         ];
 
-        $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
+        $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
         
         if (!$aiAgent) {
             return response()->json(['status' => 'error', 'message' => 'No AI Agent found in database.'], 500);

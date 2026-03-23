@@ -122,7 +122,7 @@
                                 {{ number_format($mainValue, 2, ',', '.') }}&nbsp;€
                             </div>
 
-                            <p class="text-xs text-gray-500 font-medium">Inkl. Shop-Umsatz: <span class="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded ml-1 border border-primary/20">+&nbsp;{{ number_format($stats['shop_income'], 2, ',', '.') }}&nbsp;€</span></p>
+                            <p class="text-xs text-gray-500 font-medium">Inkl. Shop-Umsatz: <span class="font-bold {{ $stats['shop_income'] >= 0 ? 'text-primary bg-primary/10 border-primary/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20' }} px-2 py-0.5 rounded ml-1 border">{{ $stats['shop_income'] >= 0 ? '+' : '' }}&nbsp;{{ number_format($stats['shop_income'], 2, ',', '.') }}&nbsp;€</span></p>
                         </div>
 
                         {{-- Rechte Seite der Stats --}}

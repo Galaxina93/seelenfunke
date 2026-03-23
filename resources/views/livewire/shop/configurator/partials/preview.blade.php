@@ -18,7 +18,7 @@
         <div wire:ignore x-show="config.modelPath" x-ref="container3d" class="absolute inset-0 w-full h-full z-10 cursor-move transition-opacity duration-500" :class="showDrawingBoard ? 'opacity-0 pointer-events-none' : 'opacity-100'"></div>
 
         {{-- 2D Ansicht & Zeichenbrett --}}
-        <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full z-20 pointer-events-auto transition-opacity duration-500 {{ $isDark ? 'bg-gray-950' : 'bg-gray-50' }}">
+        <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full z-20 pointer-events-auto transition-opacity duration-500">
 
             <template x-if="config.fallbackImg">
                 <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-20 mix-blend-screen filter invert brightness-0 group-hover:opacity-40' : 'opacity-40 mix-blend-multiply group-hover:opacity-60' }}">
@@ -36,7 +36,7 @@
                         ? 'polygon(' + config.custom_points.map(p => p.x + '% ' + p.y + '%').join(', ') + ')'
                         : 'none'
                     };
-                    box-shadow: ${config.area_shape === 'custom' ? 'none' : ('0 0 0 9999px ' + ('{{ $isDark }}' === '1' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)'))};
+                    box-shadow: ${config.area_shape === 'custom' ? 'none' : ('0 0 0 9999px ' + ('{{ $isDark }}' === '1' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)'))};
                  `">
             </div>
 

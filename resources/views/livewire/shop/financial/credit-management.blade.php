@@ -111,9 +111,9 @@
                                     {{ $credit->created_at->format('d.m.Y H:i') }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4">
+                            <td class="px-6 py-4 cursor-pointer hover:bg-gray-800/80 transition-colors" wire:click="selectCustomer('{{ $credit->customer_id }}')" title="Kunden-Auswertung laden">
                                 @if($credit->customer)
-                                    <div class="font-bold text-gray-200">{{ $credit->customer->first_name }} {{ $credit->customer->last_name }}</div>
+                                    <div class="font-bold text-gray-200 group-hover:text-primary transition-colors">{{ $credit->customer->first_name }} {{ $credit->customer->last_name }}</div>
                                     <div class="text-[11px] text-gray-500">{{ $credit->customer->email }}</div>
                                 @else
                                     <span class="text-gray-500 italic">Kein Kunde hinterlegt</span>
@@ -136,7 +136,16 @@
                                     Ausgestellt
                                 </span>
                             </td>
-                            <td class="px-6 py-4 text-right">
+                            <td class="px-6 py-4 text-right flex items-center justify-end gap-2">
+                                @if($credit->customer_id)
+                                    <button wire:click="sendCreditEmail('{{ $credit->id }}')" wire:confirm="Wirklich E-Mail an den Kunden senden?" class="p-2 rounded-lg transition-colors border {{ $credit->email_sent_at ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border-rose-500/20' }}" title="{{ $credit->email_sent_at ? 'Erneut senden (Zuletzt: ' . \Carbon\Carbon::parse($credit->email_sent_at)->format('d.m.Y H:i') . ')' : 'An Kunden senden' }}">
+                                        @if($credit->email_sent_at)
+                                            <x-heroicon-s-paper-airplane class="w-4 h-4" />
+                                        @else
+                                            <x-heroicon-o-paper-airplane class="w-4 h-4" />
+                                        @endif
+                                    </button>
+                                @endif
                                 <a href="{{ route('invoice.download', $credit->id) }}" target="_blank" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg transition-colors inline-flex border border-gray-700 hover:border-gray-600" title="PDF ansehen">
                                     <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
                                 </a>
@@ -159,6 +168,37 @@
 
         <div class="p-4 border-t border-gray-800 bg-gray-900/50">
             {{ $credits->links() }}
+        </div>
+    </div>
+
+    {{-- CUSTOMER ANALYTICS (DYNAMISCH) --}}
+    <div class="mt-8 bg-gray-900 border border-gray-800 rounded-3xl p-6 lg:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-50 pointer-events-none"></div>
+        <div class="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
+            
+            <div class="w-full md:w-1/3 space-y-2">
+                <h3 class="text-white font-serif font-bold text-xl flex items-center gap-2">
+                    <x-heroicon-o-chart-bar class="w-6 h-6 text-primary" />
+                    Kunden-Auswertung
+                </h3>
+                @if($customerStats)
+                    <p class="text-sm text-gray-400 font-medium">Historie für <strong class="text-primary">{{ $customerStats['name'] }}</strong></p>
+                @else
+                    <p class="text-sm text-gray-500 italic">Klicke auf einen Namen in der Tabelle, um die Historie zu laden.</p>
+                @endif
+            </div>
+
+            <div class="flex-1 w-full grid grid-cols-2 gap-4">
+                <div class="bg-gray-950/80 border border-gray-800 rounded-2xl p-4 flex flex-col justify-center">
+                    <span class="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Erhaltene Gutschriften</span>
+                    <span class="text-3xl font-serif text-white">{{ $customerStats ? $customerStats['total_credits'] : 0 }}</span>
+                </div>
+                <div class="bg-gray-950/80 border border-gray-800 rounded-2xl p-4 flex flex-col justify-center">
+                    <span class="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Rückzahlungsvolumen</span>
+                    <span class="text-3xl font-serif text-rose-400">{{ $customerStats ? number_format($customerStats['total_volume'] / 100, 2, ',', '.') : '0,00' }} €</span>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -415,11 +455,11 @@
 
             <div class="p-6 border-t border-gray-800 bg-gray-900/80 backdrop-blur-md shrink-0 flex justify-between items-center gap-4">
                 <button wire:click="closeCreateModal" class="px-6 py-3 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                <button wire:click="generateCreditNote" class="bg-primary hover:bg-primary-dark text-white shadow-[0_0_20px_rgba(197,160,89,0.2)] hover:shadow-[0_0_30px_rgba(197,160,89,0.4)] px-8 py-3 rounded-xl font-bold flex items-center transition-all hover:-translate-y-0.5" wire:loading.attr="disabled">
+                <button wire:click="generateCreditNote" class="bg-primary hover:bg-primary-dark text-white shadow-[0_0_20px_rgba(197,160,89,0.2)] hover:shadow-[0_0_30px_rgba(197,160,89,0.4)] px-8 py-3 rounded-xl font-bold flex flex-row items-center justify-center whitespace-nowrap transition-all hover:-translate-y-0.5" wire:loading.attr="disabled">
                     <span wire:loading.remove wire:target="generateCreditNote" class="flex items-center gap-2">
                         <x-heroicon-o-check class="w-5 h-5 shrink-0" /> Gutschrift erzeugen
                     </span>
-                    <span wire:loading wire:target="generateCreditNote" class="flex items-center gap-2">
+                    <span wire:loading.flex wire:target="generateCreditNote" class="items-center gap-2">
                         <svg class="animate-spin h-5 w-5 text-white shrink-0" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>

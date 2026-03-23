@@ -45,8 +45,16 @@ class MittwaldAgent
 
         $systemPromptText = $this->agent->system_prompt;
         
+        $roleInfo = "";
+        if ($this->agent->role) {
+            $roleInfo = "\n\n[DEINE ZUGEWIESENE ROLLE & IDENTITÄT]\n" .
+                        "Rollen-Bezeichnung: " . $this->agent->role->name . "\n" .
+                        "Rollen-Beschreibung: " . ($this->agent->role->description ?? 'Keine spezifische Beschreibung definiert.') . "\n" .
+                        "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
+        }
+
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
-        $systemPromptText .= "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
+        $systemPromptText .= $roleInfo . "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
                              "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Benutzerin IMMER respektvoll mit 'Herrin Alina' oder 'Meine Herrin' an!\n" .
                              'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .
                              'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n" .
@@ -65,9 +73,16 @@ class MittwaldAgent
         $messages = array_merge([$systemPrompt], $incomingMessages);
 
         $contextData = [];
-        $usageData = [];
+        $usageData = [
+            'prompt_tokens' => 0,
+            'completion_tokens' => 0,
+            'total_tokens' => 0,
+        ];
         $eventsData = [];
+        
+        $startTime = microtime(true);
         $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData);
+        $totalTimeMs = (int) round((microtime(true) - $startTime) * 1000);
 
         // Even if textResponse is empty (Fast Track), we STILL return the new history
         // and importantly, the extracted events.
@@ -82,6 +97,7 @@ class MittwaldAgent
             'response' => $textResponse,
             'context_data' => $contextData,
             'usage' => $usageData,
+            'latency_ms' => $totalTimeMs,
             'events' => $eventsData,
             'history' => $incomingMessages // Pass the updated history back
         ];
@@ -96,17 +112,26 @@ class MittwaldAgent
             Log::warning("Mittwald API Tool Loop depth exceeded. Halting to prevent infinite loop.");
             return "Fehler: Meine internen Denkprozesse haben sich in einer Endlosschleife verfangen (Max Tool Depth Limit).";
         }
+        $globalSchema = AIFunctionsRegistry::getSchema();
+        $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
+        $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers) {
+            return in_array($t['function']['name'] ?? '', $allowedIdentifiers);
+        }));
+
         $payload = [
             'model' => $this->agent->model ?? 'gpt-oss-120b',
             'messages' => $messages,
             'temperature' => (float)($this->agent->temperature ?? 0.6),
             'top_p' => 1.0,
-            'tools' => AIFunctionsRegistry::getSchema(),
             'tool_choice' => 'auto'
         ];
+        
+        if (!empty($filteredSchema)) {
+            $payload['tools'] = $filteredSchema;
+        }
 
         try {
-            Log::info("Sending request to Mittwald AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
+            // Log::info("Sending request to Mittwald AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
 
             \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                 'active_node' => 'cpu-chip',
@@ -129,7 +154,9 @@ class MittwaldAgent
             $message = $responseData['choices'][0]['message'] ?? null;
 
             if (isset($responseData['usage'])) {
-                $usageData = $responseData['usage'];
+                $usageData['prompt_tokens'] += $responseData['usage']['prompt_tokens'] ?? 0;
+                $usageData['completion_tokens'] += $responseData['usage']['completion_tokens'] ?? 0;
+                $usageData['total_tokens'] += $responseData['usage']['total_tokens'] ?? 0;
             }
 
             if (!$message) {
@@ -180,9 +207,11 @@ class MittwaldAgent
                     ], 60);
 
                     // Track the usage for Analytics
+                    $toolUsageRecord = null;
                     if (class_exists(AiToolUsage::class)) {
                         try {
-                            AiToolUsage::create([
+                            $toolUsageRecord = AiToolUsage::create([
+                                'ai_agent_id' => $this->agent->id,
                                 'tool_name' => $functionName,
                                 'used_at'   => now(),
                                 'context'   => $executeArgs
@@ -208,6 +237,13 @@ class MittwaldAgent
 
                     // Execute via our safe registry
                     $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
+
+                    if ($toolUsageRecord && isset($result['status']) && $result['status'] === 'error') {
+                        $toolUsageRecord->update([
+                            'is_error' => true,
+                            'error_message' => $result['message'] ?? 'Unknown Error'
+                        ]);
+                    }
 
                     // Speichere in Langzeitgedächtnis
                     if (class_exists(AiChatMemory::class)) {

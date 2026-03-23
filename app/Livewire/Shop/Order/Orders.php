@@ -8,6 +8,8 @@ use App\Models\Order\OrderItem;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Illuminate\Support\Facades\DB;
+use App\Models\Global\GlobalLog;
 
 class Orders extends Component
 {
@@ -126,53 +128,58 @@ class Orders extends Component
             return;
         }
 
-        // Fall: Stornierung
-        if ($this->status === 'cancelled') {
-            // Bestand zurückbuchen, wenn die Order vorher nur "eingegangen" war
-            if ($this->selectedOrder->status !== 'cancelled' && $this->selectedOrder->status === 'pending') {
-                foreach ($this->selectedOrder->items as $item) {
-                    if ($item->product) $item->product->restoreStock($item->quantity);
+        try {
+            DB::transaction(function () {
+                // Fall: Stornierung
+                if ($this->status === 'cancelled') {
+                    // Bestand zurückbuchen, wenn die Order vorher nur "eingegangen" war
+                    if ($this->selectedOrder->status !== 'cancelled' && $this->selectedOrder->status === 'pending') {
+                        foreach ($this->selectedOrder->items as $item) {
+                            if ($item->product) $item->product->restoreStock($item->quantity);
+                        }
+                        session()->flash('info', 'Bestand wurde zurückgebucht.');
+                    }
+
+                    $this->validate([
+                        'cancellationReason' => 'required|string|min:5|max:500',
+                    ]);
+
+                    // Update
+                    $this->selectedOrder->update([
+                        'status' => 'cancelled',
+                        'payment_status' => $this->payment_status,
+                        'notes' => $this->notes,
+                        'cancellation_reason' => $this->cancellationReason
+                    ]);
+
+                    $this->selectedOrder->refresh();
+                    session()->flash('success', 'Bestellung storniert.');
+
+                } else {
+                    // Normales Update
+                    $this->selectedOrder->update([
+                        'status' => $this->status,
+                        'payment_status' => $this->payment_status,
+                        'notes' => $this->notes,
+                        'cancellation_reason' => null
+                    ]);
+
+                    $this->selectedOrder->refresh();
+                    
+                    // Wenn auf 'Bezahlt' gesetzt wurde und noch keine Rechnung existiert -> Automatisch Rechnung + E-Mail
+                    if ($this->payment_status === 'paid' && $this->selectedOrder->invoices->isEmpty()) {
+                        \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($this->selectedOrder);
+                        session()->flash('success', 'Bestelldetails aktualisiert. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
+                    } else {
+                        session()->flash('success', 'Bestelldetails aktualisiert.');
+                    }
                 }
-                session()->flash('info', 'Bestand wurde zurückgebucht.');
-            }
-
-            $this->validate([
-                'cancellationReason' => 'required|string|min:5|max:500',
-            ]);
-
-            // Update
-            $this->selectedOrder->update([
-                'status' => 'cancelled',
-                'payment_status' => $this->payment_status,
-                'notes' => $this->notes,
-                'cancellation_reason' => $this->cancellationReason
-            ]);
-
-            $this->selectedOrder->refresh();
-            session()->flash('success', 'Bestellung storniert.');
-
-        } else {
-            // Normales Update
-            $this->selectedOrder->update([
-                'status' => $this->status,
-                'payment_status' => $this->payment_status,
-                'notes' => $this->notes,
-                'cancellation_reason' => null
-            ]);
-
-            $this->selectedOrder->refresh();
-            
-            // Wenn auf 'Bezahlt' gesetzt wurde und noch keine Rechnung existiert -> Automatisch Rechnung + E-Mail
-            if ($this->payment_status === 'paid' && $this->selectedOrder->invoices->isEmpty()) {
-                try {
-                    \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($this->selectedOrder);
-                    session()->flash('success', 'Bestelldetails aktualisiert. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
-                } catch (\Exception $e) {
-                    session()->flash('warning', 'Bestelldetails aktualisiert, aber Fehler beim Starten des Rechnungs-Jobs: ' . $e->getMessage());
-                }
-            } else {
-                session()->flash('success', 'Bestelldetails aktualisiert.');
-            }
+            });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logAdminOrderError('save_status', $e, ['order_id' => $this->selectedOrder->id ?? null, 'status' => $this->status]);
+            session()->flash('error', 'Status konnte nicht gespeichert werden: ' . $e->getMessage());
         }
     }
 
@@ -188,13 +195,29 @@ class Orders extends Component
             return;
         }
 
-        $order->update(['status' => $newStatus]);
+        try {
+            DB::transaction(function () use ($order, $orderId, $newStatus) {
+                $order->update(['status' => $newStatus]);
 
-        if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
-            $this->status = $newStatus;
+                if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
+                    $this->status = $newStatus;
+                    $this->selectedOrder->refresh();
+                }
+                session()->flash('success', "Status aktualisiert.");
+            });
+        } catch (\Exception $e) {
+            $this->logAdminOrderError('update_status', $e, ['order_id' => $orderId, 'new_status' => $newStatus]);
+            session()->flash('error', 'Status konnte nicht aktualisiert werden.');
+        }
+    }
+
+    public function toggleItemCompletion($itemId)
+    {
+        $item = OrderItem::find($itemId);
+        if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
+            $item->update(['is_completed' => !$item->is_completed]);
             $this->selectedOrder->refresh();
         }
-        session()->flash('success', "Status aktualisiert.");
     }
 
     public function confirmShipment($sendMail = true)
@@ -203,22 +226,25 @@ class Orders extends Component
 
         $order = Order::find($this->confirmingShipmentId);
         if ($order) {
-            $order->update(['status' => 'shipped']);
+            try {
+                DB::transaction(function () use ($order, $sendMail) {
+                    $order->update(['status' => 'shipped']);
 
-            if ($sendMail) {
-                try {
-                    Mail::to($order->email)->send(new NewOrderShippedToCustomer($order->toFormattedArray()));
-                    session()->flash('success', 'Status geändert & Mail versendet! 🚀');
-                } catch (\Exception $e) {
-                    session()->flash('warning', 'Status geändert, Mail-Fehler: ' . $e->getMessage());
-                }
-            } else {
-                session()->flash('success', 'Status auf Versendet gesetzt.');
-            }
+                    if ($sendMail) {
+                        Mail::to($order->email)->send(new NewOrderShippedToCustomer($order->toFormattedArray()));
+                        session()->flash('success', 'Status geändert & Mail versendet! 🚀');
+                    } else {
+                        session()->flash('success', 'Status auf Versendet gesetzt.');
+                    }
 
-            if ($this->selectedOrder && $this->selectedOrder->id == $order->id) {
-                $this->status = 'shipped';
-                $this->selectedOrder->refresh();
+                    if ($this->selectedOrder && $this->selectedOrder->id == $order->id) {
+                        $this->status = 'shipped';
+                        $this->selectedOrder->refresh();
+                    }
+                });
+            } catch (\Exception $e) {
+                $this->logAdminOrderError('confirm_shipment', $e, ['order_id' => $order->id]);
+                session()->flash('error', 'Fehler beim Bestätigen des Versands: ' . $e->getMessage());
             }
         }
         $this->confirmingShipmentId = null;
@@ -236,23 +262,26 @@ class Orders extends Component
     {
         $order = Order::with('invoices')->find($orderId);
         if ($order) {
-            $order->update(['payment_status' => 'paid']);
-            
-            // Wenn die Bestellung noch keine Rechnung hat, generiere sie jetzt automatisch + E-Mail
-            if ($order->invoices->isEmpty()) {
-                try {
-                    \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
-                    session()->flash('success', 'Zahlung bestätigt. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
-                } catch (\Exception $e) {
-                    session()->flash('warning', 'Zahlung bestätigt, aber Fehler beim Starten des Rechnungs-Jobs: ' . $e->getMessage());
-                }
-            } else {
-                session()->flash('success', 'Zahlung bestätigt.');
-            }
+            try {
+                DB::transaction(function () use ($order, $orderId) {
+                    $order->update(['payment_status' => 'paid']);
+                    
+                    // Wenn die Bestellung noch keine Rechnung hat, generiere sie jetzt automatisch + E-Mail
+                    if ($order->invoices->isEmpty()) {
+                        \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
+                        session()->flash('success', 'Zahlung bestätigt. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
+                    } else {
+                        session()->flash('success', 'Zahlung bestätigt.');
+                    }
 
-            if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
-                $this->payment_status = 'paid';
-                $this->selectedOrder->refresh();
+                    if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
+                        $this->payment_status = 'paid';
+                        $this->selectedOrder->refresh();
+                    }
+                });
+            } catch (\Exception $e) {
+                $this->logAdminOrderError('mark_as_paid', $e, ['order_id' => $order->id]);
+                session()->flash('error', 'Fehler beim Markieren als bezahlt: ' . $e->getMessage());
             }
         }
     }
@@ -261,10 +290,33 @@ class Orders extends Component
     {
         $order = Order::find($orderId);
         if ($order) {
-            $order->delete();
-            $this->closeDetail();
-            session()->flash('success', 'Bestellung gelöscht.');
+            try {
+                DB::transaction(function () use ($order) {
+                    $order->delete();
+                    $this->closeDetail();
+                    session()->flash('success', 'Bestellung gelöscht.');
+                });
+            } catch (\Exception $e) {
+                $this->logAdminOrderError('delete_order', $e, ['order_id' => $orderId]);
+                session()->flash('error', 'Fehler beim Löschen der Bestellung.');
+            }
         }
+    }
+
+    private function logAdminOrderError($action, \Exception $e, $payload = [])
+    {
+        GlobalLog::create([
+            'type' => 'error',
+            'agent_id' => null,
+            'action_id' => 'admin_order_update',
+            'message' => "Fehler bei Admin Order Aktion ($action): " . $e->getMessage(),
+            'details' => json_encode([
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'payload' => $payload,
+                'trace' => $e->getTraceAsString()
+            ])
+        ]);
     }
 
     // --- COMPUTED PROPERTIES ---

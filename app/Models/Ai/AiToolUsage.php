@@ -13,13 +13,17 @@ class AiToolUsage extends Model
     protected $table = 'tool_usages';
 
     protected $fillable = [
+        'ai_agent_id',
         'tool_name',
         'used_at',
         'context',
+        'is_error',
+        'error_message',
     ];
 
     protected $casts = [
         'used_at' => 'datetime',
         'context' => 'array',
+        'is_error' => 'boolean',
     ];
 }

@@ -50,6 +50,7 @@
                 cleanText = cleanText.replace(/\[EVENT\].*?\[\/EVENT\]/gs, '');
                 cleanText = cleanText.replace(/[*_#`~>]/g, '')
                                      .replace(/%0?0|\0/g, '')
+                                     .replace(/\p{Emoji_Presentation}/gu, '')
                                      .replace(/\b([0-9\.]+)\s*(?:H|h)\b/g, '$1 Stunden')
                                      .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
                                      .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
@@ -355,13 +356,14 @@
                             this.sendToAI(transcript);
                         } else {
                             if (this.requireWakeWord) {
-                                const wakeWords = ['funkira', 'funki', 'kira'];
-
-                                if (wakeWords.some(w => textToLower.includes(w))) {
-                                    console.log('Funkira wake word heard: ', transcript);
+                                // Nutzt das dynamische Wake-Word des Agenten aus der Datenbank
+                                const hw = this.agentWakeWord || 'funkira';
+                                
+                                if (textToLower.includes(hw)) {
+                                    console.log('Wake word heard: ', transcript);
                                     this.sendToAI(transcript);
                                 } else {
-                                    console.log('Funkira ignored: ', transcript);
+                                    console.log('Ignored (No wake word matched): ', transcript);
                                 }
                             } else {
                                 console.log('Funkira (No Wake-Word) heard: ', transcript);

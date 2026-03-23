@@ -81,6 +81,9 @@ return new class extends Migration
             // Zeitpunkt der Archivierung
             $table->timestamp('archived_at')->nullable();
 
+            // Status des E-Mail-Versands an den Kunden
+            $table->timestamp('email_sent_at')->nullable();
+
             $table->timestamps();
             $table->softDeletes();
 

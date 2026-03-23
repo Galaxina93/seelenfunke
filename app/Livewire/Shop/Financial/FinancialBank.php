@@ -64,7 +64,7 @@ class FinancialBank extends Component
             $q->where('admin_id', $adminId);
         })->orderBy('name')->get()->toArray();
 
-        $this->availableAgents = \App\Models\Ai\AiAgent::orderBy('name')->get()->toArray();
+        $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)->with('role')->orderBy('name')->get()->toArray();
     }
 
     public function selectBank($accountId)
@@ -160,6 +160,11 @@ class FinancialBank extends Component
                 'assigned_by_type' => 'admin',
                 'assigned_by_name' => 'Admin'
             ]);
+            
+            // Fix: System lernt von manueller Zuweisung!
+            if ($value) {
+                $this->applyCategorizationRule($tx, 'finance_category_id', $value, true);
+            }
         }
     }
 
@@ -174,6 +179,11 @@ class FinancialBank extends Component
                 'assigned_by_type' => 'admin',
                 'assigned_by_name' => 'Admin'
             ]);
+            
+            // Fix: System lernt von manueller Zuweisung!
+            if ($value) {
+                $this->applyCategorizationRule($tx, 'finance_cost_item_id', $value, true);
+            }
         }
     }
 
@@ -243,11 +253,20 @@ class FinancialBank extends Component
             }
             
             // 2. Clean up term (Remove generic reference numbers, dates, IBANs, but keep meaningful words)
-            $searchTerm = preg_replace('/[0-9]{4,}/', '', $rawTerm); // Remove long numbers (like references/IBANs) but keep short ones (like O2, 1&1, B2B)
-            $searchTerm = preg_replace('/[^\w\s\-\.]/u', ' ', $searchTerm); // Remove special chars except hyphen and dot
-            $searchTerm = trim(preg_replace('/\s+/', ' ', $searchTerm)); // Remove multiple spaces
+            // a) Remove Quarters (Q1, Q2, q3, q4)
+            $searchTerm = preg_replace('/\bQ[1-4]\b/i', '', $rawTerm);
             
-            // 3. Fallback to raw if we stripped everything (e.g. term was only symbols)
+            // b) Remove numerical sequences connected by dots/dashes/slashes (Dates: 03/2026, Kassenzeichen: 44.123.456, IBAN fragments)
+            $searchTerm = preg_replace('/\b[\d\.\-\/]{3,}\b/', '', $searchTerm);
+            
+            // c) Remove mixed alphanumeric reference codes (like '8A72B28B') that are 6+ chars long, to prevent recurring monthly invoice ID mismatches
+            $searchTerm = preg_replace('/\b(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d\.\-\/]{6,}\b/', '', $searchTerm);
+
+            // d) Strip all leftover symbols except basic alphabet and spaces
+            $searchTerm = preg_replace('/[^\p{L}\s]/u', ' ', $searchTerm);
+            
+            // e) Collapse multiple spaces
+            $searchTerm = trim(preg_replace('/\s+/', ' ', $searchTerm));
             if (strlen($searchTerm) < 3) {
                 $searchTerm = rtrim(mb_substr($rawTerm, 0, 50));
             } else {
@@ -285,7 +304,7 @@ class FinancialBank extends Component
         }
     }
 
-    public function autoAssignTransactions($assignedByType = 'system', $assignedByName = 'Schablonen-Engine')
+    public function autoAssignTransactions($assignedByType = 'system', $assignedByName = 'Schablonen-Engine', $silent = false)
     {
         $adminId = auth('admin')->id();
         $rules = \App\Models\Financial\FinanceCategorizationRule::where('admin_id', $adminId)
@@ -325,8 +344,12 @@ class FinancialBank extends Component
             }
         }
 
-        session()->flash('success', "{$assignedCount} Umsätze wurden automatisch nach Regeln zugeordnet.");
-        $this->resetPage();
+        if (!$silent) {
+            session()->flash('success', "{$assignedCount} Umsätze wurden automatisch nach Regeln zugeordnet.");
+            $this->resetPage();
+        }
+
+        return $assignedCount;
     }
 
     public function startAgentSorting()
@@ -606,7 +629,11 @@ class FinancialBank extends Component
                     );
                 }
             }
-            session()->flash('success', 'Alle Konten und Umsätze manuell aus finAPI aktualisiert!');
+            
+            $autoAssigned = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
+            $msgAuto = $autoAssigned > 0 ? " ({$autoAssigned} automatisch sortiert)" : "";
+            
+            session()->flash('success', 'Alle Konten und Umsätze manuell aus finAPI aktualisiert!' . $msgAuto);
             $this->loadBankAccounts();
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('finAPI Sync Fehler: ' . $e->getMessage());
@@ -657,7 +684,11 @@ class FinancialBank extends Component
                         }
                     }
                 }
-                session()->flash('success', 'Kontostand und Umsätze erfolgreich synchronisiert!');
+                
+                $autoAssigned = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
+                $msgAuto = $autoAssigned > 0 ? " ({$autoAssigned} automatisch sortiert)" : "";
+                
+                session()->flash('success', 'Kontostand und Umsätze erfolgreich synchronisiert!' . $msgAuto);
                 $this->loadBankAccounts();
             }
         } catch (\Exception $e) {

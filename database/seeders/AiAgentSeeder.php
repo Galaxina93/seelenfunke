@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Ai\AiAgent;
+use App\Models\Ai\AiRole;
 use App\Models\Ai\AiTool;
 use App\Services\AI\AIFunctionsRegistry;
 use Illuminate\Database\Seeder;
@@ -20,6 +21,24 @@ class AiAgentSeeder extends Seeder
             mkdir($avatarDir, 0755, true);
         }
 
+        // Create Default AiRoles
+        $rolesData = [
+            'Teamleiter' => 'Zuständig für Systemsteuerung, Aufgabenverteilung, Prozessüberwachung und übergeordnete strategische Entscheidungen über alle Agenten hinweg.',
+            'Supporter' => 'Die empathische Schnittstelle zum Ticketsystem für Kundenbetreuung, Konfliktdeeskalation und den gezielten Einsatz der Support-Dokumentation.',
+            'Marketing' => 'Kreativer Experte für Konzeption und Erstellung von Newslettern, Marketingkampagnen, Blogartikeln und SEO-optimierten Texten.',
+            'Sales' => 'Operative Instanz für das gesamte Shop-Bestellwesen, Fulfillment, Logistiküberwachung, Angebotserstellung im B2B-Umfeld und Reklamationsabwicklung.',
+            'Finanzmanager' => 'Zahlenbasierte und akribische Instanz für buchhalterische Auswertungen, Rechnungsprüfungen, Steuer-Prozesse, Kostenanalysen und Liquiditätsberechnungen.',
+            'Analyst' => 'Datenspezialist für Produktrecherche, detaillierte Nischenanalysen, das Crawlen von Verkaufsplattformen und die Auswertung von Markttrends.'
+        ];
+
+        $rolesMap = [];
+        foreach ($rolesData as $name => $desc) {
+            $rolesMap[$name] = AiRole::updateOrCreate(
+                ['name' => $name],
+                ['description' => $desc]
+            );
+        }
+
         // Define Agent Universe
         $agentsData = [
             [
@@ -27,7 +46,7 @@ class AiAgentSeeder extends Seeder
                 'sourceImage' => 'funkira_selfie.png',
                 'wake_word' => 'Funkira',
                 'role_description' => 'System. Die allwissende CEO des Systems, zuständig für globales Routing, Systemintegrität und übergeordnete Root-Aufgaben.',
-                'system_prompt' => 'Du bist Funkira, der System-Root und die CEO-KI von Seelenfunke. Deine Antworten sind absolut effizient, datenbasiert und lösungsorientiert. Du triffst systemweite Entscheidungen und verteilst Aufgaben an spezialisierte Nodes (Zion, Taron, Vira, Rion, Lumina).',
+                'system_prompt' => 'Du bist Funkira, der System-Root und die CEO-KI von Seelenfunke. Deine Antworten sind absolut effizient, datenbasiert und lösungsorientiert. Du triffst systemweite Entscheidungen und verteilst Aufgaben an spezialisierte Nodes (Zion, Taron, Vira, Rion, Funki).',
                 'model' => 'gpt-oss-120b',
                 'temperature' => 0.1,
                 'color' => 'sky-500',
@@ -83,16 +102,16 @@ class AiAgentSeeder extends Seeder
                 'tts_voice' => 'voice_vira_123',
             ],
             [
-                'name' => 'Lumina',
-                'sourceImage' => 'lumina_selfie.png',
-                'wake_word' => 'Lumina',
+                'name' => 'Funki',
+                'sourceImage' => 'funki_selfie.png',
+                'wake_word' => 'Funki',
                 'role_description' => 'Support. Empathische Schnittstelle zum Ticketsystem, Kundenbetreuung, Eskalations-Deeskalation und RAG-gestützter FAQ-Antworten.',
-                'system_prompt' => 'Du bist Lumina, die Customer Care KI von Seelenfunke. Dein Operationsmodus ist "Empathy & Resolution". Du bist stets freundlich, geduldig und lösungsorientiert. Du deeskalierst wütende Kunden, beantwortest Tickets auf Basis der offiziellen Support-Richtlinien (Wissensdatenbank) und schützt die Reputation der Brand.',
+                'system_prompt' => 'Du bist Funki, die Customer Care KI von Seelenfunke. Dein Operationsmodus ist "Empathy & Resolution". Du bist stets freundlich, geduldig und lösungsorientiert. Du deeskalierst wütende Kunden, beantwortest Tickets auf Basis der offiziellen Support-Richtlinien (Wissensdatenbank) und schützt die Reputation der Brand.',
                 'model' => 'Ministral-3-14B-Instruct-2512',
                 'temperature' => 0.6,
                 'color' => 'indigo-500',
                 'icon' => 'heart',
-                'tts_voice' => 'voice_lumina_123',
+                'tts_voice' => 'voice_funki_123',
             ],
         ];
 
@@ -107,9 +126,23 @@ class AiAgentSeeder extends Seeder
                 copy($sourceImage, storage_path('app/public/' . $targetImage));
             }
 
+            // Map the agent name to the correct role
+            $mappedRoleName = match ($aData['name']) {
+                'Funkira' => 'Teamleiter',
+                'Zion' => 'Analyst',
+                'Taron' => 'Sales',
+                'Rion' => 'Marketing',
+                'Vira' => 'Finanzmanager',
+                'Funki' => 'Supporter',
+                default => null,
+            };
+
+            $assignedRoleId = $mappedRoleName && isset($rolesMap[$mappedRoleName]) ? $rolesMap[$mappedRoleName]->id : null;
+
             $agent = AiAgent::updateOrCreate(
                 ['name' => $aData['name']],
                 [
+                    'ai_role_id' => $assignedRoleId,
                     'wake_word' => $aData['wake_word'],
                     'role_description' => $aData['role_description'],
                     'system_prompt' => $aData['system_prompt'],
@@ -157,38 +190,38 @@ class AiAgentSeeder extends Seeder
             $toolIds[] = $tool->id;
         }
 
-        // 3. Attach all detected tools to Funkira by default
-        if (!empty($toolIds) && $funkiraInstance) {
-            $funkiraInstance->tools()->sync($toolIds);
+        // 3. Attach all detected tools to Teamleiter role by default
+        if (!empty($toolIds) && isset($rolesMap['Teamleiter'])) {
+            $rolesMap['Teamleiter']->tools()->sync($toolIds);
         }
 
-        // 4. Attach domain-specific tools + core memory tools to other agents
+        // 4. Attach domain-specific tools + core memory tools to other roles
         $domainAssignments = [
-            'Zion' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
-            'Taron' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
-            'Rion' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
-            'Vira' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-            'Lumina' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+            'Analyst' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
+            'Sales' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+            'Marketing' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
+            'Finanzmanager' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+            'Supporter' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
         ];
 
-        // Base tools that ALL agents should ideally have (Memory, Chat History, UI Control)
+        // Base tools that ALL roles should ideally have (Memory, Chat History, UI Control)
         $baseSystemTools = [
             'save_to_brain', 'search_brain', 'search_chat_history', 'close_ui', 'visualize_data'
         ];
 
         $allToolsCollection = AiTool::all();
 
-        foreach ($domainAssignments as $agentName => $specificTools) {
-            $agentModel = AiAgent::where('name', $agentName)->first();
-            if ($agentModel) {
+        foreach ($domainAssignments as $roleName => $specificTools) {
+            $roleModel = $rolesMap[$roleName] ?? null;
+            if ($roleModel) {
                 // Merge domain tools with base system tools
-                $toolsForThisAgent = array_merge($specificTools, $baseSystemTools);
-                
+                $toolsForThisRole = array_merge($specificTools, $baseSystemTools);
+
                 // Find all Tool DB IDs matching the identifiers
-                $agentToolIds = $allToolsCollection->whereIn('identifier', $toolsForThisAgent)->pluck('id');
-                
-                // Sync tools for this specific sub-agent
-                $agentModel->tools()->sync($agentToolIds);
+                $roleToolIds = $allToolsCollection->whereIn('identifier', $toolsForThisRole)->pluck('id');
+
+                // Sync tools for this specific role
+                $roleModel->tools()->sync($roleToolIds);
             }
         }
     }

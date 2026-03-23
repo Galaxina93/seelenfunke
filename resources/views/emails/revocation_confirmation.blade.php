@@ -191,6 +191,12 @@
                             <span>{{ $revocationData['items'] }}</span>
                         </div>
                         @endif
+                        @if(!empty($revocationData['attachments']))
+                        <div class="data-row">
+                            <strong>Hochgeladene Nachweise:</strong>
+                            <span>{{ count($revocationData['attachments']) }} Datei(en) angehängt</span>
+                        </div>
+                        @endif
                     </div>
 
                     <div class="link-info">

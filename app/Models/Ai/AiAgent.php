@@ -11,6 +11,7 @@ class AiAgent extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'ai_role_id',
         'name',
         'wake_word',
         'role_description',
@@ -23,9 +24,18 @@ class AiAgent extends Model
         'profile_picture', // NEW
     ];
 
-    public function tools()
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
+    public function role()
     {
-        return $this->belongsToMany(AiTool::class, 'ai_agent_tool')
-                    ->withTimestamps();
+        return $this->belongsTo(AiRole::class, 'ai_role_id');
+    }
+
+    // Accessor for backward compatibility and role inheritance
+    public function getToolsAttribute()
+    {
+        return $this->role ? $this->role->tools : collect();
     }
 }

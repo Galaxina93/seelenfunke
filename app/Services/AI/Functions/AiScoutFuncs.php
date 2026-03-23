@@ -114,6 +114,21 @@ trait AiScoutFuncs
                 ],
                 'callable' => [self::class, 'executeSearchCustomers']
             ],
+            [
+                'name' => 'search_internet',
+                'description' => 'Sucht live im Internet nach aktuellen Nachrichten, Themen oder Begriffen. Stichworte: Suche im Web, Was gibt es neues zu, Google nach, Websuche',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'query' => [
+                            'type' => 'string',
+                            'description' => 'Der Suchbegriff für die Websuche.'
+                        ]
+                    ],
+                    'required' => ['query']
+                ],
+                'callable' => [self::class, 'executeSearchInternet']
+            ],
         ];
     }
 
@@ -340,6 +355,60 @@ trait AiScoutFuncs
             return ['status' => 'success', 'customers' => $formatted];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Kundensuche fehlgeschlagen: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeSearchInternet(array $args)
+    {
+        try {
+            if (empty($args['query'])) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
+            
+            $query = urlencode($args['query']);
+            $url = "https://html.duckduckgo.com/html/?q={$query}";
+            
+            $client = new \GuzzleHttp\Client([
+                'headers' => [
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/100.0.4896.127 Safari/537.36',
+                    'Accept-Language' => 'de-DE,de;q=0.9',
+                    'Accept' => 'text/html'
+                ],
+                'timeout' => 8
+            ]);
+            
+            $response = $client->request('GET', $url);
+            $html = $response->getBody()->getContents();
+            
+            // Extract text snippets from DuckDuckGo Lite HTML results
+            preg_match_all('/<a class="result__snippet[^>]+>(.*?)<\/a>/is', $html, $matches);
+            
+            if (empty($matches[1])) {
+                // Try Wikipedia fallback if DuckDuckGo blocks us
+                $wikiUrl = "https://de.wikipedia.org/w/api.php?action=query&list=search&srsearch={$query}&utf8=&format=json";
+                $wikiResponse = $client->request('GET', $wikiUrl);
+                $wikiData = json_decode($wikiResponse->getBody()->getContents(), true);
+                
+                if (!empty($wikiData['query']['search'])) {
+                    $results = [];
+                    foreach (array_slice($wikiData['query']['search'], 0, 3) as $item) {
+                        $results[] = trim(strip_tags($item['snippet']));
+                    }
+                    if(!empty($results)) {
+                         return ['status' => 'success', 'source' => 'Wikipedia', 'results' => $results];
+                    }
+                }
+                return ['status' => 'success', 'message' => 'Keine brauchbaren Resultate zur Suchanfrage gefunden.'];
+            }
+            
+            $results = [];
+            foreach (array_slice($matches[1], 0, 3) as $snippet) {
+                $clean = strip_tags(html_entity_decode($snippet));
+                $results[] = trim($clean);
+            }
+            
+            return ['status' => 'success', 'source' => 'Web Search', 'results' => $results];
+            
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Internetzugriff fehlgeschlagen: ' . $e->getMessage()];
         }
     }
 }

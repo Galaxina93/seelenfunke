@@ -44,6 +44,7 @@
             thinking: false,
             continuousMode: localStorage.getItem('funki_continuousMode') === 'true',
             requireWakeWord: localStorage.getItem('funki_requireWakeWord') === 'true', // Default: Reacts to everything
+            agentWakeWord: '{{ \App\Models\Ai\AiAgent::where("name", "Funkira")->first()?->wake_word ?? "Funkira" }}'.toLowerCase(),
             allowSpontaneous: true, // Default: On (Spontaneous Self-Analysis)
             recognition: null,
             synthesis: window.speechSynthesis,

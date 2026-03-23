@@ -4,7 +4,7 @@ namespace Tests\Feature\Livewire\Shop\Calender;
 
 use App\Livewire\Shop\Calender\Calender;
 use App\Models\CalendarEvent;
-use App\Services\AI\Functions\CalendarFunctions;
+use App\Services\AI\Functions\AiSupportFuncs;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -24,7 +24,7 @@ class CalenderTest extends TestCase
         parent::setUp();
         
         $this->aiFunctionsDummy = new class {
-            use CalendarFunctions;
+            use AiSupportFuncs;
         };
     }
 
@@ -186,9 +186,9 @@ class CalenderTest extends TestCase
     #[Test]
     public function ai_can_get_calendar_events_schema()
     {
-        $schema = $this->aiFunctionsDummy::getCalendarFunctionsSchema();
+        $schema = $this->aiFunctionsDummy::getAiSupportFuncsSchema();
         $this->assertIsArray($schema);
-        $this->assertCount(4, $schema); // get, create, update, delete
+        $this->assertCount(5, $schema); // get, create, update, delete, get_tickets
         $this->assertEquals('get_calendar_events', $schema[0]['name']);
     }
 

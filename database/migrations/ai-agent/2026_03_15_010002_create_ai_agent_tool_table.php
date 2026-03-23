@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ai_agent_tool', function (Blueprint $table) {
-            $table->foreignUuid('ai_agent_id')->constrained()->cascadeOnDelete();
+        Schema::create('ai_role_tool', function (Blueprint $table) {
+            $table->foreignUuid('ai_role_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('ai_tool_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
 
-            // A tool should only be attached to an agent once
-            $table->primary(['ai_agent_id', 'ai_tool_id']);
+            // A tool should only be attached to a role once
+            $table->primary(['ai_role_id', 'ai_tool_id']);
         });
     }
 
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('ai_agent_tool');
+        Schema::dropIfExists('ai_role_tool');
     }
 };

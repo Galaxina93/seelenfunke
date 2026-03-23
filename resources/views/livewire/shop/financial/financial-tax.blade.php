@@ -10,13 +10,10 @@
                     <i class="solar-document-text-bold-duotone text-orange-400 text-2xl"></i>
                     Umsatzsteuer-Zentrale
                 </h3>
-                <p class="text-[10px] font-mono text-gray-500 mt-2 uppercase tracking-widest bg-black/40 px-2 py-0.5 rounded border border-gray-800 inline-block">
-                    Native ERiC Integration (Offline Mode)
-                </p>
             </div>
 
             <div class="flex items-center gap-3">
-                <div wire:init="checkApiStatus" wire:poll.120s="checkApiStatus" class="flex items-center gap-2 px-3 py-1.5 bg-gray-950 border border-gray-800 rounded-lg shadow-inner">
+                <div wire:init="checkApiStatus" class="flex items-center gap-2 px-3 py-1.5 bg-gray-950 border border-gray-800 rounded-lg shadow-inner">
                     @if($apiStatus === 'checking')
                         <div class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]"></div>
                         <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black hidden sm:inline">Prüfe API...</span>
@@ -183,15 +180,15 @@
                         <div class="space-y-3 relative z-10 text-xs font-medium">
                             <div class="flex justify-between items-center text-gray-300">
                                 <span class="flex items-center gap-2">Umsatzsteuer (Verkäufe) <span class="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono group relative cursor-help" title="Kennzahl 81: Bemessungsgrundlage 19% (Zusätzlich Kz 86 bei 7% etc.)">Kz 81</span></span>
-                                <span class="font-mono text-white">+ {{ number_format($activeData['vat_collected'], 2, ',', '.') }} €</span>
+                                <span class="font-mono text-white">{{ $activeData['vat_collected'] > 0 ? '+' : '' }} {{ number_format($activeData['vat_collected'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="flex justify-between items-center text-gray-400">
                                 <span class="flex items-center gap-2">IG Erwerb (§ 1a UStG) <span class="text-[9px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded font-mono cursor-help" title="Kennzahl 89: Innergemeinschaftliche Erwerbe">Kz 89</span></span>
-                                <span class="font-mono text-gray-300">+ {{ number_format($activeData['ig_erwerb_tax'], 2, ',', '.') }} €</span>
+                                <span class="font-mono text-gray-300">{{ $activeData['ig_erwerb_tax'] > 0 ? '+' : '' }} {{ number_format($activeData['ig_erwerb_tax'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="flex justify-between items-center text-gray-400">
                                 <span class="flex items-center gap-2">Reverse Charge (§ 13b) <span class="text-[9px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded font-mono cursor-help" title="Kennzahl 46/47: Leistungen nach § 13b UStG">Kz 46</span></span>
-                                <span class="font-mono text-gray-300">+ {{ number_format($activeData['paragraph_13b_tax'], 2, ',', '.') }} €</span>
+                                <span class="font-mono text-gray-300">{{ $activeData['paragraph_13b_tax'] > 0 ? '+' : '' }} {{ number_format($activeData['paragraph_13b_tax'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="border-t border-gray-800 pt-3 flex justify-between items-center text-gray-300 font-bold">
                                 <span>= Gesamtsteuer</span>
@@ -256,12 +253,12 @@
                             @else
                                 <div class="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl shadow-inner animate-fade-in relative overflow-hidden">
                                     <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-                                    
+
                                     <div class="mb-4">
                                         <label class="block text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
                                             <x-heroicon-s-folder-open class="w-4 h-4" /> Zertifikat aus Tresor wählen
                                         </label>
-                                        
+
                                         @if(count($tresorCertificates) > 0)
                                             <select wire:model.live="selectedCertName" class="w-full relative z-10 bg-gray-950/80 border border-emerald-500/30 text-emerald-100 text-xs font-bold rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500/50 outline-none shadow-inner cursor-pointer font-mono">
                                                 <option value="">-- Zertifikat auswählen --</option>
@@ -269,7 +266,7 @@
                                                     <option value="{{ $cert }}">{{ $cert }}</option>
                                                 @endforeach
                                             </select>
-                                            
+
                                             {{-- Offizielle ELSTER Test-Zertifikate Beschreibungen --}}
                                             @if($selectedCertName === 'test-soft-pse.pfx' || $selectedCertName === 'test-softorg-pse.pfx' || $selectedCertName === 'test-softidnr-pse.pfx' || str_contains($selectedCertName, 'bescheid'))
                                                 <div class="mt-3 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 relative overflow-hidden animate-fade-in">
@@ -306,7 +303,7 @@
                                     @php
                                         $isTestCert = in_array($selectedCertName, ['test-soft-pse.pfx', 'test-softorg-pse.pfx', 'test-softidnr-pse.pfx']) || str_contains($selectedCertName, 'bescheid');
                                     @endphp
-                                    
+
                                     @if($isTestCert)
                                         <div class="bg-blue-500/10 border border-blue-500/30 text-blue-400 p-3 rounded-lg flex items-center gap-3 relative z-10 font-medium">
                                             <x-heroicon-s-check-badge class="w-5 h-5 flex-shrink-0" />
@@ -326,7 +323,7 @@
                                             <x-heroicon-s-lock-closed class="w-4 h-4" /> Zertifikats-Passwort
                                         </label>
                                         <input type="password" wire:model.live="certPassword" class="w-full relative z-10 bg-gray-950/80 border border-emerald-500/30 text-white text-center text-xl tracking-widest font-mono rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500/50 outline-none shadow-inner placeholder-gray-800 transition-all font-black" placeholder="Ihr Passwort">
-                                        
+
                                         <p class="text-[9px] text-gray-500 mt-4 leading-relaxed relative z-10 border-t border-emerald-500/10 pt-3">
                                             Das Zertifikats-Passwort wird nicht dauerhaft gespeichert, sondern nur für die temporäre Entschlüsselung benötigt. Der Tresor-Basis-Pfad ist über <code class="bg-gray-900 border border-gray-800 px-1 py-0.5 rounded text-[8px] tracking-normal inline-block text-gray-400">ERIC_TRESOR_PATH</code> sicher gekapselt. Sie können das Passwort auch als <code class="bg-gray-900 border border-gray-800 px-1 py-0.5 rounded text-[8px] tracking-normal inline-block text-gray-400">ERIC_CERT_PASSWORD</code> in der .env hinterlegen.
                                         </p>
@@ -344,8 +341,8 @@
                             <span wire:loading.remove wire:target="generateDatevExport">Report ZIP (Offline)</span>
                             <span wire:loading wire:target="generateDatevExport" class="text-blue-400 animate-pulse">Exportiert...</span>
                         </button>
-                        
-                        <button type="button" @click="showPreview = true" 
+
+                        <button type="button" @click="showPreview = true"
                         class="py-4 bg-gray-900 border border-gray-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex flex-col items-center justify-center gap-2 group hover:bg-gray-800 hover:text-white hover:border-emerald-500 text-gray-400">
                             <x-heroicon-o-document-text class="w-6 h-6 group-hover:text-emerald-400 transition-colors" />
                             <span>Vorschau (XML Formular)</span>
@@ -397,10 +394,10 @@
                     {{-- ELSTER FORMULAR MODAL (Alpine.js) --}}
                     <div x-show="showPreview" style="display: none;" class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
                         <div x-show="showPreview" x-transition.opacity class="fixed inset-0 bg-black/80 backdrop-blur-sm" @click="showPreview = false"></div>
-                        
-                        <div x-show="showPreview" x-transition.scale.95 
+
+                        <div x-show="showPreview" x-transition.scale.95
                              class="relative bg-[#f4f7f4] border-2 border-[#5b8c5a] rounded-xl shadow-2xl w-full max-w-4xl text-gray-800 overflow-hidden font-sans">
-                            
+
                             {{-- Header --}}
                             <div class="bg-[#5b8c5a] text-white p-4 flex justify-between items-center">
                                 <div>
@@ -432,7 +429,7 @@
                                         <div class="absolute left-0 top-0 bottom-0 w-10 bg-[#5b8c5a] text-white font-bold flex items-center justify-center">81</div>
                                         <div class="flex-1 text-xs">Steuerpflichtige Umsätze (Netto) zum allgemeinen Steuersatz</div>
                                         <div class="w-40 bg-gray-100 border border-gray-300 px-3 py-1.5 font-mono text-right font-bold text-gray-700">
-                                            {{ number_format($activeData['revenue_net'], 0, '', '') }} 
+                                            {{ number_format($activeData['revenue_net'], 0, '', '') }}
                                         </div>
                                         <span class="text-xs font-mono text-gray-400">Volle EUR</span>
                                     </div>
@@ -460,7 +457,7 @@
                                         <span class="text-sm font-mono text-gray-500 font-bold">EUR, Ct</span>
                                     </div>
                                 </div>
-                                
+
                                 <div class="text-[9px] text-gray-400 flex justify-between items-center mt-6">
                                     <span>Generiert von ELSTER ERiC Simulator &bull; Seelenfunke Financials</span>
                                     <span>XML Schema 2023/2024 &bull; Version 11</span>
@@ -507,14 +504,14 @@
                                                             <x-heroicon-s-check-circle class="w-4 h-4 inline-block mr-1" /> {{ session('success_receipt') }}
                                                         </div>
                                                     @endif
-                                                    
+
                                                     @foreach($activeData['missing_items'] as $item)
                                                         <div class="bg-gray-950 p-3.5 rounded-xl border border-red-500/30 flex flex-col gap-3 group relative overflow-hidden transition-all hover:border-red-500/50 shadow-lg">
                                                             <div class="flex justify-between items-start">
                                                                 <div class="min-w-0 pr-3">
                                                                     <p class="text-xs font-bold text-gray-300 truncate" title="{{ $item['title'] }}">{{ $item['title'] }}</p>
                                                                     <p class="text-[9px] text-gray-500 mt-1 flex items-center gap-1.5">
-                                                                        <span class="bg-gray-800 px-1.5 py-0.5 rounded text-gray-400 uppercase tracking-widest">{{ $item['type'] === 'fixed' ? 'Fix' : 'Var' }}</span> 
+                                                                        <span class="bg-gray-800 px-1.5 py-0.5 rounded text-gray-400 uppercase tracking-widest">{{ $item['type'] === 'fixed' ? 'Fix' : 'Var' }}</span>
                                                                         {{ $item['date'] }}
                                                                     </p>
                                                                 </div>
@@ -527,19 +524,19 @@
                                                                     <div wire:loading wire:target="receiptFiles.{{ $item['id'] }}" class="absolute inset-0 bg-blue-500/10 flex items-center justify-center backdrop-blur-sm z-20">
                                                                         <span class="text-[10px] font-black uppercase tracking-widest text-blue-400 animate-pulse">Lade Datei in RAM...</span>
                                                                     </div>
-                                                                    
+
                                                                     <input type="file" wire:model.live="receiptFiles.{{ $item['id'] }}" class="hidden" accept="image/jpeg,image/png,application/pdf">
-                                                                    
+
                                                                     <div class="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest group-hover/upload:text-blue-400 transition-colors">
                                                                         <x-heroicon-o-cloud-arrow-up class="w-4 h-4" />
                                                                         <span>Beleg (PDF/Bild) auswählen</span>
                                                                     </div>
                                                                 </label>
-                                                                
+
                                                                 @if(isset($receiptFiles[$item['id']]))
                                                                     <div class="animate-fade-in flex flex-col gap-2">
                                                                         <p class="text-[9px] text-emerald-400 text-center font-mono truncate">Bereit: {{ $receiptFiles[$item['id']]->getClientOriginalName() }}</p>
-                                                                        <button wire:click="uploadMissingReceipt('{{ $item['id'] }}', '{{ $item['type'] }}')" 
+                                                                        <button wire:click="uploadMissingReceipt('{{ $item['id'] }}', '{{ $item['type'] }}')"
                                                                                 class="w-full py-2 bg-blue-500/10 border border-blue-500/30 rounded-lg text-[10px] font-black text-blue-400 uppercase tracking-widest hover:bg-blue-500/20 transition-colors flex items-center justify-center gap-2 shadow-inner">
                                                                             <x-heroicon-s-check-circle class="w-4 h-4" /> Jetzt hochladen & verknüpfen
                                                                         </button>
@@ -581,8 +578,13 @@
                         <div class="grid grid-cols-2 gap-6">
                             <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex flex-col justify-center">
                                 <p class="text-[9px] text-gray-500 uppercase tracking-widest font-black mb-2 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>Einnahmen</p>
-                                <p class="text-2xl font-bold text-white mb-1">{{ $activeData['order_count'] }} <span class="text-xs text-gray-500 font-medium">Orders</span></p>
-                                <p class="text-xs text-gray-400 font-mono">Netto: {{ number_format($activeData['revenue_net'], 2, ',', '.') }} €</p>
+                                <p class="text-2xl font-bold text-white mb-1">
+                                    {{ $activeData['order_count'] }} <span class="text-xs text-gray-500 font-medium">Orders</span>
+                                    @if(count($activeData['raw_credits'] ?? []) > 0)
+                                        <span class="text-red-400 text-xs ml-1 font-black">({{ count($activeData['raw_credits']) }} Stornos)</span>
+                                    @endif
+                                </p>
+                                <p class="text-xs {{ $activeData['revenue_net'] < 0 ? 'text-red-400' : 'text-gray-400' }} font-mono">Netto: {{ number_format($activeData['revenue_net'], 2, ',', '.') }} €</p>
                             </div>
 
                             <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex flex-col justify-center">
@@ -601,7 +603,7 @@
                                         {{ number_format($activeData['profit'], 2, ',', '.') }} €
                                     </span>
                                 </div>
-                                
+
                                 {{-- Mini Visualisierung Chart --}}
                                 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 shadow-inner">
                                     <div class="flex justify-between text-[9px] font-black uppercase tracking-widest text-gray-500 mb-3">
@@ -609,15 +611,17 @@
                                     </div>
                                     <div class="flex h-2.5 rounded-full overflow-hidden border border-gray-900">
                                         @php
-                                            $totalForChart = $activeData['revenue_net'] + $activeData['expenses_net'];
-                                            $revPct = $totalForChart > 0 ? ($activeData['revenue_net'] / $totalForChart) * 100 : 50;
-                                            $expPct = $totalForChart > 0 ? ($activeData['expenses_net'] / $totalForChart) * 100 : 50;
+                                            $absRev = abs($activeData['revenue_net']);
+                                            $absExp = abs($activeData['expenses_net']);
+                                            $totalForChart = $absRev + $absExp;
+                                            $revPct = $totalForChart > 0 ? ($absRev / $totalForChart) * 100 : 50;
+                                            $expPct = $totalForChart > 0 ? ($absExp / $totalForChart) * 100 : 50;
                                         @endphp
                                         <div class="bg-blue-500 h-full transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" style="width: {{ $revPct }}%" title="Umsätze"></div>
                                         <div class="bg-red-500 h-full transition-all duration-1000 shadow-[0_0_10px_rgba(239,68,68,0.5)]" style="width: {{ $expPct }}%" title="Ausgaben"></div>
                                     </div>
                                     <div class="flex justify-between mt-3 text-[9px] font-black tracking-wider">
-                                        <span class="text-blue-400 uppercase">{{ round($revPct) }}% Einnahmen</span>
+                                        <span class="{{ $activeData['revenue_net'] < 0 ? 'text-red-400' : 'text-blue-400' }} uppercase">{{ round($revPct) }}% {{ $activeData['revenue_net'] < 0 ? 'Erlösminderung' : 'Einnahmen' }}</span>
                                         <span class="text-red-400 uppercase">{{ round($expPct) }}% Ausgaben</span>
                                     </div>
                                 </div>
@@ -634,7 +638,7 @@
                             <x-heroicon-s-rocket-launch class="w-5 h-5 text-blue-400" />
                             Schritt-für-Schritt zur erfolgreichen Übermittlung
                         </h4>
-                        
+
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
                             <!-- Schritt 1 -->
                             <div class="bg-gray-950/50 border border-gray-800 rounded-2xl p-6 relative overflow-hidden group hover:border-blue-500/50 transition-colors shadow-lg">
@@ -677,10 +681,18 @@
 
                 {{-- VOLLE BREITE UNTEN: FUNKI TERMINAL LOG --}}
                 <div class="col-span-1 lg:col-span-12 mt-4 pt-8 border-t border-gray-800">
-                    <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <x-heroicon-s-command-line class="w-4 h-4 text-orange-500" />
-                        System- & API-Protokoll (Live)
-                    </h4>
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                            <x-heroicon-s-command-line class="w-4 h-4 text-orange-500" />
+                            System- & API-Protokoll (Live)
+                        </h4>
+                        
+                        <button wire:click="checkApiStatus" wire:loading.attr="disabled" class="bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-blue-500 px-3 py-1.5 rounded-lg text-[9px] font-black text-gray-400 hover:text-blue-400 uppercase tracking-widest transition-colors flex items-center gap-2 shadow-inner group disabled:opacity-50 cursor-pointer">
+                            <x-heroicon-s-signal class="w-3 h-3 group-hover:animate-pulse" />
+                            <span wire:loading.remove wire:target="checkApiStatus">API Ping Test</span>
+                            <span wire:loading wire:target="checkApiStatus" class="text-blue-400">Pinge Server...</span>
+                        </button>
+                    </div>
 
                     <div class="bg-[#0D1117] rounded-2xl border border-gray-800 p-4 h-56 overflow-y-auto custom-scrollbar font-mono text-[11px] shadow-inner relative">
                         <div class="absolute top-0 left-0 w-1 h-full bg-orange-500/20"></div>

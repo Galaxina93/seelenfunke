@@ -5,6 +5,8 @@ namespace App\Livewire\Shop\Cart;
 use App\Services\CartService;
 use Livewire\Attributes\On;
 use Livewire\Component;
+use Illuminate\Support\Facades\DB;
+use App\Models\Global\GlobalLog;
 
 class Cart extends Component
 {
@@ -42,40 +44,67 @@ class Cart extends Component
 
     public function increment($itemId)
     {
-        // Hole aktuelle Quantity
-        $item = \App\Models\Cart\CartItem::find($itemId);
-        if ($item) {
-            $this->cartService->updateQuantity($itemId, $item->quantity + 1);
-            $this->dispatch('cart-updated'); // Aktualisiert das Icon im Header
+        try {
+            DB::transaction(function () use ($itemId) {
+                $item = \App\Models\Cart\CartItem::find($itemId);
+                if ($item) {
+                    $this->cartService->updateQuantity($itemId, $item->quantity + 1);
+                    $this->dispatch('cart-updated'); // Aktualisiert das Icon im Header
+                }
+            });
+        } catch (\Exception $e) {
+            $this->logCartError('increment', $e, ['item_id' => $itemId]);
+            session()->flash('error', 'Menge konnte nicht aktualisiert werden.');
         }
     }
 
     public function decrement($itemId)
     {
-        $item = \App\Models\Cart\CartItem::find($itemId);
-        if ($item) {
-            $this->cartService->updateQuantity($itemId, $item->quantity - 1);
-            $this->dispatch('cart-updated');
+        try {
+            DB::transaction(function () use ($itemId) {
+                $item = \App\Models\Cart\CartItem::find($itemId);
+                if ($item) {
+                    $this->cartService->updateQuantity($itemId, $item->quantity - 1);
+                    $this->dispatch('cart-updated');
+                }
+            });
+        } catch (\Exception $e) {
+            $this->logCartError('decrement', $e, ['item_id' => $itemId]);
+            session()->flash('error', 'Menge konnte nicht aktualisiert werden.');
         }
     }
 
     public function remove($itemId)
     {
-        $this->cartService->removeItem($itemId);
-        $this->dispatch('cart-updated');
+        try {
+            DB::transaction(function () use ($itemId) {
+                $this->cartService->removeItem($itemId);
+                $this->dispatch('cart-updated');
+            });
+        } catch (\Exception $e) {
+            $this->logCartError('remove', $e, ['item_id' => $itemId]);
+            session()->flash('error', 'Artikel konnte nicht entfernt werden.');
+        }
     }
 
     // Listener für "In den Warenkorb" Buttons von anderen Komponenten (z.B. Konfigurator)
     #[On('add-to-cart')]
     public function addToCartHandler($productId, $qty = 1, $config = null)
     {
-        $product = \App\Models\Product\Product::find($productId);
-        if($product) {
-            $this->cartService->addItem($product, $qty, $config);
+        try {
+            DB::transaction(function () use ($productId, $qty, $config) {
+                $product = \App\Models\Product\Product::find($productId);
+                if($product) {
+                    $this->cartService->addItem($product, $qty, $config);
 
-            // Events feuern
-            $this->dispatch('cart-updated');
-            session()->flash('success', 'Produkt hinzugefügt!');
+                    // Events feuern
+                    $this->dispatch('cart-updated');
+                    session()->flash('success', 'Produkt hinzugefügt!');
+                }
+            });
+        } catch (\Exception $e) {
+            $this->logCartError('add_to_cart', $e, ['product_id' => $productId, 'qty' => $qty]);
+            session()->flash('error', 'Produkt konnte nicht in den Warenkorb gelegt werden.');
         }
     }
 
@@ -83,22 +112,52 @@ class Cart extends Component
     {
         $this->validate(['couponCodeInput' => 'required|string']);
 
-        $result = $this->cartService->applyCoupon($this->couponCodeInput);
+        try {
+            DB::transaction(function () {
+                $result = $this->cartService->applyCoupon($this->couponCodeInput);
 
-        if ($result['success']) {
-            $this->couponCodeInput = ''; // Input leeren
-            $this->dispatch('cart-updated'); // UI neu laden
-            session()->flash('success', $result['message']);
-        } else {
-            $this->addError('couponCodeInput', $result['message']);
+                if ($result['success']) {
+                    $this->couponCodeInput = ''; // Input leeren
+                    $this->dispatch('cart-updated'); // UI neu laden
+                    session()->flash('success', $result['message']);
+                } else {
+                    $this->addError('couponCodeInput', $result['message']);
+                }
+            });
+        } catch (\Exception $e) {
+            $this->logCartError('apply_coupon', $e, ['coupon' => $this->couponCodeInput]);
+            session()->flash('error', 'Fehler beim Anwenden des Gutscheins.');
         }
     }
 
     public function removeCoupon()
     {
-        $this->cartService->removeCoupon();
-        $this->dispatch('cart-updated');
-        session()->flash('success', 'Gutschein entfernt.');
+        try {
+            DB::transaction(function () {
+                $this->cartService->removeCoupon();
+                $this->dispatch('cart-updated');
+                session()->flash('success', 'Gutschein entfernt.');
+            });
+        } catch (\Exception $e) {
+            $this->logCartError('remove_coupon', $e, []);
+            session()->flash('error', 'Fehler beim Entfernen des Gutscheins.');
+        }
+    }
+
+    private function logCartError($action, \Exception $e, $payload = [])
+    {
+        GlobalLog::create([
+            'type' => 'error',
+            'agent_id' => null,
+            'action_id' => 'cart_manipulation',
+            'message' => "Fehler bei Cart Aktion ($action): " . $e->getMessage(),
+            'details' => json_encode([
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'payload' => $payload,
+                'trace' => $e->getTraceAsString()
+            ])
+        ]);
     }
 
     public function render()

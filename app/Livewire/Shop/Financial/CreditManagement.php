@@ -28,8 +28,10 @@ class CreditManagement extends Component
     // Typischerweise [ ['name' => '', 'quantity' => 1, 'unit_price' => 0, 'tax_rate' => 19] ]
     public $creditItems = [];
 
-    // Kunde suchen
+    // Kunde suchen & Analyse
     public $searchCustomer = '';
+    public $selectedCustomerId = null;
+    public $customerStats = null;
 
     public function mount()
     {
@@ -81,6 +83,48 @@ class CreditManagement extends Component
     {
         $this->newCredit['customer_id'] = $id;
         $this->searchCustomer = $name;
+    }
+
+    public function selectCustomer($id)
+    {
+        $this->selectedCustomerId = $id;
+
+        if ($id) {
+            $customer = Customer::find($id);
+            if ($customer) {
+                $totalCredits = Invoice::where('customer_id', $id)
+                    ->whereIn('type', ['credit_note', 'cancellation'])
+                    ->count();
+
+                $totalVolume = Invoice::where('customer_id', $id)
+                    ->whereIn('type', ['credit_note', 'cancellation'])
+                    ->sum('total');
+
+                $this->customerStats = [
+                    'name' => $customer->first_name . ' ' . $customer->last_name,
+                    'total_credits' => $totalCredits,
+                    'total_volume' => $totalVolume,
+                ];
+            }
+        } else {
+            $this->customerStats = null;
+        }
+    }
+
+    public function sendCreditEmail($invoiceId)
+    {
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice && $invoice->customer) {
+
+            // Asynchrones Dispatching an den Mail-Worker
+            \Illuminate\Support\Facades\Mail::to($invoice->customer->email)
+                ->send(new \App\Mail\CreditNoteMailToCustomer($invoice));
+
+            $invoice->update(['email_sent_at' => now()]);
+            session()->flash('success', 'Die Gutschrift wurde an ' . $invoice->customer->email . ' gesendet!');
+        } else {
+            session()->flash('error', 'Kunden-Oder Beleg-Daten unvollständig!');
+        }
     }
 
     public function generateCreditNote(InvoiceService $invoiceService)

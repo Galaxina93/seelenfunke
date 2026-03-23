@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class RevocationAdminNotificationMail extends Mailable
+class RevocationAdminNotificationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -41,5 +41,21 @@ class RevocationAdminNotificationMail extends Mailable
         return new Content(
             view: 'emails.revocation_admin_notification',
         );
+    }
+
+    /**
+     * Get the attachments for the message.
+     *
+     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+     */
+    public function attachments(): array
+    {
+        $attachments = [];
+        if (!empty($this->revocationData['attachments'])) {
+            foreach ($this->revocationData['attachments'] as $path) {
+                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('private', $path);
+            }
+        }
+        return $attachments;
     }
 }

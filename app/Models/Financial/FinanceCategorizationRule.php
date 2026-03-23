@@ -49,9 +49,16 @@ class FinanceCategorizationRule extends Model
                    preg_match('/\b' . preg_quote($searchTerm, '/') . '\b/i', $combinedContext);
         }
 
-        // Just perform a straight substring search, because \b word boundaries
-        // fail on texts like 'AMZN.DE' or 'RECH123ABC' etc.
-        return str_contains($combinedContext, $searchTerm);
+        // Just perform a substring search for EVERY word in the search term.
+        // Because "Gewerbesteuer Q1" gets scrubbed to "Gewerbesteuer", and "Kassenzeichen 123" to "Kassenzeichen",
+        // the rule is "gewerbesteuer kassenzeichen". But the raw transaction still has "Q1 2026" sitting in between them!
+        $keywords = array_filter(explode(' ', $searchTerm));
+        foreach ($keywords as $kw) {
+            if (!str_contains($combinedContext, $kw)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public function category()

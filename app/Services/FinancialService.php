@@ -77,7 +77,7 @@ class FinancialService
         $shopRevenueQuery = \App\Models\Invoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
-            ->whereIn('type', ['invoice', 'cancellation']);
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note']);
             
         if ($isNet) {
             $shopRevenueQuery->selectRaw('SUM(total - tax_amount) as sum_total');
@@ -216,7 +216,7 @@ class FinancialService
         // 3. Shop (Basis: Rechnungen)
         $shopInvoicesQuery = \App\Models\Invoice::whereYear('invoice_date', $year)
             ->whereIn('status', ['paid', 'cancelled'])
-            ->whereIn('type', ['invoice', 'cancellation'])
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->groupBy('month');
             
         if ($isNet) {
@@ -363,7 +363,7 @@ class FinancialService
         // Shop Invoices (anstatt Orders)
         $invoices = \App\Models\Invoice::whereBetween('invoice_date', [$from, $to])
             ->whereIn('status', ['paid', 'cancelled'])
-            ->whereIn('type', ['invoice', 'cancellation'])
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->get();
 
         foreach($invoices as $invoice) {
@@ -435,12 +435,12 @@ class FinancialService
         $invoices = \App\Models\Invoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
-            ->whereIn('type', ['invoice', 'cancellation'])
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->get();
 
         $shopStats = [
             'gross' => $invoices->sum('total') / 100,
-            'net'   => $invoices->sum(fn($i) => clone $i->total - $i->tax_amount) / 100,
+            'net'   => $invoices->sum(fn($i) => ($i->total - $i->tax_amount)) / 100,
             'tax'   => $invoices->sum('tax_amount') / 100,
             'count' => $invoices->where('total', '>', 0)->count(),
             'returns' => $invoices->where('total', '<', 0)->count(),

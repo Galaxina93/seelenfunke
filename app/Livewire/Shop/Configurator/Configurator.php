@@ -11,6 +11,8 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Services\ConfiguratorService;
 use Livewire\Attributes\Computed; // <-- NEU
+use Illuminate\Support\Facades\DB;
+use App\Models\Global\GlobalLog;
 
 class Configurator extends Component
 {
@@ -400,50 +402,70 @@ class Configurator extends Component
             $this->validate(['qty' => 'required|integer|min:1']);
         }
 
-        $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
-        $mainText = collect($this->texts)->firstWhere('text', '!=', '')['text'] ?? '';
+        try {
+            DB::transaction(function () use ($cartService, $snapshotPath) {
+                $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
+                $mainText = collect($this->texts)->firstWhere('text', '!=', '')['text'] ?? '';
 
-        $configData = [
-            'texts' => $this->texts,
-            'logos' => $this->logos,
-            'texts_back' => $this->texts_back,
-            'logos_back' => $this->logos_back,
-            'text' => $mainText,
-            'logo_path' => $mainLogo,
-            'files' => $this->uploaded_files,
-            'notes' => $this->notes,
-            'type' => $this->type,
-            'is_digital' => $this->isDigital,
-            'variant_id' => $this->variantId,
-            'variant_name' => $this->variantName,
-            'snapshot_path' => $snapshotPath,
-        ];
+                $configData = [
+                    'texts' => $this->texts,
+                    'logos' => $this->logos,
+                    'texts_back' => $this->texts_back,
+                    'logos_back' => $this->logos_back,
+                    'text' => $mainText,
+                    'logo_path' => $mainLogo,
+                    'files' => $this->uploaded_files,
+                    'notes' => $this->notes,
+                    'type' => $this->type,
+                    'is_digital' => $this->isDigital,
+                    'variant_id' => $this->variantId,
+                    'variant_name' => $this->variantName,
+                    'snapshot_path' => $snapshotPath,
+                ];
 
-        if ($this->context !== 'template_admin') {
-            $configData['qty'] = $this->qty;
-        }
+                if ($this->context !== 'template_admin') {
+                    $configData['qty'] = $this->qty;
+                }
 
-        if ($this->context === 'add') {
-            $cartService->addItem($this->product, $this->qty, $configData);
-            $this->dispatch('cart-updated');
-            $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
+                if ($this->context === 'add') {
+                    $cartService->addItem($this->product, $this->qty, $configData);
+                    $this->dispatch('cart-updated');
+                    $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
 
-            $this->reset(['uploaded_files', 'logos', 'logos_back', 'notes']);
-            $this->texts = [];
-            $this->texts_back = [];
-            if (!$this->isDigital) $this->addText();
+                    $this->reset(['uploaded_files', 'logos', 'logos_back', 'notes']);
+                    $this->texts = [];
+                    $this->texts_back = [];
+                    if (!$this->isDigital) $this->addText();
 
-            $this->config_confirmed = false;
-        } elseif ($this->context === 'edit') {
-            $cartService->updateItem($this->cartItem->id, $this->qty, $configData);
-            $this->dispatch('cart-updated');
-            $this->dispatch('close-modal');
-            $this->dispatch('notify', message: 'Änderungen gespeichert!');
-        } elseif ($this->context === 'calculator') {
-            $configData['product_id'] = $this->product->id;
-            $this->dispatch('calculator-save', data: $configData);
-        } elseif ($this->context === 'template_admin') {
-            $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
+                    $this->config_confirmed = false;
+                } elseif ($this->context === 'edit') {
+                    $cartService->updateItem($this->cartItem->id, $this->qty, $configData);
+                    $this->dispatch('cart-updated');
+                    $this->dispatch('close-modal');
+                    $this->dispatch('notify', message: 'Änderungen gespeichert!');
+                } elseif ($this->context === 'calculator') {
+                    $configData['product_id'] = $this->product->id;
+                    $this->dispatch('calculator-save', data: $configData);
+                } elseif ($this->context === 'template_admin') {
+                    $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
+                }
+            });
+        } catch (\Exception $e) {
+            GlobalLog::create([
+                'type' => 'error',
+                'agent_id' => null,
+                'action_id' => 'configurator_save',
+                'message' => 'Fehler beim Speichern der Konfiguration: ' . $e->getMessage(),
+                'details' => json_encode([
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                    'product_id' => $this->product->id ?? null,
+                    'context' => $this->context
+                ])
+            ]);
+
+            session()->flash('error', 'Die Konfiguration konnte nicht gespeichert werden.');
         }
     }
 

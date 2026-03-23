@@ -74,10 +74,24 @@
 
         {{-- 3. POSITIONEN --}}
         <div>
-            <h3 class="font-serif font-bold text-white text-xl mb-5 flex items-center justify-between tracking-tight">
+            <h3 class="font-serif font-bold text-white text-xl mb-4 flex items-center justify-between tracking-tight">
                 <span>Bestellpositionen</span>
                 <span class="text-[10px] font-sans font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-full shadow-[0_0_15px_rgba(197,160,89,0.15)]">{{ count($model->items) }} Artikel</span>
             </h3>
+
+            {{-- Progress Bar (Only show if it's an Order!) --}}
+            @if($isOrder)
+                @php
+                    $totalItems = $model->items->count();
+                    $completedItems = $model->items->where('is_completed', true)->count();
+                    $progressPct = $totalItems > 0 ? ($completedItems / $totalItems) * 100 : 0;
+                @endphp
+                @if($totalItems > 0)
+                    <div class="mb-5 bg-gray-900/50 rounded-full h-2.5 overflow-hidden border border-gray-800 shadow-inner w-full flex">
+                        <div class="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: {{ $progressPct }}%"></div>
+                    </div>
+                @endif
+            @endif
 
             <div class="space-y-4">
                 @foreach($model->items as $item)
@@ -86,12 +100,28 @@
                         $productType = $item->product->type ?? 'physical';
                         $isService = $productType === 'service';
                         $isDigital = $productType === 'digital';
+                        $isCompletedClass = 'border-gray-800 bg-gray-900/50 hover:border-gray-600 hover:bg-gray-900 shadow-inner';
+                        if ($isOrder) {
+                            $isCompletedClass = $item->is_completed 
+                                ? 'border-emerald-500/50 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:border-emerald-400' 
+                                : 'border-red-500/30 bg-gray-900/50 hover:border-red-400 shadow-inner';
+                        }
                     @endphp
 
                     <div wire:click="selectItemForPreview('{{ $item->id }}')"
-                         class="cursor-pointer border rounded-[2rem] p-4 transition-all duration-300 relative overflow-hidden group
-                                {{ $selectedItemId == $item->id ? 'border-primary shadow-[0_0_30px_rgba(197,160,89,0.15)] bg-primary/5' : 'border-gray-800 bg-gray-900/50 hover:border-gray-600 hover:bg-gray-900 shadow-inner' }}"
+                         class="cursor-pointer border border-[2px] rounded-[2rem] p-4 transition-all duration-300 relative overflow-hidden group
+                                {{ $isCompletedClass }}
+                                {{ $selectedItemId == $item->id ? 'ring-2 ring-primary ring-offset-2 ring-offset-gray-950' : '' }}"
                     >
+                        @if($isOrder)
+                            {{-- Add Checkbox --}}
+                            <div class="absolute top-4 right-5 z-20" wire:click.stop="toggleItemCompletion('{{ $item->id }}')">
+                                 <div class="w-6 h-6 rounded-full border-[2.5px] flex items-center justify-center transition-colors {{ $item->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-900 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'border-gray-500 text-transparent hover:border-primary hover:text-primary/50' }}">
+                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                 </div>
+                            </div>
+                        @endif
+
                         <div class="flex gap-5">
                             {{-- Bild --}}
                             <div class="h-20 w-20 bg-gray-950 rounded-2xl border border-gray-800 overflow-hidden shrink-0 relative shadow-inner">
@@ -141,7 +171,7 @@
                             </div>
 
                             {{-- Arrow Indicator --}}
-                            <div class="self-center text-gray-600 group-hover:text-primary transition-colors group-hover:translate-x-1 transform duration-300">
+                            <div class="self-center text-gray-600 group-hover:text-primary transition-colors group-hover:translate-x-1 transform duration-300 {{ $isOrder ? 'mr-8' : '' }}">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                             </div>
                         </div>

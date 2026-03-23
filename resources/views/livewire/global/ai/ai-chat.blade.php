@@ -29,22 +29,28 @@
     <div class="bg-black/60 border border-emerald-900/30 rounded-xl p-4 mb-6 shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.05)] overflow-hidden relative backdrop-blur-md">
         <div class="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
         <div class="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
-        
+
         <div class="text-[10px] text-emerald-600/60 font-mono uppercase tracking-widest mb-3 pl-2">Verfügbare Agenten (Klicken zum Verbinden):</div>
         <div class="flex items-center gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 px-4 snap-x">
             @foreach($agents as $agent)
                 @php
                     $isActive = in_array($agent->id, $activeAgentIds);
                 @endphp
-                <button wire:click="toggleAgent('{{ $agent->id }}')" 
+                <button wire:click="toggleAgent('{{ $agent->id }}')"
                         class="shrink-0 snap-start flex items-center gap-3 px-4 py-2.5 rounded-lg border transition-all duration-300 {{ $isActive ? 'bg-emerald-950/40 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.1)] scale-105' : 'bg-black/80 border-gray-800 hover:border-emerald-900/50 hover:bg-emerald-950/20' }}">
-                    
+
                     <div class="relative">
                         <div class="w-10 h-10 rounded bg-{{ $agent->color }}/10 flex items-center justify-center border border-{{ $agent->color }}/30 text-{{ $agent->color }} {{ $isActive ? 'shadow-[0_0_12px_currentColor]' : 'opacity-40' }} transition-all overflow-hidden relative">
                             @if($agent->profile_picture)
                                 <img src="{{ Storage::url($agent->profile_picture) }}" alt="{{ $agent->name }}" class="w-full h-full object-cover">
                             @else
-                                <x-dynamic-component :component="'heroicon-o-' . ($agent->icon ?: 'cpu-chip')" class="w-6 h-6" />
+                                @if(str_starts_with($agent->icon, 'bi-'))
+                                    <i class="{{ $agent->icon }} text-xl drop-shadow-[0_0_5px_currentColor]"></i>
+                                @elseif(str_starts_with(trim($agent->icon), '<svg'))
+                                    <div class="w-6 h-6 [&>svg]:w-full [&>svg]:h-full drop-shadow-[0_0_5px_currentColor]">{!! $agent->icon !!}</div>
+                                @else
+                                    <x-dynamic-component :component="'heroicon-o-' . ($agent->icon ?: 'cpu-chip')" class="w-6 h-6" />
+                                @endif
                             @endif
                         </div>
                         <!-- Status Dot -->
@@ -110,7 +116,7 @@
                             @if(isset($msg['profile_picture']) && $msg['profile_picture'])
                                 @php
                                     $pp = $msg['profile_picture'];
-                                    $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/')) 
+                                    $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/'))
                                            ? asset($pp) : Storage::url($pp);
                                 @endphp
                                 <img src="{{ $src }}" class="w-full h-full object-cover" alt="Profile">
@@ -141,10 +147,10 @@
                             @if($tAgent->profile_picture)
                                 @php
                                     $pp2 = $tAgent->profile_picture;
-                                    $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, '/')) 
+                                    $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, '/'))
                                            ? asset($pp2) : Storage::url($pp2);
                                 @endphp
-                                <img src="{{ $src2 }}" class="w-full h-full object-cover grayscale opacity-80">
+                                <img src="{{ $src2 }}" class="w-full h-full object-cover">
                             @else
                                 <x-dynamic-component :component="'heroicon-o-' . ($tAgent->icon ?: 'cpu-chip')" class="w-7 h-7" />
                             @endif
@@ -167,8 +173,8 @@
         <!-- Input Area -->
         <div class="p-4 bg-black border-t border-emerald-900/60 z-20 shrink-0">
             <form wire:submit.prevent="sendMessage" class="flex gap-3 relative max-w-5xl mx-auto">
-                <input wire:model="input" type="text" class="w-full bg-gray-950 border border-emerald-900/50 rounded-lg px-6 py-4 text-emerald-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500/30 text-sm md:text-base placeholder-emerald-900/60 transition-all shadow-inner font-mono outline-none" placeholder="Nachricht eingeben..." autocomplete="off" autofocus>
-                
+                <input wire:model="input" type="text" class="w-full bg-gray-950 border border-emerald-900/50 rounded-lg pl-6 pr-16 py-4 text-emerald-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500/30 text-sm md:text-base placeholder-emerald-900/60 transition-all shadow-inner font-mono outline-none" placeholder="Nachricht eingeben..." autocomplete="off" autofocus>
+
                 <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-12 bg-emerald-900/30 border border-emerald-800 rounded-md hover:bg-emerald-800 hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
                     <x-heroicon-s-paper-airplane class="w-6 h-6 hover:translate-x-0.5 transition-transform" />
                 </button>
@@ -188,15 +194,15 @@
             height: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.2); 
+            background: rgba(0, 0, 0, 0.2);
             border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(16, 185, 129, 0.2); 
+            background: rgba(16, 185, 129, 0.2);
             border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: rgba(16, 185, 129, 0.4); 
+            background: rgba(16, 185, 129, 0.4);
         }
     </style>
 </div>

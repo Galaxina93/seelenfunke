@@ -157,6 +157,12 @@ class FinancialTax extends Component
             ->where('payment_status', 'paid')
             ->get();
 
+        $creditNotes = \App\Models\Invoice::with('order')->whereYear('invoice_date', $this->selectedYear)
+            ->whereMonth('invoice_date', $month)
+            ->whereIn('type', ['credit_note', 'cancellation'])
+            ->whereIn('status', ['paid', 'cancelled'])
+            ->get();
+
         $revenueGross = 0;
         $vatCollected = 0;
         $igErwerbTax = 0;
@@ -168,11 +174,25 @@ class FinancialTax extends Component
 
             $revenueGross += $total;
 
-            // Dynamische Zuweisung nach Steuerart (Reverse Charge / IG Erwerb Logik)
-            // Prüft, ob es B2B EU-Ausland ist (Beispielhafte Logik, anpassbar an dein Order-Model)
             if (isset($order->is_reverse_charge) && $order->is_reverse_charge) {
                 $paragraph13bTax += $tax;
             } elseif (isset($order->is_ig_erwerb) && $order->is_ig_erwerb) {
+                $igErwerbTax += $tax;
+            } else {
+                $vatCollected += $tax;
+            }
+        }
+
+        // GUTSCHRIFTEN VERRECHNEN (Negativ-Beträge verringern das ELSTER-Volumen)
+        foreach ($creditNotes as $cn) {
+            $total = $cn->total / 100; // ist bereits negativ in der DB
+            $tax = $cn->tax_amount / 100; // ist bereits negativ in der DB
+
+            $revenueGross += $total;
+
+            if ($cn->order && isset($cn->order->is_reverse_charge) && $cn->order->is_reverse_charge) {
+                $paragraph13bTax += $tax;
+            } elseif ($cn->order && isset($cn->order->is_ig_erwerb) && $cn->order->is_ig_erwerb) {
                 $igErwerbTax += $tax;
             } else {
                 $vatCollected += $tax;
@@ -354,6 +374,7 @@ class FinancialTax extends Component
             'order_count' => $orders->count(),
             'expense_count' => $totalBusinessItems,
             'raw_orders' => $orders,
+            'raw_credits' => $creditNotes,
             'raw_specials' => $businessSpecials,
             'raw_fixed' => $businessFixed,
             'is_future' => $isFutureMonth,
@@ -482,6 +503,13 @@ class FinancialTax extends Component
             $date = $order->created_at->format('dm');
             $csv .= '"'.$amount.'";"S";"1200";"8400";"'.$date.'";"'.$order->order_number.'";"Bestellung '.$order->order_number.'"' . "\n";
         }
+        
+        foreach ($data['raw_credits'] ?? [] as $credit) {
+            $amount = number_format(abs($credit->total / 100), 2, ',', '');
+            $date = $credit->created_at->format('dm');
+            $csv .= '"'.$amount.'";"H";"1200";"8400";"'.$date.'";"'.$credit->invoice_number.'";"Gutschrift / Storno '.$credit->invoice_number.'"' . "\n";
+        }
+        
         return $csv;
     }
 

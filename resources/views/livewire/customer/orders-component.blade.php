@@ -171,7 +171,7 @@
                                                 @endif
                                             </div>
                                             <div class="bg-gray-900 rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl w-full">
-                                                <livewire:shop.configurator.configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" design="dark" />
+                                                <livewire:shop.configurator.configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" />
                                             </div>
                                         </div>
                                     @endif
@@ -275,15 +275,15 @@
                                         $allSnapshots = [];
                                         foreach($selectedOrder->items as $item) {
                                             if (!empty($item->configuration['snapshot_path'])) {
-                                                $paths = is_array($item->configuration['snapshot_path']) 
-                                                    ? $item->configuration['snapshot_path'] 
+                                                $paths = is_array($item->configuration['snapshot_path'])
+                                                    ? $item->configuration['snapshot_path']
                                                     : ['Konfiguration' => $item->configuration['snapshot_path']];
-                                                    
+
                                                 foreach($paths as $side => $path) {
-                                                    $label = count($paths) > 1 
+                                                    $label = count($paths) > 1
                                                         ? $item->product_name . ' (' . ($side === 'front' ? 'Vorder-' : ($side === 'back' ? 'Rückseite' : ucfirst($side))) . ')'
                                                         : $item->product_name . ' (Sicherung)';
-                                                        
+
                                                     $allSnapshots[] = [
                                                         'label' => $label,
                                                         'path' => $path,

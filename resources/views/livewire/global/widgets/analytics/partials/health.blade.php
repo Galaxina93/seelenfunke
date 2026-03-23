@@ -358,6 +358,56 @@
             @endforeach
         </div>
 
+        {{-- SERVER STORAGE BAR --}}
+        @php
+            $storageData = $systemHealth['storage'] ?? null;
+        @endphp
+        @if($storageData && isset($storageData['percent_used']))
+            <div class="mt-6 bg-gray-950/40 rounded-[1.5rem] border border-gray-800/60 p-5 md:p-6 shadow-inner relative overflow-hidden">
+                @if($storageData['percent_free'] < 10)
+                    <div class="absolute inset-0 bg-red-500/5 animate-pulse rounded-[1.5rem] pointer-events-none"></div>
+                @endif
+                <div class="relative z-10">
+                    <div class="flex justify-between items-end mb-3 md:mb-4">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1 md:mb-1.5">
+                                <i class="bi bi-device-hdd text-gray-400 text-sm"></i>
+                                <h5 class="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-[0.15em]">Server Speicherkapazität</h5>
+                            </div>
+                            
+                            @if($storageData['percent_free'] < 10)
+                                <div class="text-[9px] md:text-[10px] font-bold text-red-500 flex items-center gap-1.5 bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20 inline-flex mt-1">
+                                    <i class="bi bi-exclamation-triangle-fill animate-pulse"></i> KRITISCH: Prio-Bereinigung empfohlen! Nur noch {{ $storageData['free_gb'] }} GB frei.
+                                </div>
+                            @elseif($storageData['percent_free'] < 20)
+                                <div class="text-[9px] md:text-[10px] font-bold text-amber-500 flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20 inline-flex mt-1">
+                                    <i class="bi bi-exclamation-circle-fill"></i> Warnung: Speicherplatz wird langsam knapp.
+                                </div>
+                            @else
+                                <div class="text-[9px] md:text-[10px] font-bold text-gray-500 tracking-wide">{{ $storageData['percent_free'] }}% frei ({{ $storageData['free_gb'] }} GB von {{ $storageData['total_gb'] }} GB)</div>
+                            @endif
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm md:text-base font-black {{ $storageData['percent_free'] < 10 ? 'text-red-400' : 'text-white' }} leading-none block">{{ $storageData['percent_used'] }}%</span>
+                            <span class="text-[8px] md:text-[9px] font-bold uppercase tracking-widest text-gray-500 mt-1 block">Belegt</span>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full h-3.5 md:h-4 bg-gray-900 rounded-full overflow-hidden border border-gray-800 relative shadow-inner">
+                        <div class="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 flex items-center justify-end pr-2
+                                    {{ $storageData['percent_free'] < 10 ? 'bg-gradient-to-r from-red-600 to-red-400 shadow-[0_0_15px_rgba(239,68,68,0.6)]' : 
+                                      ($storageData['percent_free'] < 20 ? 'bg-gradient-to-r from-amber-600 to-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 
+                                      'bg-gradient-to-r from-primary-dark to-primary shadow-[0_0_12px_rgba(197,160,89,0.5)]') }}" 
+                             style="width: {{ $storageData['percent_used'] }}%">
+                             @if($storageData['percent_used'] > 15)
+                                <div class="w-1.5 h-1.5 rounded-full bg-white/50 animate-pulse"></div>
+                             @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- REPAIR LOG / TERMINAL OUTPUT (Only shown when not empty) --}}
         @if(count($repairLogs) > 0)
             <div x-data="{

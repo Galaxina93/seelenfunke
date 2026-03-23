@@ -11,8 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
+        Schema::create('ai_roles', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('ai_agents', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->foreignUuid('ai_role_id')->nullable()->constrained('ai_roles')->nullOnDelete();
             $table->string('name');
             $table->string('wake_word')->nullable();
             $table->text('role_description')->nullable();
@@ -39,5 +47,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('ai_agents');
+        Schema::dropIfExists('ai_roles');
     }
 };

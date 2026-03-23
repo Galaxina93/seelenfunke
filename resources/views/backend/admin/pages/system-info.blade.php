@@ -3,5 +3,5 @@
         System Information & KI-Hosting
     </x-slot>
 
-    @livewire('global.ai.ai-system-info')
+    @livewire('global.system-info')
 </x-layouts.backend_layout>

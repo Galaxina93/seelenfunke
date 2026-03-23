@@ -50,7 +50,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
     - ProfileDropdown.php
   - **Widgets/**
     - ContactForm.php
-    - FunkiAnalytics.php
+    - Analytics.php
     - GoogleReviews.php
     - HeaderSlider.php
     - AiKnowledgeBase.php
@@ -196,7 +196,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
   - **gamification/**
     - spark-hunt-component.blade.php
   - **widgets/**
-    - **funki-analytics/**
+    - **analytics/**
       - **partials/**
         - charts.blade.php
         - header.blade.php
@@ -207,7 +207,7 @@ Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuell
         - profit.blade.php
         - scripts.blade.php
         - traffic.blade.php
-      - funki-analytics.blade.php
+      - analytics.blade.php
     - contact-form.blade.php
     - google-reviews.blade.php
     - header-slider.blade.php

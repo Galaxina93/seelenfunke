@@ -21,7 +21,10 @@ class FunkiraVoiceController extends Controller
         ]);
 
         $text = $request->input('text');
-        $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+        $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first();
+        if (!$agent) {
+            return response('Agent is inactive or offline.', 403);
+        }
         
         // Neu: Text vorher für deutsche Sprachausgabe "vorreinigen" und lesbar machen
         $text = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($text);

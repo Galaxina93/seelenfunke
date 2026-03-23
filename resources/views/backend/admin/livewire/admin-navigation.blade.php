@@ -10,7 +10,7 @@
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'widerruf']);
         $isFinanceActive = in_array($currentPage, ['financial-evaluation', 'financial-fix-costs', 'financial-variable-costs', 'financial-tax', 'financial-banks', 'credit-management', 'invoices']);
-        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'ai-knowledge_base', 'ai-genui', 'ai-logs', 'ai-chat', 'ai-system-info']);
+        $isSystemAiActive = request()->is('admin/agenten*') || in_array($currentPage, ['agenten', 'ai-roles', 'ai-knowledge_base', 'ai-genui', 'ai-chat', 'ai-analytics']);
     @endphp
 
     {{--CEO Zentrale--}}
@@ -119,15 +119,18 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/ai-analytics" title="Analyse" pageName="ai-analytics" icon="chart-bar" />
                     <x-forms.list-item route="/admin/agenten" title="Agenten" pageName="agenten" icon="cpu-chip" />
-                    <x-forms.list-item route="/admin/ai-logs" title="Log" pageName="ai-logs" icon="document-text" />
+                    <x-forms.list-item route="/admin/agenten-rollen" title="Rollen" pageName="agenten-rollen" icon="tag" />
                     <x-forms.list-item route="/admin/ai-chat" title="Chat" pageName="ai-chat" icon="chat-bubble-left-ellipsis" />
                     <x-forms.list-item route="/admin/ai-knowledge_base" title="Wiki" pageName="ai-knowledge_base" icon="book-open" />
                     <x-forms.list-item route="/admin/ai-genui" title="Gen-Ui" pageName="ai-genui" icon="window" />
-                    <x-forms.list-item route="/admin/ai-system-info" title="System-Info" pageName="ai-system-info" icon="server" />
+
                 </ul>
             </li>
 
+
+            <x-forms.list-item route="/admin/global-logs" title="Log" pageName="global-logs" icon="server-stack" />
 
             {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt --}}
             <li x-data="{ unread: hasUnreadSupport }"
@@ -148,9 +151,10 @@
                 </a>
             </li>
 
-            <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />            <x-forms.list-item route="/admin/right-management" title="Rechte & Rollen" pageName="right-management" icon="shield-check" />
+            <x-forms.list-item route="/admin/user-management" title="Benutzer" pageName="user-management" icon="users" />
 
             <x-forms.list-item route="/admin/company-map" title="Architektur-Map" pageName="company-map" icon="map" />
+            <x-forms.list-item route="/admin/system-info" title="System-Info" pageName="system-info" icon="server" />
 
         </ul>
     </li>

@@ -13,9 +13,9 @@ use App\Models\Product\Product;
 use App\Models\Financial\FinanceCostItem;
 use App\Models\Financial\FinanceSpecialIssue;
 use App\Models\Global\GlobalLog;
-use App\Services\FunkiAnalyticsService;
+use App\Services\AnalyticsService;
 
-class FunkiAnalytics extends Component
+class Analytics extends Component
 {
     use WithFileUploads;
 
@@ -38,6 +38,12 @@ class FunkiAnalytics extends Component
     public ?string $expandedHealthKey = null;
     public array $repairLogs = [];
 
+    // AI Agent Properties
+    public $availableAgents = [];
+    public $selectedAgentId = '';
+    public $aiRecommendation = null;
+    public $isRecommending = false;
+
     public $infoTexts = [
         'trend' => 'Veränderung des Umsatzes im Vergleich zum vorherigen Zeitraum gleicher Länge.',
         'marge' => 'Verhältnis von Gewinn zu Umsatz. Zeigt, wie viel Prozent vom Umsatz als Gewinn verbleiben.',
@@ -52,8 +58,9 @@ class FunkiAnalytics extends Component
         'variabel' => 'Einmalige Ausgaben und Sonderausgaben ohne festes Intervall.'
     ];
 
-    public function mount(FunkiAnalyticsService $service)
+    public function mount(AnalyticsService $service)
     {
+        $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)->with('role')->orderBy('name')->get()->toArray();
         $this->loadSettings();
         $this->loadStats($service);
         $this->systemHealth = [
@@ -144,7 +151,15 @@ class FunkiAnalytics extends Component
                 $percentFree = round(($freeSpace / $totalSpace) * 100);
                 $freeGb = round($freeSpace / 1024 / 1024 / 1024, 1);
                 $status = $percentFree < 10 ? 'warning' : 'connected';
-                $health['storage'] = ['status' => $status, 'value' => "{$percentFree}% frei ({$freeGb} GB)", 'error' => $status === 'warning' ? 'Wenig Speicherplatz!' : null];
+                $health['storage'] = [
+                    'status' => $status, 
+                    'value' => "{$percentFree}% frei ({$freeGb} GB)", 
+                    'error' => $status === 'warning' ? 'Wenig Speicherplatz!' : null,
+                    'percent_free' => $percentFree,
+                    'percent_used' => (100 - $percentFree),
+                    'total_gb' => round($totalSpace / 1024 / 1024 / 1024, 1),
+                    'free_gb' => $freeGb
+                ];
                 if ($status === 'warning') $this->logSystemFailure('storage', "Kritisch: Nur noch {$percentFree}% ({$freeGb} GB) Speicherplatz auf der Server-Festplatte verfügbar!");
             } else {
                 $health['storage'] = ['status' => 'error', 'value' => 'Unbekannt', 'error' => 'Konnte Speicher nicht auslesen.'];
@@ -348,7 +363,7 @@ class FunkiAnalytics extends Component
         $this->dateEnd = now()->endOfMonth()->format('Y-m-d');
         if ($save) {
             $this->saveSettings('current_month');
-            $this->loadStats(app(FunkiAnalyticsService::class));
+            $this->loadStats(app(AnalyticsService::class));
         }
     }
 
@@ -358,7 +373,7 @@ class FunkiAnalytics extends Component
         $this->dateEnd = now()->endOfYear()->format('Y-m-d');
         if ($save) {
             $this->saveSettings('year');
-            $this->loadStats(app(FunkiAnalyticsService::class));
+            $this->loadStats(app(AnalyticsService::class));
         }
     }
 
@@ -366,11 +381,11 @@ class FunkiAnalytics extends Component
     {
         if (in_array($property, ['dateStart', 'dateEnd', 'filterType'])) {
             $this->saveSettings('custom');
-            $this->loadStats(app(FunkiAnalyticsService::class));
+            $this->loadStats(app(AnalyticsService::class));
         }
     }
 
-    public function loadStats(FunkiAnalyticsService $service)
+    public function loadStats(AnalyticsService $service)
     {
         $allLogins = $service->getAllLoginsCollection();
         $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins);
@@ -425,7 +440,7 @@ class FunkiAnalytics extends Component
         $this->dispatch('update-charts', stats: $this->stats);
     }
 
-    public function updateStock($productId, FunkiAnalyticsService $service)
+    public function updateStock($productId, AnalyticsService $service)
     {
         $newQty = $this->stockUpdate[$productId] ?? null;
         if ($newQty === null || $newQty < 0) return;
@@ -439,7 +454,7 @@ class FunkiAnalytics extends Component
         }
     }
 
-    public function uploadContract($itemId, FunkiAnalyticsService $service)
+    public function uploadContract($itemId, AnalyticsService $service)
     {
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $item = FinanceCostItem::find($itemId);
@@ -452,7 +467,7 @@ class FunkiAnalytics extends Component
         }
     }
 
-    public function uploadSpecialReceipt($issueId, FunkiAnalyticsService $service)
+    public function uploadSpecialReceipt($issueId, AnalyticsService $service)
     {
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $issue = FinanceSpecialIssue::find($issueId);
@@ -467,7 +482,7 @@ class FunkiAnalytics extends Component
         }
     }
 
-    public function approveReview($id, FunkiAnalyticsService $service)
+    public function approveReview($id, AnalyticsService $service)
     {
         if (class_exists(\App\Models\Product\ProductReview::class)) {
             $review = \App\Models\Product\ProductReview::find($id);
@@ -480,7 +495,7 @@ class FunkiAnalytics extends Component
         }
     }
 
-    public function rejectReview($id, FunkiAnalyticsService $service)
+    public function rejectReview($id, AnalyticsService $service)
     {
         if (class_exists(\App\Models\Product\ProductReview::class)) {
             $review = \App\Models\Product\ProductReview::find($id);
@@ -503,7 +518,7 @@ class FunkiAnalytics extends Component
 
     public function getActiveLoginsProperty()
     {
-        $service = app(FunkiAnalyticsService::class);
+        $service = app(AnalyticsService::class);
         $allLogins = $service->getAllLoginsCollection()->sortByDesc('last_seen')->values();
 
         if (!empty($this->searchLogins)) {
@@ -654,6 +669,62 @@ class FunkiAnalytics extends Component
         $this->js('setTimeout(() => window.location.reload(), 2500)');
     }
 
+    public function startAiRecommendation()
+    {
+        if (empty($this->selectedAgentId)) {
+            session()->flash('error', 'Bitte wähle zuerst einen KI-Agenten aus.');
+            return;
+        }
+
+        $this->isRecommending = true;
+        
+        $agent = \App\Models\Ai\AiAgent::find($this->selectedAgentId);
+        if (!$agent) {
+            $this->isRecommending = false;
+            session()->flash('error', 'Agent nicht gefunden.');
+            return;
+        }
+
+        $statsJson = json_encode($this->stats, JSON_PRETTY_PRINT);
+        
+        $prompt = "Du bist der virtuelle CFO (Chief Financial Officer) eines E-Commerce Laser-Graveur Shops.\n";
+        $prompt .= "Ich präsentiere dir hier alle meine aktuellen Kennzahlen (KPIs) und den aggregierten 'Shop Health Score' (0-100).\n";
+        $prompt .= "Der Shop Health Score basiert auf:\n";
+        $prompt .= " 1. Break-Even erreicht? (30 Pkt)\n";
+        $prompt .= " 2. Durchschnittlicher Monatsgewinn >= 1600 Euro? (20 Pkt)\n";
+        $prompt .= " 3. Gewinn-Marge > 30%? (25 Pkt)\n";
+        $prompt .= " 4. Positiver Umsatztrend? (15 Pkt)\n";
+        $prompt .= " 5. Keine unbezahlten Rechnungen? (10 Pkt)\n\n";
+        $prompt .= "Hier sind die Live-Zahlen des Shops:\n$statsJson\n\n";
+        $prompt .= "DEINE AUFGABE:\n";
+        $prompt .= "Analysiere den aktuellen Health Score und die KPIs. Gib mir danach eine sehr präzise, klare Handlungsanweisung in 3-5 Schritten, wie ich meinen Score wieder erhöhen oder auf 100 halten kann. \n";
+        $prompt .= "Fokussiere dich auf den schwächsten Punkt. Antworte in klarem Deutsch, formatiere die Antwort mit Markdown-Bulletpoints und rede nicht um den heißen Brei herum.\n";
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken(config('services.mittwald.key'))
+                ->timeout(60)
+                ->post(config('services.mittwald.url') . '/chat/completions', [
+                    'model' => $agent->model ?? 'gpt-oss-120b',
+                    'messages' => [
+                        ['role' => 'system', 'content' => $agent->system_prompt],
+                        ['role' => 'user', 'content' => $prompt]
+                    ],
+                    'temperature' => 0.6,
+                ]);
+
+            if ($response->successful()) {
+                $this->aiRecommendation = $response->json()['choices'][0]['message']['content'] ?? 'Keine Antwort erhalten.';
+                session()->flash('success', 'KI-Analyse erfolgreich abgeschlossen.');
+            } else {
+                session()->flash('error', 'API Verbindungsfehler zum LLM: ' . $response->status());
+            }
+        } catch (\Exception $e) {
+            session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());
+        }
+
+        $this->isRecommending = false;
+    }
+
     private function addRepairLog($message, $type = 'info')
     {
         $this->repairLogs[] = [
@@ -665,7 +736,7 @@ class FunkiAnalytics extends Component
 
     public function render()
     {
-        return view('livewire.global.widgets.funki-analytics.funki-analytics', [
+        return view('livewire.global.widgets.analytics.analytics', [
             'activeLogins' => $this->activeLogins,
             'systemLogs' => $this->systemLogs,
         ]);

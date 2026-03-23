@@ -82,7 +82,7 @@ class AiChat extends Component
 
     public function getAgentsProperty()
     {
-        return AiAgent::orderByRaw("CASE WHEN name = 'Funkira' THEN 0 ELSE 1 END")->orderBy('name')->get();
+        return AiAgent::where('is_active', true)->orderByRaw("CASE WHEN name = 'Funkira' THEN 0 ELSE 1 END")->orderBy('name')->get();
     }
 
     public function toggleAgent($agentId)
@@ -162,26 +162,22 @@ class AiChat extends Component
              return;
         }
 
-        // Kompletten DB Verlauf (samt Tool-Calls) für die API aufbereiten
+        // Kompletten DB Verlauf: Lade nur die letzten 20 Nachrichten für ultra-schnelle API-Antworten
         $fullDbHistory = AiChatMemory::where('session_id', session()->getId())
-            ->orderBy('created_at', 'asc')
-            ->get();
+            ->orderBy('created_at', 'desc')
+            ->take(20)
+            ->get()
+            ->reverse();
             
         $apiHistory = [];
         foreach ($fullDbHistory as $mem) {
-            // MittwaldAgent versteht role=tool oder role=user/assistant
-            if ($mem->role === 'tool') {
-                $apiHistory[] = [
-                    'role' => 'tool',
-                    'tool_call_id' => 'call_' . \Illuminate\Support\Str::random(10), // Dummy id zur Sicherheit, eigentlicht braucht role=tool eine
-                    'content' => $mem->content . " - Result: " . json_encode($mem->context_data ?? [])
-                ];
-            } else {
-                $apiHistory[] = [
-                    'role' => $mem->role,
-                    'content' => $mem->content
-                ];
-            }
+            // Ignoriere alte Tool-Calls für den API Kontext. Das spart massiv Token und verhindert Schema-Fehler.
+            if ($mem->role === 'tool') continue;
+            
+            $apiHistory[] = [
+                'role' => $mem->role,
+                'content' => $mem->content
+            ];
         }
 
         // --- MULTI-AGENT ROUTING INJECTION ---
@@ -208,6 +204,21 @@ class AiChat extends Component
                 // Agent ignoriert die Nachricht still (keine Kosten im Frontend, kein DB Eintrag)
                 $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
                 return;
+            }
+
+            if (class_exists(\App\Models\Ai\AiMetric::class) && isset($response['usage']) && isset($response['latency_ms'])) {
+                try {
+                    \App\Models\Ai\AiMetric::create([
+                        'ai_agent_id' => $agent->id,
+                        'type' => 'inference',
+                        'input_tokens' => $response['usage']['prompt_tokens'] ?? 0,
+                        'output_tokens' => $response['usage']['completion_tokens'] ?? 0,
+                        'total_time_ms' => $response['latency_ms'],
+                        'is_success' => true
+                    ]);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning("Could not log AiMetric: " . $e->getMessage());
+                }
             }
 
             $ctx = [

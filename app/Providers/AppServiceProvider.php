@@ -49,6 +49,9 @@ class AppServiceProvider extends ServiceProvider
             'mail_message' => 'App\Models\Mail\MailMessage',
             'mail_rule' => 'App\Models\Mail\MailRule',
             'mail_folder' => 'App\Models\Mail\MailFolder',
+            'ai_agent' => 'App\Models\Ai\AiAgent',
+            'ai_role' => 'App\Models\Ai\AiRole',
+            'ai_tool' => 'App\Models\Ai\AiTool',
 
             // Füge hier bei Bedarf weitere Models hinzu
         ]);

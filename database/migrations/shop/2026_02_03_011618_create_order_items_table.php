@@ -35,6 +35,7 @@ return new class extends Migration
             $table->decimal('tax_rate', 5, 2)->nullable();
             $table->integer('total_price');
             $table->json('configuration')->nullable();
+            $table->boolean('is_completed')->default(false);
             $table->string('config_fingerprint')->nullable();
 
             $table->timestamps();
