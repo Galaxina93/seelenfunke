@@ -18,11 +18,11 @@
         "google/apiclient": "^2.19",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^2.7",
-        "laravel/framework": "^11.0",
+        "laravel/framework": "^13.0",
         "laravel/reverb": "^1.8",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.24",
-        "laravel/tinker": "^2.9",
+        "laravel/tinker": "^3.0",
         "livewire/livewire": "^3.4",
         "openai-php/laravel": "^0.18.0",
         "pragmarx/google2fa-laravel": "^2.3",
@@ -40,7 +40,7 @@
         "laravel/sail": "^1.18",
         "mockery/mockery": "^1.4.4",
         "nunomaduro/collision": "^8.1",
-        "phpunit/phpunit": "^11.0",
+        "phpunit/phpunit": "^12.0",
         "spatie/laravel-ignition": "^2.0"
     },
     "autoload": {
