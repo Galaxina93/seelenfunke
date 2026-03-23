@@ -3070,6 +3070,9 @@ video {
 .list-none {
   list-style-type: none;
 }
+.list-decimal {
+  list-style-type: decimal;
+}
 .appearance-none {
   -webkit-appearance: none;
      -moz-appearance: none;
@@ -4292,6 +4295,12 @@ video {
 }
 .border-rose-500\/20 {
   border-color: rgb(244 63 94 / 0.2);
+}
+.border-orange-900\/30 {
+  border-color: rgb(124 45 18 / 0.3);
+}
+.border-orange-900\/40 {
+  border-color: rgb(124 45 18 / 0.4);
 }
 .border-b-primary\/20 {
   border-bottom-color: rgb(201 166 107 / 0.2);
@@ -7018,6 +7027,10 @@ video {
   --tw-text-opacity: 1;
   color: rgb(212 175 55 / var(--tw-text-opacity, 1));
 }
+.text-orange-300 {
+  --tw-text-opacity: 1;
+  color: rgb(253 186 116 / var(--tw-text-opacity, 1));
+}
 .underline {
   text-decoration-line: underline;
 }
@@ -8448,6 +8461,11 @@ video {
   --tw-shadow-colored: 0 0 10px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
+.shadow-\[0_0_30px_rgba\(234\2c 88\2c 12\2c 0\.05\)\] {
+  --tw-shadow: 0 0 30px rgba(234,88,12,0.05);
+  --tw-shadow-colored: 0 0 30px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
 .shadow-blue-500\/20 {
   --tw-shadow-color: rgb(59 130 246 / 0.2);
   --tw-shadow: var(--tw-shadow-colored);
@@ -8983,6 +9001,10 @@ video {
 }
 .drop-shadow-\[0_0_4px_rgba\(0\2c 0\2c 0\2c 0\.5\)\] {
   --tw-drop-shadow: drop-shadow(0 0 4px rgba(0,0,0,0.5));
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+.drop-shadow-\[0_0_20px_rgba\(234\2c 88\2c 12\2c 1\)\] {
+  --tw-drop-shadow: drop-shadow(0 0 20px rgba(234,88,12,1));
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 .grayscale {
@@ -9875,6 +9897,9 @@ video {
 }
 .hover\:border-white\/40:hover {
   border-color: rgb(255 255 255 / 0.4);
+}
+.hover\:border-gray-700\/50:hover {
+  border-color: rgb(55 65 81 / 0.5);
 }
 .hover\:bg-\[\#2A2A2A\]:hover {
   --tw-bg-opacity: 1;
