@@ -62,6 +62,16 @@
                 this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
 
                 this.$nextTick(() => {
+                    if (this.$refs.container) {
+                        this._resizeObserver = new ResizeObserver((entries) => {
+                            for (let entry of entries) {
+                                if (entry.contentRect.width > 0) {
+                                    this.updateScaleFactor(entry.contentRect.width);
+                                }
+                            }
+                        });
+                        this._resizeObserver.observe(this.$refs.container);
+                    }
                     this.updateScaleFactor();
 
                     const startConfigurator = () => {
@@ -171,6 +181,7 @@
                     else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
 
                     document.fonts.ready.then(() => {
+                        this.updateScaleFactor();
                         const initialUpdate = () => {
                             if (window.requestIdleCallback) {
                                 window.requestIdleCallback(() => this.updateTexture());
@@ -444,7 +455,8 @@
                 if(width && width > 0) this.scaleFactor = width / this.baseWidth;
 
                 this.$nextTick(() => {
-                    document.querySelectorAll('textarea[x-model]').forEach(el => {
+                    const ctx = this.$root || document;
+                    ctx.querySelectorAll('textarea[x-model]').forEach(el => {
                         const textId = el.getAttribute('data-id');
                         if(textId) {
                             this.fitTextarea(textId, el);

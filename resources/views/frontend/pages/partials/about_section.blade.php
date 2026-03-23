@@ -157,7 +157,7 @@
                             Expertise & Stimme
                         </div>
 
-                        <img src="{{ asset('funkira/images/funkira_selfie.png') }}"
+                        <img src="{{ asset('images/projekt/ai/images/funkira_selfie.png') }}"
                              alt="Funkira, die allwissende KI-Expertin von Mein Seelenfunke"
                              width="128" height="128"
                              loading="lazy"
@@ -180,7 +180,7 @@
                             System & Support
                         </div>
 
-                        <img src="{{ asset('images/projekt/funki/funki_selfie.webp') }}"
+                        <img src="{{ asset('images/projekt/ai/images/funki_selfie.png') }}"
                              alt="Funki, das digitale Maskottchen von Mein Seelenfunke"
                              width="128" height="128"
                              loading="lazy"

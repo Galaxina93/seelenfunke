@@ -389,9 +389,12 @@
                             @endif
                         </div>
 
-                        {{-- BILD --}}
-                        <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border border-gray-800 shadow-2xl">
-                            <h3 class="font-serif font-bold text-xl text-white border-b border-gray-800 pb-4 mb-6 tracking-wide">Beitragsbild</h3>
+                        {{-- BILDER BEREICH --}}
+                        <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border border-gray-800 shadow-2xl space-y-8">
+                            
+                            {{-- KACHELBILD (Thumbnail) --}}
+                            <div>
+                                <h3 class="font-serif font-bold text-xl text-white border-b border-gray-800 pb-4 mb-6 tracking-wide">Kachelbild (Übersicht)</h3>
                             <div class="mb-6">
                                 @if ($image)
                                     <div class="relative group rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_15px_rgba(197,160,89,0.2)]">
@@ -419,6 +422,40 @@
                                 <input type="file" wire:model="image" class="block w-full text-[10px] font-black uppercase tracking-widest text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:bg-gray-950 file:border-gray-800 file:text-primary hover:file:bg-gray-900 hover:file:text-white cursor-pointer transition-all file:shadow-inner"/>
                             </label>
                             @error('image') <span class="text-[10px] font-bold text-red-400 mt-3 block ml-1 uppercase tracking-widest">{{ $message }}</span> @enderror
+                            </div>
+
+                            {{-- HINTERGRUNDBILD (Header) --}}
+                            <div class="pt-6 border-t border-gray-800">
+                                <h3 class="font-serif font-bold text-xl text-white border-b border-gray-800 pb-4 mb-6 tracking-wide">Hintergrundbild (Artikel)</h3>
+                                <div class="mb-6">
+                                    @if ($headerImage)
+                                        <div class="relative group rounded-2xl overflow-hidden border-2 border-primary shadow-[0_0_15px_rgba(197,160,89,0.2)]">
+                                            <img src="{{ $headerImage->temporaryUrl() }}" class="w-full h-48 object-cover">
+                                            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <span class="text-white text-[10px] font-black uppercase tracking-widest bg-gray-950/80 border border-gray-700 px-3 py-1.5 rounded-lg shadow-xl">Vorschau</span>
+                                            </div>
+                                        </div>
+                                    @elseif($existingHeaderImage)
+                                        <div class="relative group rounded-2xl overflow-hidden border border-gray-800 shadow-inner">
+                                            <img src="{{ asset('storage/'.$existingHeaderImage) }}" class="w-full h-48 object-cover opacity-80 group-hover:opacity-100 transition-opacity">
+                                            <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <span class="text-white text-[10px] font-black uppercase tracking-widest bg-gray-950/80 border border-gray-700 px-3 py-1.5 rounded-lg shadow-xl">Aktuell</span>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <div class="w-full h-48 bg-gray-950 rounded-2xl border-2 border-dashed border-gray-800 flex flex-col items-center justify-center text-gray-600 shadow-inner transition-colors hover:border-gray-600">
+                                            <svg class="w-10 h-10 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                                            <span class="text-[10px] font-black uppercase tracking-widest text-center px-4">Kein Header-Bild<br>Fallback: Kachelbild</span>
+                                        </div>
+                                    @endif
+                                </div>
+                                <label class="block w-full">
+                                    <span class="sr-only">Header-Bild wählen</span>
+                                    <input type="file" wire:model="headerImage" class="block w-full text-[10px] font-black uppercase tracking-widest text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:bg-gray-950 file:border-gray-800 file:text-primary hover:file:bg-gray-900 hover:file:text-white cursor-pointer transition-all file:shadow-inner"/>
+                                </label>
+                                @error('headerImage') <span class="text-[10px] font-bold text-red-400 mt-3 block ml-1 uppercase tracking-widest">{{ $message }}</span> @enderror
+                            </div>
+
                         </div>
 
                         {{-- RECHTLICHES --}}

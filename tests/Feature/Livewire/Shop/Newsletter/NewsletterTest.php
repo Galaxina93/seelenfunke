@@ -65,7 +65,7 @@ class NewsletterTest extends TestCase
         $subscriber = NewsletterSubscriber::where('email', 'test@example.com')->first();
         $this->assertNotNull($subscriber->verification_token);
 
-        Mail::assertSent(NewsletterVerificationMail::class, function ($mail) use ($subscriber) {
+        Mail::assertQueued(NewsletterVerificationMail::class, function ($mail) use ($subscriber) {
             return $mail->hasTo('test@example.com') && $mail->subscriber->id === $subscriber->id;
         });
     }

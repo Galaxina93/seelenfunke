@@ -30,6 +30,11 @@ Schedule::command('crm:fetch-mails')->everyFiveMinutes();
 // Sendet die ultimative Anweisung an die App
 Schedule::command('funki:notify')->everyMinute();
 
+// Automatische Gutschein-Generierung für das neue Jahr (am 1. Januar)
+Schedule::call(function () {
+    Artisan::call('db:seed', ['--class' => 'MonthlyVoucherSeeder']);
+})->yearlyOn(1, 1, '00:05');
+
 // UStVA Autopilot - Läuft am 5. jeden Monats und generiert den Steuer-Export des Vormonats
 Schedule::command('funki:generate-tax-export')->monthlyOn(5, '02:00');
 

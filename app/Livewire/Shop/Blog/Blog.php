@@ -34,6 +34,8 @@ class Blog extends Component
     public $published_at;
     public $image;
     public $existingImage;
+    public $headerImage;
+    public $existingHeaderImage;
 
     // SEO & Legal
     public $meta_title;
@@ -55,12 +57,36 @@ class Blog extends Component
             'blog_category_id' => 'nullable|exists:blog_categories,id',
             'status' => 'required|in:draft,published,scheduled',
             'published_at' => 'nullable|date',
-            'image' => 'nullable|image|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB limit
+            'headerImage' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // 10MB limit
             'meta_title' => 'nullable|max:60',
             'meta_description' => 'nullable|max:160',
             'is_advertisement' => 'boolean',
             'contains_affiliate_links' => 'boolean',
         ];
+    }
+
+    protected function messages()
+    {
+        return [
+            'image.image' => 'Die Datei muss ein Bild sein.',
+            'image.mimes' => 'Das Kachelbild muss vom Typ JPEG, PNG, JPG oder WEBP sein.',
+            'image.max' => 'Das Kachelbild darf nicht größer als 5 MB sein.',
+            
+            'headerImage.image' => 'Die Datei muss ein Bild sein.',
+            'headerImage.mimes' => 'Das Hintergrundbild muss vom Typ JPEG, PNG, JPG oder WEBP sein.',
+            'headerImage.max' => 'Das Hintergrundbild darf nicht größer als 10 MB sein.',
+        ];
+    }
+
+    public function updatedImage()
+    {
+        $this->validateOnly('image');
+    }
+
+    public function updatedHeaderImage()
+    {
+        $this->validateOnly('headerImage');
     }
 
     public function updatedTitle($value)
@@ -115,6 +141,7 @@ class Blog extends Component
         $this->status = $post->status;
         $this->published_at = $post->published_at ? $post->published_at->format('Y-m-d\TH:i') : null;
         $this->existingImage = $post->featured_image;
+        $this->existingHeaderImage = $post->header_image;
         $this->meta_title = $post->meta_title;
         $this->meta_description = $post->meta_description;
         $this->is_advertisement = (bool)$post->is_advertisement;
@@ -142,6 +169,11 @@ class Blog extends Component
         if ($this->image) {
             $path = $this->image->store('blog', 'public');
             $data['featured_image'] = $path;
+        }
+
+        if ($this->headerImage) {
+            $headerPath = $this->headerImage->store('blog/headers', 'public');
+            $data['header_image'] = $headerPath;
         }
 
         if ($this->viewMode === 'create') {
@@ -220,10 +252,12 @@ class Blog extends Component
         $this->reset([
             'title', 'slug', 'content', 'excerpt', 'blog_category_id',
             'status', 'published_at', 'image', 'existingImage',
+            'headerImage', 'existingHeaderImage',
             'meta_title', 'meta_description', 'is_advertisement',
             'contains_affiliate_links', 'postId', 'showCategoryModal'
         ]);
         $this->resetValidation();
         $this->image = null;
+        $this->headerImage = null;
     }
 }

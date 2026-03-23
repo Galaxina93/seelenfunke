@@ -12,6 +12,7 @@ class AIFunctionsRegistry
     use Functions\AiSalesFuncs;
     use Functions\AiFinanceFuncs;
     use Functions\AiScoutFuncs;
+    use Functions\AiHealthFuncs;
 
     /**
      * Define all available functions the AI can call.
@@ -25,7 +26,8 @@ class AIFunctionsRegistry
             self::getAiMarketingFuncsSchema(),
             self::getAiSalesFuncsSchema(),
             self::getAiFinanceFuncsSchema(),
-            self::getAiScoutFuncsSchema()
+            self::getAiScoutFuncsSchema(),
+            self::getAiHealthFuncsSchema()
         );
     }
 

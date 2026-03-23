@@ -95,9 +95,9 @@
                                             $timeText = 'Abgelaufen';
                                             $barColor = 'bg-red-500';
                                         } else {
-                                            $daysPassed = $start->diffInDays($now);
+                                            $daysPassed = (int) ceil($start->floatDiffInDays($now));
                                             $progressPercent = min(100, max(0, ($daysPassed / $totalDays) * 100));
-                                            $daysLeft = $now->diffInDays($end);
+                                            $daysLeft = (int) ceil($now->floatDiffInDays($end));
                                             $timeText = "Noch {$daysLeft} " . ($daysLeft == 1 ? 'Tag' : 'Tage');
                                             
                                             // Ampel Logik
@@ -120,9 +120,17 @@
                         </div>
 
                         {{-- Toggle Button (Jetzt UNTEN RECHTS) --}}
-                        <button wire:click.stop="toggleVoucherStatus('{{ $voucher->id }}')"
-                                class="absolute bottom-4 right-4 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-300 z-30 shadow-lg border {{ $voucher->is_active ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' : 'bg-gray-800 border-gray-700 text-gray-500 hover:bg-gray-700' }}"
-                                title="{{ $voucher->is_active ? 'Pausieren' : 'Aktivieren' }}">
+                        @php
+                            $isDisabled = isset($now, $start, $end) ? ($now->lt($start) || $now->gt($end)) : false;
+                        @endphp
+                        <button @if(!$isDisabled) wire:click.stop="toggleVoucherStatus('{{ $voucher->id }}')" @endif
+                                class="absolute bottom-4 right-4 w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-300 z-30 shadow-lg border {{ 
+                                    $isDisabled 
+                                        ? 'bg-gray-950 border-gray-900 text-gray-800 cursor-not-allowed' 
+                                        : ($voucher->is_active ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' : 'bg-gray-800 border-gray-700 text-gray-500 hover:bg-gray-700') 
+                                }}"
+                                title="{{ $isDisabled ? ($now->gt($end) ? 'Abgelaufen' : 'Zukünftig') : ($voucher->is_active ? 'Pausieren' : 'Aktivieren') }}"
+                                @if($isDisabled) disabled @endif>
                             <x-heroicon-m-power class="w-4 h-4" />
                         </button>
                     </div>
@@ -422,6 +430,22 @@
                 <p>
                     <strong class="text-gray-200 block mb-1">Fester Betrag (€)</strong>
                     Hervorragend, um Kunden zu einem Kauf zu bewegen ("Hier hast du 5€ geschenkt"). Kombiniere feste Beträge aber <strong class="text-emerald-400">immer</strong> mit einem Mindestbestellwert, ansonsten bestellt der Kunde etwas für 4,90€ komplett gratis.
+                </p>
+            </div>
+        </div>
+
+        <div class="p-6 bg-gray-950/60 border border-gray-800 rounded-3xl backdrop-blur-sm relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+            <h3 class="text-emerald-400 font-bold mb-4 uppercase tracking-widest text-[11px] flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                Zukünftige Jahre
+            </h3>
+            
+            <div class="space-y-4 text-sm text-gray-400">
+                <p>
+                    <strong class="text-gray-200 block mb-1">Automatische Jahres-Generierung</strong>
+                    Die Auto-Gutscheine (z.B. FRUEHLING, XMAS) werden für die folgenden Jahre <strong class="text-emerald-400">vollautomatisch</strong> vom System generiert. Du musst dich um nichts kümmern!<br><br>
+                    <strong>Wie funktioniert's?</strong><br>
+                    Jedes Jahr in der Neujahrsnacht (am 1. Januar um exakt 00:05 Uhr) startet der Server-Cronjob (Scheduler) einen Hintergrundprozess, der den sogenannten <code>MonthlyVoucherSeeder</code> ausführt. Dieses Skript berechnet völlig autark die neuen Gültigkeitsdaten und schreibt die 12 neuen Gutscheine sicher in die Shop-Datenbank.
                 </p>
             </div>
         </div>

@@ -8,6 +8,8 @@
         <p class="mb-2"><strong class="text-red-400 font-bold">Wichtiger rechtlicher Hinweis:</strong></p>
         <p>Sobald dein Konto gelöscht wird, werden alle nicht-kaufmännischen Daten unwiderruflich entfernt. Gemäß den gesetzlichen Aufbewahrungsfristen müssen wir jedoch buchhalterisch und steuerrechtlich relevante Daten für bis zu 10 Jahre aufbewahren.</p>
     </div>
+
+
     
     <div x-data="{ confirming: false }" class="mt-4">
         <button x-show="!confirming" @click="confirming = true" type="button" class="bg-red-500/10 text-red-500 border border-red-500/50 px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-red-500 hover:text-white transition-all shadow-[0_0_20px_rgba(239,68,68,0.2)]">Account löschen</button>

@@ -201,7 +201,7 @@
                             <h3 class="text-white font-serif font-bold text-xl tracking-wide">Aktive Kampagnen</h3>
                             <button wire:click="openCreateModal" class="px-5 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-white hover:border-emerald-500 transition-all font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-2">
                                 <x-heroicon-o-plus class="w-4 h-4" />
-                                Neue Automation
+                                Neu
                             </button>
                         </div>
 
@@ -240,12 +240,10 @@
                                                 :event-key="$event['event_key'] ?? null"
                                                 :event-name="$event['event_name'] ?? null"
                                                 :state="$isPast ? 'past' : ($isNext ? 'next' : 'future')"
+                                                :template-id="$event['template_id']"
                                                 type="mail"
                                             />
                                         </div>
-                                        <button wire:click.stop="archiveTemplate('{{ $event['template_id'] }}')" wire:confirm="Diese Kampagne wirklich archivieren?" class="absolute top-3 left-3 w-8 h-8 bg-gray-900/90 backdrop-blur-md border border-gray-800 rounded-full text-gray-500 hover:text-red-400 hover:border-red-500/50 shadow-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-30" title="Archivieren">
-                                            <x-heroicon-m-archive-box-arrow-down class="w-4 h-4" />
-                                        </button>
                                     </div>
                                 @endforeach
                             </div>
@@ -256,7 +254,7 @@
                             <div class="fixed inset-0 bg-gray-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 sm:p-6" x-data @keydown.escape.window="$wire.showCreateModal = false">
                                 <div class="bg-gray-900 border border-gray-800 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
                                     <div class="px-6 py-5 border-b border-gray-800 flex justify-between items-center bg-gray-950/50">
-                                        <h3 class="text-white font-serif font-bold text-xl">Neue Automation</h3>
+                                        <h3 class="text-white font-serif font-bold text-xl">Neu</h3>
                                         <button wire:click="$set('showCreateModal', false)" class="text-gray-500 hover:text-white transition-colors">
                                             <x-heroicon-m-x-mark class="w-6 h-6" />
                                         </button>

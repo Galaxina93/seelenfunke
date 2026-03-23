@@ -28,7 +28,8 @@ class AiAgentSeeder extends Seeder
             'Marketing' => 'Kreativer Experte für Konzeption und Erstellung von Newslettern, Marketingkampagnen, Blogartikeln und SEO-optimierten Texten.',
             'Sales' => 'Operative Instanz für das gesamte Shop-Bestellwesen, Fulfillment, Logistiküberwachung, Angebotserstellung im B2B-Umfeld und Reklamationsabwicklung.',
             'Finanzmanager' => 'Zahlenbasierte und akribische Instanz für buchhalterische Auswertungen, Rechnungsprüfungen, Steuer-Prozesse, Kostenanalysen und Liquiditätsberechnungen.',
-            'Analyst' => 'Datenspezialist für Produktrecherche, detaillierte Nischenanalysen, das Crawlen von Verkaufsplattformen und die Auswertung von Markttrends.'
+            'Analyst' => 'Datenspezialist für Produktrecherche, detaillierte Nischenanalysen, das Crawlen von Verkaufsplattformen und die Auswertung von Markttrends.',
+            'Hausarzt' => 'Gesundheitlicher Experte für Diagnosen, medizinische Analysen von Fremddokumenten, Web-Recherchen zu Symptomen und das Erstellen von Behandlungsplänen.'
         ];
 
         $rolesMap = [];
@@ -113,6 +114,18 @@ class AiAgentSeeder extends Seeder
                 'icon' => 'heart',
                 'tts_voice' => 'voice_funki_123',
             ],
+            [
+                'name' => 'Dr. Funki',
+                'sourceImage' => 'dr_funki_selfie.png',
+                'wake_word' => 'Doc',
+                'role_description' => 'Hausarzt. Dein persönlicher, allwissender KI-Doktor, der nie aufgibt nach einer Lösung für gesundheitliche Belange zu suchen.',
+                'system_prompt' => 'Du bist Dr. Funki, der persönliche Hausarzt des CEOs von Seelenfunke. Dein Operationsmodus ist "Scientific & Empathic Care". Du bist ein extrem intelligenter, perfektionistischer All-Arounder für die Gesundheit. Du ermittelst Ursachen für physische Probleme durch exaktes Analysieren der Symptome, liest hochgeladene medizinische Dokumente präzise aus, nutzt bei fehlendem Wissen selbstständig das Web (searchMedicalWeb), schreibst klare Ergebnis-Protokolle und generierst strukturierte PDF-Behandlungspläne. WICHTIG: Wenn dir Daten vom CEO fehlen oder du etwas von ihm verlangst, schreibe KEINE langen Text-Instruktionen. Nutze in diesem Fall zwingend die Funktion "create_health_todo" um extrem verständliche, simple ("idiotensichere") ToDos in seine Task-App zu pushen. Du zeigst unbändigen Willen und Lernbereitschaft, bis du eine Lösung hast.',
+                'model' => 'gpt-oss-120b',
+                'temperature' => 0.4,
+                'color' => 'teal-500',
+                'icon' => 'user-plus',
+                'tts_voice' => 'voice_funki_123',
+            ],
         ];
 
         $funkiraInstance = null;
@@ -134,6 +147,7 @@ class AiAgentSeeder extends Seeder
                 'Rion' => 'Marketing',
                 'Vira' => 'Finanzmanager',
                 'Funki' => 'Supporter',
+                'Dr. Funki' => 'Hausarzt',
                 default => null,
             };
 
@@ -202,6 +216,7 @@ class AiAgentSeeder extends Seeder
             'Marketing' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
             'Finanzmanager' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
             'Supporter' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+            'Hausarzt' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
         ];
 
         // Base tools that ALL roles should ideally have (Memory, Chat History, UI Control)

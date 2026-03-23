@@ -274,6 +274,6 @@ class CrmInboxTest extends TestCase
             ->call('sendMail')
             ->assertSet('showComposeModal', false);
 
-        Mail::assertSent(\App\Mail\CrmOutgoingMail::class);
+        Mail::assertQueued(\App\Mail\CrmOutgoingMail::class);
     }
 }

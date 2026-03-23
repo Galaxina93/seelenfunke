@@ -116,7 +116,7 @@
                     <strong>Nummer:</strong> {{ $invoice->invoice_number }}<br>
                     <strong>Datum:</strong> {{ $invoice->invoice_date->format('d.m.Y') }}<br>
                     @if($invoice->delivery_date) <strong>Leistungsdatum:</strong> {{ $invoice->delivery_date->format('d.m.Y') }}<br> @endif
-                    <strong>Kunden-Nr.:</strong> {{ $invoice->customer_id ?? 'Gast' }}
+                    <strong>Kunden-Nr.:</strong> {{ $invoice->customer_id ? strtoupper(explode('-', $invoice->customer_id)[0]) : 'Gast' }}
                 </div>
             </td>
         </tr>

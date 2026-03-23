@@ -124,7 +124,7 @@ class DashboardComponent extends Component
     {
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if (!$lastRefill || !$lastRefill->isSameDay($now)) {
+        if (!$lastRefill || $lastRefill->diffInHours($now) >= 3) {
             $profile->energy_balance = $this->maxEnergy;
             $profile->last_energy_refill_at = $now;
             $profile->save();

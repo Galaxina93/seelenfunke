@@ -534,7 +534,6 @@ class Calculator extends Component
                     Mail::to($this->form['email'])->send(new CalcMailToCustomer($data));
                     $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
                     Mail::to($owner_mail)->send(new CalcMailToAdmin($data));
-                    \Illuminate\Support\Facades\Log::info('Calculator: Mails erfolgreich versendet für ' . $quote->quote_number);
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
                 }

@@ -22,6 +22,7 @@ class GlobalStatsHeader extends Component
     public $canUpgrade = false;
     public $isMaxLevel = false;
     public $nextVoucherLevel = 5;
+    public $hasOptedIn = false;
 
     public array $voucherMilestones = [5, 10, 15, 20, 30, 40, 50, 60, 80];
 
@@ -44,12 +45,16 @@ class GlobalStatsHeader extends Component
         if (!$user) return;
 
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if (!$profile || !$profile->is_active) return; // Noch nicht opt-in
+        if (!$profile || !$profile->is_active) {
+            $this->hasOptedIn = false;
+            return; // Noch nicht opt-in
+        }
+        $this->hasOptedIn = true;
 
-        // Energie Refill Check (Täglich)
+        // Energie Refill Check (Alle 3 Stunden)
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if (!$lastRefill || !$lastRefill->isSameDay($now)) {
+        if (!$lastRefill || $lastRefill->diffInHours($now) >= 3) {
             $profile->energy_balance = $this->maxEnergy;
             $profile->last_energy_refill_at = $now;
             $profile->save();

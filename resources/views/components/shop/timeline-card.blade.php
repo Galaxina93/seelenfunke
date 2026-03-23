@@ -7,7 +7,8 @@
     'type' => 'mail', // Optionen: 'mail', 'voucher' (steuert die Farbe bei 'next')
     'badgeText' => 'Nächster Job',
     'eventKey' => null,
-    'eventName' => null
+    'eventName' => null,
+    'templateId' => null // Neu: Für die Action-Buttons
 ])
 
 @php
@@ -151,6 +152,20 @@
                 <div class="absolute inset-0 bg-white/10 transform -skew-x-12 -translate-x-[150%] group-hover/badge:translate-x-[150%] transition-transform duration-700"></div>
                 <span class="relative z-10">{{ $badgeText }}</span>
             </div>
+        </div>
+    @endif
+
+    {{-- 4. ACTION BUTTONS (Archiv & Löschen direkt in der Kachel) --}}
+    @if($templateId)
+        <div class="mt-6 pt-4 border-t border-gray-800/60 flex items-center justify-between z-20 relative gap-2">
+            <button wire:click.stop="archiveTemplate('{{ $templateId }}')" wire:confirm="Diese Kampagne wirklich archivieren?" class="flex items-center justify-center gap-1.5 flex-1 text-[9px] font-black uppercase tracking-widest text-amber-500/80 hover:text-white transition-colors bg-amber-500/10 hover:bg-amber-500 px-3 py-2 rounded-xl border border-amber-500/20 shadow-inner group/btn">
+                <x-heroicon-o-archive-box-arrow-down class="w-4 h-4 group-hover/btn:animate-bounce" />
+                Archiv
+            </button>
+            <button wire:click.stop="deleteTemplate('{{ $templateId }}')" wire:confirm="Diese Kampagne unwiderruflich löschen?" class="flex items-center justify-center gap-1.5 flex-1 text-[9px] font-black uppercase tracking-widest text-red-500/80 hover:text-white transition-colors bg-red-500/10 hover:bg-red-500 px-3 py-2 rounded-xl border border-red-500/20 shadow-inner group/btn">
+                <x-heroicon-o-trash class="w-4 h-4 group-hover/btn:animate-pulse" />
+                Löschen
+            </button>
         </div>
     @endif
 </div>

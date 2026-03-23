@@ -30,6 +30,7 @@ return new class extends Migration
             $table->text('excerpt')->nullable(); // Für Meta Desc & Vorschau
             $table->longText('content');
             $table->string('featured_image')->nullable();
+            $table->string('header_image')->nullable();
 
             // Status & Zeitsteuerung
             $table->enum('status', ['draft', 'scheduled', 'published'])->default('draft');

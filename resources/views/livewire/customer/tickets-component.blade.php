@@ -122,7 +122,7 @@
                             <option value="support">Hilfe & Support</option>
                             <option value="question">Allgemeine Frage</option>
                             <option value="return">Retoure / Beschädigung</option>
-                            <option value="bug">Fehler melden (+5 ✨)</option>
+                            <option value="bug">Fehler melden</option>
                         </select>
                     </div>
                     <div>

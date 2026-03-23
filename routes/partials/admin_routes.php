@@ -29,6 +29,14 @@ Route::middleware(['auth:admin'])->group(function () {
 
     // AI AGENT UNVIVERSE
     Route::get('/admin/ai-analytics', \App\Livewire\Global\Ai\AiAnalytics::class)->name('admin.ai-analytics');
+    Route::get('/admin/ceo/gesundheit', \App\Livewire\Global\Ai\AiCeoHealth::class)->name('ceo.gesundheit');
+    Route::get('/admin/ceo/gesundheit/plan/{id}/pdf', function ($id) {
+        $plan = \App\Models\Ai\Health\AiHealthTreatmentPlan::with('items')->findOrFail($id);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-treatment-plan', [
+            'plan' => $plan,
+        ]);
+        return $pdf->download('Behandlungsplan_' . \Illuminate\Support\Str::slug($plan->title) . '.pdf');
+    })->name('ceo.gesundheit.plan.pdf');
 
     Route::get('/admin/global-logs', function () {
         return view('backend.admin.pages.global-logs');

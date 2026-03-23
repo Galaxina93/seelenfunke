@@ -171,4 +171,36 @@ class VoucherTest extends TestCase
             'id' => $voucher->id
         ]);
     }
+
+    #[Test]
+    public function it_generates_monthly_auto_vouchers_via_seeder()
+    {
+        // Execute the seeder
+        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'MonthlyVoucherSeeder']);
+
+        $year = date('Y');
+
+        // Verify that 12 auto vouchers were created
+        $this->assertDatabaseCount('voucher', 12);
+
+        // Verify a specific one (e.g. Christmas)
+        $this->assertDatabaseHas('voucher', [
+            'code' => "XMAS-$year",
+            'mode' => 'auto',
+            'type' => 'percent',
+            'value' => 5, // 5% Discount
+            'usage_limit' => 20, // Limited to 20 usages
+            'min_order_value' => 2000, // 20.00 EUR
+            'is_active' => true,
+        ]);
+
+        // Verify another specific one (e.g. Start)
+        $this->assertDatabaseHas('voucher', [
+            'code' => "START-$year",
+            'mode' => 'auto',
+            'type' => 'percent',
+            'value' => 5,
+            'usage_limit' => 20,
+        ]);
+    }
 }

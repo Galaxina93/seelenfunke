@@ -47,7 +47,8 @@ case "$1" in
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
         echo -e "  \033[1;32m📧 mails\033[0m         Ruft per IMAP neue E-Mails von Konten ab."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
-        echo -e "  \033[1;32m🔐 docker rights\033[0m Repariert die Dateiberechtigungen (www-data) und leert Caches sicher."
+        echo -e "  \033[1;32m🔐 rights\033[0m        Repariert die Dateiberechtigungen (www-data) und leert Caches sicher."
+        echo -e "  \033[1;32m🧹 cache\033[0m         Leert alle Anwendungs- und System-Caches auf einen Schlag restlos aus."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
@@ -165,6 +166,15 @@ case "$1" in
             chmod -R 775 storage/ bootstrap/cache/
         fi
         echo "✅ Berechtigungen und Cache erfolgreich erneuert!"
+        ;;
+    cache)
+        echo "🧹 Leere alle Framework-Caches restlos aus..."
+        $PREFIX_DEFAULT php artisan optimize:clear
+        $PREFIX_DEFAULT php artisan view:clear
+        $PREFIX_DEFAULT php artisan config:clear
+        $PREFIX_DEFAULT php artisan route:clear
+        $PREFIX_DEFAULT php artisan cache:clear
+        echo "✅ Alle Caches für Views, Routen, Configs und App-Daten wurden geflusht!"
         ;;
     test)
         shift

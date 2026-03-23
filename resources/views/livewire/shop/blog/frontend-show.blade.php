@@ -2,8 +2,8 @@
 
     {{-- 1. HEADER BILD (Hero) --}}
     <div class="relative h-[450px] md:h-[600px] w-full bg-gray-900 overflow-hidden">
-        @if($post->featured_image)
-            <img src="{{ asset('storage/' . $post->featured_image) }}" alt="{{ $post->title }}" class="w-full h-full object-cover opacity-50 transition-transform duration-1000 hover:scale-105">
+        @if($post->header_image || $post->featured_image)
+            <img src="{{ asset('storage/' . ($post->header_image ?: $post->featured_image)) }}" alt="{{ $post->title }}" class="w-full h-full object-cover opacity-50 transition-transform duration-1000 hover:scale-105">
         @else
             <div class="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 opacity-90"></div>
         @endif

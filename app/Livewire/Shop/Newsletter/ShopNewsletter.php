@@ -201,6 +201,14 @@ class ShopNewsletter extends Component
         session()->flash('success', 'Kampagne reaktiviert.');
     }
 
+    public function deleteTemplate($id)
+    {
+        if (Newsletter::destroy($id)) {
+            session()->flash('success', 'Kampagne wurde endgültig gelöscht.');
+            $this->cancelEdit();
+        }
+    }
+
     public function cancelEdit()
     {
         $this->editingTemplateId = null;

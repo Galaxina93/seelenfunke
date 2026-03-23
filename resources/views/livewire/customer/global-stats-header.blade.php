@@ -8,7 +8,7 @@
     </div>
 
     {{-- GUTHABEN & ENERGIE (Wird nur im Shop/Spiele im Header angezeigt) --}}
-    @if(!request()->routeIs('customer.dashboard'))
+    @if(!request()->routeIs('customer.dashboard') && $hasOptedIn)
         <div class="flex items-center gap-3 sm:gap-6 shrink-0 h-full">
             <div class="text-left flex flex-col justify-center">
                 <div class="hidden sm:block text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] mb-0.5 leading-none">Guthaben</div>

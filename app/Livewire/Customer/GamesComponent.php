@@ -35,11 +35,11 @@ class GamesComponent extends Component
             // Format time until next energy if balancing is enabled (assuming typical cron setup)
             // Just a placeholder for the frontend if energy is 0
             if ($this->currentEnergy <= 0) {
-                // Determine next top of the hour or however system replenishes
-                $now = now();
-                $nextHour = now()->addHour()->startOfHour();
-                $diff = $now->diffInMinutes($nextHour);
-                $this->timeUntilNextEnergy = $diff;
+                // Next refill is exactly 3 hours after the last refill timestamp.
+                $lastRefill = $profile->last_energy_refill_at ? \Carbon\Carbon::parse($profile->last_energy_refill_at) : now();
+                $nextRefill = $lastRefill->copy()->addHours(3);
+                $diff = now()->diffInMinutes($nextRefill, false);
+                $this->timeUntilNextEnergy = $diff > 0 ? (int)$diff : 0;
             }
             // Fetch highscores for Funkenflug
             $this->personalHighscoreFF = $profile->funkenflug_highscore ?? 0;

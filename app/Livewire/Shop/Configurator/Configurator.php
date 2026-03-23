@@ -366,7 +366,6 @@ class Configurator extends Component
                             $filename = 'snapshots/' . Str::uuid() . '_' . $side . '.jpg';
                             Storage::disk('public')->put($filename, $decoded);
                             $snapshotPaths[$side] = $filename;
-                            \Illuminate\Support\Facades\Log::info("Snapshot $side successfully saved to: " . $filename);
                         }
                     }
                 }
@@ -379,7 +378,6 @@ class Configurator extends Component
                         $filename = 'snapshots/' . Str::uuid() . '.jpg';
                         Storage::disk('public')->put($filename, $decoded);
                         $snapshotPaths['front'] = $filename;
-                        \Illuminate\Support\Facades\Log::info("Snapshot successfully saved to: " . $filename);
                     }
                 }
             }

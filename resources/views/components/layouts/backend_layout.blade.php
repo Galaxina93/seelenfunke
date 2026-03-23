@@ -22,6 +22,19 @@
 <canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
 
 @php
+    // Determine active guard if not explicitly passed by view/component
+    if (!isset($guard)) {
+        if (auth()->guard('admin')->check()) {
+            $guard = 'admin';
+        } elseif (auth()->guard('customer')->check()) {
+            $guard = 'customer';
+        } elseif (auth()->guard('employee')->check()) {
+            $guard = 'employee';
+        } else {
+            $guard = 'admin'; // Safe fallback
+        }
+    }
+
     $adminId = '';
     $hasUnreadTickets = false;
 

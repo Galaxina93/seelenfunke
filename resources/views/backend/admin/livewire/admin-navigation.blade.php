@@ -2,7 +2,7 @@
     @php
         $currentPage = basename(request()->path());
 
-        $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender', 'person-profiles']);
+        $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender', 'person-profiles', 'gesundheit']);
 
         // Neu aufgeteilt in Produkte und Marketing
         $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews', 'nischen-scout']);
@@ -30,6 +30,7 @@
                     <x-forms.list-item route="/admin/routine" title="Routine" pageName="routine" icon="arrow-path" />
                     <x-forms.list-item route="/admin/tasks" title="Aufgaben" pageName="tasks" icon="check-circle" />
                     <x-forms.list-item route="/admin/calender" title="Kalender" pageName="calender" icon="calendar-days" />
+                    <x-forms.list-item route="/admin/ceo/gesundheit" title="Gesundheit" pageName="gesundheit" icon="heart" />
                 </ul>
             </li>
         </ul>
