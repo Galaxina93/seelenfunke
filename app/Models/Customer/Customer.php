@@ -91,6 +91,16 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         return false;
     }
 
+    public function markEmailAsUnverified()
+    {
+        // Setzt das Verifizierungsdatum im Profil zurück (Neu ab Laravel 12/13)
+        if ($this->profile) {
+            $this->profile->email_verified_at = null;
+            return $this->profile->save();
+        }
+        return false;
+    }
+
     public function sendEmailVerificationNotification()
     {
         // Nutzt das Standard-Benachrichtigungssystem von Laravel für die Verifizierungs-Mail.
