@@ -35,6 +35,8 @@ return new class extends Migration
             $table->string('tax_class')->default('standard');
 
             // 4. Lager & Identifikation
+            $table->foreignUuid('supplier_id')->nullable()->constrained('suppliers')->nullOnDelete();
+            
             $table->string('sku')->nullable()->unique();
             $table->string('barcode')->nullable();
             $table->string('brand')->nullable();
@@ -58,6 +60,14 @@ return new class extends Migration
             $table->json('variants_data')->nullable();
             $table->json('tier_pricing')->nullable();
             $table->json('configurator_settings')->nullable();
+
+            // 7. Unit Economics / Analytics
+            $table->integer('purchase_price')->default(0); // EK in Cent
+            $table->integer('laser_runtime_minutes')->nullable();
+            $table->integer('electricity_wear_factor')->default(1); // 1 Cent per minute (Minimal wear)
+            $table->integer('packaging_cost')->nullable(); // in Cent
+            $table->integer('shipping_cost')->nullable(); // in Cent
+            $table->integer('delivery_time_days')->default(14);
 
             // 7. SEO
             $table->string('seo_title')->nullable();

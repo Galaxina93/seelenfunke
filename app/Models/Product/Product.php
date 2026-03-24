@@ -184,6 +184,16 @@ class Product extends Model
         return $this->belongsToMany(Category::class);
     }
 
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function packagings()
+    {
+        return $this->hasMany(ProductPackaging::class);
+    }
+
     public function templates()
     {
         return $this->hasMany(ProductTemplate::class);

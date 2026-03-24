@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesAndPermissionsSeeder::class,
+            SupplierSeeder::class,                  // Für den Livegang notwendig
             ProductSeeder::class,                   // Für den Livegang notwendig
             ShippingSeeder::class,                  // Für den Livegang notwendig
             ShopSettingSeeder::class,               // Für den Livegang notwendig

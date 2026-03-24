@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <title>Behandlungsplan: {{ $plan->title }}</title>
     <style>
         body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-family: 'DejaVu Sans', sans-serif;
             color: #333333;
             line-height: 1.5;
             font-size: 13px;
@@ -14,7 +14,7 @@
         }
 
         .header {
-            border-bottom: 2px solid #14b8a6; /* teal-500 */
+            border-bottom: 2px solid #14b8a6;
             padding-bottom: 10px;
             margin-bottom: 30px;
         }
@@ -28,16 +28,23 @@
             vertical-align: top;
         }
 
+        .company-info .logo {
+            max-width: 250px;
+            margin-bottom: 5px;
+            display: block;
+        }
+
         .company-info h1 {
             color: #14b8a6;
             margin: 0 0 5px 0;
-            font-size: 24px;
+            font-size: 22px;
         }
 
         .company-info p {
             margin: 0;
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
+            font-weight: bold;
         }
 
         .doc-meta {
@@ -46,7 +53,7 @@
 
         .doc-meta h2 {
             margin: 0 0 5px 0;
-            font-size: 20px;
+            font-size: 18px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: #1f2937;
@@ -54,8 +61,9 @@
 
         .doc-meta p {
             margin: 0;
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
+            line-height: 1.6;
         }
 
         .section-title {
@@ -63,8 +71,8 @@
             padding: 8px 12px;
             border-left: 4px solid #1f2937;
             font-weight: bold;
-            font-size: 14px;
-            margin-top: 30px;
+            font-size: 13px;
+            margin-top: 25px;
             margin-bottom: 15px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -109,36 +117,28 @@
             background-color: #1f2937;
             color: white;
             text-align: left;
-            padding: 10px;
-            font-size: 12px;
+            padding: 8px 10px;
+            font-size: 11px;
             text-transform: uppercase;
             border-bottom: 2px solid #14b8a6;
         }
 
         table.items-table td {
-            padding: 10px;
+            padding: 8px 10px;
             border-bottom: 1px solid #e5e7eb;
-            font-size: 13px;
+            font-size: 12px;
+            vertical-align: top;
         }
 
         table.items-table tr:nth-child(even) {
             background-color: #f9fafb;
         }
 
-        .footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-            text-align: center;
-            font-size: 10px;
-            color: #9ca3af;
-        }
-
         .status-badge {
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 9px;
             font-weight: bold;
             text-transform: uppercase;
         }
@@ -162,6 +162,38 @@
             border-left: 4px solid #3b82f6;
             border-radius: 0 4px 4px 0;
         }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 9px;
+            color: #6c757d;
+            line-height: 1.4;
+            display: table;
+            width: 100%;
+        }
+
+        .footer-left {
+            display: table-cell;
+            width: 50%;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .footer-right {
+            display: table-cell;
+            width: 50%;
+            text-align: right;
+            vertical-align: top;
+        }
+        
+        .footer-bottom {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 8px;
+            color: #9ca3af;
+        }
     </style>
 </head>
 <body>
@@ -170,9 +202,15 @@
         <table>
             <tr>
                 <td class="company-info">
-                    <h1>Seelenfunke</h1>
-                    <p>Internal Medical Assistant</p>
-                    <p>Attending: Dr. Funki (AI)</p>
+                    @php
+                        $logoPath = public_path('images/projekt/logo/mein-seelenfunke-logo.svg');
+                        $logoBase64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
+                    @endphp
+                    @if($logoBase64)
+                        <img src="data:image/svg+xml;base64,{{ $logoBase64 }}" class="logo" alt="Logo">
+                    @endif
+                    <p>Interner Medizinischer Assistent</p>
+                    <p>Behandelnder Arzt: Dr. Funki (KI)</p>
                 </td>
                 <td class="doc-meta">
                     <h2>Behandlungsplan</h2>
@@ -180,9 +218,7 @@
                     <p><strong>Patient:</strong> {{ $plan->user->first_name ?? 'CEO' }} {{ $plan->user->last_name ?? '' }}</p>
                     <p>
                         <strong>Status:</strong> 
-                        <span class="status-badge {{ $plan->status === 'completed' ? 'status-completed' : 'status-active' }}">
-                            {{ $plan->status === 'completed' ? 'Durchgeführt' : 'Aktiv' }}
-                        </span>
+                        {{ $plan->status === 'completed' ? 'Durchgeführt' : 'Aktiv' }}
                     </p>
                 </td>
             </tr>
@@ -200,7 +236,7 @@
             <td class="info-value">
                 {{ $plan->start_date ? $plan->start_date->format('d.m.Y') : 'Unbekannt' }} 
                 bis 
-                {{ $plan->end_date ? $plan->end_date->format('d.m.Y') : 'Unbekannt' }}
+                {{ $plan->end_date ? $plan->end_date->format('d.m.Y') : 'Offen' }}
             </td>
         </tr>
     </table>
@@ -238,12 +274,25 @@
 
     @if($plan->status === 'completed' && $plan->result_evaluation)
     <div class="evaluation-box">
-        <h4 style="margin-top: 0; color: #1e40af; font-size: 14px;">Abschlussevaluation:</h4>
+        <h4 style="margin-top: 0; color: #1e40af; font-size: 13px;">Abschlussevaluation:</h4>
         {!! nl2br(e($plan->result_evaluation)) !!}
     </div>
     @endif
 
     <div class="footer">
+        <div class="footer-left">
+            <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> | Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+            {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
+            {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }} | 
+            {{ str_replace(['http://', 'https://'], '', shop_setting('owner_website', 'www.mein-seelenfunke.de')) }}
+        </div>
+        <div class="footer-right">
+            IBAN: {{ shop_setting('owner_iban', 'Wird nachgereicht') }}<br>
+            Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
+            Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}
+        </div>
+    </div>
+    <div class="footer-bottom">
         Generiert durch Seelenfunke AI (Agent: {{ $plan->agent->name ?? 'Dr. Funki' }}) am {{ now()->format('d.m.Y H:i') }} Uhr. Dieses Dokument dient internen Tracking-Zwecken der Geschäftsführung.
     </div>
 

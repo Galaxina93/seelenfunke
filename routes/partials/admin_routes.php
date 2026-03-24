@@ -87,6 +87,46 @@ Route::middleware(['auth:admin'])->group(function () {
         return view('backend.admin.pages.products');
     })->name('admin.products');
 
+    Route::get('/admin/product-analytics', function () {
+        return view('backend.admin.pages.product-analytics');
+    })->name('admin.product-analytics');
+
+    Route::get('/admin/product-analytics/export/full-report', function () {
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.product-analytics-report', [
+            'trueCostData' => \App\Livewire\Shop\Product\ProductAnalytics::getTrueCostData(),
+            'forecastingData' => \App\Livewire\Shop\Product\ProductAnalytics::getForecastingData(),
+            'lossesData' => \App\Livewire\Shop\Product\ProductAnalytics::getLossesData(),
+            'date' => now()->format('d.m.Y H:i')
+        ]);
+        
+        // Settings for PDF
+        $pdf->setPaper('a4', 'landscape');
+        
+        $finalFilename = now()->format('Y-m-d_H-i') . '_Produkt_Analyse_Gesamtbericht.pdf';
+        return $pdf->download($finalFilename);
+    })->name('admin.product-analytics.export.full');
+
+    Route::get('/admin/product-analytics/export/lucid', function () {
+        $lucidData = \App\Livewire\Shop\Product\ProductAnalytics::getLucidData();
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.product-analytics-lucid', [
+            'lucidData' => $lucidData,
+            'date' => now()->format('d.m.Y H:i')
+        ]);
+        
+        $pdf->setPaper('a4', 'portrait');
+        
+        $finalFilename = now()->format('Y-m-d_H-i') . '_LUCID_Jahresbericht_' . $lucidData['year'] . '.pdf';
+        return $pdf->download($finalFilename);
+    })->name('admin.product-analytics.export.lucid');
+
+    Route::get('/admin/product-packaging', function () {
+        return view('backend.admin.pages.product-packaging');
+    })->name('admin.product-packaging');
+
+    Route::get('/admin/product-suppliers', function () {
+        return view('backend.admin.pages.shop.product-suppliers');
+    })->name('admin.product-suppliers');
+
     Route::get('/admin/products/nischen-scout', function () {
         return view('backend.admin.pages.product-niche-scanner');
     })->name('admin.products.niche');

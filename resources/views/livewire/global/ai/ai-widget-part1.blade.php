@@ -1,73 +1,80 @@
-<div x-data="{ showLog: false }" class="fixed bottom-4 right-4 z-50 flex flex-col items-end">
-    <!-- Matrix Style Log Popup -->
-    <div x-show="showLog" x-collapse x-transition class="w-80 mt-2 p-3 bg-black/90 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-2 max-h-80 overflow-y-auto pointer-events-auto custom-scrollbar mb-4" style="display: none;">
-        <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-2 mb-2 sticky top-0 bg-black/80 z-10 flex flex-col gap-2">
-            <div class="flex justify-between items-center">
-                <span>KI Schnell-Steuerung</span>
-                <div class="flex items-center gap-2">
-                    <button @click="$dispatch('funki-force-stop');" class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-0.5 rounded border border-rose-500/30 transition-colors" title="Sprache Stoppen">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
-                            <rect x="5" y="5" width="10" height="10" rx="1" />
-                        </svg>
-                        <span>Stopp</span>
-                    </button>
-                    @php $funkiraActive = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->exists(); @endphp
-                    @if($funkiraActive)
-                    <button @click="$dispatch('open-funkira'); showLog = false" class="text-emerald-500 hover:text-emerald-400 flex items-center gap-1 bg-emerald-900/30 px-2 py-0.5 rounded border border-emerald-500/30 transition-colors" title="Zentrum Öffnen">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
-                            <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
-                            <circle cx="10" cy="10" r="3"/>
-                        </svg>
-                        <span>KI-3D-Zentrum</span>
-                    </button>
-                    @endif
-                    <button @click="showLog = false" class="text-emerald-500/50 hover:text-emerald-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-                            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
-                        </svg>
-                    </button>
+<div x-data="{ dockOpen: false }" 
+     class="fixed right-0 top-1/2 -translate-y-1/2 z-[9998] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+     :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'">
+
+    <!-- INTERAKTIVE GLOW-ZONE -->
+    <div @click="dockOpen = !dockOpen"
+         class="absolute left-0 top-1/2 -translate-y-1/2 w-10 cursor-pointer flex items-center justify-center group"
+         style="margin-left: -25px;">
+
+        <div class="relative flex items-center justify-center">
+            <div class="absolute inset-0 w-6 h-16 bg-emerald-500/40 rounded-full blur-md animate-pulse"></div>
+            <div class="relative w-6 h-16 bg-emerald-500 rounded-full shadow-[0_0_20px_rgba(16,185,129,1)] transition-all duration-300 group-hover:h-20"
+                 :class="dockOpen ? 'opacity-20' : 'opacity-100'">
+            </div>
+            <div class="absolute text-gray-900 transition-transform duration-500"
+                 :class="dockOpen ? 'rotate-0' : 'rotate-180'">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4">
+                    <path d="M9 5l7 7-7 7"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- DAS HAUPT-DOCK -->
+    <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-80 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
+        <div x-data="funkiView()" class="flex flex-col gap-3">
+            <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <span>KI Schnell-Steuerung</span>
+                    <div class="flex items-center gap-2">
+                        <button x-show="continuousMode" @click="$dispatch('funki-force-stop');" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-colors" title="Sprache Stoppen">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                                <rect x="5" y="5" width="10" height="10" rx="1" />
+                            </svg>
+                            <span>Stop</span>
+                        </button>
+                        @php $funkiraActive = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->exists(); @endphp
+                        @if($funkiraActive)
+                        <button @click="$dispatch('open-funkira'); dockOpen = false" class="text-emerald-500 hover:text-emerald-400 flex items-center gap-1 bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-500/30 transition-colors" title="Zentrum Öffnen">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
+                                <circle cx="10" cy="10" r="3"/>
+                            </svg>
+                            <span>KI-3D-Zentrum</span>
+                        </button>
+                        @endif
+                    </div>
                 </div>
             </div>
             
-            <div class="flex flex-col gap-2 border-t border-emerald-900/20 pt-2 items-start" x-data="funkiView()">
+            <div class="flex flex-col gap-3 items-start border-b border-emerald-900/30 pb-4 mb-1">
                 <label class="flex items-center gap-2 cursor-pointer group" title="Zuhören (Immer hören)">
-                    <div class="relative w-6 h-3 transition-colors rounded-full" :class="continuousMode ? 'bg-emerald-500' : 'bg-gray-700'">
+                    <div class="relative w-8 h-4 transition-colors rounded-full" :class="continuousMode ? 'bg-emerald-500' : 'bg-gray-700'">
                         <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="sr-only">
-                        <div class="absolute w-3 h-3 transition-transform bg-white rounded-full shadow-md" :class="continuousMode ? 'translate-x-3' : 'translate-x-0'"></div>
+                        <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="continuousMode ? 'translate-x-4' : 'translate-x-0'"></div>
                     </div>
-                    <div class="flex items-center gap-1 text-gray-400 group-hover:text-emerald-400 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" /><path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z" /></svg>
+                    <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" /><path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z" /></svg>
                         <span>Immer hören</span>
                     </div>
                 </label>
                 
                 <label class="flex items-center gap-2 cursor-pointer group" title="Aktivierungswort (Wake-Word) nutzen">
-                    <div class="relative w-6 h-3 transition-colors rounded-full" :class="requireWakeWord ? 'bg-emerald-500' : 'bg-gray-700'">
+                    <div class="relative w-8 h-4 transition-colors rounded-full" :class="requireWakeWord ? 'bg-emerald-500' : 'bg-gray-700'">
                         <input type="checkbox" x-model="requireWakeWord" class="sr-only">
-                        <div class="absolute w-3 h-3 transition-transform bg-white rounded-full shadow-md" :class="requireWakeWord ? 'translate-x-3' : 'translate-x-0'"></div>
+                        <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="requireWakeWord ? 'translate-x-4' : 'translate-x-0'"></div>
                     </div>
-                    <div class="flex items-center gap-1 text-gray-400 group-hover:text-emerald-400 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" /></svg>
+                    <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" /></svg>
                         <span>Aktivierungswort</span>
                     </div>
                 </label>
             </div>
         </div>
-        
-
     </div>
-
-    <!-- Toggle Button -->
-    <button @mouseenter="showLog = true" @click="showLog = !showLog" class="bg-black border border-emerald-800/80 hover:border-emerald-500 hover:bg-emerald-900/20 text-emerald-500 rounded-full h-12 w-12 flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all relative overflow-hidden group">
-        <!-- Ping Animation Background Core -->
-        <div class="absolute inset-0 rounded-full bg-emerald-500/30 animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
-        
-        <div class="absolute inset-0 bg-emerald-500/10 blur-md group-hover:bg-emerald-500/20 transition-all"></div>
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 relative z-10 transition-transform group-hover:scale-110">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09l2.846.813-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-        </svg>
-    </button>
 </div>
+
 
 <div x-data="funkiView()"
      wire:ignore
@@ -103,8 +110,8 @@
             </div>
 
             <!-- Audio Stop -->
-            <button x-show="isOutputActive()" @click="stopSpeech()" class="px-3 py-2 bg-red-900/80 border border-red-700 rounded-lg text-[10px] font-black uppercase tracking-widest text-red-100 hover:text-white hover:border-red-400 hover:bg-red-800 transition-all shadow-[0_0_15px_rgba(239,68,68,0.5)] flex items-center gap-2 backdrop-blur-md" title="Funkira unterbrechen">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6.75 6.75a.75.75 0 01.75-.75h5a.75.75 0 01.75.75v5a.75.75 0 01-.75.75h-5a.75.75 0 01-.75-.75v-5z" clip-rule="evenodd" /></svg> Stopp
+            <button x-show="isOutputActive() && continuousMode" x-cloak @click="stopSpeech()" class="px-3 py-2 bg-red-900/80 border border-red-700 rounded-lg text-[10px] font-black uppercase tracking-widest text-red-100 hover:text-white hover:border-red-400 hover:bg-red-800 transition-all shadow-[0_0_15px_rgba(239,68,68,0.5)] flex items-center gap-2 backdrop-blur-md" title="Funkira unterbrechen">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6.75 6.75a.75.75 0 01.75-.75h5a.75.75 0 01.75.75v5a.75.75 0 01-.75.75h-5a.75.75 0 01-.75-.75v-5z" clip-rule="evenodd" /></svg> Stop
             </button>
         </div>
 

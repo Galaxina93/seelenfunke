@@ -164,8 +164,8 @@ class CalenderTest extends TestCase
         // By default, Livewire restricts temporary uploads strictly to images/pdfs. We temporarily disable this rule so the .ics payload isn't blocked by the HTTP pipeline
         config()->set('livewire.temporary_file_upload.rules', 'file|max:12288');
 
-        // Use the physical test file provided by the user in public/testing but wrap it into a Livewire compatible fake upload
-        $content = file_get_contents(public_path('testing/feiertage-deutschland.ics'));
+        // Use the physical test file provided by the user in public/ics-files but wrap it into a Livewire compatible fake upload
+        $content = file_get_contents(public_path('ics-files/feiertage-deutschland.ics'));
         $file = UploadedFile::fake()->createWithContent('feiertage.ics', $content);
 
         $initialCount = CalendarEvent::count();

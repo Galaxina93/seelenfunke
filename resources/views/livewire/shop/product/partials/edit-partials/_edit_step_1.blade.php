@@ -89,7 +89,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <div class="flex items-center gap-2 mb-2 ml-1">
-                            <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">Preis *</label>
+                            <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">Verkaufspreis *</label>
                             @include('components.alerts.info-tooltip', ['key' => 'price'])
                         </div>
                         <div class="relative">
@@ -97,6 +97,21 @@
                             <input type="number" step="0.01" wire:model.live="price_input" class="{{ $inputClassStep1 }} pl-10 font-mono text-lg font-bold" placeholder="0.00">
                         </div>
                     </div>
+                    @if($type === 'physical')
+                        <div>
+                            <div class="flex items-center gap-2 mb-2 ml-1">
+                                <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">EK Preis (Netto) *</label>
+                                @include('components.alerts.info-tooltip', ['key' => 'purchase_price', 'text' => 'Dein realer Netto-Einkaufspreis. Wird für die Margen / Unit Economics verwendet.'])
+                            </div>
+                            <div class="relative">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">€</span>
+                                <input type="number" step="0.01" wire:model.live="purchase_price_input" class="{{ $inputClassStep1 }} pl-10 font-mono text-lg font-bold border-primary/30" placeholder="0.00">
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label class="{{ $labelClassStep1 }}">Vergleichspreis</label>
                         <div class="relative">
@@ -173,12 +188,25 @@
                     </div>
                     <input type="text" wire:model.live="barcode" class="{{ $inputClassStep1 }} font-mono" placeholder="Global Trade Item Number">
                 </div>
-                <div class="md:col-span-2">
-                    <div class="flex items-center gap-2 mb-2 ml-1">
-                        <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">Marke / Hersteller</label>
-                        @include('components.alerts.info-tooltip', ['key' => 'brand'])
+                <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2 ml-1">
+                            <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">Marke / Hersteller</label>
+                            @include('components.alerts.info-tooltip', ['key' => 'brand'])
+                        </div>
+                        <input type="text" wire:model.live="brand" class="{{ $inputClassStep1 }}" placeholder="z.B. Mein Seelenfunke">
                     </div>
-                    <input type="text" wire:model.live="brand" class="{{ $inputClassStep1 }}" placeholder="z.B. Mein Seelenfunke">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2 ml-1">
+                            <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">Lieferant (Intern)</label>
+                        </div>
+                        <select wire:model.live="supplier_id" class="{{ $inputClassStep1 }} appearance-none cursor-pointer">
+                            <option value="">-- Kein Lieferant zugewiesen --</option>
+                            @foreach($suppliers as $sup)
+                                <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>

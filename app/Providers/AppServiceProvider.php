@@ -52,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
             'ai_agent' => 'App\Models\Ai\AiAgent',
             'ai_role' => 'App\Models\Ai\AiRole',
             'ai_tool' => 'App\Models\Ai\AiTool',
+            'supplier' => 'App\Models\Product\Supplier'
 
             // Füge hier bei Bedarf weitere Models hinzu
         ]);

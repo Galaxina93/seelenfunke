@@ -23,6 +23,10 @@ class ProductSeeder extends Seeder
             'Express-Service' => 'service',
         ];
 
+        $sup1 = \App\Models\Product\Supplier::where('name', 'Pujiang Wangzhe Crafts Co., Ltd.')->first();
+        $sup2 = \App\Models\Product\Supplier::where('name', 'Gifts Crafts Zone')->first();
+        $sup3 = \App\Models\Product\Supplier::where('name', 'Sendez')->first();
+
         foreach ($cats as $name => $type) {
             Category::firstOrCreate(
                 ['name' => $name],
@@ -51,7 +55,12 @@ class ProductSeeder extends Seeder
             'status' => 'active',
             'price' => 3990,
             'compare_at_price' => null,
+            'purchase_price' => 536, // EK: ~268€ (285 USD net) / 50 Stück = ~5.36€ pro Stück
+            'laser_runtime_minutes' => 1,
+            'electricity_wear_factor' => 15,
+            'packaging_cost' => 60,
             'sku' => 'CRYSTAL-001-CLR',
+            'supplier_id' => $sup1?->id,
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
@@ -121,9 +130,14 @@ class ProductSeeder extends Seeder
             'description' => 'Ein Aluminium Metall Herz das ganz besondere Gefühle auslösen kann. Es ist sehr hochwertig und schwer, wodurch es sich besonders wertig in der Hand anfühlt. Ideal als Handschmeichler oder persönlicher Glücksbringer.',
             'short_description' => 'Hochwertiges, schweres Aluminium-Herz für besondere Momente.',
             'status' => 'active',
-            'price' => 1499,
+            'price' => 1699,
             'compare_at_price' => null,
+            'purchase_price' => 136, // EK: 13,67€ / 10 Stück = 1,36€ pro Stück
+            'laser_runtime_minutes' => 1,
+            'electricity_wear_factor' => 5,
+            'packaging_cost' => 14,
             'sku' => 'ALU-HEART-001',
+            'supplier_id' => $sup2?->id,
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
@@ -314,7 +328,12 @@ class ProductSeeder extends Seeder
             'status' => 'active',
             'price' => 2490,
             'compare_at_price' => 2990,
+            'purchase_price' => 333, // EK: 19,99€ / 6 Stück = 3,33€ pro Stück
+            'laser_runtime_minutes' => 1,
+            'electricity_wear_factor' => 15,
+            'packaging_cost' => 60,
             'sku' => 'GLASS-WEIZEN-001',
+            'supplier_id' => $sup3?->id,
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,

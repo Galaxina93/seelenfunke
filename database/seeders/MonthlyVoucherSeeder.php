@@ -53,7 +53,5 @@ class MonthlyVoucherSeeder extends Seeder
                 ]
             );
         }
-
-        $this->command->info("Wirtschaftlicher Check: 12x 5%-Voucher für $year erstellt (Limit: 20 Nutzungen/Monat).");
     }
 }

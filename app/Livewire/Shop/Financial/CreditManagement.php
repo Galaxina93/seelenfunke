@@ -127,6 +127,15 @@ class CreditManagement extends Component
         }
     }
 
+    public function markAsSent($invoiceId)
+    {
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice) {
+            $invoice->update(['email_sent_at' => now()]);
+            session()->flash('success', 'Gutschrift wurde als versendet markiert (ohne E-Mail Versand).');
+        }
+    }
+
     public function generateCreditNote(InvoiceService $invoiceService)
     {
         $this->validate([

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('user_id')->index(); // the admin/CEO
             $table->uuid('ai_agent_id')->index(); // e.g. Dr. Funki
+            $table->uuid('ai_health_treatment_plan_id')->nullable();
             $table->longText('content');
             $table->timestamps();
         });
@@ -39,6 +40,7 @@ return new class extends Migration
             $table->string('dosage');
             $table->integer('duration_days')->nullable();
             $table->text('notes')->nullable();
+            $table->boolean('is_completed')->default(false);
             $table->timestamps();
 
             $table->foreign('plan_id')

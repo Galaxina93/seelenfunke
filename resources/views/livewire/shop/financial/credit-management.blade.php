@@ -146,6 +146,11 @@
                                         @endif
                                     </button>
                                 @endif
+                                @if(!$credit->email_sent_at)
+                                    <button wire:click="markAsSent('{{ $credit->id }}')" wire:confirm="Soll dieser Beleg wirklich als 'Versendet / Erledigt' markiert werden, ohne dass eine E-Mail rausgeht?" class="p-2 bg-gray-800 hover:bg-emerald-500/20 text-gray-400 hover:text-emerald-400 rounded-lg transition-colors inline-flex border border-gray-700 hover:border-emerald-500/30" title="Manuell als 'versendet' markieren">
+                                        <x-heroicon-o-check-circle class="w-4 h-4" />
+                                    </button>
+                                @endif
                                 <a href="{{ route('invoice.download', $credit->id) }}" target="_blank" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg transition-colors inline-flex border border-gray-700 hover:border-gray-600" title="PDF ansehen">
                                     <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
                                 </a>

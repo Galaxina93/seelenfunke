@@ -5,7 +5,7 @@
         $isFunkiActive = in_array($currentPage, ['inbox', 'routine', 'tasks', 'calender', 'person-profiles', 'gesundheit']);
 
         // Neu aufgeteilt in Produkte und Marketing
-        $isProductsActive = in_array($currentPage, ['products', 'product-templates', 'reviews', 'nischen-scout']);
+        $isProductsActive = in_array($currentPage, ['product-analytics', 'product-packaging', 'products', 'product-templates', 'reviews', 'nischen-scout', 'product-suppliers']);
         $isMarketingActive = in_array($currentPage, ['newsletter', 'voucher', 'blog']);
 
         $isOrderActive = in_array($currentPage, ['orders', 'quote-requests', 'widerruf']);
@@ -49,10 +49,13 @@
                     <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                 </button>
                 <ul x-show="open" x-collapse class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                    <x-forms.list-item route="/admin/product-analytics" title="Analyse" pageName="product-analytics" icon="chart-pie" />
                     <x-forms.list-item route="/admin/products" title="Produkte" pageName="products" icon="cube" />
                     <x-forms.list-item route="/admin/product-templates" title="Vorlagen" pageName="product-templates" icon="clipboard-document-list" />
-                    <x-forms.list-item route="/admin/products/nischen-scout" title="Nischen-Scout" pageName="nischen-scout" icon="magnifying-glass" />
+                    <x-forms.list-item route="/admin/product-suppliers" title="Lieferanten" pageName="product-suppliers" icon="truck" />
                     <x-forms.list-item route="/admin/reviews" title="Bewertungen" pageName="reviews" icon="star" />
+                    <x-forms.list-item route="/admin/products/nischen-scout" title="Nischen-Scout" pageName="nischen-scout" icon="magnifying-glass" />
+                    <x-forms.list-item route="/admin/product-packaging" title="Verpackungsmaterial" pageName="product-packaging" icon="archive-box" />
                 </ul>
             </li>
 

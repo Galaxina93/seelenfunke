@@ -139,9 +139,15 @@ trait AiHealthFuncs
                         $user = Auth::user();
                         if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
+                        $activePlan = AiHealthTreatmentPlan::where('user_id', $user->id)
+                            ->where('status', 'active')
+                            ->latest()
+                            ->first();
+
                         $protocol = AiHealthProtocol::create([
                             'user_id' => $user->id,
                             'ai_agent_id' => session('current_ai_agent_id'),
+                            'ai_health_treatment_plan_id' => $activePlan ? $activePlan->id : null,
                             'content' => $args['content'],
                         ]);
 
@@ -169,45 +175,135 @@ trait AiHealthFuncs
                     'required' => ['query']
                 ],
                 'callable' => function (array $args) {
-                    // Fallback to a simulated search if no DuckDuckGo or specific API is configured.
-                    // Ideally we use a SerpAPI or DDG here. For now we will return a generic search prompt 
-                    // that tells the Agent to use their existing intelligence if they can't browse directly,
-                    // or implement a basic CURL to Wikipedia / DuckDuckGo Lite.
-                    
                     try {
-                        $query = urlencode($args['query']);
-                        $url = "https://html.duckduckgo.com/html/?q={$query}";
+                        $apiKey = env('SCRAPER_API_KEY', '707ccc851a9e7c4759106d2f6e6bf764');
+                        $query = $args['query'];
                         
-                        $ch = curl_init();
-                        curl_setopt($ch, CURLOPT_URL, $url);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MedicalAgent/1.0");
-                        $html = curl_exec($ch);
-                        curl_close($ch);
+                        \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                            'progress' => 20,
+                            'action_text' => 'Baue Stealth-Verbindung (ScraperAPI) auf für: "' . $query . '" ...'
+                        ], 60);
 
-                        if (!$html) {
-                            return ['error' => true, 'message' => 'Die Suche ist aktuell fehlgeschlagen. Netzwerkfehler.'];
+                        $targetUrl = "https://html.duckduckgo.com/html/?q=" . urlencode($query);
+                        
+                        $response = \Illuminate\Support\Facades\Http::timeout(60)->get('http://api.scraperapi.com', [
+                            'api_key' => $apiKey,
+                            'url' => $targetUrl,
+                            'country_code' => 'de',
+                            // 'keep_headers' => 'true'
+                        ]);
+
+                        if (!$response->successful()) {
+                            return ['error' => true, 'message' => 'Die Suche ist aktuell fehlgeschlagen (HTTP ' . $response->status() . '). BITTE BRICH AB UND ANTWORTE AUS DEINEM EIGENEN WISSENSSTAND. Führe keine weiteren Suchen durch.'];
                         }
+
+                        \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                            'progress' => 70,
+                            'action_text' => 'Web-DOM geladen. Extrahiere medizinische Nodes...'
+                        ], 60);
+
+                        $html = $response->body();
 
                         // Parse simple text snippets
                         preg_match_all('/<a class="result__snippet[^>]*>(.*?)<\/a>/is', $html, $matches);
                         $snippets = $matches[1] ?? [];
                         
                         $results = [];
-                        foreach(array_slice($snippets, 0, 5) as $snippet) {
-                            $results[] = strip_tags($snippet);
+                        foreach(array_slice($snippets, 0, 7) as $snippet) {
+                            $results[] = trim(strip_tags(html_entity_decode($snippet, ENT_QUOTES, 'UTF-8')));
                         }
+
+                        if (empty($results)) {
+                            // Secondary fallback matching if DuckDuckGo changes DOM
+                            preg_match_all('/class="result__body".*?>(.*?)<\/div>/is', $html, $fallbackMatches);
+                            $fallbackSnippets = $fallbackMatches[1] ?? [];
+                            foreach(array_slice($fallbackSnippets, 0, 5) as $snippet) {
+                                $results[] = trim(strip_tags(html_entity_decode($snippet, ENT_QUOTES, 'UTF-8')));
+                            }
+                        }
+
+                        if (empty($results)) {
+                            return [
+                                'error' => true, 
+                                'message' => "Die Internetsuche nach '{$query}' lieferte keine direkten Text-Auswertungen (mögliche Bot-Sperre). Führe KEINE weitere Suche durch. Nutze ab sofort stattdessen ausschließlich dein intern antrainiertes medizinisches Fachwissen für die Diagnose."
+                            ];
+                        }
+
+                        \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                            'progress' => 100,
+                            'action_text' => count($results) . ' Resultate gefiltert. Lese Daten ein...'
+                        ], 60);
 
                         return [
                             'success' => true,
-                            'query' => $args['query'],
-                            'results' => $results,
-                            'note' => 'Nutze diese Auszüge aus dem Web für deine medizinische Antwort.'
+                            'query' => $query,
+                            'results' => array_filter($results),
+                            'note' => 'Nutze diese Auszüge aus dem Web für deine medizinische Antwort. VERMEIDE WEITERE SUCHEN, falls du jetzt ausreichende Daten hast.'
                         ];
                         
+                    } catch (\Exception $e) {
+                        return [
+                            'error' => true, 
+                            'message' => 'Web-Suche blockiert oder Timeout: ' . $e->getMessage() . '. STOPPE DIE ENDLOSSCHLEIFE. Führe diese oder andere Suchen NICHT erneut aus! Entwickle ein Fazit oder Protokoll aus deinem Trainingsdatensatz.'
+                        ];
+                    }
+                }
+            ],
+            [
+                'name' => 'create_health_medication',
+                'description' => 'Fügt ein neues, aktives Medikament in die Patientenakte ein, sobald der Nutzer ein Medikament erwähnt, das er aktuell, langfristig oder kurzfristig einnimmt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'name' => [
+                            'type' => 'string',
+                            'description' => 'Name des Medikaments (z.B. Ibuprofen 400).'
+                        ],
+                        'description' => [
+                            'type' => 'string',
+                            'description' => 'Zusätzliche Infos, wofür es eingenommen wird, Nebenwirkungen oder Notizen.'
+                        ],
+                        'active_ingredients' => [
+                            'type' => 'string',
+                            'description' => 'Hauptwirkstoff(e) des Medikaments (falls bekannt).'
+                        ],
+                        'dosage' => [
+                            'type' => 'string',
+                            'description' => 'Dosierung (z.B. 400mg, 1 Tablette).'
+                        ],
+                        'frequency' => [
+                            'type' => 'string',
+                            'description' => 'Häufigkeit der Einnahme (z.B. 1x morgens, bei Bedarf).'
+                        ],
+                        'is_long_term' => [
+                            'type' => 'boolean',
+                            'description' => 'True, wenn es sich um eine ständige Dauermedikation handelt. False bei kurzfristigem Bedarf.'
+                        ]
+                    ],
+                    'required' => ['name']
+                ],
+                'callable' => function (array $args) {
+                    try {
+                        $user = Auth::user();
+                        if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+
+                        $med = \App\Models\Ai\Health\AiHealthMedication::create([
+                            'user_id' => $user->id,
+                            'name' => $args['name'],
+                            'description' => $args['description'] ?? null,
+                            'active_ingredients' => $args['active_ingredients'] ?? null,
+                            'dosage' => $args['dosage'] ?? null,
+                            'frequency' => $args['frequency'] ?? null,
+                            'is_long_term' => $args['is_long_term'] ?? false,
+                        ]);
+
+                        return [
+                            'success' => true,
+                            'message' => "Medikament " . $args['name'] . " wurde erfolgreich zur Patientenakte hinzugefügt.",
+                            'medication_id' => $med->id
+                        ];
                     } catch (Exception $e) {
-                        return ['error' => true, 'message' => 'Web-Suche nicht verfügbar: ' . $e->getMessage()];
+                        return ['error' => true, 'message' => $e->getMessage()];
                     }
                 }
             ]

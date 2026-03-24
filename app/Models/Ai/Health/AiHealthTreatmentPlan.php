@@ -30,7 +30,7 @@ class AiHealthTreatmentPlan extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(\App\Models\Admin\Admin::class, 'user_id');
     }
 
     public function agent()

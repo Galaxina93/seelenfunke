@@ -198,7 +198,7 @@ class MittwaldAgent
 
                     $executeArgs = json_decode($functionArgsString, true) ?? [];
 
-                    Log::info("AI decided to call tool: {$functionName}", ['args' => $executeArgs]);
+                    // Log removed per CEO request
 
                     \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                         'active_node' => 'wrench-screwdriver',

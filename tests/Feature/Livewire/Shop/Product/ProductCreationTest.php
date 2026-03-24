@@ -67,7 +67,8 @@ class ProductCreationTest extends TestCase
             ->set('price_input', 10.50)
             ->set('sku', 'TEST-SKU-1')
             ->set('slug_input', 'test-slug-1')
-            ->set('type', 'physical');
+            ->set('type', 'physical')
+            ->set('purchase_price_input', 5.00);
 
         // canProceed should be false because name is empty
         $this->assertFalse($component->instance()->canProceed());

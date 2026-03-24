@@ -2,8 +2,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     @include('livewire.global.widgets.analytics.partials.header')
-    @include('livewire.global.widgets.analytics.partials.health')
-    @include('livewire.global.widgets.analytics.partials.kpis')
+    @include('livewire.global.widgets.analytics.partials.master_scores')
 
     @include('livewire.global.widgets.analytics.partials.profit')
     @include('livewire.global.widgets.analytics.partials.charts')

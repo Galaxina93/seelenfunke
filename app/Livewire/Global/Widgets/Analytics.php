@@ -396,14 +396,23 @@ class Analytics extends Component
         $checks = json_decode(json_encode($rawChecks), true);
 
         if (class_exists(\App\Models\Ticket::class)) {
+            $totalTickets = \App\Models\Ticket::count();
             $openTickets = \App\Models\Ticket::where('status', 'open')->with('customer')->get();
             $tCount = $openTickets->count();
 
+            $status = $tCount > 0 ? 'error' : 'success';
+            $msg = $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet';
+            
+            if ($totalTickets === 0) {
+                $msg = 'Keine Tickets vorhanden';
+                $status = 'warning';
+            }
+
             $checks['open_tickets'] = [
-                'status' => $tCount > 0 ? 'error' : 'success',
+                'status' => $status,
                 'icon' => 'bi-ticket-detailed',
                 'title' => 'Offene Tickets',
-                'message' => $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet',
+                'message' => $msg,
                 'count' => $tCount,
                 'data' => $openTickets->map(function($t) {
                     return [
@@ -417,14 +426,23 @@ class Analytics extends Component
         }
 
         if (class_exists(\App\Models\Product\ProductReview::class)) {
+            $totalReviews = \App\Models\Product\ProductReview::count();
             $pendingReviews = \App\Models\Product\ProductReview::where('status', 'pending')->with('product')->get();
             $rCount = $pendingReviews->count();
 
+            $status = $rCount > 0 ? 'error' : 'success';
+            $msg = $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft';
+            
+            if ($totalReviews === 0) {
+                $msg = 'Noch keine Bewertungen';
+                $status = 'warning';
+            }
+
             $checks['product_reviews'] = [
-                'status' => $rCount > 0 ? 'error' : 'success',
+                'status' => $status,
                 'icon' => 'bi-star-half',
                 'title' => 'Produkt-Reviews',
-                'message' => $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft',
+                'message' => $msg,
                 'count' => $rCount,
                 'data' => $pendingReviews->map(function($r) {
                     return [
@@ -433,6 +451,134 @@ class Analytics extends Component
                         'rating' => $r->rating
                     ];
                 })->values()->toArray()
+            ];
+        }
+
+        // 1. Gutschriften (offen / nicht versendet)
+        if (class_exists(\App\Models\Invoice::class)) {
+            $totalCredits = \App\Models\Invoice::whereIn('type', ['credit_note', 'cancellation'])->count();
+            $cCount = \App\Models\Invoice::whereIn('type', ['credit_note', 'cancellation'])
+                ->whereNull('email_sent_at')
+                ->count();
+            
+            $status = $cCount > 0 ? 'error' : 'success';
+            $msg = $cCount > 0 ? $cCount . ' unversendet' : 'Alle versendet';
+            
+            if ($totalCredits === 0) {
+                $msg = 'Keine Gutschriften vorhanden';
+                $status = 'warning';
+            }
+
+            $checks['open_credits'] = [
+                'status' => $status,
+                'icon' => 'bi-receipt-cutoff',
+                'title' => 'Gutschriften offen',
+                'message' => $msg,
+                'count' => $cCount,
+                'data' => []
+            ];
+        }
+
+        // 2. Bank Umsätze (nicht zugeordnet)
+        if (class_exists(\App\Models\Financial\BankTransaction::class) && auth('admin')->check()) {
+            $totalTx = \App\Models\Financial\BankTransaction::whereHas('account', function($q) {
+                $q->where('is_active_for_analysis', true)
+                  ->where('admin_id', auth('admin')->id());
+            })->count();
+
+            $unassignedTx = \App\Models\Financial\BankTransaction::whereHas('account', function($q) {
+                $q->where('is_active_for_analysis', true)
+                  ->where('admin_id', auth('admin')->id());
+            })->whereNull('assigned_by_type')->count();
+
+            $status = $unassignedTx > 0 ? 'error' : 'success';
+            $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
+            
+            if ($totalTx === 0) {
+                $msg = 'Keine Transaktionen gefunden';
+                $status = 'warning';
+            }
+
+            $checks['unassigned_tx'] = [
+                'status' => $status,
+                'icon' => 'bi-bank',
+                'title' => 'Bank Umsätze',
+                'message' => $msg,
+                'count' => $unassignedTx,
+                'data' => []
+            ];
+        }
+
+        // 3. Offene Aufgaben
+        if (class_exists(\App\Models\Task::class)) {
+            $totalTasks = \App\Models\Task::count();
+            $openTasks = \App\Models\Task::where('is_completed', false)->count();
+
+            $status = $openTasks > 0 ? 'warning' : 'success';
+            $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
+            
+            if ($totalTasks === 0) {
+                $msg = 'Keine Aufgaben vorhanden';
+                $status = 'warning';
+            }
+
+            $checks['open_tasks'] = [
+                'status' => $status,
+                'icon' => 'bi-list-check',
+                'title' => 'Offene Aufgaben',
+                'message' => $msg,
+                'count' => $openTasks,
+                'data' => []
+            ];
+        }
+
+        // 4. Offene Angebote (> 5 Tage)
+        if (class_exists(\App\Models\Quote\QuoteRequest::class)) {
+            $totalQuotes = \App\Models\Quote\QuoteRequest::count();
+            $oldQuotes = \App\Models\Quote\QuoteRequest::where('status', 'open')
+                ->where('created_at', '<', now()->subDays(5))
+                ->count();
+
+            $status = $oldQuotes > 0 ? 'error' : 'success';
+            $msg = $oldQuotes > 0 ? $oldQuotes . ' älter als 5 Tage' : 'Alles aktuell';
+            
+            if ($totalQuotes === 0) {
+                $msg = 'Keine Angebote vorhanden';
+                $status = 'warning';
+            }
+
+            $checks['open_quotes'] = [
+                'status' => $status,
+                'icon' => 'bi-file-earmark-text',
+                'title' => 'Offene Angebote',
+                'message' => $msg,
+                'count' => $oldQuotes,
+                'data' => []
+            ];
+        }
+
+        // 5. Offene Widerrufe (> 2 Tage)
+        if (class_exists(\App\Models\Shop\Revocation\Revocation::class)) {
+            $totalRevs = \App\Models\Shop\Revocation\Revocation::count();
+            $oldRevs = \App\Models\Shop\Revocation\Revocation::where('status', '!=', 'completed')
+                ->where('created_at', '<', now()->subDays(2))
+                ->count();
+
+            $status = $oldRevs > 0 ? 'error' : 'success';
+            $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
+            
+            if ($totalRevs === 0) {
+                $msg = 'Keine Widerrufe vorhanden';
+                $status = 'warning';
+            }
+
+            $checks['open_revocations'] = [
+                'status' => $status,
+                'icon' => 'bi-arrow-return-left',
+                'title' => 'Offene Widerrufe',
+                'message' => $msg,
+                'count' => $oldRevs,
+                'data' => []
             ];
         }
 

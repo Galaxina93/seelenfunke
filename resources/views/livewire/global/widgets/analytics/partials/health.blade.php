@@ -1,4 +1,4 @@
-<div class="bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 shadow-2xl border border-gray-800 relative overflow-hidden group w-full flex flex-col h-full">
+<div x-data="{ showHealthDetails: false }" class="bg-gray-900/80 backdrop-blur-md rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-8 shadow-2xl border border-gray-800 relative overflow-hidden group w-full flex flex-col h-full">
     <div class="hidden sm:block absolute top-6 right-6 text-gray-600 hover:text-primary transition-colors cursor-help" title="Kritische Systemzustände.">
         <i class="solar-info-circle-bold-duotone text-2xl"></i>
     </div>
@@ -8,13 +8,79 @@
         <span class="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-800 px-3 py-1 md:px-4 md:py-1.5 rounded-full border border-gray-700">Live Action</span>
     </div>
 
-    <div class="space-y-4 md:space-y-6 flex-1">
+    @php
+        $totalTodos = collect($healthChecks)->sum('count');
+        $hasErrors = collect($healthChecks)->contains('status', 'error');
+        $hasWarnings = collect($healthChecks)->contains('status', 'warning');
+        
+        // Calculate a 0-100 score based on warnings, errors and single todos
+        $errorCount = collect($healthChecks)->where('status', 'error')->count();
+        $warningCount = collect($healthChecks)->where('status', 'warning')->count();
+        
+        $operativeScore = 100 - ($errorCount * 25) - ($warningCount * 10) - ($totalTodos * 2);
+        $operativeScore = max(0, min(100, $operativeScore)); // Clamp between 0 and 100
+        
+        $colorClass = $operativeScore >= 80 ? 'text-emerald-400' : ($operativeScore >= 50 ? 'text-amber-400' : 'text-red-400');
+        $strokeColor = $operativeScore >= 80 ? '#34d399' : ($operativeScore >= 50 ? '#fbbf24' : '#f87171');
+        $circumference = 2 * pi() * 40;
+        $offset = $circumference - ($operativeScore / 100) * $circumference;
+
+        $scoreText = 'Alles im grünen Bereich';
+        if ($hasErrors || $operativeScore < 50) {
+            $scoreText = 'Kritische Todos offen';
+        } elseif ($hasWarnings || $operativeScore < 80) {
+            $scoreText = 'Aufgaben warten';
+        }
+    @endphp
+
+    <div class="flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-8 bg-gray-950/50 rounded-3xl p-5 md:p-6 border border-gray-800/60 shadow-inner">
+        <div class="flex flex-col sm:flex-row items-center text-center sm:text-left gap-4 sm:gap-6 mb-4 sm:mb-0">
+            <!-- Score Gauge -->
+            <div class="relative w-24 h-24 md:w-28 md:h-28 flex items-center justify-center shrink-0">
+                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
+                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $strokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $offset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_currentColor]"></circle>
+                </svg>
+                <div class="absolute flex flex-col items-center justify-center">
+                    <span class="text-2xl md:text-3xl font-black {{ $colorClass }} drop-shadow-[0_0_10px_currentColor]">{{ $operativeScore }}</span>
+                    <span class="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-500">Score</span>
+                </div>
+            </div>
+            
+            <div class="flex flex-col items-center sm:items-start text-center sm:text-left">
+                <h4 class="text-xl md:text-2xl font-black text-white tracking-tight">Operativer Score</h4>
+                @if($totalTodos > 0)
+                    <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-0.5 text-gray-400">
+                        Insgesamt <span class="text-white">{{ $totalTodos }}</span> offene Aufgaben
+                    </p>
+                    <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1.5 {{ $colorClass }} animate-pulse">{{ $scoreText }}</p>
+                @else
+                    <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-0.5 text-gray-400">Keine offenen Aufgaben</p>
+                    <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $scoreText }}</p>
+                @endif
+            </div>
+        </div>
+        
+        <button @click="showHealthDetails = !showHealthDetails" class="w-full sm:w-auto px-6 py-3 bg-gray-900 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-inner group/btn active:scale-95 flex items-center justify-center gap-2">
+            <span x-text="showHealthDetails ? 'Details ausblenden' : 'Details anzeigen'"></span>
+            <i :class="showHealthDetails ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform group-hover/btn:text-primary"></i>
+        </button>
+    </div>
+
+    <div x-show="showHealthDetails" x-collapse x-cloak class="space-y-4 md:space-y-6 flex-1 mb-8">
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
             @foreach($healthChecks as $key => $check)
                 <div wire:key="health-card-{{ $key }}" class="bg-gray-950 border border-gray-800 rounded-2xl md:rounded-3xl overflow-hidden shadow-inner transition-all {{ $expandedHealthKey === $key ? 'ring-2 ring-primary/50 ring-offset-0' : 'hover:border-primary/30' }}">
                     <div wire:click="toggleHealthCard('{{ $key }}')" class="p-4 md:p-5 cursor-pointer flex justify-between items-center transition-colors">
                         <div class="flex gap-3 md:gap-4 items-center min-w-0">
-                            <div class="p-2.5 md:p-3.5 rounded-xl md:rounded-2xl shrink-0 flex items-center justify-center {{ $check['status'] === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse' }}">
+                            @php
+                                $statusClass = match($check['status'] ?? 'error') {
+                                    'success' => 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+                                    'warning' => 'bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
+                                    default => 'bg-red-500/10 text-red-500 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse',
+                                };
+                            @endphp
+                            <div class="p-2.5 md:p-3.5 rounded-xl md:rounded-2xl shrink-0 flex items-center justify-center {{ $statusClass }}">
                                 <i class="bi {{ $check['icon'] }} text-lg md:text-xl"></i>
                             </div>
                             <div class="text-left min-w-0 pr-2">
@@ -128,16 +194,11 @@
     </div>
 
     {{-- SYSTEM & INFRASTRUKTUR DASHBOARD --}}
-    <div class="mt-6 border-t border-gray-800 pt-6 shrink-0" wire:init="checkSystemHealth" wire:poll.120s="checkSystemHealth">
+    <div class="mt-6 border-t border-gray-800 pt-6 shrink-0" x-data="{ showSystemDetails: false }" wire:init="checkSystemHealth" wire:poll.120s="checkSystemHealth">
 
         <div class="flex items-center justify-between mb-6 ml-1">
             <h4 class="text-xs font-black uppercase tracking-[0.2em] text-gray-500">System & Infrastruktur</h4>
             <div class="flex items-center gap-3">
-                <button type="button" wire:click="fixSystem" wire:loading.attr="disabled"
-                        class="px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-gray-900 bg-primary hover:bg-primary-dark transition-colors shadow-glow flex items-center gap-2 disabled:opacity-50">
-                    <span wire:loading.remove wire:target="fixSystem"><i class="bi bi-wrench-adjustable"></i> Fix System</span>
-                    <span wire:loading wire:target="fixSystem" class="animate-pulse"><i class="bi bi-hourglass-split"></i> Arbeite...</span>
-                </button>
                 <div class="flex items-center gap-2 text-[9px] font-bold text-gray-400 bg-gray-950 px-3 py-1.5 rounded-full border border-gray-800 shadow-inner">
                     <span class="relative flex h-2 w-2">
                       <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-50"></span>
@@ -175,9 +236,87 @@
                     'items' => ['queue', 'scheduler', 'backup']
                 ]
             ];
+            
+            $sysErrors = 0;
+            $sysWarnings = 0;
+            
+            foreach($services as $sKey => $sInfo) {
+                if (isset($systemHealth[$sKey])) {
+                    if ($systemHealth[$sKey]['status'] === 'error' || $systemHealth[$sKey]['status'] === 'unavailable') {
+                        $sysErrors++;
+                    } elseif ($systemHealth[$sKey]['status'] === 'warning') {
+                        $sysWarnings++;
+                    }
+                }
+            }
+            
+            $storageData = $systemHealth['storage'] ?? null;
+            if ($storageData && isset($storageData['percent_free'])) {
+                if ($storageData['percent_free'] < 10) {
+                    $sysErrors++;
+                } elseif ($storageData['percent_free'] < 20) {
+                    $sysWarnings++;
+                }
+            }
+
+            $systemScore = 100 - ($sysErrors * 25) - ($sysWarnings * 10);
+            $systemScore = max(0, min(100, $systemScore));
+
+            $sysColorClass = $systemScore >= 80 ? 'text-emerald-400' : ($systemScore >= 50 ? 'text-amber-400' : 'text-red-400');
+            $sysStrokeColor = $systemScore >= 80 ? '#34d399' : ($systemScore >= 50 ? '#fbbf24' : '#f87171');
+            $sysOffset = $circumference - ($systemScore / 100) * $circumference;
+
+            $sysText = 'Alle Systeme online';
+            if ($sysErrors > 0 || $systemScore < 50) {
+                $sysText = 'Kritische System-Ausfälle';
+            } elseif ($sysWarnings > 0 || $systemScore < 80) {
+                $sysText = 'System-Warnungen';
+            }
         @endphp
 
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-8">
+        <div class="flex flex-col sm:flex-row items-center justify-between mb-6 md:mb-8 bg-gray-950/50 rounded-3xl p-5 md:p-6 border border-gray-800/60 shadow-inner">
+            <div class="flex flex-col sm:flex-row items-center text-center sm:text-left gap-4 sm:gap-6 mb-4 sm:mb-0">
+                <!-- Score Gauge -->
+                <div class="relative w-24 h-24 md:w-28 md:h-28 flex items-center justify-center shrink-0">
+                    <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
+                        <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $sysStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $sysOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_currentColor]"></circle>
+                    </svg>
+                    <div class="absolute flex flex-col items-center justify-center">
+                        <span class="text-2xl md:text-3xl font-black {{ $sysColorClass }} drop-shadow-[0_0_10px_currentColor]">{{ $systemScore }}</span>
+                        <span class="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-500">Score</span>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col items-center sm:items-start text-center sm:text-left">
+                    <h4 class="text-xl md:text-2xl font-black text-white tracking-tight">System Score</h4>
+                    @if($sysErrors > 0 || $sysWarnings > 0)
+                        <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-0.5 text-gray-400">
+                            <span class="text-white">{{ $sysErrors + $sysWarnings }}</span> Warnungen/Fehler
+                        </p>
+                        <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1.5 {{ $sysColorClass }} animate-pulse">{{ $sysText }}</p>
+                    @else
+                        <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-0.5 text-gray-400">Alle Schnittstellen stabil</p>
+                        <p class="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $sysText }}</p>
+                    @endif
+                </div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                <button type="button" wire:click="fixSystem" wire:loading.attr="disabled"
+                        class="w-full sm:w-auto px-6 py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-900 bg-primary hover:bg-primary-dark transition-colors shadow-glow flex items-center justify-center gap-2 disabled:opacity-50 group/btn active:scale-95">
+                    <span wire:loading.remove wire:target="fixSystem" class="flex items-center gap-2"><i class="bi bi-wrench-adjustable"></i> Fix System</span>
+                    <span wire:loading wire:target="fixSystem" class="flex items-center gap-2 animate-pulse"><i class="bi bi-hourglass-split"></i> Arbeite...</span>
+                </button>
+                <button @click="showSystemDetails = !showSystemDetails" class="w-full sm:w-auto px-6 py-3 bg-gray-900 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-inner group/btn active:scale-95 flex items-center justify-center gap-2">
+                    <span x-text="showSystemDetails ? 'Details ausblenden' : 'Details anzeigen'"></span>
+                    <i :class="showSystemDetails ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform group-hover/btn:text-primary"></i>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="showSystemDetails" x-collapse x-cloak>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-8">
             @foreach($systemGroups as $groupName => $groupInfo)
                 <div class="bg-gray-950/40 rounded-[1.5rem] border border-gray-800/60 p-5 shadow-inner">
 
@@ -451,5 +590,6 @@
             </div>
         @endif
 
+        </div>
     </div>
 </div>

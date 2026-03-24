@@ -134,7 +134,55 @@
         @endif
 
         @if($type === 'physical')
-            <div class="animate-fade-in-up">
+            <div x-data="{ open: false }" class="bg-gray-900/80 backdrop-blur-xl p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-gray-800 transition-colors hover:border-gray-700 animate-fade-in-up w-full min-w-0 mt-6 md:mt-8">
+                <div @click="open = !open" class="flex flex-wrap items-center justify-between cursor-pointer group transition-all gap-4" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
+                    <div class="flex items-center gap-3 sm:gap-4 flex-1 min-w-[200px]">
+                        <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
+                            <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                        <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">Kalkulation & Produktion</h3>
+                    </div>
+                    <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-inner border bg-gray-800/50 text-gray-400 border-gray-700 hidden sm:inline-flex">
+                        Unit Economics
+                    </span>
+                </div>
+
+                <div x-show="open" x-collapse style="display: none;">
+                    <div class="space-y-6 pt-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 w-full">
+                            <div class="w-full min-w-0">
+                                <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Ø Laser-Laufzeit</label>
+                                <div class="relative w-full">
+                                    <input type="number" wire:model.blur="laser_runtime_minutes" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">Minuten</span>
+                                </div>
+                                <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Dient der Berechnung der Maschinenkosten.</p>
+                            </div>
+                            <div class="w-full min-w-0">
+                                <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Strom & Maschinenverschleiß pro Min.</label>
+                                <div class="relative w-full">
+                                    <input type="number" wire:model.blur="electricity_wear_factor" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="1">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">Cent</span>
+                                </div>
+                                <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Standard: 1 Cent/Min (UV-Laser).</p>
+                            </div>
+                            
+                            <div class="w-full min-w-0">
+                                <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Verpackungskosten</label>
+                                <div class="relative w-full">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
+                                    <input type="number" step="0.01" wire:model.blur="packaging_cost_input" class="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0.00">
+                                </div>
+                                <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Materialwert der Versandkartons und Inlays.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
+        @if($type === 'physical')
+            <div class="animate-fade-in-up mt-6 md:mt-8">
                 <livewire:shop.product.product-tier-pricing :product="$product" :currentPrice="$price_input" />
             </div>
         @endif

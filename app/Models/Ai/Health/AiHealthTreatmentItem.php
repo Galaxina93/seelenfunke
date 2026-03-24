@@ -16,6 +16,11 @@ class AiHealthTreatmentItem extends Model
         'dosage',
         'duration_days',
         'notes',
+        'is_completed',
+    ];
+
+    protected $casts = [
+        'is_completed' => 'boolean',
     ];
 
     public function plan()

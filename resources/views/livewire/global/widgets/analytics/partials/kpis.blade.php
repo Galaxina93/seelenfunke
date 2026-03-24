@@ -4,7 +4,7 @@
     <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 lg:p-8 shadow-2xl border border-gray-800 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12 relative overflow-hidden group">
         
         <!-- Score Gauge (Linker Bereich) -->
-        <div class="flex items-center gap-6 z-10">
+        <div class="flex flex-col sm:flex-row items-center text-center sm:text-left gap-4 sm:gap-6 z-10 w-full sm:w-auto">
             @php
                 $score = $stats['health_score'] ?? 0;
                 $colorClass = $score >= 80 ? 'text-emerald-400' : ($score >= 50 ? 'text-amber-400' : 'text-red-400');
@@ -23,10 +23,10 @@
                 </div>
             </div>
             
-            <div class="flex flex-col">
-                <h2 class="text-xl md:text-3xl font-serif font-bold text-white mb-1">Shop Health Score</h2>
-                <p class="text-[10px] md:text-xs font-bold text-gray-500 max-w-[200px] md:max-w-xs leading-relaxed">Gesundheitswert aus Break-Even, Marge, Trend und Liquidität.</p>
-                <div class="mt-4">
+            <div class="flex flex-col items-center sm:items-start">
+                <h2 class="text-xl md:text-3xl font-serif font-bold text-white mb-2 sm:mb-1">Shop Health Score</h2>
+                <p class="text-[10px] md:text-xs font-bold text-gray-500 max-w-[260px] md:max-w-xs leading-relaxed">Gesundheitswert aus Break-Even, Marge, Trend und Liquidität.</p>
+                <div class="mt-4 sm:mt-4 w-full sm:w-auto flex justify-center sm:justify-start">
                     @include('livewire.global.ai.ask-ai-dropdown', ['actionMethod' => 'startAiRecommendation', 'buttonText' => 'Agent fragen'])
                 </div>
             </div>
@@ -34,10 +34,10 @@
 
         <!-- Ø Mtl Gewinn (Rechter Bereich) -->
         <div class="flex flex-col items-center md:items-end z-10 border-t md:border-t-0 md:border-l border-gray-800 pt-6 md:pt-0 pl-0 md:pl-12 w-full md:w-auto">
-            <span class="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-500 mb-2">Ø Mtl. Gewinn</span>
-            <span class="text-4xl md:text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] tracking-tighter">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
+            <span class="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-500 mb-2 text-center md:text-right">Ø Mtl. Gewinn</span>
+            <span class="text-4xl md:text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)] tracking-tighter text-center md:text-right">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
             
-            <button @click="showDetails = !showDetails" class="mt-6 flex items-center gap-2 px-5 py-2.5 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-inner group/btn">
+            <button @click="showDetails = !showDetails" class="mt-6 flex items-center justify-center w-full sm:w-auto gap-2 px-5 py-3 sm:py-2.5 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-inner group/btn active:scale-95">
                 <span x-text="showDetails ? 'Analyse einklappen' : 'Finanz-Analyse'"></span>
                 <i :class="showDetails ? 'bi bi-chevron-up' : 'bi bi-chevron-down'" class="transition-transform group-hover/btn:text-primary"></i>
             </button>

@@ -30,6 +30,7 @@ class ProductCreate extends Component
     // Preis & Steuer
     public $price_input = '';
     public $compare_price_input = '';
+    public $purchase_price_input = ''; // EK Preis in Cent (aber Float-Input)
 
     // Staffelpreise (Array für Livewire Binding)
     public $tiers = [];
@@ -38,6 +39,7 @@ class ProductCreate extends Component
     public $sku = '';
     public $barcode = '';
     public $brand = '';
+    public $supplier_id = null;
 
     // Status (Enum)
     public $status = 'draft';
@@ -48,6 +50,11 @@ class ProductCreate extends Component
     public $width = 0;  // mm
     public $length = 0; // mm
     public $shipping_class = ''; // NEU hinzugefügt für das Shipping Panel
+
+    // --- Produktion & Kalkulation (Nur bei Type = physical)
+    public $laser_runtime_minutes = null;
+    public $electricity_wear_factor = 1;
+    public $packaging_cost_input = ''; // in Euro
 
     // SEO
     public $seo_title = '';
@@ -118,6 +125,7 @@ class ProductCreate extends Component
             // SKU nur validieren, wenn sie nicht leer ist oder wir im Speicher-Modus sind
             'sku' => 'nullable|min:3',
             'price_input' => 'required|numeric|min:0',
+            'purchase_price_input' => 'nullable|numeric|min:0',
             'slug_input' => 'nullable', // Slug wird automatisch generiert, muss hier nicht strict sein
             'type' => 'required|in:physical,digital,service',
         ];
@@ -227,6 +235,7 @@ class ProductCreate extends Component
         $this->sku = $this->product->sku;
         $this->barcode = $this->product->barcode;
         $this->brand = $this->product->brand;
+        $this->supplier_id = $this->product->supplier_id;
 
         // Versanddaten laden
         $this->weight = $this->product->weight;
@@ -234,6 +243,13 @@ class ProductCreate extends Component
         $this->width = $this->product->width;
         $this->length = $this->product->length;
         $this->shipping_class = $this->product->shipping_class; // Laden der Shipping Class
+
+        // Kalkulation & Produktion laden
+        $this->laser_runtime_minutes = $this->product->laser_runtime_minutes;
+        $this->electricity_wear_factor = $this->product->electricity_wear_factor ?? 1;
+        $this->packaging_cost_input = $this->product->packaging_cost > 0
+            ? number_format($this->product->packaging_cost / 100, 2, '.', '')
+            : '';
 
         // Lager
         $this->track_quantity = (bool) $this->product->track_quantity;
@@ -247,6 +263,10 @@ class ProductCreate extends Component
 
         $this->compare_price_input = $this->product->compare_at_price
             ? number_format($this->product->compare_at_price / 100, 2, '.', '')
+            : '';
+
+        $this->purchase_price_input = $this->product->purchase_price > 0
+            ? number_format($this->product->purchase_price / 100, 2, '.', '')
             : '';
 
         // Staffelpreise laden
@@ -384,7 +404,15 @@ class ProductCreate extends Component
     {
         if ($this->currentStep === 1) {
             $price = (float) $this->price_input;
-            return !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input) && !empty($this->type);
+            $purchase = (float) $this->purchase_price_input;
+            
+            $validBasic = !empty($this->name) && $price > 0 && !empty($this->sku) && !empty($this->slug_input) && !empty($this->type);
+            
+            if ($this->type === 'physical') {
+                return $validBasic && $this->purchase_price_input !== '' && $purchase >= 0;
+            }
+            
+            return $validBasic;
         }
         if ($this->currentStep === 2) {
             // Mindestens ein Bild prüfen
@@ -443,6 +471,7 @@ class ProductCreate extends Component
         $this->product->sku = $this->sku;
         $this->product->barcode = $this->barcode;
         $this->product->brand = $this->brand;
+        $this->product->supplier_id = empty($this->supplier_id) ? null : $this->supplier_id;
 
         // 5. Lager
         $this->product->track_quantity = (bool) $this->track_quantity;
@@ -451,6 +480,13 @@ class ProductCreate extends Component
 
         // 6. Preis (Cent-Konvertierung)
         $this->product->price = empty($this->price_input) ? 0 : (int) round((float)$this->price_input * 100);
+        
+        if ($this->type === 'physical') {
+            $this->product->purchase_price = $this->purchase_price_input === '' ? 0 : (int) round((float)$this->purchase_price_input * 100);
+        } else {
+            $this->product->purchase_price = 0; // Kein EK für Digital/Service
+        }
+        
         if($this->compare_price_input) {
             $this->product->compare_at_price = (int) round((float)$this->compare_price_input * 100);
         } else {
@@ -464,6 +500,11 @@ class ProductCreate extends Component
             $this->product->width = (int) $this->width;
             $this->product->length = (int) $this->length;
             $this->product->shipping_class = empty($this->shipping_class) ? null : $this->shipping_class; // Speichern!
+            
+            // Kalkulation & Produktion
+            $this->product->laser_runtime_minutes = $this->laser_runtime_minutes === '' ? null : (int) $this->laser_runtime_minutes;
+            $this->product->electricity_wear_factor = $this->electricity_wear_factor === '' ? 1 : (int) $this->electricity_wear_factor;
+            $this->product->packaging_cost = $this->packaging_cost_input === '' ? 0 : (int) round((float)$this->packaging_cost_input * 100);
         } else {
             // Bereinigung falls Typ geändert wurde
             $this->product->weight = null;
@@ -471,6 +512,10 @@ class ProductCreate extends Component
             $this->product->width = null;
             $this->product->length = null;
             $this->product->shipping_class = null;
+            // Kalkulation
+            $this->product->laser_runtime_minutes = null;
+            $this->product->electricity_wear_factor = 1;
+            $this->product->packaging_cost = null;
         }
 
         // 8. JSON Arrays
@@ -743,6 +788,7 @@ class ProductCreate extends Component
 
         return view('livewire.shop.product.product-create', [
             'products' => $products,
+            'suppliers' => \App\Models\Product\Supplier::orderBy('name')->get(),
             'canProceed' => $this->canProceed()
         ]);
     }

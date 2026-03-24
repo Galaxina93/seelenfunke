@@ -15,16 +15,22 @@ class AiHealthProtocol extends Model
     protected $fillable = [
         'user_id',
         'ai_agent_id',
+        'ai_health_treatment_plan_id',
         'content',
     ];
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(\App\Models\Admin\Admin::class, 'user_id');
     }
 
     public function agent()
     {
         return $this->belongsTo(AiAgent::class, 'ai_agent_id');
+    }
+
+    public function treatmentPlan()
+    {
+        return $this->belongsTo(AiHealthTreatmentPlan::class, 'ai_health_treatment_plan_id');
     }
 }

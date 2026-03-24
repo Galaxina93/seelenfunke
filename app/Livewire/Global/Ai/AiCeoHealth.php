@@ -8,22 +8,54 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 class AiCeoHealth extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithPagination;
 
     public $input = '';
+    public $searchChat = '';
     public $messages = [];
     public $agentId = null;
     public $typing = false;
-    
-    public $activeTab = 'chat'; // 'chat', 'plans', 'protocols', 'files'
-    
+
+    public $activeTab = 'chat'; // 'chat', 'plans', 'protocols', 'files', 'medications'
+
     // Uploads
     public $currentPath = 'wiki/health';
     public $healthFiles = [];
     public $uploadedHealthFiles = [];
+    public $aiLiveState = [];
+
+    protected $listeners = ['health-files-updated' => 'setHealthFiles'];
+
+    public function updateLiveState()
+    {
+        if ($this->typing) {
+            $this->aiLiveState = \Illuminate\Support\Facades\Cache::get('ai_live_state', []);
+        } else {
+            $this->aiLiveState = [];
+        }
+    }
+
+    // Medications
+    public $medicationIsLongTerm = false;
+
+    // View Medication State
+    public $viewingMedicationId = null;
+    public $viewingMedication = null;
+
+    public $showMedicationModal = false;
+    public $medicationForm = [
+        'id' => null,
+        'name' => '',
+        'description' => '',
+        'active_ingredients' => '',
+        'dosage' => '',
+        'frequency' => '',
+        'is_long_term' => false,
+    ];
 
     public function mount()
     {
@@ -38,13 +70,14 @@ class AiCeoHealth extends Component
         $history = AiChatMemory::where('session_id', session()->getId() . '_health')
                                ->orderBy('created_at', 'asc')
                                ->get();
-        
+
         if ($history->isNotEmpty()) {
             foreach ($history as $mem) {
                 if ($mem->role === 'tool') continue;
 
                 $ctx = $mem->context_data ?? [];
                 $this->messages[] = [
+                    'id' => $mem->id,
                     'role' => $mem->role,
                     'name' => $ctx['name'] ?? ucfirst($mem->role),
                     'content' => $mem->content,
@@ -56,7 +89,7 @@ class AiCeoHealth extends Component
         } else {
             // Initial Welcome Message
             if ($agent) {
-                $this->saveMessageToDb('assistant', '> Guten Tag! Ich bin Dr. Funki, Ihr persönlicher Hausarzt. Wie darf ich Ihnen heute helfen? Sie können hier rechts im Panel auch medizinische Befunde hochladen.', [
+                $initialDb = $this->saveMessageToDb('assistant', '> Guten Tag! Ich bin Dr. Funki, Ihr persönlicher Hausarzt. Wie darf ich Ihnen heute helfen?', [
                     'name' => $agent->name,
                     'color' => $agent->color,
                     'icon' => $agent->icon,
@@ -68,6 +101,7 @@ class AiCeoHealth extends Component
                 if ($mem->role === 'tool') continue;
                 $ctx = $mem->context_data ?? [];
                 $this->messages[] = [
+                    'id' => $mem->id,
                     'role' => $mem->role,
                     'name' => $ctx['name'] ?? ucfirst($mem->role),
                     'content' => $mem->content,
@@ -83,7 +117,7 @@ class AiCeoHealth extends Component
 
     private function saveMessageToDb($role, $content, $contextData)
     {
-        AiChatMemory::create([
+        return AiChatMemory::create([
             'session_id' => session()->getId() . '_health',
             'role' => $role,
             'content' => $content,
@@ -103,8 +137,12 @@ class AiCeoHealth extends Component
             'profile_picture' => auth()->check() && auth()->user()->profile ? auth()->user()->profile->photo_path : null,
         ];
 
+        // DB Save
+        $savedDb = $this->saveMessageToDb('user', $this->input, $userCtx);
+
         // UI Update
         $this->messages[] = [
+            'id' => $savedDb->id,
             'role' => 'user',
             'name' => $userCtx['name'],
             'content' => $this->input,
@@ -113,9 +151,6 @@ class AiCeoHealth extends Component
             'profile_picture' => $userCtx['profile_picture'],
         ];
 
-        // DB Save
-        $this->saveMessageToDb('user', $this->input, $userCtx);
-
         $this->input = '';
         $this->typing = true;
 
@@ -123,7 +158,53 @@ class AiCeoHealth extends Component
         $this->dispatch('start-health-ai-inference');
     }
 
-    #[On('process-health-agent')]
+    public function repostMessage($id)
+    {
+        $mem = AiChatMemory::find($id);
+        if ($mem && $mem->role === 'user') {
+            $this->input = $mem->content;
+            $this->sendMessage();
+        }
+    }
+
+    public function continueFromMessage($id)
+    {
+        $mem = AiChatMemory::find($id);
+        if ($mem && $mem->role === 'user') {
+            $content = $mem->content;
+
+            // Delete this message and all subsequent messages in the session
+            AiChatMemory::where('session_id', session()->getId() . '_health')
+                ->where('created_at', '>=', $mem->created_at)
+                ->delete();
+
+            // Completely rebuild the local component state from DB
+            $this->messages = [];
+            $history = AiChatMemory::where('session_id', session()->getId() . '_health')
+                        ->orderBy('created_at', 'asc')
+                        ->get();
+
+            foreach ($history as $m) {
+                if ($m->role === 'tool') continue;
+                $ctx = $m->context_data ?? [];
+                $this->messages[] = [
+                    'id' => $m->id,
+                    'role' => $m->role,
+                    'name' => $ctx['name'] ?? ucfirst($m->role),
+                    'content' => $m->content,
+                    'color' => $ctx['color'] ?? ($m->role === 'user' ? 'gray-400' : 'teal-500'),
+                    'icon' => $ctx['icon'] ?? ($m->role === 'user' ? 'user' : 'user-plus'),
+                    'profile_picture' => $ctx['profile_picture'] ?? null,
+                ];
+            }
+
+            // Now automatically send the old content as a fresh message
+            $this->input = $content;
+            $this->sendMessage();
+        }
+    }
+
+    #[On('start-health-ai-inference')]
     public function processAgent()
     {
         if (!$this->typing || !$this->agentId) return;
@@ -139,22 +220,34 @@ class AiCeoHealth extends Component
             ->take(20)
             ->get()
             ->reverse();
-            
+
         $apiHistory = [];
-        
+        $userName = auth()->check() ? trim(auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'Patient';
+
         // Füge System Kontext für hochgeladene Dokumente hinzu (Rekursiv alle Ordner)
         $allSystemFiles = Storage::disk('public')->allFiles('wiki/health');
         if (!empty($allSystemFiles)) {
             $docList = collect($allSystemFiles)->map(fn($path) => basename($path))->implode(', ');
             $apiHistory[] = [
                 'role' => 'system',
-                'content' => "System Info: Es wurden folgende medizinische Dokumente hochgeladen und stehen über die Knowledge Base im Verzeichnis 'wiki/health' zur Verfügung: $docList. Nutze diese als Referenz bei passenden Fragen."
+                'content' => "System Info: Der Name deines Patienten ist {$userName}. Es wurden folgende medizinische Dokumente hochgeladen und stehen über die Knowledge Base im Verzeichnis 'wiki/health' zur Verfügung: $docList. Nutze diese als Referenz.
+WICHTIGSTE REGEL FÜR DR. FUNKI: Sei brillant, präzise und absolut professionell. Du MUSST eine Mischung aus verständlicher Sprache und tiefem medizinischem Fachjargon (Fachbegriffe, Latein) nutzen.
+Wenn du eine 'Diagnose & Zusammenfassung' für das PDF erstellst, erkläre die Sachlage klipp und klar.
+FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HINZU, in dem du alle von dir verwendeten medizinischen Fachwörter kurz und prägnant für den Laien erklärst.
+Wenn du etwas untersuchen musst, recherchiere im Netz."
+            ];
+        } else {
+            $apiHistory[] = [
+                'role' => 'system',
+                'content' => "System Info: Der Name deines Patienten ist {$userName}.
+WICHTIGSTE REGEL FÜR DR. FUNKI: Sei brillant, präzise und absolut professionell. Du MUSST eine Mischung aus verständlicher Sprache und tiefem medizinischem Fachjargon (Fachbegriffe, Latein) nutzen.
+FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HINZU, in dem du alle von dir verwendeten medizinischen Fachwörter kurz und prägnant für den Laien erklärst."
             ];
         }
 
         foreach ($fullDbHistory as $mem) {
             if ($mem->role === 'tool') continue;
-            
+
             $apiHistory[] = [
                 'role' => $mem->role,
                 'content' => $mem->content
@@ -163,7 +256,7 @@ class AiCeoHealth extends Component
 
         try {
             $apiService = new \App\Services\AI\MittwaldAgent($agent);
-            
+
             $response = $apiService->ask($apiHistory);
             $replyText = $response['response'] ?? 'Ich konnte keine Antwort generieren.';
 
@@ -187,8 +280,8 @@ class AiCeoHealth extends Component
                 'profile_picture' => $agent->profile_picture,
             ];
 
-            $this->saveMessageToDb('assistant', $replyText, $ctx);
-            $this->messages[] = array_merge(['role' => 'assistant', 'content' => $replyText], $ctx);
+            $savedAgentDb = $this->saveMessageToDb('assistant', $replyText, $ctx);
+            $this->messages[] = array_merge(['id' => $savedAgentDb->id, 'role' => 'assistant', 'content' => $replyText], $ctx);
 
         } catch (\Exception $e) {
             $errCtx = [
@@ -198,8 +291,8 @@ class AiCeoHealth extends Component
                 'profile_picture' => null,
             ];
             $errStr = 'API Fehler [' . $agent->name . ']: ' . $e->getMessage();
-            $this->messages[] = array_merge(['role' => 'assistant', 'content' => $errStr], $errCtx);
-            $this->saveMessageToDb('assistant', $errStr, $errCtx);
+            $savedErrDb = $this->saveMessageToDb('assistant', $errStr, $errCtx);
+            $this->messages[] = array_merge(['id' => $savedErrDb->id, 'role' => 'assistant', 'content' => $errStr], $errCtx);
         }
 
         $this->typing = false;
@@ -213,12 +306,12 @@ class AiCeoHealth extends Component
 
         foreach ($this->healthFiles as $file) {
             $filename = $file->getClientOriginalName();
-            $file->storeAs('public/' . $this->currentPath, $filename);
+            $file->storeAs($this->currentPath, $filename, 'public');
         }
 
-        $this->healthFiles = []; 
+        $this->healthFiles = [];
         $this->loadUploadedFiles();
-        
+
         $this->dispatch('health-files-updated', ['files' => $this->uploadedHealthFiles]);
         $this->dispatch('docs-uploaded'); // Notify frontend UI component
     }
@@ -235,8 +328,8 @@ class AiCeoHealth extends Component
 
     public function deleteItem($path)
     {
-        if (Storage::disk('public')->exists($path)) {
-            if (is_dir(storage_path('app/public/' . $path))) {
+        if (Storage::disk('public')->exists($path) || in_array($path, Storage::disk('public')->directories(dirname($path)))) {
+            if (in_array($path, Storage::disk('public')->directories(dirname($path)))) {
                 Storage::disk('public')->deleteDirectory($path);
             } else {
                 Storage::disk('public')->delete($path);
@@ -268,9 +361,9 @@ class AiCeoHealth extends Component
 
         $files = Storage::disk('public')->files($this->currentPath);
         $dirs = Storage::disk('public')->directories($this->currentPath);
-        
+
         $items = [];
-        
+
         foreach($dirs as $dir) {
             $items[] = [
                 'type' => 'folder',
@@ -290,7 +383,7 @@ class AiCeoHealth extends Component
                 'url' => Storage::url($file),
             ];
         }
-        
+
         $this->uploadedHealthFiles = $items;
     }
 
@@ -306,14 +399,99 @@ class AiCeoHealth extends Component
         $this->activeTab = $tab;
     }
 
+    public function togglePlanItem($itemId)
+    {
+        $item = \App\Models\Ai\Health\AiHealthTreatmentItem::find($itemId);
+        if ($item) {
+            $item->is_completed = !$item->is_completed;
+            $item->save();
+
+            // Auto-complete the whole plan if all items are done
+            $plan = $item->plan;
+            if ($plan && $plan->status === 'active') {
+                $totalItems = $plan->items()->count();
+                $completedItems = $plan->items()->where('is_completed', true)->count();
+                if ($totalItems > 0 && $totalItems === $completedItems) {
+                    $plan->status = 'completed';
+                    if (!$plan->result_evaluation) {
+                        $plan->result_evaluation = 'Plan wurde automatisch durch Erledigung aller Schritte abgeschlossen.';
+                    }
+                    $plan->save();
+                }
+            }
+        }
+    }
+
+    public function viewMedication($id)
+    {
+        $this->viewingMedication = \App\Models\Ai\Health\AiHealthMedication::find($id);
+        if ($this->viewingMedication) {
+            $this->viewingMedicationId = $id;
+        }
+    }
+
+    public function closeMedicationView()
+    {
+        $this->viewingMedicationId = null;
+        $this->viewingMedication = null;
+    }
+
+    public function editMedication($id = null)
+    {
+        if ($id) {
+            $med = \App\Models\Ai\Health\AiHealthMedication::find($id);
+            if ($med) {
+                $this->medicationForm = $med->toArray();
+            }
+        } else {
+            $this->medicationForm = [
+                'id' => null,
+                'name' => '',
+                'description' => '',
+                'active_ingredients' => '',
+                'dosage' => '',
+                'frequency' => '',
+                'is_long_term' => false,
+            ];
+        }
+        $this->showMedicationModal = true;
+    }
+
+    public function saveMedication()
+    {
+        $this->validate([
+            'medicationForm.name' => 'required|string|max:255',
+            'medicationForm.dosage' => 'nullable|string|max:255',
+            'medicationForm.frequency' => 'nullable|string|max:255',
+        ]);
+
+        $data = $this->medicationForm;
+        $data['user_id'] = auth()->id() ?? \App\Models\User::first()->id;
+
+        if ($data['id']) {
+            \App\Models\Ai\Health\AiHealthMedication::find($data['id'])->update($data);
+        } else {
+            \App\Models\Ai\Health\AiHealthMedication::create($data);
+        }
+
+        $this->showMedicationModal = false;
+    }
+
+    public function deleteMedication($id)
+    {
+        \App\Models\Ai\Health\AiHealthMedication::destroy($id);
+    }
+
     public function render()
     {
-        $plans = \App\Models\Ai\Health\AiHealthTreatmentPlan::with('items')->orderBy('created_at', 'desc')->get();
-        $protocols = \App\Models\Ai\Health\AiHealthProtocol::orderBy('created_at', 'desc')->get();
+        $plans = \App\Models\Ai\Health\AiHealthTreatmentPlan::with('items')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'plansPage');
+        $protocols = \App\Models\Ai\Health\AiHealthProtocol::with('treatmentPlan')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'protocolsPage');
+        $medications = \App\Models\Ai\Health\AiHealthMedication::orderBy('name', 'asc')->get();
 
         return view('livewire.global.ai.ai-ceo-health', [
             'plans' => $plans,
             'protocols' => $protocols,
+            'medications' => $medications,
         ])->layout('components.layouts.backend_layout');
     }
 }
