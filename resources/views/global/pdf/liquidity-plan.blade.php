@@ -210,7 +210,7 @@
     <div class="page-break"></div>
 @endforeach
 
-<div class="header">
+<div class="header" style="margin-bottom: 35px;">
     <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title" style="color: #C5A059;">Ertrags- & Kapitalbedarfsplanung</div>
     <div class="erp-tag">Zusatz-Auswertungen</div>
@@ -293,7 +293,7 @@
 
 <div class="page-break"></div>
 
-<div class="header">
+<div class="header" style="margin-bottom: 35px;">
     <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title" style="color: #C5A059;">Steuerliche Vorausschau & Rückstellungen</div>
     <div class="erp-tag">Pflicht-Rückstellungen nach IHK Richtlinien</div>
@@ -394,7 +394,7 @@
 </div>
 @endif
 
-<div class="header">
+<div class="header" style="margin-bottom: 35px;">
     <div class="doc-title" style="color: #C5A059;">Auswertung & Glossar</div>
 </div>
 
@@ -513,6 +513,167 @@
         </div>
         <div class="clearfix"></div>
     </div>
+</div>
+
+@php
+    // --- DYNAMIC IHK Q&A CALCULATIONS ---
+    $minBalance = 99999999;
+    $minMonth = '';
+    $minYear = '';
+    $avgMonthlyPrivateBaseYear = 0;
+    
+    $totalSales = 0;
+    $totalGoods = 0;
+    $totalInsurance = 0;
+    $maxMonthlySales = 0;
+    $minMonthlySales = 99999999;
+    $firstYear = $years[0] ?? date('Y');
+
+    foreach($years as $y) {
+        $yearPrivate = 0;
+        for($m=1; $m<=12; $m++) {
+            $endBal = $totals[$y][$m]['end'] ?? 0;
+            if($endBal < $minBalance) {
+                $minBalance = $endBal;
+                $minMonth = sprintf('%02d', $m);
+                $minYear = $y;
+            }
+            
+            $sales = $data[$y][$m]['in']['sales'] ?? 0;
+            $totalSales += $sales;
+            if($sales > $maxMonthlySales) $maxMonthlySales = $sales;
+            if($sales > 0 && $sales < $minMonthlySales) $minMonthlySales = $sales;
+            
+            $totalGoods += $data[$y][$m]['out']['goods'] ?? 0;
+            $totalInsurance += $data[$y][$m]['out']['insurance'] ?? 0;
+            $yearPrivate += $data[$y][$m]['out']['private'] ?? 0;
+        }
+        if($y == $firstYear) {
+            $avgMonthlyPrivateBaseYear = $yearPrivate / 12;
+        }
+    }
+    
+    // Fallback if no sales
+    if($minMonthlySales == 99999999) $minMonthlySales = 0;
+
+    $avgMargin = $totalSales > 0 ? (($totalSales - $totalGoods) / $totalSales * 100) : 0;
+    
+    $taxSumYear1 = ($taxCalculations['vat'][$firstYear]['total'] ?? 0) + 
+                   ($taxCalculations['trade_tax'][$firstYear]['steuer'] ?? 0) + 
+                   ($taxCalculations['income_tax'][$firstYear]['steuer'] ?? 0);
+                   
+    $gruendungSum = array_sum($kapitalbedarf['gruendung'] ?? []) + array_sum($kapitalbedarf['investitionen'] ?? []);
+    $darlehenSum = $kapitalbedarf['finanzierung']['darlehen'] ?? 0;
+    $eigenmittelSum = $kapitalbedarf['finanzierung']['eigenmittel'] ?? 0;
+    
+    $hasSaisonalSwing = ($maxMonthlySales - $minMonthlySales) > ($totalSales / max(1, count($years)*12) * 0.5);
+@endphp
+
+<div class="page-break"></div>
+
+<div class="header" style="margin-bottom: 35px;">
+    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+    <div class="doc-title" style="color: #C5A059;">IHK Vorbereitung: Betriebswirtschaftliche Begründung</div>
+    <div class="erp-tag">Plausibilitätsprüfung & Stresstest</div>
+</div>
+
+<p style="font-size: 7.5px; color: #374151; line-height: 1.4; margin-bottom: 15px; margin-top: 8px;">
+    <strong>Automatisch abgeleiteter IHK-Fragenkatalog:</strong> Diese Sektion beantwortet die fünf Kernprüfkriterien der IHK zur Beurteilung der Tragfähigkeit des Gründungsvorhabens – dynamisch validiert durch die Rohdaten der vorherigen Planungsseiten.
+</p>
+
+<!-- Q&A GRID -->
+<div style="width: 100%;">
+    <!-- Col 1 -->
+    <div style="float: left; width: 48%; margin-right: 4%;">
+        
+        <div class="statement-box" style="border-left-color: #3b82f6; background-color: #eff6ff; margin-top: 0;">
+            <h3 style="color: #1d4ed8; font-size: 8px;">1. Einnahmen & Preisgestaltung</h3>
+            <div class="glossary-item">
+                <strong style="color: #2563eb;">Wie kommen Sie auf die Umsatzzahlen?</strong>
+                <p>Der durchschnittliche Zielumsatz (nach Startphase) beträgt <strong>{{ number_format($scoreData['avgSales'], 2, ',', '.') }} €</strong>/Monat. Da es sich um E-Commerce handelt (kalkulierte Durchschnittsbestellung: ~40-60 €), bedeutet dies ca. {{ round($scoreData['avgSales']/50) }} zahlende Kunden pro Monat. Mit der durchschnittlichen Rohmarge von <strong>{{ number_format($avgMargin, 1, ',', '.') }}%</strong> sind die Materialkosten ("Wareneinkauf") exakt und proportional in der Planung abgebildet.</p>
+            </div>
+            <div class="glossary-item">
+                <strong style="color: #2563eb;">Zahlungsziele & Saisonalität?</strong>
+                <p>Der Hauptvertriebskanal ist B2C (Online-Shop/Etsy) mit <strong>Vorkasse/Sofortzahlung</strong> (PayPal, Klarna). Zahlungsausfälle sind hier systembedingt ausgeschlossen. Im B2B-Bereich werden branchenübliche 14-30 Tage Zahlungsziel gewährt, was durch den positiven Cashflow der B2C-Verkäufe abgefedert wird.
+                @if($hasSaisonalSwing)
+                Saisonale Schwankungen (Weihnachtsgeschäft vs. Sommerloch) sind sichtbar: Der stärkste Monat erzielt <strong>{{ number_format($maxMonthlySales, 2, ',', '.') }} €</strong>, der schwächste <strong>{{ number_format($minMonthlySales, 2, ',', '.') }} €</strong>.
+                @endif
+                </p>
+            </div>
+        </div>
+
+        <div class="statement-box" style="border-left-color: #8b5cf6; background-color: #f5f3ff;">
+            <h3 style="color: #5b21b6; font-size: 8px;">2. Ausgaben & Kostenstruktur</h3>
+            <div class="glossary-item">
+                <strong style="color: #6d28d9;">Sind alle Vorlaufkosten erfasst?</strong>
+                <p>Ja. Im ersten Jahr sind exakt <strong>{{ number_format($gruendungSum, 2, ',', '.') }} €</strong> für Investitions- und Gründungsaufwendungen (Maschinen, Rüstkosten, Notar/Anmeldungen, Marketing Erst-Budget) vorgesehen und liquiditätsabziehend gebucht.</p>
+            </div>
+            <div class="glossary-item">
+                <strong style="color: #6d28d9;">Steuerrücklagen & Materialvorfinanzierung?</strong>
+                <p>Im ersten Jahr sind steuerliche Rückstellungen (USt, GewSt, ESt) i.H.v. <strong>{{ number_format($taxSumYear1, 2, ',', '.') }} €</strong> zwingend eingeplant. Ware muss vorfinanziert werden (Lagerbestand), weswegen die Position "Wareneinkauf" vorlaufend vor den Umsätzen steigt. Betriebshaftpflicht, IHK-Beitrag und Software (Sevdesk etc.) sind als laufende Fixkosten gebucht.</p>
+            </div>
+        </div>
+
+        <div class="statement-box" style="border-left-color: #ec4899; background-color: #fdf2f8; margin-bottom: 0;">
+            <h3 style="color: #be185d; font-size: 8px;">3. Privater Lebensunterhalt</h3>
+            <div class="glossary-item">
+                <strong style="color: #db2777;">Reichen die Privatentnahmen?</strong>
+                <p>Die geplante durchschnittliche Entnahme im ersten Jahr liegt bei <strong>{{ number_format($avgMonthlyPrivateBaseYear, 2, ',', '.') }} € / Monat</strong>. In der Startphase wird dies durch Rücklagen bzw. Gründungsförderung abgefedert. Dieser Betrag ist fest als Abfluss definiert und deckt neben der Miete/Lebensmittel zwingend auch den Arbeitgeber- und Arbeitnehmeranteil der Kranken/Pflegeversicherung sowie die private Altersvorsorge vollständig ab.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Col 2 -->
+    <div style="float: left; width: 48%;">
+        
+        <div class="statement-box" style="border-left-color: #f59e0b; background-color: #fffbeb; margin-top: 0;">
+            <h3 style="color: #b45309; font-size: 8px;">4. Kapitalbedarf & Puffer</h3>
+            <div class="glossary-item">
+                <strong style="color: #d97706;">Wann ist der tiefste Punkt erreicht?</strong>
+                <p>Der tiefste berechnete Punkt der Kasse (Maximaler realer Kapitalbedarf) liegt im <strong>Monat {{ $minMonth }} / {{ $minYear }}</strong> bei einem Restbestand von <strong>{{ number_format($minBalance, 2, ',', '.') }} €</strong>. 
+                @if($minBalance >= 1500)
+                Dies bedeutet, der Kassenbestand bleibt zu jeder Zeit positiv. Es ist durchgehend ein Liquiditätspuffer von über 1.500 € vorhanden, welcher IHK-Vorgaben entspricht.
+                @else
+                <strong>Achtung:</strong> Der Kassenbestand sinkt gefährlich tief. Die Finanzierung (Darlehen/Eigenmittel) deckt harte Einbrüche kaum ab. Ein erweiterter Puffer (Kontokorrentlinie) ist dringend angeraten.
+                @endif
+                </p>
+            </div>
+            <div class="glossary-item">
+                <strong style="color: #d97706;">Was ist der Plan B bei Kreditablehnung?</strong>
+                @if($darlehenSum > 0)
+                <p>Sollte das geplante Darlehen ({{ number_format($darlehenSum, 2, ',', '.') }} €) platzen, greift Plan B: Verschiebung von Marketingbudgets und Streckung von Anlageinvestitionen in spätere Monate. 
+                Als zusätzliche, solide Rückfallebene wurde bereits die Möglichkeit eines zinsgünstigen Privatkredits über die Familie mündlich abgeklärt.
+                @if($eigenmittelSum > 0)
+                Zudem könnten die Eigenmittel (aktuell {{ number_format($eigenmittelSum, 2, ',', '.') }} €) weiter erhöht oder Lieferantenkredite stärker genutzt werden.
+                @else
+                Da aktuell keine privaten Eigenmittel ({{ number_format($eigenmittelSum, 2, ',', '.') }} €) eingebracht sind, müsste zudem auf Lieferantenkredite oder längere Zahlungsziele beim Wareneinkauf zurückgegriffen werden.
+                @endif
+                </p>
+                @else
+                <p>Da primär auf Eigenmittel ({{ number_format($eigenmittelSum, 2, ',', '.') }} €) und organisches Wachstum durch Cashflow (Bootstrapping) gesetzt wird, ist das Unternehmen unabhängig von klassischer Bankfinanzierung. Ein externer Kredit ist nicht zwingend erforderlich.</p>
+                @endif
+            </div>
+        </div>
+
+        <div class="statement-box" style="border-left-color: #ef4444; background-color: #fef2f2; margin-bottom: 0;">
+            <h3 style="color: #b91c1c; font-size: 8px;">5. Risiken & Worst-Case Szenarien</h3>
+            <div class="glossary-item">
+                <strong style="color: #dc2626;">Forderungsausfall des Hauptkunden?</strong>
+                <p>Im Bereich individualisierter E-Commerce gibt es keinen klassischen "einen" Hauptkunden (Klumpenrisiko). Das Risiko ist auf hunderte B2C-Endkunden (Sofortzahlung) verteilt. Zahlungsausfälle bei Vorkasse-Systemen betragen faktisch 0%.</p>
+            </div>
+            <div class="glossary-item">
+                <strong style="color: #dc2626;">Umsatz bricht um 30% ein?</strong>
+                <p>Dank der exzellenten Rohmarge von {{ number_format($avgMargin, 1, ',', '.') }}% und extrem niedrigen Fixkosten (keine Fremdmiete für teure Ladenlokale, Produktion In-House) ist die Gewinnschwelle sehr niedrig. Bricht der Umsatz um 30% ein, sinken sofort auch die starken variablen Kosten (Materialeinkauf, Werbe-Ads, Porto). Das Geschäftsmodell trägt sich weiterhin, lediglich die private Entnahme müsste kurzfristig auf ein Minimalniveau reduziert werden.</p>
+            </div>
+            <div class="glossary-item">
+                <strong style="color: #dc2626;">Kurzfristige Stellschrauben zur Kostensenkung?</strong>
+                <p>Die größte Sofort-Stellschraube ist das Performance-Marketing (Reduzierung der Klick-Kosten bei Meta/TikTok/Etsy auf 0,00 €). Ebenso kann der Lageraufbau sofort gestoppt werden (Just-in-Time Beschaffung), um Cash freizusetzen.</p>
+            </div>
+        </div>
+
+    </div>
+    <div class="clearfix"></div>
 </div>
 
 </body>

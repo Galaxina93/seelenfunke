@@ -26,6 +26,7 @@ return new class extends Migration
             $table->text('role_description')->nullable();
             $table->text('system_prompt')->nullable();
             $table->string('model')->nullable()->default('gpt-oss-120b');
+            $table->boolean('tts_enabled')->default(false);
             $table->string('tts_provider')->default('toni_xttsv2');
             $table->string('tts_voice')->nullable();
             $table->string('tts_api_url')->nullable();

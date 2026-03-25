@@ -22,33 +22,32 @@
     </div>
 
     <!-- DAS HAUPT-DOCK -->
-    <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-80 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
+    <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-64 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
         <div x-data="funkiView()" class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex justify-between items-center">
                     <span>KI Schnell-Steuerung</span>
-                    <div class="flex items-center gap-2">
-                        <button x-show="continuousMode" @click="$dispatch('funki-force-stop');" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-colors" title="Sprache Stoppen">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
-                                <rect x="5" y="5" width="10" height="10" rx="1" />
-                            </svg>
-                            <span>Stop</span>
-                        </button>
-                        @php $funkiraActive = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->exists(); @endphp
-                        @if($funkiraActive)
-                        <button @click="$dispatch('open-funkira'); dockOpen = false" class="text-emerald-500 hover:text-emerald-400 flex items-center gap-1 bg-emerald-900/30 px-2 py-1 rounded-lg border border-emerald-500/30 transition-colors" title="Zentrum Öffnen">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
-                                <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
-                                <circle cx="10" cy="10" r="3"/>
-                            </svg>
-                            <span>KI-3D-Zentrum</span>
-                        </button>
-                        @endif
-                    </div>
+                    <button x-show="continuousMode" @click="$dispatch('funki-force-stop');" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-colors" title="Sprache Stoppen">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                            <rect x="5" y="5" width="10" height="10" rx="1" />
+                        </svg>
+                        <span>Stop</span>
+                    </button>
                 </div>
             </div>
             
-            <div class="flex flex-col gap-3 items-start border-b border-emerald-900/30 pb-4 mb-1">
+            <div class="flex flex-col gap-4 items-start border-b border-emerald-900/30 pb-4 mb-1">
+                @php $funkiraActive = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->exists(); @endphp
+                @if($funkiraActive)
+                <button @click="$dispatch('open-funkira'); dockOpen = false" class="w-full text-emerald-500 hover:text-emerald-400 flex items-center justify-center gap-2 bg-emerald-900/30 px-3 py-2.5 rounded-xl border border-emerald-500/30 transition-all hover:scale-[1.02] shadow-[0_0_15px_rgba(16,185,129,0.1)]" title="Zentrum Öffnen">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+                        <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
+                        <circle cx="10" cy="10" r="3"/>
+                    </svg>
+                    <span class="font-bold tracking-widest text-[10px] uppercase">3D-Zentrum öffnen</span>
+                </button>
+                @endif
+
                 <label class="flex items-center gap-2 cursor-pointer group" title="Zuhören (Immer hören)">
                     <div class="relative w-8 h-4 transition-colors rounded-full" :class="continuousMode ? 'bg-emerald-500' : 'bg-gray-700'">
                         <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="sr-only">
@@ -79,6 +78,7 @@
 <div x-data="funkiView()"
      wire:ignore
      @open-funkira.window="openFunkiView()"
+     @close-funkira.window="closeFunkiView()"
      @funki-event.window="updateFunkiStatus($event.detail.state)"
      @funki-force-stop.window="stopSpeech()"
      @keyup.escape.window="closeFunkiView()">

@@ -107,9 +107,9 @@
                             </span>
                         </div>
                         <div class="flex items-center justify-end">
-                            <span class="flex items-center gap-1.5 text-pink-500/70 group-hover:text-pink-400 transition-colors">
-                                <span class="w-1.5 h-1.5 rounded-full {{ isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['tts'], ['Offline', 'Fehler']) ? 'bg-red-500' : ($pingResults[$agent->id]['tts'] === 'Inaktiv' ? 'bg-gray-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]')) : 'bg-gray-500' }}"></span>
-                                TTS: {{ $agent->tts_provider === 'toni_xttsv2' ? 'Toni XTTS' : ($agent->tts_provider === 'none' ? 'Inaktiv' : 'ElevenLabs') }}
+                            <span class="flex items-center gap-1.5 {{ !$agent->tts_enabled ? 'text-gray-500 group-hover:text-gray-400' : 'text-pink-500/70 group-hover:text-pink-400' }} transition-colors">
+                                <span class="w-1.5 h-1.5 rounded-full {{ !$agent->tts_enabled ? 'bg-gray-500' : (isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['tts'], ['Offline', 'Fehler']) ? 'bg-red-500' : ($pingResults[$agent->id]['tts'] === 'Inaktiv' ? 'bg-gray-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]')) : 'bg-gray-500') }}"></span>
+                                TTS: {{ !$agent->tts_enabled ? 'Deaktiviert' : ($agent->tts_provider === 'toni_xttsv2' ? 'Toni XTTS' : ($agent->tts_provider === 'none' ? 'Inaktiv' : 'ElevenLabs')) }}
                             </span>
                         </div>
 
@@ -134,7 +134,7 @@
                             <div class="flex flex-col text-right text-[10px] uppercase font-bold tracking-widest min-w-0">
                                 @if(isset($pingResults[$agent->id]))
                                     <span class="{{ $pingResults[$agent->id]['llm'] === 'Offline' || $pingResults[$agent->id]['llm'] === 'Fehler' ? 'text-red-400' : 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]' }} truncate">LLM: {{ $pingResults[$agent->id]['llm'] }}</span>
-                                    <span class="{{ $pingResults[$agent->id]['tts'] === 'Offline' || $pingResults[$agent->id]['tts'] === 'Fehler' ? 'text-red-400' : ($pingResults[$agent->id]['tts'] === 'Inaktiv' ? 'text-gray-500' : 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]') }} truncate">TTS: {{ $pingResults[$agent->id]['tts'] }}</span>
+                                    <span class="{{ $pingResults[$agent->id]['tts'] === 'Offline' || $pingResults[$agent->id]['tts'] === 'Fehler' ? 'text-red-400' : (in_array($pingResults[$agent->id]['tts'], ['Inaktiv', 'Deaktiviert']) ? 'text-gray-500' : 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]') }} truncate">TTS: {{ $pingResults[$agent->id]['tts'] }}</span>
                                 @else
                                     <span class="text-gray-600 opacity-50 block mt-1">Status Unbekannt</span>
                                 @endif

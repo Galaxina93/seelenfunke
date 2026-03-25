@@ -277,10 +277,22 @@
                         voice: $wire.entangle('tts_voice'),
                         voicesMap: @js($ttsVoices) 
                     }">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                            Sprachmodell (TTS) Konfiguration
-                        </label>
-                        <div class="space-y-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                Sprachmodell (TTS) Konfiguration
+                            </label>
+                            <div class="flex items-center gap-3">
+                                <span class="text-[10px] font-black tracking-widest uppercase transition-colors duration-300 {{ $tts_enabled ? 'text-indigo-400' : 'text-gray-500' }}">
+                                    {{ $tts_enabled ? 'Aktiviert' : 'Deaktiviert' }}
+                                </span>
+                                <label class="relative inline-flex items-center cursor-pointer" title="TTS aktivieren/deaktivieren">
+                                    <input type="checkbox" wire:model.live="tts_enabled" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-700/80 border border-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500/80 peer-checked:border-indigo-500 peer-checked:shadow-[0_0_15px_rgba(99,102,241,0.4)] shadow-inner transition-colors"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 transition-all duration-300" x-show="$wire.tts_enabled" x-collapse x-cloak>
                             <!-- Provider -->
                             <div class="relative">
                                 <select x-model="provider" @change="voice = Object.keys(voicesMap[provider] || {})[0] || ''" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">

@@ -67,7 +67,7 @@ class AiKnowledgeBaseSeeder extends Seeder
 
 **Unternehmensfokus & Brand:**
 Mein-Seelenfunke ist eine Manufaktur für hochindividualisierte, personalisierte Produkte. Der Schwerpunkt liegt auf präzisen Lasergravuren auf hochwertigen Naturmaterialien wie Holz und Schiefer. Der Verkauf erfolgt primär über den eigenen Online-Shop (Dashboard) sowie den externen Marktplatz Etsy. Darüber hinaus bedienen wir auch individuelle B2B-Großaufträge. 
-Der Kundenservice und das System-Management werden durch ein fortschrittliches Netzwerk an KI-Agenten (Funkira, Lumina, Zion, Taron, Rion, Vira) verwaltet, welches eng mit der Inhaberin Alina Steinhauer ('Herrin Alina') zusammenarbeitet.
+Der Kundenservice und das System-Management werden durch ein fortschrittliches Netzwerk an KI-Agenten (Funkira, Lumina, Zion, Taron, Rion, Vira) verwaltet, welches eng mit der Inhaberin Alina Steinhauer ('Alina') zusammenarbeitet.
                 "
             ],
             // Artikel 2

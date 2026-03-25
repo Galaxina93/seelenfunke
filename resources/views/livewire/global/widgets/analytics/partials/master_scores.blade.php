@@ -204,25 +204,23 @@
             <div x-show="activeTab === 'shop'" x-transition.opacity.duration.300ms class="space-y-8">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-800 pb-6">
                     <div>
-                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Financial Health Analytics</h2>
-                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Gesundheitswert aus Break-Even, Marge, Trend und Liquidität im aktuellen Zeitfenster.</p>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Finanzielle Gesundheit</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Gesicherter Statuswert aus Liquiditätsreserven, Break-Even, Rentabilität und aktuellen Markttrends.</p>
                     </div>
                     <div class="flex items-center gap-4">
                         <div class="text-right hidden sm:block">
-                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Ø Mtl. Gewinn</span>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Monatsgewinn (Ø)</span>
                             <span class="text-2xl font-black text-white tracking-tighter">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
                         </div>
-                        @include('livewire.global.ai.ask-ai-dropdown', ['actionMethod' => 'startAiRecommendation', 'buttonText' => 'Agent fragen'])
+                        @include('livewire.global.ai.ask-ai-dropdown', ['actionMethod' => 'startAiRecommendation', 'buttonText' => 'K.I. Analyse'])
                     </div>
                 </div>
                 
                 @if($aiRecommendation)
-                    <div class="bg-gray-950/50 rounded-2xl p-6 shadow-inner border border-purple-500/30 relative overflow-hidden group">
-                        <div class="flex items-center gap-3 mb-4 pb-4 border-b border-gray-800">
-                            <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                                <i class="solar-cpu-bold-duotone text-xl"></i>
-                            </div>
-                            <h3 class="text-sm font-black text-white uppercase tracking-widest">Virtueller CFO Analyse</h3>
+                    <div class="bg-gray-950 rounded-xl p-5 border border-purple-500/30 relative group">
+                        <div class="flex items-center gap-3 mb-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-cpu-chip class="w-5 h-5 text-purple-400" />
+                            <h3 class="text-xs font-semibold text-white uppercase tracking-widest">Virtueller CFO Analyse</h3>
                         </div>
                         <div class="prose prose-sm prose-invert max-w-none text-gray-300">
                             {!! \Illuminate\Support\Str::markdown($aiRecommendation) !!}
@@ -232,88 +230,89 @@
                 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Säule 1: WACHSTUM -->
-                    <div class="bg-gray-950/40 rounded-[2rem] p-6 border border-gray-800 flex flex-col gap-6 shadow-inner">
-                        <div class="flex items-center gap-3 border-b border-gray-800 pb-4">
-                            <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
-                                <i class="solar-rocket-bold-duotone text-xl"></i>
-                            </div>
-                            <h3 class="text-sm font-black text-white uppercase tracking-widest">Wachstum</h3>
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5">
+                        <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-arrow-trending-up class="w-5 h-5 text-blue-500" />
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Wachstum</h3>
                         </div>
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-inner group hover:border-blue-500/30 transition-colors">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2"><i class="bi bi-exclamation-circle text-gray-500"></i> Shop Umsatz</span>
-                                <span class="text-lg font-black text-white">{{ number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') }} €</span>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex justify-between items-center group">
+                                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-banknotes class="w-3.5 h-3.5 text-gray-500" /> Umsatzrahmen</span>
+                                <span class="text-base font-black text-gray-200 group-hover:text-white transition-colors">{{ number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') }} €</span>
                             </div>
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-inner">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2"><i class="bi bi-exclamation-circle text-gray-500"></i> Umsatz-Trend</span>
-                                <span class="text-lg font-black {{ ($stats['revenue_growth'] ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400' }}">{{ ($stats['revenue_growth'] ?? 0) > 0 ? '+' : '' }}{{ $stats['revenue_growth'] ?? 0 }} %</span>
+                            <div class="w-full h-px bg-gray-800/50"></div>
+                            <div class="flex justify-between items-center group">
+                                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-chart-bar class="w-3.5 h-3.5 text-gray-500" /> Wachstumstrend</span>
+                                <span class="text-base font-black {{ ($stats['revenue_growth'] ?? 0) >= 0 ? 'text-emerald-500' : 'text-red-500' }} group-hover:drop-shadow-[0_0_8px_currentColor] transition-all">{{ ($stats['revenue_growth'] ?? 0) > 0 ? '+' : '' }}{{ $stats['revenue_growth'] ?? 0 }} %</span>
                             </div>
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-inner">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2"><i class="bi bi-exclamation-circle text-gray-500"></i> Prognose (Jahr)</span>
-                                <span class="text-lg font-black text-purple-400">{{ number_format($stats['projected_year'] ?? 0, 0, ',', '.') }} €</span>
+                            <div class="w-full h-px bg-gray-800/50"></div>
+                            <div class="flex justify-between items-center group">
+                                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-calendar-days class="w-3.5 h-3.5 text-gray-500" /> Jahreshochlauf</span>
+                                <span class="text-base font-black text-blue-400 group-hover:text-blue-300 transition-colors">{{ number_format($stats['projected_year'] ?? 0, 0, ',', '.') }} €</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Säule 2: EFFIZIENZ -->
-                    <div class="bg-gray-950/40 rounded-[2rem] p-6 border border-gray-800 flex flex-col gap-6 shadow-inner">
-                        <div class="flex items-center gap-3 border-b border-gray-800 pb-4">
-                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-                                <i class="solar-wallet-money-bold-duotone text-xl"></i>
-                            </div>
-                            <h3 class="text-sm font-black text-white uppercase tracking-widest">Effizienz</h3>
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5">
+                        <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-scale class="w-5 h-5 text-emerald-500" />
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Rentabilität</h3>
                         </div>
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-inner">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2"><i class="bi bi-exclamation-circle text-gray-500"></i> Gewinn-Marge</span>
-                                <span class="text-lg font-black text-emerald-400">{{ $stats['margin'] ?? 0 }} %</span>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex justify-between items-center group">
+                                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-receipt-percent class="w-3.5 h-3.5 text-gray-500" /> Nettomarge</span>
+                                <span class="text-base font-black text-emerald-500 group-hover:text-emerald-400 transition-colors">{{ $stats['margin'] ?? 0 }} %</span>
                             </div>
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-inner">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2"><i class="bi bi-exclamation-circle text-gray-500"></i> Ø Mtl. Gewinn</span>
-                                <span class="text-lg font-black text-white">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
+                            <div class="w-full h-px bg-gray-800/50"></div>
+                            <div class="flex justify-between items-center group">
+                                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-currency-dollar class="w-3.5 h-3.5 text-gray-500" /> Gewinn pro Monat</span>
+                                <span class="text-base font-black text-gray-200 group-hover:text-white transition-colors">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Säule 3: SICHERHEIT -->
-                    <div class="bg-gray-950/40 rounded-[2rem] p-6 border border-gray-800 flex flex-col gap-6 shadow-inner" x-data="{ showCosts: false }">
-                        <div class="flex items-center gap-3 border-b border-gray-800 pb-4">
-                            <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
-                                <i class="solar-shield-check-bold-duotone text-xl"></i>
-                            </div>
-                            <h3 class="text-sm font-black text-white uppercase tracking-widest">Sicherheit</h3>
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5" x-data="{ showCosts: false }">
+                        <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-shield-check class="w-5 h-5 text-amber-500" />
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Sicherheit</h3>
                         </div>
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border border-gray-800 shadow-inner">
-                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2"><i class="bi bi-exclamation-circle text-gray-500"></i> Break-Even Point</span>
-                                <span class="text-lg font-black text-amber-400">{{ number_format($stats['break_even_monthly'] ?? 0, 0, ',', '.') }} €</span>
+                        <div class="flex flex-col gap-3">
+                            <div class="flex justify-between items-center group">
+                                <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-flag class="w-3.5 h-3.5 text-gray-500" /> Break-Even (Mtl.)</span>
+                                <span class="text-base font-black text-amber-500 group-hover:text-amber-400 transition-colors">{{ number_format($stats['break_even_monthly'] ?? 0, 0, ',', '.') }} €</span>
                             </div>
+                            <div class="w-full h-px bg-gray-800/50"></div>
+                            
                             @php
                                 $hasPending = ($stats['pending_invoices']['sum'] ?? 0) > 0;
                                 $pendingCount = $stats['pending_invoices']['count'] ?? 0;
                             @endphp
-                            <div class="flex justify-between items-center bg-gray-900 p-4 rounded-xl border {{ $hasPending ? 'border-red-500/40 bg-red-900/10' : 'border-gray-800 shadow-inner' }}">
-                                <span class="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 {{ $hasPending ? 'text-red-300' : 'text-gray-400' }}">
-                                    <i class="bi bi-exclamation-circle text-gray-500"></i> Offene Posten
+                            <div class="flex justify-between items-center group {{ $hasPending ? 'bg-red-950/20 -mx-2 px-2 py-1 rounded-lg border border-red-500/20' : '' }}">
+                                <span class="text-[10px] font-semibold uppercase tracking-widest flex items-center gap-2 {{ $hasPending ? 'text-red-400' : 'text-gray-400' }}">
+                                    <x-heroicon-o-document-magnifying-glass class="w-3.5 h-3.5 {{ $hasPending ? 'text-red-500' : 'text-gray-500' }}" /> Offene Posten
                                 </span>
                                 <div class="text-right">
-                                    <span class="text-lg font-black {{ $hasPending ? 'text-red-400' : 'text-gray-500' }}">{{ number_format($stats['pending_invoices']['sum'] ?? 0, 0, ',', '.') }} €</span>
+                                    <span class="text-base font-black {{ $hasPending ? 'text-red-500 animate-pulse' : 'text-gray-500' }}">{{ number_format($stats['pending_invoices']['sum'] ?? 0, 0, ',', '.') }} €</span>
                                     @if($pendingCount > 0)
-                                        <span class="text-[8px] text-gray-500 font-black tracking-widest block">({{ $pendingCount }} Rechnungen)</span>
+                                        <span class="text-[8px] text-gray-400 font-bold uppercase tracking-widest block -mt-1">{{ $pendingCount }} Rechnungen</span>
                                     @endif
                                 </div>
                             </div>
-
-                            <div class="border-t border-gray-800 pt-4 mt-2">
-                                <button @click="showCosts = !showCosts" class="w-full flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors bg-gray-900 px-3 py-2 rounded-xl border border-gray-800">
-                                    <span>Kosten & Fix-Einnahmen Details</span>
-                                    <i :class="showCosts ? 'bi bi-chevron-up' : 'bi-chevron-down'"></i>
+                            
+                            <div class="w-full h-px bg-gray-800/50 mt-1"></div>
+                            
+                            <div class="pt-2">
+                                <button @click="showCosts = !showCosts" class="w-full flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors bg-gray-900 px-3 py-2 rounded-lg border border-gray-800 hover:border-gray-700">
+                                    <span>Kostenstruktur Details</span>
+                                    <x-heroicon-m-chevron-down class="w-3 h-3 transition-transform" ::class="showCosts ? 'rotate-180' : ''" />
                                 </button>
-                                <div x-show="showCosts" x-cloak x-collapse class="space-y-2 mt-3">
-                                    <div class="flex justify-between items-center px-2 py-1"><span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Fix-Einnahmen</span><span class="text-xs font-black text-emerald-400">{{ number_format($stats['fixed_income_total'] ?? 0, 0, ',', '.') }} €</span></div>
-                                    <div class="flex justify-between items-center px-2 py-1"><span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Fixkosten (Privat)</span><span class="text-xs font-black text-pink-400">{{ number_format($stats['fixed_expenses_priv'] ?? 0, 0, ',', '.') }} €</span></div>
-                                    <div class="flex justify-between items-center px-2 py-1"><span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Fixkosten (Gewerbe)</span><span class="text-xs font-black text-rose-400">{{ number_format($stats['fixed_expenses_gew'] ?? 0, 0, ',', '.') }} €</span></div>
-                                    <div class="flex justify-between items-center px-2 py-1"><span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Variabel</span><span class="text-xs font-black text-orange-400">{{ number_format($stats['variable_expenses'] ?? 0, 0, ',', '.') }} €</span></div>
+                                <div x-show="showCosts" x-cloak x-collapse class="space-y-2 mt-3 pt-1 border-t border-gray-800/50">
+                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Einnahmen Fix</span><span class="text-xs font-black text-emerald-500/80">{{ number_format($stats['fixed_income_total'] ?? 0, 0, ',', '.') }} €</span></div>
+                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Kosten Privat</span><span class="text-xs font-black text-purple-400/80">{{ number_format($stats['fixed_expenses_priv'] ?? 0, 0, ',', '.') }} €</span></div>
+                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Kosten Gewerbe</span><span class="text-xs font-black text-blue-400/80">{{ number_format($stats['fixed_expenses_gew'] ?? 0, 0, ',', '.') }} €</span></div>
+                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Sonderkosten</span><span class="text-xs font-black text-amber-500/80">{{ number_format($stats['variable_expenses'] ?? 0, 0, ',', '.') }} €</span></div>
                                 </div>
                             </div>
                         </div>
@@ -332,96 +331,53 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
                     @foreach($healthChecks as $key => $check)
-                        <div wire:key="master-health-{{ $key }}" class="bg-gray-950/40 border border-gray-800/60 rounded-[1.5rem] overflow-hidden shadow-inner flex flex-col h-full transform transition-all {{ $expandedHealthKey === $key ? 'ring-2 ring-primary/50' : 'hover:-translate-y-1 hover:border-primary/30' }}">
-                            
-                            <!-- Header der Karte -->
-                            <div wire:click="toggleHealthCard('{{ $key }}')" class="p-5 flex justify-between items-center {{ $expandedHealthKey === $key ? 'border-b border-gray-800/40' : '' }} relative cursor-pointer group">
+                        @php
+                            $actionUrl = match($key) {
+                                'inventory' => '/admin/products',
+                                'special_issues' => '/admin/financial-variable-costs',
+                                'contracts' => '/admin/financial-fix-costs',
+                                'open_orders' => '/admin/orders',
+                                'open_tickets' => '/admin/tickets',
+                                'product_reviews' => '/admin/reviews',
+                                'open_credits' => '/admin/credit-management',
+                                'unassigned_tx' => '/admin/financial-banks',
+                                'open_tasks' => '/admin/tasks',
+                                'open_quotes' => '/admin/quote-requests',
+                                'open_revocations' => '/admin/widerruf',
+                                'open_losses' => '/admin/product-fracture',
+                                default => '/admin/dashboard'
+                            };
+                        @endphp
+                        
+                        <a href="{{ $actionUrl }}" wire:key="master-health-{{ $key }}" class="bg-gray-950 border border-gray-800/80 rounded-xl overflow-hidden hover:bg-gray-900/80 transition-all hover:border-gray-700 group relative">
+                            <div class="p-4 flex justify-between items-center relative z-10 w-full">
                                 @php
                                     $statusClass = match($check['status'] ?? 'error') {
-                                        'success' => 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-                                        'warning' => 'bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
-                                        default => 'bg-red-500/10 text-red-500 border border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse',
+                                        'success' => 'text-emerald-500 group-hover:text-emerald-400',
+                                        'warning' => 'text-amber-500 group-hover:text-amber-400',
+                                        default => 'text-red-500 animate-pulse group-hover:text-red-400',
                                     };
                                 @endphp
-                                <div class="flex items-center gap-4 min-w-0">
-                                    <div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 {{ $statusClass }}">
-                                        <i class="bi {{ $check['icon'] }} text-2xl"></i>
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="shrink-0 transition-colors {{ $statusClass }}">
+                                        <x-dynamic-component :component="'heroicon-o-' . $check['icon']" class="w-5 h-5" />
                                     </div>
-                                    <div class="min-w-0 pr-2 pb-1">
-                                        <h4 class="text-xs font-black text-white uppercase tracking-tighter truncate">{{ $check['title'] }}</h4>
-                                        <p class="text-[10px] text-gray-400 font-medium leading-tight mt-1 line-clamp-2 md:truncate">{{ $check['message'] }}</p>
+                                    <div class="min-w-0 pr-2">
+                                        <h4 class="text-xs font-semibold text-gray-300 group-hover:text-white transition-colors">{{ $check['title'] }}</h4>
+                                        <p class="text-[10px] text-gray-500 leading-tight mt-0.5 truncate">{{ $check['message'] }}</p>
                                     </div>
                                 </div>
-                                <div class="shrink-0 pt-1 flex items-center gap-3">
+                                <div class="shrink-0 flex items-center gap-3">
                                     @if($check['count'] > 0)
-                                        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(197,160,89,0.4)]">
-                                            <span class="text-xs font-black text-gray-900">{{ $check['count'] }}</span>
+                                        <div class="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-gray-800 text-gray-300 rounded border border-gray-700 group-hover:border-gray-600 transition-colors">
+                                            {{ $check['count'] }}
                                         </div>
                                     @else
-                                        <div class="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
-                                            <i class="solar-check-read-bold-duotone text-emerald-400"></i>
-                                        </div>
+                                        <x-heroicon-m-check class="w-4 h-4 text-emerald-500/50" />
                                     @endif
-                                    <i class="bi {{ $expandedHealthKey === $key ? 'bi-chevron-up' : 'bi-chevron-down' }} text-gray-600 group-hover:text-primary transition-colors text-sm"></i>
                                 </div>
                             </div>
-                            
-                            <!-- Interaktive Listenansicht (versteckt/Scrollbar wenn lang) -->
-                            @if($expandedHealthKey === $key)
-                            <div class="bg-gray-900/30 p-5 flex-1 relative flex flex-col border-t border-gray-800/40">
-                                @if($check['count'] > 0)
-                                    <div class="flex-1 flex flex-col items-center justify-center pt-2">
-                                        @php
-                                            $actionUrl = match($key) {
-                                                'inventory' => '/admin/products',
-                                                'special_issues' => '/admin/financial-variable-costs',
-                                                'contracts' => '/admin/financial-fix-costs',
-                                                'open_tickets' => '/admin/tickets',
-                                                'product_reviews' => '/admin/reviews',
-                                                'open_credits' => '/admin/credit-management',
-                                                'unassigned_tx' => '/admin/financial-banks',
-                                                'open_tasks' => '/admin/tasks',
-                                                'open_quotes' => '/admin/quote-requests',
-                                                'open_revocations' => '/admin/widerruf',
-                                                default => '/admin/dashboard'
-                                            };
-                                            
-                                            $actionText = match($key) {
-                                                'inventory' => 'Bestand anpassen',
-                                                'special_issues' => 'Belege hochladen',
-                                                'contracts' => 'Dokumente hochladen',
-                                                'open_tickets' => 'Tickets bearbeiten',
-                                                'product_reviews' => 'Reviews prüfen',
-                                                'open_credits' => 'Gutschriften prüfen',
-                                                'unassigned_tx' => 'Umsätze verbuchen',
-                                                'open_tasks' => 'Aufgaben erledigen',
-                                                'open_quotes' => 'Angebote prüfen',
-                                                'open_revocations' => 'Widerrufe bearbeiten',
-                                                default => 'Jetzt bearbeiten'
-                                            };
-                                        @endphp
-
-                                        <div class="bg-gray-950/70 border border-gray-800/80 rounded-2xl p-5 w-full flex flex-col items-center shadow-inner relative overflow-hidden group">
-                                            <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                                            <i class="bi {{ $check['icon'] ?? 'bi-link' }} text-[2rem] text-primary/40 mb-3 group-hover:text-primary transition-colors duration-500"></i>
-                                            <p class="text-[9px] font-bold text-gray-400 mb-4 text-center leading-relaxed">
-                                                Verwalte diese Aktionen direkt im <span class="text-gray-300">Hauptmodul</span>, um alle verfügbaren Werkzeuge zu nutzen.
-                                            </p>
-                                            <a href="{{ $actionUrl }}" class="relative w-full overflow-hidden rounded-xl bg-gray-900 border border-primary/30 group-hover:border-primary/60 transition-colors shadow-glow text-center group-hover:-translate-y-0.5 transform duration-300 ease-out">
-                                                <div class="absolute inset-0 w-1/4 h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-30deg] -translate-x-[150%] animate-[shine_3s_infinite_ease-in-out]"></div>
-                                                <span class="block px-6 py-3 text-[10px] font-black uppercase tracking-widest text-primary group-hover:text-amber-300 transition-colors relative z-10">{{ $actionText }}</span>
-                                            </a>
-                                        </div>
-                                    </div>
-                                @else
-                                    <div class="h-full flex flex-col items-center justify-center opacity-40 py-6">
-                                        <i class="solar-check-circle-bold-duotone text-4xl text-gray-600 mb-2"></i>
-                                        <div class="bg-gray-900 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-gray-500 border border-gray-800">Leer</div>
-                                    </div>
-                                @endif
-                            </div>
-                            @endif
-                        </div>
+                        </a>
                     @endforeach
                 </div>
             </div>

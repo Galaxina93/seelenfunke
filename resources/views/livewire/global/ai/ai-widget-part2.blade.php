@@ -56,6 +56,7 @@
             lastRestartTime: 0,
             isSpeaking: false,
             activeAgentName: 'System', // Neu: Speichert den Namen des antwortenden Agenten
+            agentTtsEnabled: false, // Prevents calling TTS apis
 
             isOutputActive() {
                 return this.isSpeaking;
@@ -201,7 +202,12 @@
                                     this.playClickSound(); 
                                     Livewire.dispatch('open-ai-visualization', { payload: evt.detail });
                                 } else if (evt.type === 'navigate') {
-                                    window.location.href = evt.url;
+                                    if (this.showFunkiView) {
+                                        localStorage.setItem('funki_isOpen', 'false');
+                                    }
+                                    setTimeout(() => {
+                                        window.location.href = evt.url;
+                                    }, 400);
                                 } else if (evt.type === 'dispatch') {
                                     window.dispatchEvent(new Event(evt.name));
                                 }
@@ -210,6 +216,10 @@
 
                         if (data.agent_name) {
                             this.activeAgentName = data.agent_name;
+                        }
+                        
+                        if (data.tts_enabled !== undefined) {
+                            this.agentTtsEnabled = data.tts_enabled;
                         }
 
                         if (data.response) {
@@ -225,7 +235,9 @@
                         if (data.audio) {
                             this.playAudioBase64(data.audio);
                         } else if (data.response && data.response.trim() !== '') {
-                            this.speakResponse(data.response); 
+                            if (this.agentTtsEnabled) {
+                                this.speakResponse(data.response); 
+                            }
                         }
                     } else {
                         console.error("AI Error:", data);

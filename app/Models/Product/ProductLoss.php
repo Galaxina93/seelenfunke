@@ -14,10 +14,17 @@ class ProductLoss extends Model
     protected $casts = [
         'quantity' => 'integer',
         'cost_value' => 'integer',
+        'reported_to_supplier_at' => 'datetime',
+        'refund_received_at' => 'datetime',
     ];
 
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
     }
 }

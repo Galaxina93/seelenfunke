@@ -69,8 +69,8 @@
                                         <svg class="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
                                     @endif
                                 </div>
-                                <div class="flex flex-col min-w-0 flex-1">
-                                    <span class="text-sm font-mono font-bold truncate tracking-wide {{ $isSelected ? 'text-emerald-400' : 'text-emerald-700 group-hover:text-emerald-500' }}">
+                                <div class="flex flex-col flex-1">
+                                    <span class="text-sm font-mono font-bold break-words whitespace-normal tracking-wide {{ $isSelected ? 'text-emerald-400' : 'text-emerald-700 group-hover:text-emerald-500' }}">
                                         {{ $catName }}
                                     </span>
                                 </div>
@@ -127,9 +127,9 @@
                                     </div>
                                     @error('editingCategoryName') <span class="text-[10px] uppercase tracking-widest text-red-500 block">{{ $message }}</span> @enderror
                                 @else
-                                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                                    <div class="flex items-center gap-3 flex-1 overflow-hidden">
                                         <div class="w-2 h-2 rounded-full shrink-0 {{ ($catId === $selectedCategoryId) ? 'bg-emerald-500 shadow-[0_0_8px_currentColor]' : 'bg-emerald-900/50' }}"></div>
-                                        <span class="text-sm font-bold text-emerald-600 tracking-wide truncate">{{ $catName }}</span>
+                                        <span class="text-sm font-bold text-emerald-600 tracking-wide break-words whitespace-normal">{{ $catName }}</span>
                                     </div>
 
                                     <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity w-full sm:w-auto justify-end shrink-0 mt-2 sm:mt-0">

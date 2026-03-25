@@ -132,13 +132,15 @@ class AIController extends Controller
         // Generiere Audio (Base64) falls möglich
         $base64Audio = null;
         
-        $ttsProvider = $aiAgent ? $aiAgent->tts_provider : 'elevenlabs';
+        $ttsProvider = $aiAgent ? $aiAgent->tts_provider : 'none';
+        $ttsEnabled = $aiAgent ? (bool) $aiAgent->tts_enabled : false;
+
         // Zwinge das System auf Toni, wenn der User in der UI den Cloudflare-Link eingegeben hat
         if ($ttsProvider === 'elevenlabs' && $aiAgent && !empty($aiAgent->tts_api_url)) {
             $ttsProvider = 'toni_xttsv2';
         }
 
-        if (!empty($result['response']) && $aiAgent && $ttsProvider === 'elevenlabs') {
+        if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'elevenlabs') {
             $apiKey = env('ELEVENLABS_API_KEY');
             $voiceId = $aiAgent->tts_voice ?: env('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM');
 
@@ -198,7 +200,7 @@ class AIController extends Controller
                     \Illuminate\Support\Facades\Log::error("ElevenLabs TTS Fetch failed: " . $e->getMessage());
                 }
             }
-        } elseif (!empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
+        } elseif ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
             try {
                 $cleanText = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($result['response']);
                 $speed = $aiAgent->tts_speed ?? 1.0;
@@ -247,9 +249,26 @@ class AIController extends Controller
             }
         }
 
+        // Metriken speichern (Fix für Analytics Dashboard fehlende Chat Activity)
+        if (class_exists(\App\Models\Ai\AiMetric::class) && isset($result['usage']) && isset($result['latency_ms'])) {
+            try {
+                \App\Models\Ai\AiMetric::create([
+                    'ai_agent_id' => $aiAgent ? $aiAgent->id : null,
+                    'type' => 'inference',
+                    'input_tokens' => $result['usage']['prompt_tokens'] ?? 0,
+                    'output_tokens' => $result['usage']['completion_tokens'] ?? 0,
+                    'total_time_ms' => $result['latency_ms'],
+                    'is_success' => true
+                ]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning("Could not log AiMetric in AIController: " . $e->getMessage());
+            }
+        }
+
         return response()->json([
             'status' => 'success',
             'agent_name' => $aiAgent ? $aiAgent->name : 'Funkira',
+            'tts_enabled' => $ttsEnabled,
             'response' => $result['response'],
             'history' => $result['history'] ?? [],
             'context_data' => $result['context_data'] ?? [],

@@ -27,6 +27,10 @@ class AiAnalytics extends Component
         $successQueries = AiMetric::where('type', 'inference')->where('is_success', true)->whereDate('created_at', '>=', $thirtyDaysAgo)->count();
         $successRate = $totalQueries > 0 ? round(($successQueries / $totalQueries) * 100, 1) : 100;
 
+        $totalChatMessages = \App\Models\Ai\AiChatMemory::where('role', 'user')
+            ->whereDate('created_at', '>=', $thirtyDaysAgo)
+            ->count();
+
         // 2. Cost Trend (Last 30 days)
         $trendDataRaw = AiMetric::select(
                 DB::raw('DATE(created_at) as date'),
@@ -98,6 +102,7 @@ class AiAnalytics extends Component
             'tokensThisMonth' => $tokensThisMonth,
             'avgLatency' => round($avgLatency),
             'successRate' => $successRate,
+            'totalChatMessages' => $totalChatMessages,
             'trendData' => json_encode($trendData),
             'resourceDistribution' => json_encode($resourceDistribution),
             'toolErrors' => json_encode($toolErrors),

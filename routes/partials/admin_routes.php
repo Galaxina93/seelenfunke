@@ -92,10 +92,15 @@ Route::middleware(['auth:admin'])->group(function () {
     })->name('admin.product-analytics');
 
     Route::get('/admin/product-analytics/export/full-report', function () {
+        $lossesData = [
+            'this_month' => \App\Models\Product\ProductLoss::where('created_at', '>=', now()->startOfMonth())->sum('cost_value') / 100,
+            'total' => \App\Models\Product\ProductLoss::sum('cost_value') / 100,
+            'recent' => \App\Models\Product\ProductLoss::with('product')->latest()->take(50)->get(),
+        ];
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.product-analytics-report', [
-            'trueCostData' => \App\Livewire\Shop\Product\ProductAnalytics::getTrueCostData(),
-            'forecastingData' => \App\Livewire\Shop\Product\ProductAnalytics::getForecastingData(),
-            'lossesData' => \App\Livewire\Shop\Product\ProductAnalytics::getLossesData(),
+            'combinedData' => \App\Livewire\Shop\Product\ProductAnalytics::getCombinedAnalyticsData(),
+            'lossesData' => $lossesData,
             'date' => now()->format('d.m.Y H:i')
         ]);
         
@@ -122,6 +127,10 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/product-packaging', function () {
         return view('backend.admin.pages.product-packaging');
     })->name('admin.product-packaging');
+
+    Route::get('/admin/product-fracture', function () {
+        return view('backend.admin.pages.product-fracture');
+    })->name('admin.product-fracture');
 
     Route::get('/admin/product-suppliers', function () {
         return view('backend.admin.pages.shop.product-suppliers');

@@ -1,5 +1,7 @@
-<div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 h-[calc(100vh-2rem)] flex flex-col"
+<div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8 flex flex-col transition-all duration-300 relative"
+     :class="isFullscreen ? 'fixed inset-0 z-[100] !h-[100dvh] !w-full !max-w-none !p-0 !m-0 bg-black/95 backdrop-blur-3xl' : 'h-[calc(100vh-2rem)]'"
      x-data="{
+        isFullscreen: false,
         init() {
             this.scrollToBottom();
             $watch('$wire.messages', () => { setTimeout(() => this.scrollToBottom(), 50) });
@@ -16,7 +18,8 @@
         });
      ">
     <!-- Header -->
-    <div class="mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
+    <div class="mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 transition-all duration-300"
+         :class="isFullscreen ? 'hidden' : 'px-4 sm:px-0'">
         <div>
             <h2 class="text-3xl font-bold text-emerald-500 mb-1 font-mono tracking-tight shadow-emerald-500/20 drop-shadow-md">
                 KI Chat Konsole
@@ -25,76 +28,86 @@
         </div>
     </div>
 
-    <!-- Fließende Agenten Zeile -->
-    <div class="bg-black/60 border border-emerald-900/30 rounded-xl p-4 mb-6 shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.05)] overflow-hidden relative backdrop-blur-md">
-        <div class="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
-        <div class="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-black via-black/80 to-transparent z-10 pointer-events-none"></div>
-
-        <div class="text-[10px] text-emerald-600/60 font-mono uppercase tracking-widest mb-3 pl-2">Verfügbare Agenten (Klicken zum Verbinden):</div>
-        <div class="flex items-center gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 px-4 snap-x">
-            @foreach($agents as $agent)
-                @php
-                    $isActive = in_array($agent->id, $activeAgentIds);
-                @endphp
-                <button wire:click="toggleAgent('{{ $agent->id }}')"
-                        class="shrink-0 snap-start flex items-center gap-3 px-4 py-2.5 rounded-lg border transition-all duration-300 {{ $isActive ? 'bg-emerald-950/40 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.1)] scale-105' : 'bg-black/80 border-gray-800 hover:border-emerald-900/50 hover:bg-emerald-950/20' }}">
-
-                    <div class="relative">
-                        <div class="w-10 h-10 rounded bg-{{ $agent->color }}/10 flex items-center justify-center border border-{{ $agent->color }}/30 text-{{ $agent->color }} {{ $isActive ? 'shadow-[0_0_12px_currentColor]' : 'opacity-40' }} transition-all overflow-hidden relative">
-                            @if($agent->profile_picture)
-                                <img src="{{ Storage::url($agent->profile_picture) }}" alt="{{ $agent->name }}" class="w-full h-full object-cover">
-                            @else
-                                @if(str_starts_with($agent->icon, 'bi-'))
-                                    <i class="{{ $agent->icon }} text-xl drop-shadow-[0_0_5px_currentColor]"></i>
-                                @elseif(str_starts_with(trim($agent->icon), '<svg'))
-                                    <div class="w-6 h-6 [&>svg]:w-full [&>svg]:h-full drop-shadow-[0_0_5px_currentColor]">{!! $agent->icon !!}</div>
-                                @else
-                                    <x-dynamic-component :component="'heroicon-o-' . ($agent->icon ?: 'cpu-chip')" class="w-6 h-6" />
-                                @endif
-                            @endif
-                        </div>
-                        <!-- Status Dot -->
-                        <span class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5">
-                            @if($isActive)
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-black"></span>
-                            @else
-                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-gray-600 border-2 border-black"></span>
-                            @endif
-                        </span>
-                    </div>
-
-                    <div class="text-left min-w-[100px]">
-                        <div class="text-sm font-bold font-mono tracking-wider {{ $isActive ? 'text-'.$agent->color : 'text-gray-500' }} drop-shadow-md">{{ $agent->name }}</div>
-                        <div class="text-[9px] font-mono uppercase text-gray-500 tracking-widest mt-0.5 flex items-center gap-1">
-                            @if($isActive)
-                                <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                Verbunden
-                            @else
-                                <div class="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
-                                Offline
-                            @endif
-                        </div>
-                    </div>
-                </button>
-            @endforeach
-        </div>
-    </div>
-
     <!-- Matrix Chat Terminal -->
-    <div class="flex-1 bg-black/95 border border-emerald-900/50 rounded-xl shadow-[0_0_40px_rgba(16,185,129,0.1)] flex flex-col overflow-hidden backdrop-blur-xl">
+    <div class="flex-1 bg-black/95 border border-emerald-900/50 rounded-xl shadow-[0_0_40px_rgba(16,185,129,0.1)] flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300"
+         :class="isFullscreen ? '!border-0 !rounded-none' : ''">
         <!-- Terminal Header -->
-        <div class="bg-emerald-950/40 border-b border-emerald-900/50 p-3 flex justify-between items-center relative overflow-hidden shrink-0">
-            <div class="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent"></div>
-            <div class="flex items-center gap-3 relative z-10">
-                <x-heroicon-o-command-line class="w-6 h-6 text-emerald-500 animate-pulse" />
-                <div>
-                    <span class="text-emerald-500 font-bold text-sm tracking-widest uppercase shadow-emerald-500 block">Verschlüsselte Übertragung</span>
-                    <span class="text-emerald-700 text-[10px] font-mono uppercase tracking-widest">Aktive Agenten: {{ count($activeAgentIds) }}</span>
+        <div class="bg-emerald-950/40 border-b border-emerald-900/50 p-3 flex flex-col md:flex-row justify-between md:items-center gap-3 relative overflow-visible shrink-0">
+            <div class="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent pointer-events-none"></div>
+
+            <div class="flex justify-between w-full md:w-auto items-center gap-4 relative z-10 shrink-0">
+                <div class="flex items-center gap-3">
+                    <x-heroicon-o-command-line class="w-6 h-6 text-emerald-500 animate-pulse hidden sm:block" />
+                    <div>
+                        <span class="text-emerald-500 font-bold text-xs sm:text-sm tracking-widest uppercase shadow-emerald-500 block leading-tight">Verschlüsselte Übertragung</span>
+                        <span class="text-emerald-700 text-[10px] font-mono uppercase tracking-widest">Verfügbare Agenten</span>
+                    </div>
+                </div>
+
+                <!-- Mobile Actions Top Right -->
+                <div class="flex md:hidden items-center gap-3 text-emerald-700">
+                    <button @click="isFullscreen = !isFullscreen" title="Vollbild" class="hover:text-emerald-400 transition-colors">
+                        <x-heroicon-s-arrows-pointing-out class="w-5 h-5 drop-shadow-md" x-show="!isFullscreen" />
+                        <x-heroicon-s-arrows-pointing-in class="w-5 h-5 drop-shadow-md" x-show="isFullscreen" style="display: none;" />
+                    </button>
+                    <button wire:click="clearChat" wire:confirm="Sicher, dass du den Chat-Verlauf restlos wipen möchtest?" class="text-red-900/60 hover:text-red-500 transition-colors">
+                        <x-heroicon-o-trash class="w-5 h-5 drop-shadow-md" />
+                    </button>
+                    <button @click="$dispatch('open-profile-modal', {tab: '2fa'})" class="hover:text-emerald-400">
+                        <x-heroicon-s-shield-check class="w-5 h-5 drop-shadow-md" />
+                    </button>
                 </div>
             </div>
-            <div class="flex items-center gap-3 relative z-10 text-emerald-700">
-                <a href="/admin/ai-logs" title="System Logs" class="hover:text-emerald-400 transition-colors">
+
+            <!-- Agenten Auswahl (Miniatur) Fließend im Header -->
+            <div class="flex-1 min-w-0 relative z-10 flex">
+                <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1 pt-1 w-full pl-1 md:pl-4">
+                    @foreach($agents as $agent)
+                        @php
+                            $isActive = in_array($agent->id, $activeAgentIds);
+                        @endphp
+                        <button wire:click="toggleAgent('{{ $agent->id }}')"
+                                title="{{ $agent->name }}"
+                                class="shrink-0 relative group rounded-full border transition-all duration-300 flex items-center gap-2 pr-4 bg-black/50 {{ $isActive ? 'border-emerald-500/80 shadow-[0_0_10px_rgba(16,185,129,0.2)] bg-emerald-950/40' : 'border-emerald-900/50 hover:border-emerald-500/30 opacity-70 hover:opacity-100' }}">
+
+                            <div class="relative w-8 h-8 rounded-full bg-{{ $agent->color }}/10 flex items-center justify-center text-{{ $agent->color }} overflow-hidden">
+                                @if($agent->profile_picture)
+                                    <img src="{{ Storage::url($agent->profile_picture) }}" alt="{{ $agent->name }}" class="w-full h-full object-cover">
+                                @else
+                                    @if(str_starts_with($agent->icon, 'bi-'))
+                                        <i class="{{ $agent->icon }} text-base drop-shadow-[0_0_5px_currentColor]"></i>
+                                    @elseif(str_starts_with(trim($agent->icon), '<svg'))
+                                        <div class="w-4 h-4 [&>svg]:w-full [&>svg]:h-full drop-shadow-[0_0_5px_currentColor]">{!! $agent->icon !!}</div>
+                                    @else
+                                        <x-dynamic-component :component="'heroicon-o-' . ($agent->icon ?: 'cpu-chip')" class="w-4 h-4" />
+                                    @endif
+                                @endif
+                            </div>
+                            <!-- Status Dot -->
+                            <span class="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-2.5 w-2.5">
+                                @if($isActive)
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-black"></span>
+                                @else
+                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-gray-600 border border-black"></span>
+                                @endif
+                            </span>
+
+                            <span class="text-[10px] font-bold font-mono tracking-wider {{ $isActive ? 'text-'.$agent->color : 'text-gray-400' }} truncate max-w-[80px]">
+                                {{ explode(' ', $agent->name)[0] }}
+                            </span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Desktop Actions -->
+            <div class="hidden md:flex items-center justify-end gap-3 relative z-10 text-emerald-700 shrink-0">
+                <button @click="isFullscreen = !isFullscreen" title="Vollbild" class="hover:text-emerald-400 transition-colors">
+                    <x-heroicon-s-arrows-pointing-out class="w-5 h-5 drop-shadow-md" x-show="!isFullscreen" />
+                    <x-heroicon-s-arrows-pointing-in class="w-5 h-5 drop-shadow-md" x-show="isFullscreen" style="display: none;" />
+                </button>
+                <a href="/admin/global-logs" title="System Logs" class="hover:text-emerald-400 transition-colors">
                     <x-heroicon-s-server-stack class="w-5 h-5 drop-shadow-md" />
                 </a>
                 <button @click="$dispatch('open-profile-modal', {tab: '2fa'})" title="Sicherheits-Firewall" class="hover:text-emerald-400 transition-colors">
@@ -179,11 +192,6 @@
                     <x-heroicon-s-paper-airplane class="w-6 h-6 hover:translate-x-0.5 transition-transform" />
                 </button>
             </form>
-            <div class="mt-2 text-center text-[10px] text-emerald-800/60 font-mono tracking-widest uppercase flex justify-center items-center gap-4">
-                <span><i class="text-emerald-500/50">Last:</i> {{ sys_getloadavg()[0] ?? '?' }}</span>
-                <span><i class="text-emerald-500/50">Speicher:</i> {{ count($messages) }}</span>
-                <span><i class="text-emerald-500/50">Krypto:</i> AES-256-GCM / sicher</span>
-            </div>
         </div>
     </div>
 

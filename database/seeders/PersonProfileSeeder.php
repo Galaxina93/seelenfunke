@@ -73,7 +73,7 @@ class PersonProfileSeeder extends Seeder
                 'country' => 'Deutschland',
                 'system_instructions' => <<<EOT
                 WICHTIGE FAKTEN ZU JAN STEINHAUER (Papa):
-                - Vater von der Herrin Alina
+                - Vater von Alina
                 - Wohnort: 38536 Meinernsen, Holzweg 11 Deutschland
                 - Ehemaliger Beruf: Immobilienmakler bei der Volksbank (seit Januar 2008)
                 - Aktuell: In Rente, kümmert sich ehrenamtlich um den "F I M) der Gemeinde Meinersen
@@ -99,7 +99,7 @@ class PersonProfileSeeder extends Seeder
                 'country' => 'Deutschland',
                 'system_instructions' => <<<EOT
                 WICHTIGE FAKTEN ZU KERSTIN STEINHAUER (Mutter):
-                - Mutter von der Herrin Alina
+                - Mutter von Alina
                 - Wohnort: 38536 Meinernsen, Holzweg 11 Deutschland
                 - Ehemaliger Beruf: Apothekerin, hat damals in Meinersen in der Litzapotheke gearbeitet. Ihre Kollegin Albertie ist anscheinend ganz nett gewesen.
                 - Kontakt: Alternativ kann sie auch über jansteinhauer@t-online.de erreicht werden.
@@ -141,7 +141,7 @@ class PersonProfileSeeder extends Seeder
                 WICHTIGE FAKTEN ZU PHILIP GOIK:
                 - Rolle: Ein sehr lieber Mensch ❤️
                 - Beruf: Soldat
-                - Freizeit: Verbringt unglaublich gerne Zeit mit der Herrin Alina. (Schwimmen, essen und vieles mehr)
+                - Freizeit: Verbringt unglaublich gerne Zeit mit Alina. (Schwimmen, essen und vieles mehr)
                 - Hobby: Erlebt gerne was mit seinen Freunden und denkt wirklich das Jonas mehr KI Wissen hat als Alina.
                 EOT,
                 'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."

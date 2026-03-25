@@ -92,13 +92,13 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'open_nav_item',
-                'description' => 'Navigiert das Dashboard des Benutzers auf eine bestimmte Unterseite im System-Backend. Stichworte: Bring mich zu den Bestellungen, Öffne Finanzen, Gehe zu den Gutscheinen, Bereich wechseln, Menüpunkte aufrufen.',
+                'description' => 'Navigiert das Dashboard auf eine bestimmte Unterseite. WICHTIG: Erkenne den natürlichsprachlichen Wunsch (z.B. "wo ich Gutschriften hinterlegen kann" -> /admin/credit-management, "Belege hinterlegen" -> /admin/financial-variable-costs) und wähle die EXAKTE URL aus folgenden Optionen:' . "\n" . \App\Services\Navigation\BackendNavigationService::getAiNavigationPrompt(),
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'url' => [
                             'type' => 'string',
-                            'description' => 'The exact URL to navigate to, e.g. "/admin/orders" or "/admin/financial-evaluation"'
+                            'description' => 'Die exakte, vollständige URL /admin/... wie in der Beschreibung hinterlegt.'
                         ]
                     ],
                     'required' => ['url']
@@ -665,15 +665,57 @@ trait AiSystemFuncs
             }
 
             $url = $args['url'];
-            if ($url === '/admin/newsletters') {
-                $url = '/admin/newsletter';
+            $structure = \App\Services\Navigation\BackendNavigationService::getStructure();
+            
+            $bestMatchUrl = null;
+
+            // 1. Check for exact matches or very close text matches in the centralized config
+            foreach ($structure as $section) {
+                foreach ($section['items'] as $item) {
+                    if ($item['type'] === 'single') {
+                        if ($item['route'] === $url) $bestMatchUrl = $item['route'];
+                    } elseif ($item['type'] === 'group') {
+                        foreach ($item['children'] as $child) {
+                            if ($child['route'] === $url) $bestMatchUrl = $child['route'];
+                        }
+                    }
+                }
             }
-            if ($url === '/admin/vouchers') {
-                $url = '/admin/voucher';
+
+            // 2. Fallbacks for AI making up URLs we explicitly want to catch
+            $fallbacks = [
+                'newsletter' => '/admin/newsletter',
+                'voucher' => '/admin/voucher',
+                'financial-evaluation' => '/admin/financial-evaluation',
+                'financials' => '/admin/financial-evaluation',
+                'beleg' => '/admin/financial-variable-costs',
+                'ausgabe' => '/admin/financial-variable-costs',
+                'einkauf' => '/admin/financial-variable-costs',
+                'schwund' => '/admin/product-fracture',
+                'bruch' => '/admin/product-fracture',
+                'schaden' => '/admin/product-fracture',
+                'gutschrift' => '/admin/credit-management',
+                'rueckerstattung' => '/admin/credit-management',
+                'rechnung' => '/admin/invoices',
+                'steuer' => '/admin/financial-tax',
+                'bank' => '/admin/financial-banks',
+                'konten' => '/admin/financial-banks',
+            ];
+
+            if (!$bestMatchUrl) {
+                foreach ($fallbacks as $keyword => $targetUrl) {
+                    if (str_contains(strtolower($url), $keyword)) {
+                        // Exclude specific words for 'rechnung' to avoid overlap with others
+                        if ($keyword === 'rechnung' && (str_contains(strtolower($url), 'eingangs') || str_contains(strtolower($url), 'variable'))) {
+                            continue;
+                        }
+                        $bestMatchUrl = $targetUrl;
+                        break;
+                    }
+                }
             }
-            if ($url === '/admin/financial' || $url === '/admin/financials') {
-                $url = '/admin/financial-evaluation';
-            }
+
+            $url = $bestMatchUrl ?: $url;
 
             return [
                 'status' => 'success',
@@ -973,20 +1015,8 @@ trait AiSystemFuncs
 
             $output .= "\nINFO FÜR FUNKIRA: Vergleiche diese Entitäten mit deinen verfügbaren Werkzeugen (tools). Wenn in der App Daten existieren (z.B. Returns, Newsletter, Tracking), für die dir noch Werkzeuge fehlen, weise den Benutzer darauf hin, dass diese programmiert werden müssen, damit du darüber Kontrolle erlangst.";
 
-            $routesPath = base_path('routes/partials/admin_routes.php');
-            if (file_exists($routesPath)) {
-                $routesContent = file_get_contents($routesPath);
-                $output .= "\n\nVERFÜGBARE SEITEN (NAVIGATION):\nFolgende Seiten existieren im System und können von dir mit dem Tool 'open_nav_item' aufgerufen werden:\n";
-
-                preg_match_all("/Route::get\('(\/admin\/[^']+)'/i", $routesContent, $routeMatches);
-
-                if (!empty($routeMatches[1])) {
-                    $uniqueRoutes = array_unique($routeMatches[1]);
-                    foreach ($uniqueRoutes as $routeUrl) {
-                        $output .= "- $routeUrl\n";
-                    }
-                }
-            }
+            $output .= "\n\nVERFÜGBARE SEITEN (NAVIGATION):\nFolgende Seiten existieren im System und können von dir mit dem Tool 'open_nav_item' aufgerufen werden:\n";
+            $output .= \App\Services\Navigation\BackendNavigationService::getAiNavigationPrompt();
 
             return [
                 'status' => 'success',

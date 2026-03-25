@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
     <!-- Kachel-KPIs -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
         <!-- Tokens Today -->
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 relative overflow-hidden">
             <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-emerald-500/20 to-transparent"></div>
@@ -58,6 +58,16 @@
             <div class="text-3xl font-bold {{ $successRate < 95 ? 'text-red-400' : 'text-emerald-400' }} mb-2">{{ $successRate }}%</div>
             <div class="text-xs text-gray-500">
                 Erfolgreiche KI Inferences
+            </div>
+        </div>
+
+        <!-- Chat Interactions -->
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 relative overflow-hidden">
+            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-purple-500/10 to-transparent"></div>
+            <div class="text-gray-400 text-sm font-medium mb-1">KI-Chats (30 Tage)</div>
+            <div class="text-3xl font-bold text-white mb-2">{{ number_format($totalChatMessages, 0, ',', '.') }}</div>
+            <div class="text-xs text-gray-500">
+                Nachrichten & Interaktionen
             </div>
         </div>
     </div>

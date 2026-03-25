@@ -44,7 +44,7 @@ class AnalyticsService
             'title' => 'Lagerbestand',
             'status' => $lowStockProducts->count() > 0 ? 'danger' : 'success',
             'message' => $lowStockProducts->count() > 0 ? $lowStockProducts->count() . " Artikel unter Limit!" : "Lagerbestände optimal.",
-            'icon' => 'bi-box-seam',
+            'icon' => 'cube',
             'count' => $lowStockProducts->count(),
             'data' => $lowStockProducts
         ];
@@ -62,7 +62,7 @@ class AnalyticsService
             'title' => 'Sonderausgaben',
             'status' => $missing->count() > 0 ? 'danger' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Positionen ohne Beleg." : "Alle Ausgaben belegt.",
-            'icon' => 'bi-receipt',
+            'icon' => 'banknotes',
             'count' => $missing->count(),
             'data' => $missing
         ];
@@ -76,7 +76,7 @@ class AnalyticsService
             'title' => 'Verträge',
             'status' => $missing->count() > 0 ? 'danger' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Unterlagen fehlen." : "Dokumente vollständig.",
-            'icon' => 'bi-file-earmark-text',
+            'icon' => 'document-text',
             'count' => $missing->count(),
             'data' => $missing
         ];

@@ -190,9 +190,18 @@
                     <div class="flex flex-1 items-center justify-end md:justify-between min-w-0">
 
                         <div class="hidden md:block shrink-0 pr-4">
-                                    <span class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] drop-shadow-sm">
-                                        Systemverwaltung <span class="text-primary mx-1">/</span> {{ ucfirst($guard) }}
-                                    </span>
+                            <span class="flex items-center text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] drop-shadow-sm">
+                                @php
+                                    $breadcrumbData = \App\Services\Navigation\BackendNavigationService::getBreadcrumbs(request()->path(), $guard);
+                                    $crumbs = explode(' / ', $breadcrumbData['text']);
+                                @endphp
+                                @foreach($crumbs as $index => $crumb)
+                                    {{ $crumb }}
+                                    @if(!$loop->last)
+                                        <span class="text-primary mx-1">/</span>
+                                    @endif
+                                @endforeach
+                            </span>
                         </div>
 
                         <div class="flex-1 flex justify-end min-w-0">

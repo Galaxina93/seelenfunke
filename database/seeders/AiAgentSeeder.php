@@ -173,6 +173,7 @@ Du zeigst unbändigen Willen und Lernbereitschaft, bis die Genesung abgeschlosse
                     'color' => $aData['color'],
                     'icon' => $aData['icon'],
                     'profile_picture' => file_exists($sourceImage) ? $targetImage : null,
+                    'tts_enabled' => false,
                     'tts_provider' => 'toni_xttsv2',
                     'tts_voice' => $aData['tts_voice'],
                 ]

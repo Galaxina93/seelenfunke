@@ -623,12 +623,23 @@ class FinancialLiquidityPlanner extends Component
 
         if (count($this->years) > 0) {
             $firstY = $this->years[0];
-            $this->kapitalbedarf['investitionen']['maschinen'] = (float) ($this->data[$firstY][8]['out']['investments'] ?? 0);
-            $this->kapitalbedarf['investitionen']['waren'] = (float) ($this->data[$firstY][8]['out']['goods'] ?? 0) + (float) ($this->data[$firstY][9]['out']['goods'] ?? 0);
-            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][8]['out']['marketing'] ?? 0);
-            $this->kapitalbedarf['gruendung']['beratung'] = (float) ($this->data[$firstY][8]['out']['other_out'] ?? 0);
-            $this->kapitalbedarf['finanzierung']['eigenmittel'] += (float) ($this->data[$firstY][8]['adj']['private_in'] ?? 0);
-            $this->kapitalbedarf['finanzierung']['darlehen'] = (float) ($this->data[$firstY][8]['adj']['loan'] ?? 0);
+            $sm = $this->configStartMonth;
+            
+            $this->kapitalbedarf['investitionen']['maschinen'] = (float) ($this->data[$firstY][$sm]['out']['investments'] ?? 0);
+            $nextMonth = $sm < 12 ? $sm + 1 : 12;
+            $this->kapitalbedarf['investitionen']['waren'] = (float) ($this->data[$firstY][$sm]['out']['goods'] ?? 0) + (float) ($this->data[$firstY][$nextMonth]['out']['goods'] ?? 0);
+            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][$sm]['out']['marketing'] ?? 0);
+            $this->kapitalbedarf['gruendung']['beratung'] = (float) ($this->data[$firstY][$sm]['out']['other_out'] ?? 0);
+            
+            $totalPrivateIn = 0;
+            $totalLoan = 0;
+            for ($m = 1; $m <= 12; $m++) {
+                $totalPrivateIn += (float) ($this->data[$firstY][$m]['in']['private_in'] ?? 0);
+                $totalLoan += (float) ($this->data[$firstY][$m]['adj']['loan'] ?? 0);
+            }
+            
+            $this->kapitalbedarf['finanzierung']['eigenmittel'] += $totalPrivateIn;
+            $this->kapitalbedarf['finanzierung']['darlehen'] = $totalLoan;
         }
     }
 

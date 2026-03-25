@@ -24,6 +24,7 @@ class AiAgentEditor extends Component
     public $is_active = true;
     public $color = 'cyan-500';
     public $icon = 'sparkles'; // Default to a heroicon name
+    public $tts_enabled = false;
     public $tts_provider = 'toni_xttsv2';
     public $tts_voice = '';
     public $tts_api_url = '';
@@ -129,6 +130,8 @@ class AiAgentEditor extends Component
                 $oldIcon = 'sparkles'; // Fallback
             }
             $this->icon = $oldIcon;
+            
+            $this->tts_enabled = (bool) ($agent->tts_enabled ?? false);
             $this->tts_provider = $agent->tts_provider ?? 'toni_xttsv2';
             
             // Absolute purge of ElevenLabs for existing agents
@@ -194,6 +197,7 @@ class AiAgentEditor extends Component
             'is_active' => 'boolean',
             'color' => 'required|string|max:50',
             'icon' => 'required|string|max:50',
+            'tts_enabled' => 'boolean',
             'tts_api_url' => 'nullable|string|url|max:255',
             'tts_speed' => 'nullable|numeric|min:0.1|max:3.0',
             'profile_picture' => 'nullable|image|max:2048', // 2MB Max
@@ -215,6 +219,7 @@ class AiAgentEditor extends Component
         $agent->is_active = $this->is_active;
         $agent->color = $this->color;
         $agent->icon = $this->icon;
+        $agent->tts_enabled = $this->tts_enabled;
         $agent->tts_provider = $this->tts_provider;
         $agent->tts_voice = $this->tts_voice;
         $agent->tts_api_url = $this->tts_api_url;

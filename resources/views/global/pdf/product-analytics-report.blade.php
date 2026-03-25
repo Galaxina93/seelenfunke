@@ -80,19 +80,21 @@
 <table>
     <thead>
         <tr>
-            <th style="width: 30%;">Produkt</th>
+            <th style="width: 25%;">Produkt</th>
+            <th style="width: 10%;">Brutto VK</th>
             <th style="width: 10%;">Netto VK</th>
             <th style="width: 10%;">EK Preis</th>
-            <th style="width: 12%;">Strom & Verschleiß</th>
-            <th style="width: 13%;">Verpackung & Versand</th>
+            <th style="width: 10%;">Strom/Verschl.</th>
+            <th style="width: 12%;">Verpackung & Versand</th>
             <th style="width: 10%; text-align: right;">Total Kosten</th>
-            <th style="width: 15%; text-align: right; background: #fef3c7;">Netto EK & Marge</th>
+            <th style="width: 13%; text-align: right; background: #fef3c7;">Netto Gewinn</th>
         </tr>
     </thead>
     <tbody>
-        @foreach($trueCostData as $tc)
+        @foreach($combinedData as $tc)
             <tr>
                 <td><strong style="font-size: 9px; color: #111827;">{{ $tc['name'] }}</strong></td>
+                <td>{{ number_format($tc['price'], 2, ',', '.') }} €</td>
                 <td>{{ number_format($tc['net_price'], 2, ',', '.') }} €</td>
                 <td>{{ number_format($tc['purchase_price'], 2, ',', '.') }} €</td>
                 <td>{{ number_format($tc['laser_cost'], 2, ',', '.') }} €</td>
@@ -122,11 +124,11 @@
             <th style="width: 15%; text-align: center;">Sales (30 Tage)</th>
             <th style="width: 15%; text-align: center;">Ø Velocity / Tag</th>
             <th style="width: 15%; text-align: center;">Reichweite (Tage)</th>
-            <th style="width: 15%; text-align: center;">Status</th>
+            <th style="width: 15%; text-align: center;">Lieferzeit</th>
         </tr>
     </thead>
     <tbody>
-        @foreach($forecastingData as $fc)
+        @foreach($combinedData as $fc)
             <tr>
                 <td><strong style="font-size: 9px; color: #111827;">{{ $fc['name'] }}</strong></td>
                 <td class="text-center" style="font-weight: bold;">{{ $fc['stock'] }}</td>
@@ -134,12 +136,10 @@
                 <td class="text-center">{{ $fc['velocity'] }}</td>
                 <td class="text-center" style="font-weight: bold;">{{ $fc['reach_days'] }}</td>
                 <td class="text-center">
-                    @if($fc['status'] === 'out_of_stock')
-                        <span style="color: #dc2626; font-weight: bold;">AUSVERKAUFT</span>
-                    @elseif($fc['status'] === 'critical' || $fc['status'] === 'warning')
-                        <span style="color: #d97706; font-weight: bold;">NACHBESTELLEN</span>
+                    @if($fc['delivery_days'] > 0)
+                        {{ $fc['delivery_days'] }} Tage
                     @else
-                        <span style="color: #059669; font-weight: bold;">OK</span>
+                        Unbekannt
                     @endif
                 </td>
             </tr>

@@ -35,6 +35,11 @@
 
             speakResponse(text) {
                 if (t3.isShuttingDown) return;
+                
+                if (this.agentTtsEnabled === false) {
+                    this.isSpeaking = false;
+                    return;
+                }
 
                 if (this.synthesis) {
                     this.synthesis.cancel();

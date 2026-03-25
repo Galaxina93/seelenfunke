@@ -152,8 +152,8 @@ class Analytics extends Component
                 $freeGb = round($freeSpace / 1024 / 1024 / 1024, 1);
                 $status = $percentFree < 10 ? 'warning' : 'connected';
                 $health['storage'] = [
-                    'status' => $status, 
-                    'value' => "{$percentFree}% frei ({$freeGb} GB)", 
+                    'status' => $status,
+                    'value' => "{$percentFree}% frei ({$freeGb} GB)",
                     'error' => $status === 'warning' ? 'Wenig Speicherplatz!' : null,
                     'percent_free' => $percentFree,
                     'percent_used' => (100 - $percentFree),
@@ -402,7 +402,7 @@ class Analytics extends Component
 
             $status = $tCount > 0 ? 'error' : 'success';
             $msg = $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet';
-            
+
             if ($totalTickets === 0) {
                 $msg = 'Keine Tickets vorhanden';
                 $status = 'warning';
@@ -410,7 +410,7 @@ class Analytics extends Component
 
             $checks['open_tickets'] = [
                 'status' => $status,
-                'icon' => 'bi-ticket-detailed',
+                'icon' => 'ticket',
                 'title' => 'Offene Tickets',
                 'message' => $msg,
                 'count' => $tCount,
@@ -432,7 +432,7 @@ class Analytics extends Component
 
             $status = $rCount > 0 ? 'error' : 'success';
             $msg = $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft';
-            
+
             if ($totalReviews === 0) {
                 $msg = 'Noch keine Bewertungen';
                 $status = 'warning';
@@ -440,7 +440,7 @@ class Analytics extends Component
 
             $checks['product_reviews'] = [
                 'status' => $status,
-                'icon' => 'bi-star-half',
+                'icon' => 'star',
                 'title' => 'Produkt-Reviews',
                 'message' => $msg,
                 'count' => $rCount,
@@ -454,16 +454,40 @@ class Analytics extends Component
             ];
         }
 
+        // 0. Offene Bestellungen
+        if (class_exists(\App\Models\Order\Order::class)) {
+            $totalOrders = \App\Models\Order\Order::count();
+            $openOrders = \App\Models\Order\Order::whereIn('status', ['pending', 'processing'])->get();
+            $oCount = $openOrders->count();
+
+            $status = $oCount > 0 ? 'warning' : 'success';
+            $msg = $oCount > 0 ? $oCount . ' unversendet' : 'Alles versendet';
+
+            if ($totalOrders === 0) {
+                $msg = 'Noch keine Bestellungen';
+                $status = 'warning';
+            }
+
+            $checks['open_orders'] = [
+                'status' => $status,
+                'icon' => 'shopping-cart',
+                'title' => 'Offene Bestellungen',
+                'message' => $msg,
+                'count' => $oCount,
+                'data' => []
+            ];
+        }
+
         // 1. Gutschriften (offen / nicht versendet)
         if (class_exists(\App\Models\Invoice::class)) {
             $totalCredits = \App\Models\Invoice::whereIn('type', ['credit_note', 'cancellation'])->count();
             $cCount = \App\Models\Invoice::whereIn('type', ['credit_note', 'cancellation'])
                 ->whereNull('email_sent_at')
                 ->count();
-            
+
             $status = $cCount > 0 ? 'error' : 'success';
             $msg = $cCount > 0 ? $cCount . ' unversendet' : 'Alle versendet';
-            
+
             if ($totalCredits === 0) {
                 $msg = 'Keine Gutschriften vorhanden';
                 $status = 'warning';
@@ -471,8 +495,8 @@ class Analytics extends Component
 
             $checks['open_credits'] = [
                 'status' => $status,
-                'icon' => 'bi-receipt-cutoff',
-                'title' => 'Gutschriften offen',
+                'icon' => 'document-minus',
+                'title' => 'Offene Gutschriften',
                 'message' => $msg,
                 'count' => $cCount,
                 'data' => []
@@ -493,7 +517,7 @@ class Analytics extends Component
 
             $status = $unassignedTx > 0 ? 'error' : 'success';
             $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
-            
+
             if ($totalTx === 0) {
                 $msg = 'Keine Transaktionen gefunden';
                 $status = 'warning';
@@ -501,7 +525,7 @@ class Analytics extends Component
 
             $checks['unassigned_tx'] = [
                 'status' => $status,
-                'icon' => 'bi-bank',
+                'icon' => 'banknotes',
                 'title' => 'Bank Umsätze',
                 'message' => $msg,
                 'count' => $unassignedTx,
@@ -516,7 +540,7 @@ class Analytics extends Component
 
             $status = $openTasks > 0 ? 'warning' : 'success';
             $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
-            
+
             if ($totalTasks === 0) {
                 $msg = 'Keine Aufgaben vorhanden';
                 $status = 'warning';
@@ -524,7 +548,7 @@ class Analytics extends Component
 
             $checks['open_tasks'] = [
                 'status' => $status,
-                'icon' => 'bi-list-check',
+                'icon' => 'check-circle',
                 'title' => 'Offene Aufgaben',
                 'message' => $msg,
                 'count' => $openTasks,
@@ -541,7 +565,7 @@ class Analytics extends Component
 
             $status = $oldQuotes > 0 ? 'error' : 'success';
             $msg = $oldQuotes > 0 ? $oldQuotes . ' älter als 5 Tage' : 'Alles aktuell';
-            
+
             if ($totalQuotes === 0) {
                 $msg = 'Keine Angebote vorhanden';
                 $status = 'warning';
@@ -549,7 +573,7 @@ class Analytics extends Component
 
             $checks['open_quotes'] = [
                 'status' => $status,
-                'icon' => 'bi-file-earmark-text',
+                'icon' => 'clipboard-document-list',
                 'title' => 'Offene Angebote',
                 'message' => $msg,
                 'count' => $oldQuotes,
@@ -566,7 +590,7 @@ class Analytics extends Component
 
             $status = $oldRevs > 0 ? 'error' : 'success';
             $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
-            
+
             if ($totalRevs === 0) {
                 $msg = 'Keine Widerrufe vorhanden';
                 $status = 'warning';
@@ -574,10 +598,33 @@ class Analytics extends Component
 
             $checks['open_revocations'] = [
                 'status' => $status,
-                'icon' => 'bi-arrow-return-left',
+                'icon' => 'archive-box-x-mark',
                 'title' => 'Offene Widerrufe',
                 'message' => $msg,
                 'count' => $oldRevs,
+                'data' => []
+            ];
+        }
+
+        // 6. Offene Schadensmeldungen
+        if (class_exists(\App\Models\Product\ProductLoss::class)) {
+            $totalLosses = \App\Models\Product\ProductLoss::count();
+            $openLosses = \App\Models\Product\ProductLoss::whereNull('refund_received_at')->count();
+
+            $status = $openLosses > 0 ? 'warning' : 'success';
+            $msg = $openLosses > 0 ? $openLosses . ' ungelöste Fälle' : 'Alles erledigt';
+
+            if ($totalLosses === 0) {
+                $msg = 'Keine Schäden erfasst';
+                $status = 'warning';
+            }
+
+            $checks['open_losses'] = [
+                'status' => $status,
+                'icon' => 'exclamation-triangle',
+                'title' => 'Schwund & Bruch',
+                'message' => $msg,
+                'count' => $openLosses,
                 'data' => []
             ];
         }
@@ -823,7 +870,7 @@ class Analytics extends Component
         }
 
         $this->isRecommending = true;
-        
+
         $agent = \App\Models\Ai\AiAgent::find($this->selectedAgentId);
         if (!$agent) {
             $this->isRecommending = false;
@@ -832,7 +879,7 @@ class Analytics extends Component
         }
 
         $statsJson = json_encode($this->stats, JSON_PRETTY_PRINT);
-        
+
         $prompt = "Du bist der virtuelle CFO (Chief Financial Officer) eines E-Commerce Laser-Graveur Shops.\n";
         $prompt .= "Ich präsentiere dir hier alle meine aktuellen Kennzahlen (KPIs) und den aggregierten 'Shop Health Score' (0-100).\n";
         $prompt .= "Der Shop Health Score basiert auf:\n";

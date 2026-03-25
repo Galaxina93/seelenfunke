@@ -136,8 +136,8 @@ class AiAgentManager extends Component
         }
 
         // Ping TTS
-        $ttsStatus = 'Inaktiv';
-        if ($agent->tts_provider && $agent->tts_provider !== 'none') {
+        $ttsStatus = !$agent->tts_enabled ? 'Deaktiviert' : 'Inaktiv';
+        if ($agent->tts_enabled && $agent->tts_provider && $agent->tts_provider !== 'none') {
             try {
                 $start = microtime(true);
                 $ttsUrl = $agent->tts_api_url ?: 'http://127.0.0.1:8020';

@@ -21,7 +21,12 @@ class AiAgent extends Model
         'is_active',
         'color',
         'icon',
-        'profile_picture', // NEW
+        'profile_picture',
+        'tts_enabled',
+        'tts_provider',
+        'tts_voice',
+        'tts_api_url',
+        'tts_speed',
     ];
 
     protected $casts = [
