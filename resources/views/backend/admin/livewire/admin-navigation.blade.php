@@ -32,21 +32,48 @@
                                 </a>
                             </li>
                         @else
-                            <x-forms.list-item route="{{ $item['route'] }}" title="{{ $item['title'] }}" pageName="{{ basename($item['route']) }}" icon="{{ $item['icon'] }}" />
+                            <x-forms.list-item route="{{ $item['route'] }}" title="{{ $item['title'] }}" pageName="{{ basename($item['route']) }}" icon="{{ $item['icon'] }}" :noColor="$item['id'] === 'dashboard'" />
                         @endif
                     @elseif($item['type'] === 'group')
                         @php
                             $isActive = \App\Services\Navigation\BackendNavigationService::isGroupActive($item, $currentPath);
+                            
+                            // Check if this nav-group has a linked AiDepartment with Agenten
+                            $hasAgents = false;
+                            $deptColorCss = '';
+                            $deptColorName = null;
+                            if (isset($item['ai_department_id'])) {
+                                $dept = \App\Models\Ai\AiDepartment::where('id', $item['ai_department_id'])->withCount('agents')->first();
+                                if ($dept && $dept->agents_count > 0) {
+                                    $hasAgents = true;
+                                    $deptColorName = $dept->color;
+                                    // Map department colors to specific tailwind glow classes
+                                    $deptColorCss = match($dept->color) {
+                                        'blue-500' => 'text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]',
+                                        'purple-500' => 'text-purple-500 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]',
+                                        'amber-500' => 'text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]',
+                                        'emerald-500' => 'text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]',
+                                        'rose-500' => 'text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]',
+                                        'cyan-500' => 'text-cyan-500 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+                                        'primary' => 'text-primary drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]',
+                                        default => 'text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                                    };
+                                }
+                            }
                         @endphp
                         <li x-data="{ open: {{ $isActive ? 'true' : 'false' }} }">
                             <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                                <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                                @if($hasAgents)
+                                    <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="h-5 w-5 shrink-0 transition-colors {{ $deptColorCss }} animate-pulse-slow" />
+                                @else
+                                    <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                                @endif
                                 <span class="flex-1">{{ $item['title'] }}</span>
                                 <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                             </button>
                             <ul x-show="open" x-collapse style="{{ $isActive ? '' : 'display: none;' }}" class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                                 @foreach($item['children'] as $child)
-                                    <x-forms.list-item route="{{ $child['route'] }}" title="{{ $child['title'] }}" pageName="{{ basename($child['route']) }}" icon="{{ $child['icon'] }}" />
+                                    <x-forms.list-item route="{{ $child['route'] }}" title="{{ $child['title'] }}" pageName="{{ basename($child['route']) }}" icon="{{ $child['icon'] }}" themeColor="{{ $deptColorName }}" />
                                 @endforeach
                             </ul>
                         </li>

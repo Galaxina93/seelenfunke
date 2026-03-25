@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Invoice;
 
-use App\Models\Invoice;
+use App\Models\Accounting\Invoice;
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -74,9 +74,10 @@ class InvoicePreview extends Component
         if($invoice) {
             // Fix: Check if item is object (getItemsAttribute map) or array (from database)
             $items = $invoice->items;
+            $defaultTax = (float)shop_setting('default_tax_rate', 19.0);
             foreach($items as $item) {
                 $totalPrice = is_object($item) ? $item->total_price : ($item['total_price'] ?? 0);
-                $taxRate = is_object($item) ? ($item->tax_rate ?? 19) : ($item['tax_rate'] ?? 19);
+                $taxRate = is_object($item) ? ($item->tax_rate ?? $defaultTax) : ($item['tax_rate'] ?? $defaultTax);
 
                 $line = (float)$totalPrice;
                 $taxDiv = 1 + ($taxRate / 100);

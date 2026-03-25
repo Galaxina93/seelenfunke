@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;

@@ -5,7 +5,7 @@ namespace App\Livewire\Shop\Checkout;
 use App\Livewire\Shop\Checkout\Traits\HandlesOrderCreation;
 use App\Livewire\Shop\Checkout\Traits\HandlesStripePayment;
 use App\Models\Cart\Cart;
-use App\Models\Quote\QuoteRequest;
+use App\Models\Order\Quote\QuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;

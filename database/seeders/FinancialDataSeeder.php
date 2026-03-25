@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
-use App\Models\Financial\FinanceCategory;
-use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Accounting\FinanceCategory;
+use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Order\Order;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;

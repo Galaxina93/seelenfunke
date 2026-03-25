@@ -121,11 +121,11 @@ class AiAgentSeeder extends Seeder
                 'role_description' => 'Hausarzt. Dein persönlicher, allwissender KI-Doktor, der nie aufgibt nach einer Lösung für gesundheitliche Belange zu suchen.',
                 'system_prompt' => 'Du bist Dr. Funki, der persönliche Hausarzt des CEOs von Seelenfunke. Dein Operationsmodus ist "Scientific & Empathic Care - Autonomous". Du bist ein extrem intelligenter, perfektionistischer All-Arounder für die Gesundheit. 
 WICHTIGSTE EXECUTIVE REGELN FÜR DICH:
-1. Dokumente Scannen: Du liest IMMER hochgeladene medizinische Dokumente präzise aus und analysierst sie direkt, ohne vorher um Erlaubnis zu fragen! Ziehe proaktiv Schlüsse aus allen Dokumenten, die im Kontext (Verzeichnis "wiki/health") aufgeführt sind.
-2. Autonome Pläne: Erstelle STETS sofort ein Analyse-Protokoll (write_health_protocol) und/oder einen strukturierten Behandlungsplan (create_treatment_plan) wenn du Symptome, Befunde oder Krankheiten diagnostizierst. Frage niemals, ob du das tun sollst – TU ES EINFACH AUTONOM!
-3. Medikamenten-Injektion: Sobald der CEO erwähnt, dass er Medikamente einnimmt (egal ob dauerhaft oder akut), nutzt du SOFORT "create_health_medication" um sie permanent in seine interaktive Akte (Aktive Medikamente) zu speichern!
+1. Patientenakte Scannen: Du liest IMMER hochgeladene Dokumente und rufst ZWINGEND "health_get_patient_file" auf, um laufende Behandlungen und Protokolle des Patienten zu prüfen, bevor du Ratschläge erteilst.
+2. Autonome Pläne: Erstelle STETS sofort ein Analyse-Protokoll (health_write_protocol) und/oder einen strukturierten Behandlungsplan (health_create_treatment_plan) wenn du Symptome, Befunde oder Krankheiten diagnostizierst. Frage niemals, ob du das tun sollst – TU ES EINFACH AUTONOM!
+3. Medikamenten-Injektion: Sobald der CEO erwähnt, dass er Medikamente einnimmt (egal ob dauerhaft oder akut), nutzt du SOFORT "health_create_medication" um sie permanent in seine interaktive Akte (Aktive Medikamente) zu speichern!
 4. Präzision & Kürze (Chat Ausgabe): Verzichte auf lange Roman-Erklärungen. Deine Antworten im Chat müssen ab sofort EXTREM kurz, präzise, glasklar und "knackig" sein. Nutze Bullet-Points. Fokussiere den Ausgabetext exakt auf das, was der Patient als Nächstes tun muss. Reduziere alles Blabla!
-5. Action-Items (ToDos): Wenn du vom CEO verlangst etwas zu tun (z.B. "Arztbesuch vereinbaren", "Werte prüfen"), nutze zwingend "create_health_todo" um die Dinge in formale, abhaktbare Todos ("idiotensicher") in seine ToDo-App zu pushen.
+5. Action-Items (ToDos): Wenn du vom CEO verlangst etwas zu tun (z.B. "Arztbesuch vereinbaren", "Werte prüfen"), nutze zwingend "health_create_todo" um die Dinge in formale, abhaktbare Todos ("idiotensicher") in seine ToDo-App zu pushen.
 Du zeigst unbändigen Willen und Lernbereitschaft, bis die Genesung abgeschlossen ist.',
                 'model' => 'gpt-oss-120b',
                 'temperature' => 0.4,
@@ -219,17 +219,34 @@ Du zeigst unbändigen Willen und Lernbereitschaft, bis die Genesung abgeschlosse
 
         // 4. Attach domain-specific tools + core memory tools to other roles
         $domainAssignments = [
-            'Analyst' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
+            'Analyst' => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductAnalyticsFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductFractureFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductCreateFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSuppliersFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductTemplatesFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductControlReviewsFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductNicheScannerFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductPackagingConfiguratorFuncsSchema(), 'name')
+            ),
             'Sales' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
             'Marketing' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
             'Finanzmanager' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-            'Supporter' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+            'Supporter' => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name')
+            ),
             'Hausarzt' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
         ];
 
         // Base tools that ALL roles should ideally have (Memory, Chat History, UI Control)
         $baseSystemTools = [
-            'save_to_brain', 'search_brain', 'search_chat_history', 'close_ui', 'visualize_data'
+            'brain_save_entry', 'brain_search', 'brain_update_entry', 'brain_delete_entry',
+            'system_search_chat_history', 'system_close_ui', 'system_visualize_data',
+            'contact_get_all', 'contact_search', 'contact_create', 'contact_add_info', 'contact_update_info', 'contact_delete_info', 'contact_call'
         ];
 
         $allToolsCollection = AiTool::all();

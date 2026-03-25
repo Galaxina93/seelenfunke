@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Invoice;
+use App\Models\Accounting\Invoice;
 use App\Models\Order\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;

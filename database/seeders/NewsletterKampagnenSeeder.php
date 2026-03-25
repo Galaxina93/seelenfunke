@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Newsletter\Newsletter;
+use App\Models\Marketing\Newsletter\Newsletter;
 use Illuminate\Database\Seeder;
 
 class NewsletterKampagnenSeeder extends Seeder

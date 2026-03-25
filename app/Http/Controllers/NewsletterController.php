@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\Newsletter\NewsletterSubscriber;
 
 class NewsletterController extends Controller
 {

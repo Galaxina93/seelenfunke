@@ -9,14 +9,14 @@
                 <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 transition-colors hover:border-gray-700 animate-fade-in-up w-full min-w-0">
                     <div @click="open = !open" class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between cursor-pointer group transition-all gap-4 sm:gap-5" :class="open ? 'mb-8 border-b border-gray-800 pb-5' : ''">
                         <div class="flex items-center gap-3 sm:gap-4 flex-1 min-w-[200px] w-full lg:w-auto">
-                            <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
-                                <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
+                                <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                             </div>
                             <div class="flex items-center gap-2 min-w-0">
-                                <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">Versand & Lieferung</h3>
+                                <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Versand & Lieferung</h3>
                             </div>
                         </div>
-                        <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg shadow-inner drop-shadow-[0_0_8px_currentColor] hidden sm:block shrink-0">
+                        <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-3 py-1.5 rounded-lg shadow-inner drop-shadow-[0_0_8px_currentColor] hidden sm:block shrink-0">
                         Physisches Produkt
                     </span>
                     </div>
@@ -28,14 +28,14 @@
                                 <div class="w-full min-w-0">
                                     <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Gewicht</label>
                                     <div class="relative w-full">
-                                        <input type="number" wire:model.blur="weight" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all pr-12 shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                        <input type="number" wire:model.blur="weight" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all pr-12 shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
                                         <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">g</span>
                                     </div>
                                 </div>
                                 <div class="w-full min-w-0">
                                     <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Versandart</label>
                                     <div class="relative w-full">
-                                        <select wire:model.blur="shipping_class" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner appearance-none cursor-pointer outline-none text-sm min-w-0">
+                                        <select wire:model.blur="shipping_class" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner appearance-none cursor-pointer outline-none text-sm min-w-0">
                                             <option value="" class="bg-gray-900">DHL Standard (Gewichtsbasiert)</option>
                                             <optgroup label="Spezialversand" class="text-gray-500 italic bg-gray-950">
                                                 <option value="brief" class="bg-gray-900 not-italic text-white">Brief / Großbrief (Günstiger)</option>
@@ -52,16 +52,16 @@
                                 <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 drop-shadow-[0_0_8px_currentColor] mb-5 ml-1">Abmessungen (L x B x H in mm)</label>
                                 <div class="grid grid-cols-3 gap-3 sm:gap-5 w-full">
                                     <div class="relative group min-w-0">
-                                        <input type="number" wire:model.blur="length" class="w-full px-2 sm:px-3 py-4 text-center rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
-                                        <label class="absolute -bottom-6 left-0 w-full text-[9px] text-center text-gray-600 font-black uppercase tracking-widest transition-colors group-focus-within:text-primary">Länge</label>
+                                        <input type="number" wire:model.blur="length" class="w-full px-2 sm:px-3 py-4 text-center rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                        <label class="absolute -bottom-6 left-0 w-full text-[9px] text-center text-gray-600 font-black uppercase tracking-widest transition-colors group-focus-within:text-[var(--theme-color)]">Länge</label>
                                     </div>
                                     <div class="relative group min-w-0">
-                                        <input type="number" wire:model.blur="width" class="w-full px-2 sm:px-3 py-4 text-center rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
-                                        <label class="absolute -bottom-6 left-0 w-full text-[9px] text-center text-gray-600 font-black uppercase tracking-widest transition-colors group-focus-within:text-primary">Breite</label>
+                                        <input type="number" wire:model.blur="width" class="w-full px-2 sm:px-3 py-4 text-center rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                        <label class="absolute -bottom-6 left-0 w-full text-[9px] text-center text-gray-600 font-black uppercase tracking-widest transition-colors group-focus-within:text-[var(--theme-color)]">Breite</label>
                                     </div>
                                     <div class="relative group min-w-0">
-                                        <input type="number" wire:model.blur="height" class="w-full px-2 sm:px-3 py-4 text-center rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
-                                        <label class="absolute -bottom-6 left-0 w-full text-[9px] text-center text-gray-600 font-black uppercase tracking-widest transition-colors group-focus-within:text-primary">Höhe</label>
+                                        <input type="number" wire:model.blur="height" class="w-full px-2 sm:px-3 py-4 text-center rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                        <label class="absolute -bottom-6 left-0 w-full text-[9px] text-center text-gray-600 font-black uppercase tracking-widest transition-colors group-focus-within:text-[var(--theme-color)]">Höhe</label>
                                     </div>
                                 </div>
                             </div>
@@ -77,10 +77,10 @@
             <div x-data="{ open: false }" class="bg-gray-900/80 backdrop-blur-xl p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-gray-800 transition-colors hover:border-gray-700 animate-fade-in-up w-full min-w-0">
                 <div @click="open = !open" class="flex flex-wrap items-center justify-between cursor-pointer group transition-all gap-4" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
                     <div class="flex items-center gap-3 sm:gap-4 flex-1 min-w-[200px]">
-                        <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
-                            <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
+                            <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </div>
-                        <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">{{ $type === 'service' ? 'Verfügbarkeit & Plätze' : 'Lager & Verfügbarkeit' }}</h3>
+                        <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">{{ $type === 'service' ? 'Verfügbarkeit & Plätze' : 'Lager & Verfügbarkeit' }}</h3>
                     </div>
                     @if($track_quantity)
                         <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-inner border hidden sm:inline-flex {{ $quantity > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20' }}">
@@ -97,7 +97,7 @@
                                 <span aria-hidden="true" class="pointer-events-none inline-block h-6 w-6 transform rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)] ring-0 transition duration-300 ease-in-out {{ $track_quantity ? 'translate-x-5 bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.8)]' : 'translate-x-0 bg-gray-500' }}"></span>
                             </button>
                             <div class="cursor-pointer select-none flex-1" wire:click="$toggle('track_quantity')">
-                                <label class="block text-sm font-bold text-white cursor-pointer group-hover:text-primary transition-colors">{{ $type === 'service' ? 'Plätze limitieren' : 'Bestand automatisch verfolgen' }}</label>
+                                <label class="block text-sm font-bold text-white cursor-pointer group-hover:text-[var(--theme-color)] transition-colors">{{ $type === 'service' ? 'Plätze limitieren' : 'Bestand automatisch verfolgen' }}</label>
                                 <p class="text-[10px] font-medium text-gray-500 mt-0.5">{{ $type === 'service' ? 'Begrenzt die Anzahl der buchbaren Termine.' : 'Ermöglicht die Überwachung der verfügbaren Stückzahl. Bei Varianten wird dies auf Varianten-Ebene gesteuert.' }}</p>
                             </div>
                         </div>
@@ -108,7 +108,7 @@
                                     <div>
                                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">{{ $type === 'service' ? 'Freie Plätze' : 'Aktuell Verfügbar (Eltern-Produkt)' }}</label>
                                         <div class="relative">
-                                            <input type="number" wire:model.live="quantity" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none" placeholder="0">
+                                            <input type="number" wire:model.live="quantity" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none" placeholder="0">
                                             <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] text-gray-500 font-black uppercase tracking-widest">Stk.</span>
                                         </div>
                                     </div>
@@ -116,7 +116,7 @@
                                         <label class="flex items-center gap-4 cursor-pointer group p-3 rounded-xl hover:bg-gray-900 transition-colors border border-transparent hover:border-gray-800">
                                             <div class="relative flex items-center shrink-0">
                                                 <input type="checkbox" id="continue_selling" wire:model.live="continue_selling" class="peer sr-only">
-                                                <div class="w-5 h-5 bg-gray-900 border-2 border-gray-700 rounded transition-all peer-checked:bg-primary peer-checked:border-primary shadow-inner"></div>
+                                                <div class="w-5 h-5 bg-gray-900 border-2 border-gray-700 rounded transition-all peer-checked:bg-[var(--theme-color)] peer-checked:border-[var(--theme-color)] shadow-inner"></div>
                                                 <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                             </div>
                                             <div class="select-none min-w-0">
@@ -137,10 +137,10 @@
             <div x-data="{ open: false }" class="bg-gray-900/80 backdrop-blur-xl p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-gray-800 transition-colors hover:border-gray-700 animate-fade-in-up w-full min-w-0 mt-6 md:mt-8">
                 <div @click="open = !open" class="flex flex-wrap items-center justify-between cursor-pointer group transition-all gap-4" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
                     <div class="flex items-center gap-3 sm:gap-4 flex-1 min-w-[200px]">
-                        <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
-                            <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
+                            <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </div>
-                        <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">Kalkulation & Produktion</h3>
+                        <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Kalkulation & Produktion</h3>
                     </div>
                     <span class="inline-flex items-center px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-inner border bg-gray-800/50 text-gray-400 border-gray-700 hidden sm:inline-flex">
                         Unit Economics
@@ -153,7 +153,7 @@
                             <div class="w-full min-w-0">
                                 <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Ø Laser-Laufzeit</label>
                                 <div class="relative w-full">
-                                    <input type="number" wire:model.blur="laser_runtime_minutes" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                    <input type="number" wire:model.blur="laser_runtime_minutes" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
                                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">Minuten</span>
                                 </div>
                                 <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Dient der Berechnung der Maschinenkosten.</p>
@@ -161,7 +161,7 @@
                             <div class="w-full min-w-0">
                                 <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Strom & Maschinenverschleiß pro Min.</label>
                                 <div class="relative w-full">
-                                    <input type="number" wire:model.blur="electricity_wear_factor" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="1">
+                                    <input type="number" wire:model.blur="electricity_wear_factor" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="1">
                                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">Cent</span>
                                 </div>
                                 <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Standard: 1 Cent/Min (UV-Laser).</p>
@@ -171,7 +171,7 @@
                                 <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Verpackungskosten</label>
                                 <div class="relative w-full">
                                     <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
-                                    <input type="number" step="0.01" wire:model.blur="packaging_cost_input" class="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0.00">
+                                    <input type="number" step="0.01" wire:model.blur="packaging_cost_input" class="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0.00">
                                 </div>
                                 <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Materialwert der Versandkartons und Inlays.</p>
                             </div>

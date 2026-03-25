@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 

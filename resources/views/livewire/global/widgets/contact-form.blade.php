@@ -98,17 +98,6 @@
                                 </a>
                             </div>
 
-                            {{-- Das Easter-Egg / Wusstest du schon (Mystisch ohne Zahl) --}}
-                            <div class="mt-8 flex items-start gap-3 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-                                <div class="mt-0.5 text-primary animate-pulse">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                </div>
-                                <p class="text-xs text-gray-400 leading-relaxed">
-                                    <strong class="text-white block mb-0.5">Wusstest du schon?</strong>
-                                    Unser Universum lebt. Für jedes gefertigte Unikat und jeden Funken, den wir weitergeben dürfen, lassen wir einen neuen Stern in unserem digitalen Himmel erstrahlen. Werde auch du ein Teil davon.
-                                </p>
-                            </div>
-
                         </div>
                     </div>
 
@@ -207,7 +196,7 @@
                                 </div>
                                 <p class="text-xs text-gray-400 leading-relaxed">
                                     <strong class="text-white block mb-0.5">Wusstest du schon?</strong>
-                                    Schau dir den Hintergrund an: Jeder einzelne Stern an unserem Himmel steht für einen verifizierten Nutzer. Aktuell leuchten <span class="text-primary font-bold text-sm">{{ $verifiedUsersCount }} Funken</span> mit uns.
+                                    Schau dir den Hintergrund an: Jeder einzelne Stern an unserem Himmel steht für einen verifizierten Nutzer. Leuchte mit uns und werde Teil unserer Community.
                                 </p>
                             </div>
 

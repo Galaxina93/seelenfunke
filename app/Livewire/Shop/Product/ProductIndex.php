@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Product;
 
-use App\Models\Category;
+use App\Models\Product\Category;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Title;

@@ -86,7 +86,7 @@
         {{-- ZEICHENBRETT TOGGLE --}}
         <button type="button" @click="showDrawingBoard = !showDrawingBoard"
                 class="w-full sm:w-auto px-5 py-3 sm:py-2.5 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all shadow-inner shrink-0 text-center"
-                :class="showDrawingBoard ? 'bg-primary/10 border-primary/30 text-primary drop-shadow-[0_0_8px_currentColor]' : 'bg-gray-950 border-gray-800 text-gray-500 hover:text-white'">
+                :class="showDrawingBoard ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'bg-gray-950 border-gray-800 text-gray-500 hover:text-white'">
             <span x-text="showDrawingBoard ? 'Brett ausblenden' : 'Brett einblenden'"></span>
         </button>
 

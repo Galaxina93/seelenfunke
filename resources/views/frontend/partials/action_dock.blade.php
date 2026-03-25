@@ -38,10 +38,10 @@
         {{-- 1. GUTSCHEIN TRIGGER --}}
         @php
             // Prüfe auf gültige manuelle Gutscheine
-            $hasActiveManual = \App\Models\Voucher::where('mode', 'manual')->current()->exists();
+            $hasActiveManual = \App\Models\Marketing\Voucher::where('mode', 'manual')->current()->exists();
 
             // Prüfe auf Auto-Gutscheine des AKTUELLEN Monats
-            $hasActiveAuto = \App\Models\Voucher::where('mode', 'auto')
+            $hasActiveAuto = \App\Models\Marketing\Voucher::where('mode', 'auto')
                                 ->where('is_active', true)
                                 ->whereMonth('valid_from', now()->month)
                                 ->exists();

@@ -16,9 +16,9 @@
             {{-- SUCHE --}}
             <div class="relative w-full sm:w-72 group">
                 <input type="text" wire:model.live="search" placeholder="Produkt suchen..."
-                       class="w-full pl-12 pr-4 py-3.5 bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-[1.5rem] text-sm text-white placeholder-gray-600 focus:bg-gray-950 focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all shadow-inner outline-none">
+                       class="w-full pl-12 pr-4 py-3.5 bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-[1.5rem] text-sm text-white placeholder-gray-600 focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all shadow-inner outline-none">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-gray-600 group-focus-within:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <svg class="h-5 w-5 text-gray-600 group-focus-within:text-[var(--theme-color)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 </div>
             </div>
 
@@ -29,7 +29,7 @@
                     Archiv öffnen
                 </button>
                 <button wire:click="createDraft"
-                        class="bg-primary border border-primary/50 text-gray-900 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                        class="bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-6 py-3.5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2 whitespace-nowrap">
                     <span class="text-sm leading-none">+</span> Neu
                 </button>
             @else
@@ -49,7 +49,7 @@
             </div>
             <h3 class="text-xl font-serif font-bold text-white mb-2 tracking-wide">Keine Produkte gefunden</h3>
             <p class="text-xs text-gray-500 mb-6">Starte jetzt und füge dein erstes Unikat hinzu.</p>
-            <button wire:click="createDraft" class="text-[10px] font-black uppercase tracking-widest text-primary hover:text-white transition-colors border-b border-primary/30 hover:border-white pb-0.5">
+            <button wire:click="createDraft" class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] hover:text-white transition-colors border-b border-[var(--theme-color-30)] hover:border-white pb-0.5">
                 Erstelle das Erste
             </button>
         </div>
@@ -74,7 +74,7 @@
 
                     {{-- Fortschrittsbalken Oben --}}
                     <div class="absolute top-0 left-0 w-full h-1 bg-gray-950 z-30">
-                        <div class="h-full transition-all duration-500 {{ $isComplete ? 'bg-primary shadow-[0_0_10px_rgba(197,160,89,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' }}" style="width: {{ $percentComplete }}%"></div>
+                        <div class="h-full transition-all duration-500 {{ $isComplete ? 'bg-[var(--theme-color)] shadow-[0_0_10px_rgba(197,160,89,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' }}" style="width: {{ $percentComplete }}%"></div>
                     </div>
 
                     {{-- Status Switcher --}}
@@ -131,7 +131,7 @@
                     </div>
 
                     <h3 class="font-serif text-lg md:text-xl font-bold text-white truncate mb-1.5 tracking-wide">{{ $prod->name }}</h3>
-                    <p class="text-sm md:text-base text-primary font-mono font-bold mb-6 drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
+                    <p class="text-sm md:text-base text-[var(--theme-color)] font-mono font-bold mb-6 drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
 
                     {{-- Lagerbestand Anzeige --}}
                     <div class="mb-6 h-8 flex items-center"
@@ -175,11 +175,11 @@
                                 <input x-ref="qtyInput"
                                        type="number"
                                        x-model="qty"
-                                       class="w-20 px-3 py-1.5 text-xs font-bold text-center border border-primary bg-gray-950 text-white rounded-xl focus:ring-2 focus:ring-primary/50 outline-none shadow-inner"
+                                       class="w-20 px-3 py-1.5 text-xs font-bold text-center border border-[var(--theme-color)] bg-gray-950 text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-inner"
                                        @keydown.enter="$wire.updateStock('{{ $prod->id }}', qty); editing = false"
                                        @keydown.escape="editing = false; qty = {{ $prod->quantity }}">
 
-                                <button @click="$wire.updateStock('{{ $prod->id }}', qty); editing = false" class="bg-primary text-gray-900 p-2 rounded-xl hover:bg-primary-dark transition-colors shadow-[0_0_10px_rgba(197,160,89,0.3)]">
+                                <button @click="$wire.updateStock('{{ $prod->id }}', qty); editing = false" class="bg-[var(--theme-color)] text-gray-900 p-2 rounded-xl hover:bg-white transition-colors shadow-[0_0_10px_rgba(197,160,89,0.3)]">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                 </button>
                             </div>
@@ -194,7 +194,7 @@
 
                     {{-- Footer Steps (Dynamisch) --}}
                     <div class="mt-auto pt-5 border-t border-gray-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                        <span class="{{ $isComplete ? 'text-primary drop-shadow-[0_0_5px_currentColor]' : 'text-red-400' }}">
+                        <span class="{{ $isComplete ? 'text-[var(--theme-color)] drop-shadow-[0_0_5px_currentColor]' : 'text-red-400' }}">
                             @if($isComplete)
                                 <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Fertig</span>
                             @else

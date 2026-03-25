@@ -9,9 +9,9 @@
 
         {{-- Breadcrumb --}}
         <nav class="flex text-sm font-medium text-gray-500 mb-8" aria-label="Breadcrumb">
-            <a href="{{ route('home') }}" class="hover:text-primary transition-colors">Startseite</a>
+            <a href="{{ route('home') }}" class="hover:text-[var(--theme-color)] transition-colors">Startseite</a>
             <span class="mx-2 text-gray-300">/</span>
-            <a href="/shop" class="hover:text-primary transition-colors">Shop</a>
+            <a href="/shop" class="hover:text-[var(--theme-color)] transition-colors">Shop</a>
             <span class="mx-2 text-gray-300">/</span>
             <span class="text-gray-900 truncate max-w-[200px]">{{ $this->product->name }}</span>
         </nav>

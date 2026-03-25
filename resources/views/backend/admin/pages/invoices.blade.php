@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.invoice.invoices')
+        @livewire('shop.accounting.accounting-invoice')
 
     @endsection
 

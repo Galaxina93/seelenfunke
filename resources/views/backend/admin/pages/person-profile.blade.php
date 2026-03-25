@@ -1,7 +1,7 @@
 <x-layouts.backend_layout guard="admin">
 
     @section('content')
-        @livewire('global.ai.person-profiles-manager')
+        @livewire('shop.management.management-person-profiles')
 
     @endsection
 

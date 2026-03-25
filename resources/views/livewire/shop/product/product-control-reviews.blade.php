@@ -11,9 +11,9 @@
             {{-- Suchfeld --}}
             <div class="relative w-full sm:w-72 group">
                 <input type="text" wire:model.live.debounce.300ms="search" placeholder="Suchen..."
-                       class="w-full pl-12 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none placeholder-gray-600 transition-all">
+                       class="w-full pl-12 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-sm text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-inner outline-none placeholder-gray-600 transition-all">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <i class="bi bi-search text-gray-500 group-focus-within:text-primary transition-colors"></i>
+                    <i class="bi bi-search text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors"></i>
                 </div>
             </div>
 
@@ -68,15 +68,15 @@
                         {{-- Kunde & Produkt --}}
                         <td class="px-6 sm:px-8 py-6 align-top">
                             <div class="font-bold text-white text-sm tracking-wide">{{ $review->customer->first_name }} {{ $review->customer->last_name }}</div>
-                            <div class="text-[10px] font-black uppercase tracking-widest text-primary mt-1.5 drop-shadow-[0_0_5px_currentColor] truncate max-w-[150px] sm:max-w-[200px]">{{ $review->product->name ?? 'Unbekannt' }}</div>
+                            <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mt-1.5 drop-shadow-[0_0_5px_currentColor] truncate max-w-[150px] sm:max-w-[200px]">{{ $review->product->name ?? 'Unbekannt' }}</div>
                             <div class="text-[9px] font-medium text-gray-500 mt-2">{{ $review->created_at->format('d.m.Y H:i') }}</div>
                         </td>
 
                         {{-- Text & Sterne --}}
                         <td class="px-6 sm:px-8 py-6 align-top max-w-xs min-w-[250px]">
-                            <div class="flex text-primary mb-3 drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">
+                            <div class="flex text-[var(--theme-color)] mb-3 drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">
                                 @for($i = 1; $i <= 5; $i++)
-                                    <svg class="h-4 w-4 {{ $i <= $review->rating ? 'text-primary' : 'text-gray-700' }}" viewBox="0 0 20 20" fill="currentColor">
+                                    <svg class="h-4 w-4 {{ $i <= $review->rating ? 'text-[var(--theme-color)]' : 'text-gray-700' }}" viewBox="0 0 20 20" fill="currentColor">
                                         <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
                                     </svg>
                                 @endfor
@@ -96,9 +96,9 @@
                                             $ext = strtolower(pathinfo($media, PATHINFO_EXTENSION));
                                             $isVideo = in_array($ext, ['mp4', 'mov', 'webm']);
                                         @endphp
-                                        <a href="{{ Storage::url($media) }}" target="_blank" class="w-14 h-14 rounded-xl border border-gray-700 overflow-hidden block relative group/media shadow-inner hover:border-primary transition-colors">
+                                        <a href="{{ Storage::url($media) }}" target="_blank" class="w-14 h-14 rounded-xl border border-gray-700 overflow-hidden block relative group/media shadow-inner hover:border-[var(--theme-color)] transition-colors">
                                             @if($isVideo)
-                                                <div class="w-full h-full bg-gray-950 flex items-center justify-center text-gray-400 group-hover/media:text-primary transition-colors">
+                                                <div class="w-full h-full bg-gray-950 flex items-center justify-center text-gray-400 group-hover/media:text-[var(--theme-color)] transition-colors">
                                                     <i class="bi bi-play-fill text-2xl drop-shadow-[0_0_8px_currentColor]"></i>
                                                 </div>
                                             @else

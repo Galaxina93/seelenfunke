@@ -7,8 +7,8 @@ use App\Mail\CalcMailToCustomer;
 use App\Models\Customer\Customer;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
-use App\Models\Quote\QuoteRequest;
-use App\Models\Quote\QuoteRequestItem;
+use App\Models\Order\Quote\QuoteRequest;
+use App\Models\Order\Quote\QuoteRequestItem;
 use App\Models\Shipping\ShippingZone;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
@@ -121,7 +121,7 @@ class Calculator extends Component
             }
 
             $rawPrice = $p->price / 100;
-            $rate = $p->tax_rate ? (float)$p->tax_rate : 19.00;
+            $rate = $p->tax_rate ? (float)$p->tax_rate : (float)shop_setting('default_tax_rate', 19.0);
             $isGross = (bool)$p->tax_included;
 
             return [

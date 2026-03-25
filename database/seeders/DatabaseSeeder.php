@@ -36,7 +36,7 @@ class DatabaseSeeder extends Seeder
             PersonProfileSeeder::class,             // Für den Livegang notwendig
             AiAgentSeeder::class,                   // Für den Livegang notwendig
             AiKnowledgeBaseSeeder::class,           // Für den Livegang notwendig
-
+            AiCompanyStructureSeeder::class,        // Für den Livegang notwendig
             /*BankTransactionTestSeeder::class,*/       // DEAKTIVIEREN BEI LIVEGANG
         ]);
 

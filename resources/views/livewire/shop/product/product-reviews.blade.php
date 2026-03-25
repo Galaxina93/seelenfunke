@@ -1,4 +1,4 @@
-<div class="w-full relative z-10">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="w-full relative z-10">
     <div class="mt-16 sm:mt-24 w-full">
 
         <div class="mt-6 border-t border-gray-200 pt-10 w-full">

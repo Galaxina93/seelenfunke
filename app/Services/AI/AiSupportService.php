@@ -2,13 +2,13 @@
 
 namespace App\Services\AI;
 
-use App\Models\CalendarEvent;
-use App\Models\DayRoutine;
-use App\Models\Financial\FinanceSpecialIssue;
-use App\Models\Invoice;
+use App\Models\Management\CalendarEvent;
+use App\Models\Management\DayRoutine;
+use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\Invoice;
 use App\Models\LoginAttempt;
 use App\Models\Order\Order;
-use App\Models\Task;
+use App\Models\Management\Task;
 use Carbon\Carbon;
 
 class AiSupportService

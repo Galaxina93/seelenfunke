@@ -6,10 +6,13 @@ use App\Models\Product\ProductReview;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductControlReviews extends Component
 {
-    use WithPagination;
+    use WithPagination, WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
 
     public $filterStatus = 'pending';
     public $search = '';

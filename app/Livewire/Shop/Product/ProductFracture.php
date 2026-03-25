@@ -8,10 +8,13 @@ use App\Models\Product\Supplier;
 use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductFracture extends Component
 {
-    use WithPagination;
+    use WithPagination, WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
 
     // Workflow state
     public $lossModalOpen = false;

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\PaymentReceivedMail;
-use App\Models\Invoice;
+use App\Models\Accounting\Invoice;
 use App\Models\Order\Order;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;

@@ -10,8 +10,8 @@ use Carbon\Carbon;
 use App\Models\SystemCheckConfig;
 use App\Models\LoginAttempt;
 use App\Models\Product\Product;
-use App\Models\Financial\FinanceCostItem;
-use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Accounting\FinanceCostItem;
+use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Global\GlobalLog;
 use App\Services\AnalyticsService;
 
@@ -479,9 +479,9 @@ class Analytics extends Component
         }
 
         // 1. Gutschriften (offen / nicht versendet)
-        if (class_exists(\App\Models\Invoice::class)) {
-            $totalCredits = \App\Models\Invoice::whereIn('type', ['credit_note', 'cancellation'])->count();
-            $cCount = \App\Models\Invoice::whereIn('type', ['credit_note', 'cancellation'])
+        if (class_exists(\App\Models\Accounting\Invoice::class)) {
+            $totalCredits = \App\Models\Accounting\Invoice::whereIn('type', ['credit_note', 'cancellation'])->count();
+            $cCount = \App\Models\Accounting\Invoice::whereIn('type', ['credit_note', 'cancellation'])
                 ->whereNull('email_sent_at')
                 ->count();
 
@@ -504,13 +504,13 @@ class Analytics extends Component
         }
 
         // 2. Bank Umsätze (nicht zugeordnet)
-        if (class_exists(\App\Models\Financial\BankTransaction::class) && auth('admin')->check()) {
-            $totalTx = \App\Models\Financial\BankTransaction::whereHas('account', function($q) {
+        if (class_exists(\App\Models\Accounting\BankTransaction::class) && auth('admin')->check()) {
+            $totalTx = \App\Models\Accounting\BankTransaction::whereHas('account', function($q) {
                 $q->where('is_active_for_analysis', true)
                   ->where('admin_id', auth('admin')->id());
             })->count();
 
-            $unassignedTx = \App\Models\Financial\BankTransaction::whereHas('account', function($q) {
+            $unassignedTx = \App\Models\Accounting\BankTransaction::whereHas('account', function($q) {
                 $q->where('is_active_for_analysis', true)
                   ->where('admin_id', auth('admin')->id());
             })->whereNull('assigned_by_type')->count();
@@ -534,9 +534,9 @@ class Analytics extends Component
         }
 
         // 3. Offene Aufgaben
-        if (class_exists(\App\Models\Task::class)) {
-            $totalTasks = \App\Models\Task::count();
-            $openTasks = \App\Models\Task::where('is_completed', false)->count();
+        if (class_exists(\App\Models\Management\Task::class)) {
+            $totalTasks = \App\Models\Management\Task::count();
+            $openTasks = \App\Models\Management\Task::where('is_completed', false)->count();
 
             $status = $openTasks > 0 ? 'warning' : 'success';
             $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
@@ -557,9 +557,9 @@ class Analytics extends Component
         }
 
         // 4. Offene Angebote (> 5 Tage)
-        if (class_exists(\App\Models\Quote\QuoteRequest::class)) {
-            $totalQuotes = \App\Models\Quote\QuoteRequest::count();
-            $oldQuotes = \App\Models\Quote\QuoteRequest::where('status', 'open')
+        if (class_exists(\App\Models\Order\Quote\QuoteRequest::class)) {
+            $totalQuotes = \App\Models\Order\Quote\QuoteRequest::count();
+            $oldQuotes = \App\Models\Order\Quote\QuoteRequest::where('status', 'open')
                 ->where('created_at', '<', now()->subDays(5))
                 ->count();
 
@@ -582,9 +582,9 @@ class Analytics extends Component
         }
 
         // 5. Offene Widerrufe (> 2 Tage)
-        if (class_exists(\App\Models\Shop\Revocation\Revocation::class)) {
-            $totalRevs = \App\Models\Shop\Revocation\Revocation::count();
-            $oldRevs = \App\Models\Shop\Revocation\Revocation::where('status', '!=', 'completed')
+        if (class_exists(\App\Models\Order\Revocation\Revocation::class)) {
+            $totalRevs = \App\Models\Order\Revocation\Revocation::count();
+            $oldRevs = \App\Models\Order\Revocation\Revocation::where('status', '!=', 'completed')
                 ->where('created_at', '<', now()->subDays(2))
                 ->count();
 

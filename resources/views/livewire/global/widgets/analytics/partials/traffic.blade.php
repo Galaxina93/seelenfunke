@@ -5,7 +5,7 @@
         <div>
             <h2 class="text-xl md:text-2xl font-serif font-bold text-white flex items-center gap-3">
                 <i class="solar-chart-2-bold-duotone text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]"></i>
-                Traffic & Analytics
+                Besucher & Analysen
             </h2>
             <p class="text-[10px] md:text-xs font-black uppercase tracking-widest text-gray-500 mt-2">Nutzerverhalten im gewählten Zeitraum</p>
         </div>

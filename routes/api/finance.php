@@ -3,10 +3,10 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
-use App\Models\Financial\FinanceGroup;
-use App\Models\Financial\FinanceCostItem;
-use App\Models\Financial\FinanceSpecialIssue;
-use App\Models\Financial\FinanceCategory;
+use App\Models\Accounting\FinanceGroup;
+use App\Models\Accounting\FinanceCostItem;
+use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\FinanceCategory;
 use App\Models\Order\Order;
 use Carbon\Carbon;
 use Illuminate\Support\Str;

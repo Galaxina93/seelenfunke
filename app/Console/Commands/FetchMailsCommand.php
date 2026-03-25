@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Mail\MailAccount;
-use App\Models\Mail\MailMessage;
-use App\Models\Mail\MailAttachment;
+use App\Models\Management\Mail\MailAccount;
+use App\Models\Management\Mail\MailMessage;
+use App\Models\Management\Mail\MailAttachment;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -93,7 +93,7 @@ class FetchMailsCommand extends Command
 
                     // Execute Auto-Routing Rules here (Spam/Folders)
                     $targetFolder = 'INBOX';
-                    $routingRule = \App\Models\Mail\MailRule::where('mail_account_id', $account->id)
+                    $routingRule = \App\Models\Management\Mail\MailRule::where('mail_account_id', $account->id)
                         ->where('condition_field', 'from_email')
                         ->where('condition_value', $fromEmail)
                         ->first();

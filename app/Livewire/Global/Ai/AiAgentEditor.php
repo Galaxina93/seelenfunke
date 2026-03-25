@@ -32,12 +32,14 @@ class AiAgentEditor extends Component
     
     public $existing_profile_picture = null;
     public $profile_picture;
+    public $inheritedDept = null;
 
     // Validierte Paletten
     public $availableColors = [
         'cyan-500', 'emerald-500', 'blue-500', 'indigo-500', 
         'purple-500', 'pink-500', 'rose-500', 'red-500', 
-        'orange-500', 'amber-500', 'yellow-500', 'green-500'
+        'orange-500', 'amber-500', 'yellow-500', 'green-500',
+        'sky-500', 'primary'
     ];
 
     public $availableModels = [
@@ -130,6 +132,14 @@ class AiAgentEditor extends Component
                 $oldIcon = 'sparkles'; // Fallback
             }
             $this->icon = $oldIcon;
+            
+            // If assigned to a department, inherit color/icon virtually in the Editor UI
+            $agent->load('department');
+            if ($agent->department) {
+                $this->inheritedDept = $agent->department->toArray();
+                $this->color = $agent->department->color;
+                $this->icon = $agent->department->icon;
+            }
             
             $this->tts_enabled = (bool) ($agent->tts_enabled ?? false);
             $this->tts_provider = $agent->tts_provider ?? 'toni_xttsv2';

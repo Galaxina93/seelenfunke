@@ -3,7 +3,7 @@
 namespace App\Livewire\Customer;
 
 use App\Models\Customer\CustomerGamification;
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;

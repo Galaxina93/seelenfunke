@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\DayRoutine;
+use App\Models\Management\DayRoutine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 

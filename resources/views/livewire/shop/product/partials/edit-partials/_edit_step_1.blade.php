@@ -3,7 +3,7 @@
 
         @php
             $cardClass = "bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-8 animate-fade-in-up";
-            $inputClassStep1 = "w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white placeholder-gray-600 focus:bg-black focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all shadow-inner outline-none";
+            $inputClassStep1 = "w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white placeholder-gray-600 focus:bg-black focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-30)] transition-all shadow-inner outline-none";
             $labelClassStep1 = "block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1";
         @endphp
 
@@ -17,16 +17,16 @@
                     <input type="radio" wire:model.live="type" value="physical" class="sr-only">
                     <div class="p-6 rounded-[1.5rem] border-2 transition-all duration-300 ease-in-out text-center h-full flex flex-col items-center justify-center gap-4
                                 {{ $type === 'physical'
-                                    ? 'border-primary bg-primary/10 text-white shadow-[0_0_20px_rgba(197,160,89,0.15)] scale-[1.02]'
+                                    ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] text-white shadow-[0_0_20px_rgba(197,160,89,0.15)] scale-[1.02]'
                                     : 'border-gray-800 bg-gray-950 text-gray-500 hover:border-gray-700 hover:bg-gray-900/50 hover:shadow-lg'
                                 }}">
                         <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-1 transition-colors shadow-inner
-                                    {{ $type === 'physical' ? 'bg-primary border border-primary/50 drop-shadow-[0_0_10px_currentColor]' : 'bg-gray-900 border border-gray-800 opacity-60' }}">📦</div>
+                                    {{ $type === 'physical' ? 'bg-[var(--theme-color)] border border-[var(--theme-color-50)] drop-shadow-[0_0_10px_currentColor]' : 'bg-gray-900 border border-gray-800 opacity-60' }}">📦</div>
                         <div>
                             <span class="font-serif font-bold text-xl block mb-1">Physisch</span>
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-70 block leading-relaxed">Versandartikel mit Konfigurator</span>
                         </div>
-                        <div class="absolute top-4 right-4 text-primary transition-opacity {{ $type === 'physical' ? 'opacity-100 drop-shadow-[0_0_5px_currentColor]' : 'opacity-0' }}">
+                        <div class="absolute top-4 right-4 text-[var(--theme-color)] transition-opacity {{ $type === 'physical' ? 'opacity-100 drop-shadow-[0_0_5px_currentColor]' : 'opacity-0' }}">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                         </div>
                     </div>
@@ -37,16 +37,16 @@
                     <input type="radio" wire:model.live="type" value="digital" class="sr-only">
                     <div class="p-6 rounded-[1.5rem] border-2 transition-all duration-300 ease-in-out text-center h-full flex flex-col items-center justify-center gap-4
                                 {{ $type === 'digital'
-                                    ? 'border-primary bg-primary/10 text-white shadow-[0_0_20px_rgba(197,160,89,0.15)] scale-[1.02]'
+                                    ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] text-white shadow-[0_0_20px_rgba(197,160,89,0.15)] scale-[1.02]'
                                     : 'border-gray-800 bg-gray-950 text-gray-500 hover:border-gray-700 hover:bg-gray-900/50 hover:shadow-lg'
                                 }}">
                         <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-1 transition-colors shadow-inner
-                                    {{ $type === 'digital' ? 'bg-primary border border-primary/50 drop-shadow-[0_0_10px_currentColor]' : 'bg-gray-900 border border-gray-800 opacity-60' }}">☁️</div>
+                                    {{ $type === 'digital' ? 'bg-[var(--theme-color)] border border-[var(--theme-color-50)] drop-shadow-[0_0_10px_currentColor]' : 'bg-gray-900 border border-gray-800 opacity-60' }}">☁️</div>
                         <div>
                             <span class="font-serif font-bold text-xl block mb-1">Digital</span>
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-70 block leading-relaxed">Download oder E-Book</span>
                         </div>
-                        <div class="absolute top-4 right-4 text-primary transition-opacity {{ $type === 'digital' ? 'opacity-100 drop-shadow-[0_0_5px_currentColor]' : 'opacity-0' }}">
+                        <div class="absolute top-4 right-4 text-[var(--theme-color)] transition-opacity {{ $type === 'digital' ? 'opacity-100 drop-shadow-[0_0_5px_currentColor]' : 'opacity-0' }}">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                         </div>
                     </div>
@@ -57,16 +57,16 @@
                     <input type="radio" wire:model.live="type" value="service" class="sr-only">
                     <div class="p-6 rounded-[1.5rem] border-2 transition-all duration-300 ease-in-out text-center h-full flex flex-col items-center justify-center gap-4
                                 {{ $type === 'service'
-                                    ? 'border-primary bg-primary/10 text-white shadow-[0_0_20px_rgba(197,160,89,0.15)] scale-[1.02]'
+                                    ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] text-white shadow-[0_0_20px_rgba(197,160,89,0.15)] scale-[1.02]'
                                     : 'border-gray-800 bg-gray-950 text-gray-500 hover:border-gray-700 hover:bg-gray-900/50 hover:shadow-lg'
                                 }}">
                         <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-1 transition-colors shadow-inner
-                                    {{ $type === 'service' ? 'bg-primary border border-primary/50 drop-shadow-[0_0_10px_currentColor]' : 'bg-gray-900 border border-gray-800 opacity-60' }}">🤝</div>
+                                    {{ $type === 'service' ? 'bg-[var(--theme-color)] border border-[var(--theme-color-50)] drop-shadow-[0_0_10px_currentColor]' : 'bg-gray-900 border border-gray-800 opacity-60' }}">🤝</div>
                         <div>
                             <span class="font-serif font-bold text-xl block mb-1">Dienstleistung</span>
                             <span class="text-[9px] font-black uppercase tracking-widest opacity-70 block leading-relaxed">Service, Termin oder Beratung</span>
                         </div>
-                        <div class="absolute top-4 right-4 text-primary transition-opacity {{ $type === 'service' ? 'opacity-100 drop-shadow-[0_0_5px_currentColor]' : 'opacity-0' }}">
+                        <div class="absolute top-4 right-4 text-[var(--theme-color)] transition-opacity {{ $type === 'service' ? 'opacity-100 drop-shadow-[0_0_5px_currentColor]' : 'opacity-0' }}">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                         </div>
                     </div>
@@ -104,8 +104,8 @@
                                 @include('components.alerts.info-tooltip', ['key' => 'purchase_price', 'text' => 'Dein realer Netto-Einkaufspreis. Wird für die Margen / Unit Economics verwendet.'])
                             </div>
                             <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">€</span>
-                                <input type="number" step="0.01" wire:model.live="purchase_price_input" class="{{ $inputClassStep1 }} pl-10 font-mono text-lg font-bold border-primary/30" placeholder="0.00">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--theme-color)] font-bold">€</span>
+                                <input type="number" step="0.01" wire:model.live="purchase_price_input" class="{{ $inputClassStep1 }} pl-10 font-mono text-lg font-bold border-[var(--theme-color-30)]" placeholder="0.00">
                             </div>
                         </div>
                     @endif

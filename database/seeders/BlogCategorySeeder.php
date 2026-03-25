@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Blog\BlogCategory;
+use App\Models\Marketing\Blog\BlogCategory;
 use Illuminate\Support\Str;
 
 class BlogCategorySeeder extends Seeder

@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.financial.financial-categories-special-editions')
+        @livewire('shop.accounting.accounting-variable-costs')
 
     @endsection
 

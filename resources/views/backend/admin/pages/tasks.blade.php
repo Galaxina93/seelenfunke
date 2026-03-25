@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.task.task')
+        @livewire('shop.management.management-task')
 
     @endsection
 

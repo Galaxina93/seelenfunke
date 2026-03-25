@@ -3,10 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\Admin\Admin;
-use App\Models\Financial\FinanceCategory;
-use App\Models\Financial\FinanceCostItem;
-use App\Models\Financial\FinanceGroup;
-use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Accounting\FinanceCategory;
+use App\Models\Accounting\FinanceCostItem;
+use App\Models\Accounting\FinanceGroup;
+use App\Models\Accounting\FinanceSpecialIssue;
 use Illuminate\Database\Seeder;
 
 class FinancialSeeder extends Seeder

@@ -17,12 +17,19 @@ class BackendNavigationService
                 'section' => null, // No headline
                 'items' => [
                     [
+                        'id' => 'dashboard',
+                        'type' => 'single',
+                        'title' => 'Dashboard',
+                        'route' => '/admin/dashboard',
+                        'icon' => 'squares-2x2'
+                    ],
+                    [
                         'id' => 'ceo',
                         'type' => 'group',
-                        'title' => 'CEO Zentrale',
+                        'title' => 'Firmenleitung',
                         'icon' => 'bolt',
+                        'ai_department_id' => '019d0000-0000-0000-0000-000000000000',
                         'children' => [
-                            ['id' => 'dashboard', 'title' => 'Dashboard', 'route' => '/admin/dashboard', 'icon' => 'home'],
                             ['id' => 'inbox', 'title' => 'E-Mail', 'route' => '/admin/inbox', 'icon' => 'envelope-open'],
                             ['id' => 'person-profiles', 'title' => 'Kontakte', 'route' => '/admin/person-profiles', 'icon' => 'users'],
                             ['id' => 'routine', 'title' => 'Routine', 'route' => '/admin/routine', 'icon' => 'arrow-path'],
@@ -41,14 +48,15 @@ class BackendNavigationService
                         'type' => 'group',
                         'title' => 'Produkte',
                         'icon' => 'cube',
+                        'ai_department_id' => '019d1111-1111-1111-1111-111111111111',
                         'children' => [
                             ['id' => 'product-analytics', 'title' => 'Analyse', 'route' => '/admin/product-analytics', 'icon' => 'chart-pie'],
+                            ['id' => 'product-fracture', 'title' => 'Schaden', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
                             ['id' => 'products', 'title' => 'Produkte', 'route' => '/admin/products', 'icon' => 'cube'],
                             ['id' => 'product-templates', 'title' => 'Vorlagen', 'route' => '/admin/product-templates', 'icon' => 'clipboard-document-list'],
                             ['id' => 'product-suppliers', 'title' => 'Lieferanten', 'route' => '/admin/product-suppliers', 'icon' => 'truck'],
                             ['id' => 'reviews', 'title' => 'Bewertungen', 'route' => '/admin/reviews', 'icon' => 'star'],
                             ['id' => 'nischen-scout', 'title' => 'Nischen-Scout', 'route' => '/admin/products/nischen-scout', 'icon' => 'magnifying-glass'],
-                            ['id' => 'product-fracture', 'title' => 'Schwund & Bruch', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
                             ['id' => 'product-packaging', 'title' => 'Verpackungsmaterial', 'route' => '/admin/product-packaging', 'icon' => 'archive-box'],
                         ]
                     ],
@@ -57,6 +65,7 @@ class BackendNavigationService
                         'type' => 'group',
                         'title' => 'Marketing',
                         'icon' => 'at-symbol',
+                        'ai_department_id' => '019d2222-2222-2222-2222-222222222222',
                         'children' => [
                             ['id' => 'newsletter', 'title' => 'Newsletter', 'route' => '/admin/newsletter', 'icon' => 'newspaper'],
                             ['id' => 'voucher', 'title' => 'Gutscheine', 'route' => '/admin/voucher', 'icon' => 'gift'],
@@ -68,6 +77,7 @@ class BackendNavigationService
                         'type' => 'group',
                         'title' => 'Bestellungen',
                         'icon' => 'shopping-bag',
+                        'ai_department_id' => '019d3333-3333-3333-3333-333333333333',
                         'children' => [
                             ['id' => 'orders', 'title' => 'Bestellungen', 'route' => '/admin/orders', 'icon' => 'shopping-cart'],
                             ['id' => 'quote-requests', 'title' => 'Angebote', 'route' => '/admin/quote-requests', 'icon' => 'clipboard-document-list'],
@@ -79,6 +89,7 @@ class BackendNavigationService
                         'type' => 'group',
                         'title' => 'Buchhaltung',
                         'icon' => 'currency-dollar',
+                        'ai_department_id' => '019d4444-4444-4444-4444-444444444444',
                         'children' => [
                             ['id' => 'financial-banks', 'title' => 'Banken', 'route' => '/admin/financial-banks', 'icon' => 'scale'],
                             ['id' => 'financial-tax', 'title' => 'Steuern', 'route' => '/admin/financial-tax', 'icon' => 'banknotes'],
@@ -109,8 +120,9 @@ class BackendNavigationService
                         'icon' => 'cpu-chip',
                         'children' => [
                             ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai-analytics', 'icon' => 'chart-bar'],
+                            ['id' => 'rollen', 'title' => 'Rollen', 'route' => '/admin/rollen', 'icon' => 'briefcase'],
                             ['id' => 'agenten', 'title' => 'Agenten', 'route' => '/admin/agenten', 'icon' => 'cpu-chip'],
-                            ['id' => 'agenten-rollen', 'title' => 'Rollen', 'route' => '/admin/agenten-rollen', 'icon' => 'tag'],
+                            ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2'],
                             ['id' => 'ai-chat', 'title' => 'Chat', 'route' => '/admin/ai-chat', 'icon' => 'chat-bubble-left-ellipsis'],
                             ['id' => 'ai-knowledge_base', 'title' => 'Wiki', 'route' => '/admin/ai-knowledge_base', 'icon' => 'book-open'],
                             ['id' => 'ai-genui', 'title' => 'Gen-Ui', 'route' => '/admin/ai-genui', 'icon' => 'window'],
@@ -229,9 +241,9 @@ class BackendNavigationService
     public static function isGroupActive(array $group, string $currentPath): bool
     {
         $normalizedPath = '/' . ltrim($currentPath, '/');
-        
-        // Custom logic for /admin/agenten* since it can have dynamic suffixes
-        if ($group['id'] === 'system_ai' && Str::startsWith($normalizedPath, '/admin/agenten')) {
+
+        // Custom logic for /admin/organigramm
+        if ($group['id'] === 'system_ai' && Str::startsWith($normalizedPath, '/admin/organigramm')) {
             return true;
         }
 
@@ -250,7 +262,7 @@ class BackendNavigationService
     {
         $structure = self::getStructure();
         $prompt = "";
-        
+
         foreach ($structure as $section) {
             foreach ($section['items'] as $item) {
                 if ($item['type'] === 'single') {
@@ -263,7 +275,7 @@ class BackendNavigationService
                 }
             }
         }
-        
+
         return $prompt;
     }
 }

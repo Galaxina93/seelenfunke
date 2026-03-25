@@ -13,22 +13,22 @@
             <div class="flex items-center gap-4">
                 <label class="w-20 sm:w-24 text-[10px] font-black uppercase tracking-widest text-gray-500">Links %</label>
                 <input type="range" x-model.number="configSettings.area_left" @input="updateTexture()" min="0" max="100" step="0.1" class="flex-1 accent-primary h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer">
-                <input type="number" x-model.number="configSettings.area_left" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-primary outline-none">
+                <input type="number" x-model.number="configSettings.area_left" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-[var(--theme-color)] outline-none">
             </div>
             <div class="flex items-center gap-4">
                 <label class="w-20 sm:w-24 text-[10px] font-black uppercase tracking-widest text-gray-500">Oben %</label>
                 <input type="range" x-model.number="configSettings.area_top" @input="updateTexture()" min="0" max="100" step="0.1" class="flex-1 accent-primary h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer">
-                <input type="number" x-model.number="configSettings.area_top" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-primary outline-none">
+                <input type="number" x-model.number="configSettings.area_top" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-[var(--theme-color)] outline-none">
             </div>
             <div class="flex items-center gap-4">
                 <label class="w-20 sm:w-24 text-[10px] font-black uppercase tracking-widest text-gray-500">Breite %</label>
                 <input type="range" x-model.number="configSettings.area_width" @input="updateTexture()" min="1" max="100" step="0.1" class="flex-1 accent-primary h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer">
-                <input type="number" x-model.number="configSettings.area_width" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-primary outline-none">
+                <input type="number" x-model.number="configSettings.area_width" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-[var(--theme-color)] outline-none">
             </div>
             <div class="flex items-center gap-4">
                 <label class="w-20 sm:w-24 text-[10px] font-black uppercase tracking-widest text-gray-500">Höhe %</label>
                 <input type="range" x-model.number="configSettings.area_height" @input="updateTexture()" min="1" max="100" step="0.1" class="flex-1 accent-primary h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer">
-                <input type="number" x-model.number="configSettings.area_height" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-primary outline-none">
+                <input type="number" x-model.number="configSettings.area_height" @input="updateTexture()" step="0.1" class="w-16 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1.5 text-xs text-center text-white focus:border-[var(--theme-color)] outline-none">
             </div>
         </div>
 

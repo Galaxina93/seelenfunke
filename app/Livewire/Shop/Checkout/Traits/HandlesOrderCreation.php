@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Checkout\Traits;
 
 use App\Models\Customer\Customer;
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use App\Models\Order\Order;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;

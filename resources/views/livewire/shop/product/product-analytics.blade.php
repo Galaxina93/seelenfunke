@@ -1,13 +1,13 @@
-<div class="space-y-6">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="space-y-6">
 
     <!-- TAB 1: COMBINED PERFORMANCE & COSTS -->
-    <div class="bg-gradient-to-br from-gray-900 via-gray-950 to-black rounded-[2rem] p-6 lg:p-8 border border-primary/20 shadow-2xl relative overflow-hidden">
-        <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="bg-gradient-to-br from-gray-900 via-gray-950 to-black rounded-[2rem] p-6 lg:p-8 border border-[var(--theme-color-20)] shadow-2xl relative overflow-hidden">
+        <div class="absolute -top-24 -right-24 w-64 h-64 bg-[var(--theme-color-10)] rounded-full blur-3xl pointer-events-none"></div>
         
         <div class="mb-8 flex justify-between items-start">
             <div>
                 <h3 class="text-xl flex-col sm:flex-row sm:text-2xl font-serif font-bold text-white mb-2 flex items-start sm:items-center gap-3">
-                    <i class="solar-wallet-money-bold-duotone text-primary text-2xl"></i> Produkt-Performance & Wahre Zahlen
+                    <i class="solar-wallet-money-bold-duotone text-[var(--theme-color)] text-2xl"></i> Produkt-Performance & Wahre Zahlen
                 </h3>
                 <p class="text-[11px] font-medium text-gray-400 max-w-2xl leading-relaxed">
                     Echte Netto-Margen inklusive Einkauf, Laser und Verpackung kombiniert mit der Verkaufsgeschwindigkeit und Logistik.
@@ -87,8 +87,8 @@
             @endif
         </div>
         
-        <div class="mt-6 bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-4 items-start">
-            <i class="bi bi-lightbulb text-primary text-xl"></i>
+        <div class="mt-6 bg-[var(--theme-color-5)] border border-[var(--theme-color-20)] rounded-xl p-4 flex gap-4 items-start">
+            <i class="bi bi-lightbulb text-[var(--theme-color)] text-xl"></i>
             <div>
                 <h4 class="text-xs font-black text-white uppercase tracking-widest mb-1">Tipp für maximale Rentabilität</h4>
                 <p class="text-[10px] text-gray-400 leading-relaxed">Passe im Produkt-Editor die "Laserlaufzeit in Min." und "Stromfaktor pro Min." an, wenn du neue Materialstärken nutzt. Ein 6mm Holz benötigt ca. 40% mehr Laufzeit als das 3mm Standard-Holz, was den Gewinn senkt.</p>

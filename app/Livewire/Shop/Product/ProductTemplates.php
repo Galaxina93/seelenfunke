@@ -9,10 +9,13 @@ use Livewire\Attributes\On;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductTemplates extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
 
     // Steuert die aktuelle Ansicht ('list', 'create_select_product', 'configure')
     public $viewMode = 'list';

@@ -17,7 +17,7 @@ class InvoicesComponent extends Component
             ->get();
 
         // Invoices direkt über den Kunden laden (inkludiert auch Gutschriften ohne direkte Order-Zuweisung)
-        $invoices = \App\Models\Invoice::where('customer_id', $user->id)
+        $invoices = \App\Models\Accounting\Invoice::where('customer_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->get();
 

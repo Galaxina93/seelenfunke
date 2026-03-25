@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.blog.blog')
+        @livewire('shop.marketing.marketing-blog')
 
     @endsection
 

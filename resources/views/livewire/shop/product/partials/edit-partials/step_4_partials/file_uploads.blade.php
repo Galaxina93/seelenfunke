@@ -26,7 +26,7 @@
                 </button>
             @endif
             <div class="flex-shrink-0 relative">
-                <label class="cursor-pointer bg-gray-950 border border-gray-800 hover:border-primary text-gray-400 hover:text-primary px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner transition-all flex items-center justify-center gap-2" :class="{'opacity-50 pointer-events-none': isUploading}">
+                <label class="cursor-pointer bg-gray-950 border border-gray-800 hover:border-[var(--theme-color)] text-gray-400 hover:text-[var(--theme-color)] px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner transition-all flex items-center justify-center gap-2" :class="{'opacity-50 pointer-events-none': isUploading}">
                     {{ $product->preview_image_path ? 'Ändern' : 'Wählen' }}
                     <input type="file" wire:model.live="new_preview_image" accept="image/png" class="hidden">
                 </label>
@@ -103,10 +103,10 @@
     </div>
 
     <div x-show="isUploading" style="display: none;" class="p-6 bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-800 text-center shadow-inner">
-        <svg class="animate-spin h-8 w-8 text-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-8 w-8 text-[var(--theme-color)] mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
         </svg>
-        <span class="text-[10px] font-black uppercase tracking-widest mt-4 text-primary block drop-shadow-[0_0_8px_currentColor]">Upload läuft...</span>
+        <span class="text-[10px] font-black uppercase tracking-widest mt-4 text-[var(--theme-color)] block drop-shadow-[0_0_8px_currentColor]">Upload läuft...</span>
     </div>
 </div>

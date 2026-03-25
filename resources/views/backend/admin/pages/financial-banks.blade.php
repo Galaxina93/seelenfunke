@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.financial.financial-bank')
+        @livewire('shop.accounting.accounting-bank')
 
     @endsection
 

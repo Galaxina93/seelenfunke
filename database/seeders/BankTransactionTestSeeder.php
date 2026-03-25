@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Financial\BankAccount;
-use App\Models\Financial\BankTransaction;
+use App\Models\Accounting\BankAccount;
+use App\Models\Accounting\BankTransaction;
 use App\Models\Admin\Admin;
 
 class BankTransactionTestSeeder extends Seeder

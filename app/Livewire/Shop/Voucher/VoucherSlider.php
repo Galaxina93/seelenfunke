@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Voucher;
 
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use Illuminate\Support\Str;
 use Livewire\Component;
 

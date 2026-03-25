@@ -108,7 +108,7 @@
                                 @if($inv->type === 'cancellation' && $inv->parent_id)
                                     <div class="text-[9px] text-red-400 uppercase font-black tracking-widest mt-1.5 flex items-center gap-1.5">
                                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
-                                        Zu: {{ \App\Models\Invoice::find($inv->parent_id)?->invoice_number ?? 'Unbekannt' }}
+                                        Zu: {{ \App\Models\Accounting\Invoice::find($inv->parent_id)?->invoice_number ?? 'Unbekannt' }}
                                     </div>
                                 @endif
                             </div>
@@ -174,7 +174,7 @@
                                     @if($inv->type === 'cancellation' && $inv->parent_id)
                                         <span class="text-[8px] text-red-400 font-black uppercase tracking-widest mt-1 flex items-center gap-1.5">
                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
-                                            Zu: {{ \App\Models\Invoice::find($inv->parent_id)?->invoice_number }}
+                                            Zu: {{ \App\Models\Accounting\Invoice::find($inv->parent_id)?->invoice_number }}
                                         </span>
                                     @endif
                                 </div>

@@ -167,7 +167,7 @@ class AiMethod extends Component
                 'features' => [
                     'Gutscheine generieren' => in_array('generate_voucher', $toolNames),
                     'Gutschein-Performance' => in_array('get_voucher_performance', $toolNames),
-                    'Newsletter verwalten' => class_exists(\App\Models\Newsletter\NewsletterCampaign::class) && false,
+                    'Newsletter verwalten' => class_exists(\App\Models\Marketing\Newsletter\NewsletterCampaign::class) && false,
                     'Kunden werben Kunden (Referrals)' => false,
                 ]
             ],

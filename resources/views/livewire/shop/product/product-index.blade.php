@@ -3,9 +3,9 @@
 
         {{-- Header / Hero Section --}}
         <div class="bg-gray-900 border-b border-gray-800 py-24 text-center relative overflow-hidden">
-            <div class="absolute inset-0 bg-primary/10 blur-[100px] rounded-full w-[500px] h-[500px] mx-auto opacity-30 pointer-events-none"></div>
+            <div class="absolute inset-0 bg-[var(--theme-color-10)] blur-[100px] rounded-full w-[500px] h-[500px] mx-auto opacity-30 pointer-events-none"></div>
             <div class="relative z-10">
-                <span class="text-primary font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Handveredelt in Gifhorn</span>
+                <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Handveredelt in Gifhorn</span>
                 <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-6">
                     Unsere Kollektion
                 </h1>
@@ -27,7 +27,7 @@
                             Alle
                         </button>
                         <button wire:click="$set('filterType', 'physical')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'physical' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                            <svg class="w-4 h-4 {{ $filterType === 'physical' ? 'text-primary' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                            <svg class="w-4 h-4 {{ $filterType === 'physical' ? 'text-[var(--theme-color)]' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                             Physisch
                         </button>
                         <button wire:click="$set('filterType', 'digital')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'digital' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
@@ -43,7 +43,7 @@
                     <div class="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-1">
                         {{-- Anlass Dropdown --}}
                         <div class="relative w-full sm:w-1/3">
-                            <select wire:model.live="filterHoliday" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all cursor-pointer appearance-none">
+                            <select wire:model.live="filterHoliday" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
                                 <option value="">Alle Anlässe</option>
                                 <option value="muttertag">Muttertag</option>
                                 <option value="valentinstag">Valentinstag</option>
@@ -64,7 +64,7 @@
 
                         {{-- Kategorie Dropdown --}}
                         <div class="relative w-full sm:w-1/3">
-                            <select wire:model.live="filterCategory" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all cursor-pointer appearance-none">
+                            <select wire:model.live="filterCategory" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
                                 <option value="">Alle Kategorien</option>
                                 @foreach($categories as $cat)
                                     <option value="{{ $cat->id }}">{{ $cat->name }}</option>
@@ -77,8 +77,8 @@
 
                         {{-- Suche --}}
                         <div class="relative w-full sm:w-2/3 group">
-                            <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all placeholder-gray-400">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-primary transition-colors">
+                            <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             </div>
 
@@ -104,7 +104,7 @@
                         @endif
 
                         @if($filterType !== 'all')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary-dark text-xs font-bold uppercase tracking-wider">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-color-10)] white text-xs font-bold uppercase tracking-wider">
                                 Typ: {{ match($filterType) { 'physical' => 'Physisch', 'digital' => 'Digital', 'service' => 'Service', default => $filterType } }}
                                 <button wire:click="$set('filterType', 'all')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
@@ -156,7 +156,7 @@
                                 $productUrl = $projectedTemplate ? route('product.show', ['product' => $product->slug, 't' => $projectedTemplate->id]) : route('product.show', $product->slug);
                             @endphp
 
-                            <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 hover:border-primary/30 {{ $isSoldOut ? 'opacity-80' : '' }}">
+                            <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 hover:border-[var(--theme-color-30)] {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                                 {{-- Bild Container --}}
                                 <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
@@ -249,7 +249,7 @@
                                         </div>
                                     @endif
 
-                                    <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-primary transition-colors' }} mb-1 leading-tight line-clamp-2">
+                                    <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-[var(--theme-color)] transition-colors' }} mb-1 leading-tight line-clamp-2">
                                         <a href="{{ $productUrl }}">
                                             {{ $product->name }}
                                         </a>
@@ -291,7 +291,7 @@
                                         </div>
 
                                         {{-- Circle Action Button --}}
-                                        <a href="{{ $productUrl }}" class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 transform group-hover:scale-110 {{ $isSoldOut ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-primary shadow-lg' }}">
+                                        <a href="{{ $productUrl }}" class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 transform group-hover:scale-110 {{ $isSoldOut ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:bg-[var(--theme-color)] shadow-lg' }}">
                                             @if($isSoldOut)
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                                             @else

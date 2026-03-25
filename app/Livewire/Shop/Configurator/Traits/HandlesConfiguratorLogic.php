@@ -44,7 +44,7 @@ trait HandlesConfiguratorLogic
 
         // 3. Steuer aufschlagen (falls Netto-Eingabe)
         if ($this->product->tax_included === false) {
-            $taxRate = (float) ($this->product->tax_rate ?? 19.0);
+            $taxRate = (float) ($this->product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
             $basePrice = (int) round($basePrice * (1 + ($taxRate / 100)));
         }
 

@@ -7,10 +7,13 @@ use Livewire\WithPagination;
 use App\Models\Product\NicheProduct;
 use App\Jobs\RunNicheCrawlerJob;
 use Illuminate\Support\Facades\Cache;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductNicheScanner extends Component
 {
-    use WithPagination;
+    use WithPagination, WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
 
     public $search = '';
     public $filterPlatform = '';

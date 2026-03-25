@@ -2,8 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\Task;
-use App\Models\TaskList;
+use App\Models\Management\Task;
+use App\Models\Management\TaskList;
 use Illuminate\Support\Str;
 
 Route::get('/funki/tasks', function () {

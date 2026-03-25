@@ -3,13 +3,13 @@
 
         <div class="flex flex-wrap items-center justify-between gap-4 transition-all" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
             <div @click="open = !open" class="flex items-center gap-3 sm:gap-4 cursor-pointer group flex-1 min-w-[200px]">
-                <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
-                    <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
+                    <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
                 <div class="flex items-center gap-2 min-w-0">
-                    <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors truncate">Produktvarianten (Matrix)</h3>
+                    <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Produktvarianten (Matrix)</h3>
                     <div x-data="{ showInfo: false }" class="relative inline-block ml-1 shrink-0" @click.stop>
-                        <button @mouseenter="showInfo = true" @mouseleave="showInfo = false" type="button" class="text-gray-500 hover:text-primary transition-colors flex items-center">
+                        <button @mouseenter="showInfo = true" @mouseleave="showInfo = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
                         </button>
                         <div x-show="showInfo" x-cloak x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 sm:w-72 p-4 bg-gray-950 border border-gray-800 text-gray-300 text-xs font-medium leading-relaxed rounded-xl shadow-2xl z-50 text-center">
@@ -21,7 +21,7 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-start sm:justify-end w-full sm:w-auto gap-3" @click.stop>
-                <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg shadow-inner">
+                <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-3 py-1.5 rounded-lg shadow-inner">
                     {{ count($variants) }} Varianten
                 </span>
 
@@ -30,7 +30,7 @@
                             wire:confirm="Achtung: Es existiert bereits eine Matrix! Preise und Bestände für weiterhin gültige Kombinationen bleiben erhalten. Varianten, deren Eigenschaften du oben gelöscht hast, werden jedoch unwiderruflich entfernt. Willst du die Matrix wirklich neu berechnen?"
                         @endif
                         wire:loading.attr="disabled"
-                        class="w-full sm:w-auto text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shrink-0 bg-primary text-gray-900 hover:bg-primary-dark hover:scale-[1.02] shadow-[0_0_15px_rgba(197,160,89,0.3)] disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="w-full sm:w-auto text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shrink-0 bg-[var(--theme-color)] text-gray-900 hover:bg-white hover:scale-[1.02] shadow-[0_0_15px_rgba(197,160,89,0.3)] disabled:opacity-50 disabled:cursor-not-allowed">
                     <svg wire:loading wire:target="generateMatrix" class="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     <svg wire:loading.remove wire:target="generateMatrix" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                     Matrix generieren
@@ -77,7 +77,7 @@
                                     <div class="font-bold text-white text-base lg:text-sm truncate">{{ $variant['name'] }}</div>
                                     <div class="flex flex-wrap gap-1.5 mt-2 lg:mt-1.5">
                                         @foreach($variant['attributes'] as $key => $val)
-                                            <span class="bg-gray-900 px-2 py-1 rounded-md border border-gray-800 shadow-inner text-[9px] uppercase tracking-widest font-black text-gray-500 truncate max-w-[120px]">{{ $key }}: <span class="text-primary drop-shadow-[0_0_5px_currentColor]">{{ $val }}</span></span>
+                                            <span class="bg-gray-900 px-2 py-1 rounded-md border border-gray-800 shadow-inner text-[9px] uppercase tracking-widest font-black text-gray-500 truncate max-w-[120px]">{{ $key }}: <span class="text-[var(--theme-color)] drop-shadow-[0_0_5px_currentColor]">{{ $val }}</span></span>
                                         @endforeach
                                     </div>
                                 </div>
@@ -85,13 +85,13 @@
 
                             <div class="lg:col-span-3">
                                 <label class="lg:hidden text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5 ml-1">Eigene SKU</label>
-                                <input type="text" wire:model.blur="variants.{{ $index }}.sku" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono text-xs focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-inner outline-none placeholder-gray-600" placeholder="{{ $product->sku ?? 'SKU' }}-{{ $index + 1 }}">
+                                <input type="text" wire:model.blur="variants.{{ $index }}.sku" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono text-xs focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-600" placeholder="{{ $product->sku ?? 'SKU' }}-{{ $index + 1 }}">
                             </div>
 
                             <div class="lg:col-span-2">
                                 <label class="lg:hidden text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5 ml-1">Preis (Überschreiben)</label>
                                 <div class="relative">
-                                    <input type="number" step="0.01" min="0" wire:model.blur="variants.{{ $index }}.price" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono text-xs focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-inner outline-none placeholder-gray-600 pr-8" placeholder="Standard">
+                                    <input type="number" step="0.01" min="0" wire:model.blur="variants.{{ $index }}.price" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono text-xs focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-600 pr-8" placeholder="Standard">
                                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">€</span>
                                 </div>
                             </div>
@@ -99,7 +99,7 @@
                             <div class="lg:col-span-2">
                                 <label class="lg:hidden text-[9px] font-black uppercase tracking-widest text-gray-500 block mb-1.5 ml-1">Lagerbestand</label>
                                 <div class="relative w-full lg:w-3/4 lg:mx-auto">
-                                    <input type="number" min="0" wire:model.blur="variants.{{ $index }}.stock" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono text-xs lg:text-center focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-inner outline-none placeholder-gray-600 lg:pr-4" placeholder="∞">
+                                    <input type="number" min="0" wire:model.blur="variants.{{ $index }}.stock" wire:change="saveVariants" class="w-full px-3 py-2.5 rounded-xl border border-gray-800 bg-gray-900 text-white font-mono text-xs lg:text-center focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-600 lg:pr-4" placeholder="∞">
                                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500 lg:hidden">Stk.</span>
                                 </div>
                             </div>
@@ -109,7 +109,7 @@
                                     <label class="lg:hidden text-[10px] font-black uppercase tracking-widest text-gray-500">Ist Aktiv</label>
                                     <label class="relative inline-flex items-center cursor-pointer">
                                         <input type="checkbox" wire:model.live="variants.{{ $index }}.is_active" wire:change="saveVariants" class="sr-only peer">
-                                        <div class="w-9 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
+                                        <div class="w-9 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
                                     </label>
                                 </div>
 

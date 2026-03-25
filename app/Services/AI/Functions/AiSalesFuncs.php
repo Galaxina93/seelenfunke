@@ -12,7 +12,7 @@ trait AiSalesFuncs
     {
         return [
             [
-                'name' => 'get_next_order_deadline',
+                'name' => 'order_get_next_deadline',
                 'description' => 'Gibt das exakte Datum und die Uhrzeit zurück, wann die nächste ausstehende Bestellung (Fulfillment) zwingend abgeschlossen oder versendet werden muss. Stichworte: Wann muss das Paket raus, Versand-Deadline, nächster Versandtermin, Fulfillment fällig.',
                 'parameters' => [
                     'type' => 'object',
@@ -21,7 +21,7 @@ trait AiSalesFuncs
                 'callable' => [self::class, 'executeGetNextOrderDeadline']
             ],
             [
-                'name' => 'get_order',
+                'name' => 'order_get_details',
                 'description' => 'Ruft detaillierte Informationen zu einer bestimmten Bestellung oder einem Kundenkauf ab. Nutze dies, wenn Alina nach einem Auftrag, einer Bestellung, Bestellnummer oder dem Liefer-Status fragt. Stichworte: Zeig mir Bestellung 1024, Was hat Müller gekauft.',
                 'parameters' => [
                     'type' => 'object',
@@ -35,7 +35,7 @@ trait AiSalesFuncs
                 'callable' => [self::class, 'executeGetOrder']
             ],
             [
-                'name' => 'check_inventory',
+                'name' => 'product_check_inventory',
                 'description' => 'Prüft den aktuellen Lagerbestand von physischen Produkten im Shop. Nutze dies IMMER, wenn Alina nach Beständen, Mengen oder ausverkauften Artikeln fragt. Stichworte: Haben wir noch XYZ auf Lager, Was ist ausverkauft, Lagerbestand prüfen, Inventory checken.',
                 'parameters' => [
                     'type' => 'object',
@@ -49,7 +49,7 @@ trait AiSalesFuncs
                 'callable' => [self::class, 'executeCheckInventory']
             ],
             [
-                'name' => 'get_product_reviews',
+                'name' => 'product_get_reviews',
                 'description' => 'Checkt die aktuell unmoderierten / ungelesenen Produktbewertungen (Reviews) der Kunden für den Shop. Stichworte: Neue Bewertungen, Was sagen die Kunden, ungelesene Reviews, Produkt Feedback, Shop Rezensionen.',
                 'parameters' => [
                     'type' => 'object',

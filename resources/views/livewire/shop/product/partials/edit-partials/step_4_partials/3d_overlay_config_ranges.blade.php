@@ -23,7 +23,7 @@
         {{-- ================= VORDERSEITE ================= --}}
         <div x-show="activeSide === 'front'">
             <div class="flex items-center gap-3 mb-6">
-                <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/30 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-[0_0_8px_rgba(197,160,89,0.3)]">Bearbeitung: Vorderseite</span>
+                <span class="px-3 py-1 bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] rounded-lg text-[9px] font-black uppercase tracking-widest shadow-[0_0_8px_rgba(197,160,89,0.3)]">Bearbeitung: Vorderseite</span>
             </div>
 
             <div class="space-y-5">

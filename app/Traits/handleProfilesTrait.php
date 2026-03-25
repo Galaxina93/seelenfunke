@@ -2,7 +2,7 @@
 
 namespace App\Traits;
 
-use App\Models\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\Newsletter\NewsletterSubscriber;
 use App\Models\Session;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;

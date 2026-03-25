@@ -2,7 +2,7 @@
 
 namespace App\Models\Product;
 
-use App\Models\Category;
+use App\Models\Product\Category;
 use App\Services\PriceCalcService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;

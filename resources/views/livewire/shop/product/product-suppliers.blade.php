@@ -1,4 +1,4 @@
-<div>
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
     <!-- Top Action Bar -->
     @if(!$showModal)
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 animate-fade-in-up">
@@ -6,7 +6,7 @@
             <h2 class="text-xl font-bold text-white tracking-wide">Übersicht deiner Lieferanten</h2>
             <p class="text-gray-400 text-sm mt-1">Hinterlege hier alle Großhändler und Kontaktadressen, um Lieferketten optimal abzubilden.</p>
         </div>
-        <button wire:click="create" class="bg-primary hover:bg-primary-hover text-gray-900 font-bold px-6 py-3 rounded-xl shadow-glow transition-all flex items-center gap-2">
+        <button wire:click="create" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-hover text-gray-900 font-bold px-6 py-3 rounded-xl shadow-glow transition-all flex items-center gap-2">
             <x-heroicon-o-plus class="w-5 h-5" />
             Neuen Lieferanten anlegen
         </button>
@@ -82,12 +82,12 @@
                 <!-- Dynamische Links -->
                 <div class="space-y-2">
                     @if($supplier->website)
-                        <a href="{{ $supplier->website }}" target="_blank" class="flex items-center justify-between p-3 rounded-xl bg-gray-950 border border-gray-800 hover:border-primary/50 group/link transition-colors">
-                            <span class="flex items-center gap-3 text-sm font-bold text-gray-300 group-hover/link:text-primary transition-colors">
-                                <x-heroicon-o-globe-alt class="w-5 h-5 text-gray-500 group-hover/link:text-primary transition-colors" />
+                        <a href="{{ $supplier->website }}" target="_blank" class="flex items-center justify-between p-3 rounded-xl bg-gray-950 border border-gray-800 hover:border-[var(--theme-color-50)] group/link transition-colors">
+                            <span class="flex items-center gap-3 text-sm font-bold text-gray-300 group-hover/link:text-[var(--theme-color)] transition-colors">
+                                <x-heroicon-o-globe-alt class="w-5 h-5 text-gray-500 group-hover/link:text-[var(--theme-color)] transition-colors" />
                                 Hauptwebseite
                             </span>
-                            <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4 text-gray-600 group-hover/link:text-primary transition-colors" />
+                            <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4 text-gray-600 group-hover/link:text-[var(--theme-color)] transition-colors" />
                         </a>
                     @endif
 
@@ -145,13 +145,13 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
                         <div class="col-span-1 md:col-span-2 lg:col-span-3">
                             <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Firmenname / Händler *</label>
-                            <input type="text" wire:model="name" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-base font-bold text-white focus:border-primary focus:ring-1 focus:ring-primary shadow-inner placeholder-gray-600" placeholder="z.B. Alibaba Merchant XYZ">
+                            <input type="text" wire:model="name" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-base font-bold text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Alibaba Merchant XYZ">
                             @error('name') <span class="text-xs text-red-500 mt-1 block font-bold">{{ $message }}</span> @enderror
                         </div>
                         
                         <div class="col-span-1 md:col-span-2 lg:col-span-2">
                             <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Ansprechpartner</label>
-                            <input type="text" wire:model="contact_person" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-sm font-medium text-white focus:border-primary focus:ring-1 focus:ring-primary shadow-inner placeholder-gray-600" placeholder="z.B. Mr. Chen / Mia">
+                            <input type="text" wire:model="contact_person" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Mr. Chen / Mia">
                         </div>
                         
                         <!-- Shipping Methods und Lieferzeiten -->
@@ -239,7 +239,7 @@
                                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                                     <x-heroicon-o-envelope class="w-5 h-5" />
                                 </span>
-                                <input type="email" wire:model="email" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-primary focus:ring-1 focus:ring-primary shadow-inner placeholder-gray-600" placeholder="z.B. support@supplier.com">
+                                <input type="email" wire:model="email" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. support@supplier.com">
                             </div>
                         </div>
                         <div>
@@ -248,7 +248,7 @@
                                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                                     <x-heroicon-o-chat-bubble-left-ellipsis class="w-5 h-5" />
                                 </span>
-                                <input type="text" wire:model="phone" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-primary focus:ring-1 focus:ring-primary shadow-inner placeholder-gray-600" placeholder="+86 ...">
+                                <input type="text" wire:model="phone" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="+86 ...">
                             </div>
                         </div>
                         <div class="col-span-1 md:col-span-2">
@@ -257,7 +257,7 @@
                                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
                                     <x-heroicon-o-globe-alt class="w-5 h-5" />
                                 </span>
-                                <input type="url" wire:model="website" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-primary focus:ring-1 focus:ring-primary shadow-inner placeholder-gray-600" placeholder="https://...">
+                                <input type="url" wire:model="website" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="https://...">
                             </div>
                             @error('website') <span class="text-xs text-red-500 mt-2 block font-bold">{{ $message }}</span> @enderror
                         </div>
@@ -281,14 +281,14 @@
                                 <div class="flex flex-col md:flex-row gap-4 items-start md:items-center p-4 bg-gray-900 border border-gray-700 rounded-2xl shadow-inner">
                                     <div class="w-full md:w-1/3">
                                         <label class="block text-[10px] font-black tracking-widest text-gray-500 uppercase mb-2">Titel der Verlinkung</label>
-                                        <input type="text" wire:model="dynamic_links.{{ $index }}.title" placeholder="z.B. WeChat Chat" class="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary">
+                                        <input type="text" wire:model="dynamic_links.{{ $index }}.title" placeholder="z.B. WeChat Chat" class="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)]">
                                         @error('dynamic_links.'.$index.'.title') <span class="text-xs text-red-500 block mt-1 font-bold">{{ $message }}</span> @enderror
                                     </div>
                                     <div class="flex-1 w-full flex items-end gap-3">
                                         <div class="flex-1">
                                             <label class="block text-[10px] font-black tracking-widest text-gray-500 uppercase mb-2">URL / Hyperlink</label>
                                             <div class="flex items-center gap-2">
-                                                <input type="url" wire:model.live.debounce.500ms="dynamic_links.{{ $index }}.url" placeholder="https://..." class="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-primary focus:ring-1 focus:ring-primary">
+                                                <input type="url" wire:model.live.debounce.500ms="dynamic_links.{{ $index }}.url" placeholder="https://..." class="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)]">
                                                 @if(!empty($link['url']))
                                                     <a href="{{ $link['url'] }}" target="_blank" title="Link im neuen Tab öffnen" class="w-12 h-12 shrink-0 bg-gray-800 hover:bg-emerald-500/20 border border-gray-700 hover:border-emerald-500/50 text-gray-400 hover:text-emerald-400 rounded-xl flex items-center justify-center transition-all shadow-inner">
                                                         <x-heroicon-o-arrow-top-right-on-square class="w-5 h-5" />
@@ -320,7 +320,7 @@
                     </h4>
                     <div class="px-2">
                         <label class="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wide">Interne Notizen & Adresse</label>
-                        <textarea wire:model="notes" rows="4" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-5 py-4 text-base leading-relaxed font-medium text-white focus:border-primary focus:ring-1 focus:ring-primary shadow-inner placeholder-gray-600" placeholder="Spezielle Rabatte, Mindestabnahmemengen (MOQ), Liefersituationen..."></textarea>
+                        <textarea wire:model="notes" rows="4" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-5 py-4 text-base leading-relaxed font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="Spezielle Rabatte, Mindestabnahmemengen (MOQ), Liefersituationen..."></textarea>
                     </div>
                 </div>
 
@@ -332,7 +332,7 @@
                     <button type="submit" 
                         x-data="{ hasError: false }"
                         @validation-failed.window="hasError = true; setTimeout(() => hasError = false, 3000)"
-                        :class="hasError ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)] text-white' : 'bg-primary hover:bg-primary-hover shadow-[0_0_20px_rgba(197,160,89,0.2)] hover:shadow-[0_0_25px_rgba(197,160,89,0.4)] text-gray-900'"
+                        :class="hasError ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)] text-white' : 'bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-hover shadow-[0_0_20px_rgba(197,160,89,0.2)] hover:shadow-[0_0_25px_rgba(197,160,89,0.4)] text-gray-900'"
                         class="w-full sm:w-auto font-black text-sm uppercase tracking-widest px-10 py-4 rounded-xl transition-all flex items-center justify-center gap-3">
                         <span x-show="!hasError" class="flex items-center gap-2"><x-heroicon-o-check class="w-5 h-5" /> Lieferanten speichern</span>
                         <span x-show="hasError" x-cloak class="flex items-center gap-2"><x-heroicon-o-exclamation-triangle class="w-5 h-5" /> Fehlende Angaben</span>

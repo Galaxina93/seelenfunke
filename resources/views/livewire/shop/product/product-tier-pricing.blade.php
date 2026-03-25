@@ -6,16 +6,16 @@
 
             {{-- Klickbarer Titelbereich --}}
             <div @click="open = !open" class="flex items-center gap-4 cursor-pointer group flex-1 w-full lg:w-auto">
-                <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-primary group-hover:border-primary/30 transition-all shadow-inner shrink-0">
-                    <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
+                    <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
 
                 <div class="flex items-center gap-2">
-                    <h3 class="text-xl font-serif font-bold text-white tracking-wide group-hover:text-primary transition-colors">Staffelpreise</h3>
+                    <h3 class="text-xl font-serif font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors">Staffelpreise</h3>
 
                     {{-- Tooltip (Click.stop, damit das Accordion nicht triggert) --}}
                     <div x-data="{ showInfo: false }" class="relative inline-block ml-1" @click.stop>
-                        <button @mouseenter="showInfo = true" @mouseleave="showInfo = false" type="button" class="text-gray-500 hover:text-primary transition-colors flex items-center">
+                        <button @mouseenter="showInfo = true" @mouseleave="showInfo = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
                         </button>
                         <div x-show="showInfo" x-cloak x-transition.opacity class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-4 bg-gray-950 border border-gray-800 text-gray-300 text-xs font-medium leading-relaxed rounded-xl shadow-2xl z-50 text-center">
@@ -30,7 +30,7 @@
             <div class="flex w-full lg:w-auto" @click.stop>
                 <button type="button" wire:click="addTier"
                         @click="open = true"
-                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-950 border border-gray-800 hover:border-primary hover:text-primary text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-inner shrink-0">
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gray-950 border border-gray-800 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-inner shrink-0">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                     Hinzufügen
                 </button>
@@ -67,7 +67,7 @@
                                         <input type="number"
                                                wire:model.blur="tiers.{{ $tierId }}.qty"
                                                wire:change="updateTier('{{ $tierId }}')"
-                                               class="w-full px-4 py-3 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm pr-12 outline-none shadow-inner transition-all"
+                                               class="w-full px-4 py-3 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-sm pr-12 outline-none shadow-inner transition-all"
                                                placeholder="5">
                                         <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">Stk.</span>
                                     </div>

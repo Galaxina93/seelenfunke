@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.financial.financial-liquidity-planner')
+        @livewire('shop.accounting.accounting-liquidity')
 
     @endsection
 

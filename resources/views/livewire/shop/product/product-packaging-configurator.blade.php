@@ -1,14 +1,14 @@
-<div>
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
     <!-- SCHRITT 1: Produktauswahl -->
     <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up w-full mb-8">
         <h2 class="text-xl sm:text-2xl font-serif font-bold text-white tracking-wide mb-4 flex items-center gap-4">
-            <span class="bg-primary text-gray-900 w-8 h-8 rounded-full flex items-center justify-center text-lg font-black shrink-0">1</span>
+            <span class="bg-[var(--theme-color)] text-gray-900 w-8 h-8 rounded-full flex items-center justify-center text-lg font-black shrink-0">1</span>
             Produkt für die Gewichtserfassung auswählen
         </h2>
         <p class="text-gray-400 text-sm sm:text-base mb-8 leading-relaxed">Wähle das Produkt aus, für das du das Versandmaterial hinterlegen möchtest. <br><em>Tipp: Ein mittelgroßer Versandkarton wiegt ca. 100g bis 150g. Etwas Klebeband wiegt ca. 5g. Lass es uns sicherheitshalber etwas großzügiger aufrunden.</em></p>
 
         <div class="relative max-w-2xl">
-            <select wire:model.live="selectedProductId" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-5 py-4 text-base font-bold text-white focus:border-primary focus:ring-2 focus:ring-primary shadow-inner appearance-none pr-12 cursor-pointer transition-colors">
+            <select wire:model.live="selectedProductId" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-5 py-4 text-base font-bold text-white focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color)] shadow-inner appearance-none pr-12 cursor-pointer transition-colors">
                 <option value="">-- Klicke hier um ein Produkt auszuwählen --</option>
                 @foreach($products as $prod)
                     <option value="{{ $prod->id }}">{{ $prod->name }}</option>
@@ -173,11 +173,11 @@
                         </li>
                         <li class="pl-2">
                             <strong class="text-white">Kostenlos bei LUCID registrieren</strong> 
-                            Melde dich gratis bei der offiziellen Behörde (<a href="https://lucid.verpackungsregister.org/" target="_blank" class="text-primary hover:text-white transition-colors underline">LUCID</a>) an. Du erhältst dort eine <strong>LUCID-Registrierungsnummer</strong>, welche dringend in dein Impressum muss!
+                            Melde dich gratis bei der offiziellen Behörde (<a href="https://lucid.verpackungsregister.org/" target="_blank" class="text-[var(--theme-color)] hover:text-white transition-colors underline">LUCID</a>) an. Du erhältst dort eine <strong>LUCID-Registrierungsnummer</strong>, welche dringend in dein Impressum muss!
                         </li>
                         <li class="pl-2">
                             <strong class="text-white">Lizenz kaufen (ab ca. 59 € / Jahr)</strong> 
-                            Gehe zu einem Anbieter wie <a href="https://www.lizenzero.de/" target="_blank" class="text-primary hover:text-white transition-colors underline">Lizenzero</a> oder <a href="https://www.zmart.de/" target="_blank" class="text-primary hover:text-white transition-colors underline">Zmart</a>, gib deine LUCID-Nummer ein und kaufe deine Mengen pauschal ein. <em>(Tipp: Für Kleingewerbe gibt es Tarife ab ~59 € pro Jahr).</em>
+                            Gehe zu einem Anbieter wie <a href="https://www.lizenzero.de/" target="_blank" class="text-[var(--theme-color)] hover:text-white transition-colors underline">Lizenzero</a> oder <a href="https://www.zmart.de/" target="_blank" class="text-[var(--theme-color)] hover:text-white transition-colors underline">Zmart</a>, gib deine LUCID-Nummer ein und kaufe deine Mengen pauschal ein. <em>(Tipp: Für Kleingewerbe gibt es Tarife ab ~59 € pro Jahr).</em>
                         </li>
                     </ol>
                 </div>

@@ -3,7 +3,7 @@
 namespace App\Livewire\Frontend;
 
 use App\Mail\RevocationConfirmationMail;
-use App\Models\Shop\Revocation\Revocation;
+use App\Models\Order\Revocation\Revocation;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;

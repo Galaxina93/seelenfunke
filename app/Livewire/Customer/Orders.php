@@ -13,7 +13,7 @@ use Livewire\WithPagination;
 // Import für die Vorschau-Logik
 // Für die previewItem Property
 
-class Orders extends Component
+class OrderOverview extends Component
 {
     use WithPagination;
 

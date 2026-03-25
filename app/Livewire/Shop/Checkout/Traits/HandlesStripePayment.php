@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\Checkout\Traits;
 
 use App\Jobs\ProcessOrderDocumentsAndMails;
 use App\Models\Order\Order;
-use App\Models\Voucher;
-use App\Models\Quote\QuoteRequest;
+use App\Models\Marketing\Voucher;
+use App\Models\Order\Quote\QuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
 use Stripe\PaymentIntent;

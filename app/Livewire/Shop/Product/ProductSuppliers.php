@@ -4,9 +4,14 @@ namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Supplier;
 use Livewire\Component;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductSuppliers extends Component
 {
+    use WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
+
     public $suppliers;
 
     // Form fields

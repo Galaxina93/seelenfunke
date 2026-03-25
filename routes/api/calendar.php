@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\CalendarEvent;
+use App\Models\Management\CalendarEvent;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 

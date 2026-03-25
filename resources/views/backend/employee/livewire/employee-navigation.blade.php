@@ -8,9 +8,12 @@
         </ul>
     </li>
     <li>
-        <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">System</div>
+        <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-2 mt-6">Verwaltung</div>
         <ul role="list" class="-mx-2 space-y-1">
-            <x-forms.list-item route="/employee/profile" title="Mein Profil" pageName="profile" icon="user-circle" />
+            <x-forms.list-item route="/employee/payslips" title="Gehaltsabrechnungen" pageName="payslips" icon="document-currency-euro" />
+            <!-- Platzhalter für weitere Komponenten:
+            <x-forms.list-item route="/employee/time-tracking" title="Zeiterfassung" pageName="time-tracking" icon="clock" />
+            -->
         </ul>
     </li>
 </x-sections.vertical-nav>

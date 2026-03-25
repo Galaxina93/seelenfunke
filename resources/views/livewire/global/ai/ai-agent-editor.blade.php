@@ -170,8 +170,18 @@
                     </div>
 
                     <!-- Appearance (Colors & Icons) matrix style -->
-                    <div class="border border-gray-800/80 bg-black/30 p-6 rounded-2xl shadow-inner">
-                        <h4 class="text-xs font-bold text-gray-300 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-gray-800/50 pb-2">
+                    <div class="border border-gray-800/80 bg-black/30 p-6 rounded-2xl shadow-inner relative {{ $inheritedDept ? 'opacity-80' : '' }}">
+                        @if($inheritedDept)
+                            <div class="absolute inset-0 bg-black/60 z-20 rounded-2xl flex flex-col items-center justify-center p-6 backdrop-blur-sm">
+                                <div class="bg-gray-950 border border-{{ $inheritedDept['color'] }}/50 shadow-[0_0_30px_currentColor] text-{{ $inheritedDept['color'] }} px-8 py-6 rounded-2xl text-center flex flex-col items-center max-w-md ring-1 ring-white/5">
+                                    <x-dynamic-component :component="'heroicon-o-' . $inheritedDept['icon']" class="w-10 h-10 mb-3 animate-pulse-slow" />
+                                    <h4 class="font-bold text-sm tracking-widest uppercase mb-2">Visuelle Identität Geerbt</h4>
+                                    <p class="text-xs font-mono text-gray-300 leading-relaxed">Dieser Agent arbeitet in der Abteilung <strong class="text-white">"{{ $inheritedDept['name'] }}"</strong>.<br>Farbe und Vektor-Symbol werden systemweit zwingend von der Mutter-Abteilung vererbt und können für diesen Agenten nicht individuell überschrieben werden.</p>
+                                </div>
+                            </div>
+                        @endif
+
+                        <h4 class="text-xs font-bold text-gray-300 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-gray-800/50 pb-2 relative z-10">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-primary"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
                             Optische Identität (UI Präsentation)
                         </h4>
@@ -181,7 +191,7 @@
                             <div>
                                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Aura Farbe wählen</label>
                                 <!-- Tailwind Safelist Fix for Dynamic Colors in loops -->
-                                <div class="hidden bg-cyan-500 text-cyan-500 bg-emerald-500 text-emerald-500 bg-blue-500 text-blue-500 bg-indigo-500 text-indigo-500 bg-purple-500 text-purple-500 bg-pink-500 text-pink-500 bg-rose-500 text-rose-500 bg-red-500 text-red-500 bg-orange-500 text-orange-500 bg-amber-500 text-amber-500 bg-yellow-500 text-yellow-500 bg-green-500 text-green-500 bg-sky-500 text-sky-500"></div>
+                                <div class="hidden bg-cyan-500 text-cyan-500 border-cyan-500/50 bg-emerald-500 text-emerald-500 border-emerald-500/50 bg-blue-500 text-blue-500 border-blue-500/50 bg-indigo-500 text-indigo-500 border-indigo-500/50 bg-purple-500 text-purple-500 border-purple-500/50 bg-pink-500 text-pink-500 border-pink-500/50 bg-rose-500 text-rose-500 border-rose-500/50 bg-red-500 text-red-500 border-red-500/50 bg-orange-500 text-orange-500 border-orange-500/50 bg-amber-500 text-amber-500 border-amber-500/50 bg-yellow-500 text-yellow-500 border-yellow-500/50 bg-green-500 text-green-500 border-green-500/50 bg-sky-500 text-sky-500 border-sky-500/50"></div>
                                 <div class="grid grid-cols-8 gap-2">
                                     @foreach($availableColors as $col)
                                         <button type="button" wire:click="$set('color', '{{ $col }}')" 

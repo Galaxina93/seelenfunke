@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Shop\Blog;
 
-use App\Models\Blog\BlogCategory;
-use App\Models\Blog\BlogPost;
+use App\Models\Marketing\Blog\BlogCategory;
+use App\Models\Marketing\Blog\BlogPost;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;

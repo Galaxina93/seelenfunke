@@ -2,7 +2,7 @@
 
 namespace App\Services\Gamification;
 
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Order\Order;

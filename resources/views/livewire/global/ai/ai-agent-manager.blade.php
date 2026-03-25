@@ -21,14 +21,14 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             @foreach($agents as $agent)
                 @php
-                    $agentColor = $agent->color ?? 'cyan-500';
-                    $agentIcon = $agent->icon ?? 'sparkles';
+                    $agentColor = $agent->department ? $agent->department->color : ($agent->color ?? 'cyan-500');
+                    $agentIcon = $agent->department ? $agent->department->icon : ($agent->icon ?? 'sparkles');
                     $statusColor = $agent->is_active ? 'bg-emerald-500' : 'bg-red-500';
                     
                     $rawModel = $agent->model ?? 'Standard';
-                    if(str_contains($rawModel, 'Ministral')) $shortModel = 'Ministral 14B';
-                    elseif(str_contains($rawModel, 'Devstral')) $shortModel = 'Devstral 24B';
-                    elseif(str_contains($rawModel, 'GPT-OSS')) $shortModel = 'GPT-OSS 120B';
+                    if(str_contains($rawModel, 'Ministral')) $shortModel = 'Ministral';
+                    elseif(str_contains($rawModel, 'Devstral')) $shortModel = 'Devstral';
+                    elseif(str_contains($rawModel, 'GPT-OSS')) $shortModel = 'GPT-OSS';
                     else $shortModel = explode(' ', $rawModel)[0];
                 @endphp
                 <div wire:click="editAgent('{{ $agent->id }}')" class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-current text-{{ $agentColor }} hover:shadow-[0_0_25px_currentColor] rounded-3xl p-6 transition-all cursor-pointer group relative overflow-hidden font-mono {{ !$agent->is_active ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : '' }}">

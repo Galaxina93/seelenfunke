@@ -11,12 +11,12 @@
             </button>
             <div class="min-w-0">
                 <h2 class="text-xl sm:text-2xl font-serif font-bold text-white leading-tight tracking-wide truncate">{{ $name ?: 'Neues Produkt' }}</h2>
-                <p class="text-[9px] sm:text-[10px] text-primary font-black uppercase tracking-[0.2em] mt-1 flex items-center gap-2 drop-shadow-[0_0_8px_currentColor]">
+                <p class="text-[9px] sm:text-[10px] text-[var(--theme-color)] font-black uppercase tracking-[0.2em] mt-1 flex items-center gap-2 drop-shadow-[0_0_8px_currentColor]">
                     @if($type === 'physical') Physisches Produkt
                     @elseif($type === 'digital') Digitales Produkt
                     @elseif($type === 'service') Dienstleistung
                     @endif
-                    <span class="w-1 h-1 rounded-full bg-primary"></span> Schritt {{ $currentStep }} von {{ $totalSteps }}
+                    <span class="w-1 h-1 rounded-full bg-[var(--theme-color)]"></span> Schritt {{ $currentStep }} von {{ $totalSteps }}
                 </p>
             </div>
         </div>
@@ -24,15 +24,15 @@
         <div class="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-end">
             @if($currentStep !== 4)
                 <div class="hidden lg:flex items-center gap-3 bg-gray-950 px-4 py-2.5 rounded-xl border border-gray-800 shadow-inner shrink-0">
-                    <span class="text-[10px] font-black uppercase tracking-widest transition-colors" :class="showPreview ? 'text-primary drop-shadow-[0_0_5px_currentColor]' : 'text-gray-500'">Shop Vorschau</span>
+                    <span class="text-[10px] font-black uppercase tracking-widest transition-colors" :class="showPreview ? 'text-[var(--theme-color)] drop-shadow-[0_0_5px_currentColor]' : 'text-gray-500'">Shop Vorschau</span>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" x-model="showPreview" class="sr-only peer">
-                        <div class="w-10 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
+                        <div class="w-10 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
                     </label>
                 </div>
             @endif
 
-            <span wire:loading wire:target="save" class="text-[10px] font-black uppercase tracking-widest text-primary animate-pulse shrink-0">Speichere...</span>
+            <span wire:loading wire:target="save" class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] animate-pulse shrink-0">Speichere...</span>
             @if(session()->has('success'))
                 <span class="text-[10px] font-black uppercase tracking-widest text-emerald-400 animate-pulse drop-shadow-[0_0_8px_currentColor] shrink-0">{{ session('success') }}</span>
             @endif
@@ -61,11 +61,11 @@
                         <div wire:click="goToStep({{ $step }})"
                              class="flex-1 min-w-[80px] flex flex-col gap-3 group transition-all duration-300 {{ ($step <= $product->completion_step + 1) ? 'cursor-pointer' : 'cursor-not-allowed opacity-40' }}"
                              @if($step > $product->completion_step + 1) title="Schritt noch nicht verfügbar" @endif >
-                            <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest h-8 flex items-center transition-colors duration-300 {{ $currentStep >= $step ? 'text-primary drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400' }}">
+                            <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest h-8 flex items-center transition-colors duration-300 {{ $currentStep >= $step ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400' }}">
                                 {{ $step }}. {{ $label }}
                             </span>
                             <div class="h-1.5 w-full rounded-full transition-all duration-500 overflow-hidden bg-gray-900 border border-gray-800 shadow-inner">
-                                <div class="h-full w-full transition-transform duration-500 origin-left {{ $currentStep >= $step ? 'bg-primary shadow-[0_0_10px_rgba(197,160,89,0.8)] scale-x-100' : 'bg-transparent scale-x-0' }}"></div>
+                                <div class="h-full w-full transition-transform duration-500 origin-left {{ $currentStep >= $step ? 'bg-[var(--theme-color)] shadow-[0_0_10px_rgba(197,160,89,0.8)] scale-x-100' : 'bg-transparent scale-x-0' }}"></div>
                             </div>
                         </div>
                     @endforeach
@@ -100,7 +100,7 @@
                         @endphp
 
                         @if($isLastStep)
-                            <button wire:click="finish" @if(!$canProceed) disabled @endif class="w-full sm:w-auto bg-primary text-gray-900 px-6 sm:px-10 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-primary-dark hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all">
+                            <button wire:click="finish" @if(!$canProceed) disabled @endif class="w-full sm:w-auto bg-[var(--theme-color)] text-gray-900 px-6 sm:px-10 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-white hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none transition-all">
                                 Fertigstellen & Veröffentlichen
                             </button>
                         @else
@@ -158,7 +158,7 @@
                             <div class="p-8 sm:p-10">
                                 <h1 class="text-2xl sm:text-3xl font-serif text-white leading-tight mb-3 tracking-wide break-words">{{ $name ?: 'Produktname' }}</h1>
                                 <div class="flex items-baseline gap-4 mb-8">
-                                    <span class="text-2xl font-mono font-bold text-primary drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]">{{ $price_input ?: '0,00' }} €</span>
+                                    <span class="text-2xl font-mono font-bold text-[var(--theme-color)] drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]">{{ $price_input ?: '0,00' }} €</span>
                                     <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $product->tax_included ? 'inkl.' : 'zzgl.' }} MwSt.</span>
                                 </div>
 

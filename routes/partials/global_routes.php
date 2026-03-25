@@ -5,8 +5,8 @@ use App\Http\Controllers\NewsletterController;
 use App\Livewire\Shop\Cart\Cart;
 use App\Livewire\Shop\Checkout\Checkout;
 use App\Livewire\Shop\Checkout\CheckoutSuccess;
-use App\Livewire\Shop\Newsletter\NewsletterPage;
-use App\Livewire\Shop\Offer\QuoteAcceptance;
+use App\Livewire\Shop\Marketing\MarketingNewsletterPage;
+use App\Livewire\Shop\Order\OrderQuoteAcceptance;
 use App\Livewire\Shop\Product\ProductIndex;
 use App\Livewire\Shop\Product\ProductShow;
 use App\Models\Tracking\PageVisit;
@@ -37,7 +37,7 @@ Route::get('/warenkorb', Cart::class)->name('cart');
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
 
 // Die dedizierte Seite
-Route::get('/newsletter', NewsletterPage::class)->name('newsletter.page');
+Route::get('/newsletter', MarketingNewsletterPage::class)->name('newsletter.page');
 
 // Der Link aus der E-Mail (Controller Action)
 Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])->name('newsletter.verify');
@@ -47,7 +47,7 @@ Route::get('/checkout', Checkout::class)->name('checkout');
 Route::get('/checkout/success', CheckoutSuccess::class)->name('checkout.success');
 
 // Angebot annehmen
-Route::get('/angebot/{token}/annehmen', QuoteAcceptance::class)->name('quote.accept');
+Route::get('/angebot/{token}/annehmen', OrderQuoteAcceptance::class)->name('quote.accept');
 
 // Bezahlungen über Bezahllink zuordenen und Bestellung als bezahlt markieren
 Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle']);
@@ -203,7 +203,7 @@ Route::get('/forgot-password', function () {
 
 
 // --- 6. Rechnungsdownload Route ---
-Route::get('/invoice/{invoice}/download', function (App\Models\Invoice $invoice) {
+Route::get('/invoice/{invoice}/download', function (App\Models\Accounting\Invoice $invoice) {
 
     // Security Gate: Darf der User das sehen?
     // Admin darf alles, Customer nur seine eigenen

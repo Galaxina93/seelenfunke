@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Voucher;
+use App\Models\Marketing\Voucher;
 use Illuminate\Support\Facades\Log;
 
 trait AiMarketingFuncs
@@ -11,7 +11,7 @@ trait AiMarketingFuncs
     {
         return [
             [
-                'name' => 'create_coupon',
+                'name' => 'voucher_create_coupon',
                 'description' => 'Erstelle einen neuen manuellen Rabattgutschein für den Shop. Der User kann dir einfach sagen: "Mache einen 10% Rabatt Gutschein mit Code HALLO10". WICHTIG: Erstelle keine Auto-Gutscheine, sondern nur manuelle Gutscheine. Nutze dies für Marketing, Rabattaktionen, Gutscheine, Coupons, Sale oder Preisnachlässe.',
                 'parameters' => [
                     'type' => 'object',
@@ -46,7 +46,7 @@ trait AiMarketingFuncs
                 'callable' => [self::class, 'executeCreateCoupon']
             ],
             [
-                'name' => 'update_coupon',
+                'name' => 'voucher_update_coupon',
                 'description' => 'Ändere die Werte eines existierenden manuellen Gutscheins. Nutze "get_coupons" vorher, um die ID herauszufinden, falls der User nur den Code sagt. Stichworte: Gutschein bearbeiten, Rabatt ändern, Laufzeit verlängern, Coupon anpassen.',
                 'parameters' => [
                     'type' => 'object',
@@ -81,7 +81,7 @@ trait AiMarketingFuncs
                 'callable' => [self::class, 'executeUpdateCoupon']
             ],
             [
-                'name' => 'get_coupons',
+                'name' => 'voucher_get_all',
                 'description' => 'Gibt alle aktuell gespeicherten Gutscheine und deren Metriken zurück (Nutzungen, Wert, ID). Mache das immer, bevor du einen Gutschein bearbeitest oder löschst, um den genauen Namen oder die ID zu kennen. Stichworte: Zeig mir alle Gutscheine, Welche Rabatte sind aktiv, Liste Coupons auf.',
                 'parameters' => [
                     'type' => 'object',
@@ -90,7 +90,7 @@ trait AiMarketingFuncs
                 'callable' => [self::class, 'executeGetCoupons']
             ],
             [
-                'name' => 'delete_coupon',
+                'name' => 'voucher_delete_coupon',
                 'description' => 'Löscht einen manuellen Gutschein vollständig aus der Datenbank. Stichworte: Gutschein löschen, Coupon entfernen, Rabattcode deaktivieren/löschen.',
                 'parameters' => [
                     'type' => 'object',

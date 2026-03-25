@@ -80,8 +80,8 @@
                             @if(count($data['tools']) > 0)
                                 <div>
                                     <h4 class="text-lg font-black text-white mb-6 flex items-center gap-3 border-b border-gray-800/80 pb-3 uppercase tracking-widest font-mono">
-                                        <span class="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]"></span>
-                                        {{ $category }}
+                                        <span class="w-2 h-2 rounded-full bg-primary shadow-[0_0_10px_rgba(197,160,89,0.8)]"></span>
+                                        Abteilung: {{ $category }}
                                         <span class="text-xs text-gray-500 ml-auto font-normal tracking-normal">{{ $data['active_count'] }} <span class="text-gray-700">/</span> {{ $data['total_count'] }} AKTIV</span>
                                     </h4>
                                     

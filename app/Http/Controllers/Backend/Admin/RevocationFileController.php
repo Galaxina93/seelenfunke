@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Backend\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Shop\Revocation\Revocation;
+use App\Models\Order\Revocation\Revocation;
 use Illuminate\Support\Facades\Storage;
 
 class RevocationFileController extends Controller

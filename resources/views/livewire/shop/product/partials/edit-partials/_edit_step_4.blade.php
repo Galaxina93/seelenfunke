@@ -11,7 +11,7 @@
             {{-- BLOCK 1: DATEIEN & MAßE --}}
             <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up">
                 <h2 class="text-xl sm:text-2xl font-serif font-bold text-white border-b border-gray-800 pb-5 mb-8 tracking-wide flex items-center gap-3">
-                    <span class="w-8 h-8 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shadow-inner text-sm shrink-0">4</span>
+                    <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] flex items-center justify-center shadow-inner text-sm shrink-0">4</span>
                     Dateien & Produktdetails
                 </h2>
 

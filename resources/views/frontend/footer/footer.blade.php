@@ -100,7 +100,7 @@
 
             {{-- Spalte 4: Newsletter --}}
             <div>
-                @livewire('shop.newsletter.newsletter-signup')
+                @livewire('shop.marketing.marketing-newsletter-signup')
             </div>
 
         </div>

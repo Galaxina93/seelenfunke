@@ -29,9 +29,9 @@ Route::middleware(['auth:admin'])->group(function () {
 
     // AI AGENT UNVIVERSE
     Route::get('/admin/ai-analytics', \App\Livewire\Global\Ai\AiAnalytics::class)->name('admin.ai-analytics');
-    Route::get('/admin/ceo/gesundheit', \App\Livewire\Global\Ai\AiCeoHealth::class)->name('ceo.gesundheit');
+    Route::get('/admin/ceo/gesundheit', \App\Livewire\Shop\Management\ManagementHealth::class)->name('ceo.gesundheit');
     Route::get('/admin/ceo/gesundheit/plan/{id}/pdf', function ($id) {
-        $plan = \App\Models\Ai\Health\AiHealthTreatmentPlan::with('items')->findOrFail($id);
+        $plan = \App\Models\Management\Health\AiHealthTreatmentPlan::with('items')->findOrFail($id);
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-treatment-plan', [
             'plan' => $plan,
         ]);
@@ -47,12 +47,14 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/person-profiles', function () {
         return view('backend.admin.pages.person-profile');
     })->name('admin.person-profiles');
+    
+    Route::get('/admin/rollen', \App\Livewire\Global\Ai\AiRoleManager::class)->name('admin.rollen');
+
     Route::get('/admin/agenten', function () {
         return view('backend.admin.pages.ai-agent-manager');
     })->name('admin.ai-agents');
-    Route::get('/admin/agenten-rollen', function () {
-        return view('backend.admin.pages.ai-role-manager');
-    })->name('admin.ai-roles');
+
+    Route::get('/admin/organigramm', \App\Livewire\Global\Ai\AiCompanyStructure::class)->name('admin.ai-company-structure');
     Route::get('/admin/ki-agenten/{id}', function ($id) {
         return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
     })->name('admin.ai-agents.editor');
@@ -257,7 +259,7 @@ Route::middleware(['auth:admin'])->group(function () {
     })->name('admin.inbox');
 
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
-        $attachment = \App\Models\Mail\MailAttachment::findOrFail($id);
+        $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
 
         // Security check handled securely by 'auth:admin' middleware
         $path = $attachment->path;

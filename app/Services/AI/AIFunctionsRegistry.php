@@ -13,6 +13,20 @@ class AIFunctionsRegistry
     use Functions\AiFinanceFuncs;
     use Functions\AiScoutFuncs;
     use Functions\AiHealthFuncs;
+    use Functions\AiTaskFuncs;
+    use Functions\AiRoutineFuncs;
+    use Functions\AiCalendarFuncs;
+    use Functions\AiBrainFuncs;
+    use Functions\AiMailFuncs;
+    use Functions\AiContactFuncs;
+    use Functions\AiProductAnalyticsFuncs;
+    use Functions\AiProductFractureFuncs;
+    use Functions\AiProductCreateFuncs;
+    use Functions\AiSuppliersFuncs;
+    use Functions\AiProductTemplatesFuncs;
+    use Functions\AiProductControlReviewsFuncs;
+    use Functions\AiProductNicheScannerFuncs;
+    use Functions\AiProductPackagingConfiguratorFuncs;
 
     /**
      * Define all available functions the AI can call.
@@ -27,7 +41,21 @@ class AIFunctionsRegistry
             self::getAiSalesFuncsSchema(),
             self::getAiFinanceFuncsSchema(),
             self::getAiScoutFuncsSchema(),
-            self::getAiHealthFuncsSchema()
+            self::getAiHealthFuncsSchema(),
+            self::getAiTaskFuncsSchema(),
+            self::getAiRoutineFuncsSchema(),
+            self::getAiCalendarFuncsSchema(),
+            self::getAiBrainFuncsSchema(),
+            self::getAiMailFuncsSchema(),
+            self::getAiContactFuncsSchema(),
+            self::getAiProductAnalyticsFuncsSchema(),
+            self::getAiProductFractureFuncsSchema(),
+            self::getAiProductCreateFuncsSchema(),
+            self::getAiSuppliersFuncsSchema(),
+            self::getAiProductTemplatesFuncsSchema(),
+            self::getAiProductControlReviewsFuncsSchema(),
+            self::getAiProductNicheScannerFuncsSchema(),
+            self::getAiProductPackagingConfiguratorFuncsSchema()
         );
     }
 

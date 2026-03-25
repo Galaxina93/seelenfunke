@@ -8,9 +8,13 @@ use App\Models\Product\ProductLoss;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductAnalytics extends Component
 {
+    use WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
     protected $listeners = ['refreshProductAnalytics' => '$refresh'];
 
     public function mount()

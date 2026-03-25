@@ -9,10 +9,13 @@ use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductCreate extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
 
     public $viewMode = 'list';
     public $showArchived = false;

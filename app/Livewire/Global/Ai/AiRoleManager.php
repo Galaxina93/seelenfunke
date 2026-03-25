@@ -27,7 +27,7 @@ class AiRoleManager extends Component
 
     public function loadRoles()
     {
-        $this->roles = AiRole::orderBy('name')->get();
+        $this->roles = AiRole::withCount('tools')->orderByDesc('tools_count')->orderBy('name')->get();
     }
 
     public function create()
@@ -105,14 +105,23 @@ class AiRoleManager extends Component
         }
         $allTools = $query->orderBy('name')->get();
 
-        // Gruppierung basierend auf der Registry
+        // Gruppierung basierend auf der Registry und verknüpft mit den live Abteilungsnamen (via UUID)
+        $depts = \App\Models\Ai\AiDepartment::pluck('name', 'id')->toArray();
+        $nameCeo = $depts['019d0000-0000-0000-0000-000000000000'] ?? 'Firmenleitung';
+        $nameProd = $depts['019d1111-1111-1111-1111-111111111111'] ?? 'Produkte';
+        $nameMark = $depts['019d2222-2222-2222-2222-222222222222'] ?? 'Marketing';
+        $nameOrd = $depts['019d3333-3333-3333-3333-333333333333'] ?? 'Bestellungen';
+        $nameFin = $depts['019d4444-4444-4444-4444-444444444444'] ?? 'Buchhaltung';
+
         $categoryMap = [
-            'Finanzen & Buchhaltung' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-            'Marketing & Aktionen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
-            'Vertrieb & Bestellungen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
-            'Support & Kundendienst' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-            'Scouting & Gamification' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
-            'System & Kernfunktionen' => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+            $nameFin => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+            $nameMark => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
+            $nameOrd => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name')
+            ),
+            $nameProd => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
+            $nameCeo => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
         ];
 
         $groupedTools = [];
@@ -141,6 +150,6 @@ class AiRoleManager extends Component
         return view('livewire.global.ai.ai-role-manager', [
             'groupedTools' => $groupedToolsCollection,
             'totalToolsCount' => $allTools->count()
-        ]);
+        ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

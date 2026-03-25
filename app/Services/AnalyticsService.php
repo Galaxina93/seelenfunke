@@ -12,10 +12,10 @@ use App\Models\Tracking\PageVisit; // Geändert auf deinen neuen Namespace!
 use App\Models\LoginAttempt;
 use App\Models\Order\Order;
 use App\Models\Order\OrderItem;
-use App\Models\Invoice;
+use App\Models\Accounting\Invoice;
 use App\Models\Product\Product;
-use App\Models\Financial\FinanceSpecialIssue;
-use App\Models\Financial\FinanceCostItem;
+use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\FinanceCostItem;
 use Spatie\Backup\Tasks\Monitor\BackupDestinationStatusFactory;
 
 class AnalyticsService

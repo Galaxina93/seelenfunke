@@ -8,7 +8,7 @@
 
                 {{-- Linke Seite: Die Routine Component --}}
                 <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[600px]">
-                    @livewire('shop.day-routine.day-routine')
+                    @livewire('shop.management.management-routine')
                 </div>
 
                 {{-- Rechte Seite: Motivation & Status --}}

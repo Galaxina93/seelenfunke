@@ -11,6 +11,7 @@ class AiRole extends Model
     use HasFactory, HasUuids;
 
     protected $fillable = [
+        'ai_department_id',
         'name',
         'description',
     ];
@@ -24,5 +25,10 @@ class AiRole extends Model
     {
         return $this->belongsToMany(AiTool::class, 'ai_role_tool')
                     ->withTimestamps();
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(AiDepartment::class, 'ai_department_id');
     }
 }

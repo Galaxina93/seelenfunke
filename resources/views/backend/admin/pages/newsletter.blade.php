@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('shop.newsletter.shop-newsletter')
+        @livewire('shop.marketing.marketing-newsletter')
 
     @endsection
 

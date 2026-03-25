@@ -2,8 +2,8 @@
 
 namespace App\Mail;
 
-use App\Models\Newsletter\Newsletter;
-use App\Models\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\Newsletter\Newsletter;
+use App\Models\Marketing\Newsletter\NewsletterSubscriber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;

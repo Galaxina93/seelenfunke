@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('ai_roles', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->foreignUuid('ai_department_id')->nullable()->constrained('ai_departments')->nullOnDelete();
             $table->string('name');
             $table->text('description')->nullable();
             $table->timestamps();
@@ -21,6 +22,7 @@ return new class extends Migration
         Schema::create('ai_agents', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('ai_role_id')->nullable()->constrained('ai_roles')->nullOnDelete();
+            $table->foreignUuid('ai_department_id')->nullable()->constrained('ai_departments')->nullOnDelete();
             $table->string('name');
             $table->string('wake_word')->nullable();
             $table->text('role_description')->nullable();

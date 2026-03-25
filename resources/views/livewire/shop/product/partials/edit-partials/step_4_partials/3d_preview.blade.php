@@ -62,12 +62,12 @@
             {{-- Polygon Ankerpunkte --}}
             <template x-if="configSettings.area_shape === 'custom'">
                 <template x-for="(point, idx) in (configSettings.custom_points || [])" :key="idx">
-                    <div class="point-handle group absolute w-7 h-7 bg-gray-900 border-[2.5px] border-primary rounded-full z-20 cursor-move -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_rgba(197,160,89,0.5)] flex items-center justify-center hover:scale-110 transition-all"
+                    <div class="point-handle group absolute w-7 h-7 bg-gray-900 border-[2.5px] border-[var(--theme-color)] rounded-full z-20 cursor-move -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_rgba(197,160,89,0.5)] flex items-center justify-center hover:scale-110 transition-all"
                          :style="`left: ${point.x}%; top: ${point.y}%;`"
                          @mousedown.stop="startDragPoint(idx, $event)"
                          @touchstart.stop="startDragPoint(idx, $event)">
 
-                        <span x-text="idx + 1" class="absolute text-[11px] font-black text-primary pointer-events-none transition-opacity duration-200 group-hover:opacity-0"></span>
+                        <span x-text="idx + 1" class="absolute text-[11px] font-black text-[var(--theme-color)] pointer-events-none transition-opacity duration-200 group-hover:opacity-0"></span>
 
                         <button @click.stop="deletePoint(idx)"
                                 class="absolute text-red-500 hover:text-red-400 font-bold pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -82,7 +82,7 @@
     <div x-show="configSettings.has_back_side" x-transition
          class="sticky bottom-6 mt-6 bg-gray-900/90 backdrop-blur-xl shadow-2xl border border-gray-700 rounded-full p-1.5 flex items-center z-50">
         <button @click="activeSide = 'front'"
-                :class="activeSide === 'front' ? 'bg-primary text-gray-900 shadow-[0_0_10px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white'"
+                :class="activeSide === 'front' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_10px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white'"
                 class="px-6 py-3 sm:px-8 sm:py-3.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300">
             Vorderseite
         </button>

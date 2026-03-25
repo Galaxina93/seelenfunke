@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Invoice;
+use App\Models\Accounting\Invoice;
 use DOMDocument;
 use Illuminate\Support\Facades\Storage;
 
@@ -83,7 +83,7 @@ class NativeXmlInvoiceService
                 'product_name' => 'Versandkosten',
                 'quantity' => 1,
                 'unit_price' => $invoice->shipping_cost, // in Cent
-                'tax_rate' => $isSmallBusiness ? 0 : 19
+                'tax_rate' => $isSmallBusiness ? 0 : shop_setting('default_tax_rate', 19.0)
             ];
         }
 
@@ -103,7 +103,7 @@ class NativeXmlInvoiceService
 
             // Preisberechnung
             $grossCents = (float)$item['unit_price'];
-            $taxRate = (float)($item['tax_rate'] ?? 19);
+            $taxRate = (float)($item['tax_rate'] ?? shop_setting('default_tax_rate', 19.0));
             $qty = (float)$item['quantity'];
 
             // Netto berechnen
@@ -210,7 +210,7 @@ class NativeXmlInvoiceService
         if ($taxTotalAmount == 0 && !$isSmallBusiness) $catCode = 'Z';
 
         $this->addElement($tax, 'ram:CategoryCode', $catCode);
-        $this->addElement($tax, 'ram:RateApplicablePercent', $isSmallBusiness ? '0.00' : '19.00'); // TODO: Dynamisch machen wenn 7% genutzt wird
+        $this->addElement($tax, 'ram:RateApplicablePercent', $isSmallBusiness ? '0.00' : number_format((float)shop_setting('default_tax_rate', 19.0), 2, '.', ''));
 
         // Gesamtsummen
         $summation = $this->addElement($settlement, 'ram:SpecifiedTradeSettlementHeaderMonetarySummation');

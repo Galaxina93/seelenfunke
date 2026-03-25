@@ -14,10 +14,12 @@ Route::middleware(['auth:employee'])->group(function () {
         return view('backend.employee.pages.projects');
     })->name('employee.projects');
 
-    // Profile
-    Route::get('/employee/profile', function () {
-        return view('backend.employee.pages.profile');
-    })->name('employee.profile');
+    // Profile (Old manual profile route is removed, now handled by global widget)
+
+    // Gehaltsabrechnungen (Payslips)
+    Route::get('/employee/payslips', function () {
+        return view('backend.employee.pages.payslips');
+    })->name('employee.payslips');
 
 });
 

@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\DayRoutine;
-use App\Models\DayRoutineStep;
+use App\Models\Management\DayRoutine;
+use App\Models\Management\DayRoutineStep;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;

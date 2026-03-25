@@ -8,7 +8,7 @@ trait AiFinanceFuncs
     {
         return [
             [
-                'name' => 'check_missing_expenses',
+                'name' => 'finance_check_missing_expenses',
                 'description' => 'Prüft, ob fehlende Sonderausgaben vorliegen, die noch erfasst oder überprüft werden müssen. Stichworte: Fehlen Rechnungen, fehlende Belege, Ausgaben prüfen, Buchhaltung checken, was fehlt noch, Rechnungsprüfung.',
                 'parameters' => [
                     'type' => 'object',
@@ -17,7 +17,7 @@ trait AiFinanceFuncs
                 'callable' => [self::class, 'executeCheckMissingExpenses']
             ],
             [
-                'name' => 'get_finances',
+                'name' => 'finance_get_monthly_stats',
                 'description' => 'Gibt die streng vertraulichen Buchhaltungs- und Finanzdaten des aktuellen Monats zurück. Enthält rohen Umsatz, Einnahmen, Fixkosten, Sonderausgaben, Gewinn, BWA Metriken. Stichworte: Zeig mir den Umsatz, Wie viel haben wir verdient, Finanzstatus, Gewinn diesen Monat, BWA, Auswertungen.',
                 'parameters' => [
                     'type' => 'object',

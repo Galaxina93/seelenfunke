@@ -106,15 +106,15 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mb-10">
                 @foreach($product->media_gallery ?? [] as $index => $media)
                     @if(is_array($media) && $media['type'] === 'image')
-                        <div class="relative aspect-square rounded-[1.5rem] overflow-hidden group border-2 shadow-inner {{ $index === 0 ? 'border-primary shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'border-gray-800 hover:border-gray-700' }} bg-gray-950">
+                        <div class="relative aspect-square rounded-[1.5rem] overflow-hidden group border-2 shadow-inner {{ $index === 0 ? 'border-[var(--theme-color)] shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'border-gray-800 hover:border-gray-700' }} bg-gray-950">
                             <img src="{{ asset('storage/'.$media['path']) }}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity">
                             <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                                 @if($index !== 0)
-                                    <button wire:click="setMainImage({{ $index }})" class="bg-gray-800 border border-gray-700 text-white p-2.5 rounded-xl hover:bg-primary hover:border-primary hover:text-gray-900 shadow-lg transition-all hover:scale-110" title="Als Hauptbild setzen"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg></button>
+                                    <button wire:click="setMainImage({{ $index }})" class="bg-gray-800 border border-gray-700 text-white p-2.5 rounded-xl hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-gray-900 shadow-lg transition-all hover:scale-110" title="Als Hauptbild setzen"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg></button>
                                 @endif
                                 <button wire:click="removeMedia({{ $index }})" class="bg-gray-800 border border-gray-700 text-red-400 p-2.5 rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white shadow-lg transition-all hover:scale-110" title="Löschen"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                             </div>
-                            @if($index === 0) <span class="absolute bottom-3 left-3 bg-primary text-gray-900 text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-lg border border-primary-dark">Hauptbild</span> @endif
+                            @if($index === 0) <span class="absolute bottom-3 left-3 bg-[var(--theme-color)] text-gray-900 text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shadow-lg border border-[var(--theme-color)]-dark">Hauptbild</span> @endif
                         </div>
                     @endif
                 @endforeach
@@ -130,7 +130,7 @@
                      x-on:drop.prevent="isDropping = false;
                                         $refs.imageInput.files = $event.dataTransfer.files;
                                         $refs.imageInput.dispatchEvent(new Event('change', { bubbles: true }));"
-                     :class="isDropping ? 'bg-primary/10 border-2 border-primary border-solid shadow-[0_0_20px_rgba(197,160,89,0.2)]' : 'bg-gray-950 border-2 border-dashed border-gray-800 hover:border-gray-600'">
+                     :class="isDropping ? 'bg-[var(--theme-color-10)] border-2 border-[var(--theme-color)] border-solid shadow-[0_0_20px_rgba(197,160,89,0.2)]' : 'bg-gray-950 border-2 border-dashed border-gray-800 hover:border-gray-600'">
 
                     <label class="w-full h-full cursor-pointer flex flex-col items-center justify-center text-gray-500 group-hover:text-white transition-colors">
                         <input type="file" multiple wire:model.live="new_media" class="hidden" accept="image/*" x-ref="imageInput">
@@ -141,8 +141,8 @@
                         </div>
 
                         <div x-show="isUploading" class="absolute inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                            <svg class="animate-spin h-6 w-6 text-primary mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            <span class="text-[9px] font-black uppercase tracking-widest text-primary drop-shadow-[0_0_8px_currentColor]">Lädt...</span>
+                            <svg class="animate-spin h-6 w-6 text-[var(--theme-color)] mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]">Lädt...</span>
                         </div>
                     </label>
                 </div>
@@ -173,7 +173,7 @@
                      x-on:drop.prevent="isDropping = false;
                                         $refs.videoInput.files = $event.dataTransfer.files;
                                         $refs.videoInput.dispatchEvent(new Event('change', { bubbles: true }));"
-                     :class="isDropping ? 'bg-primary/10 border-2 border-primary border-solid shadow-[0_0_20px_rgba(197,160,89,0.2)]' : 'bg-gray-950 border-2 border-dashed border-gray-800 hover:border-gray-600'">
+                     :class="isDropping ? 'bg-[var(--theme-color-10)] border-2 border-[var(--theme-color)] border-solid shadow-[0_0_20px_rgba(197,160,89,0.2)]' : 'bg-gray-950 border-2 border-dashed border-gray-800 hover:border-gray-600'">
 
                     <label class="w-full h-full cursor-pointer flex flex-col items-center justify-center text-gray-500 group-hover:text-white transition-colors">
                         <input type="file" wire:model.live="new_video" class="hidden" accept="video/mp4,video/quicktime" x-ref="videoInput">
@@ -184,8 +184,8 @@
                         </div>
 
                         <div x-show="isUploading" class="absolute inset-0 bg-gray-900/90 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                            <svg class="animate-spin h-6 w-6 text-primary mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            <span class="text-[9px] font-black uppercase tracking-widest text-primary drop-shadow-[0_0_8px_currentColor]">Lädt...</span>
+                            <svg class="animate-spin h-6 w-6 text-[var(--theme-color)] mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]">Lädt...</span>
                         </div>
                     </label>
                 </div>

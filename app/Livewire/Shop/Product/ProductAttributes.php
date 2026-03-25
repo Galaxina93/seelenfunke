@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
-use App\Models\ShopAttribute;
+use App\Models\Product\ShopAttribute;
 use Illuminate\Support\Str;
 use Livewire\Component;
 

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Blog;
 
-use App\Models\Blog\BlogPost;
+use App\Models\Marketing\Blog\BlogPost;
 use Illuminate\Support\Str;
 use Livewire\Component;
 

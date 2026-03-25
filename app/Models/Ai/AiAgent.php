@@ -33,6 +33,11 @@ class AiAgent extends Model
         'is_active' => 'boolean',
     ];
 
+    public function department()
+    {
+        return $this->belongsTo(AiDepartment::class, 'ai_department_id');
+    }
+
     public function role()
     {
         return $this->belongsTo(AiRole::class, 'ai_role_id');

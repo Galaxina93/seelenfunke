@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Mail\AutomaticNewsletterMail;
 use App\Models\Global\GlobalLog;
-use App\Models\Newsletter\Newsletter;
-use App\Models\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\Newsletter\Newsletter;
+use App\Models\Marketing\Newsletter\NewsletterSubscriber;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;

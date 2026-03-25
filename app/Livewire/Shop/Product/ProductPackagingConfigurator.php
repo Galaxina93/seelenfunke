@@ -5,9 +5,14 @@ namespace App\Livewire\Shop\Product;
 use App\Models\Product\Product;
 use App\Models\Product\ProductPackaging;
 use Livewire\Component;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class ProductPackagingConfigurator extends Component
 {
+    use WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Produkte';
+
     public $selectedProductId = '';
 
     // Form fields for adding new material

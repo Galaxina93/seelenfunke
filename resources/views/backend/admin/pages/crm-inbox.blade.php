@@ -2,7 +2,7 @@
 
     @section('content')
 
-        @livewire('global.mail-accounts.crm-inbox')
+        @livewire('shop.management.management-e-mails')
 
     @endsection
 

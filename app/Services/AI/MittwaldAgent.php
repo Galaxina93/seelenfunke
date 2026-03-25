@@ -44,7 +44,7 @@ class MittwaldAgent
         $aiCommand = $aiService->getUltimateCommand($isOverride);
 
         $systemPromptText = $this->agent->system_prompt;
-        
+
         $roleInfo = "";
         if ($this->agent->role) {
             $roleInfo = "\n\n[DEINE ZUGEWIESENE ROLLE & IDENTITÄT]\n" .
@@ -79,7 +79,7 @@ class MittwaldAgent
             'total_tokens' => 0,
         ];
         $eventsData = [];
-        
+
         $startTime = microtime(true);
         $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData);
         $totalTimeMs = (int) round((microtime(true) - $startTime) * 1000);
@@ -125,7 +125,7 @@ class MittwaldAgent
             'top_p' => 1.0,
             'tool_choice' => 'auto'
         ];
-        
+
         if (!empty($filteredSchema)) {
             $payload['tools'] = $filteredSchema;
         }
@@ -305,7 +305,6 @@ class MittwaldAgent
                 }
 
                 if (isset($shouldFastTrack) && $shouldFastTrack === true) {
-                    \Illuminate\Support\Facades\Log::info("FAST TRACK TRIGGERED: Skipping LLM confirmation loop for immediate UI response.");
                     return ""; // Return empty string so FunkiraChat doesn't synthesize empty audio
                 }
 

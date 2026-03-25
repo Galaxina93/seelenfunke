@@ -9,7 +9,7 @@
             {{-- Preis --}}
             <div class="flex flex-col">
                 <div class="flex items-baseline gap-3">
-                    <span class="text-2xl font-bold text-primary transition-all">
+                    <span class="text-2xl font-bold text-[var(--theme-color)] transition-all">
                         {{ number_format($this->product->price / 100, 2, ',', '.') }} €
                     </span>
                     @if($this->product->compare_at_price > $this->product->price)
@@ -110,7 +110,7 @@
                         <span class="text-xs text-gray-500">
                             zzgl. {{ number_format($shippingCost / 100, 2, ',', '.') }} € Versand
                             <span class="text-gray-400 font-medium">(frei ab {{ number_format($freeThreshold / 100, 2, ',', '.') }} €)</span>
-                            <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-primary ml-1 transition-colors">Details</a>
+                            <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-[var(--theme-color)] ml-1 transition-colors">Details</a>
                         </span>
                     @endif
                 </div>
@@ -176,8 +176,8 @@
                     <div class="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50/50">
                         <h2 class="text-2xl font-serif font-bold text-gray-900 mb-6 text-center">Wie möchtest du starten?</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                            <button type="button" wire:click="openTemplatesList" class="bg-white border border-gray-200 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group text-left flex flex-col items-center text-center">
-                                <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
+                            <button type="button" wire:click="openTemplatesList" class="bg-white border border-gray-200 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:border-[var(--theme-color-50)] transition-all group text-left flex flex-col items-center text-center">
+                                <div class="w-16 h-16 bg-[var(--theme-color-10)] rounded-full flex items-center justify-center text-[var(--theme-color)] mb-4 group-hover:scale-110 transition-transform">
                                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
                                 </div>
                                 <h3 class="text-lg font-bold text-gray-900 mb-2">Vorlage nutzen</h3>
@@ -221,17 +221,17 @@
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             @foreach($productTemplates as $tpl)
-                                <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-primary transition-all cursor-pointer group">
+                                <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-[var(--theme-color)] transition-all cursor-pointer group">
                                     <div class="h-40 bg-gray-100 relative overflow-hidden flex items-center justify-center">
                                         @if(!empty($tpl['preview_image']))
                                             <img src="{{ asset('storage/'.$tpl['preview_image']) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                                         @else
                                             <svg class="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                         @endif
-                                        <div class="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors"></div>
+                                        <div class="absolute inset-0 bg-[var(--theme-color)]/0 group-hover:bg-[var(--theme-color-10)] transition-colors"></div>
                                     </div>
                                     <div class="p-4 text-center">
-                                        <h3 class="font-bold text-gray-900 text-sm group-hover:text-primary transition-colors">{{ $tpl['name'] }}</h3>
+                                        <h3 class="font-bold text-gray-900 text-sm group-hover:text-[var(--theme-color)] transition-colors">{{ $tpl['name'] }}</h3>
                                     </div>
                                 </div>
                             @endforeach

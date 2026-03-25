@@ -38,7 +38,7 @@
                     <span class="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Sale</span>
                 @endif
                 @if($product->created_at->diffInDays() < 30)
-                    <span class="bg-primary text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Neu</span>
+                    <span class="bg-[var(--theme-color)] text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Neu</span>
                 @endif
                 @if($product->type === 'digital')
                     <span class="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Digital</span>
@@ -59,7 +59,7 @@
                  }">
 
                 {{-- Linker Pfeil (Nur Desktop sichtbar) --}}
-                <button @click="scroll('left')" class="hidden lg:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-primary hover:border-primary transition-all opacity-0 group-hover/slider:opacity-100 -translate-x-2">
+                <button @click="scroll('left')" class="hidden lg:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all opacity-0 group-hover/slider:opacity-100 -translate-x-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7" /></svg>
                 </button>
 
@@ -69,7 +69,7 @@
                         <div class="snap-start shrink-0" style="width: calc(20% - 13px);">
                             <button @click="activeMedia = '{{ asset('storage/'.$media['path']) }}'; activeType = '{{ $media['type'] ?? 'image' }}'"
                                     class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative"
-                                    :class="activeMedia === '{{ asset('storage/'.$media['path']) }}' ? 'border-primary ring-2 ring-primary/20' : 'border-transparent hover:border-gray-300'">
+                                    :class="activeMedia === '{{ asset('storage/'.$media['path']) }}' ? 'border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)]' : 'border-transparent hover:border-gray-300'">
 
                                 @if(isset($media['type']) && $media['type'] === 'video')
                                     <div class="w-full h-full bg-gray-900 flex items-center justify-center text-white">
@@ -85,7 +85,7 @@
                 </div>
 
                 {{-- Rechter Pfeil (Nur Desktop sichtbar) --}}
-                <button @click="scroll('right')" class="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-primary hover:border-primary transition-all opacity-0 group-hover/slider:opacity-100 translate-x-2">
+                <button @click="scroll('right')" class="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all opacity-0 group-hover/slider:opacity-100 translate-x-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7" /></svg>
                 </button>
             </div>
@@ -106,7 +106,7 @@
 
             <div class="text-gray-600 w-full block">
                 <h3 class="font-serif text-2xl font-bold text-gray-900 mb-4">Beschreibung</h3>
-                <div class="whitespace-pre-line leading-relaxed break-words text-sm">
+                <div class="bg-whitespace-pre-line leading-relaxed break-words text-sm">
                     {!! nl2br(e($this->product->description)) !!}
                 </div>
             </div>

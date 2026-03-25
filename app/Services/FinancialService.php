@@ -1,8 +1,8 @@
 <?php
 namespace App\Services;
 
-use App\Models\Financial\FinanceGroup;
-use App\Models\Financial\FinanceSpecialIssue;
+use App\Models\Accounting\FinanceGroup;
+use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Order\Order;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -51,8 +51,8 @@ class FinancialService
             $netSpecialSum += $amount;
         }
         
-        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
-            ? \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+        $bankTxs = class_exists(\App\Models\Accounting\BankTransaction::class)
+            ? \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('finance_category_id')
                 ->whereYear('transaction_date', $year)
                 ->whereMonth('transaction_date', $month)
@@ -74,7 +74,7 @@ class FinancialService
         }
 
         // 3. Shop Umsätze (Basis: Rechnungen statt Bestellungen)
-        $shopRevenueQuery = \App\Models\Invoice::whereYear('invoice_date', $year)
+        $shopRevenueQuery = \App\Models\Accounting\Invoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note']);
@@ -157,8 +157,8 @@ class FinancialService
 
         // 2. Sonderausgaben (Variable Kosten)
         $specials = FinanceSpecialIssue::where('admin_id', $adminId)->whereYear('execution_date', $year)->get();
-        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
-            ? \App\Models\Financial\BankTransaction::with(['account', 'financeCategory'])
+        $bankTxs = class_exists(\App\Models\Accounting\BankTransaction::class)
+            ? \App\Models\Accounting\BankTransaction::with(['account', 'financeCategory'])
                 ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('finance_category_id')
                 ->whereYear('transaction_date', $year)
@@ -214,7 +214,7 @@ class FinancialService
         }
 
         // 3. Shop (Basis: Rechnungen)
-        $shopInvoicesQuery = \App\Models\Invoice::whereYear('invoice_date', $year)
+        $shopInvoicesQuery = \App\Models\Accounting\Invoice::whereYear('invoice_date', $year)
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->groupBy('month');
@@ -261,8 +261,8 @@ class FinancialService
             ->groupBy('category')
             ->get();
 
-        $bankTxData = class_exists(\App\Models\Financial\BankTransaction::class)
-            ? \App\Models\Financial\BankTransaction::with('financeCategory')
+        $bankTxData = class_exists(\App\Models\Accounting\BankTransaction::class)
+            ? \App\Models\Accounting\BankTransaction::with('financeCategory')
                 ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('finance_category_id')
                 ->whereBetween('transaction_date', [$from, $to])
@@ -345,8 +345,8 @@ class FinancialService
             }
         }
         
-        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
-            ? \App\Models\Financial\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+        $bankTxs = class_exists(\App\Models\Accounting\BankTransaction::class)
+            ? \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('finance_category_id')
                 ->whereBetween('transaction_date', [$from, $to])
                 ->get()
@@ -361,7 +361,7 @@ class FinancialService
         }
 
         // Shop Invoices (anstatt Orders)
-        $invoices = \App\Models\Invoice::whereBetween('invoice_date', [$from, $to])
+        $invoices = \App\Models\Accounting\Invoice::whereBetween('invoice_date', [$from, $to])
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->get();
@@ -406,8 +406,8 @@ class FinancialService
             ->orderBy('execution_date')
             ->get();
             
-        $bankTxs = class_exists(\App\Models\Financial\BankTransaction::class)
-            ? \App\Models\Financial\BankTransaction::with(['account', 'financeCategory'])
+        $bankTxs = class_exists(\App\Models\Accounting\BankTransaction::class)
+            ? \App\Models\Accounting\BankTransaction::with(['account', 'financeCategory'])
                 ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('finance_category_id')
                 ->whereYear('transaction_date', $year)
@@ -432,7 +432,7 @@ class FinancialService
             }
         }
 
-        $invoices = \App\Models\Invoice::whereYear('invoice_date', $year)
+        $invoices = \App\Models\Accounting\Invoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
@@ -448,7 +448,7 @@ class FinancialService
         $shopStats['aov'] = $shopStats['count'] > 0 ? ($shopStats['gross'] / $shopStats['count']) : 0;
 
         $liquidityPreview = [];
-        $avgShopNet = \App\Models\Invoice::whereBetween('invoice_date', [
+        $avgShopNet = \App\Models\Accounting\Invoice::whereBetween('invoice_date', [
             Carbon::create($year, $month, 1)->subMonths(3), 
             Carbon::create($year, $month, 1)->endOfMonth()
         ])->whereIn('status', ['paid'])->sum(DB::raw('total - tax_amount')) / 100 / 3;

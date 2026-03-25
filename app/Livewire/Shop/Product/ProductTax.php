@@ -53,7 +53,7 @@ class ProductTax extends Component
             ->where('country_code', 'DE')
             ->value('rate');
 
-        $this->current_tax_rate = $rate !== null ? (float)$rate : 19.00;
+        $this->current_tax_rate = $rate !== null ? (float)$rate : (float)shop_setting('default_tax_rate', 19.0);
     }
 
     public function render()

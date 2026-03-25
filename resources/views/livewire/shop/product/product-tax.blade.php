@@ -27,7 +27,7 @@
                 </label>
                 @if(isset($infoTexts['tax_class']))
                     <div x-data="{ show: false }" class="relative inline-block">
-                        <button @mouseenter="show = true" @mouseleave="show = false" type="button" class="text-gray-500 hover:text-primary transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg></button>
+                        <button @mouseenter="show = true" @mouseleave="show = false" type="button" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg></button>
                         <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-4 bg-gray-950 border border-gray-800 text-gray-300 text-xs font-medium rounded-xl shadow-2xl z-50 text-center leading-relaxed">
                             {{ $infoTexts['tax_class'] }}
                             <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
@@ -36,7 +36,7 @@
                 @endif
             </div>
 
-            <select wire:model.live="tax_class" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-bold text-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none shadow-inner appearance-none cursor-pointer">
+            <select wire:model.live="tax_class" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-bold text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all outline-none shadow-inner appearance-none cursor-pointer">
                 <option value="standard" class="bg-gray-900">Standard (Regelsteuersatz)</option>
                 <option value="reduced" class="bg-gray-900">Ermäßigter Satz</option>
                 <option value="zero" class="bg-gray-900">Steuerfrei / Steuerbefreit</option>
@@ -45,7 +45,7 @@
 
         {{-- Info-Anzeige (Keine Eingabe mehr) --}}
         <div class="flex flex-col justify-center text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-950 rounded-2xl p-5 border border-gray-800 shadow-inner">
-            <p class="text-primary drop-shadow-[0_0_5px_currentColor] mb-3">Steuer-Konfiguration:</p>
+            <p class="text-[var(--theme-color)] drop-shadow-[0_0_5px_currentColor] mb-3">Steuer-Konfiguration:</p>
             <ul class="space-y-2">
                 <li class="flex justify-between items-center border-b border-gray-800/50 pb-2">
                     <span>Eingabeart:</span>
