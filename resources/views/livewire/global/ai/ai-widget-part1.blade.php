@@ -1,11 +1,11 @@
 <div x-data="{ dockOpen: false }" 
-     class="fixed right-0 top-1/2 -translate-y-1/2 z-[9998] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+     class="fixed right-0 top-1/2 -translate-y-1/2 z-[9998] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none"
      :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'">
 
     <!-- INTERAKTIVE GLOW-ZONE -->
     <div @click="dockOpen = !dockOpen"
-         class="absolute left-0 top-1/2 -translate-y-1/2 w-10 cursor-pointer flex items-center justify-center group"
-         style="margin-left: -25px;">
+         class="absolute left-0 top-1/2 -translate-y-1/2 w-16 h-28 cursor-pointer flex items-center justify-center group pointer-events-auto"
+         style="margin-left: -35px; -webkit-tap-highlight-color: transparent; touch-action: manipulation;">
 
         <div class="relative flex items-center justify-center">
             <div class="absolute inset-0 w-6 h-16 bg-emerald-500/40 rounded-full blur-md animate-pulse"></div>
