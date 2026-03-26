@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Global\Ai;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\AiKnowledgeBase as KB;
 use App\Models\AiKnowledgeBaseCategory;
 use Illuminate\Support\Facades\Storage;
@@ -9,6 +11,7 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
+#[Layout('components.layouts.backend_layout')]
 class AiKnowledgeBase extends Component
 {
     use WithFileUploads;
@@ -227,7 +230,7 @@ class AiKnowledgeBase extends Component
 
         $activeArticle = $this->activeArticleId ? KB::with(['category', 'tags'])->find($this->activeArticleId) : null;
 
-        return view('livewire.admin.ai-knowledge-base', [
+        return view('livewire.global.ai.ai-knowledge-base', [
             'categories' => $categories,
             'articles' => $articles,
             'activeArticle' => $activeArticle,

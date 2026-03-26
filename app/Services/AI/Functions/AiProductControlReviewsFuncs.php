@@ -48,7 +48,7 @@ trait AiProductControlReviewsFuncs
                     ],
                     'required' => ['review_id']
                 ],
-                'callable' => [self::class, 'executeDelete']
+                'callable' => [self::class, 'executeProductReviewDelete']
             ]
         ];
     }
@@ -114,7 +114,7 @@ trait AiProductControlReviewsFuncs
         }
     }
 
-    public static function executeDelete(array $args)
+    public static function executeProductReviewDelete(array $args)
     {
         try {
             if (empty($args['review_id'])) return ['status' => 'error', 'message' => 'Review ID fehlt.'];

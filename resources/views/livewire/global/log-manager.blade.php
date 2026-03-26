@@ -1,9 +1,9 @@
-<div class="space-y-6 md:space-y-8 pb-20 font-sans antialiased text-gray-300">
+<div class="space-y-6 md:space-y-8 pb-20 font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }};">
 
     {{-- Header --}}
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-gray-800 relative overflow-hidden animate-fade-in-up">
         <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
-            <x-heroicon-o-server-stack class="w-40 h-40 text-primary drop-shadow-[0_0_20px_rgba(197,160,89,1)]" />
+            <x-heroicon-o-server-stack class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)1)]" />
         </div>
         <div class="relative z-10">
             <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">Log</h1>
@@ -21,7 +21,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 flex flex-col justify-between shadow-2xl border border-gray-800 relative overflow-hidden group hover:border-gray-700 transition-colors">
             <div class="flex justify-between items-start mb-4">
-                <div class="w-12 h-12 rounded-xl bg-gray-950 border border-gray-800 flex items-center justify-center text-primary shadow-inner group-hover:scale-110 transition-transform">
+                <div class="w-12 h-12 rounded-xl bg-gray-950 border border-gray-800 flex items-center justify-center text-[var(--theme-color)] shadow-inner group-hover:scale-110 transition-transform">
                     <x-heroicon-o-server-stack class="w-6 h-6"/>
                 </div>
             </div>
@@ -72,25 +72,25 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 shadow-2xl items-center animate-fade-in-up">
         <div class="md:col-span-1 relative group">
             <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche in Nachricht..."
-                   class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner transition-all text-white placeholder-gray-600 outline-none text-sm">
+                   class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner transition-all text-white placeholder-gray-600 outline-none text-sm">
             <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-600 group-focus-within:text-primary transition-colors" />
+                <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-600 group-focus-within:text-[var(--theme-color)] transition-colors" />
             </div>
         </div>
-        <select wire:model.live="agentFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
+        <select wire:model.live="agentFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
             <option value="" class="bg-gray-900 text-white">Alle Agenten / Bereiche</option>
             <option value="system" class="bg-gray-900 text-white">System (Kein Agent)</option>
             @foreach($agents as $agent)
                 <option value="{{ $agent->id }}" class="bg-gray-900 text-white">{{ $agent->name }}</option>
             @endforeach
         </select>
-        <select wire:model.live="typeFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
+        <select wire:model.live="typeFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
             <option value="" class="bg-gray-900 text-white">Alle Typen</option>
             @foreach($uniqueTypes as $type)
                 <option value="{{ $type }}" class="bg-gray-900 text-white">{{ $type }}</option>
             @endforeach
         </select>
-        <select wire:model.live="statusFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
+        <select wire:model.live="statusFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
             <option value="" class="bg-gray-900 text-white">Alle Status</option>
             <option value="success" class="bg-gray-900 text-white">SUCCESS</option>
             <option value="running" class="bg-gray-900 text-white">RUNNING</option>
@@ -142,7 +142,7 @@
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top">
                                     <div class="flex flex-col mt-1">
-                                        <span class="text-xs font-bold text-primary">{{ $log->type }}</span>
+                                        <span class="text-xs font-bold text-[var(--theme-color)]">{{ $log->type }}</span>
                                         <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ $log->action_id }}</span>
                                     </div>
                                 </td>
@@ -169,7 +169,7 @@
                                         @else
                                             <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-700 bg-gray-800 text-gray-400">{{ strtoupper($log->status) }}</span>
                                         @endif
-                                        <x-heroicon-m-chevron-down class="w-4 h-4 text-gray-600 transition-transform group-hover:text-gray-400" x-bind:class="expanded ? 'rotate-180 text-primary' : ''" />
+                                        <x-heroicon-m-chevron-down class="w-4 h-4 text-gray-600 transition-transform group-hover:text-gray-400" x-bind:class="expanded ? 'rotate-180 text-[var(--theme-color)]' : ''" />
                                     </div>
                                 </td>
                             </tr>
@@ -177,13 +177,13 @@
                                 <td colspan="5" class="px-8 py-6 bg-gray-950/80 border-t border-gray-800 shadow-inner">
                                     <div class="space-y-4">
                                         <div>
-                                            <div class="text-[10px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2"><x-heroicon-o-document-text class="w-3.5 h-3.5" /> Nachrichten-Trace</div>
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2"><x-heroicon-o-document-text class="w-3.5 h-3.5" /> Nachrichten-Trace</div>
                                             <div class="text-xs text-gray-300 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ $log->message }}</div>
                                         </div>
 
                                         @if($log->payload)
                                             <div>
-                                                <div class="text-[10px] font-black uppercase tracking-widest text-primary mb-2 mt-6 flex items-center gap-2"><x-heroicon-o-code-bracket class="w-3.5 h-3.5" /> System Payload Dump</div>
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 mt-6 flex items-center gap-2"><x-heroicon-o-code-bracket class="w-3.5 h-3.5" /> System Payload Dump</div>
                                                 <div class="text-xs text-green-500 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</div>
                                             </div>
                                         @endif

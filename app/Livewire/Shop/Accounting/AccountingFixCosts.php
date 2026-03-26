@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Accounting\FinanceGroup;
 use App\Models\Accounting\FinanceCostItem;
 use App\Models\Accounting\FinanceCostItemHistory;
@@ -13,6 +15,7 @@ use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingFixCosts extends Component
 {
     use WithDepartmentTheming;

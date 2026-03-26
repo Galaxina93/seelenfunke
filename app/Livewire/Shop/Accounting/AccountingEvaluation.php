@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Accounting\FinanceCategory;
 use App\Models\Accounting\FinanceSpecialIssue;
 use App\Services\FinancialService;
@@ -12,6 +14,7 @@ use Livewire\Attributes\On; // Wichtig
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingEvaluation extends Component
 {
     use WithDepartmentTheming;

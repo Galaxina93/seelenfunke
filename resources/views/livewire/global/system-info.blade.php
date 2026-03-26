@@ -1,4 +1,4 @@
-<div>
+<div style="--theme-color: {{ $this->themeColorHex }};">
     <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
 
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-black/90 backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-900/40 relative overflow-hidden my-4">

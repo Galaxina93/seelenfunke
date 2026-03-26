@@ -9,6 +9,9 @@ class AIFunctionsRegistry
     use Functions\AiSystemFuncs;
     use Functions\AiSupportFuncs;
     use Functions\AiMarketingFuncs;
+    use Functions\AiMarketingNewsletterFuncs;
+    use Functions\AiMarketingVoucherFuncs;
+    use Functions\AiMarketingBlogFuncs;
     use Functions\AiSalesFuncs;
     use Functions\AiFinanceFuncs;
     use Functions\AiScoutFuncs;
@@ -38,6 +41,9 @@ class AIFunctionsRegistry
             self::getAiSystemFuncsSchema(),
             self::getAiSupportFuncsSchema(),
             self::getAiMarketingFuncsSchema(),
+            self::getAiMarketingNewsletterFuncsSchema(),
+            self::getAiMarketingVoucherFuncsSchema(),
+            self::getAiMarketingBlogFuncsSchema(),
             self::getAiSalesFuncsSchema(),
             self::getAiFinanceFuncsSchema(),
             self::getAiScoutFuncsSchema(),

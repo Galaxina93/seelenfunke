@@ -6,25 +6,13 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:admin'])->group(function () {
 
     // Dashboard
-    Route::get('/admin/dashboard', function () {
-    return view('backend.admin.pages.dashboard');
-    })->name('admin.dashboard');
+    Route::get('/admin/dashboard', \App\Livewire\Global\Widgets\Analytics::class)->name('admin.dashboard');
 
-    Route::get('/admin/routine', function () {
-        return view('backend.admin.pages.routine');
-    })->name('admin.routine');
-    Route::get('/admin/tasks', function () {
-        return view('backend.admin.pages.tasks');
-    })->name('admin.tasks');
-    Route::get('/admin/calender', function () {
-        return view('backend.admin.pages.calender');
-    })->name('admin.calender');
-    Route::get('/admin/company-map', function () {
-        return view('backend.admin.pages.company-map');
-    })->name('admin.partials');
-    Route::get('/admin/tickets', function () {
-        return view('backend.admin.pages.tickets');
-    })->name('admin.tickets');
+    Route::get('/admin/routine', \App\Livewire\Shop\Management\ManagementRoutine::class)->name('admin.routine');
+    Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
+    Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
+    Route::get('/admin/company-map', \App\Livewire\Shop\System\SystemCompanyMap::class)->name('admin.partials');
+    Route::get('/admin/tickets', \App\Livewire\Shop\System\SystemTickets::class)->name('admin.tickets');
 
 
     // AI AGENT UNVIVERSE
@@ -38,46 +26,24 @@ Route::middleware(['auth:admin'])->group(function () {
         return $pdf->download('Behandlungsplan_' . \Illuminate\Support\Str::slug($plan->title) . '.pdf');
     })->name('ceo.gesundheit.plan.pdf');
 
-    Route::get('/admin/global-logs', function () {
-        return view('backend.admin.pages.global-logs');
-    })->name('admin.global-logs');
-    Route::get('/admin/ai-genui', function () {
-        return view('backend.admin.pages.ai-genui');
-    })->name('admin.ai-genui');
-    Route::get('/admin/person-profiles', function () {
-        return view('backend.admin.pages.person-profile');
-    })->name('admin.person-profiles');
+    Route::get('/admin/global-logs', \App\Livewire\Global\LogManager::class)->name('admin.global-logs');
+    Route::get('/admin/ai-genui', \App\Livewire\Global\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
+    Route::get('/admin/person-profiles', \App\Livewire\Shop\Management\ManagementPersonProfiles::class)->name('admin.person-profiles');
     
     Route::get('/admin/rollen', \App\Livewire\Global\Ai\AiRoleManager::class)->name('admin.rollen');
 
-    Route::get('/admin/agenten', function () {
-        return view('backend.admin.pages.ai-agent-manager');
-    })->name('admin.ai-agents');
+    Route::get('/admin/agenten', \App\Livewire\Global\Ai\AiAgentManager::class)->name('admin.ai-agents');
 
     Route::get('/admin/organigramm', \App\Livewire\Global\Ai\AiCompanyStructure::class)->name('admin.ai-company-structure');
-    Route::get('/admin/ki-agenten/{id}', function ($id) {
-        return view('backend.admin.pages.ai-agent-editor', ['id' => $id]);
-    })->name('admin.ai-agents.editor');
-    Route::get('/admin/externe-agenten/{id}', function ($id) {
-        return view('backend.admin.pages.external-agent-editor', ['id' => $id]);
-    })->name('admin.external-agents.editor');
-    Route::get('/admin/ai-genui', function () {
-        return view('backend.admin.pages.ai-genui');
-    })->name('admin.ai-genui');
-    Route::get('/admin/ai-chat', function () {
-        return view('backend.admin.pages.ai-chat');
-    })->name('admin.ai-chat');
-    Route::get('/admin/ai-knowledge_base', function () {
-        return view('backend.admin.pages.ai-knowledge-base');
-    })->name('admin.ai-knowledge_base');
-    Route::get('/admin/system-info', function () {
-        return view('backend.admin.pages.system-info');
-    })->name('admin.system-info');
+    Route::get('/admin/ki-agenten/{id}', \App\Livewire\Global\Ai\AiAgentEditor::class)->name('admin.ai-agents.editor');
+    Route::get('/admin/externe-agenten/{id}', \App\Livewire\Global\Ai\ExternalAgentEditor::class)->name('admin.external-agents.editor');
+    Route::get('/admin/ai-genui', \App\Livewire\Global\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
+    Route::get('/admin/ai-chat', \App\Livewire\Global\Ai\AiChat::class)->name('admin.ai-chat');
+    Route::get('/admin/ai-knowledge_base', \App\Livewire\Global\Ai\AiKnowledgeBase::class)->name('admin.ai-knowledge_base');
+    Route::get('/admin/system-info', \App\Livewire\Global\SystemInfo::class)->name('admin.system-info');
 
     // Benutzerverwaltung
-    Route::get('/admin/user-management', function () {
-        return view('backend.admin.pages.user-management');
-    })->name('admin.user-management');
+    Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
 
     // Benutzerverwaltung
 
@@ -85,13 +51,9 @@ Route::middleware(['auth:admin'])->group(function () {
 
 
     // Shop
-    Route::get('/admin/products', function () {
-        return view('backend.admin.pages.products');
-    })->name('admin.products');
+    Route::get('/admin/products', \App\Livewire\Shop\Product\ProductCreate::class)->name('admin.products');
 
-    Route::get('/admin/product-analytics', function () {
-        return view('backend.admin.pages.product-analytics');
-    })->name('admin.product-analytics');
+    Route::get('/admin/product-analytics', \App\Livewire\Shop\Product\ProductAnalytics::class)->name('admin.product-analytics');
 
     Route::get('/admin/product-analytics/export/full-report', function () {
         $lossesData = [
@@ -126,21 +88,13 @@ Route::middleware(['auth:admin'])->group(function () {
         return $pdf->download($finalFilename);
     })->name('admin.product-analytics.export.lucid');
 
-    Route::get('/admin/product-packaging', function () {
-        return view('backend.admin.pages.product-packaging');
-    })->name('admin.product-packaging');
+    Route::get('/admin/product-packaging', \App\Livewire\Shop\Product\ProductPackagingConfigurator::class)->name('admin.product-packaging');
 
-    Route::get('/admin/product-fracture', function () {
-        return view('backend.admin.pages.product-fracture');
-    })->name('admin.product-fracture');
+    Route::get('/admin/product-fracture', \App\Livewire\Shop\Product\ProductFracture::class)->name('admin.product-fracture');
 
-    Route::get('/admin/product-suppliers', function () {
-        return view('backend.admin.pages.shop.product-suppliers');
-    })->name('admin.product-suppliers');
+    Route::get('/admin/product-suppliers', \App\Livewire\Shop\Product\ProductSuppliers::class)->name('admin.product-suppliers');
 
-    Route::get('/admin/products/nischen-scout', function () {
-        return view('backend.admin.pages.product-niche-scanner');
-    })->name('admin.products.niche');
+    Route::get('/admin/products/nischen-scout', \App\Livewire\Shop\Product\ProductNicheScanner::class)->name('admin.products.niche');
 
     Route::get('/admin/products/nischen-scout/pdf', function () {
         $runId = request('run_id');
@@ -182,81 +136,45 @@ Route::middleware(['auth:admin'])->group(function () {
         return $pdf->download($finalFilename);
     })->name('shop.pdf.top5-niche');
 
-    Route::get('/admin/product-templates', function () {
-        return view('backend.admin.pages.product-templates');
-    })->name('admin.product-templates');
+    Route::get('/admin/product-templates', \App\Livewire\Shop\Product\ProductTemplates::class)->name('admin.product-templates');
 
-    Route::get('/admin/reviews', function () {
-        return view('backend.admin.pages.product-control-reviews');
-    })->name('admin.product-control-reviews');
+    Route::get('/admin/reviews', \App\Livewire\Shop\Product\ProductControlReviews::class)->name('admin.product-control-reviews');
 
-    Route::get('/admin/invoices', function () {
-        return view('backend.admin.pages.invoices');
-    })->name('admin.invoices');
+    Route::get('/admin/invoices', \App\Livewire\Shop\Accounting\AccountingInvoice::class)->name('admin.invoices');
 
-    Route::get('/admin/credit-management', function () {
-        return view('backend.admin.pages.credit-management');
-    })->name('admin.credit-management');
+    Route::get('/admin/credit-management', \App\Livewire\Shop\Accounting\AccountingCredit::class)->name('admin.credit-management');
 
-    Route::get('/admin/orders', function () {
-        return view('backend.admin.pages.orders');
-    })->name('admin.orders');
+    Route::get('/admin/orders', \App\Livewire\Shop\Order\OrderOverview::class)->name('admin.orders');
 
-    Route::get('/admin/quote-requests', function () {
-        return view('backend.admin.pages.quote-requests');
-    })->name('admin.quote-requests');
+    Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
 
-    Route::get('/admin/widerruf', function () {
-        return view('backend.admin.pages.widerruf');
-    })->name('admin.widerruf');
+    Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
     
     // Revocation File Download
     Route::get('/admin/widerruf/file/{revocation}/{fileName}', [\App\Http\Controllers\Backend\Admin\RevocationFileController::class, 'download'])
         ->name('admin.widerruf.file');
 
-    Route::get('/admin/financial-evaluation', function () {
-        return view('backend.admin.pages.financial-evaluation');
-    })->name('admin.financial-evaluation');
+    Route::get('/admin/financial-evaluation', \App\Livewire\Shop\Accounting\AccountingEvaluation::class)->name('admin.financial-evaluation');
 
-    Route::get('/admin/financial-liquidity-planning', function () {
-        return view('backend.admin.pages.financial-liquidity-planning');
-    })->name('admin.financial-liquidity-planning');
+    Route::get('/admin/financial-liquidity-planning', \App\Livewire\Shop\Accounting\AccountingLiquidity::class)->name('admin.financial-liquidity-planning');
 
-    Route::get('/admin/financial-banks', function () {
-        return view('backend.admin.pages.financial-banks');
-    })->name('admin.financial-banks');
+    Route::get('/admin/financial-banks', \App\Livewire\Shop\Accounting\AccountingBank::class)->name('admin.financial-banks');
 
-    Route::get('/admin/financial-fix-costs', function () {
-        return view('backend.admin.pages.financial-fix-costs');
-    })->name('admin.financial-fix-costs');
+    Route::get('/admin/financial-fix-costs', \App\Livewire\Shop\Accounting\AccountingFixCosts::class)->name('admin.financial-fix-costs');
 
-    Route::get('/admin/financial-variable-costs', function () {
-        return view('backend.admin.pages.financial-variable-costs');
-    })->name('admin.financial-variable-costs');
+    Route::get('/admin/financial-variable-costs', \App\Livewire\Shop\Accounting\AccountingVariableCosts::class)->name('admin.financial-variable-costs');
 
-    Route::get('/admin/financial-tax', function () {
-        return view('backend.admin.pages.financial-tax');
-    })->name('admin.financial-tax');
+    Route::get('/admin/financial-tax', \App\Livewire\Shop\Accounting\AccountingTax::class)->name('admin.financial-tax');
 
-    Route::get('/admin/configuration', function () {
-        return view('backend.admin.pages.configuration');
-    })->name('admin.configuration');
+    Route::get('/admin/configuration', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.configuration');
 
-    Route::get('/admin/blog', function () {
-        return view('backend.admin.pages.blog');
-    })->name('admin.blog');
+    Route::get('/admin/blog', \App\Livewire\Shop\Marketing\MarketingBlog::class)->name('admin.blog');
 
-    Route::get('/admin/voucher', function () {
-        return view('backend.admin.pages.voucher');
-    })->name('admin.voucher');
+    Route::get('/admin/voucher', \App\Livewire\Shop\Marketing\MarketingVoucher::class)->name('admin.voucher');
 
-    Route::get('/admin/newsletter', function () {
-        return view('backend.admin.pages.newsletter');
-    })->name('admin.newsletter');
+    Route::get('/admin/newsletter', \App\Livewire\Shop\Marketing\MarketingNewsletter::class)->name('admin.newsletter');
 
-    Route::get('/admin/inbox', function () {
-        return view('backend.admin.pages.crm-inbox');
-    })->name('admin.inbox');
+    Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');
 
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);

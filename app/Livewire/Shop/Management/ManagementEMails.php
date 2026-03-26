@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Management;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Management\Mail\MailAccount;
 use App\Models\Management\Mail\MailMessage;
 use App\Models\Management\Mail\MailRule;
@@ -12,6 +14,7 @@ use Illuminate\Support\Facades\Artisan;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ManagementEMails extends Component
 {
     use WithDepartmentTheming;

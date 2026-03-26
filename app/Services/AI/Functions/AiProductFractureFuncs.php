@@ -20,7 +20,7 @@ trait AiProductFractureFuncs
                     'type' => 'object',
                     'properties' => new \stdClass(),
                 ],
-                'callable' => [self::class, 'executeGetOverview']
+                'callable' => [self::class, 'executeLossGetOverview']
             ],
             [
                 'name' => 'product_loss_get_open_cases',
@@ -57,7 +57,7 @@ trait AiProductFractureFuncs
         ];
     }
 
-    public static function executeGetOverview(array $args)
+    public static function executeLossGetOverview(array $args)
     {
         try {
             $metrics = [

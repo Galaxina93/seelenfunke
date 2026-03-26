@@ -117,7 +117,7 @@
             </div>
         </div>
 
-        <livewire:shop.shipping.delivery-display :product="$this->product" />
+        <livewire:shop.system.system-delivery-display :product="$this->product" />
 
         {{-- Kurz-Beschreibung --}}
         @if($this->product->short_description)

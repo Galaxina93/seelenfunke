@@ -45,9 +45,10 @@ eval("{__webpack_require__.r(__webpack_exports__);\n// extracted by mini-css-ext
 /*!*******************************!*\
   !*** ./resources/css/app.css ***!
   \*******************************/
-() {
+(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
 
-throw new Error("Module build failed (from ./node_modules/mini-css-extract-plugin/dist/loader.js):\nModuleBuildError: Module build failed (from ./node_modules/postcss-loader/dist/cjs.js):\nError: ENOENT: no such file or directory, stat '/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/accounting/accounting-variable-costs/financial-categories-special-editions.blade.php'\n    at Object.statSync (node:fs:1681:25)\n    at resolveChangedFiles (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/tailwindcss/lib/lib/content.js:236:36)\n    at resolvedChangedContent (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/tailwindcss/lib/lib/content.js:147:42)\n    at /home/ubuntuxina/meine-projekte/seelenfunke/node_modules/tailwindcss/lib/lib/setupTrackingContext.js:136:99\n    at /home/ubuntuxina/meine-projekte/seelenfunke/node_modules/tailwindcss/lib/processTailwindFeatures.js:46:11\n    at plugins (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/tailwindcss/lib/plugin.js:38:69)\n    at LazyResult.runOnRoot (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/postcss/lib/lazy-result.js:361:16)\n    at LazyResult.runAsync (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/postcss/lib/lazy-result.js:290:26)\n    at LazyResult.async (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/postcss/lib/lazy-result.js:192:30)\n    at LazyResult.then (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/postcss/lib/lazy-result.js:436:17)\n    at processResult (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/webpack/lib/NormalModule.js:961:19)\n    at /home/ubuntuxina/meine-projekte/seelenfunke/node_modules/webpack/lib/NormalModule.js:1163:5\n    at /home/ubuntuxina/meine-projekte/seelenfunke/node_modules/loader-runner/lib/LoaderRunner.js:499:11\n    at runSyncOrAsyncCallback (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/loader-runner/lib/LoaderRunner.js:259:19)\n    at innerCallback (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/loader-runner/lib/LoaderRunner.js:175:13)\n    at Object.loader (/home/ubuntuxina/meine-projekte/seelenfunke/node_modules/postcss-loader/dist/index.js:142:7)");
+"use strict";
+eval("{__webpack_require__.r(__webpack_exports__);\n// extracted by mini-css-extract-plugin\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiLi9yZXNvdXJjZXMvY3NzL2FwcC5jc3MiLCJtYXBwaW5ncyI6IjtBQUFBIiwic291cmNlcyI6WyJ3ZWJwYWNrOi8vZmVsaXhtLy4vcmVzb3VyY2VzL2Nzcy9hcHAuY3NzPzllY2YiXSwic291cmNlc0NvbnRlbnQiOlsiLy8gZXh0cmFjdGVkIGJ5IG1pbmktY3NzLWV4dHJhY3QtcGx1Z2luXG5leHBvcnQge307Il0sIm5hbWVzIjpbXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///./resources/css/app.css\n\n}");
 
 /***/ }
 
@@ -168,6 +169,7 @@ throw new Error("Module build failed (from ./node_modules/mini-css-extract-plugi
 /******/ 		// [resolve, reject, Promise] = chunk loading, 0 = chunk loaded
 /******/ 		var installedChunks = {
 /******/ 			"/js/app": 0,
+/******/ 			"css/app": 0,
 /******/ 			"css/bootstrap": 0
 /******/ 		};
 /******/ 		
@@ -218,9 +220,9 @@ throw new Error("Module build failed (from ./node_modules/mini-css-extract-plugi
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module depends on other loaded chunks and execution need to be delayed
-/******/ 	__webpack_require__.O(undefined, ["css/bootstrap"], () => (__webpack_require__("./resources/js/app.js")))
-/******/ 	__webpack_require__.O(undefined, ["css/bootstrap"], () => (__webpack_require__("./resources/css/bootstrap.scss")))
-/******/ 	var __webpack_exports__ = __webpack_require__.O(undefined, ["css/bootstrap"], () => (__webpack_require__("./resources/css/app.css")))
+/******/ 	__webpack_require__.O(undefined, ["css/app","css/bootstrap"], () => (__webpack_require__("./resources/js/app.js")))
+/******/ 	__webpack_require__.O(undefined, ["css/app","css/bootstrap"], () => (__webpack_require__("./resources/css/bootstrap.scss")))
+/******/ 	var __webpack_exports__ = __webpack_require__.O(undefined, ["css/app","css/bootstrap"], () => (__webpack_require__("./resources/css/app.css")))
 /******/ 	__webpack_exports__ = __webpack_require__.O(__webpack_exports__);
 /******/ 	
 /******/ })()

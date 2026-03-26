@@ -19,7 +19,7 @@ trait AiSuppliersFuncs
                     'type' => 'object',
                     'properties' => new \stdClass(),
                 ],
-                'callable' => [self::class, 'executeGetAll']
+                'callable' => [self::class, 'executeSupplierGetAll']
             ],
             [
                 'name' => 'supplier_get_details',
@@ -34,7 +34,7 @@ trait AiSuppliersFuncs
                     ],
                     'required' => ['supplier_id']
                 ],
-                'callable' => [self::class, 'executeGetDetails']
+                'callable' => [self::class, 'executeSupplierGetDetails']
             ],
             [
                 'name' => 'supplier_create',
@@ -56,7 +56,7 @@ trait AiSuppliersFuncs
                     ],
                     'required' => ['name']
                 ],
-                'callable' => [self::class, 'executeCreate']
+                'callable' => [self::class, 'executeSupplierCreate']
             ],
             [
                 'name' => 'supplier_update',
@@ -79,7 +79,7 @@ trait AiSuppliersFuncs
                     ],
                     'required' => ['supplier_id']
                 ],
-                'callable' => [self::class, 'executeUpdate']
+                'callable' => [self::class, 'executeSupplierUpdate']
             ],
             [
                 'name' => 'supplier_delete',
@@ -94,12 +94,12 @@ trait AiSuppliersFuncs
                     ],
                     'required' => ['supplier_id']
                 ],
-                'callable' => [self::class, 'executeDelete']
+                'callable' => [self::class, 'executeSupplierDelete']
             ]
         ];
     }
 
-    public static function executeGetAll(array $args)
+    public static function executeSupplierGetAll(array $args)
     {
         try {
             $suppliers = Supplier::orderBy('name')->get()->map(function ($s) {
@@ -122,7 +122,7 @@ trait AiSuppliersFuncs
         }
     }
 
-    public static function executeGetDetails(array $args)
+    public static function executeSupplierGetDetails(array $args)
     {
         try {
             if (empty($args['supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
@@ -139,7 +139,7 @@ trait AiSuppliersFuncs
         }
     }
 
-    public static function executeCreate(array $args)
+    public static function executeSupplierCreate(array $args)
     {
         try {
             if (empty($args['name'])) return ['status' => 'error', 'message' => 'Name ist ein Pflichtfeld.'];
@@ -170,7 +170,7 @@ trait AiSuppliersFuncs
         }
     }
 
-    public static function executeUpdate(array $args)
+    public static function executeSupplierUpdate(array $args)
     {
         try {
             if (empty($args['supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
@@ -204,7 +204,7 @@ trait AiSuppliersFuncs
         }
     }
 
-    public static function executeDelete(array $args)
+    public static function executeSupplierDelete(array $args)
     {
         try {
             if (empty($args['supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];

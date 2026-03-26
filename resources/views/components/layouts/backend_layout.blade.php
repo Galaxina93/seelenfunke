@@ -150,7 +150,7 @@
                             </div>
 
                             <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
-                                @livewire($guard . '.' . $guard . '-navigation')
+                                <x-dynamic-component :component="'backend.' . $guard . '-navigation'" />
                             </div>
                         </div>
                     </div>
@@ -168,7 +168,7 @@
                     </div>
 
                     <div class="flex-1 custom-scrollbar overflow-y-auto pr-2">
-                        @livewire($guard . '.' . $guard . '-navigation')
+                        <x-dynamic-component :component="'backend.' . $guard . '-navigation'" />
                     </div>
                 </div>
             </div>
@@ -214,7 +214,7 @@
 
             <main class="{{ $guard !== 'customer' ? 'py-8 flex-1' : 'flex-1' }}">
                 @if($guard !== 'customer')
-                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8">
                         <div class="animate-fade-in-up">
                             @yield('content')
                             {{ $slot ?? '' }}

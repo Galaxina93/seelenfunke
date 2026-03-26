@@ -17,6 +17,7 @@
             'purple-500' => 'bg-purple-500/10 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.15)]',
             'amber-500' => 'bg-amber-500/10 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
             'emerald-500' => 'bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+            'red-500' => 'bg-red-500/10 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.15)]',
             'rose-500' => 'bg-rose-500/10 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.15)]',
             'cyan-500' => 'bg-cyan-500/10 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]',
             default => $activeClasses

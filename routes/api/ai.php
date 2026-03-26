@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AI\AIController;
+use App\Http\Controllers\AIController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,5 +27,5 @@ Route::prefix('ai')->group(function () {
     Route::post('/chat', [AIController::class, 'chat']);
 
     // ElevenLabs Proxy
-    Route::post('/voice', [\App\Http\Controllers\AI\FunkiraVoiceController::class, 'generateSpeech']);
+    Route::post('/voice', [\App\Http\Controllers\AiVoiceController::class, 'generateSpeech']);
 });

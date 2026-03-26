@@ -2,11 +2,14 @@
 
 namespace App\Livewire\Global\Ai;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiChatMemory;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
+#[Layout('components.layouts.backend_layout')]
 class AiChat extends Component
 {
     public $input = '';

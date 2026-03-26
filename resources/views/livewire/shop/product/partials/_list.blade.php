@@ -1,4 +1,4 @@
-<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 font-sans antialiased text-gray-300 min-h-screen">
+<div>
 
     {{-- HEADER BEREICH --}}
     <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6 animate-fade-in-up">

@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Customer\Customer;
 use App\Models\Accounting\Invoice;
 use App\Services\InvoiceService;
@@ -9,6 +11,7 @@ use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingCredit extends Component
 {
     use WithDepartmentTheming;

@@ -9,7 +9,7 @@
                 </p>
             </div>
 
-            <livewire:frontend.revocation-form />
+            <livewire:shop.order.order-revocation-form />
 
             <div class="text-center pb-24">
                 <a href="{{ route('agb') }}#widerrufsbelehrung" class="text-sm text-gray-500 hover:text-primary underline underline-offset-4 transition-colors">

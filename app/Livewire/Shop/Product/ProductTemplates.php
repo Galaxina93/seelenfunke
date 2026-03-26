@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use Livewire\Component;
@@ -11,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductTemplates extends Component
 {
     use WithFileUploads, WithDepartmentTheming;

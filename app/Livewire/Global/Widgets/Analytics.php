@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Global\Widgets;
 
+use Livewire\Attributes\Layout;
+
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +17,7 @@ use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Global\GlobalLog;
 use App\Services\AnalyticsService;
 
+#[Layout('components.layouts.backend_layout')]
 class Analytics extends Component
 {
     use WithFileUploads;

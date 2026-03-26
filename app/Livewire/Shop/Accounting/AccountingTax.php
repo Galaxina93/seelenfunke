@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Accounting\FinanceGroup;
 use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Order\Order;
@@ -16,6 +18,7 @@ use Livewire\WithFileUploads;
 use App\Models\Global\GlobalLog;
 use ZipArchive;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingTax extends Component
 {
     use WithDepartmentTheming;

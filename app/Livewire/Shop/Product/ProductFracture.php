@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Product\Product;
 use App\Models\Product\ProductLoss;
 use App\Models\Product\Supplier;
@@ -10,6 +12,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductFracture extends Component
 {
     use WithPagination, WithDepartmentTheming;

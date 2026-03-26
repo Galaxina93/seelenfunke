@@ -21,7 +21,7 @@
 
             <button wire:click="exportTop5Pdf" class="inline-flex items-center rounded-xl bg-orange-500/10 px-3 py-2 text-sm font-semibold text-orange-400 shadow-sm ring-1 ring-inset ring-orange-500/20 hover:bg-orange-500/20 transition-all duration-300">
                 <svg class="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                PDF Export (@if($isHistorical) Snapshot @else Live Top 5 @endif)
+                PDF Export
             </button>
             <button wire:click="clearData" class="inline-flex items-center rounded-xl bg-white/5 px-3 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-inset ring-white/10 hover:bg-white/10 transition-all duration-300">
                 Daten leeren
@@ -106,7 +106,7 @@
                             <span class="text-sm text-gray-300">Alibaba</span>
                         </label>
                     </div>
-                    
+
                     <div class="w-full sm:max-w-xs">
                         <label for="keyword" class="sr-only">Suchbegriff</label>
                         <input type="text" wire:model="crawlKeyword" id="keyword" class="block w-full rounded-xl border-0 py-2 bg-white/5 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-[var(--theme-color)] sm:text-sm sm:leading-6" placeholder="z.B. personalisiertes geschenk">

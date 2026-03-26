@@ -100,18 +100,11 @@ class BackendNavigationService
                             ['id' => 'financial-variable-costs', 'title' => 'Variable Kosten', 'route' => '/admin/financial-variable-costs', 'icon' => 'banknotes'],
                             ['id' => 'financial-liquidity-planning', 'title' => 'Liquiditätsplanung', 'route' => '/admin/financial-liquidity-planning', 'icon' => 'shield-check'],
                         ]
-                    ],
-                    [
-                        'id' => 'configuration',
-                        'type' => 'single',
-                        'title' => 'Einstellungen',
-                        'route' => '/admin/configuration',
-                        'icon' => 'cog-8-tooth'
                     ]
                 ]
             ],
             [
-                'section' => 'System',
+                'section' => 'Systemsteuerung',
                 'items' => [
                     [
                         'id' => 'system_ai',
@@ -129,40 +122,19 @@ class BackendNavigationService
                         ]
                     ],
                     [
-                        'id' => 'global-logs',
-                        'type' => 'single',
-                        'title' => 'Log',
-                        'route' => '/admin/global-logs',
-                        'icon' => 'server-stack'
-                    ],
-                    [
-                        'id' => 'tickets',
-                        'type' => 'single',
-                        'title' => 'Tickets',
-                        'route' => '/admin/tickets',
-                        'icon' => 'ticket',
-                        'is_ticket' => true // Special flag for the notification badge
-                    ],
-                    [
-                        'id' => 'user-management',
-                        'type' => 'single',
-                        'title' => 'Benutzer',
-                        'route' => '/admin/user-management',
-                        'icon' => 'users'
-                    ],
-                    [
-                        'id' => 'company-map',
-                        'type' => 'single',
-                        'title' => 'Architektur-Map',
-                        'route' => '/admin/company-map',
-                        'icon' => 'map'
-                    ],
-                    [
-                        'id' => 'system-info',
-                        'type' => 'single',
-                        'title' => 'System-Info',
-                        'route' => '/admin/system-info',
-                        'icon' => 'server'
+                        'id' => 'system',
+                        'type' => 'group',
+                        'title' => 'System',
+                        'icon' => 'server',
+                        'ai_department_id' => '019d5555-5555-5555-5555-555555555555',
+                        'children' => [
+                            ['id' => 'global-logs', 'title' => 'Log', 'route' => '/admin/global-logs', 'icon' => 'server-stack'],
+                            ['id' => 'tickets', 'title' => 'Tickets', 'route' => '/admin/tickets', 'icon' => 'ticket', 'is_ticket' => true],
+                            ['id' => 'user-management', 'title' => 'Benutzer', 'route' => '/admin/user-management', 'icon' => 'users'],
+                            ['id' => 'company-map', 'title' => 'Architektur-Map', 'route' => '/admin/company-map', 'icon' => 'map'],
+                            ['id' => 'system-info', 'title' => 'System-Info', 'route' => '/admin/system-info', 'icon' => 'server'],
+                            ['id' => 'configuration', 'title' => 'Einstellungen', 'route' => '/admin/configuration', 'icon' => 'cog-8-tooth'],
+                        ]
                     ]
                 ]
             ]

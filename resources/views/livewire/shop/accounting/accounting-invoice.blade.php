@@ -23,7 +23,7 @@
     </div>
 
     @if($isCreatingManual)
-        @include('livewire.shop.invoice.partials.invoice_create')
+        @include('livewire.shop.accounting.accounting-invoice-partials.invoice_create')
     @else
         {{-- CHARTS & STATISTIKEN --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -59,7 +59,7 @@
             </div>
         </div>
 
-        @include('livewire.shop.invoice.partials.invoice_main_table')
+        @include('livewire.shop.accounting.accounting-invoice-partials.invoice_main_table')
 
         {{-- WISSENSDATENBANK & BULK ACTION ERKLÄRUNG --}}
         <div class="mt-8 grid grid-cols-1 gap-8 animate-fade-in-up shadow-2xl">
@@ -154,5 +154,5 @@
         </div>
     @endif
 
-    <livewire:shop.invoice.invoice-preview/>
+    <livewire:shop.accounting.accounting-invoice-preview/>
 </div>

@@ -2,11 +2,14 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Product\Product;
 use App\Models\Product\ProductPackaging;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductPackagingConfigurator extends Component
 {
     use WithDepartmentTheming;

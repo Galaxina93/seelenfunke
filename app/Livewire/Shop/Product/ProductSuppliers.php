@@ -2,10 +2,13 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Product\Supplier;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductSuppliers extends Component
 {
     use WithDepartmentTheming;

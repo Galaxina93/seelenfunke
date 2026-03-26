@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Customer\Customer;
 use App\Models\Accounting\Invoice;
 use App\Models\Order\Order;
@@ -17,6 +19,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 use App\Models\Global\GlobalLog;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingInvoice extends Component
 {
     use WithDepartmentTheming;

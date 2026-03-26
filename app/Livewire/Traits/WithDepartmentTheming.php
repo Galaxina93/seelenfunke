@@ -25,6 +25,7 @@ trait WithDepartmentTheming
             'purple-500' => '#a855f7',
             'amber-500' => '#f59e0b',
             'emerald-500' => '#10b981',
+            'red-500' => '#ef4444',
             'rose-500' => '#f43f5e',
             'cyan-500' => '#06b6d4',
             'primary' => '#c5a059',

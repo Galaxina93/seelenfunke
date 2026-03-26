@@ -7,14 +7,9 @@ use App\Models\Marketing\Newsletter\NewsletterSubscriber;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
-use App\Livewire\Traits\WithDepartmentTheming;
 
 class MarketingNewsletterSignup extends Component
 {
-    use WithDepartmentTheming;
-
-    protected string $themingDepartment = 'Marketing';
-
     public $email = '';
     public $privacy_accepted = false;
     public $success = false;

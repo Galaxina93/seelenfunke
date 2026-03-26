@@ -1,6 +1,6 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D;" class="animate-fade-in-up font-sans antialiased text-gray-300 min-h-screen">
     <div class="pb-20">
-        <div class="max-w-7xl mx-auto">
+        <div>
 
             {{-- Header --}}
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">

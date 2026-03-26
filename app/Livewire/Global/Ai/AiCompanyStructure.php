@@ -11,6 +11,7 @@ use Livewire\Component;
 class AiCompanyStructure extends Component
 {
     public $departments = [];
+    public $staffAgents = [];
     public $viewMode = 'tree'; 
     public $editingId = null;
     public $showSuccessBanner = false;
@@ -49,6 +50,7 @@ class AiCompanyStructure extends Component
     public function loadStructure()
     {
         $this->departments = AiDepartment::with(['agents.role'])->orderBy('order_index')->get();
+        $this->staffAgents = AiAgent::whereNull('ai_department_id')->with('role')->orderBy('name')->get();
     }
 
     public function showSuccess()

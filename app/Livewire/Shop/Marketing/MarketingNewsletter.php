@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Marketing;
 
+use Livewire\Attributes\Layout;
+
 use App\Mail\AutomaticNewsletterMail;
 use App\Models\Marketing\Newsletter\Newsletter;
 use App\Models\Marketing\Newsletter\NewsletterSubscriber;
@@ -13,6 +15,7 @@ use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Layout('components.layouts.backend_layout')]
 class MarketingNewsletter extends Component
 {
     use WithDepartmentTheming;

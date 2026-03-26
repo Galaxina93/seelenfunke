@@ -17,7 +17,7 @@ trait AiProductAnalyticsFuncs
                     'type' => 'object',
                     'properties' => new \stdClass(),
                 ],
-                'callable' => [self::class, 'executeGetOverview']
+                'callable' => [self::class, 'executeAnalyticsGetOverview']
             ],
             [
                 'name' => 'product_analytics_get_lucid_report',
@@ -31,7 +31,7 @@ trait AiProductAnalyticsFuncs
         ];
     }
 
-    public static function executeGetOverview(array $args)
+    public static function executeAnalyticsGetOverview(array $args)
     {
         try {
             $data = \App\Livewire\Shop\Product\ProductAnalytics::getCombinedAnalyticsData();

@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Management;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Management\PersonProfile;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -9,6 +11,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
+#[Layout('components.layouts.backend_layout')]
 class ManagementPersonProfiles extends Component
 {
     use WithDepartmentTheming;

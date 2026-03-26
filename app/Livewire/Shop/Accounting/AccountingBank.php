@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
@@ -11,6 +13,7 @@ use App\Models\Accounting\BankAccount;
 use App\Models\Accounting\FinanceCategory;
 use App\Models\Accounting\BankTransaction;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingBank extends Component
 {
     use WithDepartmentTheming;

@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Accounting\FinanceCategory;
 use App\Models\Accounting\FinanceSpecialIssue;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +16,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingVariableCosts extends Component
 {
     use WithDepartmentTheming;

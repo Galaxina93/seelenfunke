@@ -2,14 +2,19 @@
 
 namespace App\Livewire\Global;
 
+use Livewire\Attributes\Layout;
+
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
 
+#[Layout('components.layouts.backend_layout')]
 class SystemInfo extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, \App\Livewire\Traits\WithDepartmentTheming;
+
+    protected string $themingDepartment = 'System';
 
     public $uploads = [];
     public $selectedReports = [];

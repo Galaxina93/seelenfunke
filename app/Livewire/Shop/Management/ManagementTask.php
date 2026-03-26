@@ -2,12 +2,15 @@
 
 namespace App\Livewire\Shop\Management;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Management\Task as TaskModel;
 use App\Models\Management\TaskList;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ManagementTask extends Component
 {
     use WithDepartmentTheming;

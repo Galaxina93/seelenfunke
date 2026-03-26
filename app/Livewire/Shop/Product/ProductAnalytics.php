@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Order\OrderItem;
 use App\Models\Product\Product;
 use App\Models\Product\ProductLoss;
@@ -10,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductAnalytics extends Component
 {
     use WithDepartmentTheming;

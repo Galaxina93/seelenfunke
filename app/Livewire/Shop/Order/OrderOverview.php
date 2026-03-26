@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Order;
 
+use Livewire\Attributes\Layout;
+
 use App\Mail\NewOrderShippedToCustomer;
 use App\Models\Order\Order;
 use App\Models\Order\OrderItem;
@@ -12,6 +14,7 @@ use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
 use App\Models\Global\GlobalLog;
 
+#[Layout('components.layouts.backend_layout')]
 class OrderOverview extends Component
 {
     use WithDepartmentTheming;

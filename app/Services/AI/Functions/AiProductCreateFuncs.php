@@ -26,7 +26,7 @@ trait AiProductCreateFuncs
                     ],
                     'required' => ['product_id']
                 ],
-                'callable' => [self::class, 'executeGetDetails']
+                'callable' => [self::class, 'executeProductDraftGetDetails']
             ],
             [
                 'name' => 'product_create',
@@ -45,7 +45,7 @@ trait AiProductCreateFuncs
                     ],
                     'required' => ['name', 'type', 'price_eur']
                 ],
-                'callable' => [self::class, 'executeCreate']
+                'callable' => [self::class, 'executeProductDraftCreate']
             ],
             [
                 'name' => 'product_update',
@@ -65,12 +65,12 @@ trait AiProductCreateFuncs
                     ],
                     'required' => ['product_id']
                 ],
-                'callable' => [self::class, 'executeUpdate']
+                'callable' => [self::class, 'executeProductDraftUpdate']
             ]
         ];
     }
 
-    public static function executeGetDetails(array $args)
+    public static function executeProductDraftGetDetails(array $args)
     {
         try {
             if (empty($args['product_id'])) return ['status' => 'error', 'message' => 'Produkt-ID fehlt.'];
@@ -110,7 +110,7 @@ trait AiProductCreateFuncs
         }
     }
 
-    public static function executeCreate(array $args)
+    public static function executeProductDraftCreate(array $args)
     {
         try {
             if (empty($args['name']) || empty($args['type'])) {
@@ -150,7 +150,7 @@ trait AiProductCreateFuncs
         }
     }
 
-    public static function executeUpdate(array $args)
+    public static function executeProductDraftUpdate(array $args)
     {
         try {
             if (empty($args['product_id'])) return ['status' => 'error', 'message' => 'Produkt-ID fehlt.'];

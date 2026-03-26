@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Marketing;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Marketing\Blog\BlogPost;
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Marketing\Blog\BlogCategory;
@@ -12,6 +14,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
+#[Layout('components.layouts.backend_layout')]
 class MarketingBlog extends Component
 {
     use WithDepartmentTheming;

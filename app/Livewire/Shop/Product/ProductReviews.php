@@ -12,12 +12,15 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Facades\Image;
 use Livewire\Component;
+use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 
 class ProductReviews extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithPagination, WithFileUploads, WithDepartmentTheming;
+
+    protected string $themingDepartment = 'Sales';
 
     public Product $product;
     public $rating = 5;

@@ -38,6 +38,11 @@ class AiCompanyStructureSeeder extends Seeder
             ['name' => 'Buchhaltung', 'description' => 'Finanzen, Rechnungen und internes Controlling', 'icon' => 'banknotes', 'color' => 'emerald-500', 'order_index' => 4]
         );
 
+        $deptSystem = \App\Models\Ai\AiDepartment::updateOrCreate(
+            ['id' => '019d5555-5555-5555-5555-555555555555'],
+            ['name' => 'System', 'description' => 'Systemkonfiguration, Logs und Technik', 'icon' => 'server', 'color' => 'red-500', 'order_index' => 5]
+        );
+
         // 2. Assign Agents
         // "Funkira", "Zion", "Taron", "Rion", "Vira", "Funki", "Dr. Funki", "Marketi"
         

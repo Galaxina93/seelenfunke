@@ -4,7 +4,7 @@ namespace App\Services\AI\Functions;
 
 use App\Models\Product\NicheProduct;
 use App\Models\Product\NicheCrawlerRun;
-use App\Jobs\RunNicheCrawlerJob;
+use App\Jobs\RunProductNicheCrawlerJob;
 use Illuminate\Support\Facades\Cache;
 
 trait AiProductNicheScannerFuncs
@@ -96,11 +96,11 @@ trait AiProductNicheScannerFuncs
 
             foreach ($args['platforms'] as $platform) {
                 $jobId = uniqid('crawler_') . '_' . strtolower($platform);
-                
+
                 if (!in_array($jobId, $activeJobs)) {
                     $activeJobs[] = $jobId;
                 }
-                
+
                 Cache::put("crawler_job_{$jobId}", [
                     'id' => $jobId,
                     'keyword' => $args['keyword'],
@@ -110,10 +110,10 @@ trait AiProductNicheScannerFuncs
                     'is_running' => true
                 ], 600);
 
-                RunNicheCrawlerJob::dispatch($jobId, $platform, $args['keyword']);
+                RunProductNicheCrawlerJob::dispatch($jobId, $platform, $args['keyword']);
                 $dispatchedJobs[] = $jobId;
             }
-            
+
             Cache::put('active_crawler_jobs', $activeJobs, 3600);
 
             return [
@@ -130,7 +130,7 @@ trait AiProductNicheScannerFuncs
     {
         try {
             $limit = isset($args['limit']) ? min((int)$args['limit'], 25) : 10;
-            
+
             $products = NicheProduct::orderBy('niche_score', 'desc')->take($limit)->get();
 
             if ($products->isEmpty()) {

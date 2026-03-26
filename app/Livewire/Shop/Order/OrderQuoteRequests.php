@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Order;
 
+use Livewire\Attributes\Layout;
+
 use App\Mail\OrderMailToCustomer;
 use App\Models\Customer\Customer;
 use App\Models\Order\Order;
@@ -19,6 +21,7 @@ use Livewire\WithPagination;
 use Stripe\Checkout\Session as StripeSession;
 use Stripe\Stripe;
 
+#[Layout('components.layouts.backend_layout')]
 class OrderQuoteRequests extends Component
 {
     use WithDepartmentTheming;

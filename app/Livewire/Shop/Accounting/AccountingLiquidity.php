@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Accounting\FinanceGroup;
 use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Order\Order;
@@ -12,6 +14,7 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class AccountingLiquidity extends Component
 {
     use WithDepartmentTheming;

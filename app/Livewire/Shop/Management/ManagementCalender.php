@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Management;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Management\CalendarEvent;
 use Carbon\Carbon;
 use DateInterval;
@@ -9,6 +11,7 @@ use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
 
+#[Layout('components.layouts.backend_layout')]
 class ManagementCalender extends Component
 {
     use WithDepartmentTheming;

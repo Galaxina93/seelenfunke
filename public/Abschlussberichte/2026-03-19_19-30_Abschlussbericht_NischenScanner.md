@@ -15,7 +15,7 @@ Der bisher auf Etsy beschränkte Stealth-Crawler wurde um zwei weitere Handelspl
 ## 2. Multi-Select in der Benutzeroberfläche
 Das alte Dropdown für die Plattform-Auswahl im Dashboard (`product-niche-scanner.blade.php`) wurde durch ein intuitives, horizontales Checkbox-Menü ausgetauscht.
 - Dies erlaubt die Auswahl von `Etsy`, `Amazon` und `Alibaba` zeitgleich in einer Suchabfrage.
-- Der Server-Dispatcher baut dynamisch für jede gewählte Plattform im Hintergrund einen eigenen Queue-Job auf (`RunNicheCrawlerJob`).
+- Der Server-Dispatcher baut dynamisch für jede gewählte Plattform im Hintergrund einen eigenen Queue-Job auf (`RunProductNicheCrawlerJob`).
 - Mehrere Queue-Jobs werden so synchron abgearbeitet und deren Status-Updates im Interface unabhängig voneinander gebündelt visualisiert.
 
 ## 3. Datenvisualisierung: Top 6 Produkte Charts

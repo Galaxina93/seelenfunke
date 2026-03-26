@@ -2,12 +2,15 @@
 
 namespace App\Livewire\Shop\Marketing;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Marketing\Voucher as VoucherModel;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithPagination;
 
+#[Layout('components.layouts.backend_layout')]
 class MarketingVoucher extends Component
 {
     use WithDepartmentTheming;

@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NewsletterController;
 use App\Livewire\Shop\Cart\Cart;
 use App\Livewire\Shop\Checkout\Checkout;

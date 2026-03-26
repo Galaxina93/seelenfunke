@@ -23,7 +23,7 @@ trait AiProductTemplatesFuncs
                         'filter_active' => ['type' => 'boolean', 'description' => 'Optional: Nur aktive (true) oder inaktive (false) Vorlagen anzeigen.']
                     ]
                 ],
-                'callable' => [self::class, 'executeGetAll']
+                'callable' => [self::class, 'executeProductTemplateGetAll']
             ],
             [
                 'name' => 'template_update',
@@ -38,7 +38,7 @@ trait AiProductTemplatesFuncs
                     ],
                     'required' => ['template_id']
                 ],
-                'callable' => [self::class, 'executeUpdate']
+                'callable' => [self::class, 'executeProductTemplateUpdate']
             ],
             [
                 'name' => 'template_delete',
@@ -50,12 +50,12 @@ trait AiProductTemplatesFuncs
                     ],
                     'required' => ['template_id']
                 ],
-                'callable' => [self::class, 'executeDelete']
+                'callable' => [self::class, 'executeProductTemplateDelete']
             ]
         ];
     }
 
-    public static function executeGetAll(array $args)
+    public static function executeProductTemplateGetAll(array $args)
     {
         try {
             $query = ProductTemplate::with('product');
@@ -88,7 +88,7 @@ trait AiProductTemplatesFuncs
         }
     }
 
-    public static function executeUpdate(array $args)
+    public static function executeProductTemplateUpdate(array $args)
     {
         try {
             if (empty($args['template_id'])) return ['status' => 'error', 'message' => 'Template ID fehlt.'];
@@ -115,7 +115,7 @@ trait AiProductTemplatesFuncs
         }
     }
 
-    public static function executeDelete(array $args)
+    public static function executeProductTemplateDelete(array $args)
     {
         try {
             if (empty($args['template_id'])) return ['status' => 'error', 'message' => 'Template ID fehlt.'];

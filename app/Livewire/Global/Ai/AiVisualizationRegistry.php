@@ -2,8 +2,11 @@
 
 namespace App\Livewire\Global\Ai;
 
+use Livewire\Attributes\Layout;
+
 use Livewire\Component;
 
+#[Layout('components.layouts.backend_layout')]
 class AiVisualizationRegistry extends Component
 {
     /**

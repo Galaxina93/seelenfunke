@@ -156,7 +156,7 @@
                                 $productUrl = $projectedTemplate ? route('product.show', ['product' => $product->slug, 't' => $projectedTemplate->id]) : route('product.show', $product->slug);
                             @endphp
 
-                            <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 hover:border-[var(--theme-color-30)] {{ $isSoldOut ? 'opacity-80' : '' }}">
+                            <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                                 {{-- Bild Container --}}
                                 <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">

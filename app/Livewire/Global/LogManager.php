@@ -8,7 +8,9 @@ use Livewire\WithPagination;
 
 class LogManager extends Component
 {
-    use WithPagination;
+    use WithPagination, \App\Livewire\Traits\WithDepartmentTheming;
+
+    protected string $themingDepartment = 'System';
 
     public $search = '';
     public $statusFilter = '';

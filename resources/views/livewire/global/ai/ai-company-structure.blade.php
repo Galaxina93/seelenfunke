@@ -1,6 +1,7 @@
-<div class="max-w-[1400px] mx-auto py-10 px-4 sm:px-6 lg:px-8 font-mono relative min-h-screen pb-32"
+<div class="w-full mx-auto py-10 px-4 sm:px-6 lg:px-8 font-mono relative min-h-screen pb-32"
      x-data="{
          pulseLogo: @entangle('showSuccessBanner'),
+         showStaff: false,
          draggedType: null,
          draggedId: null,
          startDrag(e, type, id) {
@@ -14,7 +15,7 @@
              this.draggedType = null;
              this.draggedId = null;
              e.target.classList.remove('opacity-40', 'scale-95', 'z-50');
-             document.querySelectorAll('.drag-over-active').forEach(el => 
+             document.querySelectorAll('.drag-over-active').forEach(el =>
                  el.classList.remove('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black')
              );
          },
@@ -23,9 +24,9 @@
              if (this.draggedType === 'agent' && (type === 'role' || type === 'department')) e.preventDefault();
          },
          dragEnter(e, type) {
-             if (this.draggedType === 'role' && type === 'department') 
+             if (this.draggedType === 'role' && type === 'department')
                  e.currentTarget.classList.add('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
-             if (this.draggedType === 'agent' && type === 'role') 
+             if (this.draggedType === 'agent' && type === 'role')
                  e.currentTarget.classList.add('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
          },
          dragLeave(e) {
@@ -34,13 +35,13 @@
          drop(e, targetType, targetId) {
              e.preventDefault();
              e.currentTarget.classList.remove('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
-             
+
              if (this.draggedType === 'role' && targetType === 'department') {
                  $wire.moveRole(this.draggedId, targetId);
              } else if (this.draggedType === 'agent' && targetType === 'department') {
                  $wire.moveAgent(this.draggedId, targetId);
              }
-             
+
              this.draggedType = null;
              this.draggedId = null;
          }
@@ -60,29 +61,103 @@
 
     @if($viewMode === 'tree')
         {{-- ==========================================
-             TREE VIEW 
+             TREE VIEW
              ========================================== --}}
-        
+
         <div class="text-center mb-12">
             <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">KI Organigramm</h1>
             <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">Die vollständige KI-Unternehmensstruktur im Überblick.</p>
         </div>
 
         {{-- Tree Diagram Container --}}
-        <div class="relative overflow-x-auto custom-scrollbar pb-20 pt-10 px-10">
-            
+        <div class="relative overflow-x-auto custom-scrollbar pb-20 pt-10">
+
             <div class="min-w-max flex flex-col items-center justify-center mx-auto">
-                
-                {{-- ROOT NODE: LOGO --}}
-                <div class="flex flex-col items-center relative z-10 group cursor-default" x-init="$watch('pulseLogo', value => { if(value) setTimeout(() => pulseLogo = false, 1500) })">
-                    <div class="bg-gray-950 p-6 sm:px-8 sm:py-6 rounded-3xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all relative text-center"
-                         :class="pulseLogo ? 'border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.8)] scale-105' : 'border-gray-800 hover:border-primary/50'">
-                        <img src="/images/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-[0_0_25px_rgba(197,160,89,0.4)] mx-auto mb-2 pointer-events-none">
-                        <span class="text-primary tracking-widest uppercase font-black text-sm block drop-shadow-md">Headquarters</span>
-                        <div class="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button wire:click="createDepartment" class="bg-primary/10 text-primary border border-primary/30 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary hover:text-black flex items-center gap-1 shadow-[0_0_15px_rgba(197,160,89,0.2)]">
-                                <x-heroicon-m-plus class="w-3 h-3" /> Abteilung
+
+                {{-- TOP LEVEL: ROOT & STAFF --}}
+                <div class="flex items-center justify-center relative w-full">
+                    
+                    {{-- ROOT NODE: LOGO --}}
+                    <div class="flex flex-col items-center relative z-10 group cursor-default" x-init="$watch('pulseLogo', value => { if(value) setTimeout(() => pulseLogo = false, 1500) })">
+                        <div class="bg-gray-950 p-6 sm:px-8 sm:py-6 rounded-3xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all relative text-center"
+                             :class="pulseLogo ? 'border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.8)] scale-105' : 'border-gray-800 hover:border-primary/50'">
+                            
+                            <button @click="showStaff = !showStaff" class="absolute top-2 right-2 p-1.5 text-gray-600 hover:text-emerald-400 transition-colors z-20" title="Stabsstelle anzeigen/ausblenden">
+                                <x-heroicon-s-cog-8-tooth class="w-5 h-5 transition-transform" ::class="showStaff ? 'text-emerald-500 rotate-90' : 'hover:rotate-90'" />
                             </button>
+
+                            <img src="/images/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-[0_0_25px_rgba(197,160,89,0.4)] mx-auto mb-2 pointer-events-none">
+                            <span class="text-primary tracking-widest uppercase font-black text-sm block drop-shadow-md">Headquarters</span>
+                            <div class="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button wire:click="createDepartment" class="bg-primary/10 text-primary border border-primary/30 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary hover:text-black flex items-center gap-1 shadow-[0_0_15px_rgba(197,160,89,0.2)]">
+                                    <x-heroicon-m-plus class="w-3 h-3" /> Abteilung
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- STAFF POSITIONS (Dr. Funki & Co) --}}
+                    <div x-show="showStaff" 
+                         x-transition:enter="transition-all ease-out duration-500"
+                         x-transition:enter-start="opacity-0 -translate-x-12 scale-90"
+                         x-transition:enter-end="opacity-100 translate-x-0 scale-100"
+                         x-transition:leave="transition-all ease-in duration-300"
+                         x-transition:leave-start="opacity-100 translate-x-0 scale-100"
+                         x-transition:leave-end="opacity-0 -translate-x-12 scale-90"
+                         style="display: none;" 
+                         class="absolute left-[calc(50%+160px)] sm:left-[calc(50%+180px)] top-1/2 -translate-y-1/2 hidden md:flex flex-col items-start z-10 origin-left">
+                        {{-- Connecting Horizontal Line --}}
+                        <div class="absolute -left-8 sm:-left-12 top-1/2 w-8 sm:w-12 h-px bg-gray-700 -translate-y-1/2"></div>
+                        
+                        <div class="bg-black/80 backdrop-blur-xl border border-emerald-500/30 rounded-2xl p-4 pt-5 shadow-[0_5px_20px_rgba(0,0,0,0.5)] w-40 sm:w-48 drop-zone relative transition-all"
+                             @dragover="dragOver($event, 'department')"
+                             @dragenter="dragEnter($event, 'department')"
+                             @dragleave="dragLeave"
+                             @drop="drop($event, 'department', 'unassigned')">
+                             
+                            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-950 border border-emerald-500/50 rounded-full px-3 py-1 shadow-[0_0_15px_rgba(16,185,129,0.3)] text-emerald-500 z-20 flex items-center gap-1 whitespace-nowrap">
+                                <x-heroicon-m-star class="w-3 h-3" />
+                                <span class="text-[9px] font-black uppercase tracking-widest">Stabsstelle</span>
+                            </div>
+                            
+                            <div class="mt-2 flex flex-col gap-3 min-h-[50px] w-full">
+                                @foreach($freeAgents as $agent)
+                                    <div class="flex flex-col items-center relative w-full group/agent z-10"
+                                         draggable="true"
+                                         @dragstart.stop="startDrag($event, 'agent', '{{ $agent->id }}')"
+                                         @dragend="endDrag">
+                                        
+                                        {{-- Agent Card Mini --}}
+                                        <div class="w-full bg-gray-950/80 border border-gray-800 rounded-xl p-3 flex flex-col items-center gap-2 cursor-grab active:cursor-grabbing hover:border-emerald-500/50 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] transition-all">
+                                            
+                                            <div class="absolute top-1 right-1 flex gap-1 opacity-0 md:group-hover/agent:opacity-100 transition-opacity">
+                                                <button wire:click.stop="editFullAgentDetails('{{ $agent->id }}')" class="p-1 text-gray-500 hover:text-white transition-colors" title="Bearbeiten">
+                                                    <x-heroicon-m-pencil-square class="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+
+                                            <div class="relative w-10 h-10 shrink-0">
+                                                @if($agent->profile_picture)
+                                                    <img src="{{ Storage::url($agent->profile_picture) }}" class="w-full h-full rounded-full object-cover border-2 border-emerald-500/50">
+                                                @else
+                                                    <div class="w-full h-full rounded-full bg-gray-900 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-500">
+                                                        <x-dynamic-component :component="'heroicon-s-' . ($agent->icon ?: 'sparkles')" class="w-5 h-5 pointer-events-none" />
+                                                    </div>
+                                                @endif
+                                            </div>
+                                            <div class="text-center min-w-0 w-full px-1">
+                                                <h4 class="text-[10px] font-bold text-white truncate">{{ $agent->name }}</h4>
+                                                <p class="text-[8px] text-gray-400 truncate uppercase tracking-widest mt-0.5">{{ $agent->role->name ?? 'Keine Rolle' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                                
+                                <div class="text-[9px] text-gray-600 font-bold uppercase tracking-widest text-center py-2 flex flex-col items-center gap-1 border-2 border-dashed border-gray-800 rounded-xl transition-colors drag-over-target-highlight group-hover:border-emerald-500/30">
+                                    <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
+                                    <span>Agent hier ablegen</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -94,15 +169,15 @@
 
                 {{-- DEPARTMENTS ROW --}}
                 <div class="flex items-start justify-center relative gap-2 sm:gap-4 lg:gap-6">
-                    
+
                     {{-- Horizontal Connecting Line --}}
                     @if($departments->count() > 1)
                         <div class="absolute top-0 h-px bg-gray-700" style="width: calc(100% - {{ 100 / count($departments) }}%); left: {{ 50 / count($departments) }}%;"></div>
                     @endif
 
                     @foreach($departments as $dept)
-                        <div class="flex flex-col items-center relative w-40 md:w-44 lg:w-48 shrink-0 group/dept pt-8">
-                            
+                        <div class="flex flex-col items-center relative w-[130px] sm:w-36 md:w-40 lg:w-44 shrink-0 group/dept pt-8">
+
                             {{-- Line up to horizontal bar --}}
                             @if($departments->count() > 1)
                                 <div class="absolute top-0 left-1/2 w-px h-8 bg-gray-700 -translate-x-1/2"></div>
@@ -114,7 +189,7 @@
                                  @dragenter="dragEnter($event, 'department')"
                                  @dragleave="dragLeave"
                                  @drop="drop($event, 'department', '{{ $dept->id }}')">
-                                 
+
                                 <div class="absolute top-2 right-2 flex items-center z-20">
                                     <button wire:click.stop="editDepartment('{{ $dept->id }}')" class="text-gray-500 hover:text-white transition-colors p-1" title="Bearbeiten">
                                         <x-heroicon-o-pencil-square class="w-4 h-4" />
@@ -143,13 +218,13 @@
                                  @dragenter="dragEnter($event, 'department')"
                                  @dragleave="dragLeave"
                                  @drop="drop($event, 'department', '{{ $dept->id }}')">
-                                 
+
                                 @foreach($dept->agents as $index => $agent)
                                     <div class="flex flex-col items-center relative w-full group/agent z-10"
                                          draggable="true"
-                                         @dragstart.stop="startDrag($event, 'agent', '{{ $agent->id }}')" 
+                                         @dragstart.stop="startDrag($event, 'agent', '{{ $agent->id }}')"
                                          @dragend="endDrag">
-                                        
+
                                         {{-- Connecting Line --}}
                                         @if($index > 0)
                                             <div class="w-px h-6 bg-gray-800 absolute -top-6"></div>
@@ -162,6 +237,7 @@
                                                 'purple-500' => 'border-gray-800 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]',
                                                 'amber-500' => 'border-gray-800 hover:border-amber-500/50 hover:shadow-[0_0_15px_rgba(245,158,11,0.15)]',
                                                 'emerald-500' => 'border-gray-800 hover:border-emerald-500/50 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+                                                'red-500' => 'border-gray-800 hover:border-red-500/50 hover:shadow-[0_0_15px_rgba(239,68,68,0.15)]',
                                                 'rose-500' => 'border-gray-800 hover:border-rose-500/50 hover:shadow-[0_0_15px_rgba(244,63,94,0.15)]',
                                                 'cyan-500' => 'border-gray-800 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)]',
                                                 'sky-500' => 'border-gray-800 hover:border-sky-500/50 hover:shadow-[0_0_15px_rgba(14,165,233,0.15)]',
@@ -173,6 +249,7 @@
                                                 'purple-500' => 'bg-purple-500/10 text-purple-500 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.5)]',
                                                 'amber-500' => 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.5)]',
                                                 'emerald-500' => 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.5)]',
+                                                'red-500' => 'bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.5)]',
                                                 'rose-500' => 'bg-rose-500/10 text-rose-500 border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.5)]',
                                                 'cyan-500' => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.5)]',
                                                 'sky-500' => 'bg-sky-500/10 text-sky-500 border-sky-500/20 shadow-[0_0_15px_rgba(14,165,233,0.5)]',
@@ -182,7 +259,7 @@
                                         @endphp
                                         {{-- Agent Card --}}
                                         <div class="w-11/12 bg-gray-950 border rounded-xl p-4 transition-all z-10 relative cursor-grab active:cursor-grabbing {{ $borderClass }}">
-                                            
+
                                             <div class="absolute top-2 right-2 flex items-center">
                                                 <button wire:click.stop="editAgent('{{ $agent->id }}')" class="text-gray-600 hover:text-white transition-colors p-1" title="Bearbeiten">
                                                     <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
@@ -209,7 +286,7 @@
                                                     else $shortModel = explode('-', explode(' ', $rawModel)[0])[0];
                                                 @endphp
                                                 <div class="text-[8px] uppercase tracking-widest text-gray-500 truncate mb-2">{{ $shortModel }}</div>
-                                                
+
                                                 @if($agent->role)
                                                     <div class="text-[9px] bg-blue-500/20 text-blue-400/90 px-2 py-1 rounded-md border border-blue-500/30 uppercase tracking-widest text-center truncate max-w-full">
                                                         {{ $agent->role->name }}
@@ -282,7 +359,7 @@
     @endif
 
     {{-- ==========================================
-         EDIT: DEPARTMENT 
+         EDIT: DEPARTMENT
          ========================================== --}}
     @if($viewMode === 'edit-dept')
         <div class="bg-black/60 backdrop-blur-xl border border-gray-800 rounded-3xl p-6 sm:p-10 shadow-[0_0_30px_rgba(0,0,0,0.5)] max-w-4xl mx-auto mt-6">
@@ -298,11 +375,11 @@
                         <input type="text" wire:model.live.debounce.500ms="deptDescription" placeholder="Kurzbeschreibung des Bereichs..." class="w-full bg-black/40 border border-gray-700 rounded-xl focus:border-primary focus:ring focus:ring-primary/20 text-gray-300 p-3 transition-all">
                     </div>
                 </div>
-                
+
                 <div class="grid grid-cols-1 gap-8">
                     <div>
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-3">
-                            Abteilungs-Icon Auswählen: 
+                            Abteilungs-Icon Auswählen:
                             <div class="w-8 h-8 bg-gray-900 border border-gray-700 rounded-lg flex items-center justify-center text-primary shadow-[0_0_10px_rgba(197,160,89,0.2)]">
                                 <x-dynamic-component :component="'heroicon-o-' . ($deptIcon ?: 'building-office')" class="w-5 h-5" />
                             </div>
@@ -322,7 +399,7 @@
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Akzentfarbe</label>
                         <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 p-3 bg-black/40 border border-gray-800 rounded-xl">
                             @foreach($availableColors as $col)
-                                <button type="button" wire:click="$set('deptColor', '{{ $col }}')" 
+                                <button type="button" wire:click="$set('deptColor', '{{ $col }}')"
                                     class="w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center relative group
                                     {{ $deptColor === $col ? 'border-white scale-110 shadow-[0_0_15px_currentColor] z-10' : 'border-transparent hover:scale-110 hover:border-gray-500' }}
                                     bg-{{ $col }} text-{{ $col }}"

@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Product\Product;
 use App\Services\ConfiguratorService;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +13,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductCreate extends Component
 {
     use WithFileUploads, WithDepartmentTheming;

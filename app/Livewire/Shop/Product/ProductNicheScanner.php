@@ -2,13 +2,16 @@
 
 namespace App\Livewire\Shop\Product;
 
+use Livewire\Attributes\Layout;
+
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Product\NicheProduct;
-use App\Jobs\RunNicheCrawlerJob;
+use App\Jobs\RunProductNicheCrawlerJob;
 use Illuminate\Support\Facades\Cache;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ProductNicheScanner extends Component
 {
     use WithPagination, WithDepartmentTheming;
@@ -18,28 +21,28 @@ class ProductNicheScanner extends Component
     public $search = '';
     public $filterPlatform = '';
     public $filterMinScore = 0;
-    
+
     // History Properties (V2)
     public $savedRuns = [];
     public $selectedRunId = null;
     public $historicalRunData = null;
     public $historicalTop3Data = null;
-    
+
     // AI Agent Properties
     public $availableAgents = [];
     public $selectedAgentId = '';
     public $aiRecommendation = null;
     public $isRecommending = false;
-    
+
     public function mount()
     {
         $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)->with('role')->orderBy('name')->get()->toArray();
         $this->loadSavedRuns();
-        
+
         $this->aiRecommendation = \Illuminate\Support\Facades\Cache::get('niche_scanner_live_ai_rec');
         $this->selectedAgentId = \Illuminate\Support\Facades\Cache::get('niche_scanner_live_ai_agent') ?? '';
     }
-    
+
     public function loadSavedRuns()
     {
         $this->savedRuns = \App\Models\Product\NicheCrawlerRun::orderBy('created_at', 'desc')->get()->toArray();
@@ -59,13 +62,13 @@ class ProductNicheScanner extends Component
         $run = \App\Models\Product\NicheCrawlerRun::find($id);
         if ($run) {
             $this->selectedRunId = $run->id;
-            
+
             // Re-hydrate the JSON into Collections or arrays
             $allData = is_array($run->products_data) ? collect($run->products_data) : collect(json_decode($run->products_data, true));
-            
+
             $this->historicalRunData = $allData;
             $this->historicalTop3Data = $allData->sortByDesc('niche_score')->take(3)->values();
-            
+
             $this->aiRecommendation = $run->ai_recommendation;
             session()->flash('success', 'Historischen Snapshot "' . $run->name . '" geladen.');
         }
@@ -111,7 +114,7 @@ class ProductNicheScanner extends Component
         $this->loadSavedRuns();
         $this->loadHistoricalRun($run->id);
     }
-    
+
     // For dispatching crawler
     public $crawlKeyword = 'personalisiertes geschenk';
     public $crawlPlatforms = [];
@@ -131,14 +134,14 @@ class ProductNicheScanner extends Component
         }
 
         $activeJobs = Cache::get('active_crawler_jobs', []);
-        
+
         foreach ($this->crawlPlatforms as $platform) {
             $jobId = uniqid('crawler_') . '_' . strtolower($platform);
-            
+
             if (!in_array($jobId, $activeJobs)) {
                 $activeJobs[] = $jobId;
             }
-            
+
             Cache::put("crawler_job_{$jobId}", [
                 'id' => $jobId,
                 'keyword' => $this->crawlKeyword,
@@ -148,11 +151,11 @@ class ProductNicheScanner extends Component
                 'is_running' => true
             ], 600);
 
-            RunNicheCrawlerJob::dispatch($jobId, $platform, $this->crawlKeyword);
+            RunProductNicheCrawlerJob::dispatch($jobId, $platform, $this->crawlKeyword);
         }
-        
+
         Cache::put('active_crawler_jobs', $activeJobs, 3600);
-        
+
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_rec');
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_agent');
         $this->aiRecommendation = null;
@@ -164,16 +167,16 @@ class ProductNicheScanner extends Component
     public function cancelCrawler($jobId)
     {
         Cache::put("cancel_crawler_{$jobId}", true, 600);
-        
+
         $activeJobs = Cache::get('active_crawler_jobs', []);
         $activeJobs = array_filter($activeJobs, fn($id) => $id !== $jobId);
         Cache::put('active_crawler_jobs', array_values($activeJobs), 3600);
-        
+
         Cache::forget("crawler_job_{$jobId}");
-        
+
         session()->flash('message', 'Abbruch erzwungen: Crawler Job wurde aus der Anzeige entfernt.');
     }
-    
+
     public function clearData()
     {
         NicheProduct::truncate();
@@ -191,7 +194,7 @@ class ProductNicheScanner extends Component
         }
 
         $this->isRecommending = true;
-        
+
         $agent = \App\Models\Ai\AiAgent::find($this->selectedAgentId);
         if (!$agent) {
             $this->isRecommending = false;
@@ -229,7 +232,7 @@ class ProductNicheScanner extends Component
         $prompt .= "- Maximale Größe für Schieferplatten: 180x180mm\n";
         $prompt .= "- Geeignete und sehr gute Artikel: Schlüsselanhänger, Flaschenöffner, Kugelschreiber, Weingläser, kleine Holzboxen.\n";
         $prompt .= "- UNGEEIGNETE ARTIKEL (zu groß): Schränke, Stühle, große Holzfässer, Bilderrahmen größer als A4, massive Tische.\n\n";
-        
+
         $prompt .= "Hier sind die Top 3 Nischen-Produkte aus dem aktuellen Crawler-Scan:\n$txData\n\n";
         $prompt .= "DEINE AUFGABE:\n";
         $prompt .= "Analysiere diese 3 Produkte. Entscheide dich für EXAKT EIN Produkt, das unter Berücksichtigung der Maschinen-Einschränkungen das allerbeste Potenzial für den Laser-Graveur bietet.\n";
@@ -249,11 +252,11 @@ class ProductNicheScanner extends Component
 
             if ($response->successful()) {
                 $this->aiRecommendation = $response->json()['choices'][0]['message']['content'] ?? 'Keine Antwort erhalten.';
-                
+
                 // Store in cache so it persists on reload
                 \Illuminate\Support\Facades\Cache::put('niche_scanner_live_ai_rec', $this->aiRecommendation);
                 \Illuminate\Support\Facades\Cache::put('niche_scanner_live_ai_agent', $this->selectedAgentId);
-                
+
                 session()->flash('success', 'Der KI-Agent hat die Produkte analysiert.');
             } else {
                 session()->flash('error', 'API Verbindungsfehler zum LLM: ' . $response->status());
@@ -331,7 +334,7 @@ class ProductNicheScanner extends Component
                 unset($activeJobIds[$key]);
             }
         }
-        
+
         if (count($activeJobIds) !== count(Cache::get('active_crawler_jobs', []))) {
             Cache::put('active_crawler_jobs', array_values($activeJobIds), 3600);
         }

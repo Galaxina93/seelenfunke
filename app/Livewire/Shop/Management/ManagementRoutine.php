@@ -2,11 +2,14 @@
 
 namespace App\Livewire\Shop\Management;
 
+use Livewire\Attributes\Layout;
+
 use App\Models\Management\DayRoutine as RoutineModel;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
+#[Layout('components.layouts.backend_layout')]
 class ManagementRoutine extends Component
 {
     use WithDepartmentTheming;
