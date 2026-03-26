@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Order;
 
-use App\Mail\RevocationConfirmationMail;
+use App\Mail\RevocationMailToCustomer;
 use App\Models\Order\Revocation\Revocation;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -127,11 +127,11 @@ class OrderRevocationForm extends Component
             }
 
             // Gesetzlich vorgeschriebene Eingangsbestätigung (Mail an Kunde)
-            Mail::to($this->email)->send(new RevocationConfirmationMail($data));
+            Mail::to($this->email)->send(new RevocationMailToCustomer($data));
             
             // Intern für das Protokoll speichern/benachrichtigen (Mail an Betreiber)
             $adminEmail = shop_setting('owner_email') ?? 'kontakt@mein-seelenfunke.de';
-            Mail::to($adminEmail)->send(new \App\Mail\RevocationAdminNotificationMail($data));
+            Mail::to($adminEmail)->send(new \App\Mail\RevocationMailToAdmin($data));
             
             Log::info("Widerruf eingegangen und in DB gespeichert für Bestellung: {$this->order_number} von {$this->email}");
 

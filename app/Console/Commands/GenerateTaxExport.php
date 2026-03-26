@@ -5,8 +5,8 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Carbon\Carbon;
 use App\Models\Order\Order;
-use App\Models\Accounting\FinanceSpecialIssue;
-use App\Models\Accounting\FinanceGroup;
+use App\Models\Accounting\AccountingSpecialIssue;
+use App\Models\Accounting\AccountingGroup;
 use App\Models\Admin\Admin;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -73,13 +73,13 @@ class GenerateTaxExport extends Command
         $revenueNet = $revenueGross - $vatCollected;
 
         // 2. AUSGABEN (Gewerblich)
-        $businessSpecials = FinanceSpecialIssue::where('admin_id', $adminId)
+        $businessSpecials = AccountingSpecialIssue::where('admin_id', $adminId)
             ->where('is_business', true)
             ->whereBetween('execution_date', [$startDate, $endDate])
             ->get();
 
         $businessFixed = collect();
-        $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
+        $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
             foreach ($group->items->where('is_business', true) as $item) {
                 $startMonth = $item->first_payment_date->month;

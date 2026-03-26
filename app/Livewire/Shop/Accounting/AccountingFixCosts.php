@@ -4,9 +4,9 @@ namespace App\Livewire\Shop\Accounting;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Accounting\FinanceGroup;
-use App\Models\Accounting\FinanceCostItem;
-use App\Models\Accounting\FinanceCostItemHistory;
+use App\Models\Accounting\AccountingGroup;
+use App\Models\Accounting\AccountingCostItem;
+use App\Models\Accounting\AccountingCostItemHistory;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
@@ -93,7 +93,7 @@ class AccountingFixCosts extends Component
 
     public function getMissingContractsProperty()
     {
-        return FinanceCostItem::whereHas('group', function ($q) {
+        return AccountingCostItem::whereHas('group', function ($q) {
             $q->where('admin_id', $this->getAdminId());
         })->whereNull('contract_file_path')->with('group')->orderBy('name')->get();
     }
@@ -101,7 +101,7 @@ class AccountingFixCosts extends Component
     // --- Tagging Methods ---
     public function getGlobalTagsProperty()
     {
-        return FinanceCostItem::whereHas('group', function ($q) {
+        return AccountingCostItem::whereHas('group', function ($q) {
             $q->where('admin_id', $this->getAdminId());
         })
             ->pluck('tags')
@@ -121,7 +121,7 @@ class AccountingFixCosts extends Component
     public function saveNewItemTag()
     {
         $this->validate(['newItemTag' => 'required|string|min:2|max:30']);
-        $item = FinanceCostItem::findOrFail($this->addingTagToItemId);
+        $item = AccountingCostItem::findOrFail($this->addingTagToItemId);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         $tags = is_array($item->tags) ? $item->tags : [];
@@ -138,7 +138,7 @@ class AccountingFixCosts extends Component
 
     public function removeTagFromItem($itemId, $tag)
     {
-        $item = FinanceCostItem::findOrFail($itemId);
+        $item = AccountingCostItem::findOrFail($itemId);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         $tags = is_array($item->tags) ? $item->tags : [];
@@ -159,7 +159,7 @@ class AccountingFixCosts extends Component
         $newTag = trim($this->editingGlobalTagValue);
 
         if ($oldTag !== $newTag) {
-            $items = FinanceCostItem::whereHas('group', function($q) {
+            $items = AccountingCostItem::whereHas('group', function($q) {
                 $q->where('admin_id', $this->getAdminId());
             })->get();
 
@@ -179,7 +179,7 @@ class AccountingFixCosts extends Component
 
     public function deleteGlobalTag($tag)
     {
-        $items = FinanceCostItem::whereHas('group', function($q) {
+        $items = AccountingCostItem::whereHas('group', function($q) {
             $q->where('admin_id', $this->getAdminId());
         })->get();
 
@@ -209,7 +209,7 @@ class AccountingFixCosts extends Component
     public function saveQuickUpload()
     {
         $this->validate(['quickUploadFile' => 'required|file|max:10240']);
-        $item = FinanceCostItem::findOrFail($this->uploadingMissingItemId);
+        $item = AccountingCostItem::findOrFail($this->uploadingMissingItemId);
 
         if ($item->group->admin_id !== $this->getAdminId()) {
             abort(403);
@@ -226,9 +226,9 @@ class AccountingFixCosts extends Component
     public function createGroup()
     {
         $this->validate(['newGroupName' => 'required|min:3']);
-        $position = FinanceGroup::where('admin_id', $this->getAdminId())->max('position') + 1;
+        $position = AccountingGroup::where('admin_id', $this->getAdminId())->max('position') + 1;
 
-        FinanceGroup::create([
+        AccountingGroup::create([
             'admin_id' => $this->getAdminId(),
             'name'     => $this->newGroupName,
             'type'     => $this->newGroupType,
@@ -242,7 +242,7 @@ class AccountingFixCosts extends Component
 
     public function editGroup($id)
     {
-        $group = FinanceGroup::where('id', $id)->where('admin_id', $this->getAdminId())->firstOrFail();
+        $group = AccountingGroup::where('id', $id)->where('admin_id', $this->getAdminId())->firstOrFail();
         $this->editingGroupId = $id;
         $this->tempGroupName = $group->name;
     }
@@ -250,7 +250,7 @@ class AccountingFixCosts extends Component
     public function updateGroup()
     {
         $this->validate(['tempGroupName' => 'required|min:3']);
-        $group = FinanceGroup::where('id', $this->editingGroupId)->where('admin_id', $this->getAdminId())->firstOrFail();
+        $group = AccountingGroup::where('id', $this->editingGroupId)->where('admin_id', $this->getAdminId())->firstOrFail();
 
         $group->update(['name' => $this->tempGroupName]);
         $this->editingGroupId = null;
@@ -268,7 +268,7 @@ class AccountingFixCosts extends Component
 
     public function deleteGroup($id)
     {
-        $group = FinanceGroup::where('id', $id)->where('admin_id', $this->getAdminId())->firstOrFail();
+        $group = AccountingGroup::where('id', $id)->where('admin_id', $this->getAdminId())->firstOrFail();
 
         if ($group->items()->count() > 0) {
             session()->flash('error', 'Gruppe kann nicht gelöscht werden! Bitte verschieben oder löschen Sie zuerst alle enthaltenen Verträge.');
@@ -292,7 +292,7 @@ class AccountingFixCosts extends Component
     public function updateGroupOrder($orderedIds)
     {
         foreach ($orderedIds as $index => $id) {
-            FinanceGroup::where('id', $id)
+            AccountingGroup::where('id', $id)
                 ->where('admin_id', $this->getAdminId())
                 ->update(['position' => $index]);
         }
@@ -302,13 +302,13 @@ class AccountingFixCosts extends Component
 
     public function moveCostItem($itemId, $targetGroupId)
     {
-        $item = FinanceCostItem::findOrFail($itemId);
-        $targetGroup = FinanceGroup::where('id', $targetGroupId)->where('admin_id', $this->getAdminId())->first();
+        $item = AccountingCostItem::findOrFail($itemId);
+        $targetGroup = AccountingGroup::where('id', $targetGroupId)->where('admin_id', $this->getAdminId())->first();
 
         if ($item && $targetGroup) {
             if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
-            $item->update(['finance_group_id' => $targetGroup->id]);
+            $item->update(['accounting_group_id' => $targetGroup->id]);
             $this->activeGroupId = $targetGroup->id;
 
             $this->dispatchChartUpdate();
@@ -337,7 +337,7 @@ class AccountingFixCosts extends Component
 
         if ($itemId) {
             $this->editingItemId = $itemId;
-            $item = FinanceCostItem::findOrFail($itemId);
+            $item = AccountingCostItem::findOrFail($itemId);
 
             if ($item->group->admin_id !== $this->getAdminId()) {
                 abort(403);
@@ -352,7 +352,7 @@ class AccountingFixCosts extends Component
             $this->itemTaxRate = $item->tax_rate ?? 0;
             $this->itemExistingFile = $item->contract_file_path;
             $this->itemLastPaymentDate = $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null;
-            $this->targetGroupId = $item->finance_group_id;
+            $this->targetGroupId = $item->accounting_group_id;
         }
     }
 
@@ -391,13 +391,13 @@ class AccountingFixCosts extends Component
         }
 
         if ($this->editingItemId) {
-            $item = FinanceCostItem::findOrFail($this->editingItemId);
+            $item = AccountingCostItem::findOrFail($this->editingItemId);
             if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
-            if ($this->targetGroupId && $this->targetGroupId !== $item->finance_group_id) {
-                $targetGroup = FinanceGroup::where('id', $this->targetGroupId)->where('admin_id', $this->getAdminId())->first();
+            if ($this->targetGroupId && $this->targetGroupId !== $item->accounting_group_id) {
+                $targetGroup = AccountingGroup::where('id', $this->targetGroupId)->where('admin_id', $this->getAdminId())->first();
                 if ($targetGroup) {
-                    $data['finance_group_id'] = $this->targetGroupId;
+                    $data['accounting_group_id'] = $this->targetGroupId;
                 }
             }
 
@@ -440,8 +440,8 @@ class AccountingFixCosts extends Component
 
                 $item->save(); // Save to database first to ensure updated timestamps etc if needed
 
-                FinanceCostItemHistory::create([
-                    'finance_cost_item_id' => $item->id,
+                AccountingCostItemHistory::create([
+                    'accounting_cost_item_id' => $item->id,
                     'name'                 => $item->name,
                     'amount'               => $item->amount,
                     'interval_months'      => $item->interval_months,
@@ -451,7 +451,7 @@ class AccountingFixCosts extends Component
                     'tax_rate'             => $item->tax_rate,
                     'contract_file_path'   => $item->contract_file_path,
                     'tags'                 => $item->tags,
-                    'finance_group_id'     => $item->finance_group_id,
+                    'accounting_group_id'     => $item->accounting_group_id,
                     'description'          => $description,
                 ]);
             } else {
@@ -473,14 +473,14 @@ class AccountingFixCosts extends Component
                 return;
             }
 
-            $group = FinanceGroup::findOrFail($this->addingToGroupId);
+            $group = AccountingGroup::findOrFail($this->addingToGroupId);
             if ($group->admin_id !== $this->getAdminId()) abort(403);
 
-            $newItem = FinanceCostItem::create(array_merge($data, ['finance_group_id' => $this->addingToGroupId]));
+            $newItem = AccountingCostItem::create(array_merge($data, ['accounting_group_id' => $this->addingToGroupId]));
             // Log initial creation
             if (!$this->isRestoring) {
-                FinanceCostItemHistory::create([
-                    'finance_cost_item_id' => $newItem->id,
+                AccountingCostItemHistory::create([
+                    'accounting_cost_item_id' => $newItem->id,
                     'name'                 => $newItem->name,
                     'amount'               => $newItem->amount,
                     'interval_months'      => $newItem->interval_months,
@@ -490,7 +490,7 @@ class AccountingFixCosts extends Component
                     'tax_rate'             => $newItem->tax_rate,
                     'contract_file_path'   => $newItem->contract_file_path,
                     'tags'                 => $newItem->tags,
-                    'finance_group_id'     => $newItem->finance_group_id,
+                    'accounting_group_id'     => $newItem->accounting_group_id,
                     'description'          => 'Initiale Anlage der Kostenstelle.',
                 ]);
             }
@@ -504,7 +504,7 @@ class AccountingFixCosts extends Component
 
     public function restoreHistory($historyId)
     {
-        $history = FinanceCostItemHistory::with('costItem.group')->findOrFail($historyId);
+        $history = AccountingCostItemHistory::with('costItem.group')->findOrFail($historyId);
         
         if ($history->costItem->group->admin_id !== $this->getAdminId()) {
             abort(403);
@@ -529,7 +529,7 @@ class AccountingFixCosts extends Component
 
     public function deleteHistory($historyId)
     {
-        $history = FinanceCostItemHistory::with('costItem.group')->findOrFail($historyId);
+        $history = AccountingCostItemHistory::with('costItem.group')->findOrFail($historyId);
         
         if ($history->costItem->group->admin_id !== $this->getAdminId()) {
             abort(403);
@@ -541,7 +541,7 @@ class AccountingFixCosts extends Component
 
     public function removeFileFromItem($itemId)
     {
-        $item = FinanceCostItem::findOrFail($itemId);
+        $item = AccountingCostItem::findOrFail($itemId);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         if ($item->contract_file_path) {
@@ -560,7 +560,7 @@ class AccountingFixCosts extends Component
 
     public function deleteItem($id)
     {
-        $item = FinanceCostItem::findOrFail($id);
+        $item = AccountingCostItem::findOrFail($id);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         $item->delete();
@@ -580,7 +580,7 @@ class AccountingFixCosts extends Component
 
     private function dispatchChartUpdate()
     {
-        $groups = FinanceGroup::with('items')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
+        $groups = AccountingGroup::with('items')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
         $chartLabels = [];
         $chartData = [];
         $chartColors = [];
@@ -605,7 +605,7 @@ class AccountingFixCosts extends Component
 
     public function render()
     {
-        $groups = FinanceGroup::with('items.transactions')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
+        $groups = AccountingGroup::with('items.transactions')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
 
         $chartLabels = [];
         $chartData = [];

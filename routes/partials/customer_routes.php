@@ -1,7 +1,7 @@
 <?php
 
-use App\Livewire\Customer\OrderDetail;
-use App\Livewire\Customer\Orders;
+use App\Livewire\Customer\CustomerOrderDetail;
+use App\Livewire\Customer\CustomerOrders;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:customer'])->group(function () {
@@ -15,26 +15,26 @@ Route::middleware(['auth:customer'])->group(function () {
     })->name('customer.profile');
 
     // 1. Übersicht & Opt-In (Hier landet man nach dem Login)
-    Route::get('/dashboard', \App\Livewire\Customer\DashboardComponent::class)->name('customer.dashboard');
+    Route::get('/dashboard', \App\Livewire\Customer\CustomerDashboardComponent::class)->name('customer.dashboard');
 
     // 2. Bestellungen
-    Route::get('/orders', \App\Livewire\Customer\OrdersComponent::class)->name('customer.orders');
+    Route::get('/orders', \App\Livewire\Customer\CustomerOrdersComponent::class)->name('customer.orders');
 
     // 3. Rechnungs-Archiv (Invoices)
-    Route::get('/invoices', \App\Livewire\Customer\InvoicesComponent::class)->name('customer.invoices');
+    Route::get('/invoices', \App\Livewire\Customer\CustomerInvoicesComponent::class)->name('customer.invoices');
 
     // 4. Spiele Bereich
-    Route::get('/games', \App\Livewire\Customer\GamesComponent::class)->name('customer.games');
+    Route::get('/games', \App\Livewire\Customer\Gamification\GameGamesComponent::class)->name('customer.games');
 
     // 4. NEU: Globale Rangliste
-    Route::get('/ranking', \App\Livewire\Customer\GlobalRankingComponent::class)->name('customer.ranking');
+    Route::get('/ranking', \App\Livewire\Customer\Gamification\GameGlobalRankingComponent::class)->name('customer.ranking');
 
     // NEU: Support & Tickets
-    Route::get('/support', \App\Livewire\Customer\TicketsComponent::class)->name('customer.support');
+    Route::get('/support', \App\Livewire\Customer\CustomerTicketsComponent::class)->name('customer.support');
 });
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {
     Route::get('/customer/password-reset/{token}', function ($token) {
-        return view('global/pages/password/password-reset', ['token' => $token]);
+        return view('auth.password-reset', ['token' => $token]);
     });
 });

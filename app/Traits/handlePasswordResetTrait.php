@@ -13,6 +13,31 @@ trait handlePasswordResetTrait
 
     public function sendLink(): void
     {
+        $this->validate([
+            'email' => 'required|email',
+        ]);
+
+        $guardsToCheck = ['admin', 'employee', 'customer'];
+        $foundGuard = null;
+        $user = null;
+
+        foreach ($guardsToCheck as $g) {
+            $userModel = (new \App\Models\User)->getUserModelByGuard($g);
+            $candidate = $userModel::where('email', $this->email)->first();
+            if ($candidate) {
+                $foundGuard = $g;
+                $user = $candidate;
+                break;
+            }
+        }
+
+        if (!$user) {
+            session()->flash('error', 'Diese E-Mail-Adresse ist uns nicht bekannt.');
+            return;
+        }
+
+        $this->guard = $foundGuard;
+
         // Prüfe ob schon ein gültiger Reset Token vorhanden ist
         $passwordResetToken = PasswordResetToken::where('email', $this->email)
             ->where('guard', $this->guard)
@@ -23,18 +48,6 @@ trait handlePasswordResetTrait
             session()->flash('error', 'Bitte warte, bis du es erneut versuchst!');
             return;
         }
-
-        $userModel = (new \App\Models\User)->getUserModelByGuard($this->guard);
-        $user = $userModel::where('email', $this->email)->first();
-
-        if (!$user) {
-            session()->flash('error', 'Es ist ein Problem aufgetreten.');
-            return;
-        }
-
-        $this->validate([
-            'email' => 'required|email',
-        ]);
 
         $token = $this->generateToken();
         $this->updatePasswordResetToken($this->email, $this->guard, $token);

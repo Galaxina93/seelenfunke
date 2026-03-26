@@ -58,7 +58,7 @@ class GenerateAiMap extends Command
         $mapContent .= "- **Sprache:** Antworte und kommentiere Code immer auf Deutsch.\n";
         $mapContent .= "- **Ticketsystem:** Der Schlüssel für Tickets lautet im gesamten Code zwingend `funki_ticket_id` (nicht `ticket_id`). Die zugehörige View liegt unter `backend.admin.livewire.funki-ticket-system-component`.\n";
         $mapContent .= "- **Mail-Klassen:** Updates an Kunden werden über die Klasse `TicketUpdateMailToCustomer` gesendet (liegt direkt unter `app/Mail`). Für Newsletter-Tests ist zwingend die View `global.mails.newsletter.new_newsletter_test_mail_to_admin` zu nutzen.\n";
-        $mapContent .= "- **Auth-Flow:** Die Registrierungs-View liegt unter `livewire.auth.register`. Der Namespace für die Livewire-Komponente ist `App\Livewire\Global\Auth`. Nach erfolgreicher Registrierung muss der User zwingend zur Login-Seite weitergeleitet werden.\n";
+        $mapContent .= "- **Auth-Flow:** Die Registrierungs-View liegt unter `livewire.auth.register`. Der Namespace für die Livewire-Komponente ist `App\Livewire\Auth`. Nach erfolgreicher Registrierung muss der User zwingend zur Login-Seite weitergeleitet werden.\n";
         $mapContent .= "- **Gamification:** Der korrekte Namespace für neue Komponenten in diesem Bereich ist `App\Livewire\Global\Gamification`.\n";
         $mapContent .= "- **Shop-Parameter:** In der Produkt-Template View (`livewire.shop.product.product-templates`) werden die Variablen strikt als `['templates' => \$templates, 'products' => \$products]` übergeben.\n";
 

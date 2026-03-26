@@ -5,7 +5,7 @@ namespace App\Livewire\Shop\Accounting;
 use Livewire\Attributes\Layout;
 
 use App\Models\Customer\Customer;
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice as InvoiceModel;
 use App\Models\Order\Order;
 use App\Services\EInvoiceService;
 use App\Services\InvoiceService;
@@ -104,7 +104,7 @@ class AccountingInvoice extends Component
 
     public function editDraft($id)
     {
-        $invoice = Invoice::findOrFail($id);
+        $invoice = InvoiceModel::findOrFail($id);
 
         $this->manualInvoice = [
             'id' => $invoice->id,
@@ -198,7 +198,7 @@ class AccountingInvoice extends Component
             'country' => 'DE',
             'invoice_date' => now()->format('Y-m-d'),
             'delivery_date' => now()->format('Y-m-d'),
-            'invoice_number' => 'RE-' . date('Y') . '-' . (Invoice::count() + 1001),
+            'invoice_number' => 'RE-' . date('Y') . '-' . (InvoiceModel::count() + 1001),
             'reference_number' => '',
             'due_days' => 14,
             'due_date' => '',
@@ -250,7 +250,7 @@ class AccountingInvoice extends Component
 
     public function downloadPdf($id)
     {
-        $invoice = Invoice::findOrFail($id);
+        $invoice = InvoiceModel::findOrFail($id);
 
         // Prüfung ob archiviertes PDF existiert (GoBD Konformität)
         if (Storage::disk('local')->exists("invoices/{$invoice->invoice_number}.pdf")) {
@@ -391,7 +391,7 @@ class AccountingInvoice extends Component
 
 
             // --- SCHRITT 5: Speichern in DB ---
-            $invoice = Invoice::updateOrCreate(
+            $invoice = InvoiceModel::updateOrCreate(
                 ['id' => $currentId ?? (string) Str::uuid()],
                 [
                     'invoice_number' => $this->manualInvoice['invoice_number'],
@@ -509,7 +509,7 @@ class AccountingInvoice extends Component
      */
     public function downloadXml($id)
     {
-        $invoice = Invoice::findOrFail($id);
+        $invoice = InvoiceModel::findOrFail($id);
         $path = 'invoices/xml/' . $invoice->invoice_number . '.xml';
 
         // ... Logik wie gehabt, aber im Catch-Block ggf. auch den neuen Service nutzen:
@@ -539,7 +539,7 @@ class AccountingInvoice extends Component
 
     public function cancelInvoice($id)
     {
-        $invoice = Invoice::findOrFail($id);
+        $invoice = InvoiceModel::findOrFail($id);
 
         if ($invoice->status === 'cancelled') {
             session()->flash('warning', 'Diese Rechnung ist bereits storniert.');
@@ -601,7 +601,7 @@ class AccountingInvoice extends Component
      */
     public function deleteDraft($id)
     {
-        $invoice = Invoice::where('id', $id)->where('status', 'draft')->firstOrFail();
+        $invoice = InvoiceModel::where('id', $id)->where('status', 'draft')->firstOrFail();
         $invoice->forceDelete();
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Entwurf gelöscht']);
     }
@@ -621,7 +621,7 @@ class AccountingInvoice extends Component
 
     public function render()
     {
-        $query = Invoice::query()->with(['order', 'customer']);
+        $query = InvoiceModel::query()->with(['order', 'customer']);
 
         if ($this->search) {
             $query->where(function($q) {
@@ -697,12 +697,12 @@ class AccountingInvoice extends Component
         }
 
         $invoiceStats = [
-            'paid_count' => Invoice::where('type', 'invoice')->where('status', 'paid')->count(),
-            'open_count' => Invoice::where('type', 'invoice')->where('status', 'open')->count(),
-            'draft_count' => Invoice::where('status', 'draft')->count(),
-            'cancelled_count' => Invoice::whereIn('status', ['cancelled'])->orWhere('type', 'cancellation')->count(),
-            'open_amount' => Invoice::where('type', 'invoice')->where('status', 'open')->sum('total'),
-            'paid_amount' => Invoice::where('type', 'invoice')->where('status', 'paid')->sum('total'),
+            'paid_count' => InvoiceModel::where('type', 'invoice')->where('status', 'paid')->count(),
+            'open_count' => InvoiceModel::where('type', 'invoice')->where('status', 'open')->count(),
+            'draft_count' => InvoiceModel::where('status', 'draft')->count(),
+            'cancelled_count' => InvoiceModel::whereIn('status', ['cancelled'])->orWhere('type', 'cancellation')->count(),
+            'open_amount' => InvoiceModel::where('type', 'invoice')->where('status', 'open')->sum('total'),
+            'paid_amount' => InvoiceModel::where('type', 'invoice')->where('status', 'paid')->sum('total'),
         ];
 
         return view('livewire.shop.accounting.accounting-invoice', [

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Accounting;
 
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
@@ -28,7 +28,7 @@ class AccountingInvoicePreview extends Component
 
     public function cancelInvoice(InvoiceService $service)
     {
-        $invoice = Invoice::find($this->invoiceId);
+        $invoice = AccountingInvoice::find($this->invoiceId);
         if(!$invoice || $invoice->status === 'cancelled') return;
 
         try {
@@ -47,7 +47,7 @@ class AccountingInvoicePreview extends Component
      */
     public function downloadPdf(InvoiceService $service)
     {
-        $invoice = Invoice::findOrFail($this->invoiceId);
+        $invoice = AccountingInvoice::findOrFail($this->invoiceId);
 
         // Prüfung auf physisches Archiv ( storage/app/invoices )
         $fileName = "invoices/{$invoice->invoice_number}.pdf";
@@ -63,7 +63,7 @@ class AccountingInvoicePreview extends Component
 
     public function render()
     {
-        $invoice = $this->invoiceId ? Invoice::find($this->invoiceId) : null;
+        $invoice = $this->invoiceId ? AccountingInvoice::find($this->invoiceId) : null;
 
         $totalsPreview = [
             'net' => 0,

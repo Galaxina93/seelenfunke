@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:admin'])->group(function () {
 
     // Dashboard
-    Route::get('/admin/dashboard', \App\Livewire\Global\Widgets\Analytics::class)->name('admin.dashboard');
+    Route::get('/admin/dashboard', \App\Livewire\Shop\Management\ManagementAnalytics::class)->name('admin.dashboard');
 
     Route::get('/admin/routine', \App\Livewire\Shop\Management\ManagementRoutine::class)->name('admin.routine');
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
@@ -16,7 +16,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
 
     // AI AGENT UNVIVERSE
-    Route::get('/admin/ai-analytics', \App\Livewire\Global\Ai\AiAnalytics::class)->name('admin.ai-analytics');
+    Route::get('/admin/ai-analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai-analytics');
     Route::get('/admin/ceo/gesundheit', \App\Livewire\Shop\Management\ManagementHealth::class)->name('ceo.gesundheit');
     Route::get('/admin/ceo/gesundheit/plan/{id}/pdf', function ($id) {
         $plan = \App\Models\Management\Health\AiHealthTreatmentPlan::with('items')->findOrFail($id);
@@ -26,21 +26,21 @@ Route::middleware(['auth:admin'])->group(function () {
         return $pdf->download('Behandlungsplan_' . \Illuminate\Support\Str::slug($plan->title) . '.pdf');
     })->name('ceo.gesundheit.plan.pdf');
 
-    Route::get('/admin/global-logs', \App\Livewire\Global\LogManager::class)->name('admin.global-logs');
-    Route::get('/admin/ai-genui', \App\Livewire\Global\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
+    Route::get('/admin/global-logs', \App\Livewire\Shop\System\SystemLogs::class)->name('admin.global-logs');
+    Route::get('/admin/ai-genui', \App\Livewire\Shop\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
     Route::get('/admin/person-profiles', \App\Livewire\Shop\Management\ManagementPersonProfiles::class)->name('admin.person-profiles');
     
-    Route::get('/admin/rollen', \App\Livewire\Global\Ai\AiRoleManager::class)->name('admin.rollen');
+    Route::get('/admin/rollen', \App\Livewire\Shop\Ai\AiRoleManager::class)->name('admin.rollen');
 
-    Route::get('/admin/agenten', \App\Livewire\Global\Ai\AiAgentManager::class)->name('admin.ai-agents');
+    Route::get('/admin/agenten', \App\Livewire\Shop\Ai\AiAgentManager::class)->name('admin.ai-agents');
 
-    Route::get('/admin/organigramm', \App\Livewire\Global\Ai\AiCompanyStructure::class)->name('admin.ai-company-structure');
-    Route::get('/admin/ki-agenten/{id}', \App\Livewire\Global\Ai\AiAgentEditor::class)->name('admin.ai-agents.editor');
-    Route::get('/admin/externe-agenten/{id}', \App\Livewire\Global\Ai\ExternalAgentEditor::class)->name('admin.external-agents.editor');
-    Route::get('/admin/ai-genui', \App\Livewire\Global\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
-    Route::get('/admin/ai-chat', \App\Livewire\Global\Ai\AiChat::class)->name('admin.ai-chat');
-    Route::get('/admin/ai-knowledge_base', \App\Livewire\Global\Ai\AiKnowledgeBase::class)->name('admin.ai-knowledge_base');
-    Route::get('/admin/system-info', \App\Livewire\Global\SystemInfo::class)->name('admin.system-info');
+    Route::get('/admin/organigramm', \App\Livewire\Shop\Ai\AiCompanyStructure::class)->name('admin.ai-company-structure');
+    Route::get('/admin/ki-agenten/{id}', \App\Livewire\Shop\Ai\AiAgentEditor::class)->name('admin.ai-agents.editor');
+    Route::get('/admin/externe-agenten/{id}', \App\Livewire\Shop\Ai\ExternalAgentEditor::class)->name('admin.external-agents.editor');
+    Route::get('/admin/ai-genui', \App\Livewire\Shop\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
+    Route::get('/admin/ai-chat', \App\Livewire\Shop\Ai\AiChat::class)->name('admin.ai-chat');
+    Route::get('/admin/ai-knowledge_base', \App\Livewire\Shop\Ai\AiKnowledgeBase::class)->name('admin.ai-knowledge_base');
+    Route::get('/admin/system-info', \App\Livewire\Shop\System\SystemInfo::class)->name('admin.system-info');
 
     // Benutzerverwaltung
     Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
@@ -373,7 +373,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {
     Route::get('/admin/password-reset/{token}', function ($token) {
-        return view('global/pages/password/password-reset', ['token' => $token]);
+        return view('auth.password-reset', ['token' => $token]);
     });
 });
 

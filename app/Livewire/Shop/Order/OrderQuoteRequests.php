@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Order;
 
 use Livewire\Attributes\Layout;
 
-use App\Mail\OrderMailToCustomer;
+use App\Mail\NewOrderMailToCustomer;
 use App\Models\Customer\Customer;
 use App\Models\Order\Order;
 use App\Models\Order\Quote\QuoteRequest;

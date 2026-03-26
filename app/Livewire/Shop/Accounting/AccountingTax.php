@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\Accounting;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Accounting\FinanceGroup;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingGroup;
+use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Order\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -165,7 +165,7 @@ class AccountingTax extends Component
             ->where('payment_status', 'paid')
             ->get();
 
-        $creditNotes = \App\Models\Accounting\Invoice::with('order')->whereYear('invoice_date', $this->selectedYear)
+        $creditNotes = \App\Models\Accounting\AccountingInvoice::with('order')->whereYear('invoice_date', $this->selectedYear)
             ->whereMonth('invoice_date', $month)
             ->whereIn('type', ['credit_note', 'cancellation'])
             ->whereIn('status', ['paid', 'cancelled'])
@@ -211,13 +211,13 @@ class AccountingTax extends Component
         $totalTax = $vatCollected + $igErwerbTax + $paragraph13bTax;
 
         // 2. AUSGABEN (Gewerblich Variabel & Fix)
-        $businessSpecials = FinanceSpecialIssue::where('admin_id', $adminId)
+        $businessSpecials = AccountingSpecialIssue::where('admin_id', $adminId)
             ->where('is_business', true)
             ->whereBetween('execution_date', [$startDate, $endDate])
             ->get();
 
         $businessFixed = collect();
-        $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
+        $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
             foreach ($group->items as $item) {
                 if ($item->is_business == 1 || $item->is_business === true) {
@@ -404,7 +404,7 @@ class AccountingTax extends Component
         $path = $file->storeAs('receipts', $filename, 'public');
 
         if ($type === 'variable') {
-            $issue = \App\Models\Accounting\FinanceSpecialIssue::find($itemId);
+            $issue = \App\Models\Accounting\AccountingSpecialIssue::find($itemId);
             if ($issue) {
                 $existing = $issue->file_paths ?? [];
                 $existing[] = $path;

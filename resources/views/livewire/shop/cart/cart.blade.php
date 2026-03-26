@@ -267,7 +267,7 @@
                     </div>
 
                     <div class="flex-1 overflow-y-auto custom-scrollbar relative bg-gray-50/30 p-0 sm:p-4">
-                        <livewire:shop.configurator.configurator
+                        <livewire:shop.product.product-configurator.product-configurator
                             :product="$editingItem->product"
                             :cartItem="$editingItem"
                             context="edit"

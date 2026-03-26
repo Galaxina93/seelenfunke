@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Shop\Accounting;
 
-use App\Models\Accounting\FinanceCategory;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingSpecialIssue;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Rule;
@@ -54,7 +54,7 @@ class AccountingQuickEntry extends Component
     // --- View Helpers ---
     public function getCategoriesProperty()
     {
-        return FinanceCategory::where('admin_id', $this->getAdminId())
+        return AccountingCategory::where('admin_id', $this->getAdminId())
             ->orderByDesc('usage_count')
             ->pluck('name');
     }
@@ -243,7 +243,7 @@ class AccountingQuickEntry extends Component
         // Prompt sagt: "Minus vorschreiben = negativ, nur Zahl = positiv".
         // Also nehmen wir den Wert 1:1, da der User das Vorzeichen selbst setzt.
 
-        FinanceSpecialIssue::create([
+        AccountingSpecialIssue::create([
             'admin_id' => $this->getAdminId(),
             'title' => $this->specialTitle,
             'category' => $this->specialCategory ?: 'Sonstiges',
@@ -270,7 +270,7 @@ class AccountingQuickEntry extends Component
     {
         if(empty($categoryName)) return;
 
-        $cat = FinanceCategory::withTrashed()
+        $cat = AccountingCategory::withTrashed()
             ->where('admin_id', $this->getAdminId())
             ->where('name', $categoryName)
             ->first();
@@ -281,7 +281,7 @@ class AccountingQuickEntry extends Component
             }
             $cat->increment('usage_count');
         } else {
-            FinanceCategory::create([
+            AccountingCategory::create([
                 'admin_id' => $this->getAdminId(),
                 'name' => $categoryName,
                 'usage_count' => 1

@@ -50,6 +50,6 @@
     </div>
 
     <div class="w-full xl:w-auto flex justify-center xl:justify-end mt-1 xl:mt-0 relative z-30">
-        @livewire('global.profile.profile-dropdown')
+        @livewire('auth.auth-profile-dropdown')
     </div>
 </div>

@@ -9,9 +9,9 @@ use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use App\Services\BankApiService;
-use App\Models\Accounting\BankAccount;
-use App\Models\Accounting\FinanceCategory;
-use App\Models\Accounting\BankTransaction;
+use App\Models\Accounting\AccountingBankAccount;
+use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingBankTransaction;
 
 #[Layout('components.layouts.backend_layout')]
 class AccountingBank extends Component
@@ -61,14 +61,14 @@ class AccountingBank extends Component
     {
         $adminId = auth('admin')->id();
 
-        $this->bankAccounts = BankAccount::where('admin_id', $adminId)
+        $this->bankAccounts = AccountingBankAccount::where('admin_id', $adminId)
             ->orderBy('bank_name')
             ->get()
             ->toArray();
             
-        $this->availableCategories = FinanceCategory::where('admin_id', $adminId)->orderBy('name')->get()->toArray();
+        $this->availableCategories = AccountingCategory::where('admin_id', $adminId)->orderBy('name')->get()->toArray();
 
-        $this->availableCostItems = \App\Models\Accounting\FinanceCostItem::whereHas('group', function ($q) use ($adminId) {
+        $this->availableCostItems = \App\Models\Accounting\AccountingCostItem::whereHas('group', function ($q) use ($adminId) {
             $q->where('admin_id', $adminId);
         })->orderBy('name')->get()->toArray();
 
@@ -83,7 +83,7 @@ class AccountingBank extends Component
 
     public function toggleBankActive($accountId)
     {
-        $account = BankAccount::find($accountId);
+        $account = AccountingBankAccount::find($accountId);
         if ($account && $account->admin_id === auth('admin')->id()) {
             $account->update([
                 'is_active_for_analysis' => !$account->is_active_for_analysis
@@ -96,7 +96,7 @@ class AccountingBank extends Component
 
     public function toggleBankBusiness($accountId)
     {
-        $account = BankAccount::find($accountId);
+        $account = AccountingBankAccount::find($accountId);
         if ($account && $account->admin_id === auth('admin')->id()) {
             $newStatus = !$account->is_business;
             
@@ -105,7 +105,7 @@ class AccountingBank extends Component
             ]);
 
             // Sync all underlying transactions to inherit the new account status natively.
-            BankTransaction::where('bank_account_id', $account->id)
+            AccountingBankTransaction::where('bank_account_id', $account->id)
                 ->update(['is_business' => null]);
 
             $this->loadBankAccounts();
@@ -123,7 +123,7 @@ class AccountingBank extends Component
     public function updatedQuickUploadFile()
     {
         if($this->uploadingBankTxId && $this->quickUploadFile) {
-            $tx = BankTransaction::find($this->uploadingBankTxId);
+            $tx = AccountingBankTransaction::find($this->uploadingBankTxId);
             if($tx && $tx->account->admin_id === auth('admin')->id()) {
                 $path = $this->quickUploadFile->store('financial/receipts', 'public');
 
@@ -142,7 +142,7 @@ class AccountingBank extends Component
 
     public function deleteReceipt($transactionId, $fileIndex)
     {
-        $tx = BankTransaction::find($transactionId);
+        $tx = AccountingBankTransaction::find($transactionId);
         if ($tx && $tx->account->admin_id === auth('admin')->id()) {
             $files = is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths;
             if (isset($files[$fileIndex])) {
@@ -159,45 +159,45 @@ class AccountingBank extends Component
 
     public function assignCategory($transactionId, $categoryId)
     {
-        $tx = BankTransaction::find($transactionId);
+        $tx = AccountingBankTransaction::find($transactionId);
         if ($tx) {
             $value = empty($categoryId) ? null : $categoryId;
             $tx->update([
-                'finance_category_id' => $value,
-                'finance_cost_item_id' => null, // Mutually exclusive
+                'accounting_category_id' => $value,
+                'accounting_cost_item_id' => null, // Mutually exclusive
                 'assigned_by_type' => 'admin',
                 'assigned_by_name' => 'Admin'
             ]);
             
             // Fix: System lernt von manueller Zuweisung!
             if ($value) {
-                $this->applyCategorizationRule($tx, 'finance_category_id', $value, true);
+                $this->applyCategorizationRule($tx, 'accounting_category_id', $value, true);
             }
         }
     }
 
     public function assignCostItem($transactionId, $costItemId)
     {
-        $tx = BankTransaction::find($transactionId);
+        $tx = AccountingBankTransaction::find($transactionId);
         if ($tx) {
             $value = empty($costItemId) ? null : $costItemId;
             $tx->update([
-                'finance_cost_item_id' => $value,
-                'finance_category_id' => null, // Mutually exclusive
+                'accounting_cost_item_id' => $value,
+                'accounting_category_id' => null, // Mutually exclusive
                 'assigned_by_type' => 'admin',
                 'assigned_by_name' => 'Admin'
             ]);
             
             // Fix: System lernt von manueller Zuweisung!
             if ($value) {
-                $this->applyCategorizationRule($tx, 'finance_cost_item_id', $value, true);
+                $this->applyCategorizationRule($tx, 'accounting_cost_item_id', $value, true);
             }
         }
     }
 
     public function toggleBusinessStatus($transactionId)
     {
-        $tx = BankTransaction::find($transactionId);
+        $tx = AccountingBankTransaction::find($transactionId);
         if ($tx) {
             // Null coalescing to inherit from parent BankAccount if previously unset
             $currentStatus = $tx->is_business ?? $tx->account->is_business;
@@ -207,7 +207,7 @@ class AccountingBank extends Component
 
     public function addTag($transactionId, $tag)
     {
-        $tx = BankTransaction::find($transactionId);
+        $tx = AccountingBankTransaction::find($transactionId);
         $cleanTag = trim(strtolower($tag));
         
         if ($tx && !empty($cleanTag)) {
@@ -221,7 +221,7 @@ class AccountingBank extends Component
 
     public function removeTag($transactionId, $tag)
     {
-        $tx = BankTransaction::find($transactionId);
+        $tx = AccountingBankTransaction::find($transactionId);
         if ($tx && is_array($tx->tags)) {
             $tags = array_filter($tx->tags, fn($t) => strcasecmp($t, $tag) !== 0);
             $tx->update(['tags' => array_values($tags)]);
@@ -281,15 +281,15 @@ class AccountingBank extends Component
                 $searchTerm = rtrim(mb_substr($searchTerm, 0, 50));
             }
 
-            $amountType = ($field === 'finance_cost_item_id') ? 'fix' : 'variable';
+            $amountType = ($field === 'accounting_cost_item_id') ? 'fix' : 'variable';
 
             // 4. Save to Engine
-            $existing = \App\Models\Accounting\FinanceCategorizationRule::where('admin_id', $adminId)
+            $existing = \App\Models\Accounting\AccountingCategorizationRule::where('admin_id', $adminId)
                 ->where('search_term', $searchTerm)
                 ->first();
 
             if (!$existing) {
-                \App\Models\Accounting\FinanceCategorizationRule::create([
+                \App\Models\Accounting\AccountingCategorizationRule::create([
                     'admin_id' => $adminId,
                     'search_term' => $searchTerm,
                     $field => $value,
@@ -299,8 +299,8 @@ class AccountingBank extends Component
             } else {
                 $existing->update([
                     $field => $value,
-                    'finance_category_id' => ($field === 'finance_category_id') ? $value : null,
-                    'finance_cost_item_id' => ($field === 'finance_cost_item_id') ? $value : null,
+                    'accounting_category_id' => ($field === 'accounting_category_id') ? $value : null,
+                    'accounting_cost_item_id' => ($field === 'accounting_cost_item_id') ? $value : null,
                     'amount_type' => $amountType
                 ]);
             }
@@ -315,15 +315,15 @@ class AccountingBank extends Component
     public function autoAssignTransactions($assignedByType = 'system', $assignedByName = 'Schablonen-Engine', $silent = false)
     {
         $adminId = auth('admin')->id();
-        $rules = \App\Models\Accounting\FinanceCategorizationRule::where('admin_id', $adminId)
+        $rules = \App\Models\Accounting\AccountingCategorizationRule::where('admin_id', $adminId)
             ->orderBy('priority', 'desc')
             ->get();
 
-        $unassignedTxs = BankTransaction::whereHas('account', function($q) use ($adminId) {
+        $unassignedTxs = AccountingBankTransaction::whereHas('account', function($q) use ($adminId) {
                 $q->where('admin_id', $adminId);
             })
-            ->whereNull('finance_category_id')
-            ->whereNull('finance_cost_item_id')
+            ->whereNull('accounting_category_id')
+            ->whereNull('accounting_cost_item_id')
             ->get();
 
         $assignedCount = 0;
@@ -331,17 +331,17 @@ class AccountingBank extends Component
         foreach ($unassignedTxs as $tx) {
             foreach ($rules as $rule) {
                 if ($rule->matches($tx)) {
-                    if ($rule->finance_cost_item_id) {
+                    if ($rule->accounting_cost_item_id) {
                         $tx->update([
-                            'finance_cost_item_id' => $rule->finance_cost_item_id,
+                            'accounting_cost_item_id' => $rule->accounting_cost_item_id,
                             'assigned_by_type' => $assignedByType,
                             'assigned_by_name' => $assignedByName
                         ]);
                         $assignedCount++;
                         break;
-                    } elseif ($rule->finance_category_id) {
+                    } elseif ($rule->accounting_category_id) {
                         $tx->update([
-                            'finance_category_id' => $rule->finance_category_id,
+                            'accounting_category_id' => $rule->accounting_category_id,
                             'assigned_by_type' => $assignedByType,
                             'assigned_by_name' => $assignedByName
                         ]);
@@ -379,12 +379,12 @@ class AccountingBank extends Component
         $adminId = auth('admin')->id();
 
         // 1. Fetch ALL possible unassigned transactions
-        $allTxs = BankTransaction::whereHas('account', function($q) use ($adminId) {
+        $allTxs = AccountingBankTransaction::whereHas('account', function($q) use ($adminId) {
                 $q->where('admin_id', $adminId);
             })
             ->where(function ($q) {
                 $q->where(function ($sub) {
-                    $sub->whereNull('finance_category_id')->whereNull('finance_cost_item_id');
+                    $sub->whereNull('accounting_category_id')->whereNull('accounting_cost_item_id');
                 })->orWhere('assigned_by_type', 'agent');
             })
             ->where(function($q) {
@@ -483,15 +483,15 @@ class AccountingBank extends Component
                             if ($catId !== null || $costId !== null) {
                                 // Update this single representative TX manually to ensure the engine learns it
                                 $currentTx->update([
-                                    'finance_category_id' => $catId,
-                                    'finance_cost_item_id' => $costId,
+                                    'accounting_category_id' => $catId,
+                                    'accounting_cost_item_id' => $costId,
                                     'assigned_by_type' => 'agent',
                                     'assigned_by_name' => 'Agent: ' . $agent->name
                                 ]);
                                 
                                 // Feed it back into the rule engine to learn (pass false to skip N+1 autoAssign)
-                                if ($catId) $this->applyCategorizationRule($currentTx, 'finance_category_id', $catId, false);
-                                if ($costId) $this->applyCategorizationRule($currentTx, 'finance_cost_item_id', $costId, false);
+                                if ($catId) $this->applyCategorizationRule($currentTx, 'accounting_category_id', $catId, false);
+                                if ($costId) $this->applyCategorizationRule($currentTx, 'accounting_cost_item_id', $costId, false);
                                 
                                 $learnedRules++;
                             }
@@ -557,7 +557,7 @@ class AccountingBank extends Component
             $accounts = $finapi->getAccounts($userToken);
 
             foreach ($accounts as $acc) {
-                BankAccount::updateOrCreate(
+                AccountingBankAccount::updateOrCreate(
                     ['plaid_account_id' => (string) $acc['id']],
                     [
                         'admin_id' => $adminId,
@@ -601,7 +601,7 @@ class AccountingBank extends Component
             }
 
             foreach ($accounts as $acc) {
-                $bankAccount = BankAccount::updateOrCreate(
+                $bankAccount = AccountingBankAccount::updateOrCreate(
                     ['plaid_account_id' => (string) $acc['id']],
                     [
                         'admin_id' => $adminId,
@@ -619,7 +619,7 @@ class AccountingBank extends Component
                 // TRANSAKTIONEN LADEN WIE BEI EINZEL-SYNC
                 $txs = $finapi->getTransactions($userToken, $bankAccount->plaid_account_id, 200);
                 foreach($txs as $apiTx) {
-                    \App\Models\Accounting\BankTransaction::updateOrCreate(
+                    \App\Models\Accounting\AccountingBankTransaction::updateOrCreate(
                         ['finapi_transaction_id' => (string) $apiTx['id']],
                         [
                             'bank_account_id' => $bankAccount->id,
@@ -655,7 +655,7 @@ class AccountingBank extends Component
     {
         $this->isLoading = true;
         try {
-            $account = BankAccount::find($accountId);
+            $account = AccountingBankAccount::find($accountId);
             if($account) {
                 $adminId = auth('admin')->id();
                 $userToken = $finapi->getUserToken($adminId);
@@ -673,7 +673,7 @@ class AccountingBank extends Component
                         // TRANSAKTIONEN LADEN
                         $txs = $finapi->getTransactions($userToken, $account->plaid_account_id, 200);
                         foreach($txs as $apiTx) {
-                            \App\Models\Accounting\BankTransaction::updateOrCreate(
+                            \App\Models\Accounting\AccountingBankTransaction::updateOrCreate(
                                 ['finapi_transaction_id' => (string) $apiTx['id']],
                                 [
                                     'bank_account_id' => $account->id,
@@ -708,7 +708,7 @@ class AccountingBank extends Component
     
     public function disconnectAccount($accountId) 
     {
-        $account = BankAccount::find($accountId);
+        $account = AccountingBankAccount::find($accountId);
         if ($account) {
             $account->delete();
             $this->loadBankAccounts();
@@ -718,7 +718,7 @@ class AccountingBank extends Component
 
     public function render()
     {
-        $query = BankTransaction::query();
+        $query = AccountingBankTransaction::query();
 
         // 1. Bank Account Filter
         if ($this->selectedAccountId) {
@@ -748,9 +748,9 @@ class AccountingBank extends Component
 
         // 3. Category
         if ($this->filterCategoryId === 'unassigned') {
-            $query->whereNull('finance_category_id');
+            $query->whereNull('accounting_category_id');
         } elseif (!empty($this->filterCategoryId)) {
-            $query->where('finance_category_id', $this->filterCategoryId);
+            $query->where('accounting_category_id', $this->filterCategoryId);
         }
 
         // 4. Amount Type

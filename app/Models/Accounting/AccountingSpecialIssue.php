@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Models\Accounting;
+
+use App\Models\Admin\Admin;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class AccountingSpecialIssue extends Model
+{
+    use HasUuids;
+
+    protected $guarded = [];
+    protected $casts = [
+        'execution_date' => 'date',
+        'amount' => 'decimal:2',
+        'is_business' => 'boolean',
+        'file_paths' => 'array',
+        'tax_rate' => 'integer'
+    ];
+
+    public function admin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class);
+    }
+}

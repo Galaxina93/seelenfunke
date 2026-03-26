@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\Accounting;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Accounting\FinanceCategory;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingSpecialIssue;
 use App\Services\FinancialService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;

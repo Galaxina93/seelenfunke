@@ -5,7 +5,7 @@ namespace App\Livewire\Shop\Accounting;
 use Livewire\Attributes\Layout;
 
 use App\Models\Customer\Customer;
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use App\Services\InvoiceService;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -100,11 +100,11 @@ class AccountingCredit extends Component
         if ($id) {
             $customer = Customer::find($id);
             if ($customer) {
-                $totalCredits = Invoice::where('customer_id', $id)
+                $totalCredits = AccountingInvoice::where('customer_id', $id)
                     ->whereIn('type', ['credit_note', 'cancellation'])
                     ->count();
 
-                $totalVolume = Invoice::where('customer_id', $id)
+                $totalVolume = AccountingInvoice::where('customer_id', $id)
                     ->whereIn('type', ['credit_note', 'cancellation'])
                     ->sum('total');
 
@@ -121,7 +121,7 @@ class AccountingCredit extends Component
 
     public function sendCreditEmail($invoiceId)
     {
-        $invoice = Invoice::find($invoiceId);
+        $invoice = AccountingInvoice::find($invoiceId);
         if ($invoice && $invoice->customer) {
 
             // Asynchrones Dispatching an den Mail-Worker
@@ -137,7 +137,7 @@ class AccountingCredit extends Component
 
     public function markAsSent($invoiceId)
     {
-        $invoice = Invoice::find($invoiceId);
+        $invoice = AccountingInvoice::find($invoiceId);
         if ($invoice) {
             $invoice->update(['email_sent_at' => now()]);
             session()->flash('success', 'Gutschrift wurde als versendet markiert (ohne E-Mail Versand).');
@@ -231,7 +231,7 @@ class AccountingCredit extends Component
     public function render()
     {
         // Alle Rechnungen vom Typ Gutschrift oder Storno
-        $credits = Invoice::whereIn('type', ['credit_note', 'cancellation'])
+        $credits = AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])
             ->when($this->search, function ($query) {
                 $query->where('invoice_number', 'like', "%{$this->search}%")
                       ->orWhereHas('customer', function ($q) {
@@ -253,9 +253,9 @@ class AccountingCredit extends Component
         }
 
         $stats = [
-            'total_credits' => Invoice::whereIn('type', ['credit_note', 'cancellation'])->count(),
-            'total_volume' => Invoice::whereIn('type', ['credit_note', 'cancellation'])->sum('total'),
-            'this_month' => Invoice::whereIn('type', ['credit_note', 'cancellation'])
+            'total_credits' => AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->count(),
+            'total_volume' => AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->sum('total'),
+            'this_month' => AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])
                                    ->whereMonth('created_at', now()->month)
                                    ->whereYear('created_at', now()->year)
                                    ->count(),

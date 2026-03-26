@@ -205,7 +205,7 @@
                         </div>
 
                         <div class="flex-1 flex justify-end min-w-0">
-                            @livewire('global.profile.profile-dropdown')
+                            @livewire('auth.auth-profile-dropdown')
                         </div>
 
                     </div>
@@ -229,8 +229,8 @@
     </div>
 
     @if($guard !== 'customer')
-        <livewire:global.ai.ai-widget />
-        <livewire:global.ai.ai-data-visualization />
+        <livewire:shop.ai.ai-widget />
+        <livewire:shop.ai.ai-data-visualization />
     @endif
 
 </div> {{-- ENDE DES GLOBALEN ALPINE STATES --}}

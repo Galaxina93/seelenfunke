@@ -2,7 +2,7 @@
 
 namespace App\Models\Order;
 
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use App\Models\Customer\Customer; // GEÄNDERT: Customer statt User
 use App\Traits\FormatsECommerceData;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -129,6 +129,6 @@ class Order extends Model
 
     public function invoices()
     {
-        return $this->hasMany(Invoice::class);
+        return $this->hasMany(AccountingInvoice::class);
     }
 }

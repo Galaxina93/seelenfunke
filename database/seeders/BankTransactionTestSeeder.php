@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Accounting\BankAccount;
-use App\Models\Accounting\BankTransaction;
+use App\Models\Accounting\AccountingBankAccount;
+use App\Models\Accounting\AccountingBankTransaction;
 use App\Models\Admin\Admin;
 
 class BankTransactionTestSeeder extends Seeder
@@ -18,7 +18,7 @@ class BankTransactionTestSeeder extends Seeder
         }
 
         // Dummy Bankkonto erstellen
-        $account = BankAccount::firstOrCreate(
+        $account = AccountingBankAccount::firstOrCreate(
             ['plaid_account_id' => 'dummy_test_acc_99'],
             [
                 'admin_id' => $admin->id,
@@ -36,7 +36,7 @@ class BankTransactionTestSeeder extends Seeder
         );
 
         // Alte Test-Transaktionen von diesem Konto löschen, für sauberen Neu-Start
-        BankTransaction::where('bank_account_id', $account->id)->delete();
+        AccountingBankTransaction::where('bank_account_id', $account->id)->delete();
 
         // Harte Test Cases
         $transactions = [
@@ -105,7 +105,7 @@ class BankTransactionTestSeeder extends Seeder
 
         $today = now();
         foreach ($transactions as $i => $tx) {
-            BankTransaction::create([
+            AccountingBankTransaction::create([
                 'bank_account_id' => $account->id,
                 'finapi_transaction_id' => 'dummy_tx_' . time() . '_' . $i,
                 'amount' => $tx['amount'],

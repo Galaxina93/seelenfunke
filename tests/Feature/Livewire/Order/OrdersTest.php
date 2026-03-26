@@ -121,7 +121,7 @@ class OrdersTest extends TestCase
         $order = $this->createOrder();
         
         // Simuliere vorhandene Rechnung
-        Invoice::create([
+        AccountingInvoice::create([
             'order_id' => $order->id,
             'invoice_number' => 'RE-2024-1000',
             'type' => 'invoice',

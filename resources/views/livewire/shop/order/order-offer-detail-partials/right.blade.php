@@ -17,7 +17,7 @@
                 <div class="bg-transparent relative w-full flex flex-col min-h-[500px] flex-1">
                     @if($previewItem->product)
                         <div class="w-full flex-1 relative flex flex-col">
-                            <livewire:shop.configurator.configurator
+                            <livewire:shop.product.product-configurator.product-configurator
                                 :product="$previewItem->product->id"
                                 :initialData="$previewItem->configuration"
                                 :qty="$previewItem->quantity"

@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -41,7 +41,7 @@ class CreditNoteMailToCustomer extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'emails.credit-note',
+            view: 'global.mails.credit_note_mail_to_customer',
         );
     }
 

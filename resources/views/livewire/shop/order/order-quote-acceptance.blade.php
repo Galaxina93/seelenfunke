@@ -42,7 +42,7 @@
                         Wir nutzen den Configurator im 'calculator' Context.
                         Dieser emittet 'calculator-save', was wir in QuoteAcceptance.php abfangen.
                     --}}
-                    <livewire:shop.configurator.configurator
+                    <livewire:shop.product.product-configurator.product-configurator
                         :product="$editingItem->product"
                         :initialData="$editingItem->configuration"
                         :qty="$editingItem->quantity"

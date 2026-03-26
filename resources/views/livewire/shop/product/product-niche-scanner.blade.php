@@ -226,7 +226,7 @@
                 </h4>
 
                 <div class="flex justify-center">
-                    @include('livewire.global.ai.ask-ai-dropdown', ['actionMethod' => 'startAiRecommendation', 'buttonText' => 'Analysieren'])
+                    @include('livewire.shop.ai.ask-ai-dropdown', ['actionMethod' => 'startAiRecommendation', 'buttonText' => 'Analysieren'])
                 </div>
 
                 @if($aiRecommendation)

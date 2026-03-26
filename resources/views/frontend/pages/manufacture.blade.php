@@ -320,7 +320,7 @@
         </section>
 
         {{--Contact Section--}}
-        @livewire('global.widgets.contact-form')
+        @livewire('frontend.contact-form')
 
     </x-sections.page-container>
 </x-layouts.frontend_layout>

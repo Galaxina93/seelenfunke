@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\PaymentReceivedMail;
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use App\Models\Order\Order;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
@@ -58,7 +58,7 @@ class StripeWebhookController extends Controller
 
                     // B) RECHNUNG aktualisieren (falls vorhanden)
                     try {
-                        $invoice = Invoice::where('order_id', $order->id)
+                        $invoice = AccountingInvoice::where('order_id', $order->id)
                             ->where('type', 'invoice')
                             ->first();
 

@@ -438,7 +438,7 @@ class ManagementEMails extends Component
 
             // Senden ausführen
             Mail::mailer('dynamic')->to($this->composeTo)->send(
-                new \App\Mail\CrmOutgoingMail(
+                new \App\Mail\CrmOutgoingMailToCustomer(
                     $this->composeSubject,
                     $bodyHtml,
                     $signatureHtml,
@@ -457,7 +457,7 @@ class ManagementEMails extends Component
                 'from_email' => $account->email,
                 'to_email' => $this->composeTo,
                 'body_plain' => $this->composeBody,
-                'body_html' => view('emails.crm-outgoing', compact('bodyHtml', 'signatureHtml'))->render(),
+                'body_html' => view('global.mails.crm_outgoing_mail_to_customer', compact('bodyHtml', 'signatureHtml'))->render(),
                 'is_read' => true,
                 'received_at' => now()
             ]);

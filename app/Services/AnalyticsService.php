@@ -12,10 +12,10 @@ use App\Models\Tracking\PageVisit; // Geändert auf deinen neuen Namespace!
 use App\Models\LoginAttempt;
 use App\Models\Order\Order;
 use App\Models\Order\OrderItem;
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use App\Models\Product\Product;
-use App\Models\Accounting\FinanceSpecialIssue;
-use App\Models\Accounting\FinanceCostItem;
+use App\Models\Accounting\AccountingSpecialIssue;
+use App\Models\Accounting\AccountingCostItem;
 use Spatie\Backup\Tasks\Monitor\BackupDestinationStatusFactory;
 
 class AnalyticsService
@@ -52,7 +52,7 @@ class AnalyticsService
 
     private function checkSpecialIssues(): array
     {
-        $missing = FinanceSpecialIssue::where(function ($query) {
+        $missing = AccountingSpecialIssue::where(function ($query) {
             $query->whereNull('file_paths')
                 ->orWhere('file_paths', '[]')
                 ->orWhere('file_paths', '');
@@ -70,7 +70,7 @@ class AnalyticsService
 
     private function checkContracts(): array
     {
-        $missing = FinanceCostItem::whereNull('contract_file_path')->with('group')->get();
+        $missing = AccountingCostItem::whereNull('contract_file_path')->with('group')->get();
 
         return [
             'title' => 'Verträge',
@@ -236,7 +236,7 @@ class AnalyticsService
         // ==========================================
         $chartData = ['labels' => [], 'revenue' => [], 'expenses' => [], 'profit' => []];
 
-        $costItemsQuery = FinanceCostItem::query();
+        $costItemsQuery = AccountingCostItem::query();
         if ($filterType === 'business') $costItemsQuery->where('is_business', true);
         if ($filterType === 'private') $costItemsQuery->where('is_business', false);
         $allCostItems = $costItemsQuery->get();
@@ -256,7 +256,7 @@ class AnalyticsService
                     else $fixedExpenseDay += abs($dailyAmount);
                 }
 
-                $specials = FinanceSpecialIssue::whereBetween('execution_date', [$dayStart, $dayEnd])
+                $specials = AccountingSpecialIssue::whereBetween('execution_date', [$dayStart, $dayEnd])
                     ->when($filterType === 'business', fn($q) => $q->where('is_business', true))
                     ->when($filterType === 'private', fn($q) => $q->where('is_business', false))
                     ->get();
@@ -301,7 +301,7 @@ class AnalyticsService
                     else $fixedExpenseMonth += abs($periodAmount);
                 }
 
-                $specials = FinanceSpecialIssue::whereBetween('execution_date', [$mStart, $mEnd])
+                $specials = AccountingSpecialIssue::whereBetween('execution_date', [$mStart, $mEnd])
                     ->when($filterType === 'business', fn($q) => $q->where('is_business', true))
                     ->when($filterType === 'private', fn($q) => $q->where('is_business', false))
                     ->get();
@@ -323,7 +323,7 @@ class AnalyticsService
             }
         }
 
-        $topExpenses = FinanceSpecialIssue::whereBetween('execution_date', [$start, $end])
+        $topExpenses = AccountingSpecialIssue::whereBetween('execution_date', [$start, $end])
             ->where('amount', '<', 0)
             ->when($filterType !== 'all', fn($q) => $q->where('is_business', $filterType === 'business'))
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
@@ -351,7 +351,7 @@ class AnalyticsService
         $fixGewerbe = $allCostItems->where('is_business', true)->where('amount', '<', 0)->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
         $fixPrivat = $allCostItems->where('is_business', false)->where('amount', '<', 0)->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
 
-        $variableExpensesTotal = FinanceSpecialIssue::whereBetween('execution_date', [$start, $end])
+        $variableExpensesTotal = AccountingSpecialIssue::whereBetween('execution_date', [$start, $end])
             ->where('amount', '<', 0)
             ->when($filterType !== 'all', fn($q) => $q->where('is_business', $filterType === 'business'))
             ->sum(DB::raw('ABS(amount)'));
@@ -369,8 +369,8 @@ class AnalyticsService
 
         // Vorberechnung für Health Score & Return Array
         $fixedIncomeTotal = $allCostItems->where('amount', '>', 0)->sum(fn($i) => $i->amount / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
-        $pendingInvoicesCount = Invoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->count();
-        $pendingInvoicesSum = Invoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->sum('total') / 100;
+        $pendingInvoicesCount = AccountingInvoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->count();
+        $pendingInvoicesSum = AccountingInvoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->sum('total') / 100;
 
         // ==========================================
         // SHOP HEALTH SCORE (0 - 100)
@@ -485,7 +485,7 @@ class AnalyticsService
     private function calculateRevenueForPeriod($start, $end, $filterType)
     {
         $shop = ($filterType !== 'private') ? Order::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0;
-        $special = FinanceSpecialIssue::whereBetween('execution_date', [$start, $end])->where('amount', '>=', 0)->when($filterType !== 'all', fn($q) => $q->where('is_business', $filterType === 'business'))->sum('amount');
+        $special = AccountingSpecialIssue::whereBetween('execution_date', [$start, $end])->where('amount', '>=', 0)->when($filterType !== 'all', fn($q) => $q->where('is_business', $filterType === 'business'))->sum('amount');
         return $shop + $special;
     }
 

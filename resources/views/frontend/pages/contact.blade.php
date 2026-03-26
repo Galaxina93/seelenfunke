@@ -2,7 +2,7 @@
 
     <x-sections.page-container>
 
-        @livewire('global.widgets.contact-form')
+        @livewire('frontend.contact-form')
 
     </x-sections.page-container>
 

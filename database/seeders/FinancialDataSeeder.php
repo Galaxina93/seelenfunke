@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
-use App\Models\Accounting\FinanceCategory;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Order\Order;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -24,7 +24,7 @@ class FinancialDataSeeder extends Seeder
         // 1. Kategorien anlegen
         $categories = ['Wareneinkauf', 'Werbung & Marketing', 'Büromaterial', 'Porto & Logistik', 'Consulting & Setup'];
         foreach ($categories as $cat) {
-            FinanceCategory::firstOrCreate(['admin_id' => $admin->id, 'name' => $cat]);
+            AccountingCategory::firstOrCreate(['admin_id' => $admin->id, 'name' => $cat]);
         }
 
         // Dummy Customer für die Sales
@@ -37,7 +37,7 @@ class FinancialDataSeeder extends Seeder
         ]);
 
         // ALTE TESTDATEN LÖSCHEN UM DOPPELUNGEN ZU VERMEIDEN
-        FinanceSpecialIssue::where('admin_id', $admin->id)->whereYear('execution_date', '>=', 2027)->delete();
+        AccountingSpecialIssue::where('admin_id', $admin->id)->whereYear('execution_date', '>=', 2027)->delete();
         Order::where('email', 'demokunde@seelenfunke.local')->delete();
 
         // JAHRESVERLAUF 2027 & 2028
@@ -101,7 +101,7 @@ class FinancialDataSeeder extends Seeder
         $allExpenses = array_merge($expenses2027, $expenses2028);
 
         foreach ($allExpenses as $exp) {
-            FinanceSpecialIssue::create([
+            AccountingSpecialIssue::create([
                 'id' => (string) Str::uuid(),
                 'admin_id' => $admin->id,
                 'title' => $exp['title'],

@@ -3,10 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\Admin\Admin;
-use App\Models\Accounting\FinanceCategory;
-use App\Models\Accounting\FinanceCostItem;
-use App\Models\Accounting\FinanceGroup;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingCostItem;
+use App\Models\Accounting\AccountingGroup;
+use App\Models\Accounting\AccountingSpecialIssue;
 use Illuminate\Database\Seeder;
 
 class FinancialSeeder extends Seeder
@@ -60,7 +60,7 @@ class FinancialSeeder extends Seeder
         ];
 
         foreach ($categories as $catName) {
-            FinanceCategory::updateOrCreate(
+            AccountingCategory::updateOrCreate(
                 [
                     'admin_id' => $admin->id,
                     'name'     => $catName
@@ -85,7 +85,7 @@ class FinancialSeeder extends Seeder
         $createdGroups = [];
 
         foreach ($groupsData as $name => $data) {
-            $group = FinanceGroup::create([
+            $group = AccountingGroup::create([
                 'admin_id' => $admin->id,
                 'name'     => $name,
                 'type'     => $data['type'],
@@ -395,8 +395,8 @@ class FinancialSeeder extends Seeder
         ];
 
         foreach ($items as $item) {
-            FinanceCostItem::create([
-                'finance_group_id'   => $createdGroups[$item['group']],
+            AccountingCostItem::create([
+                'accounting_group_id'   => $createdGroups[$item['group']],
                 'name'               => $item['name'],
                 'amount'             => $item['amount'],
                 'interval_months'    => $item['interval'],
@@ -603,7 +603,7 @@ class FinancialSeeder extends Seeder
         ];
 
         foreach ($specialIssues as $issue) {
-            FinanceSpecialIssue::create([
+            AccountingSpecialIssue::create([
                 'admin_id'       => $admin->id,
                 'title'          => $issue['title'],
                 'location'       => $issue['location'],

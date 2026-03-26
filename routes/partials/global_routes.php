@@ -3,8 +3,8 @@
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NewsletterController;
 use App\Livewire\Shop\Cart\Cart;
-use App\Livewire\Shop\Checkout\Checkout;
-use App\Livewire\Shop\Checkout\CheckoutSuccess;
+use App\Livewire\Shop\Order\OrderCheckout\OrderCheckout;
+use App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess;
 use App\Livewire\Shop\Marketing\MarketingNewsletterPage;
 use App\Livewire\Shop\Order\OrderQuoteAcceptance;
 use App\Livewire\Shop\Product\ProductIndex;
@@ -14,8 +14,8 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Request; // Fassade für Request::ip()
 use Illuminate\Support\Facades\Route;
-use App\Livewire\Shop\Blog\BlogFrontendIndex;
-use App\Livewire\Shop\Blog\BlogFrontendShow;
+use App\Livewire\Shop\Marketing\MarketingBlogIndex;
+use App\Livewire\Shop\Marketing\MarketingBlogShow;
 use Illuminate\Auth\Events\Verified;
 
 /*
@@ -43,8 +43,8 @@ Route::get('/newsletter', MarketingNewsletterPage::class)->name('newsletter.page
 Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])->name('newsletter.verify');
 
 // Der Checkout
-Route::get('/checkout', Checkout::class)->name('checkout');
-Route::get('/checkout/success', CheckoutSuccess::class)->name('checkout.success');
+Route::get('/checkout', OrderCheckout::class)->name('checkout');
+Route::get('/checkout/success', OrderCheckoutSuccess::class)->name('checkout.success');
 
 // Angebot annehmen
 Route::get('/angebot/{token}/annehmen', OrderQuoteAcceptance::class)->name('quote.accept');
@@ -95,10 +95,10 @@ Route::get('/manufaktur', function () {
 
 Route::get('/shop', ProductIndex::class)->name('shop');
 
-Route::get('/blog', BlogFrontendIndex::class)->name('blog');
+Route::get('/blog', MarketingBlogIndex::class)->name('blog');
 
 // Blog Einzelansicht (muss nach der Übersicht kommen, damit "magazin" nicht als Slug interpretiert wird)
-Route::get('/blog/{slug}', BlogFrontendShow::class)->name('blog.show');
+Route::get('/blog/{slug}', MarketingBlogShow::class)->name('blog.show');
 
 // Kontakt
 Route::get('/kontakt', function () {
@@ -155,12 +155,12 @@ Route::redirect('/datenschutzerklaerung', '/datenschutz');
 // --- 5. Authentifizierung & Kundenbereich ---
 
 Route::get('/login', function () {
-    return view('global/pages/auth/login');
+    return view('auth.login');
 })->middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->name('login');
 
 
 // REGISTRATIONS ROUTE (Name korrigiert zu 'livewire.auth.register')
-Route::get('/register', App\Livewire\Global\Auth\Register::class)->name('livewire.global.auth.register');
+Route::get('/register', App\Livewire\Auth\AuthRegister::class)->name('livewire.auth.register');
 
 // Zeigt den Hinweis an, dass der User seine E-Mail bestätigen muss (nur wenn eingeloggter User unbestätigt ist)
 Route::get('/email/verify', function () {

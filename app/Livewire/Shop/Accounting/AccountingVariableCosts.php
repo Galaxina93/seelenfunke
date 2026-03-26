@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\Accounting;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Accounting\FinanceCategory;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingSpecialIssue;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -65,11 +65,11 @@ class AccountingVariableCosts extends Component
 
     public function getManageableCategoriesProperty()
     {
-        return FinanceCategory::where('admin_id', $this->getAdminId())
+        return AccountingCategory::where('admin_id', $this->getAdminId())
             ->addSelect([
-                'usage_count' => FinanceSpecialIssue::selectRaw('count(*)')
-                    ->whereColumn('category', 'finance_categories.name')
-                    ->whereColumn('admin_id', 'finance_categories.admin_id')
+                'usage_count' => AccountingSpecialIssue::selectRaw('count(*)')
+                    ->whereColumn('category', 'accounting_categories.name')
+                    ->whereColumn('admin_id', 'accounting_categories.admin_id')
             ])
             ->orderBy('name')
             ->get();
@@ -79,9 +79,9 @@ class AccountingVariableCosts extends Component
 
     public function createCategory()
     {
-        $this->validate(['newCategoryName' => 'required|min:3|unique:finance_categories,name,NULL,id,admin_id,' . $this->getAdminId()]);
+        $this->validate(['newCategoryName' => 'required|min:3|unique:accounting_categories,name,NULL,id,admin_id,' . $this->getAdminId()]);
 
-        FinanceCategory::create([
+        AccountingCategory::create([
             'admin_id' => $this->getAdminId(),
             'name' => $this->newCategoryName,
             'usage_count' => 0
@@ -108,9 +108,9 @@ class AccountingVariableCosts extends Component
         if (!$this->editingCategoryId) return;
         $this->validate(['editCategoryName' => 'required|min:3']);
 
-        $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($this->editingCategoryId);
+        $cat = AccountingCategory::where('admin_id', $this->getAdminId())->find($this->editingCategoryId);
         if ($cat) {
-            FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+            AccountingSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $cat->name)
                 ->update(['category' => $this->editCategoryName]);
 
@@ -123,10 +123,10 @@ class AccountingVariableCosts extends Component
 
     public function deleteCategory($id)
     {
-        $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($id);
+        $cat = AccountingCategory::where('admin_id', $this->getAdminId())->find($id);
         if (!$cat) return;
 
-        $usage = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+        $usage = AccountingSpecialIssue::where('admin_id', $this->getAdminId())
             ->where('category', $cat->name)
             ->count();
 
@@ -151,15 +151,15 @@ class AccountingVariableCosts extends Component
     {
         $this->validate(['targetCategoryId' => 'required']);
 
-        $oldCat = FinanceCategory::find($this->categoryToDeleteId);
-        $newCat = FinanceCategory::find($this->targetCategoryId);
+        $oldCat = AccountingCategory::find($this->categoryToDeleteId);
+        $newCat = AccountingCategory::find($this->targetCategoryId);
 
         if ($oldCat && $newCat) {
-            FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+            AccountingSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $oldCat->name)
                 ->update(['category' => $newCat->name]);
 
-            $countMoved = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+            $countMoved = AccountingSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $newCat->name)
                 ->count();
 
@@ -176,7 +176,7 @@ class AccountingVariableCosts extends Component
 
     public function updateCategoryType($categoryId, $isBusiness)
     {
-        $cat = FinanceCategory::where('admin_id', $this->getAdminId())->find($categoryId);
+        $cat = AccountingCategory::where('admin_id', $this->getAdminId())->find($categoryId);
         if ($cat) {
             $cat->update(['is_business' => filter_var($isBusiness, FILTER_VALIDATE_BOOLEAN)]);
             session()->flash('success', 'Kategorie Typ aktualisiert.');
@@ -185,7 +185,7 @@ class AccountingVariableCosts extends Component
 
     public function updateSpecialField($id, $field, $value)
     {
-        $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+        $special = AccountingSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
         if ($special) {
             if ($field === 'amount') {
                 $value = (float) str_replace(',', '.', $value);
@@ -207,9 +207,9 @@ class AccountingVariableCosts extends Component
     {
         $model = null;
         if ($type === 'special') {
-            $model = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+            $model = AccountingSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
         } elseif ($type === 'bank_tx') {
-            $model = \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+            $model = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
         }
 
         if ($model) {
@@ -229,7 +229,7 @@ class AccountingVariableCosts extends Component
             // Not supported for legacy yet
             return;
         } elseif ($type === 'bank_tx') {
-            $model = \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+            $model = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
         }
 
         $cleanTag = trim(strtolower($tag));
@@ -248,7 +248,7 @@ class AccountingVariableCosts extends Component
         if ($type === 'special') {
             return;
         } elseif ($type === 'bank_tx') {
-            $model = \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+            $model = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
         }
 
         if ($model && is_array($model->tags)) {
@@ -261,9 +261,9 @@ class AccountingVariableCosts extends Component
     {
         $model = null;
         if ($type === 'special') {
-            $model = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+            $model = AccountingSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
         } elseif ($type === 'bank_tx') {
-            $model = \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+            $model = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
         }
 
         if ($model) {
@@ -282,7 +282,7 @@ class AccountingVariableCosts extends Component
 
     public function deleteSpecial($id)
     {
-        $special = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+        $special = AccountingSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
         if ($special) {
             $files = $special->file_paths;
             if (is_string($files)) {
@@ -314,9 +314,9 @@ class AccountingVariableCosts extends Component
                 
                 $model = null;
                 if ($type === 'special') {
-                    $model = FinanceSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
+                    $model = AccountingSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
                 } elseif ($type === 'bank_tx') {
-                    $model = \App\Models\Accounting\BankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
+                    $model = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $this->getAdminId()))->find($id);
                 }
 
                 if($model) {
@@ -340,7 +340,7 @@ class AccountingVariableCosts extends Component
 
     private function refreshChartData()
     {
-        $chartDataObj = FinanceSpecialIssue::where('admin_id', $this->getAdminId())
+        $chartDataObj = AccountingSpecialIssue::where('admin_id', $this->getAdminId())
             ->where('amount', '<', 0)
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')
@@ -358,7 +358,7 @@ class AccountingVariableCosts extends Component
         $adminId = $this->getAdminId();
 
         // 1. Fetch Special Issues
-        $specialsData = FinanceSpecialIssue::where('admin_id', $adminId)->get()->map(function($item) {
+        $specialsData = AccountingSpecialIssue::where('admin_id', $adminId)->get()->map(function($item) {
             return [
                 'type' => 'special',
                 'id' => $item->id,
@@ -378,14 +378,14 @@ class AccountingVariableCosts extends Component
 
         // 2. Fetch Unassigned Bank Transactions
         $bankTxData = collect();
-        if (class_exists(\App\Models\Accounting\BankTransaction::class)) {
-            $bankTxData = \App\Models\Accounting\BankTransaction::whereHas('account', function($query) use ($adminId) {
+        if (class_exists(\App\Models\Accounting\AccountingBankTransaction::class)) {
+            $bankTxData = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($query) use ($adminId) {
                     $query->where('admin_id', $adminId);
                 })
-                ->whereNull('finance_cost_item_id')
+                ->whereNull('accounting_cost_item_id')
                 ->where(function($q) {
-                    $q->whereNull('finance_category_id')->orWhereNotIn('finance_category_id', function($sub) {
-                        $sub->select('id')->from('finance_categories');
+                    $q->whereNull('accounting_category_id')->orWhereNotIn('accounting_category_id', function($sub) {
+                        $sub->select('id')->from('accounting_categories');
                     });
                 })
                 ->get()
@@ -444,7 +444,7 @@ class AccountingVariableCosts extends Component
         );
 
         // Initiale Chart Data
-        $chartDataObj = FinanceSpecialIssue::where('admin_id', $adminId)
+        $chartDataObj = AccountingSpecialIssue::where('admin_id', $adminId)
             ->where('amount', '<', 0)
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')

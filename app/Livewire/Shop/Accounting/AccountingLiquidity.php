@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\Accounting;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Accounting\FinanceGroup;
-use App\Models\Accounting\FinanceSpecialIssue;
+use App\Models\Accounting\AccountingGroup;
+use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Order\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -292,7 +292,7 @@ class AccountingLiquidity extends Component
             }
         }
 
-        $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
+        $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
             foreach ($group->items as $item) {
                 // Dynamische Behandlung von "ALG / Gründerzuschuss" (maximal robustes Keyword Matching)
@@ -329,7 +329,7 @@ class AccountingLiquidity extends Component
             }
         }
 
-        $specials = FinanceSpecialIssue::where('admin_id', $adminId)->get();
+        $specials = AccountingSpecialIssue::where('admin_id', $adminId)->get();
         foreach ($specials as $special) {
             $date = Carbon::parse($special->execution_date);
             $y = $date->year;

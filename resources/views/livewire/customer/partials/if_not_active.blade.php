@@ -11,7 +11,7 @@
             --}}
 {{-- GLOBALE PROFIL NAVIGATION (Zentralisiert) --}}{{--
 
-            @livewire('global.profile.profile-dropdown')
+            @livewire('auth.auth-profile-dropdown')
         </div>
 
         <div x-data="optInScreen()" @mousemove="handleMouse($event)" @mouseleave="resetMouse()" class="max-w-[1600px] mx-auto bg-gray-900 rounded-none shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-y border-gray-800 relative p-8 md:p-20 flex flex-col md:flex-row items-center gap-16 overflow-hidden transition-all duration-700 mt-12">

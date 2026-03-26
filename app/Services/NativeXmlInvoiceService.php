@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use DOMDocument;
 use Illuminate\Support\Facades\Storage;
 

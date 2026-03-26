@@ -12,8 +12,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\OrderMailToCustomer;
-use App\Mail\OrderMailToAdmin;
+use App\Mail\NewOrderMailToCustomer;
+use App\Mail\NewOrderMailToAdmin;
 
 class ProcessOrderDocumentsAndMails implements ShouldQueue
 {
@@ -99,10 +99,10 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             // Da wir hier schon im Job sind, können wir send() nutzen.
             // Falls deine Mailables 'ShouldQueue' nutzen, werden sie sonst "doppelt" gequeued. Das ist aber kein Problem.
             Mail::to($this->order->email)
-                ->send(new OrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+                ->send(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
 
             Mail::to('kontakt@mein-seelenfunke.de')
-                ->send(new OrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+                ->send(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
 
         } catch (\Exception $e) {
             Log::error("Checkout Mail Fehler für {$this->order->order_number}: " . $e->getMessage());

@@ -209,7 +209,7 @@
                                 </button>
                                 
                                 <!-- AI Agent Sorting -->
-                                @include('livewire.global.ai.ask-ai-dropdown', ['actionMethod' => 'startAgentSorting', 'buttonText' => 'Sortieren'])
+                                @include('livewire.shop.ai.ask-ai-dropdown', ['actionMethod' => 'startAgentSorting', 'buttonText' => 'Sortieren'])
                             </div>
                         </div>
                     </div>
@@ -218,12 +218,12 @@
                         <div class="divide-y divide-gray-800/50">
                             @foreach($paginatedTransactions as $tx)
                                 @php
-                                    $isAssigned = !empty($tx->finance_category_id) || !empty($tx->finance_cost_item_id);
+                                    $isAssigned = !empty($tx->accounting_category_id) || !empty($tx->accounting_cost_item_id);
                                     $rowBgClass = $isAssigned
                                         ? 'bg-emerald-900/10 hover:bg-emerald-900/20 border-l-4 border-l-emerald-500'
                                         : 'bg-red-900/10 hover:bg-red-900/20 border-l-4 border-l-red-500';
                                 @endphp
-                                <div wire:key="tx-{{ $tx->id }}-type-{{ $tx->assigned_by_type ?? 'none' }}" x-data="{ expanded: false, assignType: '{{ $tx->finance_cost_item_id ? "fix" : ($tx->finance_category_id ? "var" : "none") }}' }" class="p-4 flex flex-col gap-2 transition-colors {{ $rowBgClass }}">
+                                <div wire:key="tx-{{ $tx->id }}-type-{{ $tx->assigned_by_type ?? 'none' }}" x-data="{ expanded: false, assignType: '{{ $tx->accounting_cost_item_id ? "fix" : ($tx->accounting_category_id ? "var" : "none") }}' }" class="p-4 flex flex-col gap-2 transition-colors {{ $rowBgClass }}">
 
                                     <div class="flex items-start sm:items-center justify-between gap-4">
                                         {{-- Left Side: Icon & Title/Tag --}}
@@ -284,22 +284,22 @@
                                                 </div>
 
                                                 <div x-show="assignType === 'var'" x-cloak x-collapse>
-                                                    <select x-on:change="$wire.assignCategory('{{ $tx->id }}', $event.target.value)" class="bg-gray-950 border {{ !empty($tx->finance_category_id) ? 'border-emerald-500/50 text-emerald-400' : 'border-gray-800 text-gray-300' }} text-[10px] sm:text-xs rounded-lg p-1.5 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none w-full cursor-pointer transition-colors" onclick="event.stopPropagation()">
+                                                    <select x-on:change="$wire.assignCategory('{{ $tx->id }}', $event.target.value)" class="bg-gray-950 border {{ !empty($tx->accounting_category_id) ? 'border-emerald-500/50 text-emerald-400' : 'border-gray-800 text-gray-300' }} text-[10px] sm:text-xs rounded-lg p-1.5 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none w-full cursor-pointer transition-colors" onclick="event.stopPropagation()">
                                                         <option value="" class="text-gray-500">Kategorie wählen...</option>
                                                         @foreach($availableCategories as $cat)
                                                             @if($txIsBusiness || empty($cat['is_business']))
-                                                                <option value="{{ $cat['id'] }}" {{ $tx->finance_category_id === $cat['id'] ? 'selected' : '' }}>{{ $cat['name'] }}</option>
+                                                                <option value="{{ $cat['id'] }}" {{ $tx->accounting_category_id === $cat['id'] ? 'selected' : '' }}>{{ $cat['name'] }}</option>
                                                             @endif
                                                         @endforeach
                                                     </select>
                                                 </div>
 
                                                 <div x-show="assignType === 'fix'" x-cloak x-collapse>
-                                                    <select x-on:change="$wire.assignCostItem('{{ $tx->id }}', $event.target.value)" class="bg-gray-950 border {{ !empty($tx->finance_cost_item_id) ? 'border-orange-500/50 text-orange-400' : 'border-gray-800 text-gray-300' }} text-[10px] sm:text-xs rounded-lg p-1.5 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none w-full cursor-pointer transition-colors" onclick="event.stopPropagation()">
+                                                    <select x-on:change="$wire.assignCostItem('{{ $tx->id }}', $event.target.value)" class="bg-gray-950 border {{ !empty($tx->accounting_cost_item_id) ? 'border-orange-500/50 text-orange-400' : 'border-gray-800 text-gray-300' }} text-[10px] sm:text-xs rounded-lg p-1.5 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none w-full cursor-pointer transition-colors" onclick="event.stopPropagation()">
                                                         <option value="" class="text-gray-500">Fixkosten wählen...</option>
                                                         @foreach($availableCostItems as $item)
                                                             @if($txIsBusiness || empty($item['is_business']))
-                                                                <option value="{{ $item['id'] }}" {{ $tx->finance_cost_item_id === $item['id'] ? 'selected' : '' }}>{{ \Illuminate\Support\Str::limit($item['name'], 24) }}</option>
+                                                                <option value="{{ $item['id'] }}" {{ $tx->accounting_cost_item_id === $item['id'] ? 'selected' : '' }}>{{ \Illuminate\Support\Str::limit($item['name'], 24) }}</option>
                                                             @endif
                                                         @endforeach
                                                     </select>

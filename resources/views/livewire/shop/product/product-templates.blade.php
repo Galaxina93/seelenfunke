@@ -117,7 +117,7 @@
             </div>
 
             <div class="flex-1 bg-white rounded-[2rem] relative shadow-inner border border-gray-200 min-h-[900px] overflow-y-auto custom-scrollbar">
-                <livewire:shop.configurator.configurator
+                <livewire:shop.product.product-configurator.product-configurator
                     :product="$selectedProductId"
                     :initialData="$templateConfig"
                     context="template_admin"

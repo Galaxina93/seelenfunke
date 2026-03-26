@@ -4,8 +4,8 @@ namespace App\Services\AI;
 
 use App\Models\Management\CalendarEvent;
 use App\Models\Management\DayRoutine;
-use App\Models\Accounting\FinanceSpecialIssue;
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingSpecialIssue;
+use App\Models\Accounting\AccountingInvoice;
 use App\Models\LoginAttempt;
 use App\Models\Order\Order;
 use App\Models\Management\Task;
@@ -223,7 +223,7 @@ class AiSupportService
         // ------------------------------------------------------------------
         // 4. VERWALTUNG (Score 100)
         // ------------------------------------------------------------------
-        $overdueInvoices = Invoice::where('status', 'open')->where('due_date', '<', now())->count();
+        $overdueInvoices = AccountingInvoice::where('status', 'open')->where('due_date', '<', now())->count();
         if ($overdueInvoices > 0) {
             $options[] = [
                 'score' => 110,
@@ -235,7 +235,7 @@ class AiSupportService
             ];
         }
 
-        $missingReceipt = FinanceSpecialIssue::whereNull('file_paths')->first();
+        $missingReceipt = AccountingSpecialIssue::whereNull('file_paths')->first();
         if ($missingReceipt) {
             $options[] = [
                 'score' => 100,

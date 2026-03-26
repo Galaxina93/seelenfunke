@@ -252,7 +252,7 @@
              Da die Komponente selbst dunkel gestaltet wurde (wie im vorherigen Schritt),
              passt sie perfekt unter die dunkle CTA Section als nahtloser Abschluss.
         --}}
-        @livewire('global.widgets.contact-form')
+        @livewire('frontend.contact-form')
 
     </x-sections.page-container>
 </x-layouts.frontend_layout>

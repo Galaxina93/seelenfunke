@@ -132,7 +132,7 @@
                                     @php
                                         $displayItems = $invoice->items;
                                         if($invoice->type === 'cancellation' && count($displayItems) === 0 && $invoice->parent_id) {
-                                            $parentInvoice = \App\Models\Accounting\Invoice::find($invoice->parent_id);
+                                            $parentInvoice = \App\Models\Accounting\AccountingInvoice::find($invoice->parent_id);
                                             if($parentInvoice) { $displayItems = $parentInvoice->items; }
                                         }
 

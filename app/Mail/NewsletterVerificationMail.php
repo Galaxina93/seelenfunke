@@ -22,6 +22,6 @@ class NewsletterVerificationMail extends Mailable implements ShouldQueue
     public function build()
     {
         return $this->subject('Bitte bestätige deine Anmeldung – Mein Seelenfunke')
-            ->view('global.mails.newsletter.verification');
+            ->view('global.mails.newsletter.verification_mail_to_customer');
     }
 }

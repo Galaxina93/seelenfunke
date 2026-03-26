@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Accounting\Invoice;
+use App\Models\Accounting\AccountingInvoice;
 use App\Models\Order\Order;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +16,7 @@ class InvoiceService
      */
     public function createFromOrder(Order $order): ?Invoice
     {
-        $existing = Invoice::where('order_id', $order->id)
+        $existing = AccountingInvoice::where('order_id', $order->id)
             ->where('type', 'invoice')
             ->where('status', '!=', 'cancelled')
             ->first();
@@ -37,7 +37,7 @@ class InvoiceService
             $dueDays = 7;
             $dueDate = now()->addDays($dueDays);
 
-            $invoice = Invoice::create([
+            $invoice = AccountingInvoice::create([
                 'order_id' => $order->id,
                 'customer_id' => $order->customer_id,
                 'invoice_number' => $invoiceNumber,
@@ -80,7 +80,7 @@ class InvoiceService
             $originalInvoice->update(['status' => 'cancelled']);
             $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
 
-            $invoice = Invoice::create([
+            $invoice = AccountingInvoice::create([
                 'parent_id' => $originalInvoice->id,
                 'order_id' => $originalInvoice->order_id,
                 'customer_id' => $originalInvoice->customer_id,
@@ -127,7 +127,7 @@ class InvoiceService
             $tax_amount = -1 * abs($data['tax_amount'] ?? 0);
             $total = -1 * abs($data['total'] ?? 0);
 
-            $invoice = Invoice::create([
+            $invoice = AccountingInvoice::create([
                 'customer_id' => $data['customer_id'] ?? null,
                 'invoice_number' => $stornoNumber,
                 'type' => 'credit_note', // Gutschrift
@@ -243,7 +243,7 @@ class InvoiceService
     {
         $year = date('Y');
         return DB::transaction(function() use ($prefix, $year) {
-            $latest = Invoice::where('invoice_number', 'like', "$prefix-$year-%")
+            $latest = AccountingInvoice::where('invoice_number', 'like', "$prefix-$year-%")
                 ->lockForUpdate()
                 ->orderByRaw('LENGTH(invoice_number) DESC')
                 ->orderBy('invoice_number', 'desc')

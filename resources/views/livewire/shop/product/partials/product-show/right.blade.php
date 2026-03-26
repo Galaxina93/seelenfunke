@@ -148,7 +148,7 @@
                             <p class="text-xs text-gray-500">Nach der Zahlung sofort als Download verfügbar.</p>
                         </div>
                     </div>
-                    <livewire:shop.configurator.configurator :product="$product" context="add" />
+                    <livewire:shop.product.product-configurator.product-configurator :product="$product" context="add" />
                 </div>
             </div>
         @elseif($isService)
@@ -165,7 +165,7 @@
                             <p class="text-xs text-gray-500">Persönliche Beratung & Dienstleistung</p>
                         </div>
                     </div>
-                    <livewire:shop.configurator.configurator :product="$product" context="add" />
+                    <livewire:shop.product.product-configurator.product-configurator :product="$product" context="add" />
                 </div>
             </div>
         @else
@@ -250,7 +250,7 @@
                     @endif
 
                     <div class="p-0">
-                        <livewire:shop.configurator.configurator
+                        <livewire:shop.product.product-configurator.product-configurator
                             :product="$product"
                             context="add"
                             :initialData="$currentConfig"

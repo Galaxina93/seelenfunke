@@ -74,7 +74,7 @@
 
                 <div class="my-16 sm:mt-20 scroll-mt-24" id="calculator-area">
                     {{-- Hinweis: Stelle sicher, dass deine Komponente auch wirklich unter diesem Namen registriert ist --}}
-                    @livewire('shop.calculator.calculator')
+                    @livewire('shop.product.product-calculator.product-calculator')
                 </div>
 
             </div>
