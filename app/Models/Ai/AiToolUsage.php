@@ -10,7 +10,7 @@ class AiToolUsage extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'tool_usages';
+    protected $table = 'ai_agent_tool_usages';
 
     protected $fillable = [
         'ai_agent_id',

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Auth;
 
-use App\Models\User as UserHelper;
+use App\Models\System\SystemUser as UserHelper;
 use App\Traits\handleProfilesTrait;
 use App\Traits\handleTwoFactorTrait;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;

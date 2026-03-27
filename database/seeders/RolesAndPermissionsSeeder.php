@@ -5,8 +5,8 @@ namespace Database\Seeders;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\Permission;
-use App\Models\Role;
+use App\Models\System\SystemPermission;
+use App\Models\System\SystemRole;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -19,9 +19,9 @@ class RolesAndPermissionsSeeder extends Seeder
         // ===================================================================
 
         // 1. Rollen erstellen oder laden
-        $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $customerRole = Role::firstOrCreate(['name' => 'customer']);
-        $employeeRole = Role::firstOrCreate(['name' => 'employee']);
+        $adminRole = SystemRole::firstOrCreate(['name' => 'admin']);
+        $customerRole = SystemRole::firstOrCreate(['name' => 'customer']);
+        $employeeRole = SystemRole::firstOrCreate(['name' => 'employee']);
 
         // 2. Alle Berechtigungen definieren
         $permissions = [
@@ -31,13 +31,13 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // 3. Alle Berechtigungen erstellen oder laden
         foreach ($permissions as $permissionName) {
-            Permission::firstOrCreate(['name' => $permissionName]);
+            SystemPermission::firstOrCreate(['name' => $permissionName]);
         }
 
         // 4. Berechtigungen den Rollen zuweisen
-        $adminRole->permissions()->sync(Permission::all());
-        $customerRole->permissions()->sync(Permission::where('name', 'delete_account')->get());
-        $employeeRole->permissions()->sync(Permission::where('name', 'delete_account')->get());
+        $adminRole->permissions()->sync(SystemPermission::all());
+        $customerRole->permissions()->sync(SystemPermission::where('name', 'delete_account')->get());
+        $employeeRole->permissions()->sync(SystemPermission::where('name', 'delete_account')->get());
 
 
         // ===================================================================

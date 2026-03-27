@@ -88,7 +88,7 @@ trait AiSystemFuncs
                     'properties' => [
                         'time_filter' => [
                             'type' => 'string',
-                            'description' => 'Zeitraum Filter. Erlaubt: \'today\', \'yesterday\', \'last_week\', \'all\' (Standard: \'all\')',
+                            'description' => "Zeitraum Filter. Erlaubt: 'today', 'yesterday', 'last_week', 'all' (Standard: 'all')",
                             'enum' => ['today', 'yesterday', 'last_week', 'all']
                         ],
                         'keyword' => [
@@ -410,9 +410,9 @@ trait AiSystemFuncs
             \Illuminate\Support\Facades\Artisan::call('config:clear');
             \Illuminate\Support\Facades\Artisan::call('queue:restart');
 
-            if (class_exists(\App\Models\Global\GlobalLog::class)) {
+            if (class_exists(\App\Models\System\SystemLog::class)) {
                 $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
-                \App\Models\Global\GlobalLog::create([
+                \App\Models\System\SystemLog::create([
                     'ai_agent_id' => $agent ? $agent->id : null,
                     'title' => '[FUNKIRA] - System Healing',
                     'message' => '[Funkira] - Caches, Configs und Views wurden geleert. Queue-Worker Restart angefragt.',
@@ -439,12 +439,12 @@ trait AiSystemFuncs
     public static function executeGetSystemLogs(array $args)
     {
         try {
-            if (!class_exists(\App\Models\Global\GlobalLog::class)) {
+            if (!class_exists(\App\Models\System\SystemLog::class)) {
                 return ['status' => 'error', 'message' => 'GlobalLog-Klasse ist im System nicht existent.'];
             }
 
             // Hole nur die echten System/KI/Auto-Warnungen und Fehler der letzten 24h
-            $logs = \App\Models\Global\GlobalLog::whereIn('status', ['error', 'warning'])
+            $logs = \App\Models\System\SystemLog::whereIn('status', ['error', 'warning'])
                 ->where('started_at', '>=', now()->subHours(24))
                 ->orderByDesc('started_at')
                 ->limit(10)

@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Management\PersonProfile;
+use App\Models\Management\ManagementPersonProfile;
 use Carbon\Carbon;
 
 class PersonProfileSeeder extends Seeder
@@ -335,7 +335,7 @@ class PersonProfileSeeder extends Seeder
                 $data['birthday'] = Carbon::parse($data['birthday']);
             }
 
-            PersonProfile::updateOrCreate(
+            ManagementPersonProfile::updateOrCreate(
                 ['first_name' => $data['first_name'], 'last_name' => $data['last_name']],
                 $data
             );

@@ -2,7 +2,7 @@
 
 namespace App\Models\Product;
 
-use App\Models\Product\Category;
+use App\Models\Product\ProductCategory;
 use App\Services\PriceCalcService;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -181,12 +181,12 @@ class Product extends Model
     // Relationship: Product belongs to many Categories
     public function categories()
     {
-        return $this->belongsToMany(Category::class);
+        return $this->belongsToMany(ProductCategory::class);
     }
 
     public function supplier()
     {
-        return $this->belongsTo(Supplier::class);
+        return $this->belongsTo(ProductSupplier::class);
     }
 
     public function packagings()

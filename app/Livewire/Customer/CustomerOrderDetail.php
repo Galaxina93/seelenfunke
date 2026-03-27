@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Customer;
 
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -14,7 +14,7 @@ class CustomerOrderDetail extends Component
     public function mount($id)
     {
         // Sicherheitscheck: Gehört die Order dem User?
-        $this->order = Order::with(['items', 'invoices'])
+        $this->order = OrderOrder::with(['items', 'invoices'])
             ->where('customer_id', Auth::guard('customer')->id())
             ->findOrFail($id);
     }

@@ -4,9 +4,9 @@ namespace App\Livewire\Customer;
 
 use App\Events\TicketMessageSent;
 use App\Models\Customer\CustomerGamification;
-use App\Models\Order\Order;
-use App\Models\Ticket;
-use App\Models\TicketMessage;
+use App\Models\Order\OrderOrder;
+use App\Models\Support\SupportTicket;
+use App\Models\Support\SupportTicketMessage;
 use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -57,7 +57,7 @@ class CustomerTicketsComponent extends Component
     #[On('echo-private:customer.{customerId},.TicketMessageSent')]
     public function receiveMessage($event)
     {
-        if (isset($event['message']['ticket_id']) && $this->activeTicketId === $event['message']['ticket_id']) {
+        if (isset($event['message']['support_ticket_id']) && $this->activeTicketId === $event['message']['support_ticket_id']) {
             $this->markAsRead($this->activeTicketId);
             $this->dispatch('ticket-message-received');
 
@@ -127,7 +127,7 @@ class CustomerTicketsComponent extends Component
             'newMessage.min' => 'Deine Nachricht ist zu kurz (mindestens 10 Zeichen).'
         ]);
 
-        $ticket = Ticket::create([
+        $ticket = SupportTicket::create([
             'ticket_number' => 'MSF-' . date('y') . '-' . strtoupper(Str::random(5)),
             'customer_id' => $this->customerId,
             'order_id' => $this->newOrderId ?: null,
@@ -140,8 +140,8 @@ class CustomerTicketsComponent extends Component
         $attachmentPaths = [];
         foreach ($this->attachments as $photo) { $attachmentPaths[] = $photo->store('tickets/attachments', 'public'); }
 
-        $message = TicketMessage::create([
-            'ticket_id' => $ticket->id,
+        $message = SupportTicketMessage::create([
+            'support_ticket_id' => $ticket->id,
             'sender_type' => 'customer',
             'message' => $this->newMessage,
             'attachments' => !empty($attachmentPaths) ? $attachmentPaths : null,
@@ -152,11 +152,11 @@ class CustomerTicketsComponent extends Component
 
         if ($this->newCategory === 'bug') {
             $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Ticket eröffnet! +5 ✨ für deine Fehlermeldung!']);
+            $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket eröffnet! +5 ✨ für deine Fehlermeldung!']);
             $this->dispatch('sparks-awarded');
             $ticket->update(['reward_claimed' => true]);
         } else {
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Dein Ticket wurde erfolgreich eröffnet.']);
+            $this->dispatch('notify', ['type' => 'success', 'message' => 'Dein SupportTicket wurde erfolgreich eröffnet.']);
         }
 
         $this->reset(['newSubject', 'newCategory', 'newOrderId', 'newMessage', 'attachments', 'newAttachments', 'uploadError']);
@@ -172,13 +172,13 @@ class CustomerTicketsComponent extends Component
             'chatMessage.min' => 'Die Nachricht darf nicht leer sein.'
         ]);
 
-        $ticket = Ticket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
+        $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
 
         $attachmentPaths = [];
         foreach ($this->chatAttachments as $photo) { $attachmentPaths[] = $photo->store('tickets/attachments', 'public'); }
 
-        $message = TicketMessage::create([
-            'ticket_id' => $ticket->id,
+        $message = SupportTicketMessage::create([
+            'support_ticket_id' => $ticket->id,
             'sender_type' => 'customer',
             'message' => $this->chatMessage,
             'attachments' => !empty($attachmentPaths) ? $attachmentPaths : null,
@@ -195,21 +195,21 @@ class CustomerTicketsComponent extends Component
 
     public function closeTicket()
     {
-        $ticket = Ticket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
+        $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
         $ticket->update(['status' => 'closed']);
-        $this->dispatch('notify', ['type' => 'success', 'message' => 'Das Ticket wurde geschlossen.']);
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Das SupportTicket wurde geschlossen.']);
     }
 
     private function markAsRead($ticketId)
     {
-        TicketMessage::where('ticket_id', $ticketId)->where('sender_type', '!=', 'customer')->update(['is_read_by_customer' => true]);
+        SupportTicketMessage::where('support_ticket_id', $ticketId)->where('sender_type', '!=', 'customer')->update(['is_read_by_customer' => true]);
     }
 
     public function render()
     {
-        $tickets = Ticket::where('customer_id', $this->customerId)->with('order')->orderBy('updated_at', 'desc')->get();
-        $orders = Order::where('customer_id', $this->customerId)->orderBy('created_at', 'desc')->get();
-        $activeTicket = $this->viewMode === 'chat' && $this->activeTicketId ? Ticket::with('messages', 'order')->where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->first() : null;
+        $tickets = SupportTicket::where('customer_id', $this->customerId)->with('order')->orderBy('updated_at', 'desc')->get();
+        $orders = OrderOrder::where('customer_id', $this->customerId)->orderBy('created_at', 'desc')->get();
+        $activeSupportTicket = $this->viewMode === 'chat' && $this->activeTicketId ? SupportTicket::with('messages', 'order')->where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->first() : null;
 
         return view('livewire.customer.customer-tickets-component', ['tickets' => $tickets, 'orders' => $orders, 'activeTicket' => $activeTicket]);
     }

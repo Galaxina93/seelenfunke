@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Auth;
 
-use App\Models\LoginAttempt;
-use App\Models\Session;
+use App\Models\System\SystemLoginAttempt;
+use App\Models\System\SystemSession;
 use App\Traits\handleMailsTrait;
 use App\Traits\handlePasswordResetTrait;
 use App\Traits\handleTwoFactorTrait;
@@ -36,7 +36,7 @@ class AuthLogin extends Component
     {
         if (session()->has('2fa_user_id') && session()->has('guard')) {
             $this->guard = session('guard');
-            $userModel = (new \App\Models\User)->getUserModelByGuard($this->guard);
+            $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($this->guard);
             $this->user = $userModel::find(session('2fa_user_id'));
             if ($this->user) {
                 $this->activeView = 'twoFactor';
@@ -67,7 +67,7 @@ class AuthLogin extends Component
 
         foreach ($guardsToCheck as $guard) {
             if (Auth::guard($guard)->validate(['email' => $this->email, 'password' => $this->password])) {
-                $userModelClass = (new \App\Models\User)->getUserModelByGuard($guard);
+                $userModelClass = (new \App\Models\System\SystemUser)->getUserModelByGuard($guard);
                 $candidate = $userModelClass::withTrashed()->where('email', $this->email)->first();
                 if ($candidate) {
                     $foundGuard = $guard;
@@ -121,7 +121,7 @@ class AuthLogin extends Component
 
             session(['permissions' => $permissions]);
 
-            if (class_exists(Session::class)) {
+            if (class_exists(SystemSession::class)) {
                 $this->setBrowserSession($loggedInUser);
             }
 
@@ -139,7 +139,7 @@ class AuthLogin extends Component
 
     protected function logLoginAttempt(string $email, bool $success): void
     {
-        LoginAttempt::create([
+        SystemLoginAttempt::create([
             'email' => $email,
             'ip_address' => request()->ip(),
             'success' => $success,
@@ -184,7 +184,7 @@ class AuthLogin extends Component
             'last_activity' => time(),
         ];
 
-        Session::updateOrInsert(['user_id' => $user->id, 'ip_address' => request()->ip()], $sessionData);
+        SystemSession::updateOrInsert(['user_id' => $user->id, 'ip_address' => request()->ip()], $sessionData);
     }
 
     public function setPasswordResetView(): void

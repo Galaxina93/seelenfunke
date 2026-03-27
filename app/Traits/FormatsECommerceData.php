@@ -68,10 +68,10 @@ trait FormatsECommerceData
         }
 
         // 3. Brutto-Summen aus dem Model ermitteln (Robustheit für Invoice, Order, Quote)
-        // Wir suchen das Brutto-Feld: Order (total_price), Quote (gross_total), Invoice (total)
+        // Wir suchen das Brutto-Feld: OrderOrder (total_price), Quote (gross_total), Invoice (total)
         $grossTotalCents = $this->total_price ?? $this->gross_total ?? $this->total ?? 0;
 
-        // Wir suchen das Steuer-Feld: Order (tax_amount), Quote (tax_total), Invoice (tax_amount)
+        // Wir suchen das Steuer-Feld: OrderOrder (tax_amount), Quote (tax_total), Invoice (tax_amount)
         $taxAmountCents = $this->tax_amount ?? $this->tax_total ?? 0;
 
         // Falls tax_amount 0 ist (z.B. bei Invoices nicht explizit gespeichert), rückrechnen

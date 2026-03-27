@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Livewire\Shop\Calculator;
 
-use App\Livewire\Shop\Calculator\Calculator;
+use App\Livewire\Shop\Product\ProductCalculator\ProductCalculator as Calculator;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTierPrice;
-use App\Models\Quote\QuoteRequest;
-use App\Mail\CalcMailToAdmin;
-use App\Mail\CalcMailToCustomer;
+use App\Models\Order\OrderQuoteRequest;
+use App\Mail\NewCalcMailToAdmin;
+use App\Mail\NewCalcMailToCustomer;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -146,26 +146,26 @@ class CalculatorTest extends TestCase
                   ->assertSee('erfolgreich');
 
         // Verify Database Record
-        $this->assertDatabaseHas('quote_requests', [
+        $this->assertDatabaseHas('order_quote_requests', [
             'email' => 'max@example.com',
             'first_name' => 'Max',
             'last_name' => 'Mustermann',
             'gross_total' => 4490, // 2 * 20 EUR = 40 EUR + 4.90 Shipping (because < 50 EUR DE) -> 44.90 * 100
         ]);
 
-        $quote = QuoteRequest::where('email', 'max@example.com')->first();
-        $this->assertDatabaseHas('quote_request_items', [
+        $quote = OrderQuoteRequest::where('email', 'max@example.com')->first();
+        $this->assertDatabaseHas('order_quote_request_items', [
             'quote_request_id' => $quote->id,
             'product_id' => $product->id,
             'quantity' => 2,
         ]);
 
         // Verify Mails
-        Mail::assertQueued(CalcMailToCustomer::class, function ($mail) {
+        Mail::assertQueued(NewCalcMailToCustomer::class, function ($mail) {
             return $mail->hasTo('max@example.com');
         });
 
-        Mail::assertQueued(CalcMailToAdmin::class, function ($mail) {
+        Mail::assertQueued(NewCalcMailToAdmin::class, function ($mail) {
             $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
             return $mail->hasTo($owner_mail);
         });

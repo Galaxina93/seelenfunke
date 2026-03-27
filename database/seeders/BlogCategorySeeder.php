@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Marketing\MarketingBlogCategory;
 use Illuminate\Database\Seeder;
-use App\Models\Marketing\Blog\BlogCategory;
 use Illuminate\Support\Str;
 
 class BlogCategorySeeder extends Seeder
@@ -38,7 +38,7 @@ class BlogCategorySeeder extends Seeder
         foreach ($categories as $categoryName) {
             // Wir nutzen firstOrCreate, um Duplikate zu vermeiden,
             // falls der Seeder mehrmals läuft.
-            BlogCategory::firstOrCreate(
+            MarketingBlogCategory::firstOrCreate(
                 ['slug' => Str::slug($categoryName)], // Suchkriterium
                 ['name' => $categoryName]             // Werte zum Setzen falls neu
             );

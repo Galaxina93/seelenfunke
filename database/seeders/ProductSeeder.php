@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Product\Category;
+use App\Models\Product\ProductCategory;
 use App\Models\Product\Product;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -23,12 +23,12 @@ class ProductSeeder extends Seeder
             'Express-Service' => 'service',
         ];
 
-        $sup1 = \App\Models\Product\Supplier::where('name', 'Pujiang Wangzhe Crafts Co., Ltd.')->first();
-        $sup2 = \App\Models\Product\Supplier::where('name', 'Gifts Crafts Zone')->first();
-        $sup3 = \App\Models\Product\Supplier::where('name', 'Sendez')->first();
+        $sup1 = \App\Models\Product\ProductSupplier::where('name', 'Pujiang Wangzhe Crafts Co., Ltd.')->first();
+        $sup2 = \App\Models\Product\ProductSupplier::where('name', 'Gifts Crafts Zone')->first();
+        $sup3 = \App\Models\Product\ProductSupplier::where('name', 'Sendez')->first();
 
         foreach ($cats as $name => $type) {
-            Category::firstOrCreate(
+            ProductCategory::firstOrCreate(
                 ['name' => $name],
                 [
                     'slug' => Str::slug($name),
@@ -60,7 +60,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 15,
             'packaging_cost' => 60,
             'sku' => 'CRYSTAL-001-CLR',
-            'supplier_id' => $sup1?->id,
+            'product_supplier_id' => $sup1?->id,
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
@@ -118,7 +118,7 @@ class ProductSeeder extends Seeder
             'completion_step' => 4
         ]);
 
-        $catIds1 = Category::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
+        $catIds1 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p1->categories()->attach($catIds1);
 
 
@@ -137,7 +137,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 5,
             'packaging_cost' => 14,
             'sku' => 'ALU-HEART-001',
-            'supplier_id' => $sup2?->id,
+            'product_supplier_id' => $sup2?->id,
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
@@ -229,7 +229,7 @@ class ProductSeeder extends Seeder
             'completion_step' => 4
         ]);
 
-        $catIds2 = Category::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger'])->pluck('id');
+        $catIds2 = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger'])->pluck('id');
         $p2->categories()->attach($catIds2);
 
 
@@ -272,7 +272,7 @@ class ProductSeeder extends Seeder
             'completion_step' => 4
         ]);
 
-        $catIds3 = Category::whereIn('name', ['E-Books & Guides'])->pluck('id');
+        $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
         $p3->categories()->attach($catIds3);
 
 
@@ -314,7 +314,7 @@ class ProductSeeder extends Seeder
             'completion_step' => 4
         ]);
 
-        $catIds4 = Category::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
+        $catIds4 = ProductCategory::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
         $p4->categories()->attach($catIds4);
 
 
@@ -333,7 +333,7 @@ class ProductSeeder extends Seeder
             'electricity_wear_factor' => 15,
             'packaging_cost' => 60,
             'sku' => 'GLASS-WEIZEN-001',
-            'supplier_id' => $sup3?->id,
+            'product_supplier_id' => $sup3?->id,
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
@@ -405,7 +405,7 @@ class ProductSeeder extends Seeder
             'completion_step' => 4
         ]);
 
-        $catIds5 = Category::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
+        $catIds5 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
         $p5->categories()->attach($catIds5);
     }
 }

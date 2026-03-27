@@ -24,7 +24,7 @@ class BlogSeeder extends Seeder
 
         // 2. Kategorie erstellen
         $catId = Str::uuid()->toString();
-        DB::table('blog_categories')->insertOrIgnore([
+        DB::table('marketing_blog_categories')->insertOrIgnore([
             'id' => $catId,
             'name' => 'Neuigkeiten',
             'slug' => 'neuigkeiten',
@@ -32,7 +32,7 @@ class BlogSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        $categoryId = DB::table('blog_categories')->where('slug', 'neuigkeiten')->value('id');
+        $categoryId = DB::table('marketing_blog_categories')->where('slug', 'neuigkeiten')->value('id');
 
         // 3. Blog Posts erstellen
 
@@ -42,7 +42,7 @@ class BlogSeeder extends Seeder
                 'id' => Str::uuid()->toString(),
                 'user_id' => $adminId,
                 'blog_category_id' => $categoryId,
-                'title' => 'Willkommen bei Mein-Seelenfunke – Wir setzen neue Maßstäbe!',
+                'title' => 'Willkommen bei Mein-Seelenfunke! Wir setzen neue Maßstäbe!',
                 'slug' => 'willkommen-bei-mein-seelenfunke',
                 'excerpt' => 'Es ist soweit: Mein-Seelenfunke öffnet die Tore. Wir sind angetreten, um Emotionen in Glas zu bannen und Qualität neu zu definieren.',
                 'content' => '
@@ -51,7 +51,7 @@ class BlogSeeder extends Seeder
                     <p>Hinter uns liegen Monate der Planung, des Designs und der Leidenschaft. Unser Ziel war es nicht einfach nur, einen weiteren Online-Shop zu eröffnen. Wir wollten einen Ort schaffen, an dem Geschenke wieder eine echte Bedeutung haben.</p>
 
                     <h3>Unsere Vision</h3>
-                    <p>In einer schnelllebigen Welt möchten wir Momente festhalten. Ob durch unsere massiven K9-Kristalle oder zukünftige Kollektionen – jedes Stück wird mit höchster Präzision gefertigt. Wir setzen auf Qualität, die man spüren kann, und auf einen Service, der von Herzen kommt.</p>
+                    <p>In einer schnelllebigen Welt möchten wir Momente festhalten. Ob durch unsere massiven K9-Kristalle oder zukünftige Kollektionen. Jedes Stück wird mit höchster Präzision gefertigt. Wir setzen auf Qualität, die man spüren kann, und auf einen Service, der von Herzen kommt.</p>
 
                     <p>Dies ist erst der Anfang unserer Reise. Wir haben große Pläne und freuen uns, dass ihr von Anfang an dabei seid, um gemeinsam neue Maßstäbe zu setzen.</p>
                 ',
@@ -59,7 +59,7 @@ class BlogSeeder extends Seeder
                 'featured_image' => 'blog/mein-seelenfunke-logo.png',
                 'status' => 'published',
                 'published_at' => Carbon::now()->subDays(2),
-                'meta_title' => 'Mein-Seelenfunke Gründung – Neue Maßstäbe für Geschenke',
+                'meta_title' => 'Mein-Seelenfunke Gründung und Neue Maßstäbe für Geschenke',
                 'meta_description' => 'Mein-Seelenfunke ist gestartet. Erfahre mehr über unsere Vision, hochwertige Kristallglas-Geschenke und unsere Philosophie.',
                 'meta_keywords' => 'Gründung, Vision, Seelenfunke, Qualität, K9 Kristall',
                 'is_advertisement' => false,
@@ -72,7 +72,7 @@ class BlogSeeder extends Seeder
                 'id' => Str::uuid()->toString(),
                 'user_id' => $adminId,
                 'blog_category_id' => $categoryId,
-                'title' => 'Gestatten: Funki Funke – Mehr als nur ein Maskottchen',
+                'title' => 'Gestatten: Funki Funke! Mehr als nur ein Maskottchen',
                 'slug' => 'gestatten-funki-funke',
                 'excerpt' => 'Dürfen wir vorstellen? Funki Funke ist da! Er ist das freundliche Gesicht hinter unserer Technik und freut sich darauf, euch kennenzulernen.',
                 'content' => '
@@ -98,7 +98,7 @@ class BlogSeeder extends Seeder
                 'featured_image' => 'blog/funki.png',
                 'status' => 'published',
                 'published_at' => Carbon::now(),
-                'meta_title' => 'Funki Funke stellt sich vor – Unser Maskottchen',
+                'meta_title' => 'Funki Funke stellt sich vor :) Unser Maskottchen',
                 'meta_description' => 'Lerne Funki Funke kennen, das Maskottchen von Mein-Seelenfunke. Er unterstützt unsere Automatisierung und den Kundenservice.',
                 'meta_keywords' => 'Funki, Maskottchen, Automatisierung, Team, Funke',
                 'is_advertisement' => false,
@@ -107,6 +107,6 @@ class BlogSeeder extends Seeder
             ],
         ];
 
-        DB::table('blog_posts')->insert($posts);
+        DB::table('marketing_blog_posts')->insert($posts);
     }
 }

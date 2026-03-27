@@ -2,10 +2,10 @@
 
 namespace App\Services\Gamification;
 
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Models\Product\ProductReview;
 use Illuminate\Support\Str;
 
@@ -56,7 +56,7 @@ class GamificationService
             $code = 'FUNKI-L' . $newLevel . '-' . strtoupper(Str::random(5));
             $email = $profile->customer ? $profile->customer->email : 'System';
 
-            Voucher::create([
+            MarketingVoucher::create([
                 'title'           => 'Level ' . $newLevel . ' Belohnung (' . $email . ')',
                 'code'            => $code,
                 'type'            => 'percent',
@@ -92,7 +92,7 @@ class GamificationService
                 $code = 'FUNKI-L' . $i . '-' . strtoupper(Str::random(5));
                 $email = $profile->customer ? $profile->customer->email : 'System';
 
-                Voucher::create([
+                MarketingVoucher::create([
                     'title'           => 'Nachgereicht: Level ' . $i . ' Belohnung (' . $email . ')',
                     'code'            => $code,
                     'type'            => 'percent',
@@ -171,7 +171,7 @@ class GamificationService
         $progress['wortgewandt'] = $reviews->filter(fn($r) => strlen($r->content ?? '') >= 100)->count();
 
         // ORDERS
-        $orders = Order::where('customer_id', $customer->id)->where('payment_status', 'paid')->with('items.product')->get();
+        $orders = OrderOrder::where('customer_id', $customer->id)->where('payment_status', 'paid')->with('items.product')->get();
         $progress['schatzhueter'] = $orders->count();
         $progress['massenkaeufer'] = $orders->flatMap(fn($o) => $o->items)->sum('quantity');
 

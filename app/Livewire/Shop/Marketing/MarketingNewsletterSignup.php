@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Marketing;
 
 use App\Mail\NewsletterVerificationMail;
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -35,11 +35,11 @@ class MarketingNewsletterSignup extends Component
         ]);
 
         // 2. Prüfen, ob es den Nutzer schon gibt
-        $subscriber = NewsletterSubscriber::where('email', $this->email)->first();
+        $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();
 
         if (! $subscriber) {
             // FALL 1: Nutzer ist neu -> Anlegen
-            $subscriber = NewsletterSubscriber::create([
+            $subscriber = MarketingNewsletterSubscriber::create([
                 'email' => $this->email,
                 'ip_address' => request()->ip(),
                 'privacy_accepted' => true,

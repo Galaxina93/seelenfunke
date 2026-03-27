@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Product;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Product\Supplier;
+use App\Models\Product\ProductSupplier;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
@@ -62,7 +62,7 @@ class ProductSuppliers extends Component
 
     public function loadSuppliers()
     {
-        $this->suppliers = Supplier::orderBy('name')->get();
+        $this->suppliers = ProductSupplier::orderBy('name')->get();
     }
 
     public function create()
@@ -74,7 +74,7 @@ class ProductSuppliers extends Component
 
     public function edit($id)
     {
-        $supplier = Supplier::findOrFail($id);
+        $supplier = ProductSupplier::findOrFail($id);
         
         $this->editingId = $supplier->id;
         $this->name = $supplier->name;
@@ -122,10 +122,10 @@ class ProductSuppliers extends Component
         ];
 
         if ($this->isEditing) {
-            Supplier::findOrFail($this->editingId)->update($data);
+            ProductSupplier::findOrFail($this->editingId)->update($data);
             $this->dispatch('toast', message: 'Lieferant erfolgreich aktualisiert.', type: 'success');
         } else {
-            Supplier::create($data);
+            ProductSupplier::create($data);
             $this->dispatch('toast', message: 'Neuer Lieferant angelegt.', type: 'success');
         }
 
@@ -135,7 +135,7 @@ class ProductSuppliers extends Component
 
     public function delete($id)
     {
-        Supplier::findOrFail($id)->delete();
+        ProductSupplier::findOrFail($id)->delete();
         $this->dispatch('toast', message: 'Lieferant gelöscht.', type: 'info');
         $this->loadSuppliers();
     }

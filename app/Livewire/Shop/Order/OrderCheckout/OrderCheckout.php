@@ -5,7 +5,7 @@ namespace App\Livewire\Shop\Order\OrderCheckout;
 use App\Livewire\Shop\Order\OrderCheckout\Traits\HandlesOrderCreation;
 use App\Livewire\Shop\Order\OrderCheckout\Traits\HandlesStripePayment;
 use App\Models\Cart\Cart;
-use App\Models\Order\Quote\QuoteRequest;
+use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -169,7 +169,7 @@ class OrderCheckout extends Component
         // 2. Daten laden: Aus Angebot (Quote) falls vorhanden
         elseif (Session::has('checkout_from_quote_id')) {
             $quoteId = Session::get('checkout_from_quote_id');
-            $quote = QuoteRequest::find($quoteId);
+            $quote = OrderQuoteRequest::find($quoteId);
 
             if ($quote) {
                 $this->email = $quote->email;

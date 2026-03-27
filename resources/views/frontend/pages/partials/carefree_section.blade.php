@@ -47,7 +47,7 @@
                         <svg class="flex-shrink-0 h-6 w-6 text-primary mr-3 mt-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                         <div>
                             <strong class="font-semibold text-gray-900">Geschenkfertig geliefert:</strong>
-                            Ihr Unikat kommt <strong>standardmäßig</strong> in einer hochwertigen, mit Stoff ausgelegten Geschenkbox. Bereit zur sofortigen Übergabe oder Ehrung.
+                            Unsere Glastrophäen kommen <strong>standardmäßig</strong> in einer hochwertigen, mit Stoff ausgelegten Geschenkbox – bereit zur sofortigen Übergabe oder Ehrung. Bei anderen Artikeln variiert die Verpackung und ist der jeweiligen Produktbeschreibung zu entnehmen.
                         </div>
                     </li>
 
@@ -71,7 +71,10 @@
 
                 <img src="{{ asset('images/projekt/logo/logo-up.webp') }}"
                      alt="Mein Seelenfunke - Ihre Full-Service Manufaktur für personalisierte Geschenke"
+                     width="400"
+                     height="400"
                      loading="lazy"
+                     decoding="async"
                      class="relative w-[400px] max-w-md object-cover transform hover:scale-105 transition duration-500 drop-shadow-2xl">
             </div>
         </div>

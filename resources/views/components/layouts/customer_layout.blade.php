@@ -27,9 +27,9 @@
         }
 
         // Kugelsichere Abfrage für den roten Punkt
-        $hasUnreadTickets = \App\Models\TicketMessage::where('sender_type', 'admin')
+        $hasUnreadTickets = \App\Models\Support\SupportTicketMessage::where('sender_type', 'admin')
             ->where('is_read_by_customer', false)
-            ->whereIn('ticket_id', \App\Models\Ticket::where('customer_id', $customerId)->pluck('id'))
+            ->whereIn('ticket_id', \App\Models\Support\SupportTicket::where('customer_id', $customerId)->pluck('id'))
             ->exists();
     }
 @endphp
@@ -55,7 +55,7 @@
 
                                 // 2. Popup zeigen (wenn wir NICHT im Support-Chat sind)
                                 if (!window.location.pathname.includes('/support')) {
-                                    this.toastMessage = 'Der Support hat auf dein Ticket geantwortet.';
+                                    this.toastMessage = 'Der Support hat auf dein SupportTicket geantwortet.';
                                     this.showToast = true;
                                     setTimeout(() => { this.showToast = false; }, 5000);
                                 }

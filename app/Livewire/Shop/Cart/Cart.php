@@ -6,7 +6,7 @@ use App\Services\CartService;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Illuminate\Support\Facades\DB;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 
 class Cart extends Component
 {
@@ -146,7 +146,7 @@ class Cart extends Component
 
     private function logCartError($action, \Exception $e, $payload = [])
     {
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'error',
             'agent_id' => null,
             'action_id' => 'cart_manipulation',

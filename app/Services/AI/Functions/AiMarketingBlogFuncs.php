@@ -2,8 +2,8 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Marketing\Blog\BlogPost;
-use App\Models\Marketing\Blog\BlogCategory;
+use App\Models\Marketing\MarketingBlogCategory;
+use App\Models\Marketing\MarketingBlogPost;
 use Illuminate\Support\Str;
 
 trait AiMarketingBlogFuncs
@@ -139,15 +139,15 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_get_posts(array $args)
     {
-        $query = BlogPost::with('category');
-        
+        $query = MarketingBlogPost::with('category');
+
         if (!empty($args['search'])) {
             $query->where('title', 'like', '%' . $args['search'] . '%');
         }
         if (!empty($args['status'])) {
             $query->where('status', $args['status']);
         }
-        
+
         $posts = $query->orderByDesc('created_at')->limit(30)->get();
 
         return [
@@ -159,7 +159,7 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_create_post(array $args)
     {
-        $post = BlogPost::create([
+        $post = MarketingBlogPost::create([
             'title' => $args['title'],
             'slug' => Str::slug($args['title']),
             'content' => $args['content'],
@@ -179,7 +179,7 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_update_post(array $args)
     {
-        $post = BlogPost::find($args['id']);
+        $post = MarketingBlogPost::find($args['id']);
         if (!$post) {
             return ['status' => 'error', 'message' => 'Blogbeitrag nicht gefunden.'];
         }
@@ -195,7 +195,7 @@ trait AiMarketingBlogFuncs
                 $post->published_at = now();
             }
         }
-        
+
         $post->save();
 
         return ['status' => 'success', 'message' => 'Blogbeitrag aktualisiert.', 'id' => $post->id];
@@ -203,7 +203,7 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_delete_post(array $args)
     {
-        $post = BlogPost::find($args['id']);
+        $post = MarketingBlogPost::find($args['id']);
         if (!$post) return ['status' => 'error', 'message' => 'Blogbeitrag nicht gefunden.'];
 
         $post->delete();
@@ -212,20 +212,20 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_get_categories(array $args)
     {
-        $cats = BlogCategory::all();
+        $cats = MarketingBlogCategory::all();
         return [
             'status' => 'success',
-            'categories' => $cats->toArray()
+            'product_categories' => $cats->toArray()
         ];
     }
 
     public static function marketing_blog_create_category(array $args)
     {
-        if (BlogCategory::where('name', $args['name'])->exists()) {
+        if (MarketingBlogCategory::where('name', $args['name'])->exists()) {
             return ['status' => 'error', 'message' => 'Kategorie existiert bereits.'];
         }
 
-        $cat = BlogCategory::create([
+        $cat = MarketingBlogCategory::create([
             'name' => $args['name'],
             'slug' => Str::slug($args['name'])
         ]);

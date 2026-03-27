@@ -77,9 +77,9 @@ class FetchMailsCommand extends Command
                     // Sanitize HTML body to strip out tracking pixels (like stat.alibaba.com)
                     if ($bodyHtml) {
                         // 1. Remove img tags containing known tracking domain patterns
-                        $bodyHtml = preg_replace('/<img[^>]+src=["\'][^"\']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"\']*["\'][^>]*>/i', '', $bodyHtml);
+                        $bodyHtml = preg_replace('/<img[^>]+src=["'][^"']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"']*["'][^>]*>/i', '', $bodyHtml);
                         // 2. Remove any img tags trying to render as 1x1 or 0x0
-                        $bodyHtml = preg_replace('/<img[^>]+(?:width=["\']?[01]["\']?[^>]*height=["\']?[01]["\']?|height=["\']?[01]["\']?[^>]*width=["\']?[01]["\']?)[^>]*>/i', '', $bodyHtml);
+                        $bodyHtml = preg_replace('/<img[^>]+(?:width=["']?[01]["']?[^>]*height=["']?[01]["']?|height=["']?[01]["']?[^>]*width=["']?[01]["']?)[^>]*>/i', '', $bodyHtml);
                     }
 
                     $fromObj = $message->getFrom()[0] ?? null;

@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\Management;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Management\Task as TaskModel;
-use App\Models\Management\TaskList;
+use App\Models\Management\ManagementTask as TaskModel;
+use App\Models\Management\ManagementTaskList;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -34,14 +34,10 @@ class ManagementTask extends Component
         TaskModel::where('priority', 'medium')->update(['priority' => 'mittel']);
         TaskModel::where('priority', 'high')->update(['priority' => 'hoch']);
 
-        // Auto-run map_id migrations and seeder (for easy update deployment without terminal)
-        if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
-            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
-            \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'Database\Seeders\MapSeeder', '--force' => true]);
-        }
+        // Headless Artisan calls were removed to preserve test isolation.
 
         // Wähle standardmäßig die erste Liste, falls vorhanden
-        $firstList = TaskList::orderBy('created_at', 'asc')->first();
+        $firstList = ManagementTaskList::orderBy('created_at', 'asc')->first();
         if ($firstList) {
             $this->selectedListId = $firstList->id;
         }
@@ -51,7 +47,7 @@ class ManagementTask extends Component
     {
         $this->validate(['newList_name' => 'required|min:2|max:30']);
 
-        $list = TaskList::create([
+        $list = ManagementTaskList::create([
             'id' => (string) Str::uuid(),
             'name' => $this->newList_name,
             'icon' => $this->newList_icon,
@@ -75,7 +71,7 @@ class ManagementTask extends Component
 
         if (!$this->selectedListId) {
             // Fallback: Falls keine Liste existiert, erstelle eine Standardliste
-            $list = TaskList::create([
+            $list = ManagementTaskList::create([
                 'id' => (string) Str::uuid(),
                 'name' => 'Allgemein',
                 'icon' => 'inbox'
@@ -153,17 +149,17 @@ class ManagementTask extends Component
 
     public function deleteList($id)
     {
-        $list = TaskList::find($id);
+        $list = ManagementTaskList::find($id);
         if($list) {
             $list->delete();
-            $first = TaskList::first();
+            $first = ManagementTaskList::first();
             $this->selectedListId = $first ? $first->id : null;
         }
     }
 
     public function render()
     {
-        $lists = TaskList::withCount(['tasks as open_count' => function($q) {
+        $lists = ManagementTaskList::withCount(['tasks as open_count' => function($q) {
             $q->where('is_completed', false)->whereNull('parent_id');
         }])->orderBy('created_at', 'asc')->get();
 

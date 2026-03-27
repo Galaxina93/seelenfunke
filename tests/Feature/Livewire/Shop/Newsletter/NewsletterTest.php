@@ -3,9 +3,9 @@
 namespace Tests\Feature\Livewire\Shop\Newsletter;
 
 use App\Http\Controllers\NewsletterController;
-use App\Livewire\Shop\Newsletter\NewsletterPage;
+use App\Livewire\Shop\Marketing\MarketingNewsletterPage as NewsletterPage;
 use App\Mail\NewsletterVerificationMail;
-use App\Models\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -56,13 +56,13 @@ class NewsletterTest extends TestCase
             ->assertSet('privacy_accepted', false) // Should be reset
             ->assertSee('Fast geschafft! Wir haben dir eine Bestätigungs-E-Mail gesendet.');
 
-        $this->assertDatabaseHas('newsletter_subscribers', [
+        $this->assertDatabaseHas('marketing_newsletter_subscribers', [
             'email' => 'test@example.com',
             'privacy_accepted' => true,
             'is_verified' => false,
         ]);
 
-        $subscriber = NewsletterSubscriber::where('email', 'test@example.com')->first();
+        $subscriber = MarketingNewsletterSubscriber::where('email', 'test@example.com')->first();
         $this->assertNotNull($subscriber->verification_token);
 
         Mail::assertQueued(NewsletterVerificationMail::class, function ($mail) use ($subscriber) {
@@ -73,7 +73,7 @@ class NewsletterTest extends TestCase
     #[Test]
     public function it_prevents_duplicate_subscriptions()
     {
-        NewsletterSubscriber::create([
+        MarketingNewsletterSubscriber::create([
             'email' => 'duplicate@example.com',
             'ip_address' => '127.0.0.1',
             'privacy_accepted' => true,
@@ -93,7 +93,7 @@ class NewsletterTest extends TestCase
     {
         $token = Str::random(32);
         
-        $subscriber = NewsletterSubscriber::create([
+        $subscriber = MarketingNewsletterSubscriber::create([
             'email' => 'verify@example.com',
             'ip_address' => '127.0.0.1',
             'privacy_accepted' => true,
@@ -127,7 +127,7 @@ class NewsletterTest extends TestCase
     #[Test]
     public function it_unsubscribes_an_existing_user()
     {
-        $subscriber = NewsletterSubscriber::create([
+        $subscriber = MarketingNewsletterSubscriber::create([
             'email' => 'leave@example.com',
             'ip_address' => '127.0.0.1',
             'privacy_accepted' => true,
@@ -140,7 +140,7 @@ class NewsletterTest extends TestCase
             ->assertHasNoErrors()
             ->assertSee('Du wurdest erfolgreich aus dem Verteiler ausgetragen');
 
-        $this->assertDatabaseMissing('newsletter_subscribers', [
+        $this->assertDatabaseMissing('marketing_newsletter_subscribers', [
             'email' => 'leave@example.com'
         ]);
     }

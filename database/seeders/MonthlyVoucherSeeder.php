@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 
@@ -35,7 +35,7 @@ class MonthlyVoucherSeeder extends Seeder
             $start = Carbon::create($year, $num, 1)->startOfMonth();
             $end = Carbon::create($year, $num, 1)->endOfMonth();
 
-            Voucher::updateOrCreate(
+            MarketingVoucher::updateOrCreate(
                 [
                     'code' => $data['code'] . '-' . $year,
                     'mode' => 'auto'

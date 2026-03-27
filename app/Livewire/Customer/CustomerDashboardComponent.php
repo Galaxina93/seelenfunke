@@ -3,7 +3,7 @@
 namespace App\Livewire\Customer;
 
 use App\Models\Customer\CustomerGamification;
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;
@@ -143,7 +143,7 @@ class CustomerDashboardComponent extends Component
         $formattedCoupons = [];
 
         if (!empty($rawCoupons)) {
-            $dbVouchers = Voucher::whereIn('code', array_values($rawCoupons))->get()->keyBy('code');
+            $dbVouchers = MarketingVoucher::whereIn('code', array_values($rawCoupons))->get()->keyBy('code');
 
             foreach ($rawCoupons as $lvl => $code) {
                 $dbVoucher = $dbVouchers->get($code);

@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\Management\DayRoutine;
-use App\Models\Management\DayRoutineStep;
+use App\Models\Management\ManagementDayRoutine;
+use App\Models\Management\ManagementDayRoutineStep;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -157,14 +157,14 @@ class DayRoutineSeeder extends Seeder
         // FK Checks aus, leeren, FK Checks wieder an
         Schema::disableForeignKeyConstraints();
 
-        DayRoutineStep::truncate();
-        DayRoutine::truncate();
+        ManagementDayRoutineStep::truncate();
+        ManagementDayRoutine::truncate();
 
         Schema::enableForeignKeyConstraints();
         // -------------------------
 
         foreach ($routines as $r) {
-            $routine = DayRoutine::create([
+            $routine = ManagementDayRoutine::create([
                 'id' => Str::uuid(),
                 'start_time' => $r['time'],
                 'title' => $r['title'],
@@ -176,7 +176,7 @@ class DayRoutineSeeder extends Seeder
             ]);
 
             foreach ($r['steps'] as $index => $step) {
-                DayRoutineStep::create([
+                ManagementDayRoutineStep::create([
                     'id' => Str::uuid(),
                     'day_routine_id' => $routine->id,
                     'title' => $step['title'],

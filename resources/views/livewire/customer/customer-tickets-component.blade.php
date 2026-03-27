@@ -145,7 +145,7 @@
                 </div>
                 <div class="pt-4 flex justify-between items-center border-t border-gray-800">
                     <button type="button" wire:click="setMode('list')" class="text-gray-500 font-bold text-xs uppercase tracking-widest hover:text-white">Abbrechen</button>
-                    <button type="submit" class="px-8 py-4 bg-primary text-gray-900 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(197,160,89,0.4)]">Ticket absenden</button>
+                    <button type="submit" class="px-8 py-4 bg-primary text-gray-900 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(197,160,89,0.4)]">SupportTicket absenden</button>
                 </div>
             </form>
         </div>
@@ -227,7 +227,7 @@
 
             <div class="bg-gray-950 border-t border-gray-800 p-4 sm:p-5 z-20 relative">
                 @if($activeTicket->status === 'closed')
-                    <div class="text-center py-3 bg-gray-900 rounded-xl border border-gray-800"><p class="text-gray-500 text-xs font-bold uppercase tracking-widest">Ticket ist geschlossen.</p></div>
+                    <div class="text-center py-3 bg-gray-900 rounded-xl border border-gray-800"><p class="text-gray-500 text-xs font-bold uppercase tracking-widest">SupportTicket ist geschlossen.</p></div>
                 @else
                     <form wire:submit.prevent="sendReply" class="w-full relative">
 

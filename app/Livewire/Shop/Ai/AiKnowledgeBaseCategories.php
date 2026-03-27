@@ -27,9 +27,9 @@ class AiKnowledgeBaseCategories extends Component
     public function loadCategories()
     {
         if (empty($this->search)) {
-            $this->categories = \App\Models\AiKnowledgeBaseCategory::orderBy('name')->get()->toArray();
+            $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::orderBy('name')->get()->toArray();
         } else {
-            $this->categories = \App\Models\AiKnowledgeBaseCategory::where('name', 'like', '%' . $this->search . '%')
+            $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::where('name', 'like', '%' . $this->search . '%')
                 ->orderBy('name')->get()->toArray();
         }
     }
@@ -37,12 +37,12 @@ class AiKnowledgeBaseCategories extends Component
     public function createCategory()
     {
         $this->validate(['newCategoryName' => 'required|string|max:100|unique:ai_knowledge_base_categories,name']);
-        
-        $cat = \App\Models\AiKnowledgeBaseCategory::create([
+
+        $cat = \App\Models\Ai\AiKnowledgeBaseCategory::create([
             'name' => $this->newCategoryName,
             'slug' => \Illuminate\Support\Str::slug($this->newCategoryName)
         ]);
-        
+
         $this->newCategoryName = '';
         $this->loadCategories();
         $this->selectCategory($cat->id);
@@ -63,8 +63,8 @@ class AiKnowledgeBaseCategories extends Component
     public function updateCategory()
     {
         $this->validate(['editingCategoryName' => 'required|string|max:100|unique:ai_knowledge_base_categories,name,' . $this->editingCategoryId]);
-        
-        $cat = \App\Models\AiKnowledgeBaseCategory::find($this->editingCategoryId);
+
+        $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($this->editingCategoryId);
         if ($cat) {
             $cat->update([
                 'name' => $this->editingCategoryName,
@@ -77,7 +77,7 @@ class AiKnowledgeBaseCategories extends Component
 
     public function deleteCategory($id)
     {
-        $cat = \App\Models\AiKnowledgeBaseCategory::find($id);
+        $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($id);
         if ($cat) {
             $cat->delete();
         }

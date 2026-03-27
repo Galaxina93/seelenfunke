@@ -6,7 +6,7 @@ use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Accounting\AccountingCategory;
 use App\Models\Accounting\AccountingSpecialIssue;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -38,7 +38,7 @@ class FinancialDataSeeder extends Seeder
 
         // ALTE TESTDATEN LÖSCHEN UM DOPPELUNGEN ZU VERMEIDEN
         AccountingSpecialIssue::where('admin_id', $admin->id)->whereYear('execution_date', '>=', 2027)->delete();
-        Order::where('email', 'demokunde@seelenfunke.local')->delete();
+        OrderOrder::where('email', 'demokunde@seelenfunke.local')->delete();
 
         // JAHRESVERLAUF 2027 & 2028
         // Monatliche Umsatz-Ziele (Netto/Brutto gerundet, in EUR)
@@ -135,7 +135,7 @@ class FinancialDataSeeder extends Seeder
                 $day = rand(1, 28);
                 $date = Carbon::createFromDate($year, $month, $day)->setTime(rand(9, 18), rand(0, 59));
 
-                Order::create([
+                OrderOrder::create([
                     'id' => (string) Str::uuid(),
                     'order_number' => 'ORD-' . $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '-' . Str::random(5),
                     'customer_id' => $customer->id,

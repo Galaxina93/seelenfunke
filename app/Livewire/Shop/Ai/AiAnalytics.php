@@ -50,7 +50,7 @@ class AiAnalytics extends Component
             $dates[] = Carbon::parse($dateStr)->format('d.m.');
             $tokens[] = $trendDataRaw->firstWhere('date', $dateStr)->total_tokens ?? 0;
         }
-        $trendData = ['categories' => $dates, 'data' => $tokens];
+        $trendData = ['product_categories' => $dates, 'data' => $tokens];
 
         // 3. Resource Distribution (Donut Chart)
         $agentLoads = AiMetric::select('ai_agent_id', DB::raw('SUM(input_tokens + output_tokens) as total'))
@@ -75,7 +75,7 @@ class AiAnalytics extends Component
             ->get();
             
         $toolErrors = [
-            'categories' => $toolErrorsRaw->pluck('tool_name')->toArray(),
+            'product_categories' => $toolErrorsRaw->pluck('tool_name')->toArray(),
             'data' => $toolErrorsRaw->pluck('error_count')->toArray(),
         ];
 

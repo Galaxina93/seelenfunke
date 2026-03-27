@@ -68,7 +68,7 @@
                     const businessList = this.$refs.businessList;
                     
                     Sortable.create(privateList, {
-                        group: 'categories',
+                        group: 'product_categories',
                         animation: 150,
                         ghostClass: 'opacity-50',
                         onEnd: (evt) => {
@@ -79,7 +79,7 @@
                     });
 
                     Sortable.create(businessList, {
-                        group: 'categories',
+                        group: 'product_categories',
                         animation: 150,
                         ghostClass: 'opacity-50',
                         onEnd: (evt) => {

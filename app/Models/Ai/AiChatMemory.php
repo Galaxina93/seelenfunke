@@ -13,7 +13,7 @@ class AiChatMemory extends Model
      *
      * @var string
      */
-    protected $table = 'funkira_chat_memories';
+    protected $table = 'ai_chat_memories';
 
     /**
      * The attributes that are mass assignable.

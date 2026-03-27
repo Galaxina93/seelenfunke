@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Livewire\Global\Ai;
 
-use App\Livewire\Global\Ai\AiCeoHealth;
+use App\Livewire\Shop\Management\ManagementHealth as AiCeoHealth;
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiChatMemory;
-use App\Models\Ai\Health\AiHealthMedication;
-use App\Models\Ai\Health\AiHealthProtocol;
-use App\Models\Ai\Health\AiHealthTreatmentItem;
-use App\Models\Ai\Health\AiHealthTreatmentPlan;
-use App\Models\User;
+use App\Models\Ai\AiHealthMedication;
+use App\Models\Ai\AiHealthProtocol;
+use App\Models\Ai\AiHealthTreatmentItem;
+use App\Models\Ai\AiHealthTreatmentPlan;
+use App\Models\System\SystemUser;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -63,7 +63,7 @@ class AiCeoHealthTest extends TestCase
             ->assertSee('Guten Tag! Ich bin Dr. Funki');
             
         // Assert DB
-        $this->assertDatabaseHas('funkira_chat_memories', [
+        $this->assertDatabaseHas('ai_chat_memories', [
             'role' => 'assistant',
             'session_id' => session()->getId() . '_health',
         ]);
@@ -102,7 +102,7 @@ class AiCeoHealthTest extends TestCase
             ->assertSee('Ich habe Kopfschmerzen.')
             ->assertDispatched('start-health-ai-inference');
 
-        $this->assertDatabaseHas('funkira_chat_memories', [
+        $this->assertDatabaseHas('ai_chat_memories', [
             'role' => 'user',
             'content' => 'Ich habe Kopfschmerzen.'
         ]);
@@ -256,6 +256,6 @@ class AiCeoHealthTest extends TestCase
             ->assertCount('messages', 1) // Only initial welcome remaining after remount
             ->assertSee('Guten Tag! Ich bin Dr. Funki');
             
-        $this->assertDatabaseMissing('funkira_chat_memories', ['content' => 'To be deleted']);
+        $this->assertDatabaseMissing('ai_chat_memories', ['content' => 'To be deleted']);
     }
 }

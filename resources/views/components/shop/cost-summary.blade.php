@@ -67,7 +67,7 @@
     ];
 
     if ($model) {
-        $isOrder = $model instanceof \App\Models\Order\Order;
+        $isOrder = $model instanceof \App\Models\Order\OrderOrder;
 
         $data['volume_discount'] = $model->volume_discount ?? 0;
         $data['coupon_code'] = $model->coupon_code ?? null;

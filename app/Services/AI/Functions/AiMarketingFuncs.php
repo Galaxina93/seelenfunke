@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use Illuminate\Support\Facades\Log;
 
 trait AiMarketingFuncs
@@ -117,14 +117,14 @@ trait AiMarketingFuncs
             return ['status' => 'error', 'message' => 'Gutscheincode fehlt.'];
         }
         
-        if (Voucher::where('code', $code)->exists()) {
+        if (MarketingVoucher::where('code', $code)->exists()) {
             return ['status' => 'error', 'message' => "Der Gutscheincode '$code' existiert bereits! Wähle einen anderen Namen."];
         }
 
         $dbValue = ($type === 'fixed') ? (int)($value * 100) : (int)$value;
         $dbMinOrder = isset($args['min_order_value']) ? (int)($args['min_order_value'] * 100) : null;
 
-        $voucher = Voucher::create([
+        $voucher = MarketingVoucher::create([
             'code' => $code,
             'title' => 'Manueller Code: ' . $code,
             'type' => $type,
@@ -159,7 +159,7 @@ trait AiMarketingFuncs
             return ['status' => 'error', 'message' => 'Gutschein ID fehlt.'];
         }
 
-        $voucher = Voucher::find($id);
+        $voucher = MarketingVoucher::find($id);
         if (!$voucher) {
             return ['status' => 'error', 'message' => 'Gutschein nicht gefunden.'];
         }
@@ -188,7 +188,7 @@ trait AiMarketingFuncs
 
     public static function executeGetCoupons(array $args): array
     {
-        $vouchers = Voucher::where('mode', 'manual')->orderByDesc('created_at')->limit(50)->get();
+        $vouchers = MarketingVoucher::where('mode', 'manual')->orderByDesc('created_at')->limit(50)->get();
         
         $mapped = $vouchers->map(function($v) {
             return [
@@ -226,7 +226,7 @@ trait AiMarketingFuncs
              return ['status' => 'error', 'message' => 'Kein Gutscheincode angegeben.'];
         }
 
-        $voucher = Voucher::where('code', $code)->first();
+        $voucher = MarketingVoucher::where('code', $code)->first();
         if (!$voucher) {
             return ['status' => 'error', 'message' => "Der Gutschein mit dem Code '{$code}' wurde nicht gefunden."];
         }

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Marketing;
 
-use App\Models\Marketing\Blog\BlogPost;
+use App\Models\Marketing\MarketingBlogPost;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -14,10 +14,14 @@ class MarketingBlogShow extends Component
     {
         // Wir suchen den Post anhand des Slugs.
         // WICHTIG: Wir nutzen auch hier ->published(), damit niemand unveröffentlichte Posts erraten kann.
-        $this->post = BlogPost::published()
+        $this->post = MarketingBlogPost::published()
             ->where('slug', $slug)
             ->with(['author', 'category'])
-            ->firstOrFail();
+            ->first();
+
+        if (!$this->post) {
+            abort(404);
+        }
     }
 
     public function render()

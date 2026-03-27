@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Models\Product\Product;
 use App\Models\Product\ProductReview;
 
@@ -73,7 +73,7 @@ trait AiSalesFuncs
     public static function executeGetOrder(array $args)
     {
         try {
-            $query = Order::with(['items', 'customer']);
+            $query = OrderOrder::with(['items', 'customer']);
             
             if (!empty($args['order_number'])) {
                 $term = $args['order_number'];

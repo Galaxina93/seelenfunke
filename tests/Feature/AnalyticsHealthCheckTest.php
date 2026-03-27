@@ -5,7 +5,7 @@ namespace Tests\Feature\Livewire\Global\Widgets;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Livewire\Livewire;
-use App\Livewire\Global\Widgets\Analytics;
+use App\Livewire\Shop\Management\ManagementAnalytics as Analytics;
 use App\Models\Admin\Admin;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -64,15 +64,15 @@ class AnalyticsHealthCheckTest extends TestCase
     public function test_it_shows_error_status_when_open_records_exist()
     {
         $taskListId = Str::uuid()->toString();
-        DB::table('task_lists')->insert(['id' => $taskListId, 'name' => 'Test']);
-        DB::table('tasks')->insert(['id' => Str::uuid()->toString(), 'is_completed' => 0, 'title' => 'Task', 'task_list_id' => $taskListId]);
-        DB::table('invoices')->insert(['id' => Str::uuid()->toString(), 'type' => 'credit_note', 'invoice_number' => '1', 'subtotal' => 0, 'tax_amount' => 0, 'total' => 0, 'status' => 'draft', 'invoice_date' => now(), 'billing_address' => '{}']);
-        DB::table('tickets')->insert(['id' => Str::uuid()->toString(), 'ticket_number' => '1', 'status' => 'open', 'subject' => 'A', 'customer_id' => Str::uuid()->toString(), 'category' => 'support']);
+        DB::table('management_task_lists')->insert(['id' => $taskListId, 'name' => 'Test']);
+        DB::table('management_tasks')->insert(['id' => Str::uuid()->toString(), 'is_completed' => 0, 'title' => 'Task', 'task_list_id' => $taskListId]);
+        DB::table('accounting_invoices')->insert(['id' => Str::uuid()->toString(), 'type' => 'credit_note', 'invoice_number' => '1', 'subtotal' => 0, 'tax_amount' => 0, 'total' => 0, 'status' => 'draft', 'invoice_date' => now(), 'billing_address' => '{}']);
+        DB::table('support_tickets')->insert(['id' => Str::uuid()->toString(), 'ticket_number' => '1', 'status' => 'open', 'subject' => 'A', 'customer_id' => Str::uuid()->toString(), 'category' => 'support']);
         // ProductReview migration expects title
         DB::table('product_reviews')->insert(['id' => Str::uuid()->toString(), 'status' => 'pending', 'product_id' => Str::uuid()->toString(), 'customer_id' => Str::uuid()->toString(), 'title' => 'A', 'content' => 'B', 'rating' => 5]);
         
         $accountId = 1;
-        DB::table('bank_accounts')->insert([
+        DB::table('accounting_bank_accounts')->insert([
             'id' => $accountId,
             'admin_id' => $this->admin->id,
             'is_active_for_analysis' => 1,
@@ -84,9 +84,9 @@ class AnalyticsHealthCheckTest extends TestCase
             'iban' => '123'
         ]);
         
-        DB::table('bank_transactions')->insert([
+        DB::table('accounting_bank_transactions')->insert([
             'id' => 1, 
-            'bank_account_id' => $accountId,
+            'accounting_bank_account_id' => $accountId,
             'finapi_transaction_id' => 'trans1',
             'amount' => 10,
             'currency' => 'EUR',
@@ -94,8 +94,8 @@ class AnalyticsHealthCheckTest extends TestCase
             'purpose' => 'Test'
         ]);
         
-        DB::table('quote_requests')->insert(['id' => Str::uuid()->toString(), 'status' => 'open', 'created_at' => now()->subDays(6), 'quote_number' => '1', 'email' => 'test@test.com', 'first_name' => 'A', 'last_name' => 'B', 'net_total' => 0, 'tax_total' => 0, 'gross_total' => 0]);
-        DB::table('revocations')->insert(['id' => 1, 'status' => 'pending', 'created_at' => now()->subDays(3), 'name' => 'A', 'email' => 'a@b.com', 'order_number' => '123']);
+        DB::table('order_quote_requests')->insert(['id' => Str::uuid()->toString(), 'status' => 'open', 'created_at' => now()->subDays(6), 'quote_number' => '1', 'email' => 'test@test.com', 'first_name' => 'A', 'last_name' => 'B', 'net_total' => 0, 'tax_total' => 0, 'gross_total' => 0]);
+        DB::table('order_revocations')->insert(['id' => 1, 'status' => 'pending', 'created_at' => now()->subDays(3), 'name' => 'A', 'email' => 'a@b.com', 'order_number' => '123']);
 
 
         Livewire::test(Analytics::class)
@@ -111,14 +111,14 @@ class AnalyticsHealthCheckTest extends TestCase
     public function test_it_shows_success_status_when_records_exist_but_are_completed()
     {
         $taskListId = Str::uuid()->toString();
-        DB::table('task_lists')->insert(['id' => $taskListId, 'name' => 'Test']);
-        DB::table('tasks')->insert(['id' => Str::uuid()->toString(), 'is_completed' => 1, 'title' => 'Task', 'task_list_id' => $taskListId]);
-        DB::table('invoices')->insert(['id' => Str::uuid()->toString(), 'type' => 'credit_note', 'invoice_number' => '2', 'subtotal' => 0, 'tax_amount' => 0, 'total' => 0, 'email_sent_at' => now(), 'status' => 'draft', 'invoice_date' => now(), 'billing_address' => '{}']);
-        DB::table('tickets')->insert(['id' => Str::uuid()->toString(), 'ticket_number' => '2', 'status' => 'closed', 'subject' => 'A', 'customer_id' => Str::uuid()->toString(), 'category' => 'support']);
+        DB::table('management_task_lists')->insert(['id' => $taskListId, 'name' => 'Test']);
+        DB::table('management_tasks')->insert(['id' => Str::uuid()->toString(), 'is_completed' => 1, 'title' => 'Task', 'task_list_id' => $taskListId]);
+        DB::table('accounting_invoices')->insert(['id' => Str::uuid()->toString(), 'type' => 'credit_note', 'invoice_number' => '2', 'subtotal' => 0, 'tax_amount' => 0, 'total' => 0, 'email_sent_at' => now(), 'status' => 'draft', 'invoice_date' => now(), 'billing_address' => '{}']);
+        DB::table('support_tickets')->insert(['id' => Str::uuid()->toString(), 'ticket_number' => '2', 'status' => 'closed', 'subject' => 'A', 'customer_id' => Str::uuid()->toString(), 'category' => 'support']);
         DB::table('product_reviews')->insert(['id' => Str::uuid()->toString(), 'status' => 'approved', 'product_id' => Str::uuid()->toString(), 'customer_id' => Str::uuid()->toString(), 'title' => 'A', 'content' => 'B', 'rating' => 5]);
         
         $accountId = 2;
-        DB::table('bank_accounts')->insert([
+        DB::table('accounting_bank_accounts')->insert([
             'id' => $accountId,
             'admin_id' => $this->admin->id,
             'is_active_for_analysis' => 1,
@@ -130,9 +130,9 @@ class AnalyticsHealthCheckTest extends TestCase
             'iban' => '123'
         ]);
         
-        DB::table('bank_transactions')->insert([
+        DB::table('accounting_bank_transactions')->insert([
             'id' => 2, 
-            'bank_account_id' => $accountId,
+            'accounting_bank_account_id' => $accountId,
             'finapi_transaction_id' => 'trans2',
             'amount' => 10,
             'currency' => 'EUR',
@@ -140,8 +140,8 @@ class AnalyticsHealthCheckTest extends TestCase
             'purpose' => 'Test'
         ]);
         
-        DB::table('quote_requests')->insert(['id' => Str::uuid()->toString(), 'status' => 'converted', 'created_at' => now()->subDays(6), 'quote_number' => '2', 'email' => 'test@test.com', 'first_name' => 'A', 'last_name' => 'B', 'net_total' => 0, 'tax_total' => 0, 'gross_total' => 0]);
-        DB::table('revocations')->insert(['id' => 2, 'status' => 'completed', 'created_at' => now()->subDays(3), 'name' => 'A', 'email' => 'a@b.com', 'order_number' => '456']);
+        DB::table('order_quote_requests')->insert(['id' => Str::uuid()->toString(), 'status' => 'converted', 'created_at' => now()->subDays(6), 'quote_number' => '2', 'email' => 'test@test.com', 'first_name' => 'A', 'last_name' => 'B', 'net_total' => 0, 'tax_total' => 0, 'gross_total' => 0]);
+        DB::table('order_revocations')->insert(['id' => 2, 'status' => 'completed', 'created_at' => now()->subDays(3), 'name' => 'A', 'email' => 'a@b.com', 'order_number' => '456']);
 
         Livewire::test(Analytics::class)
             ->assertSet('healthChecks.open_tasks.status', 'success')

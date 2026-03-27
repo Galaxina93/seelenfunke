@@ -1,18 +1,18 @@
 <?php
 
-use App\Models\Management\DayRoutine;
+use App\Models\Management\ManagementDayRoutine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/funki/routine', function () {
-    return DayRoutine::with('steps')
+    return ManagementDayRoutine::with('steps')
         ->where('is_active', true)
         ->orderBy('start_time')
         ->get();
 });
 
 Route::put('/funki/routine/{id}', function (Request $request, $id) {
-    $routine = DayRoutine::findOrFail($id);
+    $routine = ManagementDayRoutine::findOrFail($id);
     $data = $request->validate([
         'title' => 'required',
         'message' => 'nullable',

@@ -3,10 +3,10 @@
 namespace App\Livewire\Shop\Product;
 
 use App\Models\Customer\Customer;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Models\Product\Product;
 use App\Models\Product\ProductReview;
-use App\Models\Session;
+use App\Models\System\SystemSession;
 use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -115,7 +115,7 @@ class ProductReviews extends Component
 
             session(['permissions' => $permissions]);
 
-            if (class_exists(Session::class)) {
+            if (class_exists(SystemSession::class)) {
                 $this->setBrowserSession($loggedInUser);
             }
 
@@ -163,7 +163,7 @@ class ProductReviews extends Component
             'last_activity' => time(),
         ];
 
-        Session::updateOrInsert(['user_id' => $user->id, 'ip_address' => request()->ip()], $sessionData);
+        SystemSession::updateOrInsert(['user_id' => $user->id, 'ip_address' => request()->ip()], $sessionData);
     }
 
     public function updatedNewMedia()
@@ -262,7 +262,7 @@ class ProductReviews extends Component
 
         $customerId = Auth::guard('customer')->id();
 
-        $hasPurchased = Order::where('customer_id', $customerId)
+        $hasPurchased = OrderOrder::where('customer_id', $customerId)
             ->whereIn('status', ['completed', 'shipped', 'processing', 'pending'])
             ->where('payment_status', 'paid')
             ->whereHas('items', function ($query) {
@@ -382,7 +382,7 @@ class ProductReviews extends Component
                 $hasReviewed = true;
             }
 
-            $canReview = Order::where('customer_id', $customerId)
+            $canReview = OrderOrder::where('customer_id', $customerId)
                 ->whereIn('status', ['completed', 'shipped', 'processing', 'pending'])
                 ->where('payment_status', 'paid')
                 ->whereHas('items', function ($query) {

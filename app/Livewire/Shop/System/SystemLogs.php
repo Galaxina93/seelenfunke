@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\System;
 
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -66,8 +66,8 @@ class SystemLogs extends Component
             // Ignore
         }
 
-        $query = GlobalLog::with('agent')
-            ->selectRaw('*, (SELECT COUNT(*) FROM logs as l2 WHERE l2.message = logs.message AND l2.status = "error") as error_count');
+        $query = SystemLog::with('agent')
+            ->selectRaw('*, (SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status = "error") as error_count');
 
         if ($this->search) {
             $query->where(function($q) {
@@ -96,11 +96,11 @@ class SystemLogs extends Component
         $logs = $query->latest()->paginate(50);
 
         // Analytics Data
-        $totalLogs = GlobalLog::count();
-        $totalErrors = GlobalLog::where('status', 'error')->count();
-        $logsToday = GlobalLog::whereDate('created_at', today())->count();
+        $totalLogs = SystemLog::count();
+        $totalErrors = SystemLog::where('status', 'error')->count();
+        $logsToday = SystemLog::whereDate('created_at', today())->count();
         $agents = \App\Models\Ai\AiAgent::orderBy('name')->get();
-        $uniqueTypes = GlobalLog::select('type')->distinct()->pluck('type');
+        $uniqueTypes = SystemLog::select('type')->distinct()->pluck('type');
 
         return view('livewire.shop.system.system-logs', [
             'logs' => $logs,

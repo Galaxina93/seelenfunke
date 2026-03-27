@@ -3,13 +3,14 @@
 namespace Tests\Feature\Livewire\Shop;
 
 use App\Livewire\Shop\Cart\CartComponent;
-use App\Livewire\Shop\Checkout\Checkout;
-use App\Livewire\Shop\Checkout\CheckoutSuccess;
-use App\Livewire\Shop\Configurator\Configurator;
+use App\Livewire\Shop\Order\OrderCheckout\OrderCheckout as Checkout;
+use App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess as CheckoutSuccess;
+use App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator as Configurator;
 use App\Models\Cart\Cart;
 use App\Models\Customer\Customer;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Models\Product\Product;
+use App\Models\System\SystemSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Queue;
@@ -39,7 +40,7 @@ class ShopProcessTest extends TestCase
         ]);
         
         // Setup Dummy Admin for backend views
-        \App\Models\Role::firstOrCreate(['name' => 'admin']);
+        \App\Models\System\SystemRole::firstOrCreate(['name' => 'admin']);
         $admin = \App\Models\Admin\Admin::create([
             'id' => \Illuminate\Support\Str::uuid()->toString(),
             'email' => 'admin_shoptest@test.de',
@@ -102,7 +103,7 @@ class ShopProcessTest extends TestCase
 
         // Die Methode 'validateAndCreateOrder' returnt die Order ID, aber Livewire 3 gibt das nicht mehr so einfach zurück.
         // Da wir eine saubere Test-DB haben, nehmen wir einfach die neueste Order:
-        $order = Order::latest()->first();
+        $order = OrderOrder::latest()->first();
         
         $this->assertNotNull($order, "Order was not created in the database.");
         $this->assertEquals('test@kunde.de', $order->email);
@@ -132,7 +133,7 @@ class ShopProcessTest extends TestCase
         // which the user wants automated anyway, to complete the cycle.
         
         // Alternativ: Backend-Abschluss simulieren (das ist der Fokus des Users)
-        \Livewire\Livewire::test(\App\Livewire\Shop\Order\Orders::class)
+        \Livewire\Livewire::test(\App\Livewire\Shop\Order\OrderOverview::class)
             ->call('markAsPaid', $order->id);
 
         $order->refresh();

@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Shop\Marketing;
 
+use App\Livewire\Traits\WithDepartmentTheming;
 use App\Mail\NewsletterVerificationMail;
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
-use App\Livewire\Traits\WithDepartmentTheming;
 
 class MarketingNewsletterPage extends Component
 {
@@ -37,7 +37,7 @@ class MarketingNewsletterPage extends Component
     public function subscribe()
     {
         $this->validate([
-            'email' => 'required|email|unique:newsletter_subscribers,email',
+            'email' => 'required|email|unique:marketing_newsletter_subscribers,email',
             'privacy_accepted' => 'accepted'
         ], [
             'email.unique' => 'Diese E-Mail ist bereits registriert. Prüfe ggf. deinen Spam-Ordner für die Bestätigung.'
@@ -45,7 +45,7 @@ class MarketingNewsletterPage extends Component
 
         $token = Str::random(32);
 
-        $subscriber = NewsletterSubscriber::create([
+        $subscriber = MarketingNewsletterSubscriber::create([
             'email' => $this->email,
             'ip_address' => request()->ip(),
             'privacy_accepted' => true,
@@ -69,7 +69,7 @@ class MarketingNewsletterPage extends Component
         // Für Abmeldung ist Datenschutz-Häkchen technisch nicht zwingend, aber E-Mail Validation
         $this->validate(['email' => 'required|email']);
 
-        $subscriber = NewsletterSubscriber::where('email', $this->email)->first();
+        $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();
 
         if ($subscriber) {
             // Hard Delete oder Soft Delete, je nach Migration.

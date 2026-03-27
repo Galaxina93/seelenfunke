@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\Session as SessionModel;
+use App\Models\System\SystemSession as SessionModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -25,8 +25,8 @@ class GoogleAuthController extends Controller
     public function redirectToGoogle($guard = 'customer')
     {
         // Guard speichern (wird aber durch intelligente Erkennung oft überschrieben)
-        Session::put('auth_guard', $guard);
-        Session::save();
+        SystemSession::put('auth_guard', $guard);
+        SystemSession::save();
         return Socialite::driver('google')->redirect();
     }
 
@@ -178,8 +178,8 @@ class GoogleAuthController extends Controller
 
     protected function setBrowserSession($user)
     {
-        $sessionId = Session::getId();
-        $payload = base64_encode(serialize(Session::all()));
+        $sessionId = SystemSession::getId();
+        $payload = base64_encode(serialize(SystemSession::all()));
 
         $sessionData = [
             'id' => $sessionId,

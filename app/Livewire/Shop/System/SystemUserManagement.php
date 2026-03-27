@@ -7,7 +7,7 @@ use Livewire\Attributes\Layout;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
@@ -126,7 +126,7 @@ class SystemUserManagement extends Component
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
 
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'system',
             'action_id' => 'user:create',
             'title' => 'Neuer Benutzer angelegt',
@@ -260,7 +260,7 @@ class SystemUserManagement extends Component
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
 
         if (count($changes) > 0) {
-            GlobalLog::create([
+            SystemLog::create([
                 'type' => 'system',
                 'action_id' => 'user:update',
                 'title' => 'Benutzerprofil modifiziert',
@@ -287,7 +287,7 @@ class SystemUserManagement extends Component
         $model->delete();
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'system',
             'action_id' => 'user:archive',
             'title' => 'Benutzer archiviert',
@@ -305,7 +305,7 @@ class SystemUserManagement extends Component
         $model->restore();
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'system',
             'action_id' => 'user:restore',
             'title' => 'Benutzer wiederhergestellt',
@@ -324,7 +324,7 @@ class SystemUserManagement extends Component
         $model->forceDelete();
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'system',
             'action_id' => 'user:force_delete',
             'title' => 'Benutzer endgültig gelöscht',
@@ -375,7 +375,7 @@ class SystemUserManagement extends Component
 
         return view('livewire.shop.system.system-user-management', [
             'users' => $pagedResults,
-            'logs' => GlobalLog::where('action_id', 'like', 'user:%')->latest()->paginate(10, ['*'], 'logPage')
+            'logs' => SystemLog::where('action_id', 'like', 'user:%')->latest()->paginate(10, ['*'], 'logPage')
         ]);
     }
 }

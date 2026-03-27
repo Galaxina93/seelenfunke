@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Product;
 
-use App\Models\Product\Category;
+use App\Models\Product\ProductCategory;
 use App\Models\Product\Product;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -36,7 +36,7 @@ class ProductCategories extends Component
 
     public function loadCategories()
     {
-        $query = Category::query();
+        $query = ProductCategory::query();
 
         if ($this->search) {
             $query->where('name', 'like', '%' . $this->search . '%');
@@ -86,7 +86,7 @@ class ProductCategories extends Component
             'newCategoryName' => 'required|min:2|unique:categories,name'
         ]);
 
-        Category::create([
+        ProductCategory::create([
             'name' => $this->newCategoryName,
             'slug' => Str::slug($this->newCategoryName),
             'type' => $this->product->type, // Übernimmt den Typ des aktuellen Produkts
@@ -115,7 +115,7 @@ class ProductCategories extends Component
             'editingCategoryName' => 'required|min:2|unique:categories,name,' . $this->editingCategoryId
         ]);
 
-        $category = Category::find($this->editingCategoryId);
+        $category = ProductCategory::find($this->editingCategoryId);
         if($category) {
             $category->update([
                 'name' => $this->editingCategoryName,
@@ -129,7 +129,7 @@ class ProductCategories extends Component
 
     public function deleteCategory($id)
     {
-        $category = Category::find($id);
+        $category = ProductCategory::find($id);
 
         if($category) {
             // Erst Beziehung lösen falls ausgewählt

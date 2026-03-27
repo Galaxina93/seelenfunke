@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Ai\AiKnowledgeBase;
+use App\Models\Ai\AiKnowledgeBaseCategory;
+use App\Models\Ai\AiKnowledgeBaseTag;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
-use App\Models\AiKnowledgeBase;
-use App\Models\AiKnowledgeBaseCategory;
-use App\Models\AiKnowledgeBaseTag;
 
 class AiKnowledgeBaseSeeder extends Seeder
 {
@@ -31,7 +31,7 @@ class AiKnowledgeBaseSeeder extends Seeder
                 'slug' => Str::slug($name)
             ], [
                 'name' => $name,
-                // Assuming 'description' exists, if not we ignore it or add it if needed. 
+                // Assuming 'description' exists, if not we ignore it or add it if needed.
                 // Mostly name and slug are standard.
             ])->id;
         }
@@ -66,7 +66,7 @@ class AiKnowledgeBaseSeeder extends Seeder
 - Webseite: www.mein-seelenfunke.de
 
 **Unternehmensfokus & Brand:**
-Mein-Seelenfunke ist eine Manufaktur für hochindividualisierte, personalisierte Produkte. Der Schwerpunkt liegt auf präzisen Lasergravuren auf hochwertigen Naturmaterialien wie Holz und Schiefer. Der Verkauf erfolgt primär über den eigenen Online-Shop (Dashboard) sowie den externen Marktplatz Etsy. Darüber hinaus bedienen wir auch individuelle B2B-Großaufträge. 
+Mein-Seelenfunke ist eine Manufaktur für hochindividualisierte, personalisierte Produkte. Der Schwerpunkt liegt auf präzisen Lasergravuren auf hochwertigen Naturmaterialien wie Holz und Schiefer. Der Verkauf erfolgt primär über den eigenen Online-Shop (Dashboard) sowie den externen Marktplatz Etsy. Darüber hinaus bedienen wir auch individuelle B2B-Großaufträge.
 Der Kundenservice und das System-Management werden durch ein fortschrittliches Netzwerk an KI-Agenten (Funkira, Lumina, Zion, Taron, Rion, Vira) verwaltet, welches eng mit der Inhaberin Alina Steinhauer ('Alina') zusammenarbeitet.
                 "
             ],
@@ -121,7 +121,7 @@ Holz und Schiefer unterliegen natürlichen Schwankungen. Abweichungen in Farbe, 
 Die Abwicklung digitaler Zahlungen erfolgt DSGVO-konform über **Stripe Payments Europe, Ltd.** Wir selbst speichern keine sensiblen Kreditkartendaten ab.
 
 **Bestellungen über Etsy:**
-Wird über unseren angeschlossenen Etsy-Shop bestellt, greifen vorrangig die AGB von Etsy. Die Bezahlung erfolgt dort zwingend über *Etsy Payments*. 
+Wird über unseren angeschlossenen Etsy-Shop bestellt, greifen vorrangig die AGB von Etsy. Die Bezahlung erfolgt dort zwingend über *Etsy Payments*.
 
 **Versandlogistik:**
 Die Auslieferung der Bestellungen in Deutschland erfolgt durch die **Deutsche Post AG** sowie die **DHL Paket GmbH**.
@@ -135,7 +135,7 @@ Die Auslieferung der Bestellungen in Deutschland erfolgt durch die **Deutsche Po
                 'content' => "
 # Interaktiver Kundenbereich & Spiele
 
-Mein-Seelenfunke bietet ein innovatives, 3D-beschleunigtes Kunden-Dashboard (Three.js basiert). Nach dem Login haben Nutzer die völlig freiwillige Möglichkeit, mit 3D-Begleitern zu interagieren und plattforminterne Mini-Spiele (wie *Kristall-Kollaps 3D*) zu absolvieren. 
+Mein-Seelenfunke bietet ein innovatives, 3D-beschleunigtes Kunden-Dashboard (Three.js basiert). Nach dem Login haben Nutzer die völlig freiwillige Möglichkeit, mit 3D-Begleitern zu interagieren und plattforminterne Mini-Spiele (wie *Kristall-Kollaps 3D*) zu absolvieren.
 
 **Das Bonusprogramm (Seelenfunken):**
 - **Punkte-System:** Kunden sammeln durch Interaktion virtuelle Erfahrungspunkte ('Seelenfunken').
@@ -152,7 +152,7 @@ Mein-Seelenfunke bietet ein innovatives, 3D-beschleunigtes Kunden-Dashboard (Thr
                 'content' => "
 # Strikter Datenschutz & Mittwald-Hosting
 
-Ein absolutes Alleinstellungsmerkmal von Mein-Seelenfunke ist der souveräne Umgang mit Nutzerdaten. 
+Ein absolutes Alleinstellungsmerkmal von Mein-Seelenfunke ist der souveräne Umgang mit Nutzerdaten.
 Sowohl die Kern-Website, die Datenbanken als auch **alle Künstlichen Intelligenz (KI)-Sprachmodelle laufen autark auf dedizierten Servern in Deutschland** bei der *Mittwald CM Service GmbH & Co. KG*.
 
 **KI-Datenschutz (Garantiert):**

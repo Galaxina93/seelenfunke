@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Livewire\Shop\Voucher;
 
-use App\Livewire\Shop\Voucher\Voucher;
-use App\Models\Voucher as VoucherModel;
+use App\Livewire\Shop\Marketing\MarketingVoucher;
+use App\Models\Marketing\MarketingVoucher as VoucherModel;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -16,7 +16,7 @@ class VoucherTest extends TestCase
     #[Test]
     public function it_renders_the_component_in_auto_mode_by_default()
     {
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->assertSet('voucherSectionMode', 'auto')
             ->assertSet('isCreatingManual', false)
             ->assertStatus(200);
@@ -25,7 +25,7 @@ class VoucherTest extends TestCase
     #[Test]
     public function it_can_toggle_section_mode()
     {
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('toggleVoucherSectionMode')
             ->assertSet('voucherSectionMode', 'manual')
             ->call('toggleVoucherSectionMode')
@@ -44,12 +44,12 @@ class VoucherTest extends TestCase
             'mode' => 'manual',
         ]);
 
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('toggleVoucherStatus', $voucher->id);
 
         $this->assertFalse((bool) $voucher->fresh()->is_active);
 
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('toggleVoucherStatus', $voucher->id);
 
         $this->assertTrue((bool) $voucher->fresh()->is_active);
@@ -58,7 +58,7 @@ class VoucherTest extends TestCase
     #[Test]
     public function it_can_open_create_manual_coupon_form()
     {
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('createManualCoupon')
             ->assertSet('isCreatingManual', true)
             ->assertSet('isEditingManual', false)
@@ -69,7 +69,7 @@ class VoucherTest extends TestCase
     #[Test]
     public function it_validates_manual_coupon_creation()
     {
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('createManualCoupon')
             ->set('manual_code', '') // Invalid code
             ->set('manual_value', 'abc') // Invalid value
@@ -80,7 +80,7 @@ class VoucherTest extends TestCase
     #[Test]
     public function it_creates_a_fixed_discount_manual_coupon_and_converts_to_cents()
     {
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('createManualCoupon')
             ->set('manual_code', 'FIXED10')
             ->set('manual_type', 'fixed')
@@ -91,7 +91,7 @@ class VoucherTest extends TestCase
             ->assertSet('isCreatingManual', false);
 
         // Fixed type should multiply by 100 for cents storage in database
-        $this->assertDatabaseHas('voucher', [
+        $this->assertDatabaseHas('marketing_vouchers', [
             'code' => 'FIXED10',
             'type' => 'fixed',
             'value' => 1050, 
@@ -104,7 +104,7 @@ class VoucherTest extends TestCase
     #[Test]
     public function it_creates_a_percent_discount_manual_coupon_without_cent_conversion()
     {
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('createManualCoupon')
             ->set('manual_code', 'PERCENT15')
             ->set('manual_type', 'percent')
@@ -113,7 +113,7 @@ class VoucherTest extends TestCase
             ->call('saveManualCoupon');
 
         // Percent type should NOT multiply by 100
-        $this->assertDatabaseHas('voucher', [
+        $this->assertDatabaseHas('marketing_vouchers', [
             'code' => 'PERCENT15',
             'type' => 'percent',
             'value' => 15,
@@ -136,7 +136,7 @@ class VoucherTest extends TestCase
             'valid_from' => now(),
         ]);
 
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('editManualCoupon', $voucher->id)
             ->assertSet('isEditingManual', true)
             ->assertSet('manual_code', 'TOEDIT5')
@@ -146,7 +146,7 @@ class VoucherTest extends TestCase
             ->set('manual_value', 10.0) // Change value to 10 Euros
             ->call('saveManualCoupon');
 
-        $this->assertDatabaseHas('voucher', [
+        $this->assertDatabaseHas('marketing_vouchers', [
             'id' => $voucher->id,
             'value' => 1000 // Saved back as cents successfully
         ]);
@@ -164,10 +164,10 @@ class VoucherTest extends TestCase
             'mode' => 'manual',
         ]);
 
-        Livewire::test(Voucher::class)
+        Livewire::test(MarketingVoucher::class)
             ->call('deleteManualCoupon', $voucher->id);
 
-        $this->assertDatabaseMissing('voucher', [
+        $this->assertDatabaseMissing('marketing_vouchers', [
             'id' => $voucher->id
         ]);
     }
@@ -181,10 +181,10 @@ class VoucherTest extends TestCase
         $year = date('Y');
 
         // Verify that 12 auto vouchers were created
-        $this->assertDatabaseCount('voucher', 12);
+        $this->assertDatabaseCount('marketing_vouchers', 12);
 
         // Verify a specific one (e.g. Christmas)
-        $this->assertDatabaseHas('voucher', [
+        $this->assertDatabaseHas('marketing_vouchers', [
             'code' => "XMAS-$year",
             'mode' => 'auto',
             'type' => 'percent',
@@ -195,7 +195,7 @@ class VoucherTest extends TestCase
         ]);
 
         // Verify another specific one (e.g. Start)
-        $this->assertDatabaseHas('voucher', [
+        $this->assertDatabaseHas('marketing_vouchers', [
             'code' => "START-$year",
             'mode' => 'auto',
             'type' => 'percent',

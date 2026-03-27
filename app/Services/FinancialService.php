@@ -3,7 +3,7 @@ namespace App\Services;
 
 use App\Models\Accounting\AccountingGroup;
 use App\Models\Accounting\AccountingSpecialIssue;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -249,7 +249,7 @@ class FinancialService
             $totals['year_sum'] += $cat['year_sum'];
         }
 
-        return ['categories' => $structure, 'totals' => $totals];
+        return ['product_categories' => $structure, 'totals' => $totals];
     }
 
     public function getPieChartData($adminId, $from, $to)

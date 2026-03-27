@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Customer;
 
-use App\Models\Order\Order;
-use App\Models\Order\OrderItem;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderOrderItem;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -30,7 +30,7 @@ class CustomerOrders extends Component
     {
         // A) Detail-Ansicht Modus
         if ($this->selectedOrderId) {
-            $selectedOrder = Order::with(['items.product', 'invoices'])
+            $selectedOrder = OrderOrder::with(['items.product', 'invoices'])
                 ->where('customer_id', Auth::guard('customer')->id())
                 ->find($this->selectedOrderId);
 
@@ -46,7 +46,7 @@ class CustomerOrders extends Component
         }
 
         // B) Listen-Ansicht Modus
-        $query = Order::where('customer_id', Auth::guard('customer')->id());
+        $query = OrderOrder::where('customer_id', Auth::guard('customer')->id());
 
         if ($this->search) {
             $query->where('order_number', 'like', '%' . $this->search . '%');
@@ -92,6 +92,6 @@ class CustomerOrders extends Component
     public function previewItem()
     {
         if (!$this->previewItemId) return null;
-        return OrderItem::with('product')->find($this->previewItemId);
+        return OrderOrderItem::with('product')->find($this->previewItemId);
     }
 }

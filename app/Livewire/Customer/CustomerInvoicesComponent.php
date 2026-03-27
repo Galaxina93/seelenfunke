@@ -4,7 +4,7 @@ namespace App\Livewire\Customer;
 
 use Livewire\Component;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 
 class CustomerInvoicesComponent extends Component
 {
@@ -13,7 +13,7 @@ class CustomerInvoicesComponent extends Component
         $user = Auth::guard('customer')->user();
 
         // Alle Bestellungen laden als Referenz für die UI (Bestellnummer-Anzeige)
-        $orders = Order::where('customer_id', $user->id)
+        $orders = OrderOrder::where('customer_id', $user->id)
             ->get();
 
         // Invoices direkt über den Kunden laden (inkludiert auch Gutschriften ohne direkte Order-Zuweisung)

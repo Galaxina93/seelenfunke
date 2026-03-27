@@ -36,7 +36,7 @@ trait handleTwoFactorTrait
             return;
         }
 
-        $userModel = (new \App\Models\User)->getUserModelByGuard($guard);
+        $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($guard);
         $user = $userModel::find($userId);
 
         if (!$user) {

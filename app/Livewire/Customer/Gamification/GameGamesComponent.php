@@ -59,7 +59,7 @@ class GameGamesComponent extends Component
     {
         $user = Auth::guard('customer')->user();
         if (!$user) {
-            \Log::warning('consumeEnergy: User not found in customer guard');
+            \Log::warning('consumeEnergy: SystemUser not found in customer guard');
             return false;
         }
 

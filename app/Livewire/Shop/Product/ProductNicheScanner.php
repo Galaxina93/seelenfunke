@@ -6,7 +6,7 @@ use Livewire\Attributes\Layout;
 
 use Livewire\Component;
 use Livewire\WithPagination;
-use App\Models\Product\NicheProduct;
+use App\Models\Product\ProductNicheItem;
 use App\Jobs\RunProductNicheCrawlerJob;
 use Illuminate\Support\Facades\Cache;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -45,7 +45,7 @@ class ProductNicheScanner extends Component
 
     public function loadSavedRuns()
     {
-        $this->savedRuns = \App\Models\Product\NicheCrawlerRun::orderBy('created_at', 'desc')->get()->toArray();
+        $this->savedRuns = \App\Models\Product\ProductNicheCrawlerRun::orderBy('created_at', 'desc')->get()->toArray();
     }
 
     public function loadHistoricalRun($id = null)
@@ -59,7 +59,7 @@ class ProductNicheScanner extends Component
             return;
         }
 
-        $run = \App\Models\Product\NicheCrawlerRun::find($id);
+        $run = \App\Models\Product\ProductNicheCrawlerRun::find($id);
         if ($run) {
             $this->selectedRunId = $run->id;
 
@@ -76,7 +76,7 @@ class ProductNicheScanner extends Component
 
     public function deleteRun($id)
     {
-        \App\Models\Product\NicheCrawlerRun::destroy($id);
+        \App\Models\Product\ProductNicheCrawlerRun::destroy($id);
         if ($this->selectedRunId == $id) {
             $this->loadHistoricalRun(null);
         }
@@ -92,7 +92,7 @@ class ProductNicheScanner extends Component
             return;
         }
 
-        $products = NicheProduct::orderBy('niche_score', 'desc')->get();
+        $products = ProductNicheItem::orderBy('niche_score', 'desc')->get();
         if ($products->isEmpty()) {
             session()->flash('error', 'Keine Live-Daten zum Speichern vorhanden. Lass den Crawler laufen!');
             return;
@@ -101,7 +101,7 @@ class ProductNicheScanner extends Component
         $platformStr = is_array($this->crawlPlatforms) ? implode(', ', $this->crawlPlatforms) : 'Unbekannt';
         $name = $this->crawlKeyword ? 'Suche: ' . $this->crawlKeyword . ' (' . $platformStr . ')' : 'Scanner-Lauf ' . now()->format('d.m.Y H:i');
 
-        $run = \App\Models\Product\NicheCrawlerRun::create([
+        $run = \App\Models\Product\ProductNicheCrawlerRun::create([
             'admin_id' => auth('admin')->id() ?? 1,
             'name' => $name,
             'keyword' => $this->crawlKeyword,
@@ -179,7 +179,7 @@ class ProductNicheScanner extends Component
 
     public function clearData()
     {
-        NicheProduct::truncate();
+        ProductNicheItem::truncate();
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_rec');
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_agent');
         $this->aiRecommendation = null;
@@ -203,7 +203,7 @@ class ProductNicheScanner extends Component
         }
 
         // Get Top 3 based on current filters
-        $query = NicheProduct::query();
+        $query = ProductNicheItem::query();
         if (!empty($this->filterPlatform)) $query->where('platform', $this->filterPlatform);
         if ($this->filterMinScore > 0) $query->where('niche_score', '>=', $this->filterMinScore);
         $top3 = $query->orderBy('niche_score', 'desc')->take(3)->get();
@@ -270,7 +270,7 @@ class ProductNicheScanner extends Component
 
     public function exportTop5Pdf()
     {
-        $runIdParam = $this->selectedRunId ? '?run_id=' . $this->selectedRunId : '';
+        $runIdParam = $this->selectedRunId ? '?product_niche_crawler_run_id=' . $this->selectedRunId : '';
         return redirect()->to(route('shop.pdf.top5-niche') . $runIdParam);
     }
 
@@ -298,7 +298,7 @@ class ProductNicheScanner extends Component
         }
 
         // LIVE MODE
-        $query = NicheProduct::query();
+        $query = ProductNicheItem::query();
 
 
         if (!empty($this->search)) {
@@ -318,8 +318,8 @@ class ProductNicheScanner extends Component
 
         $products = $query->orderBy('niche_score', 'desc')->paginate(40); // Top 40
 
-        $chartScores = NicheProduct::selectRaw('niche_score, count(*) as count')->groupBy('niche_score')->get();
-        $chartPlatforms = NicheProduct::selectRaw('platform, count(*) as count')->groupBy('platform')->get();
+        $chartScores = ProductNicheItem::selectRaw('niche_score, count(*) as count')->groupBy('niche_score')->get();
+        $chartPlatforms = ProductNicheItem::selectRaw('platform, count(*) as count')->groupBy('platform')->get();
 
         $activeJobIds = Cache::get('active_crawler_jobs', []);
         $activeJobsData = [];

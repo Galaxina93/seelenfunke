@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Product;
 
-use App\Models\Product\Category;
+use App\Models\Product\ProductCategory;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Title;
@@ -61,7 +61,7 @@ class ProductIndex extends Component
         }
 
         // Dynamisches Laden der Kategorien, die auch Produkte enthalten
-        $categories = Category::whereHas('products', function ($query) {
+        $categories = ProductCategory::whereHas('products', function ($query) {
             $query->where('status', 'active');
         })->orderBy('name')->get();
 
@@ -84,7 +84,7 @@ class ProductIndex extends Component
         // 3. Filter nach Kategorie (Relation)
         if (!empty($this->filterCategory)) {
             $query->whereHas('categories', function($q) {
-                $q->where('categories.id', $this->filterCategory);
+                $q->where('product_categories.id', $this->filterCategory);
             });
         }
 

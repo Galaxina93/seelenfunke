@@ -2,17 +2,16 @@
 
 namespace App\Livewire\Shop\Marketing;
 
-use Livewire\Attributes\Layout;
-
-use App\Models\Marketing\Blog\BlogPost;
 use App\Livewire\Traits\WithDepartmentTheming;
-use App\Models\Marketing\Blog\BlogCategory;
-use Livewire\Component;
-use Livewire\WithPagination;
-use Livewire\WithFileUploads;
-use Illuminate\Support\Str;
+use App\Models\Marketing\MarketingBlogCategory;
+use App\Models\Marketing\MarketingBlogPost;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 #[Layout('components.layouts.backend_layout')]
 class MarketingBlog extends Component
@@ -59,10 +58,10 @@ class MarketingBlog extends Component
             'slug' => [
                 'required',
                 'alpha_dash',
-                Rule::unique('blog_posts', 'slug')->ignore($this->postId),
+                Rule::unique('marketing_blog_posts', 'slug')->ignore($this->postId),
             ],
             'content' => 'required|min:20',
-            'blog_category_id' => 'nullable|exists:blog_categories,id',
+            'blog_category_id' => 'nullable|exists:marketing_blog_categories,id',
             'status' => 'required|in:draft,published,scheduled',
             'published_at' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB limit
@@ -80,7 +79,7 @@ class MarketingBlog extends Component
             'image.image' => 'Die Datei muss ein Bild sein.',
             'image.mimes' => 'Das Kachelbild muss vom Typ JPEG, PNG, JPG oder WEBP sein.',
             'image.max' => 'Das Kachelbild darf nicht größer als 5 MB sein.',
-            
+
             'headerImage.image' => 'Die Datei muss ein Bild sein.',
             'headerImage.mimes' => 'Das Hintergrundbild muss vom Typ JPEG, PNG, JPG oder WEBP sein.',
             'headerImage.max' => 'Das Hintergrundbild darf nicht größer als 10 MB sein.',
@@ -106,7 +105,7 @@ class MarketingBlog extends Component
 
     public function render()
     {
-        $posts = BlogPost::query()
+        $posts = MarketingBlogPost::query()
             ->when($this->search, function($q) {
                 $q->where('title', 'like', '%'.$this->search.'%');
             })
@@ -115,7 +114,7 @@ class MarketingBlog extends Component
             ->paginate(10);
 
         // Kategorien immer frisch laden für das Dropdown & Modal
-        $categories = BlogCategory::orderBy('name')->get();
+        $categories = MarketingBlogCategory::orderBy('name')->get();
 
         return view('livewire.shop.marketing.marketing-blog', [
             'posts' => $posts,
@@ -139,7 +138,7 @@ class MarketingBlog extends Component
         $this->viewMode = 'edit';
         $this->postId = $id;
 
-        $post = BlogPost::findOrFail($id);
+        $post = MarketingBlogPost::findOrFail($id);
 
         $this->title = $post->title;
         $this->slug = $post->slug;
@@ -186,10 +185,10 @@ class MarketingBlog extends Component
 
         if ($this->viewMode === 'create') {
             $data['user_id'] = Auth::id();
-            BlogPost::create($data);
+            MarketingBlogPost::create($data);
             session()->flash('success', 'Blogbeitrag erfolgreich erstellt.');
         } else {
-            $post = BlogPost::findOrFail($this->postId);
+            $post = MarketingBlogPost::findOrFail($this->postId);
             $post->update($data);
             session()->flash('success', 'Blogbeitrag aktualisiert.');
         }
@@ -200,7 +199,7 @@ class MarketingBlog extends Component
 
     public function delete($id)
     {
-        $post = BlogPost::find($id);
+        $post = MarketingBlogPost::find($id);
         if($post) {
             $post->delete();
             session()->flash('success', 'Beitrag in den Papierkorb verschoben.');
@@ -228,9 +227,9 @@ class MarketingBlog extends Component
 
     public function createCategory()
     {
-        $this->validate(['newCategoryName' => 'required|min:3|max:50|unique:blog_categories,name']);
+        $this->validate(['newCategoryName' => 'required|min:3|max:50|unique:marketing_blog_categories,name']);
 
-        $category = BlogCategory::create([
+        $category = MarketingBlogCategory::create([
             'name' => $this->newCategoryName,
             'slug' => Str::slug($this->newCategoryName)
         ]);
@@ -245,7 +244,7 @@ class MarketingBlog extends Component
 
     public function deleteCategory($id)
     {
-        $cat = BlogCategory::find($id);
+        $cat = MarketingBlogCategory::find($id);
         if($cat) {
             // Falls der aktuelle Post diese Kategorie hat, Reset
             if($this->blog_category_id == $id) {

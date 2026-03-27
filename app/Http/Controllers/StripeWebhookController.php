@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\PaymentReceivedMail;
 use App\Models\Accounting\AccountingInvoice;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -41,7 +41,7 @@ class StripeWebhookController extends Controller
             $orderId = $session->metadata->order_id ?? null;
 
             if ($orderId) {
-                $order = Order::find($orderId);
+                $order = OrderOrder::find($orderId);
 
                 // 3. Prüfen: Existiert die Order & ist sie noch NICHT bezahlt?
                 // (Verhindert doppelte Verarbeitung bei Retries von Stripe)
@@ -54,7 +54,7 @@ class StripeWebhookController extends Controller
                         'stripe_payment_intent_id' => $session->payment_intent
                     ]);
 
-                    Log::info("Webhook: Order {$order->order_number} wurde erfolgreich als bezahlt markiert.");
+                    Log::info("Webhook: OrderOrder {$order->order_number} wurde erfolgreich als bezahlt markiert.");
 
                     // B) RECHNUNG aktualisieren (falls vorhanden)
                     try {
@@ -95,7 +95,7 @@ class StripeWebhookController extends Controller
                         Log::error("Webhook Mail Fehler für Order {$order->order_number}: " . $e->getMessage());
                     }
                 } else {
-                    Log::info("Webhook ignoriert: Order {$orderId} nicht gefunden oder bereits bezahlt.");
+                    Log::info("Webhook ignoriert: OrderOrder {$orderId} nicht gefunden oder bereits bezahlt.");
                 }
             }
         }

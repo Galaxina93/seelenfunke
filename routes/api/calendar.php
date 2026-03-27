@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\Management\CalendarEvent;
+use App\Models\Management\ManagementCalendarEvent;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -10,7 +10,7 @@ Route::get('/funki/calendar', function (Request $request) {
     $start = Carbon::today()->subMonths(1);
     $end = Carbon::today()->addYear();
 
-    $normalEvents = CalendarEvent::whereBetween('start_date', [$start, $end])
+    $normalEvents = ManagementCalendarEvent::whereBetween('start_date', [$start, $end])
         ->whereNull('recurrence')
         ->get();
 
@@ -31,7 +31,7 @@ Route::get('/funki/calendar', function (Request $request) {
         ]);
     }
 
-    $recurringTemplates = CalendarEvent::whereNotNull('recurrence')->get();
+    $recurringTemplates = ManagementCalendarEvent::whereNotNull('recurrence')->get();
     $calcEnd = Carbon::today()->addMonths(6);
 
     foreach ($recurringTemplates as $tmpl) {
@@ -90,7 +90,7 @@ Route::post('/funki/calendar', function (Request $request) {
         'reminder_minutes' => 'nullable|integer'
     ]);
 
-    $event = CalendarEvent::create([
+    $event = ManagementCalendarEvent::create([
         'id' => Str::uuid(),
         'title' => $data['title'],
         'start_date' => Carbon::parse($data['start']),
@@ -106,7 +106,7 @@ Route::post('/funki/calendar', function (Request $request) {
 });
 
 Route::put('/funki/calendar/{id}', function (Request $request, $id) {
-    $event = CalendarEvent::findOrFail($id);
+    $event = ManagementCalendarEvent::findOrFail($id);
 
     $data = $request->validate([
         'title' => 'required|string',
@@ -139,6 +139,6 @@ Route::delete('/funki/calendar/{id}', function ($id) {
         $id = $parts[0];
     }
 
-    CalendarEvent::destroy($id);
+    ManagementCalendarEvent::destroy($id);
     return response()->json(['success' => true]);
 });

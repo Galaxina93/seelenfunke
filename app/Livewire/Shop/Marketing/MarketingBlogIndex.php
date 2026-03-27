@@ -2,8 +2,8 @@
 
 namespace App\Livewire\Shop\Marketing;
 
-use App\Models\Marketing\Blog\BlogCategory;
-use App\Models\Marketing\Blog\BlogPost;
+use App\Models\Marketing\MarketingBlogCategory;
+use App\Models\Marketing\MarketingBlogPost;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -39,7 +39,7 @@ class MarketingBlogIndex extends Component
 
     public function render()
     {
-        $query = BlogPost::query()
+        $query = MarketingBlogPost::query()
             ->published() // Nutzt den Scope aus dem Model (nur veröffentlichte)
             ->with(['author', 'category']) // Eager Loading für Performance
             ->latest('published_at');
@@ -61,7 +61,7 @@ class MarketingBlogIndex extends Component
 
         return view('livewire.shop.marketing.marketing-blog-index', [
             'posts' => $query->paginate(9),
-            'categories' => BlogCategory::has('posts')->orderBy('name')->get() // Nur Kategorien mit Posts
+            'categories' => MarketingBlogCategory::whereIn('id', MarketingBlogPost::pluck('blog_category_id'))->orderBy('name')->get() // Nur Kategorien mit Posts
         ])->layout('components.layouts.frontend_layout');
     }
 }

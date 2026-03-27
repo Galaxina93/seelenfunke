@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Product\NicheProduct;
+use App\Models\Product\ProductNicheItem;
 use GuzzleHttp\Client;
 use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Facades\Log;
@@ -144,7 +144,7 @@ class StealthCrawlerService
                         if (!empty($title) && !empty($url) && !$isBulky) {
                             $safeTitle = mb_substr(trim($title), 0, 250);
                             $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
-                            NicheProduct::updateOrCreate(
+                            ProductNicheItem::updateOrCreate(
                                 ['url' => $safeUrl],
                                 [
                                     'title' => $safeTitle,
@@ -272,7 +272,7 @@ class StealthCrawlerService
                     if (!empty($title) && !empty($url) && !$isBulky) {
                         $safeTitle = mb_substr(trim($title), 0, 250);
                         $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
-                        NicheProduct::updateOrCreate(
+                        ProductNicheItem::updateOrCreate(
                             ['url' => $safeUrl],
                             [
                                 'title' => $safeTitle,
@@ -386,7 +386,7 @@ class StealthCrawlerService
                     if (!empty($title) && !empty($url) && !$isBulky) {
                         $safeTitle = mb_substr(trim($title), 0, 250);
                         $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
-                        NicheProduct::updateOrCreate(
+                        ProductNicheItem::updateOrCreate(
                             ['url' => $safeUrl],
                             [
                                 'title' => $safeTitle,

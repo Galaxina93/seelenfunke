@@ -2,8 +2,8 @@
 
 namespace App\Traits;
 
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
-use App\Models\Session;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
+use App\Models\System\SystemSession;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -156,7 +156,7 @@ trait handleProfilesTrait
 
     public function getBrowserSessions($user)
     {
-        return DB::table('sessions')->where('user_id', $user->id)->orderBy('last_activity', 'desc')->get();
+        return DB::table('system_sessions')->where('user_id', $user->id)->orderBy('last_activity', 'desc')->get();
     }
 
     public function removeOtherSessions(): void
@@ -164,7 +164,7 @@ trait handleProfilesTrait
         $currentSessionId = session()->getId();
         $userId = $this->user->id;
 
-        $deletedSessionsCount = Session::where('user_id', $userId)
+        $deletedSessionsCount = SystemSession::where('user_id', $userId)
             ->where('id', '!=', $currentSessionId)
             ->delete();
 
@@ -181,7 +181,7 @@ trait handleProfilesTrait
         if (!$user) return;
 
         if ($user->email) {
-            NewsletterSubscriber::where('email', $user->email)->delete();
+            MarketingNewsletterSubscriber::where('email', $user->email)->delete();
         }
 
         $user->delete();

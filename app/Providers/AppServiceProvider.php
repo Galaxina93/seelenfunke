@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\ShopSetting;
+use App\Models\System\SystemSetting;
 use Carbon\Carbon;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -34,17 +34,17 @@ class AppServiceProvider extends ServiceProvider
             'admin'    => 'App\Models\Admin\Admin',
             'customer' => 'App\Models\Customer\Customer',
             'employee' => 'App\Models\Employee\Employee',
-            'permission' => 'App\Models\Permission',
-            'directory' => 'App\Models\Directory',
-            'role' => 'App\Models\Role',
+            'permission' => 'App\Models\System\SystemPermission',
+            'directory' => 'App\Models\System\SystemDirectory',
+            'role' => 'App\Models\System\SystemRole',
             'financial_special_issue' => 'App\Models\Accounting\AccountingSpecialIssue',
-            'order' => 'App\Models\Order\Order',
-            'order_item' => 'App\Models\Order\OrderItem',
-            'day_routine' => 'App\Models\Management\DayRoutine',
+            'order' => 'App\Models\Order\OrderOrder',
+            'order_item' => 'App\Models\Order\OrderOrderItem',
+            'day_routine' => 'App\Models\Management\ManagementDayRoutine',
             'finance_cost_item' => 'App\Models\Accounting\AccountingCostItem',
             'product' => 'App\Models\Product\Product',
             'page_visit' => 'App\Models\Tracking\PageVisit',
-            'ticket' => 'App\Models\Ticket',
+            'ticket' => 'App\Models\Support\SupportTicket',
             'mail_account' => 'App\Models\Management\Mail\MailAccount',
             'mail_message' => 'App\Models\Management\Mail\MailMessage',
             'mail_rule' => 'App\Models\Management\Mail\MailRule',
@@ -52,7 +52,8 @@ class AppServiceProvider extends ServiceProvider
             'ai_agent' => 'App\Models\Ai\AiAgent',
             'ai_role' => 'App\Models\Ai\AiRole',
             'ai_tool' => 'App\Models\Ai\AiTool',
-            'supplier' => 'App\Models\Product\Supplier',
+            'supplier' => 'App\Models\Product\ProductSupplier',
+            'product_supplier' => 'App\Models\Product\ProductSupplier',
             'ai-department' => 'App\Models\Ai\AiDepartment',
 
             // Füge hier bei Bedarf weitere Models hinzu
@@ -75,7 +76,7 @@ class AppServiceProvider extends ServiceProvider
 
                     // Settings aus dem Cache laden (oder aus DB holen und cachen)
                     $settings = Cache::rememberForever('global_shop_settings', function () {
-                        return ShopSetting::pluck('value', 'key')->toArray();
+                        return SystemSetting::pluck('value', 'key')->toArray();
                     });
 
                     // Stripe Konfiguration zur Laufzeit überschreiben

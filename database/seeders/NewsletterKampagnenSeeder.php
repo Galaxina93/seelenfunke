@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Marketing\Newsletter\Newsletter;
+use App\Models\Marketing\MarketingNewsletter;
 use Illuminate\Database\Seeder;
 
 class NewsletterKampagnenSeeder extends Seeder
@@ -94,7 +94,7 @@ HTML,
                 'content' => <<<HTML
 <h1>Hallo {first_name},</h1>
 <p>die Temperaturen steigen, die Laune auch! Passend zur sonnigen Jahreszeit räumen wir unser Lager etwas auf, um Platz für neue Ideen im Herbst zu schaffen.</p>
-<p>Das ist die perfekte Gelegenheit für dich. Sichere dir unsere personalisierten Unikate zu einem wirklich erfrischenden Preis. Ob als Mitbringsel zur nächsten Gartenparty oder einfach für dich selbst – schau doch mal rein, was wir reduziert haben.</p>
+<p>Das ist die perfekte Gelegenheit für dich. Sichere dir unsere personalisierten Unikate zu einem wirklich erfrischenden Preis. Ob als Mitbringsel zur nächsten Gartenparty oder einfach für dich selbst. Schau doch mal rein, was wir reduziert haben.</p>
 <p>Hab einen wundervollen Sommer!</p>
 <p>Sonnige Grüße,<br>Dein Team von Mein-Seelenfunke</p>
 HTML,
@@ -139,7 +139,7 @@ HTML,
 <p>es ist das Fest der Liebe und der gemeinsamen Momente. Gibt es etwas Schöneres, als an Heiligabend in leuchtende Augen zu blicken, wenn ein Geschenk ausgepackt wird, das eine echte Bedeutung hat?</p>
 <p>Wir haben unsere Maschinen poliert und reichlich Verpackungsmaterial vorbereitet. Wir sind bereit, deine schönsten Momente in Glas oder Schiefer zu verewigen.</p>
 <br>
-<p><strong>Ein ehrlicher Tipp aus der Werkstatt:</strong> Weihnachten ist unsere intensivste Zeit des Jahres. Wenn du dein Geschenk jetzt schon gestaltest und bestellst, hilfst du uns enorm bei der Planung – und du hast die absolute Sicherheit, dass dein Paket pünktlich und ohne den üblichen Paketdienst-Stress unter dem Baum liegt.</p>
+<p><strong>Ein ehrlicher Tipp aus der Werkstatt:</strong> Weihnachten ist unsere intensivste Zeit des Jahres. Wenn du dein Geschenk jetzt schon gestaltest und bestellst, hilfst du uns enorm bei der Planung und du hast die absolute Sicherheit, dass dein Paket pünktlich und ohne den üblichen Paketdienst-Stress unter dem Baum liegt.</p>
 <p>Wir freuen uns darauf, etwas Besonderes für dich anzufertigen!</p>
 HTML,
                 'days_offset' => 21
@@ -174,7 +174,7 @@ HTML,
         ];
 
         foreach ($templates as $t) {
-            Newsletter::updateOrCreate(
+            MarketingNewsletter::updateOrCreate(
                 ['target_event_key' => $t['target_event_key']],
                 [
                     'title' => $t['title'],

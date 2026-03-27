@@ -2,7 +2,7 @@
 
 namespace App\Models\Customer;
 
-use App\Models\Role;
+use App\Models\System\SystemRole;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -42,7 +42,7 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
             $customerProfile = new CustomerProfile();
             $customer->profile()->save($customerProfile);
 
-            $customerRole = Role::where('name', 'customer')->first();
+            $customerRole = SystemRole::where('name', 'customer')->first();
             if ($customerRole) {
                 $customer->roles()->attach($customerRole->id);
             }
@@ -58,12 +58,12 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
 
     public function roles(): MorphToMany
     {
-        return $this->morphToMany(Role::class, 'roleable');
+        return $this->morphToMany(SystemRole::class, 'roleable', 'roleables', 'roleable_id', 'role_id');
     }
 
     public function directories(): MorphToMany
     {
-        return $this->morphToMany(\App\Models\Directory::class, 'user', 'directory_user');
+        return $this->morphToMany(\App\Models\System\SystemDirectory::class, 'user', 'directory_user');
     }
 
     public function profile(): \Illuminate\Database\Eloquent\Relations\HasOne

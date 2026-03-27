@@ -6,7 +6,7 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Accounting\AccountingGroup;
 use App\Models\Accounting\AccountingSpecialIssue;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -122,7 +122,7 @@ class AccountingLiquidity extends Component
             'load_demo_data' => (bool) $this->configLoadDemoData,
         ];
         
-        \App\Models\ShopSetting::updateOrCreate(
+        \App\Models\System\SystemSetting::updateOrCreate(
             ['key' => 'liquidity_planner_config'],
             ['value' => json_encode($config)]
         );
@@ -282,7 +282,7 @@ class AccountingLiquidity extends Component
         $adminId = Auth::guard('admin')->id();
         $dbData = [];
 
-        $orders = Order::where('payment_status', 'paid')->get();
+        $orders = OrderOrder::where('payment_status', 'paid')->get();
         foreach ($orders as $order) {
             $y = $order->created_at->year;
             $m = $order->created_at->month;

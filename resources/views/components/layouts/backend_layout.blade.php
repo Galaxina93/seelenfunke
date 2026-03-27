@@ -41,9 +41,9 @@
     if(auth()->guard('admin')->check()) {
         $adminId = (string)auth()->guard('admin')->id();
 
-        if(class_exists(\App\Models\TicketMessage::class)) {
+        if(class_exists(\App\Models\Support\SupportTicketMessage::class)) {
             // Prüfen ob es ungelesene Nachrichten von Kunden gibt
-            $hasUnreadTickets = \App\Models\TicketMessage::where('sender_type', 'customer')
+            $hasUnreadTickets = \App\Models\Support\SupportTicketMessage::where('sender_type', 'customer')
                 ->where('is_read_by_admin', false)
                 ->exists();
         }
@@ -72,7 +72,7 @@
                                     if(!window.location.pathname.includes('/tickets')){
                                         let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
                                         let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
-                                        this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
+                                        this.toastMessage = 'Neue SupportTicket Nachricht zum SupportTicket ' + tNumber + ' von ' + cName;
                                         this.showToast = true;
                                         setTimeout(() => { this.showToast = false; }, 5000);
                                     }
@@ -88,7 +88,7 @@
                                     if(!window.location.pathname.includes('/tickets')){
                                         let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
                                         let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
-                                        this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
+                                        this.toastMessage = 'Neue SupportTicket Nachricht zum SupportTicket ' + tNumber + ' von ' + cName;
                                         this.showToast = true;
                                         setTimeout(() => { this.showToast = false; }, 5000);
                                     }

@@ -6,8 +6,8 @@ use Livewire\Attributes\Layout;
 
 use App\Events\TicketMessageSent;
 use App\Models\Customer\CustomerGamification;
-use App\Models\Ticket;
-use App\Models\TicketMessage;
+use App\Models\Support\SupportTicket;
+use App\Models\Support\SupportTicketMessage;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
@@ -31,8 +31,8 @@ class SystemTickets extends Component
     #[On('echo-private:admin.tickets,.TicketMessageSent')]
     public function receiveMessage($event)
     {
-        if (isset($event['message']['ticket_id'])) {
-            $ticketId = $event['message']['ticket_id'];
+        if (isset($event['message']['support_ticket_id'])) {
+            $ticketId = $event['message']['support_ticket_id'];
             if ($this->activeTicketId === $ticketId) {
                 $this->filterStatus = 'open';
                 $this->markAsReadAdmin($ticketId);
@@ -54,7 +54,7 @@ class SystemTickets extends Component
 
     private function markAsReadAdmin($id)
     {
-        TicketMessage::where('ticket_id', $id)
+        SupportTicketMessage::where('support_ticket_id', $id)
             ->where('sender_type', 'customer')
             ->update(['is_read_by_admin' => true]);
     }
@@ -63,15 +63,15 @@ class SystemTickets extends Component
     {
         $this->validate(['replyMessage' => 'required|min:1']);
 
-        $ticket = Ticket::with('customer')->findOrFail($this->activeTicketId);
+        $ticket = SupportTicket::with('customer')->findOrFail($this->activeTicketId);
 
         $attachmentPaths = [];
         foreach ($this->replyAttachments as $photo) {
             $attachmentPaths[] = $photo->store('tickets/attachments', 'public');
         }
 
-        $message = TicketMessage::create([
-            'ticket_id' => $ticket->id,
+        $message = SupportTicketMessage::create([
+            'support_ticket_id' => $ticket->id,
             'sender_type' => 'admin',
             'message' => $this->replyMessage,
             'attachments' => !empty($attachmentPaths) ? $attachmentPaths : null,
@@ -85,7 +85,7 @@ class SystemTickets extends Component
         broadcast(new TicketMessageSent($message, $ticket->id, $ticket->customer_id));
 
         $isOnline = false;
-        $lastCustomerMsg = TicketMessage::where('ticket_id', $ticket->id)
+        $lastCustomerMsg = SupportTicketMessage::where('support_ticket_id', $ticket->id)
             ->where('sender_type', 'customer')
             ->latest('id')
             ->first();
@@ -108,7 +108,7 @@ class SystemTickets extends Component
         if (!$isOnline && $ticket->customer) {
             $gamification = CustomerGamification::where('customer_id', $ticket->customer_id)->first();
             if (!$gamification || $gamification->ticket_emails_enabled) {
-                Mail::to($ticket->customer->email)->send(new \App\Mail\TicketUpdateMailToCustomer($ticket->customer, $ticket));
+                Mail::to($ticket->customer->email)->send(new \App\Mail\SupportTicketUpdateMailToCustomer($ticket->customer, $ticket));
             }
         }
 
@@ -118,10 +118,10 @@ class SystemTickets extends Component
 
     public function closeTicket()
     {
-        $ticket = Ticket::findOrFail($this->activeTicketId);
+        $ticket = SupportTicket::findOrFail($this->activeTicketId);
         $ticket->update(['status' => 'closed']);
         $this->filterStatus = 'closed';
-        $this->dispatch('notify', ['type' => 'success', 'message' => 'Ticket geschlossen.']);
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket geschlossen.']);
     }
 
     public function removeAttachment($index)
@@ -131,7 +131,7 @@ class SystemTickets extends Component
 
     public function render()
     {
-        $query = Ticket::with('customer', 'messages', 'order')
+        $query = SupportTicket::with('customer', 'messages', 'order')
             ->where('status', $this->filterStatus);
 
         if (!empty($this->search)) {
@@ -147,11 +147,11 @@ class SystemTickets extends Component
         }
 
         $tickets = $query->orderBy('updated_at', 'desc')->paginate(15);
-        $activeTicket = $this->activeTicketId ? Ticket::with('messages', 'customer', 'order')->find($this->activeTicketId) : null;
+        $activeSupportTicket = $this->activeTicketId ? SupportTicket::with('messages', 'customer', 'order')->find($this->activeTicketId) : null;
 
         return view('livewire.shop.system.system-tickets', [
             'tickets' => $tickets,
-            'activeTicket' => $activeTicket
+            'activeTicket' => $activeSupportTicket
         ]);
     }
 }

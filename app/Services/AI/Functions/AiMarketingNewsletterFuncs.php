@@ -2,10 +2,9 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Marketing\Newsletter\Newsletter;
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletter;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 trait AiMarketingNewsletterFuncs
 {
@@ -133,11 +132,11 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_get_subscribers(array $args)
     {
-        $query = NewsletterSubscriber::query();
+        $query = MarketingNewsletterSubscriber::query();
         if (isset($args['email_search']) && !empty($args['email_search'])) {
             $query->where('email', 'like', '%' . $args['email_search'] . '%');
         }
-        
+
         $subs = $query->limit(50)->get(['id', 'email', 'is_verified', 'created_at']);
         return [
             'status' => 'success',
@@ -152,11 +151,11 @@ trait AiMarketingNewsletterFuncs
             return ['status' => 'error', 'message' => 'Ungültige Email Adresse.'];
         }
 
-        if (NewsletterSubscriber::where('email', $args['email'])->exists()) {
+        if (MarketingNewsletterSubscriber::where('email', $args['email'])->exists()) {
             return ['status' => 'error', 'message' => 'Diese E-Mail-Adresse ist bereits eingetragen.'];
         }
 
-        $sub = NewsletterSubscriber::create([
+        $sub = MarketingNewsletterSubscriber::create([
             'email' => $args['email'],
             'is_verified' => true,
         ]);
@@ -166,7 +165,7 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_get_campaigns(array $args)
     {
-        $query = Newsletter::query();
+        $query = MarketingNewsletter::query();
         if (isset($args['is_active'])) {
             $query->where('is_active', $args['is_active']);
         }
@@ -181,11 +180,11 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_create_automated_campaign(array $args)
     {
-        if (Newsletter::where('target_event_key', $args['target_event_key'])->where('is_active', true)->exists()) {
+        if (MarketingNewsletter::where('target_event_key', $args['target_event_key'])->where('is_active', true)->exists()) {
             return ['status' => 'error', 'message' => 'Es existiert bereits eine aktive Kampagne für dieses Ereignis.'];
         }
 
-        $template = Newsletter::create([
+        $template = MarketingNewsletter::create([
             'type' => 'automated',
             'title' => ucfirst(str_replace('_', ' ', $args['target_event_key'])) . ' Kampagne',
             'target_event_key' => $args['target_event_key'],
@@ -206,7 +205,7 @@ trait AiMarketingNewsletterFuncs
             return ['status' => 'error', 'message' => 'Ungültiges Datumsformat für send_at. Nutze YYYY-MM-DD HH:MM'];
         }
 
-        $template = Newsletter::create([
+        $template = MarketingNewsletter::create([
             'type' => 'manual',
             'title' => $args['title'],
             'target_event_key' => null,
@@ -222,7 +221,7 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_toggle_archive(array $args)
     {
-        $campaign = Newsletter::find($args['id']);
+        $campaign = MarketingNewsletter::find($args['id']);
         if (!$campaign) {
             return ['status' => 'error', 'message' => 'Kampagne nicht gefunden.'];
         }
@@ -231,7 +230,7 @@ trait AiMarketingNewsletterFuncs
         $campaign->save();
 
         return [
-            'status' => 'success', 
+            'status' => 'success',
             'message' => 'Kampagnen-Status aktualisiert auf: ' . ($args['is_active'] ? 'Aktiv' : 'Archiviert')
         ];
     }

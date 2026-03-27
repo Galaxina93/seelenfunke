@@ -27,9 +27,9 @@ class AiKnowledgeBaseTags extends Component
     public function loadTags()
     {
         if (empty($this->search)) {
-            $this->tags = \App\Models\AiKnowledgeBaseTag::orderBy('name')->get()->toArray();
+            $this->tags = \App\Models\Ai\AiKnowledgeBaseTag::orderBy('name')->get()->toArray();
         } else {
-            $this->tags = \App\Models\AiKnowledgeBaseTag::where('name', 'like', '%' . $this->search . '%')
+            $this->tags = \App\Models\Ai\AiKnowledgeBaseTag::where('name', 'like', '%' . $this->search . '%')
                 ->orderBy('name')->get()->toArray();
         }
     }
@@ -37,12 +37,12 @@ class AiKnowledgeBaseTags extends Component
     public function createTag()
     {
         $this->validate(['newTagName' => 'required|string|max:100|unique:ai_knowledge_base_tags,name']);
-        
-        $tag = \App\Models\AiKnowledgeBaseTag::create([
+
+        $tag = \App\Models\Ai\AiKnowledgeBaseTag::create([
             'name' => $this->newTagName,
             'slug' => \Illuminate\Support\Str::slug($this->newTagName)
         ]);
-        
+
         $this->newTagName = '';
         $this->loadTags();
         $this->toggleTag($tag->id);
@@ -63,8 +63,8 @@ class AiKnowledgeBaseTags extends Component
     public function updateTag()
     {
         $this->validate(['editingTagName' => 'required|string|max:100|unique:ai_knowledge_base_tags,name,' . $this->editingTagId]);
-        
-        $tag = \App\Models\AiKnowledgeBaseTag::find($this->editingTagId);
+
+        $tag = \App\Models\Ai\AiKnowledgeBaseTag::find($this->editingTagId);
         if ($tag) {
             $tag->update([
                 'name' => $this->editingTagName,
@@ -77,7 +77,7 @@ class AiKnowledgeBaseTags extends Component
 
     public function deleteTag($id)
     {
-        $tag = \App\Models\AiKnowledgeBaseTag::find($id);
+        $tag = \App\Models\Ai\AiKnowledgeBaseTag::find($id);
         if ($tag) {
             $tag->delete();
         }
@@ -95,7 +95,7 @@ class AiKnowledgeBaseTags extends Component
         } else {
             $this->selectedTagIds[] = $id;
         }
-        
+
         $this->selectedTagIds = array_values($this->selectedTagIds);
         $this->dispatch('ai-knowledge-base-tags-updated', ids: $this->selectedTagIds);
     }

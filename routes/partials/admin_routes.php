@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Order\OrderItem;
+use App\Models\Order\OrderOrderItem;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:admin'])->group(function () {
@@ -19,7 +19,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/ai-analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai-analytics');
     Route::get('/admin/ceo/gesundheit', \App\Livewire\Shop\Management\ManagementHealth::class)->name('ceo.gesundheit');
     Route::get('/admin/ceo/gesundheit/plan/{id}/pdf', function ($id) {
-        $plan = \App\Models\Management\Health\AiHealthTreatmentPlan::with('items')->findOrFail($id);
+        $plan = \App\Models\Ai\AiHealthTreatmentPlan::with('items')->findOrFail($id);
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-treatment-plan', [
             'plan' => $plan,
         ]);
@@ -29,7 +29,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/global-logs', \App\Livewire\Shop\System\SystemLogs::class)->name('admin.global-logs');
     Route::get('/admin/ai-genui', \App\Livewire\Shop\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
     Route::get('/admin/person-profiles', \App\Livewire\Shop\Management\ManagementPersonProfiles::class)->name('admin.person-profiles');
-    
+
     Route::get('/admin/rollen', \App\Livewire\Shop\Ai\AiRoleManager::class)->name('admin.rollen');
 
     Route::get('/admin/agenten', \App\Livewire\Shop\Ai\AiAgentManager::class)->name('admin.ai-agents');
@@ -67,10 +67,10 @@ Route::middleware(['auth:admin'])->group(function () {
             'lossesData' => $lossesData,
             'date' => now()->format('d.m.Y H:i')
         ]);
-        
+
         // Settings for PDF
         $pdf->setPaper('a4', 'landscape');
-        
+
         $finalFilename = now()->format('Y-m-d_H-i') . '_Produkt_Analyse_Gesamtbericht.pdf';
         return $pdf->download($finalFilename);
     })->name('admin.product-analytics.export.full');
@@ -81,9 +81,9 @@ Route::middleware(['auth:admin'])->group(function () {
             'lucidData' => $lucidData,
             'date' => now()->format('d.m.Y H:i')
         ]);
-        
+
         $pdf->setPaper('a4', 'portrait');
-        
+
         $finalFilename = now()->format('Y-m-d_H-i') . '_LUCID_Jahresbericht_' . $lucidData['year'] . '.pdf';
         return $pdf->download($finalFilename);
     })->name('admin.product-analytics.export.lucid');
@@ -97,7 +97,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/products/nischen-scout', \App\Livewire\Shop\Product\ProductNicheScanner::class)->name('admin.products.niche');
 
     Route::get('/admin/products/nischen-scout/pdf', function () {
-        $runId = request('run_id');
+        $runId = request('product_niche_crawler_run_id');
         $top40 = collect();
         $aiRecommendation = null;
         $aiAgentName = 'KI-Agent';
@@ -105,7 +105,7 @@ Route::middleware(['auth:admin'])->group(function () {
         $filenamePrefix = 'Top40-Nischen-Produkte';
 
         if ($runId) {
-            $run = \App\Models\Product\NicheCrawlerRun::findOrFail($runId);
+            $run = \App\Models\Product\ProductNicheCrawlerRun::findOrFail($runId);
             $allData = is_array($run->products_data) ? collect($run->products_data) : collect(json_decode($run->products_data, true));
             $top40 = $allData->sortByDesc('niche_score')->take(40)->values();
             $top40 = $top40->map(function($item) { return (object)$item; });
@@ -119,7 +119,7 @@ Route::middleware(['auth:admin'])->group(function () {
             $docTitle = 'Crawler Anfrage: ' . $run->name;
             $filenamePrefix = \Illuminate\Support\Str::slug($run->name) . '_Crawler_Ergebnis';
         } else {
-            $top40 = \App\Models\Product\NicheProduct::orderBy('niche_score', 'desc')->take(40)->get();
+            $top40 = \App\Models\Product\ProductNicheItem::orderBy('niche_score', 'desc')->take(40)->get();
         }
 
         if ($top40->isEmpty()) abort(404, 'Keine Produkte gefunden.');
@@ -149,7 +149,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
 
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
-    
+
     // Revocation File Download
     Route::get('/admin/widerruf/file/{revocation}/{fileName}', [\App\Http\Controllers\Backend\Admin\RevocationFileController::class, 'download'])
         ->name('admin.widerruf.file');
@@ -194,7 +194,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
 
     Route::get('/admin/orders/laser-file/{itemId}', function (Illuminate\Http\Request $request, $itemId) {
-        $item = OrderItem::findOrFail($itemId); // Ggf. Namespace anpassen
+        $item = OrderOrderItem::findOrFail($itemId); // Ggf. Namespace anpassen
         $product = $item->product;
         $config = $item->configuration;
         $side = $request->query('side', 'front');

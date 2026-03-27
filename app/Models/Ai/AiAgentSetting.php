@@ -10,7 +10,7 @@ class AiAgentSetting extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'funki_ai_agent_settings';
+    protected $table = 'ai_agent_settings';
 
     protected $fillable = [
         'key',

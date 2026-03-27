@@ -2,8 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\AiKnowledgeBase;
-use Illuminate\Support\Str;
+use App\Models\Ai\AiKnowledgeBase;
 
 trait AiBrainFuncs
 {
@@ -156,7 +155,7 @@ trait AiBrainFuncs
             }
 
             // Speichere in AiKnowledgeBase
-            $catId = \App\Models\AiKnowledgeBaseCategory::firstOrCreate(
+            $catId = \App\Models\Ai\AiKnowledgeBaseCategory::firstOrCreate(
                 ['slug' => 'ai-memory'],
                 ['name' => 'AI Memory']
             )->id;
@@ -172,7 +171,7 @@ trait AiBrainFuncs
             $tagList = array_merge(['ai_memory', 'auto_saved'], $tags);
             $syncTags = [];
             foreach ($tagList as $t) {
-                $syncTags[] = \App\Models\AiKnowledgeBaseTag::firstOrCreate(
+                $syncTags[] = \App\Models\Ai\AiKnowledgeBaseTag::firstOrCreate(
                     ['slug' => \Illuminate\Support\Str::slug($t)],
                     ['name' => $t]
                 )->id;

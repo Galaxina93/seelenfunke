@@ -2,20 +2,18 @@
 
 namespace App\Livewire\Shop\Management;
 
-use Livewire\Attributes\Layout;
-
-use Livewire\Component;
-use Livewire\WithFileUploads;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
-use Carbon\Carbon;
-use App\Models\SystemCheckConfig;
-use App\Models\LoginAttempt;
-use App\Models\Product\Product;
 use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingSpecialIssue;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLoginAttempt;
+use App\Models\Product\Product;
+use App\Models\System\SystemCheckConfig;
+use App\Models\System\SystemLog;
 use App\Services\AnalyticsService;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Layout;
+use Livewire\Component;
+use Livewire\WithFileUploads;
 
 #[Layout('components.layouts.backend_layout')]
 class ManagementAnalytics extends Component
@@ -100,7 +98,7 @@ class ManagementAnalytics extends Component
     {
         try {
             // Falls Sessions in der DB liegen
-            return DB::table('sessions')->where('last_activity', '>=', now()->subMinutes(15)->timestamp)->count() + 20;
+            return DB::table('system_sessions')->where('last_activity', '>=', now()->subMinutes(15)->timestamp)->count() + 20;
         } catch (\Exception $e) {
             // Fallback: Fake-Partikel für die Optik, falls Redis/File Cache etc.
             return rand(20, 50);
@@ -115,7 +113,7 @@ class ManagementAnalytics extends Component
         $cacheKey = 'sys_fail_log_' . $serviceName;
 
         if (!Cache::has($cacheKey)) {
-            GlobalLog::create([
+            SystemLog::create([
                 'type' => 'system',
                 'action_id' => 'system:health_fail',
                 'title' => 'Infrastruktur-Ausfall: ' . ucfirst($serviceName),
@@ -324,7 +322,7 @@ class ManagementAnalytics extends Component
                     $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!');
                 }
             } else {
-                $health['backup'] = ['status' => 'warning', 'value' => 'Kein Backup', 'error' => 'Es wurde noch keine ZIP-Datei gefunden!', 'path' => $pathInfo];
+                $health['backup'] = ['status' => 'warning', 'value' => 'Kein Backup', 'error' => 'Es wurde noch keine ZIP-Datei gefunden!', 'path' => 'Unbekannt'];
             }
         } catch (\Exception $e) {
             $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim Lesen der Festplatte: ' . $e->getMessage(), 'path' => 'Unbekannt'];
@@ -398,9 +396,9 @@ class ManagementAnalytics extends Component
         $rawChecks = $service->getHealthChecks();
         $checks = json_decode(json_encode($rawChecks), true);
 
-        if (class_exists(\App\Models\Ticket::class)) {
-            $totalTickets = \App\Models\Ticket::count();
-            $openTickets = \App\Models\Ticket::where('status', 'open')->with('customer')->get();
+        if (class_exists(\App\Models\Support\SupportTicket::class)) {
+            $totalTickets = \App\Models\Support\SupportTicket::count();
+            $openTickets = \App\Models\Support\SupportTicket::where('status', 'open')->with('customer')->get();
             $tCount = $openTickets->count();
 
             $status = $tCount > 0 ? 'error' : 'success';
@@ -458,9 +456,9 @@ class ManagementAnalytics extends Component
         }
 
         // 0. Offene Bestellungen
-        if (class_exists(\App\Models\Order\Order::class)) {
-            $totalOrders = \App\Models\Order\Order::count();
-            $openOrders = \App\Models\Order\Order::whereIn('status', ['pending', 'processing'])->get();
+        if (class_exists(\App\Models\Order\OrderOrder::class)) {
+            $totalOrders = \App\Models\Order\OrderOrder::count();
+            $openOrders = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->get();
             $oCount = $openOrders->count();
 
             $status = $oCount > 0 ? 'warning' : 'success';
@@ -537,9 +535,9 @@ class ManagementAnalytics extends Component
         }
 
         // 3. Offene Aufgaben
-        if (class_exists(\App\Models\Management\Task::class)) {
-            $totalTasks = \App\Models\Management\Task::count();
-            $openTasks = \App\Models\Management\Task::where('is_completed', false)->count();
+        if (class_exists(\App\Models\Management\ManagementTask::class)) {
+            $totalTasks = \App\Models\Management\ManagementTask::count();
+            $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->count();
 
             $status = $openTasks > 0 ? 'warning' : 'success';
             $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
@@ -560,9 +558,9 @@ class ManagementAnalytics extends Component
         }
 
         // 4. Offene Angebote (> 5 Tage)
-        if (class_exists(\App\Models\Order\Quote\QuoteRequest::class)) {
-            $totalQuotes = \App\Models\Order\Quote\QuoteRequest::count();
-            $oldQuotes = \App\Models\Order\Quote\QuoteRequest::where('status', 'open')
+        if (class_exists(\App\Models\Order\OrderQuoteRequest::class)) {
+            $totalQuotes = \App\Models\Order\OrderQuoteRequest::count();
+            $oldQuotes = \App\Models\Order\OrderQuoteRequest::where('status', 'open')
                 ->where('created_at', '<', now()->subDays(5))
                 ->count();
 
@@ -585,9 +583,9 @@ class ManagementAnalytics extends Component
         }
 
         // 5. Offene Widerrufe (> 2 Tage)
-        if (class_exists(\App\Models\Order\Revocation\Revocation::class)) {
-            $totalRevs = \App\Models\Order\Revocation\Revocation::count();
-            $oldRevs = \App\Models\Order\Revocation\Revocation::where('status', '!=', 'completed')
+        if (class_exists(\App\Models\Order\OrderRevocation::class)) {
+            $totalRevs = \App\Models\Order\OrderRevocation::count();
+            $oldRevs = \App\Models\Order\OrderRevocation::where('status', '!=', 'completed')
                 ->where('created_at', '<', now()->subDays(2))
                 ->count();
 
@@ -735,8 +733,8 @@ class ManagementAnalytics extends Component
         $logs = collect();
 
         // 1. Echte Funki Logs holen
-        if (class_exists(GlobalLog::class)) {
-            $funki = GlobalLog::orderByDesc('started_at')->limit(30)->get()->map(function($log) {
+        if (class_exists(SystemLog::class)) {
+            $funki = SystemLog::orderByDesc('started_at')->limit(30)->get()->map(function($log) {
                 return [
                     'id' => 'fl_'.$log->id,
                     'title' => $log->title,
@@ -750,8 +748,8 @@ class ManagementAnalytics extends Component
         }
 
         // 2. Sicherheitswarnungen (Fehlerhafte Logins) als Fake-Logs einfügen
-        if (class_exists(LoginAttempt::class)) {
-            $failedLogins = LoginAttempt::where('success', false)->orderByDesc('attempted_at')->limit(30)->get()->map(function($fail) {
+        if (class_exists(SystemLoginAttempt::class)) {
+            $failedLogins = SystemLoginAttempt::where('success', false)->orderByDesc('attempted_at')->limit(30)->get()->map(function($fail) {
                 return [
                     'id' => 'la_'.$fail->id,
                     'title' => 'Fehlgeschlagener Login',

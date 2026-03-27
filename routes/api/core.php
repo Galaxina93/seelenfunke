@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\UserDevice;
+use App\Models\System\SystemUserDevice;
 use App\Services\FunkiBotService;
 
 Route::get('/user', function (Request $request) {
@@ -15,7 +15,7 @@ Route::post('/device/register', function (Request $request) {
         'device_name' => 'nullable|string',
     ]);
     $user = $request->user();
-    UserDevice::updateOrCreate(
+    SystemUserDevice::updateOrCreate(
         ['userable_id' => $user->id, 'userable_type' => get_class($user), 'fcm_token' => $data['fcm_token']],
         ['device_name' => $data['device_name'] ?? 'Unbekanntes Gerät']
     );

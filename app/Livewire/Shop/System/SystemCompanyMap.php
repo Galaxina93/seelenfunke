@@ -4,8 +4,8 @@ namespace App\Livewire\Shop\System;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Map\MapEdge;
-use App\Models\Map\MapNode;
+use App\Models\System\SystemMapEdge;
+use App\Models\System\SystemMapNode;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -43,20 +43,13 @@ class SystemCompanyMap extends Component
 
     public function mount()
     {
-        // One-time auto-migration of map architecture (User complained about mixed-up coordinates from previous seed)
-        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'Database\Seeders\MapSeeder', '--force' => true]);
-
-        if (!\Illuminate\Support\Facades\Schema::hasColumn('map_nodes', 'map_id')) {
-            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
-        }
-
         $this->loadMap();
     }
 
     public function loadMap()
     {
-        $this->nodes = MapNode::where('map_id', $this->activeMap)->get()->toArray();
-        $this->edges = MapEdge::where('map_id', $this->activeMap)->get()->toArray();
+        $this->nodes = SystemMapNode::where('map_id', $this->activeMap)->get()->toArray();
+        $this->edges = SystemMapEdge::where('map_id', $this->activeMap)->get()->toArray();
     }
 
     public function switchMap($mapId)
@@ -116,11 +109,12 @@ class SystemCompanyMap extends Component
     {
         try {
             // Speichere in DB, falls Model existiert (basiert auf deinen anderen Dateien)
-            if (class_exists(\App\Models\Global\GlobalLog::class)) {
-                \App\Models\Global\GlobalLog::create([
+            if (class_exists(\App\Models\System\SystemLog::class)) {
+                \App\Models\System\SystemLog::create([
                     'title'   => 'Architektur Monitor',
                     'message' => $message,
                     'type'    => $type,
+                    'status'  => 'unread',
                     'action_id' => 'api:ping'
                 ]);
             }
@@ -134,7 +128,7 @@ class SystemCompanyMap extends Component
 
     public function updateNodePosition($nodeId, $x, $y)
     {
-        $node = MapNode::find($nodeId);
+        $node = SystemMapNode::find($nodeId);
         if ($node) {
             $node->update(['pos_x' => round($x, 2), 'pos_y' => round($y, 2)]);
         }
@@ -143,7 +137,7 @@ class SystemCompanyMap extends Component
     public function createNode()
     {
         $this->validate(['newNode.label' => 'required|string|max:255', 'newNode.link' => 'nullable|url']);
-        MapNode::create(array_merge($this->newNode, ['id' => Str::uuid(), 'map_id' => $this->activeMap, 'pos_x' => 10, 'pos_y' => 10]));
+        SystemMapNode::create(array_merge($this->newNode, ['id' => Str::uuid(), 'map_id' => $this->activeMap, 'pos_x' => 10, 'pos_y' => 10]));
         $this->showNodeForm = false;
         $this->newNode = ['label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
         $this->loadMap();
@@ -151,7 +145,7 @@ class SystemCompanyMap extends Component
 
     public function openEditForm($nodeId)
     {
-        $node = MapNode::find($nodeId);
+        $node = SystemMapNode::find($nodeId);
         if (!$node) return;
         $this->editNode = $node->toArray();
         $this->showEditForm = true;
@@ -160,7 +154,7 @@ class SystemCompanyMap extends Component
     public function updateNode()
     {
         $this->validate(['editNode.label' => 'required|string|max:255', 'editNode.link' => 'nullable|url']);
-        $node = MapNode::find($this->editNode['id']);
+        $node = SystemMapNode::find($this->editNode['id']);
         if ($node) $node->update($this->editNode);
         $this->showEditForm = false;
         $this->loadMap();
@@ -168,7 +162,7 @@ class SystemCompanyMap extends Component
 
     public function openNodePanel($nodeId)
     {
-        $node = MapNode::find($nodeId);
+        $node = SystemMapNode::find($nodeId);
         if (!$node) return;
 
         $this->activePanelNode = $node->toArray();
@@ -202,17 +196,17 @@ class SystemCompanyMap extends Component
     public function createEdge()
     {
         $this->validate([
-            'newEdge.source_id' => 'required|exists:map_nodes,id',
-            'newEdge.target_id' => 'required|exists:map_nodes,id|different:newEdge.source_id',
+            'newEdge.source_id' => 'required|exists:system_map_nodes,id',
+            'newEdge.target_id' => 'required|exists:system_map_nodes,id|different:newEdge.source_id',
         ]);
-        MapEdge::create(array_merge($this->newEdge, ['id' => Str::uuid(), 'map_id' => $this->activeMap]));
+        SystemMapEdge::create(array_merge($this->newEdge, ['id' => Str::uuid(), 'map_id' => $this->activeMap]));
         $this->showEdgeForm = false;
         $this->newEdge = ['source_id' => '', 'target_id' => '', 'label' => '', 'description' => '', 'status' => 'active'];
         $this->loadMap();
     }
 
-    public function deleteNode($id) { MapNode::destroy($id); $this->loadMap(); }
-    public function deleteEdge($id) { MapEdge::destroy($id); $this->loadMap(); }
+    public function deleteNode($id) { SystemMapNode::destroy($id); $this->loadMap(); }
+    public function deleteEdge($id) { SystemMapEdge::destroy($id); $this->loadMap(); }
 
     public function render()
     {

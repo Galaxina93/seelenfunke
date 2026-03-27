@@ -4,15 +4,15 @@ namespace App\Livewire\Shop\Ai;
 
 use Livewire\Component;
 use Livewire\Attributes\On;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 
 class AiWidget extends Component
 {
     #[On('log-widget-error')]
     public function logWidgetError($message)
     {
-        if (class_exists(GlobalLog::class)) {
-            GlobalLog::create([
+        if (class_exists(SystemLog::class)) {
+            SystemLog::create([
                 'title' => 'Widget Fehler',
                 'type' => 'Funkira Widget',
                 'action_id' => 'widget:error',

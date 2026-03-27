@@ -3,9 +3,9 @@
 namespace App\Livewire\Shop\Order;
 
 use App\Mail\RevocationMailToCustomer;
-use App\Models\Order\Revocation\Revocation;
-use Illuminate\Support\Facades\Mail;
+use App\Models\Order\OrderRevocation;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -17,7 +17,7 @@ class OrderRevocationForm extends Component
     public $order_number = '';
     public $items = ''; // Optional
     public $attachments = []; // Optional
-    
+
     public $isSubmitted = false;
 
     protected $rules = [
@@ -57,7 +57,7 @@ class OrderRevocationForm extends Component
         $validAttachments = [];
         foreach ($this->attachments as $index => $file) {
             $isValid = true;
-            
+
             // Check: 5MB in Bytes = 5242880
             if ($file->getSize() > 5242880) {
                 // Dynamisch eine Warnung für dieses spezielle Bild anzeigen
@@ -103,7 +103,7 @@ class OrderRevocationForm extends Component
 
         try {
             // In der Datenbank speichern
-            $revocation = Revocation::create($data);
+            $revocation = OrderRevocation::create($data);
 
             // Datei-Uploads verarbeiten (Try/Catch in Try/Catch für non-fatal Errors)
             try {
@@ -128,11 +128,11 @@ class OrderRevocationForm extends Component
 
             // Gesetzlich vorgeschriebene Eingangsbestätigung (Mail an Kunde)
             Mail::to($this->email)->send(new RevocationMailToCustomer($data));
-            
+
             // Intern für das Protokoll speichern/benachrichtigen (Mail an Betreiber)
             $adminEmail = shop_setting('owner_email') ?? 'kontakt@mein-seelenfunke.de';
             Mail::to($adminEmail)->send(new \App\Mail\RevocationMailToAdmin($data));
-            
+
             Log::info("Widerruf eingegangen und in DB gespeichert für Bestellung: {$this->order_number} von {$this->email}");
 
         } catch (\Exception $e) {

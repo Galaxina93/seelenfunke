@@ -3,9 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Mail\AutomaticNewsletterMail;
-use App\Models\Global\GlobalLog;
-use App\Models\Marketing\Newsletter\Newsletter;
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletter;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
+use App\Models\System\SystemLog;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Database\QueryException;
@@ -31,7 +31,7 @@ class SendNewsletter extends Command
         // 1. Datenbank-Verbindung prüfen und Templates laden
         try {
             $this->line("⏳ Verbinde mit der Datenbank und lade aktive Templates...");
-            $templates = Newsletter::where('is_active', true)->get();
+            $templates = MarketingNewsletter::where('is_active', true)->get();
             $this->info("✅ " . $templates->count() . " aktive(s) Template(s) gefunden.\n");
         } catch (QueryException $e) {
             $this->error("❌ FATALER FEHLER: Datenbankverbindung fehlgeschlagen!");
@@ -60,8 +60,8 @@ class SendNewsletter extends Command
             if ($sendDate->isSameDay($today)) {
                 $this->info("   🎯 TREFFER! Versand ist für HEUTE geplant.");
 
-                if (class_exists(GlobalLog::class)) {
-                    $log = GlobalLog::start(
+                if (class_exists(SystemLog::class)) {
+                    $log = SystemLog::start(
                         'newsletter:send',
                         "Newsletter-Kampagne: {$template->title}",
                         'system'
@@ -101,11 +101,11 @@ class SendNewsletter extends Command
     /**
      * Versendet den Newsletter an alle verifizierten Abonnenten über die Queue.
      */
-    private function sendBatch(Newsletter $template): int
+    private function sendBatch(MarketingNewsletter $template): int
     {
         Log::info("Newsletter Command: Starte Batch-Versand für '{$template->subject}'");
 
-        $subscribers = NewsletterSubscriber::where('is_verified', true)->get();
+        $subscribers = MarketingNewsletterSubscriber::where('is_verified', true)->get();
         $count = 0;
 
         foreach ($subscribers as $subscriber) {

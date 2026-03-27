@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 
 class NewsletterController extends Controller
 {
     public function verify($token)
     {
-        $subscriber = NewsletterSubscriber::where('verification_token', $token)->first();
+        $subscriber = MarketingNewsletterSubscriber::where('verification_token', $token)->first();
 
         if (!$subscriber) {
             return redirect()->route('newsletter.page')->with('error', 'Dieser Bestätigungslink ist ungültig oder abgelaufen.');

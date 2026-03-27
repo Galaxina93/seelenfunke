@@ -2,11 +2,10 @@
 
 namespace App\Livewire\Shop\Ai;
 
-use Livewire\Attributes\Layout;
-
-use App\Models\AiKnowledgeBase as KB;
-use App\Models\AiKnowledgeBaseCategory;
+use App\Models\Ai\AiKnowledgeBase as KB;
+use App\Models\Ai\AiKnowledgeBaseCategory;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;

@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Auth;
 
-use App\Models\PasswordResetToken;
+use App\Models\System\SystemPasswordResetToken;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
@@ -39,7 +39,7 @@ class AuthPasswordReset extends Component
             return;
         }
 
-        $passwordResetToken = PasswordResetToken::where('email', $this->email)->first();
+        $passwordResetToken = SystemPasswordResetToken::where('email', $this->email)->first();
 
         // Überprüfen Sie, ob der Datensatz gefunden wurde
         if (!$passwordResetToken || !Hash::check($this->token, $passwordResetToken->token))
@@ -56,7 +56,7 @@ class AuthPasswordReset extends Component
 
         $this->guard = $passwordResetToken->guard;
 
-        $userModel = (new \App\Models\User)->getUserModelByGuard($this->guard);
+        $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($this->guard);
         $user = $userModel::where('email', $this->email)->first();
 
         if (!$user) {
@@ -69,7 +69,7 @@ class AuthPasswordReset extends Component
         $user->save();
 
         // Löschen des Passwort-Reset-Tokens
-        PasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();
+        SystemPasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();
 
         // Zurück zum Login
         return redirect()->route('login');

@@ -3,9 +3,9 @@
 namespace App\Livewire\Shop\Order\OrderCheckout\Traits;
 
 use App\Jobs\ProcessOrderDocumentsAndMails;
-use App\Models\Order\Order;
-use App\Models\Marketing\Voucher;
-use App\Models\Order\Quote\QuoteRequest;
+use App\Models\Marketing\MarketingVoucher;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
 use Stripe\PaymentIntent;
@@ -35,7 +35,7 @@ trait HandlesStripePayment
                 // Metadaten vorbereiten
                 $metadata = [
                     'cart_id' => $cart->id,
-                    'session_id' => Session::getId(),
+                    'session_id' => SystemSession::getId(),
                     'customer_email' => $this->email,
                     'shipping_country' => $targetCountry
                 ];
@@ -68,10 +68,10 @@ trait HandlesStripePayment
     public function handlePaymentSuccess($orderId = null)
     {
         // 1. Die richtige Order finden
-        $order = $orderId ? Order::with('items.product')->find($orderId) : null;
+        $order = $orderId ? OrderOrder::with('items.product')->find($orderId) : null;
 
         if (!$order) {
-            $order = Order::with('items.product')
+            $order = OrderOrder::with('items.product')
                 ->where('stripe_payment_intent_id', $this->currentPaymentIntentId)
                 ->where('status', 'pending')
                 ->latest()
@@ -95,15 +95,15 @@ trait HandlesStripePayment
             // GUTSCHEIN VERBRAUCHEN (Counter hochzählen)
             if ($order->coupon_code) {
                 // Wir nutzen increment(), das ist atomar und sicher bei gleichzeitigen Zugriffen
-                Voucher::where('code', $order->coupon_code)->increment('used_count');
+                MarketingVoucher::where('code', $order->coupon_code)->increment('used_count');
             }
 
             $this->finalOrderNumber = $order->order_number;
 
             // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
-            if (Session::has('checkout_from_quote_id')) {
-                $quoteId = Session::get('checkout_from_quote_id');
-                $quote = QuoteRequest::find($quoteId);
+            if (SystemSession::has('checkout_from_quote_id')) {
+                $quoteId = SystemSession::get('checkout_from_quote_id');
+                $quote = OrderQuoteRequest::find($quoteId);
 
                 if ($quote) {
                     $quote->update([
@@ -111,7 +111,7 @@ trait HandlesStripePayment
                         'converted_order_id' => $order->id
                     ]);
 
-                    Session::forget('checkout_from_quote_id');
+                    SystemSession::forget('checkout_from_quote_id');
 
                     \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
                 }

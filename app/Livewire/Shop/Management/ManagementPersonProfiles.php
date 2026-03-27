@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Management;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Management\PersonProfile;
+use App\Models\Management\ManagementPersonProfile;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -111,7 +111,7 @@ class ManagementPersonProfiles extends Component
     public function editProfile($id)
     {
         $this->resetValidation();
-        $profile = PersonProfile::findOrFail($id);
+        $profile = ManagementPersonProfile::findOrFail($id);
 
         $this->activeProfileId = $profile->id;
         $this->isEditing = true;
@@ -181,11 +181,11 @@ class ManagementPersonProfiles extends Component
         }
 
         if ($this->editForm['id']) {
-            $profile = PersonProfile::findOrFail($this->editForm['id']);
+            $profile = ManagementPersonProfile::findOrFail($this->editForm['id']);
             $profile->update($data);
             $message = 'Profil erfolgreich aktualisiert.';
         } else {
-            $profile = PersonProfile::create($data);
+            $profile = ManagementPersonProfile::create($data);
             $this->activeProfileId = $profile->id;
             $message = 'Neues Profil angelegt.';
         }
@@ -197,7 +197,7 @@ class ManagementPersonProfiles extends Component
 
     public function deleteProfile($id)
     {
-        PersonProfile::findOrFail($id)->delete();
+        ManagementPersonProfile::findOrFail($id)->delete();
 
         if ($this->activeProfileId == $id) {
             $this->activeProfileId = null;
@@ -209,7 +209,7 @@ class ManagementPersonProfiles extends Component
 
     public function toggleFavorite($id)
     {
-        $profile = PersonProfile::findOrFail($id);
+        $profile = ManagementPersonProfile::findOrFail($id);
         $profile->is_favorite = !$profile->is_favorite;
         $profile->save();
 
@@ -218,7 +218,7 @@ class ManagementPersonProfiles extends Component
 
     public function render()
     {
-        $profiles = PersonProfile::where('first_name', 'like', '%' . $this->search . '%')
+        $profiles = ManagementPersonProfile::where('first_name', 'like', '%' . $this->search . '%')
             ->orWhere('last_name', 'like', '%' . $this->search . '%')
             ->orWhere('nickname', 'like', '%' . $this->search . '%')
             ->orderBy('is_favorite', 'desc')
@@ -229,8 +229,8 @@ class ManagementPersonProfiles extends Component
             $this->activeProfileId = $profiles->first()->id;
         }
 
-        $activeProfile = $this->activeProfileId ? PersonProfile::find($this->activeProfileId) : null;
-        $totalCount = PersonProfile::count();
+        $activeProfile = $this->activeProfileId ? ManagementPersonProfile::find($this->activeProfileId) : null;
+        $totalCount = ManagementPersonProfile::count();
 
         return view('livewire.shop.management.management-person-profiles', [
             'profiles' => $profiles,

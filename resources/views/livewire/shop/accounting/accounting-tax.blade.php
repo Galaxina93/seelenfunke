@@ -548,7 +548,7 @@
                                                     @endforeach
                                                 </div>
                                             @elseif(!$check['passed'] && ($key === 'tax_id' || $key === 'proprietor'))
-                                                <a href="{{ route('admin.settings') }}" class="inline-block mt-3 text-[10px] font-black uppercase tracking-widest text-orange-400 hover:text-orange-300 border border-orange-400/30 bg-orange-500/10 px-3 py-1.5 rounded transition-all hover:bg-orange-500/20">Zu Einstellungen &rarr;</a>
+                                                <a href="{{ route('admin.configuration') }}" class="inline-block mt-3 text-[10px] font-black uppercase tracking-widest text-orange-400 hover:text-orange-300 border border-orange-400/30 bg-orange-500/10 px-3 py-1.5 rounded transition-all hover:bg-orange-500/20">Zu Einstellungen &rarr;</a>
                                             @endif
                                         </div>
                                     </div>

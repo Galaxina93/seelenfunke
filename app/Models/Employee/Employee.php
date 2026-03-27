@@ -2,7 +2,7 @@
 
 namespace App\Models\Employee;
 
-use App\Models\Role;
+use App\Models\System\SystemRole;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,7 +40,7 @@ class Employee extends Model implements Authenticatable
             $employeeProfile = new EmployeeProfile();
             $employee->profile()->save($employeeProfile);
 
-            $employeeRole = Role::where('name', 'employee')->first();
+            $employeeRole = SystemRole::where('name', 'employee')->first();
             $employee->roles()->attach($employeeRole->id);
         });
 
@@ -52,12 +52,12 @@ class Employee extends Model implements Authenticatable
 
     public function roles(): MorphToMany
     {
-        return $this->morphToMany(Role::class, 'roleable');
+        return $this->morphToMany(SystemRole::class, 'roleable', 'roleables', 'roleable_id', 'role_id');
     }
 
     public function directories(): MorphToMany
     {
-        return $this->morphToMany(\App\Models\Directory::class, 'user', 'directory_user');
+        return $this->morphToMany(\App\Models\System\SystemDirectory::class, 'user', 'directory_user');
     }
 
     public function profile(): \Illuminate\Database\Eloquent\Relations\HasOne

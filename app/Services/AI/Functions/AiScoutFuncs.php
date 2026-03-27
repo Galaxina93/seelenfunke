@@ -127,8 +127,8 @@ trait AiScoutFuncs
 
             $formatted = [];
             foreach ($customers as $c) {
-                $orderCount = \App\Models\Order\Order::where('customer_id', $c->id)->count();
-                $spentCents = \App\Models\Order\Order::where('customer_id', $c->id)->where('status', 'completed')->sum('total_amount');
+                $orderCount = \App\Models\Order\OrderOrder::where('customer_id', $c->id)->count();
+                $spentCents = \App\Models\Order\OrderOrder::where('customer_id', $c->id)->where('status', 'completed')->sum('total_amount');
                 
                 $formatted[] = [
                     'name' => $c->first_name . ' ' . $c->last_name,

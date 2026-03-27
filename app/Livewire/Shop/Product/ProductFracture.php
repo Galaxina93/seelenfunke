@@ -6,7 +6,7 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Product\Product;
 use App\Models\Product\ProductLoss;
-use App\Models\Product\Supplier;
+use App\Models\Product\ProductSupplier;
 use Carbon\Carbon;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -63,7 +63,7 @@ class ProductFracture extends Component
 
         ProductLoss::create([
             'product_id' => $product->id,
-            'supplier_id' => null,
+            'product_supplier_id' => null,
             'quantity' => $this->lossQuantity,
             'cost_value' => $costValue,
             'reason' => $this->lossReason,
@@ -80,7 +80,7 @@ class ProductFracture extends Component
     public function assignSupplier($id, $supplierId)
     {
         $loss = ProductLoss::findOrFail($id);
-        $loss->update(['supplier_id' => $supplierId ?: null]);
+        $loss->update(['product_supplier_id' => $supplierId ?: null]);
         $this->dispatch('toast', message: 'Händler zugewiesen.', type: 'success');
     }
 
@@ -89,7 +89,7 @@ class ProductFracture extends Component
         $loss = ProductLoss::findOrFail($id);
         // Cascade nulls if supplier is removed, we must also reset reported/refund status
         $loss->update([
-            'supplier_id' => null,
+            'product_supplier_id' => null,
             'reported_to_supplier_at' => null,
             'refund_received_at' => null,
         ]);
@@ -203,7 +203,7 @@ class ProductFracture extends Component
     {
         $losses = ProductLoss::with(['product', 'supplier'])->latest()->paginate(10);
         $products = Product::where('status', 'active')->where('type', 'physical')->orderBy('name')->get();
-        $suppliers = Supplier::orderBy('name')->get();
+        $suppliers = ProductSupplier::orderBy('name')->get();
 
         $metrics = [
             'total_open' => ProductLoss::whereNull('refund_received_at')->count(),

@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Marketing;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Marketing\Voucher as VoucherModel;
+use App\Models\Marketing\MarketingVoucher as VoucherModel;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -81,7 +81,7 @@ class MarketingVoucher extends Component
     public function saveManualCoupon()
     {
         $this->validate([
-            'manual_code' => 'required|min:3|unique:voucher,code,' . $this->manualId,
+            'manual_code' => 'required|min:3|unique:marketing_vouchers,code,' . $this->manualId,
             'manual_type' => 'required|in:fixed,percent',
             'manual_value' => 'required|numeric|min:1',
         ]);
@@ -158,7 +158,7 @@ class MarketingVoucher extends Component
         $end = now()->endOfMonth();
 
         // Top 10 Gutscheine der letzten 12 Monate
-        $topCoupons = \Illuminate\Support\Facades\DB::table('orders')
+        $topCoupons = \Illuminate\Support\Facades\DB::table('order_orders')
             ->whereNotNull('coupon_code')
             ->whereBetween('created_at', [$start, $end])
             ->select('coupon_code', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
@@ -170,7 +170,7 @@ class MarketingVoucher extends Component
             ->toArray();
 
         // Alle relevanten Bestellungen
-        $orders = \Illuminate\Support\Facades\DB::table('orders')
+        $orders = \Illuminate\Support\Facades\DB::table('order_orders')
             ->whereNotNull('coupon_code')
             ->whereBetween('created_at', [$start, $end])
             ->get(['coupon_code', 'created_at']);

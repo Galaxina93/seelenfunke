@@ -6,8 +6,8 @@ namespace App\Livewire\Customer;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Order\Order;
-use App\Models\Order\OrderItem; // Anpassen, falls dein Model anders heißt
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderOrderItem; // Anpassen, falls dein Model anders heißt
 
 class CustomerOrdersComponent extends Component
 {
@@ -48,21 +48,21 @@ class CustomerOrdersComponent extends Component
     public function getSelectedOrderProperty()
     {
         if (!$this->selectedOrderId) return null;
-        return Order::with(['items.product', 'invoices'])->find($this->selectedOrderId);
+        return OrderOrder::with(['items.product', 'invoices'])->find($this->selectedOrderId);
     }
 
     // Computed Property für das Vorschaubild (Manufaktur Details)
     public function getPreviewItemProperty()
     {
         if (!$this->previewItemId) return null;
-        return OrderItem::with('product')->find($this->previewItemId);
+        return OrderOrderItem::with('product')->find($this->previewItemId);
     }
 
     public function render()
     {
         $user = Auth::guard('customer')->user();
 
-        $query = Order::where('customer_id', $user->id)
+        $query = OrderOrder::where('customer_id', $user->id)
             ->with(['items.product']); // Eager Loading für Performance
 
         if (!empty($this->searchOrder)) {

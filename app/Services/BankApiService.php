@@ -62,7 +62,7 @@ class BankApiService
         $finapiUserId = 'sf_' . md5($userId);
         $password = $this->generateUserPassword($userId);
 
-        // 1. Versuch: User Token abrufen (V2 Route)
+        // 1. Versuch: SystemUser Token abrufen (V2 Route)
         $response = Http::asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
             'grant_type' => 'password',
             'client_id' => $this->clientId,
@@ -75,7 +75,7 @@ class BankApiService
             return $response->json('access_token');
         }
 
-        // 2. Wenn fehlgeschlagen: User existiert vermutlich nicht. Wir erstellen ihn.
+        // 2. Wenn fehlgeschlagen: SystemUser existiert vermutlich nicht. Wir erstellen ihn.
         $clientToken = $this->getClientToken();
 
         $createResponse = Http::withToken($clientToken)->post("{$this->baseUrl}/api/v2/users", [

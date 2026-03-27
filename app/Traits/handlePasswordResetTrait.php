@@ -6,7 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use App\Models\PasswordResetToken;
+use App\Models\System\SystemPasswordResetToken;
 
 trait handlePasswordResetTrait
 {
@@ -22,7 +22,7 @@ trait handlePasswordResetTrait
         $user = null;
 
         foreach ($guardsToCheck as $g) {
-            $userModel = (new \App\Models\User)->getUserModelByGuard($g);
+            $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($g);
             $candidate = $userModel::where('email', $this->email)->first();
             if ($candidate) {
                 $foundGuard = $g;
@@ -39,7 +39,7 @@ trait handlePasswordResetTrait
         $this->guard = $foundGuard;
 
         // Prüfe ob schon ein gültiger Reset Token vorhanden ist
-        $passwordResetToken = PasswordResetToken::where('email', $this->email)
+        $passwordResetToken = SystemPasswordResetToken::where('email', $this->email)
             ->where('guard', $this->guard)
             ->first();
 
@@ -73,7 +73,7 @@ trait handlePasswordResetTrait
     public function updatePasswordResetToken($email, $guard, $token): void
     {
         // Füge einen neuen Token in die password_reset_tokens-Tabelle ein oder aktualisiere den vorhandenen Datensatz
-        DB::table('password_reset_tokens')->updateOrInsert(
+        DB::table('system_password_reset_tokens')->updateOrInsert(
             [
                 'email' => $email,
                 'guard' => $guard,
@@ -99,7 +99,7 @@ trait handlePasswordResetTrait
             return;
         }
 
-        $passwordResetToken = PasswordResetToken::where('email', $this->email)->first();
+        $passwordResetToken = SystemPasswordResetToken::where('email', $this->email)->first();
 
         // Überprüfen Sie, ob der Datensatz gefunden wurde
         if (!$passwordResetToken || !Hash::check($this->token, $passwordResetToken->token))
@@ -116,7 +116,7 @@ trait handlePasswordResetTrait
 
         $this->guard = $passwordResetToken->guard;
 
-        $userModel = (new \App\Models\User)->getUserModelByGuard($this->guard);
+        $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($this->guard);
         $user = $userModel::where('email', $this->email)->first();
 
         if (!$user) {
@@ -129,7 +129,7 @@ trait handlePasswordResetTrait
         $user->save();
 
         // Löschen des Passwort-Reset-Tokens
-        PasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();
+        SystemPasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();
 
         // Zurück zum Login
         return redirect()->route('login');

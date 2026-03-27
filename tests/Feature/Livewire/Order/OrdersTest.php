@@ -3,10 +3,10 @@
 namespace Tests\Feature\Livewire\Order;
 
 use App\Jobs\ProcessOrderDocumentsAndMails;
-use App\Livewire\Shop\Order\Orders;
-use App\Models\Invoice;
-use App\Models\Order\Order;
-use App\Models\User;
+use App\Livewire\Shop\Order\OrderOverview as Orders;
+use App\Models\Accounting\AccountingInvoice;
+use App\Models\Order\OrderOrder;
+use App\Models\System\SystemUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -22,7 +22,7 @@ class OrdersTest extends TestCase
     {
         parent::setUp();
         
-        \App\Models\Role::firstOrCreate(['name' => 'admin']);
+        \App\Models\System\SystemRole::firstOrCreate(['name' => 'admin']);
         
         $admin = \App\Models\Admin\Admin::create([
             'id' => \Illuminate\Support\Str::uuid()->toString(),
@@ -46,7 +46,7 @@ class OrdersTest extends TestCase
 
     private function createOrder()
     {
-        return Order::create([
+        return OrderOrder::create([
             'order_number' => 'TEST-001',
             'email' => 'test@kunde.de',
             'customer_id' => $this->customer->id,

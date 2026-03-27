@@ -2,14 +2,14 @@
 
 namespace App\Livewire\Shop\Order;
 
-use App\Models\Order\Quote\QuoteRequest;
-use App\Models\Shipping\ShippingZone;
-use App\Models\Marketing\Voucher;
+use App\Livewire\Traits\WithDepartmentTheming;
+use App\Models\Logistics\LogisticsShippingZone;
+use App\Models\Marketing\MarketingVoucher;
+use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\On;
 use Livewire\Component;
-use App\Livewire\Traits\WithDepartmentTheming;
 
 // Wichtig für Versandberechnung
 
@@ -52,7 +52,7 @@ class OrderQuoteAcceptance extends Component
 
     public function refreshQuote()
     {
-        $this->quote = QuoteRequest::where('token', $this->token)
+        $this->quote = OrderQuoteRequest::where('token', $this->token)
             ->with(['items.product'])
             ->first();
     }
@@ -192,12 +192,12 @@ class OrderQuoteAcceptance extends Component
             }
         } else {
             // Ausland: Zone suchen
-            $zone = ShippingZone::whereHas('countries', function($q) use ($countryCode) {
+            $zone = LogisticsShippingZone::whereHas('countries', function($q) use ($countryCode) {
                 $q->where('country_code', $countryCode);
             })->with('rates')->first();
 
             if (!$zone) {
-                $zone = ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+                $zone = LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
             }
 
             if ($zone && !$this->quote->items->isEmpty()) {
@@ -283,7 +283,7 @@ class OrderQuoteAcceptance extends Component
     {
         $this->validate(['couponCodeInput' => 'required|string']);
 
-        $coupon = Voucher::where('code', $this->couponCodeInput)->first();
+        $coupon = MarketingVoucher::where('code', $this->couponCodeInput)->first();
 
         if (!$coupon || !$coupon->isValid()) {
             $this->addError('couponCodeInput', 'Gutschein ist ungültig oder abgelaufen.');
@@ -294,7 +294,7 @@ class OrderQuoteAcceptance extends Component
         $hasExpress = $this->quote->is_express;
         $expressCost = $hasExpress ? (int)shop_setting('express_surcharge', 2500) : 0;
         $shippingCost = $this->quote->shipping_cost_calculated ?? ($this->quote->shipping_price ?? 0);
-        
+
         $goodsGross = $this->quote->gross_total - $shippingCost - $expressCost;
 
         if ($coupon->min_order_value && $goodsGross < $coupon->min_order_value) {
@@ -307,7 +307,7 @@ class OrderQuoteAcceptance extends Component
             'type' => $coupon->type,
             'value' => $coupon->value
         ];
-        
+
         $this->couponCodeInput = ''; // Input leeren nach erfolg
         session()->flash('coupon_success', 'Gutschein erfolgreich angewendet!');
     }
@@ -332,7 +332,7 @@ class OrderQuoteAcceptance extends Component
             'is_express' => $this->quote->is_express,
             'deadline' => $this->quote->deadline,
         ];
-        
+
         if ($this->activeCoupon) {
             $cartUpdateData['coupon_code'] = $this->activeCoupon['code'];
         }
@@ -349,7 +349,7 @@ class OrderQuoteAcceptance extends Component
             }
         }
 
-        Session::put('checkout_from_quote_id', $this->quote->id);
+        SystemSession::put('checkout_from_quote_id', $this->quote->id);
         return redirect()->route('checkout');
     }
 

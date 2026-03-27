@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Management\CalendarEvent;
+use App\Models\Management\ManagementCalendarEvent;
 use Carbon\Carbon;
 
 trait AiCalendarFuncs
@@ -123,7 +123,7 @@ trait AiCalendarFuncs
             $keyword = $args['keyword'] ?? null;
             $limit = $args['limit'] ?? null;
 
-            $query = CalendarEvent::query()->orderBy('start_date', 'asc');
+            $query = ManagementCalendarEvent::query()->orderBy('start_date', 'asc');
 
             if ($dateFrom) {
                 $query->where('start_date', '>=', Carbon::parse($dateFrom));
@@ -208,7 +208,7 @@ trait AiCalendarFuncs
                  if ($isAllDay) $end = $start->copy()->endOfDay();
             }
 
-            $event = CalendarEvent::create([
+            $event = ManagementCalendarEvent::create([
                 'title' => substr($args['title'], 0, 255),
                 'start_date' => $start,
                 'end_date' => $end,
@@ -236,7 +236,7 @@ trait AiCalendarFuncs
                 return ['status' => 'error', 'message' => 'Du musst eine event_id angeben. Hole sie dir vorher mit get_calendar_events.'];
             }
 
-            $event = CalendarEvent::find($args['event_id']);
+            $event = ManagementCalendarEvent::find($args['event_id']);
             if (!$event) {
                 return ['status' => 'error', 'message' => 'Termin mit dieser ID nicht in der Calender-Datenbank gefunden.'];
             }
@@ -266,9 +266,9 @@ trait AiCalendarFuncs
 
             $event = null;
             if (!empty($args['event_id'])) {
-                $event = CalendarEvent::find($args['event_id']);
+                $event = ManagementCalendarEvent::find($args['event_id']);
             } elseif (!empty($args['title_suche'])) {
-                $event = CalendarEvent::where('title', 'LIKE', '%' . $args['title_suche'] . '%')->first();
+                $event = ManagementCalendarEvent::where('title', 'LIKE', '%' . $args['title_suche'] . '%')->first();
             }
 
             if (!$event) {

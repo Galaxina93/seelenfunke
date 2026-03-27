@@ -2,12 +2,12 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Management\Health\AiHealthProtocol;
-use App\Models\Management\Health\AiHealthTreatmentPlan;
-use Illuminate\Support\Facades\Auth;
-use App\Models\Management\Task;
-use App\Models\Management\TaskList;
+use App\Models\Ai\AiHealthProtocol;
+use App\Models\Ai\AiHealthTreatmentPlan;
+use App\Models\Management\ManagementTask;
+use App\Models\Management\ManagementTaskList;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 
 trait AiHealthFuncs
 {
@@ -185,7 +185,7 @@ trait AiHealthFuncs
                 ->with('items')
                 ->get();
 
-            $medications = \App\Models\Management\Health\AiHealthMedication::where('user_id', $user->id)
+            $medications = \App\Models\Ai\AiHealthMedication::where('user_id', $user->id)
                 ->get();
 
             $protocols = AiHealthProtocol::where('user_id', $user->id)
@@ -289,14 +289,14 @@ trait AiHealthFuncs
         try {
             $apiKey = env('SCRAPER_API_KEY', '707ccc851a9e7c4759106d2f6e6bf764');
             $query = $args['query'];
-            
+
             \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                 'progress' => 20,
                 'action_text' => 'Baue Stealth-Verbindung (ScraperAPI) auf für: "' . $query . '" ...'
             ], 60);
 
             $targetUrl = "https://html.duckduckgo.com/html/?q=" . urlencode($query);
-            
+
             $response = \Illuminate\Support\Facades\Http::timeout(60)->get('http://api.scraperapi.com', [
                 'api_key' => $apiKey,
                 'url' => $targetUrl,
@@ -317,7 +317,7 @@ trait AiHealthFuncs
             // Parse simple text snippets
             preg_match_all('/<a class="result__snippet[^>]*>(.*?)<\/a>/is', $html, $matches);
             $snippets = $matches[1] ?? [];
-            
+
             $results = [];
             foreach(array_slice($snippets, 0, 7) as $snippet) {
                 $results[] = trim(strip_tags(html_entity_decode($snippet, ENT_QUOTES, 'UTF-8')));
@@ -333,7 +333,7 @@ trait AiHealthFuncs
 
             if (empty($results)) {
                 return [
-                    'error' => true, 
+                    'error' => true,
                     'message' => "Die Internetsuche nach '{$query}' lieferte keine direkten Text-Auswertungen (mögliche Bot-Sperre). Führe KEINE weitere Suche durch. Nutze ab sofort stattdessen ausschließlich dein intern antrainiertes medizinisches Fachwissen für die Diagnose."
                 ];
             }
@@ -349,10 +349,10 @@ trait AiHealthFuncs
                 'results' => array_filter($results),
                 'note' => 'Nutze diese Auszüge aus dem Web für deine medizinische Antwort. VERMEIDE WEITERE SUCHEN, falls du jetzt ausreichende Daten hast.'
             ];
-            
+
         } catch (\Exception $e) {
             return [
-                'error' => true, 
+                'error' => true,
                 'message' => 'Web-Suche blockiert oder Timeout: ' . $e->getMessage() . '. STOPPE DIE ENDLOSSCHLEIFE. Führe diese oder andere Suchen NICHT erneut aus! Entwickle ein Fazit oder Protokoll aus deinem Trainingsdatensatz.'
             ];
         }
@@ -364,7 +364,7 @@ trait AiHealthFuncs
             $user = Auth::user();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
-            $med = \App\Models\Management\Health\AiHealthMedication::create([
+            $med = \App\Models\Ai\AiHealthMedication::create([
                 'user_id' => $user->id,
                 'name' => $args['name'],
                 'description' => $args['description'] ?? null,
@@ -391,12 +391,12 @@ trait AiHealthFuncs
                 return ['status' => 'error', 'message' => 'Titel fehlt.'];
             }
 
-            $list = TaskList::firstOrCreate(
+            $list = ManagementTaskList::firstOrCreate(
                 ['name' => 'Ärztliche Anweisungen'],
                 ['icon' => 'heart', 'color' => '#EF4444']
             );
 
-            $task = Task::create([
+            $task = ManagementTask::create([
                 'title' => substr($args['title'], 0, 255),
                 'priority' => $args['priority'] ?? 'hoch',
                 'is_completed' => false,

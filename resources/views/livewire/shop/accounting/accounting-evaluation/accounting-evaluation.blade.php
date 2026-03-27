@@ -202,7 +202,7 @@
                             </thead>
                             <tbody class="divide-y divide-gray-800/50">
 
-                            @foreach($yearlyMatrix['categories'] as $key => $category)
+                            @foreach($yearlyMatrix['product_categories'] as $key => $category)
                                 <tr class="hover:bg-gray-800/30 transition-colors cursor-pointer group"
                                     wire:click="toggleCategory('{{ $key }}')">
                                     <td class="p-4 text-left font-bold {{ $category['color'] }} flex items-center gap-3">

@@ -9,6 +9,7 @@ use App\Services\ConfiguratorService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -241,7 +242,7 @@ class ProductCreate extends Component
         $this->sku = $this->product->sku;
         $this->barcode = $this->product->barcode;
         $this->brand = $this->product->brand;
-        $this->supplier_id = $this->product->supplier_id;
+        $this->supplier_id = $this->product->product_supplier_id;
 
         // Versanddaten laden
         $this->weight = $this->product->weight;
@@ -477,7 +478,7 @@ class ProductCreate extends Component
         $this->product->sku = $this->sku;
         $this->product->barcode = $this->barcode;
         $this->product->brand = $this->brand;
-        $this->product->supplier_id = empty($this->supplier_id) ? null : $this->supplier_id;
+        $this->product->product_supplier_id = empty($this->supplier_id) ? null : $this->supplier_id;
 
         // 5. Lager
         $this->product->track_quantity = (bool) $this->track_quantity;
@@ -794,8 +795,13 @@ class ProductCreate extends Component
 
         return view('livewire.shop.product.product-create', [
             'products' => $products,
-            'suppliers' => \App\Models\Product\Supplier::orderBy('name')->get(),
             'canProceed' => $this->canProceed()
         ]);
+    }
+
+    #[Computed]
+    public function suppliers()
+    {
+        return \App\Models\Product\ProductSupplier::orderBy('name')->get();
     }
 }

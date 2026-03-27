@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Accounting\AccountingInvoice;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +14,7 @@ class InvoiceService
     /**
      * Erstellt eine rechtssichere Rechnung aus einer Bestellung.
      */
-    public function createFromOrder(Order $order): ?Invoice
+    public function createFromOrder(OrderOrder $order): ?AccountingInvoice
     {
         $existing = AccountingInvoice::where('order_id', $order->id)
             ->where('type', 'invoice')
@@ -74,7 +74,7 @@ class InvoiceService
     /**
      * Erstellt eine Stornorechnung (Gutschrift).
      */
-    public function cancelInvoice(Invoice $originalInvoice): Invoice
+    public function cancelInvoice(AccountingInvoice $originalInvoice): AccountingInvoice
     {
         return DB::transaction(function () use ($originalInvoice) {
             $originalInvoice->update(['status' => 'cancelled']);
@@ -117,7 +117,7 @@ class InvoiceService
      * Erstellt eine manuelle Gutschrift (Rechnungskorrektur) unabhängig von einer existierenden Rechnung.
      * Stellt sicher, dass die übergebenen positiven Beträge intern als Minus für die Statistik verbucht werden.
      */
-    public function createCreditNote(array $data): Invoice
+    public function createCreditNote(array $data): AccountingInvoice
     {
         return DB::transaction(function () use ($data) {
             $stornoNumber = $this->generateInvoiceNumber(prefix: 'GUT');
@@ -162,7 +162,7 @@ class InvoiceService
     /**
      * Generiert PDF Stream/Download
      */
-    public function generatePdf(Invoice $invoice)
+    public function generatePdf(AccountingInvoice $invoice)
     {
         // Items müssen explizit geladen werden
         $invoice->load('order.items');
@@ -182,7 +182,7 @@ class InvoiceService
     /**
      * NEU: Speichert das PDF physisch im Storage ab
      */
-    public function storePdf(Invoice $invoice): string
+    public function storePdf(AccountingInvoice $invoice): string
     {
         try {
             $pdf = $this->generatePdf($invoice);
@@ -209,7 +209,7 @@ class InvoiceService
     /**
      * E-RECHNUNG: Generiert strukturierte XML Daten (ZUGFeRD / XRechnung)
      */
-    public function generateEInvoiceXml(Invoice $invoice)
+    public function generateEInvoiceXml(AccountingInvoice $invoice)
     {
         $fileName = "invoices/xml/{$invoice->invoice_number}.xml";
 
@@ -227,7 +227,7 @@ class InvoiceService
     /**
      * Entwürfe physisch und aus DB löschen
      */
-    public function deleteDraft(Invoice $invoice)
+    public function deleteDraft(AccountingInvoice $invoice)
     {
         if ($invoice->status !== 'draft') return false;
 

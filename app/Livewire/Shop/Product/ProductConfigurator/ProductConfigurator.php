@@ -12,7 +12,7 @@ use Livewire\WithFileUploads;
 use App\Services\ConfiguratorService;
 use Livewire\Attributes\Computed; // <-- NEU
 use Illuminate\Support\Facades\DB;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 
 class ProductConfigurator extends Component
 {
@@ -449,7 +449,7 @@ class ProductConfigurator extends Component
                 }
             });
         } catch (\Exception $e) {
-            GlobalLog::create([
+            SystemLog::create([
                 'type' => 'error',
                 'agent_id' => null,
                 'action_id' => 'configurator_save',

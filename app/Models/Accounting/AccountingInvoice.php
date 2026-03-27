@@ -3,7 +3,7 @@
 namespace App\Models\Accounting;
 
 use App\Models\Customer\Customer;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Traits\FormatsECommerceData;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,7 +39,7 @@ class AccountingInvoice extends Model
      */
     public function order()
     {
-        return $this->belongsTo(Order::class);
+        return $this->belongsTo(OrderOrder::class);
     }
 
     /**

@@ -2,16 +2,14 @@
 
 namespace App\Livewire\Shop\Marketing;
 
-use Livewire\Attributes\Layout;
-
+use App\Livewire\Traits\WithDepartmentTheming;
 use App\Mail\AutomaticNewsletterMail;
-use App\Models\Marketing\Newsletter\Newsletter;
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletter as NewsletterModel;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use App\Livewire\Traits\WithDepartmentTheming;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -58,12 +56,12 @@ class MarketingNewsletter extends Component
             'newSubscriberEmail' => 'required|email'
         ]);
 
-        if (NewsletterSubscriber::where('email', $this->newSubscriberEmail)->exists()) {
+        if (MarketingNewsletterSubscriber::where('email', $this->newSubscriberEmail)->exists()) {
             session()->flash('error', 'Diese E-Mail-Adresse ist bereits eingetragen.');
             return;
         }
 
-        NewsletterSubscriber::create([
+        MarketingNewsletterSubscriber::create([
             'email' => $this->newSubscriberEmail,
             'is_verified' => true, // Manuell hinzugefügte gelten idR als verifiziert
         ]);
@@ -74,7 +72,7 @@ class MarketingNewsletter extends Component
 
     public function editTemplate($id)
     {
-        $t = Newsletter::findOrFail($id);
+        $t = NewsletterModel::findOrFail($id);
         $this->editingTemplateId = $t->id;
         $this->edit_subject = $t->subject;
         $this->edit_type = $t->type;
@@ -99,7 +97,7 @@ class MarketingNewsletter extends Component
 
             $this->edit_event_date = $eventDate->format('Y-m-d');
         }
-        
+
         // Modal falls offen schließen
         $this->showCreateModal = false;
     }
@@ -128,7 +126,7 @@ class MarketingNewsletter extends Component
         ]);
 
         if ($this->new_type === 'automated') {
-            if (Newsletter::where('target_event_key', $this->new_target_event_key)->where('is_active', true)->exists()) {
+            if (NewsletterModel::where('target_event_key', $this->new_target_event_key)->where('is_active', true)->exists()) {
                 session()->flash('error', 'Es existiert bereits eine aktive Kampagne für dieses Ereignis.');
                 return;
             }
@@ -136,7 +134,7 @@ class MarketingNewsletter extends Component
             $events = $this->getAvailableEvents();
             $eventName = $events[$this->new_target_event_key] ?? 'Neues Ereignis';
 
-            $template = Newsletter::create([
+            $template = NewsletterModel::create([
                 'type' => 'automated',
                 'title' => $eventName . ' Kampagne', // Interne Bezeichnung
                 'target_event_key' => $this->new_target_event_key,
@@ -146,7 +144,7 @@ class MarketingNewsletter extends Component
                 'is_active' => true
             ]);
         } else {
-            $template = Newsletter::create([
+            $template = NewsletterModel::create([
                 'type' => 'manual',
                 'title' => $this->new_manual_title, // Interne Bezeichnung
                 'target_event_key' => null,
@@ -165,7 +163,7 @@ class MarketingNewsletter extends Component
 
     public function saveTemplate()
     {
-        $t = Newsletter::find($this->editingTemplateId);
+        $t = NewsletterModel::find($this->editingTemplateId);
 
         if ($t->type === 'manual') {
             $this->validate([
@@ -199,20 +197,20 @@ class MarketingNewsletter extends Component
 
     public function archiveTemplate($id)
     {
-        Newsletter::where('id', $id)->update(['is_active' => false]);
+        NewsletterModel::where('id', $id)->update(['is_active' => false]);
         session()->flash('success', 'Kampagne ins Archiv verschoben.');
         $this->cancelEdit();
     }
 
     public function restoreTemplate($id)
     {
-        Newsletter::where('id', $id)->update(['is_active' => true]);
+        NewsletterModel::where('id', $id)->update(['is_active' => true]);
         session()->flash('success', 'Kampagne reaktiviert.');
     }
 
     public function deleteTemplate($id)
     {
-        if (Newsletter::destroy($id)) {
+        if (NewsletterModel::destroy($id)) {
             session()->flash('success', 'Kampagne wurde endgültig gelöscht.');
             $this->cancelEdit();
         }
@@ -268,7 +266,7 @@ class MarketingNewsletter extends Component
 
     public function deleteSubscriber($id)
     {
-        if (NewsletterSubscriber::destroy($id)) {
+        if (MarketingNewsletterSubscriber::destroy($id)) {
             session()->flash('success', 'Empfänger entfernt.');
         }
     }
@@ -327,7 +325,7 @@ class MarketingNewsletter extends Component
 
     private function getNewsletterTimeline($year)
     {
-        $templates = Newsletter::where('is_active', true)->get();
+        $templates = NewsletterModel::where('is_active', true)->get();
         $events = [];
 
         foreach ($this->getAvailableEvents() as $key => $label) {
@@ -382,13 +380,13 @@ class MarketingNewsletter extends Component
     {
         $subscribers = collect();
         if ($this->activeTab === 'subscribers') {
-            $subscribers = NewsletterSubscriber::where('email', 'like', "%{$this->search}%")
+            $subscribers = MarketingNewsletterSubscriber::where('email', 'like', "%{$this->search}%")
                 ->paginate(15);
         }
 
         $archivedTemplates = collect();
         if ($this->activeTab === 'archive') {
-            $archivedTemplates = Newsletter::where('is_active', false)->get();
+            $archivedTemplates = NewsletterModel::where('is_active', false)->get();
         }
 
         return view('livewire.shop.marketing.marketing-newsletter', [
@@ -396,10 +394,10 @@ class MarketingNewsletter extends Component
             'subscribers' => $subscribers,
             'archivedTemplates' => $archivedTemplates,
             'availableEvents' => $this->getAvailableEvents(),
-            'activeTemplateKeys' => Newsletter::where('is_active', true)->where('type', 'automated')->whereNotNull('target_event_key')->pluck('target_event_key')->toArray(),
+            'activeTemplateKeys' => NewsletterModel::where('is_active', true)->where('type', 'automated')->whereNotNull('target_event_key')->pluck('target_event_key')->toArray(),
             'stats' => [
-                'subscribers' => NewsletterSubscriber::count(),
-                'active_templates' => Newsletter::where('is_active', true)->count()
+                'subscribers' => MarketingNewsletterSubscriber::count(),
+                'active_templates' => NewsletterModel::where('is_active', true)->count()
             ]
         ]);
     }

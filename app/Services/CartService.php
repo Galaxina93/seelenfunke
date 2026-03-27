@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -181,7 +181,7 @@ class CartService
 
     public function applyCoupon(string $code): array
     {
-        $coupon = Voucher::where('code', $code)->first();
+        $coupon = MarketingVoucher::where('code', $code)->first();
 
         if (!$coupon || !$coupon->isValid()) {
             return ['success' => false, 'message' => 'Gutschein ist ungültig oder abgelaufen.'];
@@ -295,7 +295,7 @@ class CartService
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
-            $coupon = Voucher::where('code', $couponCode)->first();
+            $coupon = MarketingVoucher::where('code', $couponCode)->first();
 
             if ($coupon && $coupon->isValid()) {
                 if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
@@ -412,13 +412,13 @@ class CartService
         $globalDefaultCost = (int) shop_setting('shipping_cost', 490);
 
         // 1. Zone finden (DE oder Ausland)
-        $zone = \App\Models\Shipping\ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
+        $zone = \App\Models\Logistics\LogisticsShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
 
         // Fallback "Weltweit"
         if (!$zone) {
-            $zone = \App\Models\Shipping\ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            $zone = \App\Models\Logistics\LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
         }
 
         // Initialisierung der Status-Variablen für DE (Prioritäts-Logik)

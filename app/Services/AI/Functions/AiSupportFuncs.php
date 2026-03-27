@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Ticket;
+use App\Models\Support\SupportTicket;
 
 trait AiSupportFuncs
 {
@@ -24,11 +24,11 @@ trait AiSupportFuncs
 
 
 
-    /* Ticket Methods */
+    /* SupportTicket Methods */
     public static function executeGetTickets(array $args)
     {
         try {
-            $query = Ticket::where('status', '!=', 'closed');
+            $query = SupportTicket::where('status', '!=', 'closed');
             $count = $query->count();
             $tickets = $query->orderBy('created_at', 'desc')->take(5)->get();
 

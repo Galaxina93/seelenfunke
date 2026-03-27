@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -104,7 +104,7 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_get_all(array $args)
     {
-        $query = Voucher::query();
+        $query = MarketingVoucher::query();
         if (isset($args['mode']) && in_array($args['mode'], ['auto', 'manual'])) {
             $query->where('mode', $args['mode']);
         }
@@ -129,7 +129,7 @@ trait AiMarketingVoucherFuncs
     {
         $code = strtoupper(trim($args['code']));
 
-        if (Voucher::where('code', $code)->exists()) {
+        if (MarketingVoucher::where('code', $code)->exists()) {
             return ['status' => 'error', 'message' => "Der Gutscheincode '$code' existiert bereits."];
         }
 
@@ -137,7 +137,7 @@ trait AiMarketingVoucherFuncs
         $dbMinOrder = isset($args['min_order_value']) ? (int)($args['min_order_value'] * 100) : null;
         $validUntil = isset($args['valid_until']) ? Carbon::parse($args['valid_until']) : null;
 
-        $voucher = Voucher::create([
+        $voucher = MarketingVoucher::create([
             'code' => $code,
             'title' => 'Manueller Code: ' . $code,
             'type' => $args['type'],
@@ -156,7 +156,7 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_toggle_active(array $args)
     {
-        $v = Voucher::find($args['id']);
+        $v = MarketingVoucher::find($args['id']);
         if (!$v) return ['status' => 'error', 'message' => 'Gutschein nicht gefunden.'];
 
         $v->is_active = !$v->is_active;
@@ -167,7 +167,7 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_delete(array $args)
     {
-        $v = Voucher::where('mode', 'manual')->find($args['id']);
+        $v = MarketingVoucher::where('mode', 'manual')->find($args['id']);
         if (!$v) return ['status' => 'error', 'message' => 'Gutschein nicht gefunden oder es handelt sich um keinen manuellen Gutschein.'];
 
         $v->delete();
@@ -178,7 +178,7 @@ trait AiMarketingVoucherFuncs
     {
         $start = now()->subMonths(12)->startOfMonth();
         
-        $topCoupons = DB::table('orders')
+        $topCoupons = DB::table('order_orders')
             ->whereNotNull('coupon_code')
             ->where('created_at', '>=', $start)
             ->select('coupon_code', DB::raw('count(*) as total_uses'), DB::raw('sum(total) as generated_revenue_cents'))

@@ -178,8 +178,26 @@ case "$1" in
         ;;
     test)
         shift
-        echo "🧪 Starte automatisierte Tests..."
-        $PREFIX_USER php artisan test "$@"
+        if [ "$1" == "info" ]; then
+            echo -e "\n\033[1;36m📋 Verfügbare Test-Klassen:\033[0m\n"
+            find tests -type f -name '*Test.php' -exec basename {} .php \; | sort | paste -sd " " -
+            echo ""
+            exit 0
+        fi
+
+        echo "🧪 Aktualisiere Testing-Umgebung..."
+        $PREFIX_USER php artisan config:clear --env=testing
+        
+        if [ -z "$1" ]; then
+            echo "🧪 Starte ALLE automatisierten Tests auf Test-Datenbank (seelenfunke_testing)..."
+            $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing
+        elif [[ "$1" == --* ]]; then
+            echo "🧪 Starte Tests mit manuellen Parametern ($@)..."
+            $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing "$@"
+        else
+            echo -e "🧪 Starte Isolationstest: \033[1;33m$1\033[0m"
+            $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing --filter "$1"
+        fi
         ;;
     artisan)
         shift

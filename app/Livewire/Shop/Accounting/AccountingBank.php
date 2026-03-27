@@ -105,7 +105,7 @@ class AccountingBank extends Component
             ]);
 
             // Sync all underlying transactions to inherit the new account status natively.
-            AccountingBankTransaction::where('bank_account_id', $account->id)
+            AccountingBankTransaction::where('accounting_bank_account_id', $account->id)
                 ->update(['is_business' => null]);
 
             $this->loadBankAccounts();
@@ -228,7 +228,7 @@ class AccountingBank extends Component
         }
     }
 
-    private function applyCategorizationRule(BankTransaction $tx, $field, $value, $autoAssign = true)
+    private function applyCategorizationRule(\App\Models\Accounting\AccountingBankTransaction $tx, $field, $value, $autoAssign = true)
     {
         if ($value !== null) {
             $adminId = auth('admin')->id();
@@ -430,7 +430,7 @@ class AccountingBank extends Component
         $prompt = "Du bist ein intelligenter Finanz-Buchhalter.\n";
         $prompt .= "Deine Aufgabe: Ordne die folgenden Banktransaktionen bestmöglich in Fixkosten oder Variable Kosten (Kategorien) ein.\n\n";
         $prompt .= "Vorgaben:\n";
-        $prompt .= "1. Eine Transaktion DARF ENTWEDER ein 'cost_item_id' (Fixkosten) ODER ein 'category_id' (Variables) erhalten. NICHT BEIDES gleichzeitg.\n";
+        $prompt .= "1. Eine Transaktion DARF ENTWEDER ein 'cost_item_id' (Fixkosten) ODER ein 'product_category_id' (Variables) erhalten. NICHT BEIDES gleichzeitg.\n";
         $prompt .= "2. Wenn du absolut nicht sicher bist, weise NULL für beides zu.\n";
         $prompt .= "3. Fixkosten (cost_item_id) sind Verträge wie Miete, Strom, Versicherungen, Software-Abos (Netflix, Adobe), Gehälter, Steuern.\n";
         $prompt .= "4. Variable Kategorien (category_id) sind Einkäufe, Tanken, Restaurants, Drogerie, etc.\n";
@@ -472,7 +472,7 @@ class AccountingBank extends Component
                     foreach ($json['mappings'] as $mapping) {
                         $currentTx = $uniqueTxs->values()->firstWhere('id', $mapping['tx_id'] ?? null);
                         if ($currentTx) {
-                            $catId = empty($mapping['category_id']) ? null : $mapping['category_id'];
+                            $catId = empty($mapping['product_category_id']) ? null : $mapping['product_category_id'];
                             $costId = empty($mapping['cost_item_id']) ? null : $mapping['cost_item_id'];
                             
                             // Prevent array syntax passing logic errors
@@ -516,6 +516,7 @@ class AccountingBank extends Component
                 session()->flash('error', 'API Verbindungsfehler zum LLM: ' . $response->status());
             }
         } catch (\Exception $e) {
+            if(app()->environment('testing')) throw $e;
             session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());
         }
 
@@ -622,7 +623,7 @@ class AccountingBank extends Component
                     \App\Models\Accounting\AccountingBankTransaction::updateOrCreate(
                         ['finapi_transaction_id' => (string) $apiTx['id']],
                         [
-                            'bank_account_id' => $bankAccount->id,
+                            'accounting_bank_account_id' => $bankAccount->id,
                             'amount' => $apiTx['amount'] ?? 0,
                             'currency' => $bankAccount->currency,
                             'purpose' => $apiTx['purpose'] ?? null,
@@ -644,6 +645,7 @@ class AccountingBank extends Component
             session()->flash('success', 'Alle Konten und Umsätze manuell aus finAPI aktualisiert!' . $msgAuto);
             $this->loadBankAccounts();
         } catch (\Exception $e) {
+            if(app()->environment('testing')) throw $e;
             \Illuminate\Support\Facades\Log::error('finAPI Sync Fehler: ' . $e->getMessage());
             session()->flash('error', 'Synchronisierung fehlgeschlagen: ' . $e->getMessage());
         } finally {
@@ -676,7 +678,7 @@ class AccountingBank extends Component
                             \App\Models\Accounting\AccountingBankTransaction::updateOrCreate(
                                 ['finapi_transaction_id' => (string) $apiTx['id']],
                                 [
-                                    'bank_account_id' => $account->id,
+                                    'accounting_bank_account_id' => $account->id,
                                     'amount' => $apiTx['amount'] ?? 0,
                                     'currency' => $account->currency,
                                     'purpose' => $apiTx['purpose'] ?? null,
@@ -700,6 +702,7 @@ class AccountingBank extends Component
                 $this->loadBankAccounts();
             }
         } catch (\Exception $e) {
+            if(app()->environment('testing')) throw $e;
             session()->flash('error', 'Synchronisierung fehlgeschlagen: ' . $e->getMessage());
         } finally {
             $this->isLoading = false;
@@ -722,7 +725,7 @@ class AccountingBank extends Component
 
         // 1. Bank Account Filter
         if ($this->selectedAccountId) {
-            $query->where('bank_account_id', $this->selectedAccountId);
+            $query->where('accounting_bank_account_id', $this->selectedAccountId);
         } else {
             // ONLY LOAD ACTIVE BANKS FOR ANALYSIS SUMMARY
             $activeAccountIds = array_column(
@@ -733,7 +736,7 @@ class AccountingBank extends Component
             if (empty($activeAccountIds)) {
                 $query->where('id', '<', 0); // Always empty if no active banks
             } else {
-                $query->whereIn('bank_account_id', $activeAccountIds);
+                $query->whereIn('accounting_bank_account_id', $activeAccountIds);
             }
         }
 

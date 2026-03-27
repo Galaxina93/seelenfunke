@@ -9,9 +9,9 @@ use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
 use App\Models\Tracking\PageVisit; // Geändert auf deinen neuen Namespace!
-use App\Models\LoginAttempt;
-use App\Models\Order\Order;
-use App\Models\Order\OrderItem;
+use App\Models\System\SystemLoginAttempt;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderOrderItem;
 use App\Models\Accounting\AccountingInvoice;
 use App\Models\Product\Product;
 use App\Models\Accounting\AccountingSpecialIssue;
@@ -266,7 +266,7 @@ class AnalyticsService
 
                 $shopRev = 0;
                 if ($filterType !== 'private') {
-                    $shopRev = Order::whereBetween('created_at', [$dayStart, $dayEnd])
+                    $shopRev = OrderOrder::whereBetween('created_at', [$dayStart, $dayEnd])
                             ->where('payment_status', 'paid')
                             ->sum('total_price') / 100;
                 }
@@ -309,7 +309,7 @@ class AnalyticsService
                 $specialIncome = $specials->where('amount', '>=', 0)->sum('amount');
                 $specialExpenses = abs($specials->where('amount', '<', 0)->sum('amount'));
 
-                $shopRevenue = ($filterType !== 'private') ? Order::whereBetween('created_at', [$mStart, $mEnd])->where('payment_status', 'paid')->sum('total_price') / 100 : 0;
+                $shopRevenue = ($filterType !== 'private') ? OrderOrder::whereBetween('created_at', [$mStart, $mEnd])->where('payment_status', 'paid')->sum('total_price') / 100 : 0;
 
                 $revenue = $shopRevenue + $specialIncome + $fixedIncomeMonth;
                 $expenses = $specialExpenses + $fixedExpenseMonth;
@@ -356,7 +356,7 @@ class AnalyticsService
             ->when($filterType !== 'all', fn($q) => $q->where('is_business', $filterType === 'business'))
             ->sum(DB::raw('ABS(amount)'));
 
-        $productStatsQuery = OrderItem::whereHas('order', fn($q) => $q->whereBetween('created_at', [$start, $end])->where('payment_status', 'paid'))
+        $productStatsQuery = OrderOrderItem::whereHas('order', fn($q) => $q->whereBetween('created_at', [$start, $end])->where('payment_status', 'paid'))
             ->select('product_name', DB::raw('SUM(total_price)/100 as total'))
             ->groupBy('product_name')
             ->orderByDesc('total');
@@ -421,8 +421,8 @@ class AnalyticsService
             'total_users' => Admin::count() + Customer::count() + Employee::count(),
             'active_users_today' => collect($lastLogins)->whereBetween('last_seen', [Carbon::today(), Carbon::now()])->count(),
             'new_registrations_week' => Customer::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Admin::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Employee::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
-            'failed_logins' => LoginAttempt::where('success', false)->count(),
-            'active_sessions' => DB::table('sessions')->count(),
+            'failed_logins' => SystemLoginAttempt::where('success', false)->count(),
+            'active_sessions' => DB::table('system_sessions')->count(),
             'never_logged_in' => collect($lastLogins)->whereNull('last_seen')->count(),
             'inactive_30_days' => collect($lastLogins)->filter(fn($u) => $u['last_seen'] && Carbon::parse($u['last_seen'])->lt(now()->subDays(30)))->count(),
 
@@ -455,7 +455,7 @@ class AnalyticsService
             'shop_quality_score' => $qualityScore,
             'health_score' => $healthScore,
             'fixed_income_total' => $fixedIncomeTotal,
-            'shop_revenue' => ($filterType !== 'private') ? Order::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0,
+            'shop_revenue' => ($filterType !== 'private') ? OrderOrder::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0,
             'fixed_expenses_priv' => $fixPrivat,
             'fixed_expenses_gew' => $fixGewerbe,
             'variable_expenses' => $variableExpensesTotal,
@@ -464,10 +464,10 @@ class AnalyticsService
                 'sum' => $pendingInvoicesSum
             ],
             'top_expenses' => $topExpenses,
-            'top_customers' => $filterType !== 'private' ? Order::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->select('email', DB::raw('SUM(total_price)/100 as total'))->groupBy('email')->orderByDesc('total')->take(5)->get()->map(fn($o) => ['category' => $o->email, 'total' => $o->total]) : collect(),
+            'top_customers' => $filterType !== 'private' ? OrderOrder::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->select('email', DB::raw('SUM(total_price)/100 as total'))->groupBy('email')->orderByDesc('total')->take(5)->get()->map(fn($o) => ['category' => $o->email, 'total' => $o->total]) : collect(),
             'high_revenue_prod' => $highRevenueProd,
             'low_revenue_prod' => $lowRevenueProd,
-            'product_ranking' => $filterType !== 'private' ? OrderItem::whereHas('order', fn($q) => $q->whereBetween('created_at', [$start, $end])->where('payment_status', 'paid'))->select('product_name', DB::raw('SUM(quantity) as qty'))->groupBy('product_name')->orderByDesc('qty')->take(3)->get() : collect(),
+            'product_ranking' => $filterType !== 'private' ? OrderOrderItem::whereHas('order', fn($q) => $q->whereBetween('created_at', [$start, $end])->where('payment_status', 'paid'))->select('product_name', DB::raw('SUM(quantity) as qty'))->groupBy('product_name')->orderByDesc('qty')->take(3)->get() : collect(),
         ];
     }
 
@@ -484,7 +484,7 @@ class AnalyticsService
 
     private function calculateRevenueForPeriod($start, $end, $filterType)
     {
-        $shop = ($filterType !== 'private') ? Order::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0;
+        $shop = ($filterType !== 'private') ? OrderOrder::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0;
         $special = AccountingSpecialIssue::whereBetween('execution_date', [$start, $end])->where('amount', '>=', 0)->when($filterType !== 'all', fn($q) => $q->where('is_business', $filterType === 'business'))->sum('amount');
         return $shop + $special;
     }

@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use App\Models\Order\Order; // Stelle sicher, dass der Namespace stimmt
+use App\Models\Order\OrderOrder; // Stelle sicher, dass der Namespace stimmt
 use App\Models\Customer\Customer;
 use Faker\Factory as Faker;
 
@@ -99,7 +99,7 @@ class OrdersTableSeeder extends Seeder
 
 
             // 5. Erstellen
-            Order::create([
+            OrderOrder::create([
                 'id' => Str::uuid(),
                 'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
                 'customer_id' => $customerId,

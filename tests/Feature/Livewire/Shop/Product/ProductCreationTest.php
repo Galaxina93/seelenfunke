@@ -5,7 +5,7 @@ namespace Tests\Feature\Livewire\Shop\Product;
 use App\Livewire\Shop\Product\ProductCreate;
 use App\Livewire\Shop\Product\ProductIndex;
 use App\Livewire\Shop\Product\ProductTax;
-use App\Models\Category;
+use App\Models\Product\ProductCategory;
 use App\Models\Product\Product;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
@@ -159,7 +159,7 @@ class ProductCreationTest extends TestCase
         // Maintenance bypass
         config(['shop.maintenance_mode' => false]);
         
-        $c1 = Category::create(['name' => 'Books', 'slug' => 'books']);
+        $c1 = ProductCategory::create(['name' => 'Books', 'slug' => 'books']);
         $p1 = Product::create(['name' => 'Physical Book', 'slug' => 'pb', 'status' => 'active', 'type' => 'physical', 'price' => 1500]);
         $p2 = Product::create(['name' => 'Ebook PDF', 'slug' => 'ep', 'status' => 'active', 'type' => 'digital', 'price' => 900]);
         $p1->categories()->attach($c1);

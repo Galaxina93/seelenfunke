@@ -56,7 +56,7 @@
     @else
         {{-- Threshold laden --}}
         @php
-            $threshold = \App\Models\ShopSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5;
+            $threshold = \App\Models\System\SystemSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5;
         @endphp
 
         {{-- PRODUKT GRID --}}

@@ -3,14 +3,14 @@
 namespace App\Livewire\Shop\Order\OrderCheckout\Traits;
 
 use App\Models\Customer\Customer;
-use App\Models\Marketing\Voucher;
-use App\Models\Order\Order;
+use App\Models\Marketing\MarketingVoucher;
+use App\Models\Order\OrderOrder;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 
 trait HandlesOrderCreation
 {
@@ -47,7 +47,7 @@ trait HandlesOrderCreation
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e; // Re-throw ValidationException to show directly in UI
         } catch (\Exception $e) {
-            GlobalLog::create([
+            SystemLog::create([
                 'type' => 'error',
                 'agent_id' => null,
                 'action_id' => 'checkout_order_creation',
@@ -76,7 +76,7 @@ trait HandlesOrderCreation
 
             // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
             if ($cart->coupon_code) {
-                $coupon = Voucher::where('code', $cart->coupon_code)->first();
+                $coupon = MarketingVoucher::where('code', $cart->coupon_code)->first();
 
                 // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
                 if (!$coupon || !$coupon->isValid()) {
@@ -179,7 +179,7 @@ trait HandlesOrderCreation
             ];
 
             // VERHINDERE DOPPELTE BESTELLUNGEN WENN DER USER MEHRFACH KLICKT
-            $order = Order::where('stripe_payment_intent_id', $finalIntentId)
+            $order = OrderOrder::where('stripe_payment_intent_id', $finalIntentId)
                 ->where('payment_status', 'unpaid')
                 ->first();
 
@@ -191,7 +191,7 @@ trait HandlesOrderCreation
                 // Neue Bestellung erstellen
                 $orderData['order_number'] = 'ORD-' . date('Y'). '-' . strtoupper(Str::random(6));
                 $orderData['stripe_payment_intent_id'] = $finalIntentId;
-                $order = Order::create($orderData);
+                $order = OrderOrder::create($orderData);
             }
 
             foreach($cart->items as $item) {

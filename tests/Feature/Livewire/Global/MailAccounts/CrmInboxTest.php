@@ -2,12 +2,12 @@
 
 namespace Tests\Feature\Livewire\Global\MailAccounts;
 
-use App\Livewire\Global\MailAccounts\CrmInbox;
+use App\Livewire\Shop\Management\ManagementEMails as CrmInbox;
 use App\Models\Admin\Admin;
-use App\Models\Mail\MailAccount;
-use App\Models\Mail\MailMessage;
-use App\Models\Mail\MailRule;
-use App\Models\Mail\MailFolder;
+use App\Models\Management\Mail\MailAccount;
+use App\Models\Management\Mail\MailMessage;
+use App\Models\Management\Mail\MailRule;
+use App\Models\Management\Mail\MailFolder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
@@ -26,7 +26,7 @@ class CrmInboxTest extends TestCase
         parent::setUp();
 
         // Create the necessary role to bypass the Admin model observer bug in an empty database
-        \App\Models\Role::firstOrCreate(['name' => 'admin']);
+        \App\Models\System\SystemRole::firstOrCreate(['name' => 'admin']);
 
         // Ensure we have an authenticated admin
         $this->admin = Admin::forceCreate([
@@ -274,6 +274,6 @@ class CrmInboxTest extends TestCase
             ->call('sendMail')
             ->assertSet('showComposeModal', false);
 
-        Mail::assertQueued(\App\Mail\CrmOutgoingMail::class);
+        Mail::assertQueued(\App\Mail\CrmOutgoingMailToCustomer::class);
     }
 }

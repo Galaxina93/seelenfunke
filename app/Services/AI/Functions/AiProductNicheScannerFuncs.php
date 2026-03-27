@@ -2,8 +2,8 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Product\NicheProduct;
-use App\Models\Product\NicheCrawlerRun;
+use App\Models\Product\ProductNicheItem;
+use App\Models\Product\ProductNicheCrawlerRun;
 use App\Jobs\RunProductNicheCrawlerJob;
 use Illuminate\Support\Facades\Cache;
 
@@ -70,9 +70,9 @@ trait AiProductNicheScannerFuncs
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'run_id' => ['type' => 'integer', 'description' => 'Die ID des gespeicherten Scans aus niche_get_historical_runs.']
+                        'product_niche_crawler_run_id' => ['type' => 'integer', 'description' => 'Die ID des gespeicherten Scans aus niche_get_historical_runs.']
                     ],
-                    'required' => ['run_id']
+                    'required' => ['product_niche_crawler_run_id']
                 ],
                 'callable' => [self::class, 'executeGetHistoricalData']
             ],
@@ -87,7 +87,7 @@ trait AiProductNicheScannerFuncs
             }
 
             // Flush old live data
-            NicheProduct::truncate();
+            ProductNicheItem::truncate();
             Cache::forget('niche_scanner_live_ai_rec');
             Cache::forget('niche_scanner_live_ai_agent');
 
@@ -131,7 +131,7 @@ trait AiProductNicheScannerFuncs
         try {
             $limit = isset($args['limit']) ? min((int)$args['limit'], 25) : 10;
 
-            $products = NicheProduct::orderBy('niche_score', 'desc')->take($limit)->get();
+            $products = ProductNicheItem::orderBy('niche_score', 'desc')->take($limit)->get();
 
             if ($products->isEmpty()) {
                 return [
@@ -142,7 +142,7 @@ trait AiProductNicheScannerFuncs
 
             return [
                 'status' => 'success',
-                'total_live_items' => NicheProduct::count(),
+                'total_live_items' => ProductNicheItem::count(),
                 'top_products' => $products->map(function($p) {
                     return [
                         'title' => $p->title,
@@ -167,7 +167,7 @@ trait AiProductNicheScannerFuncs
                 return ['status' => 'error', 'message' => 'Bitte einen Namens-Titel für das Archiv vergeben.'];
             }
 
-            $products = NicheProduct::orderBy('niche_score', 'desc')->get();
+            $products = ProductNicheItem::orderBy('niche_score', 'desc')->get();
             if ($products->isEmpty()) {
                 return ['status' => 'error', 'message' => 'Keine Live-Daten zum Speichern vorhanden.'];
             }
@@ -176,7 +176,7 @@ trait AiProductNicheScannerFuncs
             $platforms = $products->pluck('platform')->unique()->implode(', ');
 
             // Normalerweise steht das Keyword nur Session-basiert bereit, daher Hardcodierter Fallback mit AI Hinweis
-            $run = NicheCrawlerRun::create([
+            $run = ProductNicheCrawlerRun::create([
                 'admin_id' => 1,
                 'name' => $args['name'],
                 'keyword' => 'AI Initiated Scan Output',
@@ -198,7 +198,7 @@ trait AiProductNicheScannerFuncs
     {
         try {
             // Get last 20 runs
-            $runs = NicheCrawlerRun::orderBy('created_at', 'desc')->take(20)->get()->map(function($r) {
+            $runs = ProductNicheCrawlerRun::orderBy('created_at', 'desc')->take(20)->get()->map(function($r) {
                 return [
                     'id' => $r->id,
                     'name' => $r->name,
@@ -220,9 +220,9 @@ trait AiProductNicheScannerFuncs
     public static function executeGetHistoricalData(array $args)
     {
         try {
-            if (empty($args['run_id'])) return ['status' => 'error', 'message' => 'run_id fehlt.'];
+            if (empty($args['product_niche_crawler_run_id'])) return ['status' => 'error', 'message' => 'run_id fehlt.'];
 
-            $run = NicheCrawlerRun::find($args['run_id']);
+            $run = ProductNicheCrawlerRun::find($args['product_niche_crawler_run_id']);
             if (!$run) return ['status' => 'error', 'message' => 'Historischer Lauf nicht gefunden.'];
 
             $data = is_array($run->products_data) ? collect($run->products_data) : collect(json_decode($run->products_data, true));

@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Models\System;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+
+class SystemMapNode extends Model
+{
+    use HasUuids;
+
+    protected $fillable = [
+        'id', 'map_id', 'label', 'description', 'icon', 'type', 'status', 'link', 'component_key', 'pos_x', 'pos_y'
+    ];
+
+    public function sourceEdges()
+    {
+        return $this->hasMany(SystemMapEdge::class, 'source_id');
+    }
+
+    public function targetEdges()
+    {
+        return $this->hasMany(SystemMapEdge::class, 'target_id');
+    }
+}

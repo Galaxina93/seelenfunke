@@ -7,7 +7,7 @@ use App\Models\Accounting\FinanceGroup;
 use App\Models\Accounting\FinanceCostItem;
 use App\Models\Accounting\FinanceSpecialIssue;
 use App\Models\Accounting\FinanceCategory;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -44,7 +44,7 @@ Route::get('/funki/financials/kpis', function (Request $request) {
         if($issue->amount < 0) $specialExpenses += $issue->amount;
     }
 
-    $shopRevenue = Order::whereYear('created_at', $year)
+    $shopRevenue = OrderOrder::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->where('payment_status', 'paid')
             ->sum('total_price') / 100;
@@ -63,13 +63,13 @@ Route::get('/funki/financials/kpis', function (Request $request) {
 });
 
 Route::get('/funki/financials/categories', function (Request $request) {
-    return FinanceCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
+    return FinanceProductCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
 });
 
 Route::delete('/funki/financials/categories/{name}', function (Request $request, $name) {
     $decodedName = urldecode($name);
 
-    $deleted = FinanceCategory::where('admin_id', $request->user()->id)
+    $deleted = FinanceProductCategory::where('admin_id', $request->user()->id)
         ->where('name', $decodedName)
         ->delete();
 
@@ -122,7 +122,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     }
 
     if (!empty($data['category'])) {
-        $cat = FinanceCategory::firstOrCreate(
+        $cat = FinanceProductCategory::firstOrCreate(
             ['admin_id' => $request->user()->id, 'name' => $data['category']],
             ['usage_count' => 0]
         );

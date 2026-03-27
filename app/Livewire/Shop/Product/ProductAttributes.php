@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
-use App\Models\Product\ShopAttribute;
+use App\Models\Product\ProductAttribute;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -39,7 +39,7 @@ class ProductAttributes extends Component
 
     public function loadAvailableAttributes()
     {
-        $query = ShopAttribute::query();
+        $query = ProductAttribute::query();
 
         if ($this->search) {
             $query->where('name', 'like', '%' . $this->search . '%');
@@ -105,7 +105,7 @@ class ProductAttributes extends Component
             'newAttributeName' => 'required|min:2|unique:shop_attributes,name'
         ]);
 
-        ShopAttribute::create([
+        ProductAttribute::create([
             'name' => $this->newAttributeName,
             'slug' => Str::slug($this->newAttributeName),
             'type' => $this->product->type,
@@ -133,7 +133,7 @@ class ProductAttributes extends Component
             'editingAttributeName' => 'required|min:2|unique:shop_attributes,name,' . $this->editingAttributeId
         ]);
 
-        $attr = ShopAttribute::find($this->editingAttributeId);
+        $attr = ProductAttribute::find($this->editingAttributeId);
         if ($attr) {
             // Wenn der Name geändert wird, müssen wir theoretisch auch das JSON im Produkt updaten,
             // wenn wir strikt konsistent sein wollen. Da dies komplex ist (alle Produkte durchsuchen),
@@ -163,7 +163,7 @@ class ProductAttributes extends Component
 
     public function deleteAttribute($id)
     {
-        $attr = ShopAttribute::find($id);
+        $attr = ProductAttribute::find($id);
 
         if ($attr) {
             $name = $attr->name;

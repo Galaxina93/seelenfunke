@@ -69,7 +69,7 @@
                 </div>
                 <div class="shrink-0">
                     @if($activeTicket->status !== 'closed')
-                        <button wire:click="closeTicket" class="px-4 py-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-red-500 border border-gray-700 hover:border-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Ticket schließen</button>
+                        <button wire:click="closeTicket" class="px-4 py-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-red-500 border border-gray-700 hover:border-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">SupportTicket schließen</button>
                     @endif
                 </div>
             </div>
@@ -143,7 +143,7 @@
             <div class="p-4 sm:p-6 border-t border-gray-800 shrink-0 bg-gray-950/80 relative z-20">
                 @if($activeTicket->status === 'closed')
                     <div class="text-center py-3 sm:py-4 bg-gray-900 rounded-xl border border-gray-800 shadow-inner">
-                        <p class="text-gray-500 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em]">Dieses Ticket ist geschlossen</p>
+                        <p class="text-gray-500 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em]">Dieses SupportTicket ist geschlossen</p>
                     </div>
                 @else
                     <form wire:submit.prevent="sendReply" class="w-full relative">

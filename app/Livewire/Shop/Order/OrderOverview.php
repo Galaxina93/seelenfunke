@@ -5,14 +5,14 @@ namespace App\Livewire\Shop\Order;
 use Livewire\Attributes\Layout;
 
 use App\Mail\NewOrderShippedToCustomer;
-use App\Models\Order\Order;
-use App\Models\Order\OrderItem;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderOrderItem;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 use Illuminate\Support\Facades\DB;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 
 #[Layout('components.layouts.backend_layout')]
 class OrderOverview extends Component
@@ -37,7 +37,7 @@ class OrderOverview extends Component
     public $selectedOrderItemId = null;
 
     // --- STATE FÜR BEARBEITUNG ---
-    public ?Order $selectedOrder = null;
+    public ?OrderOrder $selectedOrder = null;
 
     // Formular-Felder
     public $status;
@@ -67,7 +67,7 @@ class OrderOverview extends Component
     public function getPriorityOrderProperty()
     {
         // Holt genau EINE Order, die am wichtigsten ist
-        return Order::query()
+        return OrderOrder::query()
             ->whereIn('status', ['pending', 'processing']) // Nur offene
             ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
             ->orderBy('is_express', 'desc') // Express zuerst
@@ -96,7 +96,7 @@ class OrderOverview extends Component
         $this->selectedOrderId = $id;
 
         // Order laden (Eager Loading für Performance)
-        $this->selectedOrder = Order::with(['items.product', 'invoices'])->find($id);
+        $this->selectedOrder = OrderOrder::with(['items.product', 'invoices'])->find($id);
 
         // Daten für das Bearbeitungs-Formular laden
         if ($this->selectedOrder) {
@@ -195,7 +195,7 @@ class OrderOverview extends Component
 
     public function updateStatus($orderId, $newStatus)
     {
-        $order = Order::find($orderId);
+        $order = OrderOrder::find($orderId);
         if (!$order) return;
 
         if ($newStatus === 'shipped' && $order->status !== 'shipped') {
@@ -221,7 +221,7 @@ class OrderOverview extends Component
 
     public function toggleItemCompletion($itemId)
     {
-        $item = OrderItem::find($itemId);
+        $item = OrderOrderItem::find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
             $item->update(['is_completed' => !$item->is_completed]);
             $this->selectedOrder->refresh();
@@ -232,7 +232,7 @@ class OrderOverview extends Component
     {
         if (!$this->confirmingShipmentId) return;
 
-        $order = Order::find($this->confirmingShipmentId);
+        $order = OrderOrder::find($this->confirmingShipmentId);
         if ($order) {
             try {
                 DB::transaction(function () use ($order, $sendMail) {
@@ -268,7 +268,7 @@ class OrderOverview extends Component
 
     public function markAsPaid($orderId)
     {
-        $order = Order::with('invoices')->find($orderId);
+        $order = OrderOrder::with('invoices')->find($orderId);
         if ($order) {
             try {
                 DB::transaction(function () use ($order, $orderId) {
@@ -296,7 +296,7 @@ class OrderOverview extends Component
 
     public function delete($orderId)
     {
-        $order = Order::find($orderId);
+        $order = OrderOrder::find($orderId);
         if ($order) {
             try {
                 DB::transaction(function () use ($order) {
@@ -313,7 +313,7 @@ class OrderOverview extends Component
 
     private function logAdminOrderError($action, \Exception $e, $payload = [])
     {
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'error',
             'agent_id' => null,
             'action_id' => 'admin_order_update',
@@ -332,7 +332,7 @@ class OrderOverview extends Component
     public function getPreviewItemProperty()
     {
         if (!$this->selectedOrderId || !$this->selectedOrderItemId) return null;
-        return OrderItem::with('product')->find($this->selectedOrderItemId);
+        return OrderOrderItem::with('product')->find($this->selectedOrderItemId);
     }
 
     // --- RENDER ---
@@ -348,7 +348,7 @@ class OrderOverview extends Component
         }
 
         // B) Listen-Modus (Single Table)
-        $query = Order::query();
+        $query = OrderOrder::query();
 
         // 1. Suche (Über alle relevanten Felder)
         if ($this->search) {
@@ -379,12 +379,12 @@ class OrderOverview extends Component
 
         // 4. Statistiken (Immer aktuell, basierend auf Gesamt-DB)
         $stats = [
-            'total' => Order::count(),
-            'open' => Order::whereIn('status', ['pending', 'processing'])->count(),
-            'open_express' => Order::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count(),
-            'revenue_today' => Order::whereDate('created_at', today())->sum('total_price'),
-            'revenue_month' => Order::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('total_price'),
-            'avg_cart' => Order::where('status', 'completed')->avg('total_price') ?? 0,
+            'total' => OrderOrder::count(),
+            'open' => OrderOrder::whereIn('status', ['pending', 'processing'])->count(),
+            'open_express' => OrderOrder::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count(),
+            'revenue_today' => OrderOrder::whereDate('created_at', today())->sum('total_price'),
+            'revenue_month' => OrderOrder::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('total_price'),
+            'avg_cart' => OrderOrder::where('status', 'completed')->avg('total_price') ?? 0,
         ];
 
         // 5. Query ausführen (Pagination)

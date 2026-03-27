@@ -2,8 +2,8 @@
 
 namespace App\Mail;
 
-use App\Models\Marketing\Newsletter\Newsletter;
-use App\Models\Marketing\Newsletter\NewsletterSubscriber;
+use App\Models\Marketing\MarketingNewsletter;
+use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -15,7 +15,7 @@ class NewsletterAutomaticMail extends Mailable implements ShouldQueue
     public $template;
     public $subscriber;
 
-    public function __construct(Newsletter $template, NewsletterSubscriber $subscriber)
+    public function __construct(MarketingNewsletter $template, MarketingNewsletterSubscriber $subscriber)
     {
         $this->template = $template;
         $this->subscriber = $subscriber;

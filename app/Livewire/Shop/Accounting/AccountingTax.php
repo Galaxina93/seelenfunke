@@ -6,7 +6,7 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Accounting\AccountingGroup;
 use App\Models\Accounting\AccountingSpecialIssue;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 use ZipArchive;
 
 #[Layout('components.layouts.backend_layout')]
@@ -91,7 +91,7 @@ class AccountingTax extends Component
 
     public function updatedSelectedCertName($val)
     {
-        \App\Models\ShopSetting::updateOrCreate(
+        \App\Models\System\SystemSetting::updateOrCreate(
             ['key' => 'eric_default_cert'],
             ['value' => $val]
         );
@@ -160,7 +160,7 @@ class AccountingTax extends Component
         $deadline = Carbon::createFromDate($this->selectedYear, $month, 10)->addMonth();
 
         // 1. UMSÄTZE (Einnahmen dynamisch splitten)
-        $orders = Order::whereYear('created_at', $this->selectedYear)
+        $orders = OrderOrder::whereYear('created_at', $this->selectedYear)
             ->whereMonth('created_at', $month)
             ->where('payment_status', 'paid')
             ->get();
@@ -580,7 +580,7 @@ class AccountingTax extends Component
             
             $response = $elsterService->transmitUStVA($data, $this->submissionType, $this->authMethod, $pinToPass);
             
-            $ticketId = $response['ticket_id'];
+            $ticketId = $response['support_ticket_id'];
             if (isset($response['simulated']) && $response['simulated']) {
                 $this->addLog('success', "SIMULATION ERFOLGREICH: Die API simulierte einen ERiC Binary Connect.");
                 $this->addLog('success', "Simuliertes Transferticket generiert: {$ticketId}");

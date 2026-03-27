@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Shop\Marketing;
 
-use App\Models\Marketing\Voucher;
+use App\Models\Marketing\MarketingVoucher;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -36,10 +36,10 @@ class MarketingVoucherSlider extends Component
     public function render()
     {
         // 1. Lade alle normalen, manuellen Gutscheine, die gerade gültig sind
-        $manualVouchers = Voucher::where('mode', 'manual')->current()->get();
+        $manualVouchers = MarketingVoucher::where('mode', 'manual')->current()->get();
 
         // 2. Lade NUR den aktiven Auto-Gutschein, der für den AKTUELLEN MONAT vorgesehen ist
-        $activeAutoVouchers = Voucher::where('mode', 'auto')
+        $activeAutoVouchers = MarketingVoucher::where('mode', 'auto')
             ->where('is_active', true)
             ->whereMonth('valid_from', now()->month)
             ->get();

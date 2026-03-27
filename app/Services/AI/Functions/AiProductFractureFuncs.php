@@ -147,7 +147,7 @@ trait AiProductFractureFuncs
 
             $loss = ProductLoss::create([
                 'product_id' => $product->id,
-                'supplier_id' => $product->supplier_id ?? null,
+                'product_supplier_id' => $product->supplier_id ?? null,
                 'quantity' => (int)$args['quantity'],
                 'cost_value' => $costValue,
                 'reason' => substr($args['reason'], 0, 255),

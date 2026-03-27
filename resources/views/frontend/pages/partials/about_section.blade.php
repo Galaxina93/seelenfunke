@@ -212,7 +212,7 @@
                                 <span class="text-[#8a6820] font-bold uppercase tracking-widest text-sm">Made in Gifhorn</span>
                             </div>
                             <p class="text-gray-600 text-lg leading-relaxed">
-                                Unser Anspruch ist absolute Präzision. Von der ersten individuellen Beratung bis zum sicheren, liebevollen Versand Ihres Unikats. Wir kombinieren traditionelle handwerkliche Werte mit zertifizierter, modernster Sicherheitstechnik. Egal ob persönliches Einzelstück oder komplexer Firmenauftrag: Unser eingespieltes Team sorgt für einen reibungslosen Ablauf und Ergebnisse, die begeistern.
+                                Unser Anspruch ist absolute Präzision. Wir kombinieren traditionelle handwerkliche Werte mit zertifizierter, modernster Sicherheitstechnik. Egal ob persönliches Einzelstück oder komplexer Firmenauftrag: Unser eingespieltes Team sorgt für einen reibungslosen Ablauf und Ergebnisse, die begeistern.
                             </p>
                         </div>
                     </div>

@@ -2,7 +2,7 @@
 
 namespace App\Events;
 
-use App\Models\TicketMessage;
+use App\Models\Support\SupportTicketMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -17,7 +17,7 @@ class TicketMessageSent implements ShouldBroadcastNow
     public $ticketId;
     public $customerId;
 
-    public function __construct(TicketMessage $message, $ticketId, $customerId)
+    public function __construct(SupportTicketMessage $message, $ticketId, $customerId)
     {
         $this->message = $message->load(['ticket', 'ticket.customer']);
         $this->ticketId = $ticketId;

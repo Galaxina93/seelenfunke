@@ -2,12 +2,12 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\Management\Task;
-use App\Models\Management\TaskList;
+use App\Models\Management\ManagementTask;
+use App\Models\Management\ManagementTaskList;
 use Illuminate\Support\Str;
 
 Route::get('/funki/tasks', function () {
-    return Task::orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+    return ManagementTask::orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
         ->orderBy('position')
         ->orderBy('created_at', 'desc')
         ->get()
@@ -15,7 +15,7 @@ Route::get('/funki/tasks', function () {
             $task->title = $task->title ?? 'Ohne Titel';
             $parentTitle = null;
             if($task->parent_id) {
-                $parent = Task::find($task->parent_id);
+                $parent = ManagementTask::find($task->parent_id);
                 $parentTitle = $parent ? $parent->title : null;
             }
             $task->parent_title = $parentTitle;
@@ -24,7 +24,7 @@ Route::get('/funki/tasks', function () {
 });
 
 Route::get('/funki/tasks/lists', function () {
-    return TaskList::orderBy('created_at')->get();
+    return ManagementTaskList::orderBy('created_at')->get();
 });
 
 Route::post('/funki/tasks/lists', function (Request $request) {
@@ -33,7 +33,7 @@ Route::post('/funki/tasks/lists', function (Request $request) {
         'icon' => 'nullable|string'
     ]);
 
-    $list = TaskList::create([
+    $list = ManagementTaskList::create([
         'id' => Str::uuid(),
         'name' => $data['name'],
         'icon' => $data['icon'] ?? 'bookmark',
@@ -43,7 +43,7 @@ Route::post('/funki/tasks/lists', function (Request $request) {
 });
 
 Route::put('/funki/tasks/lists/{id}', function (Request $request, $id) {
-    $list = TaskList::findOrFail($id);
+    $list = ManagementTaskList::findOrFail($id);
     $data = $request->validate([
         'name' => 'required|string',
         'icon' => 'nullable|string'
@@ -62,7 +62,7 @@ Route::post('/funki/tasks/lists/{listId}/tasks', function (Request $request, $li
         'priority' => 'nullable|in:niedrig,mittel,hoch'
     ]);
 
-    $task = Task::create([
+    $task = ManagementTask::create([
         'id' => Str::uuid(),
         'task_list_id' => $listId,
         'parent_id' => null,
@@ -75,7 +75,7 @@ Route::post('/funki/tasks/lists/{listId}/tasks', function (Request $request, $li
 });
 
 Route::post('/funki/tasks/{id}/toggle', function ($id) {
-    $task = Task::find($id);
+    $task = ManagementTask::find($id);
     if ($task) {
         $task->update(['is_completed' => !$task->is_completed]);
         return response()->json(['success' => true]);
@@ -84,7 +84,7 @@ Route::post('/funki/tasks/{id}/toggle', function ($id) {
 });
 
 Route::put('/funki/tasks/{id}', function (Request $request, $id) {
-    $task = Task::findOrFail($id);
+    $task = ManagementTask::findOrFail($id);
     $data = $request->validate([
         'title' => 'sometimes|required',
         'priority' => 'sometimes|in:niedrig,mittel,hoch'
@@ -95,10 +95,10 @@ Route::put('/funki/tasks/{id}', function (Request $request, $id) {
 
 Route::post('/funki/tasks/{id}/subtask', function (Request $request, $id) {
     $data = $request->validate(['title' => 'required']);
-    $task = Task::findOrFail($id);
+    $task = ManagementTask::findOrFail($id);
     $taskListId = $task->task_list_id;
 
-    Task::create([
+    ManagementTask::create([
         'id' => Str::uuid(),
         'task_list_id' => $taskListId,
         'parent_id' => $task->id,
@@ -109,6 +109,6 @@ Route::post('/funki/tasks/{id}/subtask', function (Request $request, $id) {
 });
 
 Route::delete('/funki/tasks/{id}', function($id) {
-    Task::destroy($id);
+    ManagementTask::destroy($id);
     return response()->json(['success' => true]);
 });

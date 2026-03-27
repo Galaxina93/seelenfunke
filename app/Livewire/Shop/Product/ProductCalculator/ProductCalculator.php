@@ -5,19 +5,17 @@ namespace App\Livewire\Shop\Product\ProductCalculator;
 use App\Mail\NewCalcMailToAdmin;
 use App\Mail\NewCalcMailToCustomer;
 use App\Models\Customer\Customer;
+use App\Models\Order\OrderQuoteRequest;
+use App\Models\Order\OrderQuoteRequestItem;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
-use App\Models\Order\Quote\QuoteRequest;
-use App\Models\Order\Quote\QuoteRequestItem;
-use App\Models\Shipping\ShippingZone;
-use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\System\SystemLog;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Illuminate\Support\Facades\DB;
-use App\Models\Global\GlobalLog;
 
 class ProductCalculator extends Component
 {
@@ -354,12 +352,12 @@ class ProductCalculator extends Component
                 $this->shippingCost = 4.90;
             }
         } else {
-            $zone = \App\Models\Shipping\ShippingZone::whereHas('countries', function($q) use ($countryCode) {
+            $zone = \App\Models\Logistics\LogisticsShippingZone::whereHas('countries', function($q) use ($countryCode) {
                 $q->where('country_code', $countryCode);
             })->with('rates')->first();
 
             if (!$zone) {
-                $zone = \App\Models\Shipping\ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+                $zone = \App\Models\Logistics\LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
             }
 
             if ($zone && count($this->cartItems) > 0) {
@@ -496,7 +494,7 @@ class ProductCalculator extends Component
 
         try {
             DB::transaction(function () use ($existingCustomer, $cleanDeadline) {
-                $quote = QuoteRequest::create([
+                $quote = OrderQuoteRequest::create([
                     'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
                     'email' => $this->form['email'],
                     'first_name' => $this->form['vorname'],
@@ -517,7 +515,7 @@ class ProductCalculator extends Component
 
                 foreach($this->cartItems as $item) {
                     $conf = $item['configuration'] ?? [];
-                    QuoteRequestItem::create([
+                    OrderQuoteRequestItem::create([
                         'quote_request_id' => $quote->id,
                         'product_id' => $item['product_id'],
                         'product_name' => $item['name'],
@@ -545,7 +543,7 @@ class ProductCalculator extends Component
                 $this->dispatch('scroll-top');
             });
         } catch (\Exception $e) {
-            GlobalLog::create([
+            SystemLog::create([
                 'type' => 'error',
                 'agent_id' => null,
                 'action_id' => 'calculator_quote_creation',

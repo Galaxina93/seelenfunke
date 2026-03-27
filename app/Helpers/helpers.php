@@ -9,7 +9,7 @@ function allowed($key):bool
 
 function shop_setting($key, $default = null) {
     $settings = Cache::rememberForever('global_shop_settings', function() {
-        return \App\Models\ShopSetting::pluck('value', 'key');
+        return \App\Models\System\SystemSetting::pluck('value', 'key');
     });
 
     $value = $settings[$key] ?? $default;

@@ -5,7 +5,7 @@
         <div class="bg-gray-900 border-b border-gray-800 py-24 text-center relative overflow-hidden">
             <div class="absolute inset-0 bg-[var(--theme-color-10)] blur-[100px] rounded-full w-[500px] h-[500px] mx-auto opacity-30 pointer-events-none"></div>
             <div class="relative z-10">
-                <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Handveredelt in Gifhorn</span>
+                <span class="text-white font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Handveredelt in Gifhorn</span>
                 <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-6">
                     Unsere Kollektion
                 </h1>

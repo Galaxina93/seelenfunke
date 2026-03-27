@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Carbon\Carbon;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Accounting\AccountingGroup;
 use App\Models\Admin\Admin;
@@ -63,7 +63,7 @@ class GenerateTaxExport extends Command
         $adminId = $admin->id;
 
         // 1. UMSÄTZE (Einnahmen)
-        $orders = Order::whereYear('created_at', $year)
+        $orders = OrderOrder::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->where('payment_status', 'paid')
             ->get();

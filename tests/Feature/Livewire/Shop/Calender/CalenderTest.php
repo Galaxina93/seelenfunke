@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Livewire\Shop\Calender;
 
-use App\Livewire\Shop\Calender\Calender;
-use App\Models\CalendarEvent;
-use App\Services\AI\Functions\AiSupportFuncs;
+use App\Livewire\Shop\Management\ManagementCalender as Calender;
+use App\Models\Management\ManagementCalendarEvent;
+use App\Services\AI\Functions\AiCalendarFuncs;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -24,7 +24,7 @@ class CalenderTest extends TestCase
         parent::setUp();
         
         $this->aiFunctionsDummy = new class {
-            use AiSupportFuncs;
+            use AiCalendarFuncs;
         };
     }
 
@@ -79,7 +79,7 @@ class CalenderTest extends TestCase
             ->call('saveEvent')
             ->assertSet('showEditModal', false);
 
-        $this->assertDatabaseHas('calendar_events', [
+        $this->assertDatabaseHas('management_calendar_events', [
             'title' => 'My Custom Event',
             'category' => 'meeting',
             'is_all_day' => false,
@@ -91,7 +91,7 @@ class CalenderTest extends TestCase
     #[Test]
     public function it_can_edit_and_delete_an_existing_event()
     {
-        $event = CalendarEvent::create([
+        $event = ManagementCalendarEvent::create([
             'title' => 'Old Event',
             'start_date' => '2026-01-01 10:00:00',
             'end_date' => '2026-01-01 11:00:00',
@@ -105,7 +105,7 @@ class CalenderTest extends TestCase
             ->set('editTitle', 'New Updated Event')
             ->call('saveEvent');
 
-        $this->assertDatabaseHas('calendar_events', [
+        $this->assertDatabaseHas('management_calendar_events', [
             'id' => $event->id,
             'title' => 'New Updated Event'
         ]);
@@ -115,7 +115,7 @@ class CalenderTest extends TestCase
             ->call('editEvent', $event->id)
             ->call('deleteEvent');
 
-        $this->assertDatabaseMissing('calendar_events', [
+        $this->assertDatabaseMissing('management_calendar_events', [
             'id' => $event->id
         ]);
     }
@@ -126,7 +126,7 @@ class CalenderTest extends TestCase
         // Freeze time to a guaranteed Monday so 'startOfWeek' math is absolutely predictable
         Carbon::setTestNow('2026-05-11 12:00:00'); // May 11, 2026 is a Monday
 
-        CalendarEvent::create([
+        ManagementCalendarEvent::create([
             'title' => 'Daily Standup',
             'start_date' => Carbon::now()->startOfWeek()->setTime(9, 0), // Mon 09:00
             'end_date' => Carbon::now()->startOfWeek()->setTime(10, 0), // Mon 10:00
@@ -168,7 +168,7 @@ class CalenderTest extends TestCase
         $content = file_get_contents(public_path('ics-files/feiertage-deutschland.ics'));
         $file = UploadedFile::fake()->createWithContent('feiertage.ics', $content);
 
-        $initialCount = CalendarEvent::count();
+        $initialCount = ManagementCalendarEvent::count();
 
         // Testing session()->flash interactions in Livewire can be unpredictable. Instead, we rigidly assert Database mutations.
         Livewire::test(Calender::class)
@@ -176,7 +176,7 @@ class CalenderTest extends TestCase
             ->call('importEvents')
             ->assertHasNoErrors();
             
-        $this->assertGreaterThan($initialCount, CalendarEvent::count());
+        $this->assertGreaterThan($initialCount, ManagementCalendarEvent::count());
     }
 
     // ============================================
@@ -186,16 +186,16 @@ class CalenderTest extends TestCase
     #[Test]
     public function ai_can_get_calendar_events_schema()
     {
-        $schema = $this->aiFunctionsDummy::getAiSupportFuncsSchema();
+        $schema = $this->aiFunctionsDummy::getAiCalendarFuncsSchema();
         $this->assertIsArray($schema);
-        $this->assertCount(5, $schema); // get, create, update, delete, get_tickets
-        $this->assertEquals('get_calendar_events', $schema[0]['name']);
+        $this->assertCount(4, $schema); // get, create, update, delete
+        $this->assertEquals('calendar_get_events', $schema[0]['name']);
     }
 
     #[Test]
     public function ai_can_query_upcoming_calendar_events()
     {
-        CalendarEvent::create([
+        ManagementCalendarEvent::create([
             'title' => 'Zahnarzt',
             'start_date' => Carbon::now()->addDays(2)->setHour(10)->setMinute(0),
             'end_date' => Carbon::now()->addDays(2)->setHour(11)->setMinute(0),
@@ -226,7 +226,7 @@ class CalenderTest extends TestCase
         $this->assertEquals('success', $result['status']);
         $this->assertArrayHasKey('event_id', $result);
 
-        $this->assertDatabaseHas('calendar_events', [
+        $this->assertDatabaseHas('management_calendar_events', [
             'title' => 'Steuerberater',
             'start_date' => '2026-06-15 14:00:00',
             'description' => 'Wichtig'
@@ -236,7 +236,7 @@ class CalenderTest extends TestCase
     #[Test]
     public function ai_can_update_an_existing_event()
     {
-        $event = CalendarEvent::create([
+        $event = ManagementCalendarEvent::create([
             'title' => 'Altes Meeting',
             'start_date' => '2026-01-01 10:00:00',
             'end_date' => '2026-01-01 11:00:00',
@@ -251,7 +251,7 @@ class CalenderTest extends TestCase
         ]);
 
         $this->assertEquals('success', $result['status']);
-        $this->assertDatabaseHas('calendar_events', [
+        $this->assertDatabaseHas('management_calendar_events', [
             'id' => $event->id,
             'title' => 'Neues Meeting verschoben',
             'start_date' => '2026-01-02 10:00:00'
@@ -261,7 +261,7 @@ class CalenderTest extends TestCase
     #[Test]
     public function ai_can_delete_events()
     {
-        $event = CalendarEvent::create([
+        $event = ManagementCalendarEvent::create([
             'title' => 'Bitte löschen AI',
             'start_date' => '2026-01-01 10:00:00',
             'end_date' => '2026-01-01 11:00:00',
@@ -275,7 +275,7 @@ class CalenderTest extends TestCase
         ]);
 
         $this->assertEquals('success', $result['status']);
-        $this->assertDatabaseMissing('calendar_events', [
+        $this->assertDatabaseMissing('management_calendar_events', [
             'id' => $event->id
         ]);
     }

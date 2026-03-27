@@ -2,21 +2,16 @@
 
 namespace App\Livewire\Shop\Order;
 
-use Livewire\Attributes\Layout;
-
-use App\Mail\NewOrderMailToCustomer;
+use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Customer\Customer;
-use App\Models\Order\Order;
-use App\Models\Order\Quote\QuoteRequest;
-use App\Models\Order\Quote\QuoteRequestItem;
-use App\Services\InvoiceService;
-use App\Services\NativeXmlInvoiceService;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderQuoteRequest;
+use App\Models\Order\OrderQuoteRequestItem;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
-use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 use Stripe\Checkout\Session as StripeSession;
 use Stripe\Stripe;
@@ -41,11 +36,11 @@ class OrderQuoteRequests extends Component
     {
         if ($this->selectedQuoteId) {
             return view('livewire.shop.order.order-quote-requests-detail', [
-                'quote' => QuoteRequest::with(['items.product', 'customer'])->find($this->selectedQuoteId)
+                'quote' => OrderQuoteRequest::with(['items.product', 'customer'])->find($this->selectedQuoteId)
             ]);
         }
 
-        $query = QuoteRequest::query()->latest();
+        $query = OrderQuoteRequest::query()->latest();
 
         if ($this->search) {
             $query->where(function($q) {
@@ -72,7 +67,7 @@ class OrderQuoteRequests extends Component
         $this->selectedQuoteId = $id;
 
         // NEU: Automatisch erstes Item für Vorschau wählen
-        $quote = QuoteRequest::with('items')->find($id);
+        $quote = OrderQuoteRequest::with('items')->find($id);
         if ($quote && $quote->items->isNotEmpty()) {
             $this->selectedQuoteItemId = $quote->items->first()->id;
         }
@@ -88,7 +83,7 @@ class OrderQuoteRequests extends Component
     public function getPreviewItemProperty()
     {
         if (!$this->selectedQuoteId || !$this->selectedQuoteItemId) return null;
-        return QuoteRequestItem::with('product')->find($this->selectedQuoteItemId);
+        return OrderQuoteRequestItem::with('product')->find($this->selectedQuoteItemId);
     }
 
     public function closeDetail()
@@ -107,7 +102,7 @@ class OrderQuoteRequests extends Component
      */
     public function convertToOrder($quoteId, $type = 'invoice')
     {
-        $quote = QuoteRequest::with('items')->find($quoteId);
+        $quote = OrderQuoteRequest::with('items')->find($quoteId);
 
         // Sicherheitscheck: Existiert das Angebot und ist es nicht schon umgewandelt?
         if (!$quote || $quote->status === 'converted') return;
@@ -145,7 +140,7 @@ class OrderQuoteRequests extends Component
         // Wir speichern in der DB, was gewählt wurde
         $methodDbString = ($type === 'stripe_link') ? 'stripe_link' : 'invoice';
 
-        $order = Order::create([
+        $order = OrderOrder::create([
             'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
             'customer_id' => $customer->id,
             'email' => $quote->email,
@@ -214,7 +209,7 @@ class OrderQuoteRequests extends Component
             if($stripeSecret && $type === 'stripe_link') {
                 Stripe::setApiKey($stripeSecret);
 
-                $session = StripeSession::create([
+                $session = StripeSystemSession::create([
                     'payment_method_types' => ['card', 'paypal', 'klarna', 'sofort'],
                     'line_items' => [[
                         'price_data' => [
@@ -267,13 +262,13 @@ class OrderQuoteRequests extends Component
     }
 
     public function markAsRejected($id) {
-        QuoteRequest::where('id', $id)->update(['status' => 'rejected']);
+        OrderQuoteRequest::where('id', $id)->update(['status' => 'rejected']);
         $this->closeDetail();
     }
 
     // NEU: Status zurücksetzen
     public function markAsOpen($id) {
-        $quote = QuoteRequest::find($id);
+        $quote = OrderQuoteRequest::find($id);
         if ($quote && $quote->status === 'rejected') {
             $quote->update(['status' => 'open']);
             session()->flash('success', 'Anfrage wurde wieder geöffnet.');

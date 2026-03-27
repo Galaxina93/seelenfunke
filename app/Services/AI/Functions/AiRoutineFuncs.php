@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Management\DayRoutine;
+use App\Models\Management\ManagementDayRoutine;
 
 trait AiRoutineFuncs
 {
@@ -24,7 +24,7 @@ trait AiRoutineFuncs
     public static function executeGetDayRoutines(array $args)
     {
         try {
-            $routines = DayRoutine::where('is_active', true)
+            $routines = ManagementDayRoutine::where('is_active', true)
                 ->with(['steps' => function($q) {
                     $q->select('day_routine_id', 'title', 'duration_minutes', 'position');
                 }])

@@ -98,7 +98,7 @@
                 </nav>
             </div>
 
-            {{-- Spalte 4: Newsletter --}}
+            {{-- Spalte 4: MarketingNewsletter --}}
             <div>
                 @livewire('shop.marketing.marketing-newsletter-signup')
             </div>

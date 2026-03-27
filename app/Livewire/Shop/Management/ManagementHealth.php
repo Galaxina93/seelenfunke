@@ -2,12 +2,12 @@
 
 namespace App\Livewire\Shop\Management;
 
+use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiChatMemory;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\On;
 use Livewire\Component;
-use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
@@ -406,7 +406,7 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function togglePlanItem($itemId)
     {
-        $item = \App\Models\Management\Health\AiHealthTreatmentItem::find($itemId);
+        $item = \App\Models\Ai\AiHealthTreatmentItem::find($itemId);
         if ($item) {
             $item->is_completed = !$item->is_completed;
             $item->save();
@@ -429,7 +429,7 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function viewMedication($id)
     {
-        $this->viewingMedication = \App\Models\Management\Health\AiHealthMedication::find($id);
+        $this->viewingMedication = \App\Models\Ai\AiHealthMedication::find($id);
         if ($this->viewingMedication) {
             $this->viewingMedicationId = $id;
         }
@@ -444,7 +444,7 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
     public function editMedication($id = null)
     {
         if ($id) {
-            $med = \App\Models\Management\Health\AiHealthMedication::find($id);
+            $med = \App\Models\Ai\AiHealthMedication::find($id);
             if ($med) {
                 $this->medicationForm = $med->toArray();
             }
@@ -471,12 +471,12 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
         ]);
 
         $data = $this->medicationForm;
-        $data['user_id'] = auth()->id() ?? \App\Models\User::first()->id;
+        $data['user_id'] = auth()->id() ?? \App\Models\System\SystemUser::first()->id;
 
         if ($data['id']) {
-            \App\Models\Management\Health\AiHealthMedication::find($data['id'])->update($data);
+            \App\Models\Ai\AiHealthMedication::find($data['id'])->update($data);
         } else {
-            \App\Models\Management\Health\AiHealthMedication::create($data);
+            \App\Models\Ai\AiHealthMedication::create($data);
         }
 
         $this->showMedicationModal = false;
@@ -484,14 +484,14 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function deleteMedication($id)
     {
-        \App\Models\Management\Health\AiHealthMedication::destroy($id);
+        \App\Models\Ai\AiHealthMedication::destroy($id);
     }
 
     public function render()
     {
-        $plans = \App\Models\Management\Health\AiHealthTreatmentPlan::with('items')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'plansPage');
-        $protocols = \App\Models\Management\Health\AiHealthProtocol::with('treatmentPlan')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'protocolsPage');
-        $medications = \App\Models\Management\Health\AiHealthMedication::orderBy('name', 'asc')->get();
+        $plans = \App\Models\Ai\AiHealthTreatmentPlan::with('items')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'plansPage');
+        $protocols = \App\Models\Ai\AiHealthProtocol::with('treatmentPlan')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'protocolsPage');
+        $medications = \App\Models\Ai\AiHealthMedication::orderBy('name', 'asc')->get();
 
         return view('livewire.shop.management.management-health', [
             'plans' => $plans,

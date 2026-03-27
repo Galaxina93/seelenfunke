@@ -196,7 +196,7 @@ class ElsterEricService
         // Analyseergebnis
         if (str_contains($output, 'fehlerfrei') || str_contains($output, 'Erfolgreich')) {
             $ticketId = 'ELSTER-NATIV-' . strtoupper(Str::random(10));
-            // Falls das Skript uns ein echtes Ticket zurückgegeben hat, filtern wir es:
+            // Falls das Skript uns ein echtes SupportTicket zurückgegeben hat, filtern wir es:
             if (preg_match('/Transferhandle:\s*([0-9]+)/i', $output, $matches)) {
                 $ticketId = 'ELSTER-NATIV-TH-' . $matches[1];
             }

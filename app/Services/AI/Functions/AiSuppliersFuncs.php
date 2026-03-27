@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Product\Supplier;
+use App\Models\Product\ProductSupplier;
 
 trait AiSuppliersFuncs
 {
@@ -27,12 +27,12 @@ trait AiSuppliersFuncs
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'supplier_id' => [
+                        'product_supplier_id' => [
                             'type' => 'string',
                             'description' => 'Die exakte ID oder der ungefähre Name des Lieferanten.'
                         ]
                     ],
-                    'required' => ['supplier_id']
+                    'required' => ['product_supplier_id']
                 ],
                 'callable' => [self::class, 'executeSupplierGetDetails']
             ],
@@ -64,7 +64,7 @@ trait AiSuppliersFuncs
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'supplier_id' => ['type' => 'string', 'description' => 'Die ID oder der ungenaue Name des Lieferanten.'],
+                        'product_supplier_id' => ['type' => 'string', 'description' => 'Die ID oder der ungenaue Name des Lieferanten.'],
                         'name' => ['type' => 'string', 'description' => 'Neuer Name des Lieferanten.'],
                         'contact_person' => ['type' => 'string', 'description' => 'Neuer Ansprechpartner.'],
                         'email' => ['type' => 'string', 'description' => 'Neue E-Mail Adresse.'],
@@ -77,7 +77,7 @@ trait AiSuppliersFuncs
                         'shipping_method' => ['type' => 'string', 'description' => 'Neuer Standard-Transportweg ("land", "air", "sea", "train").', 'enum' => ['land', 'air', 'sea', 'train']],
                         'notes' => ['type' => 'string', 'description' => 'Aktualisierte Notizen.']
                     ],
-                    'required' => ['supplier_id']
+                    'required' => ['product_supplier_id']
                 ],
                 'callable' => [self::class, 'executeSupplierUpdate']
             ],
@@ -87,12 +87,12 @@ trait AiSuppliersFuncs
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'supplier_id' => [
+                        'product_supplier_id' => [
                             'type' => 'string',
                             'description' => 'Die ID oder der Name des zu löschenden Lieferanten.'
                         ]
                     ],
-                    'required' => ['supplier_id']
+                    'required' => ['product_supplier_id']
                 ],
                 'callable' => [self::class, 'executeSupplierDelete']
             ]
@@ -102,7 +102,7 @@ trait AiSuppliersFuncs
     public static function executeSupplierGetAll(array $args)
     {
         try {
-            $suppliers = Supplier::orderBy('name')->get()->map(function ($s) {
+            $suppliers = ProductSupplier::orderBy('name')->get()->map(function ($s) {
                 return [
                     'id' => $s->id,
                     'name' => $s->name,
@@ -115,7 +115,7 @@ trait AiSuppliersFuncs
             return [
                 'status' => 'success',
                 'total_suppliers' => $suppliers->count(),
-                'suppliers' => $suppliers->toArray()
+                'product_suppliers' => $suppliers->toArray()
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
@@ -125,9 +125,9 @@ trait AiSuppliersFuncs
     public static function executeSupplierGetDetails(array $args)
     {
         try {
-            if (empty($args['supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
+            if (empty($args['product_supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
             
-            $supplier = self::findSupplier($args['supplier_id']);
+            $supplier = self::findSupplier($args['product_supplier_id']);
             if (!$supplier) return ['status' => 'error', 'message' => 'Lieferant wurde nicht gefunden.'];
 
             return [
@@ -158,12 +158,12 @@ trait AiSuppliersFuncs
                 'shipping_method' => $args['shipping_method'] ?? 'land',
             ];
 
-            $supplier = Supplier::create($data);
+            $supplier = ProductSupplier::create($data);
 
             return [
                 'status' => 'success',
                 'message' => "Lieferant ({$supplier->name}) erfolgreich angelegt.",
-                'supplier_id' => $supplier->id
+                'product_supplier_id' => $supplier->id
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Anlegen: ' . $e->getMessage()];
@@ -173,9 +173,9 @@ trait AiSuppliersFuncs
     public static function executeSupplierUpdate(array $args)
     {
         try {
-            if (empty($args['supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
+            if (empty($args['product_supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
             
-            $supplier = self::findSupplier($args['supplier_id']);
+            $supplier = self::findSupplier($args['product_supplier_id']);
             if (!$supplier) return ['status' => 'error', 'message' => 'Lieferant wurde nicht gefunden.'];
 
             $updates = [];
@@ -197,7 +197,7 @@ trait AiSuppliersFuncs
             return [
                 'status' => 'success',
                 'message' => "Lieferant ({$supplier->name}) wurde aktualisiert.",
-                'supplier_id' => $supplier->id
+                'product_supplier_id' => $supplier->id
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Update: ' . $e->getMessage()];
@@ -207,9 +207,9 @@ trait AiSuppliersFuncs
     public static function executeSupplierDelete(array $args)
     {
         try {
-            if (empty($args['supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
+            if (empty($args['product_supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
             
-            $supplier = self::findSupplier($args['supplier_id']);
+            $supplier = self::findSupplier($args['product_supplier_id']);
             if (!$supplier) return ['status' => 'error', 'message' => 'Lieferant wurde nicht gefunden.'];
 
             $name = $supplier->name;
@@ -226,9 +226,9 @@ trait AiSuppliersFuncs
 
     private static function findSupplier($identifier)
     {
-        $supplier = Supplier::find($identifier);
+        $supplier = ProductSupplier::find($identifier);
         if (!$supplier) {
-            $supplier = Supplier::where('name', 'like', '%' . $identifier . '%')->first();
+            $supplier = ProductSupplier::where('name', 'like', '%' . $identifier . '%')->first();
         }
         return $supplier;
     }

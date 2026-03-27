@@ -10,7 +10,7 @@ class AuthLoginDropdown extends Component
     public function logout()
     {
         // Guard dynamisch aus dem User-Model holen
-        $guard = (new \App\Models\User)->getGuard();
+        $guard = (new \App\Models\System\SystemUser)->getGuard();
 
         Auth::guard($guard)->logout();
 
@@ -23,7 +23,7 @@ class AuthLoginDropdown extends Component
     public function render()
     {
         // Guard dynamisch ermitteln
-        $guard = (new \App\Models\User)->getGuard();
+        $guard = (new \App\Models\System\SystemUser)->getGuard();
 
         // User basierend auf dem ermittelten Guard laden
         $user = Auth::guard($guard)->user();

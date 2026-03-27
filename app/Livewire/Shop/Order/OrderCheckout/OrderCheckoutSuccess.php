@@ -3,8 +3,8 @@
 namespace App\Livewire\Shop\Order\OrderCheckout;
 
 use App\Models\Cart\Cart;
-use App\Models\Order\Order;
-use App\Models\Order\Quote\QuoteRequest;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderQuoteRequest;
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -27,10 +27,10 @@ class OrderCheckoutSuccess extends Component
 
         Log::info("CheckoutSuccess: Verarbeite Redirect-Erfolg für Intent: $intentId");
 
-        $order = Order::where('stripe_payment_intent_id', $intentId)->first();
+        $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->first();
 
         if (!$order) {
-            Log::error("CheckoutSuccess: Order nicht gefunden für $intentId");
+            Log::error("CheckoutSuccess: OrderOrder nicht gefunden für $intentId");
             return;
         }
 
@@ -63,16 +63,16 @@ class OrderCheckoutSuccess extends Component
                 }
 
                 // Clean Up (Falls via Redirect zurückgekommen)
-                if (Session::has('checkout_from_quote_id')) {
-                    $quote = QuoteRequest::find(Session::get('checkout_from_quote_id'));
+                if (SystemSession::has('checkout_from_quote_id')) {
+                    $quote = OrderQuoteRequest::find(SystemSession::get('checkout_from_quote_id'));
                     if ($quote) $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
-                    Session::forget('checkout_from_quote_id');
+                    SystemSession::forget('checkout_from_quote_id');
                 }
 
                 if (Auth::guard('customer')->check()) {
                     Cart::where('customer_id', Auth::guard('customer')->id())->delete();
                 } else {
-                    Cart::where('session_id', Session::getId())->delete();
+                    Cart::where('session_id', SystemSession::getId())->delete();
                 }
 
                 $this->dispatch('cart-updated');

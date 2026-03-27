@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\System;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\ShopSetting;
+use App\Models\System\SystemSetting;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
 
@@ -93,7 +93,7 @@ class SystemShopConfig extends Component
 
     public function mount()
     {
-        $dbSettings = ShopSetting::whereIn('key', $this->configKeys)
+        $dbSettings = SystemSetting::whereIn('key', $this->configKeys)
             ->pluck('value', 'key')
             ->toArray();
 
@@ -162,7 +162,7 @@ class SystemShopConfig extends Component
                 $finalValue = (int)round((float)$value * 100);
             }
 
-            ShopSetting::updateOrCreate(
+            SystemSetting::updateOrCreate(
                 ['key' => $key],
                 ['value' => is_bool($finalValue) ? ($finalValue ? 'true' : 'false') : $finalValue]
             );

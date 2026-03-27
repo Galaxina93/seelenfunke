@@ -2,8 +2,8 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Management\Task;
-use App\Models\Management\TaskList;
+use App\Models\Management\ManagementTask;
+use App\Models\Management\ManagementTaskList;
 
 trait AiTaskFuncs
 {
@@ -115,7 +115,7 @@ trait AiTaskFuncs
     public static function executeGetTasks(array $args)
     {
         try {
-            $tasks = Task::where('is_completed', false)
+            $tasks = ManagementTask::where('is_completed', false)
                 ->whereNull('parent_id')
                 ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
@@ -135,7 +135,7 @@ trait AiTaskFuncs
     public static function executeGetTaskLists(array $args)
     {
         try {
-            $lists = TaskList::all(['id', 'name', 'color', 'icon']);
+            $lists = ManagementTaskList::all(['id', 'name', 'color', 'icon']);
             return [
                 'status' => 'success',
                 'lists_count' => $lists->count(),
@@ -154,7 +154,7 @@ trait AiTaskFuncs
             }
 
             $shortTitle = substr($args['title'], 0, 20);
-            $existing = Task::where('is_completed', false)
+            $existing = ManagementTask::where('is_completed', false)
                 ->where('title', 'LIKE', '%' . $shortTitle . '%')
                 ->first();
 
@@ -168,21 +168,21 @@ trait AiTaskFuncs
 
             $listId = null;
             if (!empty($args['task_list_id'])) {
-                $checkList = TaskList::find($args['task_list_id']);
+                $checkList = ManagementTaskList::find($args['task_list_id']);
                 if ($checkList) {
                     $listId = $checkList->id;
                 }
             }
 
             if (!$listId) {
-                $list = TaskList::firstOrCreate(
+                $list = ManagementTaskList::firstOrCreate(
                     ['name' => 'Funkiras Empfehlungen'],
                     ['icon' => 'sparkles', 'color' => '#10B981']
                 );
                 $listId = $list->id;
             }
 
-            $task = Task::create([
+            $task = ManagementTask::create([
                 'title' => substr($args['title'], 0, 255),
                 'priority' => $args['priority'] ?? 'mittel',
                 'is_completed' => false,
@@ -206,7 +206,7 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID angegeben.'];
             }
 
-            $task = Task::find($args['task_id']);
+            $task = ManagementTask::find($args['task_id']);
             if (!$task) {
                 return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
             }
@@ -224,7 +224,7 @@ trait AiTaskFuncs
             }
 
             if (!empty($args['new_list_id'])) {
-                $list = TaskList::find($args['new_list_id']);
+                $list = ManagementTaskList::find($args['new_list_id']);
                 if ($list) {
                     $task->task_list_id = $list->id;
                     $changed = true;
@@ -250,7 +250,7 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID angegeben.'];
             }
 
-            $task = Task::find($args['task_id']);
+            $task = ManagementTask::find($args['task_id']);
             if (!$task) {
                 return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
             }
@@ -276,14 +276,14 @@ trait AiTaskFuncs
 
             $term = $args['task_title'];
 
-            $task = Task::where('is_completed', false)
+            $task = ManagementTask::where('is_completed', false)
                 ->where('title', 'LIKE', '%' . $term . '%')
                 ->first();
 
             if (!$task) {
                 $firstWord = explode(' ', $term)[0];
                 if(strlen($firstWord) > 3) {
-                    $task = Task::where('is_completed', false)
+                    $task = ManagementTask::where('is_completed', false)
                         ->where('title', 'LIKE', '%' . $firstWord . '%')
                         ->first();
                 }

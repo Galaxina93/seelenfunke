@@ -274,7 +274,7 @@
                             </button>
                         </div>
 
-                        <div class="flex items-center gap-6 mb-6" x-data="{ showImage: false }">
+                        <div class="flex items-center gap-6 mb-6" x-data="{ showImage: false }" wire:key="profile-image-{{ $activeProfile->id }}">
                             @if($activeProfile->avatar_path)
                                 <button @click="showImage = true" class="relative group outline-none shrink-0" title="Bild vergrößern">
                                     <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="w-20 h-20 rounded-full object-cover border-2 border-[var(--theme-color-50)] shadow-[0_0_20px_rgba(197,160,89,0.2)] group-hover:scale-105 transition-transform duration-300">

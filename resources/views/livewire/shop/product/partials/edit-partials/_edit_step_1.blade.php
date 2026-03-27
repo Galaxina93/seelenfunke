@@ -202,7 +202,7 @@
                         </div>
                         <select wire:model.live="supplier_id" class="{{ $inputClassStep1 }} appearance-none cursor-pointer">
                             <option value="">-- Kein Lieferant zugewiesen --</option>
-                            @foreach($suppliers as $sup)
+                            @foreach($this->suppliers as $sup)
                                 <option value="{{ $sup->id }}">{{ $sup->name }}</option>
                             @endforeach
                         </select>

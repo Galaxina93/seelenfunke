@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\ShopSetting;
-use App\Models\Shipping\ShippingZone;
+use App\Models\System\SystemSetting;
+use App\Models\Logistics\LogisticsShippingZone;
 use Illuminate\Support\Collection;
 
 class ShippingCalculatorService
@@ -75,13 +75,13 @@ class ShippingCalculatorService
         $globalDefaultCost = (int) shop_setting('shipping_cost', 490);
 
         // SCHRITT 1: Zone finden
-        $zone = ShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
+        $zone = LogisticsShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
 
         // Fallback "Weltweit"
         if (!$zone) {
-            $zone = ShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            $zone = LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
         }
 
         // Initialisierung Status für DE (Prioritäts-Logik)

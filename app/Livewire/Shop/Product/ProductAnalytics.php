@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Product;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Order\OrderItem;
+use App\Models\Order\OrderOrderItem;
 use App\Models\Product\Product;
 use App\Models\Product\ProductLoss;
 use Carbon\Carbon;
@@ -30,7 +30,7 @@ class ProductAnalytics extends Component
         $thirtyDaysAgo = Carbon::now()->subDays(30);
 
         // Sales der letzten 30 Tage pro Produkt holen
-        $recentSales = OrderItem::whereHas('order', function ($query) use ($thirtyDaysAgo) {
+        $recentSales = OrderOrderItem::whereHas('order', function ($query) use ($thirtyDaysAgo) {
             $query->where('created_at', '>=', $thirtyDaysAgo)
                   ->where('status', '!=', 'cancelled')
                   ->where('status', '!=', 'draft');
@@ -114,7 +114,7 @@ class ProductAnalytics extends Component
         $currentYear = Carbon::now()->year;
 
         // Sales des aktuellen Jahres (wir summieren einfach anhand der getätigten Käufe * Gewicht)
-        $salesThisYear = OrderItem::whereHas('order', function ($query) use ($currentYear) {
+        $salesThisYear = OrderOrderItem::whereHas('order', function ($query) use ($currentYear) {
             $query->whereYear('created_at', $currentYear)
                   ->where('status', '!=', 'cancelled')
                   ->where('status', '!=', 'draft');

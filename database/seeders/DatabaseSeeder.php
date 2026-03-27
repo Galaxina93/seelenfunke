@@ -13,14 +13,14 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesAndPermissionsSeeder::class,
-            SupplierSeeder::class,                  // Für den Livegang notwendig
+            ProductSupplierSeeder::class,                  // Für den Livegang notwendig
             ProductSeeder::class,                   // Für den Livegang notwendig
-            ShippingSeeder::class,                  // Für den Livegang notwendig
-            ShopSettingSeeder::class,               // Für den Livegang notwendig
+            LogisticsShippingSeeder::class,                  // Für den Livegang notwendig
+            SystemSettingSeeder::class,               // Für den Livegang notwendig
             BlogCategorySeeder::class,              // Für den Livegang notwendig
             FinancialSeeder::class,                 // Für den Livegang notwendig
-            CategorySeeder::class,                  // Für den Livegang notwendig
-            ShopAttributeSeeder::class,             // Für den Livegang notwendig
+            ProductCategorySeeder::class,                  // Für den Livegang notwendig
+            ProductAttributeSeeder::class,             // Für den Livegang notwendig
             /*OrdersTableSeeder::class,*/           // DEAKTIVIEREN BEI LIVEGANG
             BlogSeeder::class,                      // Für den Livegang notwendig
             NewsletterKampagnenSeeder::class,       // Für den Livegang notwendig
@@ -28,7 +28,7 @@ class DatabaseSeeder extends Seeder
 
             /*TaskSeeder::class,*/                  // DEAKTIVIEREN BEI LIVEGANG
             DayRoutineSeeder::class,                // Für den Livegang notwendig
-            MapSeeder::class,                       // Für den Livegang notwendig
+            SystemMapSeeder::class,                       // Für den Livegang notwendig
             /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
 
             /* GamificationTestSeeder::class,*/     // DEAKTIVIEREN BEI LIVEGANG

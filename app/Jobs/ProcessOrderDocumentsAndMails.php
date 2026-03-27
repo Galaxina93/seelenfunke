@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Services\InvoiceService;
 use App\Services\NativeXmlInvoiceService;
 use Illuminate\Bus\Queueable;
@@ -24,7 +24,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(Order $order)
+    public function __construct(OrderOrder $order)
     {
         $this->order = $order;
     }

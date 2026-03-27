@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Management;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Management\CalendarEvent;
+use App\Models\Management\ManagementCalendarEvent;
 use Carbon\Carbon;
 use DateInterval;
 use Livewire\Component;
@@ -105,7 +105,7 @@ class ManagementCalender extends Component
 
     public function editEvent($id)
     {
-        $event = CalendarEvent::find($id);
+        $event = ManagementCalendarEvent::find($id);
         if (!$event) return;
 
         $this->editingEventId = $event->id;
@@ -161,9 +161,9 @@ class ManagementCalender extends Component
         ];
 
         if ($this->editingEventId) {
-            CalendarEvent::find($this->editingEventId)->update($data);
+            ManagementCalendarEvent::find($this->editingEventId)->update($data);
         } else {
-            CalendarEvent::create($data);
+            ManagementCalendarEvent::create($data);
         }
 
         session()->flash('calendar_success', 'Termin gespeichert.');
@@ -173,7 +173,7 @@ class ManagementCalender extends Component
     public function deleteEvent()
     {
         if ($this->editingEventId) {
-            CalendarEvent::destroy($this->editingEventId);
+            ManagementCalendarEvent::destroy($this->editingEventId);
             session()->flash('calendar_success', 'Termin gelöscht.');
         }
         $this->closeModal();
@@ -276,7 +276,7 @@ class ManagementCalender extends Component
 
                 $category = $this->detectCategory($title);
 
-                CalendarEvent::updateOrCreate(
+                ManagementCalendarEvent::updateOrCreate(
                     ['ics_uid' => $uid],
                     [
                         'title' => $title,
@@ -338,7 +338,7 @@ class ManagementCalender extends Component
         }
 
         // Normale Events
-        $normalEvents = CalendarEvent::where(function($query) use ($start, $end) {
+        $normalEvents = ManagementCalendarEvent::where(function($query) use ($start, $end) {
             $query->where('start_date', '<=', $end)
                   ->where('end_date', '>=', $start);
         })
@@ -346,7 +346,7 @@ class ManagementCalender extends Component
         ->get();
 
         // Wiederholungen berechnen
-        $recurringEvents = CalendarEvent::whereNotNull('recurrence')->get();
+        $recurringEvents = ManagementCalendarEvent::whereNotNull('recurrence')->get();
         $generatedEvents = collect();
 
         foreach ($recurringEvents as $template) {

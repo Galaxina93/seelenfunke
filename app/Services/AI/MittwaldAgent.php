@@ -4,7 +4,7 @@ namespace App\Services\AI;
 
 use App\Models\Ai\AiChatMemory;
 use App\Models\Ai\AiToolUsage;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -222,8 +222,8 @@ class MittwaldAgent
                     }
 
                     // Log into Live Log for the Chat view
-                    if (class_exists(GlobalLog::class)) {
-                        GlobalLog::create([
+                    if (class_exists(SystemLog::class)) {
+                        SystemLog::create([
                             'ai_agent_id' => $this->agent->id,
                             'action_id' => 'ai_tool_' . uniqid(),
                             'title' => '[' . strtoupper($this->agent->name) . '] - Werkzeug ausgeführt: ' . $functionName,

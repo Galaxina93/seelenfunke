@@ -6,7 +6,7 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Customer\Customer;
 use App\Models\Accounting\AccountingInvoice as InvoiceModel;
-use App\Models\Order\Order;
+use App\Models\Order\OrderOrder;
 use App\Services\EInvoiceService;
 use App\Services\InvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
-use App\Models\Global\GlobalLog;
+use App\Models\System\SystemLog;
 
 #[Layout('components.layouts.backend_layout')]
 class AccountingInvoice extends Component
@@ -271,7 +271,7 @@ class AccountingInvoice extends Component
 
     public function generateForPaidOrders(InvoiceService $service)
     {
-        $orders = Order::where('payment_status', 'paid')
+        $orders = OrderOrder::where('payment_status', 'paid')
             ->whereDoesntHave('invoices')
             ->get();
 
@@ -292,7 +292,7 @@ class AccountingInvoice extends Component
         // 2. Validierung
         if ($finalStatus === 'draft') {
             $this->validate([
-                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
+                'manualInvoice.invoice_number' => 'required|unique:accounting_invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
             ]);
         } else {
             // Strenge Validierung für den Abschluss
@@ -305,7 +305,7 @@ class AccountingInvoice extends Component
                 'manualInvoice.city' => 'required',
                 'manualInvoice.invoice_date' => 'required|date',
                 'manualInvoice.delivery_date' => 'required|date',
-                'manualInvoice.invoice_number' => 'required|unique:invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
+                'manualInvoice.invoice_number' => 'required|unique:accounting_invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
                 'manualInvoice.items' => 'required|array|min:1',
                 'manualInvoice.items.*.product_name' => 'required',
                 'manualInvoice.items.*.unit_price' => 'required|numeric',
@@ -479,6 +479,7 @@ class AccountingInvoice extends Component
         } catch (\Illuminate\Validation\ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
+            if (app()->environment('testing')) throw $e;
             $this->logInvoiceError('save_manual_invoice', $e, ['invoice_id' => $this->manualInvoice['id'] ?? null]);
             session()->flash('error', 'Fehler beim Speichern der Rechnung: ' . $e->getMessage());
         }
@@ -575,6 +576,7 @@ class AccountingInvoice extends Component
 
             session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');
         } catch (\Exception $e) {
+            if (app()->environment('testing')) throw $e;
             $this->logInvoiceError('cancel_invoice', $e, ['invoice_id' => $id]);
             session()->flash('error', 'Fehler beim Stornieren der Rechnung: ' . $e->getMessage());
         }
@@ -582,7 +584,7 @@ class AccountingInvoice extends Component
 
     private function logInvoiceError($action, \Exception $e, $payload = [])
     {
-        GlobalLog::create([
+        SystemLog::create([
             'type' => 'error',
             'agent_id' => null,
             'action_id' => 'admin_invoice_generation',

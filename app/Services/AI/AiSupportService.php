@@ -2,13 +2,13 @@
 
 namespace App\Services\AI;
 
-use App\Models\Management\CalendarEvent;
-use App\Models\Management\DayRoutine;
+use App\Models\Management\ManagementCalendarEvent;
+use App\Models\Management\ManagementDayRoutine;
 use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Accounting\AccountingInvoice;
-use App\Models\LoginAttempt;
-use App\Models\Order\Order;
-use App\Models\Management\Task;
+use App\Models\System\SystemLoginAttempt;
+use App\Models\Order\OrderOrder;
+use App\Models\Management\ManagementTask;
 use Carbon\Carbon;
 
 class AiSupportService
@@ -56,7 +56,7 @@ class AiSupportService
         ];
 
         // Alle Routinen für den Slider aufbereiten
-        $allRoutines = DayRoutine::with('steps')
+        $allRoutines = ManagementDayRoutine::with('steps')
             ->where('is_active', true)
             ->orderBy('start_time', 'asc')
             ->get();
@@ -158,7 +158,7 @@ class AiSupportService
         // ------------------------------------------------------------------
         // 1. SICHERHEIT (Score 1000+)
         // ------------------------------------------------------------------
-        $failedLogins = LoginAttempt::where('success', false)
+        $failedLogins = SystemLoginAttempt::where('success', false)
             ->where('attempted_at', '>', now()->subHours(24))
             ->count();
 
@@ -176,7 +176,7 @@ class AiSupportService
         // ------------------------------------------------------------------
         // 2. TERMINE (Score 500)
         // ------------------------------------------------------------------
-        $activeEvent = CalendarEvent::whereDate('start_date', $now->toDateString())
+        $activeEvent = ManagementCalendarEvent::whereDate('start_date', $now->toDateString())
             ->where(function($query) use ($now) {
                 $query->where('start_date', '>', $now)
                 ->where('start_date', '<=', $now->copy()->addMinutes(45))
@@ -205,7 +205,7 @@ class AiSupportService
         // ------------------------------------------------------------------
         // 3. BUSINESS (Score 200)
         // ------------------------------------------------------------------
-        $prioOrder = Order::whereIn('status', ['pending', 'processing'])
+        $prioOrder = OrderOrder::whereIn('status', ['pending', 'processing'])
             ->orderBy('is_express', 'desc')
             ->first();
 
@@ -250,7 +250,7 @@ class AiSupportService
         // ------------------------------------------------------------------
         // 5. TASKS (Score 10)
         // ------------------------------------------------------------------
-        $nextTask = Task::where('is_completed', false)
+        $nextTask = ManagementTask::where('is_completed', false)
             ->whereNull('parent_id')
             ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
             ->orderBy('created_at', 'desc')
@@ -318,7 +318,7 @@ class AiSupportService
      */
     public function getPriorityOrder()
     {
-        return Order::query()
+        return OrderOrder::query()
             ->whereIn('status', ['pending', 'processing'])
             ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
             ->orderBy('is_express', 'desc')

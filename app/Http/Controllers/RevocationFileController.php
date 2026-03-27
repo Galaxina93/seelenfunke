@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
-use App\Models\Order\Revocation\Revocation;
+use App\Models\Order\OrderRevocation;
 use Illuminate\Support\Facades\Storage;
 
 class RevocationFileController extends Controller
 {
-    public function download(Revocation $revocation, $fileName)
+    public function download(OrderRevocation $revocation, $fileName)
     {
         $path = "revocations/{$revocation->id}/{$fileName}";
 
