@@ -28,7 +28,7 @@
                 <svg x-show="!chatMaximized" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                 </svg>
-                <svg x-show="chatMaximized" style="display:none;" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <svg x-cloak x-show="chatMaximized" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
                 </svg>
             </button>
@@ -60,7 +60,7 @@
         @foreach($messages as $msg)
             @if($msg['sender'] === 'customer')
                 <div class="flex justify-end">
-                    <div class="bg-gray-800 text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] leading-relaxed">
+                    <div class="bg-gray-800 text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] leading-relaxed break-words break-all">
                         {{ $msg['text'] }}
                     </div>
                 </div>
@@ -150,7 +150,7 @@
                 </div>
             @else
                 <form wire:submit.prevent="sendMessage" class="relative flex items-center">
-                    <input wire:model="message" type="text" placeholder="Schreibe deine Nachricht..." 
+                    <input wire:model="message" type="text" placeholder="Schreibe deine Nachricht..." maxlength="1000"
                            class="w-full bg-gray-50 border border-gray-200 text-sm text-gray-800 rounded-full pl-5 pr-12 py-3.5 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all placeholder:text-gray-400"
                            {{ $isTyping ? 'disabled' : '' }}>
                            

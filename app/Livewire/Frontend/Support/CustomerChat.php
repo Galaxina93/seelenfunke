@@ -52,14 +52,10 @@ class CustomerChat extends Component
         $customerId = auth()->guard('customer')->id();
 
         // Suche nach offenem Chat separiert zwischen Gast und eingeloggtem Kunde (ausgenommen bereits bewertete Archive)
-        $query = SupportCustomerChat::where(function($q) {
-            $q->whereIn('status', ['open', 'needs_employee'])
-              ->orWhere(function($sq) {
-                  $sq->where('status', 'resolved')->whereNull('rating');
-              });
-        })
-        ->with(['messages'])
-        ->latest();
+        $query = SupportCustomerChat::whereNull('rating')
+            ->whereIn('status', ['open', 'needs_employee', 'resolved'])
+            ->with(['messages'])
+            ->latest();
 
         if ($customerId) {
             $query->where('customer_id', $customerId);

@@ -27,6 +27,10 @@
                 <div class="text-xs text-gray-400 truncate">{{ $user->email }}</div>
             </div>
         </div>
+        <div class="w-full border-t border-gray-700 pt-2 flex flex-col space-y-1">
+            <a href="{{ route($guard . '.dashboard') }}" class="block px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors">Mein Dashboard</a>
+            <button wire:click="logout" class="block w-full text-left px-3 py-2 text-sm text-red-500 hover:text-red-400 hover:bg-white/5 rounded-md transition-colors">Ausloggen</button>
+        </div>
         </div>
     @else
         <div class="w-full">
