@@ -135,6 +135,10 @@ class AIController extends Controller
         $ttsProvider = $aiAgent ? $aiAgent->tts_provider : 'none';
         $ttsEnabled = $aiAgent ? (bool) $aiAgent->tts_enabled : false;
 
+        if ($ttsProvider === 'none') {
+            $ttsEnabled = false;
+        }
+
         // Zwinge das System auf Toni, wenn der User in der UI den Cloudflare-Link eingegeben hat
         if ($ttsProvider === 'elevenlabs' && $aiAgent && !empty($aiAgent->tts_api_url)) {
             $ttsProvider = 'toni_xttsv2';

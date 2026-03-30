@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 #[Layout('components.layouts.backend_layout')]
 class ExternalAgentEditor extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $agentId;
     public $system_prompt = '';
     public $voice_preset = '';

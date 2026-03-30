@@ -2,7 +2,6 @@
 
 namespace App\Models\Customer;
 
-use App\Models\System\SystemRole;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -41,11 +40,6 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         static::created(function (Customer $customer) {
             $customerProfile = new CustomerProfile();
             $customer->profile()->save($customerProfile);
-
-            $customerRole = SystemRole::where('name', 'customer')->first();
-            if ($customerRole) {
-                $customer->roles()->attach($customerRole->id);
-            }
         });
 
         // Event-Listener für das Löschen eines Customer Profiles
@@ -56,11 +50,7 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         });
     }
 
-    public function roles(): MorphToMany
-    {
-        return $this->morphToMany(SystemRole::class, 'roleable', 'roleables', 'roleable_id', 'role_id');
-    }
-
+    
     public function directories(): MorphToMany
     {
         return $this->morphToMany(\App\Models\System\SystemDirectory::class, 'user', 'directory_user');

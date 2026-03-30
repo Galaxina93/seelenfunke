@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
-use App\Models\System\SystemSession as SessionModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -25,8 +24,8 @@ class GoogleAuthController extends Controller
     public function redirectToGoogle($guard = 'customer')
     {
         // Guard speichern (wird aber durch intelligente Erkennung oft überschrieben)
-        SystemSession::put('auth_guard', $guard);
-        SystemSession::save();
+        Session::put('auth_guard', $guard);
+        Session::save();
         return Socialite::driver('google')->redirect();
     }
 
@@ -164,8 +163,7 @@ class GoogleAuthController extends Controller
             }
             session(["permissions" => $permissions]);
 
-            // Browser Session speichern
-            $this->setBrowserSession($user);
+
 
             // Redirect zum Dashboard des ermittelten Guards
             return redirect()->route($guard . '.dashboard');
@@ -176,24 +174,5 @@ class GoogleAuthController extends Controller
         }
     }
 
-    protected function setBrowserSession($user)
-    {
-        $sessionId = SystemSession::getId();
-        $payload = base64_encode(serialize(SystemSession::all()));
 
-        $sessionData = [
-            'id' => $sessionId,
-            'user_id' => $user->id,
-            'ip_address' => request()->ip(),
-            'user_agent' => substr(request()->userAgent(), 0, 255),
-            'payload' => $payload,
-            'device_type' => 'Desktop',
-            'last_activity' => time(),
-        ];
-
-        SessionModel::updateOrInsert(
-            ['user_id' => $user->id, 'ip_address' => request()->ip()],
-            $sessionData
-        );
-    }
 }

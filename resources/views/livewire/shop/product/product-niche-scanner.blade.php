@@ -216,40 +216,6 @@
                 </div>
             </div>
 
-            <!-- AI Agent Dropdown & Interaktion -->
-            <div class="border-t border-gray-800 pt-8 mt-4 max-w-4xl mx-auto">
-                <h4 class="text-lg font-bold text-white mb-4 flex items-center justify-center gap-2">
-                    <svg class="h-6 w-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    KI-Agent Berater (Macht Vorschläge basierend auf allen Daten)
-                </h4>
-
-                <div class="flex justify-center">
-                    @include('livewire.shop.ai.ask-ai-dropdown', ['actionMethod' => 'startAiRecommendation', 'buttonText' => 'Analysieren'])
-                </div>
-
-                @if($aiRecommendation)
-                @php
-                    $activeAgentName = 'KI-Agent';
-                    foreach($availableAgents as $a) {
-                        if ($a['id'] == $selectedAgentId) {
-                            $activeAgentName = $a['name'];
-                            break;
-                        }
-                    }
-                @endphp
-                <div class="mt-6 p-6 rounded-xl bg-gradient-to-r from-purple-500/10 to-transparent border border-purple-500/20 text-left relative overflow-hidden">
-                    <div class="absolute inset-0 bg-purple-500/5 blur-3xl rounded-full mix-blend-screen pointer-events-none"></div>
-                    <div class="relative z-10">
-                        <h5 class="text-purple-400 font-bold mb-2 text-lg">💡 Empfehlung von {{ $activeAgentName }}:</h5>
-                        <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
-                            {{ $aiRecommendation }}
-                        </div>
-                    </div>
-                </div>
-                @endif
-            </div>
         </div>
     </div>
     @endif

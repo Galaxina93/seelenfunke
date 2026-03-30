@@ -87,7 +87,7 @@
 
 @foreach($years as $index => $year)
     <div class="header">
-        <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+        <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
         <div class="doc-title">Betriebswirtschaftliche Liquiditätsplanung</div>
         <div class="erp-tag">Liquiditätsplanung generiert durch: Seelenfunke ERP System</div>
         <div class="plan-year-title">PLANUNGSJAHR: {{ $year }}</div>
@@ -211,7 +211,7 @@
 @endforeach
 
 <div class="header" style="margin-bottom: 35px;">
-    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+    <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title" style="color: #C5A059;">Ertrags- & Kapitalbedarfsplanung</div>
     <div class="erp-tag">Zusatz-Auswertungen</div>
 </div>
@@ -294,7 +294,7 @@
 <div class="page-break"></div>
 
 <div class="header" style="margin-bottom: 35px;">
-    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+    <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title" style="color: #C5A059;">Steuerliche Vorausschau & Rückstellungen</div>
     <div class="erp-tag">Pflicht-Rückstellungen nach IHK Richtlinien</div>
 </div>
@@ -572,7 +572,7 @@
 <div class="page-break"></div>
 
 <div class="header" style="margin-bottom: 35px;">
-    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+    <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title" style="color: #C5A059;">IHK Vorbereitung: Betriebswirtschaftliche Begründung</div>
     <div class="erp-tag">Plausibilitätsprüfung & Stresstest</div>
 </div>

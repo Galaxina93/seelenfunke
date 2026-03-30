@@ -209,7 +209,7 @@ class CustomerTicketsComponent extends Component
     {
         $tickets = SupportTicket::where('customer_id', $this->customerId)->with('order')->orderBy('updated_at', 'desc')->get();
         $orders = OrderOrder::where('customer_id', $this->customerId)->orderBy('created_at', 'desc')->get();
-        $activeSupportTicket = $this->viewMode === 'chat' && $this->activeTicketId ? SupportTicket::with('messages', 'order')->where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->first() : null;
+        $activeTicket = $this->viewMode === 'chat' && $this->activeTicketId ? SupportTicket::with('messages', 'order')->where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->first() : null;
 
         return view('livewire.customer.customer-tickets-component', ['tickets' => $tickets, 'orders' => $orders, 'activeTicket' => $activeTicket]);
     }

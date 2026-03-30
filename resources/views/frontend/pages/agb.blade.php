@@ -282,7 +282,7 @@
                     <div class="mb-8">
                         <p class="text-gray-600 mb-4">Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.</p>
 
-                        <a href="{{ asset('images/projekt/downloads/Widerrufsformular.pdf') }}" target="_blank" download="Widerrufsformular_MeinSeelenfunke.pdf"
+                        <a href="{{ asset('shop/frontend/downloads/Widerrufsformular.pdf') }}" target="_blank" download="Widerrufsformular_MeinSeelenfunke.pdf"
                            class="inline-flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-lg font-bold hover:bg-gray-800 transition-all shadow-md group hover:-translate-y-0.5">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:scale-110 transition-transform">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3.75" />

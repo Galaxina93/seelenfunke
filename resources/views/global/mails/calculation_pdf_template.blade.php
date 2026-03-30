@@ -194,7 +194,7 @@
         <table class="header-table">
             <tr>
                 <td style="text-align: left; width: 40%;">
-                    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="{{ $ownerName }}" class="logo">
+                    <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="{{ $ownerName }}" class="logo">
                 </td>
                 <td class="text-right" style="width: 60%; padding-top: 10px;">
                     <div style="font-size: 10px; color: #333; text-transform: uppercase; letter-spacing: 2px; font-weight: bold;">

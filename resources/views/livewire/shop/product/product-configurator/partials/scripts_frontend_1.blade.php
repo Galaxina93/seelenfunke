@@ -38,8 +38,6 @@
             showGuideY: false,
             showImageEditor: false,
             fileRobotInstance: null,
-            _isRendering: false,
-            _needsAnotherRender: false,
             isCapturing: false, // UI-Status während Snapshot
 
             hasSavedDesign: false,
@@ -76,19 +74,19 @@
 
                     const startConfigurator = () => {
                         if (this.config.modelPath) {
-                            window._threeEngineInstance = new window.Configurator3DEngine(this.$refs.container3d, this.config.modelPath, this.config.bgPath, this.config);
+                            this.$refs.container3d._engine = new window.Configurator3DEngine(this, this.$refs.container3d, this.config.modelPath, this.config.bgPath, this.config);
 
                             const forceStart3D = () => {
                                 if (this.modelLoaded || this.isInitializing) return;
                                 this.isInitializing = true;
 
-                                window._threeEngineInstance.init(() => {
+                                this.$refs.container3d._engine.init(() => {
                                     this.modelLoaded = true;
                                     this.isInitializing = false;
                                     this.updateTexture();
 
                                     if (this.showDrawingBoard === false) {
-                                        window._threeEngineInstance.animate();
+                                        this.$refs.container3d._engine.animate();
                                     }
                                 });
                             };
@@ -157,11 +155,12 @@
                     this.$watch('activeSide', (val) => {
                         this.selectedType = null;
                         this.selectedIndex = null;
-                        if (window._threeEngineInstance && window._threeEngineInstance.camera) {
-                            window._threeEngineInstance.camera.position.z *= -1;
-                            window._threeEngineInstance.camera.position.x *= -1;
-                            window._threeEngineInstance.controls.update();
-                            window._threeEngineInstance.applyTransforms(val);
+                        let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                        if (engine && engine.camera) {
+                            engine.camera.position.z *= -1;
+                            engine.camera.position.x *= -1;
+                            engine.controls.update();
+                            engine.applyTransforms(val);
                         }
                         this.updateTexture();
 
@@ -174,7 +173,8 @@
 
                     window.addEventListener('resize', () => {
                         this.onWindowResize();
-                        if(window._threeEngineInstance) window._threeEngineInstance.resize();
+                        let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                        if(engine) engine.resize();
                     });
 
                     if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
@@ -200,15 +200,16 @@
                         }, 50);
                     } else {
                         setTimeout(() => {
-                            if (window._threeEngineInstance) {
+                            let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                            if (engine) {
                                 if (!this.modelLoaded) {
                                     if (typeof this._forceStart3D === 'function') this._forceStart3D();
                                 } else {
-                                    window._threeEngineInstance.animate();
+                                    engine.animate();
                                     this.updateTexture();
                                 }
                                 requestAnimationFrame(() => {
-                                    if(window._threeEngineInstance) window._threeEngineInstance.resize();
+                                    if(engine) engine.resize();
                                 });
                             }
                         }, 10);
@@ -271,10 +272,11 @@
 
                 // 1. Snapshot erstellen
                 try {
-                    if (window._threeEngineInstance && window._threeEngineInstance.renderer && this.config.modelPath) {
+                    let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                    if (engine && engine.renderer && this.config.modelPath) {
                         if (this.config.has_back_side) {
-                            const origX = window._threeEngineInstance.camera.position.x;
-                            const origZ = window._threeEngineInstance.camera.position.z;
+                            const origX = engine.camera.position.x;
+                            const origZ = engine.camera.position.z;
                             let camFrontX = origX;
                             let camFrontZ = origZ;
                             if (this.activeSide === 'back') {
@@ -283,26 +285,26 @@
                             }
 
                             // Front Snapshot
-                            window._threeEngineInstance.camera.position.x = camFrontX;
-                            window._threeEngineInstance.camera.position.z = camFrontZ;
-                            window._threeEngineInstance.controls.update();
-                            window._threeEngineInstance.renderer.render(window._threeEngineInstance.scene, window._threeEngineInstance.camera);
-                            snapshotBase64 = window._threeEngineInstance.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                            engine.camera.position.x = camFrontX;
+                            engine.camera.position.z = camFrontZ;
+                            engine.controls.update();
+                            engine.renderer.render(engine.scene, engine.camera);
+                            snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
 
                             // Back Snapshot
-                            window._threeEngineInstance.camera.position.x = camFrontX * -1;
-                            window._threeEngineInstance.camera.position.z = camFrontZ * -1;
-                            window._threeEngineInstance.controls.update();
-                            window._threeEngineInstance.renderer.render(window._threeEngineInstance.scene, window._threeEngineInstance.camera);
-                            snapshotBackBase64 = window._threeEngineInstance.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                            engine.camera.position.x = camFrontX * -1;
+                            engine.camera.position.z = camFrontZ * -1;
+                            engine.controls.update();
+                            engine.renderer.render(engine.scene, engine.camera);
+                            snapshotBackBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
 
                             // Restore
-                            window._threeEngineInstance.camera.position.x = origX;
-                            window._threeEngineInstance.camera.position.z = origZ;
-                            window._threeEngineInstance.controls.update();
+                            engine.camera.position.x = origX;
+                            engine.camera.position.z = origZ;
+                            engine.controls.update();
                         } else {
-                            window._threeEngineInstance.renderer.render(window._threeEngineInstance.scene, window._threeEngineInstance.camera);
-                            snapshotBase64 = window._threeEngineInstance.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                            engine.renderer.render(engine.scene, engine.camera);
+                            snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
                         }
                     } else {
                         // 2D-Fallback-Modus
@@ -402,7 +404,8 @@
             },
 
             updateTexture() {
-                if (!window._threeEngineInstance || !window._threeEngineInstance.isReady || !window._threeEngineInstance.textureFront) return;
+                let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                if (!engine || !engine.isReady || !engine.textureFront) return;
 
                 if (this._renderTimeout) clearTimeout(this._renderTimeout);
 
@@ -418,7 +421,7 @@
 
                         requestAnimationFrame(() => {
                             try {
-                                window._threeEngineInstance.renderBothCanvases(
+                                engine.renderBothCanvases(
                                     Alpine.raw(this.texts),
                                     Alpine.raw(this.logos),
                                     Alpine.raw(this.texts_back),

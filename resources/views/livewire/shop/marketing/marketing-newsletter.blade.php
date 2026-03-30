@@ -182,11 +182,11 @@
                                 </div>
                             </div>
 
-                            <div class="bg-gray-900/50 px-6 sm:px-8 py-5 sm:py-6 border-t border-gray-800 flex flex-col-reverse sm:flex-row justify-end gap-4 shadow-inner">
-                                <button wire:click="cancelEdit" class="w-full sm:w-auto px-8 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-gray-800 transition-colors text-center">
-                                    Änderungen verwerfen
+                            <div class="bg-gray-900/95 backdrop-blur-md px-4 sm:px-8 py-4 sm:py-6 border-t border-gray-800 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 shadow-inner z-20 relative sticky bottom-0 rounded-b-[3rem]">
+                                <button wire:click="cancelEdit" class="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white hover:bg-gray-800 transition-colors text-center border border-transparent hover:border-gray-700">
+                                    Verwerfen
                                 </button>
-                                <button wire:click="saveTemplate" class="w-full sm:w-auto px-10 py-4 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white hover:scale-[1.05] transition-all shadow-[0_0_30px_rgba(197,160,89,0.3)] text-center flex items-center justify-center gap-2">
+                                <button wire:click="saveTemplate" class="w-full sm:w-auto px-8 py-3.5 sm:py-4 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(197,160,89,0.3)] text-center flex items-center justify-center gap-2">
                                     <span wire:loading.remove wire:target="saveTemplate">Speichern</span>
                                     <span wire:loading wire:target="saveTemplate" class="flex items-center gap-2">
                                         <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
@@ -308,13 +308,13 @@
                                             @endif
                                         </div>
                                     </div>
-                                    <div class="px-6 py-5 border-t border-gray-800 bg-gray-950/50 flex justify-end gap-4">
-                                        <button wire:click="$set('showCreateModal', false)" class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-gray-800 transition-colors">
+                                    <div class="px-6 py-5 border-t border-gray-800 bg-gray-950/50 flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
+                                        <button wire:click="$set('showCreateModal', false)" class="w-full sm:w-auto px-5 py-3.5 sm:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-gray-800 transition-colors text-center">
                                             Abbrechen
                                         </button>
-                                        <button wire:click="createTemplate" class="px-6 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-widest hover:bg-white hover:scale-105 transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] flex items-center gap-2">
+                                        <button wire:click="createTemplate" class="w-full sm:w-auto px-6 py-3.5 sm:py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-widest hover:bg-white hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] flex items-center justify-center gap-2">
                                             <span wire:loading.remove wire:target="createTemplate">Erstellen</span>
-                                            <span wire:loading wire:target="createTemplate" class="flex items-center gap-2">
+                                            <span wire:loading wire:target="createTemplate" class="flex items-center justify-center gap-2">
                                                 <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                                                 Erstelle...
                                             </span>

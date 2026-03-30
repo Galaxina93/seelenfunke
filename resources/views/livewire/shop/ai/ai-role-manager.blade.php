@@ -142,12 +142,29 @@
             </form>
         @else
             <!-- Standard Listen-Ansicht -->
-            <div class="mb-8 flex items-center justify-between">
+            <div class="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
                     <h2 class="text-3xl font-black text-white mb-1 uppercase tracking-wider font-mono">Agenten Rollen</h2>
                     <p class="text-gray-400 font-mono text-sm">Verwalte die grundlegenden KI-Rollen und Zuständigkeiten.</p>
                 </div>
-                <button wire:click="create" class="bg-primary hover:bg-primary/80 text-gray-900 font-bold py-2 px-6 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
+                
+                @if(count($topTools) > 0)
+                <div class="bg-black/40 border border-gray-800/60 rounded-2xl p-4 shadow-[0_0_20px_rgba(0,0,0,0.3)] min-w-[300px]">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <i class="bi bi-cpu-fill text-primary"></i>
+                        Meistgenutzte Werkzeuge
+                    </h3>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($topTools as $tTool)
+                            <span class="bg-gray-900/50 border border-gray-800 text-cyan-400 text-[10px] font-mono px-2.5 py-1 rounded shadow-sm">
+                                {{ $tTool->tool_name }} ({{ $tTool->usage_count }}x)
+                            </span>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+                
+                <button wire:click="create" class="whitespace-nowrap bg-primary hover:bg-primary/80 text-gray-900 font-bold py-3 px-6 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all font-mono uppercase tracking-widest flex items-center justify-center gap-2">
                     <i class="bi bi-plus-lg"></i>
                     Rolle hinzufügen
                 </button>

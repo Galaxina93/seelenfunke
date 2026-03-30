@@ -72,7 +72,7 @@
 
                             <div class="relative w-8 h-8 rounded-full bg-{{ $agent->color }}/10 flex items-center justify-center text-{{ $agent->color }} overflow-hidden">
                                 @if($agent->profile_picture)
-                                    <img src="{{ Storage::url($agent->profile_picture) }}" alt="{{ $agent->name }}" class="w-full h-full object-cover">
+                                    <img src="{{ \Illuminate\Support\Str::startsWith($agent->profile_picture, 'shop/') ? asset($agent->profile_picture) : Storage::url($agent->profile_picture) }}" alt="{{ $agent->name }}" class="w-full h-full object-cover">
                                 @else
                                     @if(str_starts_with($agent->icon, 'bi-'))
                                         <i class="{{ $agent->icon }} text-base drop-shadow-[0_0_5px_currentColor]"></i>
@@ -129,8 +129,8 @@
                             @if(isset($msg['profile_picture']) && $msg['profile_picture'])
                                 @php
                                     $pp = $msg['profile_picture'];
-                                    $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/'))
-                                           ? asset($pp) : Storage::url($pp);
+                                    $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
+                                           ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                                 @endphp
                                 <img src="{{ $src }}" class="w-full h-full object-cover" alt="Profile">
                             @else
@@ -160,7 +160,7 @@
                             @if($tAgent->profile_picture)
                                 @php
                                     $pp2 = $tAgent->profile_picture;
-                                    $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, '/'))
+                                    $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, 'shop/') || str_starts_with($pp2, '/'))
                                            ? asset($pp2) : Storage::url($pp2);
                                 @endphp
                                 <img src="{{ $src2 }}" class="w-full h-full object-cover">

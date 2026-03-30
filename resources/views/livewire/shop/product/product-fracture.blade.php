@@ -62,6 +62,57 @@
         </div>
     </div>
 
+    <!-- INLINE FORM FOR CREATION -->
+    <div x-show="$wire.lossModalOpen" x-collapse x-cloak>
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner mt-8 relative overflow-hidden flex flex-col">
+            <button @click="$wire.lossModalOpen = false" class="absolute top-6 right-6 text-gray-500 hover:text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors z-10">
+                <x-heroicon-o-x-mark class="w-4 h-4" />
+            </button>
+            <div class="px-8 pt-6 pb-4 border-b border-gray-800 relative">
+                <div class="absolute inset-0 bg-gradient-to-r from-red-500/10 to-transparent pointer-events-none"></div>
+                <h3 class="text-xl font-serif font-bold text-white relative flex items-center gap-3">
+                    <i class="solar-bomb-minimalistic-bold-duotone text-red-500 text-xl"></i> Neue Schadensmeldung
+                </h3>
+            </div>
+            
+            <div class="p-8">
+                <form wire:submit.prevent="createLossRecord" class="space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pl-1">Welches Produkt ist beschädigt?</label>
+                            <select wire:model="lossProductId" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-sm font-bold text-white focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors shadow-inner outline-none" required>
+                                <option value="">-- Produkt auswählen --</option>
+                                @foreach($products as $p)
+                                    <option value="{{ $p->id }}">{{ $p->name }} (Lager: {{ $p->quantity }})</option>
+                                @endforeach
+                            </select>
+                            @error('lossProductId') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pl-1">Defekte Menge</label>
+                            <input type="number" wire:model="lossQuantity" min="1" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-sm font-bold text-white focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors shadow-inner outline-none" required>
+                            @error('lossQuantity') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pl-1">Ursache / Grund</label>
+                        <textarea wire:model="lossReason" rows="2" placeholder="Z.B. Holz beim Laserschnitt gesplittert, Maschine verstellt, Mangelware aus China..." class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-sm font-medium text-white focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors shadow-inner outline-none resize-none" required></textarea>
+                        @error('lossReason') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="flex justify-between items-center mt-6 pt-6 border-t border-gray-800">
+                        <button type="button" @click="$wire.closeLossModal()" class="px-5 py-3 rounded-xl bg-transparent text-gray-400 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Abbrechen</button>
+                        <button type="submit" class="px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] border border-red-400/30 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                            Erfassen <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- LIST VIEW: TREATMENT PLAN STYLE -->
     <div class="mt-8">
         <h2 class="text-xl font-bold mb-4 text-white flex items-center gap-2">
@@ -270,56 +321,4 @@
         @endif
     </div>
 
-    <!-- WORKFLOW MODAL FOR CREATION: ONLY STEP 1 -->
-    <div x-show="$wire.lossModalOpen" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md"
-         x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-         x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
-        <div @click.away="$wire.lossModalOpen = false" class="bg-gray-900 border border-gray-800 rounded-[2rem] shadow-2xl w-full max-w-lg relative overflow-hidden flex flex-col"
-             x-transition:enter="ease-out duration-300 delay-100" x-transition:enter-start="opacity-0 translate-y-8 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-             x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
-            
-            <button @click="$wire.lossModalOpen = false" class="absolute top-5 right-5 text-gray-500 hover:text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors z-10"><i class="bi bi-x-lg text-sm"></i></button>
-            
-            <div class="px-8 pt-8 pb-4 border-b border-gray-800 relative">
-                <div class="absolute inset-0 bg-gradient-to-r from-red-500/10 to-transparent pointer-events-none"></div>
-                <h3 class="text-xl font-serif font-bold text-white relative flex items-center gap-3">
-                    <i class="solar-bomb-minimalistic-bold-duotone text-red-500 text-2xl"></i> Neue Schadensmeldung
-                </h3>
-            </div>
-            
-            <div class="p-8 flex-1 overflow-y-auto">
-                <form wire:submit.prevent="createLossRecord" class="space-y-6">
-                    <div>
-                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pl-1">Welches Produkt ist beschädigt?</label>
-                        <select wire:model="lossProductId" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-sm font-bold text-white focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors shadow-inner outline-none" required>
-                            <option value="">-- Produkt auswählen --</option>
-                            @foreach($products as $p)
-                                <option value="{{ $p->id }}">{{ $p->name }} (Lager: {{ $p->quantity }})</option>
-                            @endforeach
-                        </select>
-                        @error('lossProductId') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pl-1">Defekte Menge</label>
-                        <input type="number" wire:model="lossQuantity" min="1" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-sm font-bold text-white focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors shadow-inner outline-none" required>
-                        @error('lossQuantity') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 pl-1">Ursache / Grund</label>
-                        <textarea wire:model="lossReason" rows="3" placeholder="Z.B. Holz beim Laserschnitt gesplittert, Maschine verstellt, Mangelware aus China..." class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-sm font-medium text-white focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors shadow-inner outline-none resize-none" required></textarea>
-                        @error('lossReason') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="flex justify-between items-center mt-8 pt-4 border-t border-gray-800">
-                        <button type="button" @click="$wire.closeLossModal()" class="px-5 py-3 rounded-xl bg-transparent text-gray-400 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">Abbrechen</button>
-                        <button type="submit" class="px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] border border-red-400/30 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
-                            Erfassen <i class="bi bi-arrow-right"></i>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 </div>

@@ -6,13 +6,16 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:admin'])->group(function () {
 
     // Dashboard
-    Route::get('/admin/dashboard', \App\Livewire\Shop\Management\ManagementAnalytics::class)->name('admin.dashboard');
+    Route::get('/admin/dashboard', \App\Livewire\Shop\Master\MasterAnalytics::class)->name('admin.dashboard');
+    Route::get('/admin/master/analytics', \App\Livewire\Shop\Master\MasterAnalytics::class)->name('admin.master-analytics');
 
     Route::get('/admin/routine', \App\Livewire\Shop\Management\ManagementRoutine::class)->name('admin.routine');
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
     Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
-    Route::get('/admin/company-map', \App\Livewire\Shop\System\SystemCompanyMap::class)->name('admin.partials');
-    Route::get('/admin/tickets', \App\Livewire\Shop\System\SystemTickets::class)->name('admin.tickets');
+    Route::get('/admin/company-map', \App\Livewire\Shop\System\SystemCompanyMap::class)->name('admin.company-map');
+    Route::get('/admin/support-tickets', \App\Livewire\Shop\Support\SupportTicket::class)->name('admin.support-tickets');
+    Route::get('/admin/support-chats', \App\Livewire\Shop\Support\SupportChatAnalytics::class)->name('admin.support-chats');
+    Route::get('/admin/support-contact-form', \App\Livewire\Shop\Support\SupportContactFormComponent::class)->name('admin.support-contact-form');
 
 
     // AI AGENT UNVIVERSE
@@ -144,17 +147,14 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/credit-management', \App\Livewire\Shop\Accounting\AccountingCredit::class)->name('admin.credit-management');
 
+    Route::get('/admin/orders/analytics', \App\Livewire\Shop\Order\OrderAnalytics::class)->name('admin.orders.analytics');
     Route::get('/admin/orders', \App\Livewire\Shop\Order\OrderOverview::class)->name('admin.orders');
 
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
 
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
 
-    // Revocation File Download
-    Route::get('/admin/widerruf/file/{revocation}/{fileName}', [\App\Http\Controllers\Backend\Admin\RevocationFileController::class, 'download'])
-        ->name('admin.widerruf.file');
-
-    Route::get('/admin/financial-evaluation', \App\Livewire\Shop\Accounting\AccountingEvaluation::class)->name('admin.financial-evaluation');
+    Route::get('/admin/financial-analytics', \App\Livewire\Shop\Accounting\AccountingAnalytics::class)->name('admin.financial-analytics');
 
     Route::get('/admin/financial-liquidity-planning', \App\Livewire\Shop\Accounting\AccountingLiquidity::class)->name('admin.financial-liquidity-planning');
 
@@ -167,6 +167,8 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/financial-tax', \App\Livewire\Shop\Accounting\AccountingTax::class)->name('admin.financial-tax');
 
     Route::get('/admin/configuration', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.configuration');
+
+    Route::get('/admin/marketing/analytics', \App\Livewire\Shop\Marketing\MarketingAnalytics::class)->name('admin.marketing-analytics');
 
     Route::get('/admin/blog', \App\Livewire\Shop\Marketing\MarketingBlog::class)->name('admin.blog');
 

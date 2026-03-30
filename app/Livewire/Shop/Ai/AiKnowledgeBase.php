@@ -13,6 +13,7 @@ use Livewire\WithFileUploads;
 #[Layout('components.layouts.backend_layout')]
 class AiKnowledgeBase extends Component
 {
+    public string $themingDepartment = 'Agenten';
     use WithFileUploads;
 
     public $search = '';

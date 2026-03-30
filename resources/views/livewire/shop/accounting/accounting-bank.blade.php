@@ -209,7 +209,7 @@
                                 </button>
                                 
                                 <!-- AI Agent Sorting -->
-                                @include('livewire.shop.ai.ask-ai-dropdown', ['actionMethod' => 'startAgentSorting', 'buttonText' => 'Sortieren'])
+                                @include('livewire.shop.ai.ask-ai-dropdown', ['actionMethod' => 'startAgentSorting', 'buttonText' => 'Sortieren', 'themeColor' => $this->themeColorClass])
                             </div>
                         </div>
                     </div>

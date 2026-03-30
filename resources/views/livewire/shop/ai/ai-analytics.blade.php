@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
     <!-- Kachel-KPIs -->
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
         <!-- Tokens Today -->
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 relative overflow-hidden">
             <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-emerald-500/20 to-transparent"></div>
@@ -68,6 +68,22 @@
             <div class="text-3xl font-bold text-white mb-2">{{ number_format($totalChatMessages, 0, ',', '.') }}</div>
             <div class="text-xs text-gray-500">
                 Nachrichten & Interaktionen
+            </div>
+        </div>
+        
+        <!-- Top Werkzeuge -->
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 relative overflow-hidden flex flex-col justify-center">
+            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-cyan-500/10 to-transparent"></div>
+            <div class="text-gray-400 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5"><i class="bi bi-cpu text-cyan-400"></i> Top KI-Tools</div>
+            <div class="space-y-1.5 overflow-hidden">
+                @forelse($topToolsAllAgents as $t)
+                    <div class="flex justify-between items-center text-xs text-gray-300 font-mono">
+                        <span class="truncate pr-2 w-32" title="{{ $t->tool_name }}">{{ Str::limit(str_replace('support_', '', $t->tool_name), 12) }}</span>
+                        <span class="text-cyan-400 font-bold bg-gray-900 border border-gray-700 px-1.5 py-0.5 rounded">{{ $t->usage_count }}</span>
+                    </div>
+                @empty
+                    <div class="text-[10px] text-gray-500 italic mt-2">Noch keine Tool-Aktivität heute.</div>
+                @endforelse
             </div>
         </div>
     </div>
@@ -189,6 +205,11 @@
             Alpine.data('analyticsDonutChart', (data) => ({
                 chart: null,
                 init() {
+                    if (data.series.length === 0) {
+                        this.$refs.chart.innerHTML = '<div class="text-gray-500 flex items-center justify-center h-full text-sm italic">Aktuell liegen noch keine Daten vor.</div>';
+                        return;
+                    }
+                    
                     const options = {
                         series: data.series,
                         labels: data.labels,
@@ -212,7 +233,7 @@
                 chart: null,
                 init() {
                     if (data.categories.length === 0) {
-                        this.$refs.chart.innerHTML = '<div class="text-emerald-500 flex items-center justify-center h-full text-sm"><i class="fa-solid fa-check-circle mr-2"></i> Keine Tool-Fehler im ausgewählten Zeitraum.</div>';
+                        this.$refs.chart.innerHTML = '<div class="text-gray-500 flex items-center justify-center h-full text-sm italic">Aktuell liegen noch keine Daten vor.</div>';
                         return;
                     }
                     const options = {

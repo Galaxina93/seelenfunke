@@ -71,7 +71,7 @@
                         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-radial-gradient from-gray-100 to-transparent opacity-60 blur-3xl -z-10" aria-hidden="true"></div>
 
                         <div class="relative rounded-3xl overflow-hidden shadow-2xl shadow-gray-200/50 border border-gray-100 bg-white p-2 md:p-4 transform transition-transform duration-700 hover:scale-[1.02]">
-                            <img src="{{ asset('images/projekt/products/seelen-kristall_w.webp') }}"
+                            <img src="{{ asset('shop/product/seelen-kristall_w.webp') }}"
                                  alt="Der Seelen-Kristall: Eine hochwertige Trophäe aus massivem K9-Glas mit individueller Gravur"
                                  loading="eager"
                                  class="w-full h-auto rounded-2xl object-cover">
@@ -144,14 +144,14 @@
                     {{-- Linke Seite: Bild --}}
                     <div class="relative">
                         <div class="absolute inset-0 bg-gray-100 rounded-3xl transform rotate-3 scale-95 origin-bottom-right -z-10" aria-hidden="true"></div>
-                        <img src="{{ asset('images/projekt/products/seelen-kristall-spec.webp') }}"
+                        <img src="{{ asset('shop/product/seelen-kristall-spec.webp') }}"
                              alt="Detailaufnahme des Seelen-Kristalls: Facettenschliff und Lasergravur"
                              loading="lazy"
                              class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
 
                         {{-- Kleines Detailbild Overlay --}}
                         <div class="absolute -bottom-8 -right-8 w-40 h-40 bg-white p-3 rounded-2xl shadow-xl hidden md:block border border-gray-100 animate-float" aria-hidden="true">
-                            <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-full h-full object-contain rounded-lg" alt="">
+                            <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-full h-full object-contain rounded-lg" alt="">
                         </div>
                     </div>
 

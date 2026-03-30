@@ -7,6 +7,16 @@ use Illuminate\Support\Facades\Cache;
 
 trait WithDepartmentTheming
 {
+    public function getThemeColorClassProperty()
+    {
+        $departmentName = property_exists($this, 'themingDepartment') ? $this->themingDepartment : 'Marketing';
+        $cacheKey = strtolower($departmentName) . '_dept_class';
+
+        return Cache::remember($cacheKey, 300, function () use ($departmentName) {
+            $dept = AiDepartment::where('name', $departmentName)->first();
+            return $dept ? $dept->color : 'primary';
+        });
+    }
     public function getThemeColorHexProperty()
     {
         $departmentName = property_exists($this, 'themingDepartment') ? $this->themingDepartment : 'Marketing';

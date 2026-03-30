@@ -9,6 +9,7 @@ use Livewire\Component;
 
 class AiMethod extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $search = '';
 
     public function getToolUsageStatsProperty()
@@ -100,7 +101,7 @@ class AiMethod extends Component
             'get_tasks',
             'create_task',
             'complete_task',
-            'search_brain',
+            'brain_search',
             'save_to_brain',
             'update_brain_entry',
             'delete_brain_entry',

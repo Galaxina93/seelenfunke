@@ -333,4 +333,36 @@ class MittwaldAgent
             return "Systemintegrität gestört: " . $e->getMessage();
         }
     }
+
+    /**
+     * Schickt dynamische Analytics-Systemprompts (Ohne Tools/Funktionen) direkt an das LLM.
+     * Nutzt die konfigurierte Mittwald API.
+     */
+    public static function processDirectPrompt(\App\Models\Ai\AiAgent $agent, string $prompt): string
+    {
+        $payload = AiAgentService::getAgentPayload($agent);
+
+        $baseUrl = config('services.mittwald.url');
+        $apiKey = config('services.mittwald.key');
+
+        try {
+            $response = Http::timeout(60)->withToken($apiKey)->post(rtrim($baseUrl, '/') . '/chat/completions', [
+                'model' => $payload['model'],
+                'temperature' => $payload['temperature'],
+                'messages' => [
+                    ['role' => 'system', 'content' => $payload['system_prompt']],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['choices'][0]['message']['content'] ?? 'Das LLM hat keinen Text zurückgegeben.';
+            }
+
+            return "API Fehler: " . $response->status() . " - " . $response->body();
+        } catch (\Exception $e) {
+            return "Fehler bei der KI-Analyse: " . $e->getMessage();
+        }
+    }
 }

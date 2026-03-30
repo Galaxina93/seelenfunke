@@ -255,7 +255,7 @@
     </style>
 
     {{-- AUDIO FEEDBACK --}}
-    <audio id="taskDoneSound" src="{{ asset('todo/sounds/todo_done.mp3') }}" preload="auto"></audio>
+    <audio id="taskDoneSound" src="{{ asset('shop/management/shop/management/todo/sounds/todo_done.mp3') }}" preload="auto"></audio>
 
     @script
     <script>

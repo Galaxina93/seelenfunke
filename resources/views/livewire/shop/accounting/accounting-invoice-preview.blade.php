@@ -72,7 +72,7 @@
 
                                 {{-- Header: Logo & Titel --}}
                                 <div class="flex justify-between items-end mb-8 pb-5" style="border-bottom: 2px solid #C5A059;">
-                                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}" style="width: 220px;" alt="{{ $ownerName }}">
+                                    <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" style="width: 220px;" alt="{{ $ownerName }}">
                                     <div class="text-right">
                                         <div style="font-size: 22px; font-weight: bold; color: #C5A059; text-transform: uppercase; margin-bottom: 5px;">
                                             @if($invoice->type === 'cancellation') STORNO-RECHNUNG @else RECHNUNG @endif

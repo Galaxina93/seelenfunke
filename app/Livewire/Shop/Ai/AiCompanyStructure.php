@@ -10,11 +10,11 @@ use Livewire\Component;
 
 class AiCompanyStructure extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $departments = [];
     public $staffAgents = [];
     public $viewMode = 'tree'; 
     public $editingId = null;
-    public $showSuccessBanner = false;
 
     // Form: Department
     public $deptName = '';
@@ -55,7 +55,7 @@ class AiCompanyStructure extends Component
 
     public function showSuccess()
     {
-        $this->showSuccessBanner = true;
+        $this->dispatch('structure-updated');
     }
 
     public function closeEditor()
@@ -86,26 +86,44 @@ class AiCompanyStructure extends Component
         $this->viewMode = 'edit-dept';
     }
 
-    public function saveDepartment()
+    public function saveDepartment($close = true)
     {
         $this->validate(['deptName' => 'required|string|max:255']);
-        AiDepartment::updateOrCreate(['id' => $this->editingId], [
+        $dept = AiDepartment::updateOrCreate(['id' => $this->editingId], [
             'name' => $this->deptName,
             'description' => $this->deptDescription,
             'icon' => $this->deptIcon,
             'color' => $this->deptColor,
             'order_index' => $this->editingId ? AiDepartment::find($this->editingId)->order_index : AiDepartment::max('order_index') + 1,
         ]);
-        $this->showSuccess();
+        
+        $this->editingId = $dept->id;
+        
+        $this->dispatch('department-saved', id: $dept->id);
+
+        if ($close) {
+            $this->closeEditor();
+        }
+    }
+
+    public function deleteDepartment($id)
+    {
+        $dept = AiDepartment::findOrFail($id);
+        
+        // Agenten in die Stabsstelle verschieben (unassigned)
+        AiAgent::where('ai_department_id', $id)->update(['ai_department_id' => null]);
+        
+        $dept->delete();
+        
         $this->closeEditor();
+        $this->dispatch('structure-updated');
     }
 
     public function updated($propertyName)
     {
         if ($this->viewMode === 'edit-dept' && in_array($propertyName, ['deptName', 'deptDescription', 'deptIcon', 'deptColor'])) {
-            if ($this->editingId && !empty($this->deptName)) {
-                $this->saveDepartment();
-                $this->viewMode = 'edit-dept';
+            if (!empty($this->deptName)) {
+                $this->saveDepartment(false);
             }
         }
     }
@@ -136,7 +154,7 @@ class AiCompanyStructure extends Component
         $deptId = $targetDeptId === 'unassigned' ? null : $targetDeptId;
         AiAgent::where('id', $agentId)->update(['ai_department_id' => $deptId]);
         $this->loadStructure();
-        $this->showSuccessBanner = true;
+        $this->dispatch('structure-updated');
     }
 
     // ============================================

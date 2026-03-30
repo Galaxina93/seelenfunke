@@ -30,6 +30,8 @@ class AIFunctionsRegistry
     use Functions\AiProductControlReviewsFuncs;
     use Functions\AiProductNicheScannerFuncs;
     use Functions\AiProductPackagingConfiguratorFuncs;
+    use Functions\AiAgentsFuncs;
+    use Functions\AiMasterFuncs;
 
     /**
      * Define all available functions the AI can call.
@@ -61,7 +63,9 @@ class AIFunctionsRegistry
             self::getAiProductTemplatesFuncsSchema(),
             self::getAiProductControlReviewsFuncsSchema(),
             self::getAiProductNicheScannerFuncsSchema(),
-            self::getAiProductPackagingConfiguratorFuncsSchema()
+            self::getAiProductPackagingConfiguratorFuncsSchema(),
+            self::getAiAgentsFuncsSchema(),
+            self::getAiMasterFuncsSchema()
         );
     }
 
@@ -108,7 +112,11 @@ class AIFunctionsRegistry
         $functions = collect(self::getFunctions())->keyBy('name');
 
         if (!$functions->has($name)) {
-            throw new \InvalidArgumentException("Function '{$name}' is not registered in the AI Remote Control.");
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => "Function '{$name}' is not registered or does not exist. Please pick a VALID tool from the schema."
+            ];
         }
 
         $callable = $functions[$name]['callable'];

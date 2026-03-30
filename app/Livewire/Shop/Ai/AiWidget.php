@@ -8,6 +8,7 @@ use App\Models\System\SystemLog;
 
 class AiWidget extends Component
 {
+    public string $themingDepartment = 'Agenten';
     #[On('log-widget-error')]
     public function logWidgetError($message)
     {

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 
 class AiAgentEditor extends Component
 {
+    public string $themingDepartment = 'Agenten';
     use WithFileUploads;
 
     public $agentId;
@@ -52,6 +53,7 @@ class AiAgentEditor extends Component
 
     public $ttsProviders = [
         'toni_xttsv2' => 'Toni - Coqui XTTSv2',
+        'browser_tts' => 'Standard Speech (Browser)',
         'none' => 'Deaktiviert (Nur Text)'
     ];
 

@@ -33,7 +33,7 @@
     <link rel="canonical" href="{{ url()->current() }}">
 
     {{-- Fav Icon --}}
-    <link rel="icon" href="{{ asset('images/projekt/logo/favicon.ico') }}" type="image/x-icon"/>
+    <link rel="icon" href="{{ asset('shop/projekt/logo/favicon.ico') }}" type="image/x-icon"/>
 
     {{-- Styles --}}
     <link rel="preload" href="{{ mix('css/app.css') }}" as="style">

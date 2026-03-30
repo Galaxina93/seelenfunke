@@ -3,7 +3,6 @@
 namespace App\Livewire\Shop\Order\OrderCheckout;
 
 use App\Models\Cart\Cart;
-use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Auth;
@@ -63,16 +62,16 @@ class OrderCheckoutSuccess extends Component
                 }
 
                 // Clean Up (Falls via Redirect zurückgekommen)
-                if (SystemSession::has('checkout_from_quote_id')) {
-                    $quote = OrderQuoteRequest::find(SystemSession::get('checkout_from_quote_id'));
+                if (Session::has('checkout_from_quote_id')) {
+                    $quote = OrderQuoteRequest::find(Session::get('checkout_from_quote_id'));
                     if ($quote) $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
-                    SystemSession::forget('checkout_from_quote_id');
+                    Session::forget('checkout_from_quote_id');
                 }
 
                 if (Auth::guard('customer')->check()) {
                     Cart::where('customer_id', Auth::guard('customer')->id())->delete();
                 } else {
-                    Cart::where('session_id', SystemSession::getId())->delete();
+                    Cart::where('session_id', Session::getId())->delete();
                 }
 
                 $this->dispatch('cart-updated');

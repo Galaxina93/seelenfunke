@@ -223,11 +223,11 @@
                         <div class="mt-5">
                             <p class="text-[10px] text-gray-400 text-center mb-2">Sichere Zahlung mit</p>
                             <div class="flex flex-wrap justify-center gap-2 opacity-70">
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/mastercard.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/google-pay.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/apple-pay.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/paypal.svg') }}" class="h-4"></div>
-                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('images/projekt/payments/klarna.svg') }}" class="h-4"></div>
+                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/mastercard.svg') }}" class="h-4"></div>
+                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/google-pay.svg') }}" class="h-4"></div>
+                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/apple-pay.svg') }}" class="h-4"></div>
+                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/paypal.svg') }}" class="h-4"></div>
+                                <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200"><img src="{{ asset('shop/frontend/payments/klarna.svg') }}" class="h-4"></div>
                             </div>
                         </div>
 

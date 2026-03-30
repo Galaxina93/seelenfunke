@@ -6,6 +6,7 @@ use Livewire\Component;
 
 class AiKnowledgeBaseCategories extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $categories = [];
     public $search = '';
     public $newCategoryName = '';

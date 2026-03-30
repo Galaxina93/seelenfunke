@@ -28,6 +28,15 @@ class AnalyticsService
             'inventory' => $this->checkInventory(),
             'special_issues' => $this->checkSpecialIssues(),
             'contracts' => $this->checkContracts(),
+            'open_tickets' => $this->checkTickets(),
+            'product_reviews' => $this->checkReviews(),
+            'open_orders' => $this->checkOrders(),
+            'open_credits' => $this->checkCredits(),
+            'unassigned_tx' => $this->checkUnassignedTx(),
+            'open_tasks' => $this->checkTasks(),
+            'open_quotes' => $this->checkQuotes(),
+            'open_revocations' => $this->checkRevocations(),
+            'open_losses' => $this->checkLosses(),
         ]);
     }
 
@@ -42,7 +51,7 @@ class AnalyticsService
 
         return [
             'title' => 'Lagerbestand',
-            'status' => $lowStockProducts->count() > 0 ? 'danger' : 'success',
+            'status' => $lowStockProducts->count() > 0 ? 'error' : 'success',
             'message' => $lowStockProducts->count() > 0 ? $lowStockProducts->count() . " Artikel unter Limit!" : "Lagerbestände optimal.",
             'icon' => 'cube',
             'count' => $lowStockProducts->count(),
@@ -60,7 +69,7 @@ class AnalyticsService
 
         return [
             'title' => 'Sonderausgaben',
-            'status' => $missing->count() > 0 ? 'danger' : 'success',
+            'status' => $missing->count() > 0 ? 'error' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Positionen ohne Beleg." : "Alle Ausgaben belegt.",
             'icon' => 'banknotes',
             'count' => $missing->count(),
@@ -74,7 +83,7 @@ class AnalyticsService
 
         return [
             'title' => 'Verträge',
-            'status' => $missing->count() > 0 ? 'danger' : 'success',
+            'status' => $missing->count() > 0 ? 'error' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Unterlagen fehlen." : "Dokumente vollständig.",
             'icon' => 'document-text',
             'count' => $missing->count(),
@@ -82,7 +91,135 @@ class AnalyticsService
         ];
     }
 
-    public function getStats($dateStart, $dateEnd, $filterType, $lastLogins)
+    private function checkTickets(): ?array
+    {
+        if (!class_exists(\App\Models\Support\SupportTicket::class)) return null;
+        $totalTickets = \App\Models\Support\SupportTicket::count();
+        $openTickets = \App\Models\Support\SupportTicket::where('status', 'open')->with('customer')->get();
+        $tCount = $openTickets->count();
+        $status = $tCount > 0 ? 'error' : 'success';
+        $msg = $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet';
+        if ($totalTickets === 0) { $msg = 'Keine Tickets vorhanden'; $status = 'warning'; }
+        return [
+            'status' => $status,
+            'icon' => 'ticket',
+            'title' => 'Offene Tickets',
+            'message' => $msg,
+            'count' => $tCount,
+            'data' => $openTickets->map(function($t) {
+                return [
+                    'id' => $t->id,
+                    'ticket_number' => $t->ticket_number,
+                    'subject' => $t->subject,
+                    'customer_name' => $t->customer ? $t->customer->first_name : 'Kunde'
+                ];
+            })->values()->toArray()
+        ];
+    }
+
+    private function checkReviews(): ?array
+    {
+        if (!class_exists(\App\Models\Product\ProductReview::class)) return null;
+        $totalReviews = \App\Models\Product\ProductReview::count();
+        $pendingReviews = \App\Models\Product\ProductReview::where('status', 'pending')->with('product')->get();
+        $rCount = $pendingReviews->count();
+        $status = $rCount > 0 ? 'error' : 'success';
+        $msg = $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft';
+        if ($totalReviews === 0) { $msg = 'Noch keine Bewertungen'; $status = 'warning'; }
+        return [
+            'status' => $status,
+            'icon' => 'star',
+            'title' => 'Produkt-Reviews',
+            'message' => $msg,
+            'count' => $rCount,
+            'data' => $pendingReviews->map(function($r) {
+                return [
+                    'id' => $r->id,
+                    'product_name' => $r->product ? $r->product->name : 'Produkt',
+                    'rating' => $r->rating
+                ];
+            })->values()->toArray()
+        ];
+    }
+
+    private function checkOrders(): ?array
+    {
+        if (!class_exists(\App\Models\Order\OrderOrder::class)) return null;
+        $totalOrders = \App\Models\Order\OrderOrder::count();
+        $oCount = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
+        $status = $oCount > 0 ? 'warning' : 'success';
+        $msg = $oCount > 0 ? $oCount . ' unversendet' : 'Alles versendet';
+        if ($totalOrders === 0) { $msg = 'Noch keine Bestellungen'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'shopping-cart', 'title' => 'Offene Bestellungen', 'message' => $msg, 'count' => $oCount, 'data' => []];
+    }
+
+    private function checkCredits(): ?array
+    {
+        if (!class_exists(\App\Models\Accounting\AccountingInvoice::class)) return null;
+        $totalCredits = \App\Models\Accounting\AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->count();
+        $cCount = \App\Models\Accounting\AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->whereNull('email_sent_at')->count();
+        $status = $cCount > 0 ? 'error' : 'success';
+        $msg = $cCount > 0 ? $cCount . ' unversendet' : 'Alle versendet';
+        if ($totalCredits === 0) { $msg = 'Keine Gutschriften vorhanden'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'document-minus', 'title' => 'Offene Gutschriften', 'message' => $msg, 'count' => $cCount, 'data' => []];
+    }
+
+    private function checkUnassignedTx(): ?array
+    {
+        if (!class_exists(\App\Models\Accounting\AccountingBankTransaction::class) || !auth('admin')->check()) return null;
+        $totalTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->count();
+        $unassignedTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->whereNull('assigned_by_type')->count();
+        $status = $unassignedTx > 0 ? 'error' : 'success';
+        $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
+        if ($totalTx === 0) { $msg = 'Keine Transaktionen gefunden'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'banknotes', 'title' => 'Bank Umsätze', 'message' => $msg, 'count' => $unassignedTx, 'data' => []];
+    }
+
+    private function checkTasks(): ?array
+    {
+        if (!class_exists(\App\Models\Management\ManagementTask::class)) return null;
+        $totalTasks = \App\Models\Management\ManagementTask::count();
+        $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->count();
+        $status = $openTasks > 0 ? 'warning' : 'success';
+        $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
+        if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'check-circle', 'title' => 'Offene Aufgaben', 'message' => $msg, 'count' => $openTasks, 'data' => []];
+    }
+
+    private function checkQuotes(): ?array
+    {
+        if (!class_exists(\App\Models\Order\OrderQuoteRequest::class)) return null;
+        $totalQuotes = \App\Models\Order\OrderQuoteRequest::count();
+        $oldQuotes = \App\Models\Order\OrderQuoteRequest::where('status', 'open')->where('created_at', '<', now()->subDays(5))->count();
+        $status = $oldQuotes > 0 ? 'error' : 'success';
+        $msg = $oldQuotes > 0 ? $oldQuotes . ' älter als 5 Tage' : 'Alles aktuell';
+        if ($totalQuotes === 0) { $msg = 'Keine Angebote vorhanden'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'clipboard-document-list', 'title' => 'Offene Angebote', 'message' => $msg, 'count' => $oldQuotes, 'data' => []];
+    }
+
+    private function checkRevocations(): ?array
+    {
+        if (!class_exists(\App\Models\Order\OrderRevocation::class)) return null;
+        $totalRevs = \App\Models\Order\OrderRevocation::count();
+        $oldRevs = \App\Models\Order\OrderRevocation::where('status', '!=', 'completed')->where('created_at', '<', now()->subDays(2))->count();
+        $status = $oldRevs > 0 ? 'error' : 'success';
+        $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
+        if ($totalRevs === 0) { $msg = 'Keine Widerrufe vorhanden'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'archive-box-x-mark', 'title' => 'Offene Widerrufe', 'message' => $msg, 'count' => $oldRevs, 'data' => []];
+    }
+
+    private function checkLosses(): ?array
+    {
+        if (!class_exists(\App\Models\Product\ProductLoss::class)) return null;
+        $totalLosses = \App\Models\Product\ProductLoss::count();
+        $openLosses = \App\Models\Product\ProductLoss::whereNull('refund_received_at')->count();
+        $status = $openLosses > 0 ? 'warning' : 'success';
+        $msg = $openLosses > 0 ? $openLosses . ' ungelöste Fälle' : 'Alles erledigt';
+        if ($totalLosses === 0) { $msg = 'Keine Schäden erfasst'; $status = 'warning'; }
+        return ['status' => $status, 'icon' => 'exclamation-triangle', 'title' => 'Schwund & Bruch', 'message' => $msg, 'count' => $openLosses, 'data' => []];
+    }
+
+    public function getStats($dateStart, $dateEnd, $filterType, $lastLogins, $systemHealth = [])
     {
         $start = Carbon::parse($dateStart)->startOfDay();
         $end = Carbon::parse($dateEnd)->endOfDay();
@@ -415,6 +552,23 @@ class AnalyticsService
             $healthScore += max(0, 10 - $deduction);
         }
 
+        // 6. OPERATIVER INTEGRATION SCORE (Abzüge)
+        // Die Abzüge werden subtrahiert, falls offene Todos und Systemstörungen existieren
+        $opChecks = $this->getHealthChecks();
+        $opErrors = collect($opChecks)->where('status', 'error')->count();
+        $opWarnings = collect($opChecks)->where('status', 'warning')->count();
+        $opScorePunishment = ($opErrors * 5) + ($opWarnings * 1);
+        $healthScore -= $opScorePunishment;
+
+        // 7. INFRASTRUKTUR INTEGRATION SCORE (Abzüge)
+        // Systemfehler werden hart vom Master-Score abgezogen
+        if (!empty($systemHealth)) {
+            $sysErrors = collect($systemHealth)->where('status', 'error')->count();
+            $sysWarnings = collect($systemHealth)->where('status', 'warning')->count();
+            $sysScorePunishment = ($sysErrors * 10) + ($sysWarnings * 2);
+            $healthScore -= $sysScorePunishment;
+        }
+
         $healthScore = max(0, min(100, $healthScore));
 
         return [
@@ -422,7 +576,7 @@ class AnalyticsService
             'active_users_today' => collect($lastLogins)->whereBetween('last_seen', [Carbon::today(), Carbon::now()])->count(),
             'new_registrations_week' => Customer::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Admin::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Employee::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
             'failed_logins' => SystemLoginAttempt::where('success', false)->count(),
-            'active_sessions' => DB::table('system_sessions')->count(),
+            'active_sessions' => DB::table('sessions')->count(),
             'never_logged_in' => collect($lastLogins)->whereNull('last_seen')->count(),
             'inactive_30_days' => collect($lastLogins)->filter(fn($u) => $u['last_seen'] && Carbon::parse($u['last_seen'])->lt(now()->subDays(30)))->count(),
 
@@ -494,5 +648,16 @@ class AnalyticsService
         return Admin::with('profile')->get()->map(fn($u) => ['type' => 'Admin', 'first_name' => $u->first_name, 'last_name' => $u->last_name, 'last_seen' => optional($u->profile)->last_seen])
             ->merge(Customer::with('profile')->get()->map(fn($u) => ['type' => 'Customer', 'first_name' => $u->first_name, 'last_name' => $u->last_name, 'last_seen' => optional($u->profile)->last_seen]))
             ->merge(Employee::with('profile')->get()->map(fn($u) => ['type' => 'Employee', 'first_name' => $u->first_name, 'last_name' => $u->last_name, 'last_seen' => optional($u->profile)->last_seen]));
+    }
+
+    public function generateDepartmentInsight(string $department, array $dataPayload, string $agentId): string
+    {
+        $agent = \App\Models\Ai\AiAgent::findOrFail($agentId);
+        $prompt = "Du bist der leitende {$department}-Manager von Seelenfunke.\n";
+        $prompt .= "Hier sind die aggregierten Systemdaten der angewählten Zeitspanne:\n\n";
+        $prompt .= json_encode($dataPayload, JSON_UNESCAPED_UNICODE) . "\n\n";
+        $prompt .= "Analysiere diese extrem detailliert. Formuliere strategische, sofort umsetzbare Management-Handlungsanweisungen bzgl. der Wachstumsraten, Task-Prioritäten und Kalenderdichte.";
+
+        return \App\Services\AI\MittwaldAgent::processDirectPrompt($agent, $prompt);
     }
 }

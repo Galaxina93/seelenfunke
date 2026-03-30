@@ -8,6 +8,7 @@ use Livewire\Component;
 
 class AiRoleManager extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $roles;
     
     // Inline Edit State
@@ -20,9 +21,22 @@ class AiRoleManager extends Component
     public $selectedTools = [];
     public $searchTool = '';
 
+    public $topTools = [];
+
     public function mount()
     {
         $this->loadRoles();
+        $this->loadTopTools();
+    }
+
+    public function loadTopTools()
+    {
+        $this->topTools = \App\Models\Ai\AiToolUsage::select('tool_name', \Illuminate\Support\Facades\DB::raw('COUNT(*) as usage_count'))
+            ->groupBy('tool_name')
+            ->orderByDesc('usage_count')
+            ->limit(5)
+            ->get()
+            ->toArray();
     }
 
     public function loadRoles()
@@ -107,24 +121,58 @@ class AiRoleManager extends Component
 
         // Gruppierung basierend auf der Registry und verknüpft mit den live Abteilungsnamen (via UUID)
         $depts = \App\Models\Ai\AiDepartment::pluck('name', 'id')->toArray();
-        $nameCeo = $depts['019d0000-0000-0000-0000-000000000000'] ?? 'Firmenleitung';
+        $nameCeo = $depts['019d0000-0000-0000-0000-000000000000'] ?? 'Leitung';
+        $nameSupport = $depts['019d6666-6666-6666-6666-666666666666'] ?? 'Support';
         $nameProd = $depts['019d1111-1111-1111-1111-111111111111'] ?? 'Produkte';
         $nameMark = $depts['019d2222-2222-2222-2222-222222222222'] ?? 'Marketing';
         $nameOrd = $depts['019d3333-3333-3333-3333-333333333333'] ?? 'Bestellungen';
         $nameFin = $depts['019d4444-4444-4444-4444-444444444444'] ?? 'Buchhaltung';
+        $nameAgents = $depts['019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'] ?? 'Agenten';
+        $nameSystem = $depts['019d5555-5555-5555-5555-555555555555'] ?? 'System';
 
+        // Strikte Array-Map Reihenfolge vom CEO gefordert:
         $categoryMap = [
-            $nameFin => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-            $nameMark => array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
-            $nameOrd => array_merge(
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name')
+            $nameCeo => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiBrainFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name')
             ),
-            $nameProd => array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
-            $nameCeo => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+            $nameSupport => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+            $nameProd => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductAnalyticsFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductFractureFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductCreateFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSuppliersFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductTemplatesFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductControlReviewsFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductNicheScannerFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductPackagingConfiguratorFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name')
+            ),
+            $nameMark => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingNewsletterFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingVoucherFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingBlogFuncsSchema(), 'name')
+            ),
+            $nameOrd => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+            $nameFin => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+            $nameAgents => array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
+            $nameSystem => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
         ];
 
+        // Initiiere das leere Array mit der exakten geforderten Reihenfolge
         $groupedTools = [];
+        foreach (array_keys($categoryMap) as $catName) {
+            $groupedTools[$catName] = [];
+        }
+        $groupedTools['Andere'] = []; // Fallback
+
         foreach ($allTools as $tool) {
             $matchedCategory = 'Andere';
             foreach ($categoryMap as $category => $identifiers) {
@@ -135,6 +183,9 @@ class AiRoleManager extends Component
             }
             $groupedTools[$matchedCategory][] = $tool;
         }
+
+        // Leere Kategorien rausfiltern, die gar keine Tools besitzen
+        $groupedTools = array_filter($groupedTools, fn($tools) => count($tools) > 0);
 
         // Berechne Active Count pro Gruppe
         $groupedToolsCollection = collect($groupedTools)->map(function ($toolsList, $category) {

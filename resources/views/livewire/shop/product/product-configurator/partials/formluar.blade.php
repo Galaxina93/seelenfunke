@@ -1,6 +1,94 @@
 <div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
     @if($context !== 'preview')
+        
+        <!-- START: Design Speichern / Laden -->
+        <div class="space-y-4" x-data="{
+            draftExists: false,
+            isSaving: false,
+            isLoading: false,
+            storageKey: 'seelenfunke_design_draft_' + '{{ $product->id }}',
+            init() {
+                this.draftExists = localStorage.getItem(this.storageKey) !== null;
+            },
+            saveDraft() {
+                let draft = {
+                    texts: $wire.texts,
+                    logos: $wire.logos,
+                    texts_back: $wire.texts_back,
+                    logos_back: $wire.logos_back,
+                    notes: $wire.notes,
+                    uploaded_files: $wire.uploaded_files
+                };
+                localStorage.setItem(this.storageKey, JSON.stringify(draft));
+                this.draftExists = true;
+                
+                this.isSaving = true;
+                setTimeout(() => { this.isSaving = false; }, 2500);
+                
+                $dispatch('notify', {message: 'Dein Design wurde erfolgreich auf deinem Gerät gespeichert!'});
+            },
+            loadDraft() {
+                let draft = localStorage.getItem(this.storageKey);
+                if (draft) {
+                    draft = JSON.parse(draft);
+                    $wire.texts = draft.texts || [];
+                    $wire.logos = draft.logos || [];
+                    $wire.texts_back = draft.texts_back || [];
+                    $wire.logos_back = draft.logos_back || [];
+                    $wire.notes = draft.notes || '';
+                    $wire.uploaded_files = draft.uploaded_files || [];
+                    
+                    this.isLoading = true;
+                    setTimeout(() => { this.isLoading = false; }, 2500);
+                    
+                    $dispatch('notify', {message: 'Gespeichertes Design erfolgreich geladen!'});
+                }
+            }
+        }">
+            <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
+                <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
+                Dein Design Sichern
+            </h3>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button type="button" @click="saveDraft" class="flex flex-col items-center justify-center p-4 rounded-[2rem] border text-sm font-bold shadow-sm transition-all group {{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-300 hover:border-[#C5A059] hover:bg-[#C5A059]/10' : 'bg-white border-slate-200 text-slate-700 hover:border-[#C5A059] hover:bg-[#C5A059]/5 hover:shadow-md' }}">
+                    <template x-if="!isSaving">
+                        <div class="flex flex-col items-center">
+                            <svg class="w-6 h-6 mb-1 text-[#C5A059] group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                            Aktuelles Design Speichern
+                        </div>
+                    </template>
+                    <template x-if="isSaving">
+                        <div class="flex flex-col items-center text-green-600 animate-pulse">
+                            <svg class="w-6 h-6 mb-1 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            Erfolgreich gespeichert!
+                        </div>
+                    </template>
+                </button>
+
+                <button type="button" @click="loadDraft" x-show="draftExists" x-cloak class="flex flex-col items-center justify-center p-4 rounded-[2rem] border border-[#C5A059] bg-[#C5A059]/10 text-sm font-bold text-[#C5A059] shadow-sm transition-all hover:bg-[#C5A059]/20 hover:shadow-md group">
+                    <template x-if="!isLoading">
+                        <div class="flex flex-col items-center">
+                            <svg class="w-6 h-6 mb-1 text-[#C5A059] group-hover:-translate-y-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            Gespeichertes Design Laden
+                        </div>
+                    </template>
+                    <template x-if="isLoading">
+                        <div class="flex flex-col items-center text-green-700 animate-pulse">
+                            <svg class="w-6 h-6 mb-1 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            Design geladen!
+                        </div>
+                    </template>
+                </button>
+            </div>
+            
+            <p class="text-xs {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
+                Speichert dein Design lokal in deinem Browser, damit du es später exakt so für dieses Produkt fortsetzen kannst.
+            </p>
+        </div>
+        <!-- END: Design Speichern / Laden -->
+
         <div class="space-y-4">
             <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
                 <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
@@ -9,7 +97,7 @@
             <div class="border rounded-[2rem] p-5 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
                 <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
                     @php
-                        $vectorPath = public_path('images/configurator/vectors');
+                        $vectorPath = public_path('shop/product/configurator/vectors');
                         $vectors = [];
                         if(\Illuminate\Support\Facades\File::exists($vectorPath)) {
                             $files = \Illuminate\Support\Facades\File::files($vectorPath);
@@ -27,12 +115,12 @@
 
                     @forelse($vectors as $v)
                         <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
-                            <img src="{{ asset('images/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity">
+                            <img src="{{ asset('shop/product/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity">
                             <span class="text-[8px] font-bold uppercase mt-2 group-hover:text-primary truncate w-full text-center {{ $isDark ? 'text-amber-500/80' : 'text-amber-700/80' }}">{{ $v['name'] }}</span>
                         </button>
                     @empty
                         <div class="col-span-full text-center text-xs py-4 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
-                            Keine Bilder im Ordner "images/configurator/vectors" gefunden.
+                            Keine Bilder im Ordner "shop/product/configurator/vectors" gefunden.
                         </div>
                     @endforelse
                 </div>

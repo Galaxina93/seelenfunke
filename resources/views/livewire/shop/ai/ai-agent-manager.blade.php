@@ -40,7 +40,7 @@
                             @if($agent->profile_picture)
                                 <div class="h-20 w-20 rounded-2xl overflow-hidden border border-{{ $agentColor }}/30 shadow-[0_0_15px_currentColor] text-{{ $agentColor }} bg-gray-900 group-hover:scale-110 transition-transform relative shrink-0">
                                     <div class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full {{ $statusColor }} border-2 border-gray-900 shadow-sm z-20"></div>
-                                    <img src="{{ Storage::url($agent->profile_picture) }}" class="w-full h-full object-cover">
+                                    <img src="{{ \Illuminate\Support\Str::startsWith($agent->profile_picture, 'shop/') ? asset($agent->profile_picture) : Storage::url($agent->profile_picture) }}" class="w-full h-full object-cover">
                                 </div>
                             @else
                                 <div class="h-20 w-20 rounded-2xl flex items-center justify-center bg-{{ $agentColor }}/20 text-{{ $agentColor }} border border-{{ $agentColor }}/30 shadow-[0_0_15px_currentColor] group-hover:scale-110 transition-transform relative shrink-0">
@@ -76,15 +76,17 @@
                     @endphp
                     <div class="relative z-10 mb-5">
                         <div class="flex justify-between items-end mb-1">
-                            <div class="flex items-center gap-1.5 relative group cursor-help">
-                                <h4 class="text-[9px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-1.5 group-hover:text-gray-400 transition-colors">
+                            <div class="flex items-center gap-1.5">
+                                <h4 class="text-[9px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-1.5">
                                     <i class="bi bi-cpu text-xs"></i> Kognitiver Speicher
                                 </h4>
-                                <i class="bi bi-info-circle text-[9px] text-gray-500 group-hover:text-primary transition-colors"></i>
-                                <div class="absolute bottom-[calc(100%+8px)] left-0 w-[200px] p-2.5 bg-gray-900 border border-gray-700 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] text-[9px] text-gray-400 font-sans normal-case tracking-normal opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                    <div class="absolute -bottom-1 left-4 w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45"></div>
-                                    <strong class="text-white block mb-0.5 mt-0">Basis-Auslastung:</strong>
-                                    Zeigt in Tokens an, wie viel "Gehirnkapazität" der Agent allein durch seine Rollenbeschreibung und die zugewiesenen Infrastruktur-Werkzeuge verbraucht.
+                                <div class="relative group/tooltip cursor-help flex items-center justify-center">
+                                    <x-heroicon-o-information-circle class="w-3.5 h-3.5 text-gray-400 hover:text-white transition-colors" />
+                                    <div class="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-[200px] p-2.5 bg-gray-900 border border-gray-700 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] text-[9px] text-gray-400 font-sans normal-case tracking-normal opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50">
+                                        <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45"></div>
+                                        <strong class="text-white block mb-0.5 mt-0">Basis-Auslastung:</strong>
+                                        Zeigt in Tokens an, wie viel "Gehirnkapazität" der Agent allein durch seine Rollenbeschreibung und die zugewiesenen Infrastruktur-Werkzeuge verbraucht.
+                                    </div>
                                 </div>
                             </div>
                             <span class="text-[9px] font-mono {{ $textColor }}">{{ number_format($load['tokens'], 0, ',', '.') }} / {{ number_format($load['max'], 0, ',', '.') }}</span>

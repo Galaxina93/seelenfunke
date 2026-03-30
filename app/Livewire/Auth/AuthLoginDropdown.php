@@ -7,6 +7,13 @@ use Livewire\Component;
 
 class AuthLoginDropdown extends Component
 {
+    public $isMobile = false;
+
+    public function mount($isMobile = false)
+    {
+        $this->isMobile = $isMobile;
+    }
+
     public function logout()
     {
         // Guard dynamisch aus dem User-Model holen

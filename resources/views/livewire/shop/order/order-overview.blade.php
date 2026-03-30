@@ -46,7 +46,7 @@
                 {{-- 1. FUNKI AVATAR --}}
                 <div class="relative shrink-0">
                     <div class="w-28 h-28 md:w-36 md:h-36 rounded-full bg-gray-950 border-2 border-gray-800 shadow-[inset_0_-2px_20px_rgba(0,0,0,0.5),_0_10px_30px_rgba(0,0,0,0.5)] flex items-center justify-center relative z-10 p-1">
-                        <img src="{{ asset('images/projekt/funki/' . $funkiImg) }}" class="w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] hover:scale-105 hover:-rotate-3 transition-transform duration-500 ease-out" alt="Funki">
+                        <img src="{{ asset('shop/projekt/funki/' . $funkiImg) }}" class="w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] hover:scale-105 hover:-rotate-3 transition-transform duration-500 ease-out" alt="Funki">
                     </div>
                     {{-- Status Badge am Avatar --}}
                     <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 {{ $statusColor }} px-4 py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest border shadow-lg flex items-center gap-2 z-20 backdrop-blur-md">

@@ -15,9 +15,8 @@ class EventServiceProvider extends ServiceProvider
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
-        Registered::class => [
-            SendEmailVerificationNotification::class,
-        ],
+        // Laravel 11 auto-binds Registered -> SendEmailVerificationNotification natively.
+        // Mapping it here again causes the duplicate double-email bug on Customer creations!
     ];
 
     /**

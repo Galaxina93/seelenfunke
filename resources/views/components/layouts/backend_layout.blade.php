@@ -37,6 +37,7 @@
 
     $adminId = '';
     $hasUnreadTickets = false;
+    $hasUnreadCustomerChats = false;
 
     if(auth()->guard('admin')->check()) {
         $adminId = (string)auth()->guard('admin')->id();
@@ -47,12 +48,17 @@
                 ->where('is_read_by_admin', false)
                 ->exists();
         }
+        
+        if(class_exists(\App\Models\Support\SupportCustomerChat::class)) {
+            $hasUnreadCustomerChats = \App\Models\Support\SupportCustomerChat::where('status', 'needs_employee')->exists();
+        }
     }
 @endphp
 
 {{-- GLOBALER ALPINE STATE FÜR NAVIGATION UND WEBSOCKETS (Als eigener Wrapper) --}}
 <div x-data="{
         hasUnreadSupport: {{ $hasUnreadTickets ? 'true' : 'false' }},
+        hasUnreadCustomerChats: {{ $hasUnreadCustomerChats ? 'true' : 'false' }},
         showToast: false,
         toastMessage: '',
         initAdminEcho() {
@@ -69,10 +75,10 @@
                                     this.hasUnreadSupport = true;
                                     window.dispatchEvent(new CustomEvent('admin-ticket-badge-update')); // NEU: Event feuern
 
-                                    if(!window.location.pathname.includes('/tickets')){
+                                    if(!window.location.pathname.includes('/support-tickets')){
                                         let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
                                         let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
-                                        this.toastMessage = 'Neue SupportTicket Nachricht zum SupportTicket ' + tNumber + ' von ' + cName;
+                                        this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
                                         this.showToast = true;
                                         setTimeout(() => { this.showToast = false; }, 5000);
                                     }
@@ -85,13 +91,36 @@
                                     this.hasUnreadSupport = true;
                                     window.dispatchEvent(new CustomEvent('admin-ticket-badge-update')); // NEU: Event feuern
 
-                                    if(!window.location.pathname.includes('/tickets')){
+                                    if(!window.location.pathname.includes('/support-tickets')){
                                         let tNumber = e.message.ticket ? e.message.ticket.ticket_number : '';
                                         let cName = (e.message.ticket && e.message.ticket.customer) ? e.message.ticket.customer.first_name : 'Kunde';
-                                        this.toastMessage = 'Neue SupportTicket Nachricht zum SupportTicket ' + tNumber + ' von ' + cName;
+                                        this.toastMessage = 'Neue Ticket Nachricht zum Ticket ' + tNumber + ' von ' + cName;
                                         this.showToast = true;
                                         setTimeout(() => { this.showToast = false; }, 5000);
                                     }
+                                }
+                            });
+
+                            // Kunden-Chats Listener (AI Eskalation)
+                            window.Echo.private('admin.{{$adminId}}').listen('.CustomerChatEscalated', (e) => {
+                                this.hasUnreadCustomerChats = true;
+                                window.dispatchEvent(new CustomEvent('admin-customerchat-badge-update'));
+
+                                if(!window.location.pathname.includes('/support-chats')){
+                                    this.toastMessage = 'Die KI-Assistenz hat einen Kunden-Chat eskaliert!';
+                                    this.showToast = true;
+                                    setTimeout(() => { this.showToast = false; }, 5000);
+                                }
+                            });
+
+                            window.Echo.private('admin.tickets').listen('.CustomerChatEscalated', (e) => {
+                                this.hasUnreadCustomerChats = true;
+                                window.dispatchEvent(new CustomEvent('admin-customerchat-badge-update'));
+
+                                if(!window.location.pathname.includes('/support-chats')){
+                                    this.toastMessage = 'Die KI-Assistenz hat einen Kunden-Chat eskaliert!';
+                                    this.showToast = true;
+                                    setTimeout(() => { this.showToast = false; }, 5000);
                                 }
                             });
                         } else if (attempts > 30) {
@@ -102,7 +131,8 @@
                 }
     }"
      x-init="initAdminEcho()"
-     @clear-admin-ticket-badge.window="hasUnreadSupport = false"
+      @clear-admin-ticket-badge.window="hasUnreadSupport = false"
+     @clear-admin-customerchat-badge.window="hasUnreadCustomerChats = false"
      class="relative w-full min-h-screen flex flex-col">
 
     @if(auth()->guard('admin')->check())
@@ -145,7 +175,7 @@
                             {{-- MOBILE LOGO MIT LINK --}}
                             <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
                                 <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
-                                    <img class="h-24 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
+                                    <img class="h-24 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                                 </a>
                             </div>
 
@@ -163,7 +193,7 @@
                     {{-- DESKTOP LOGO MIT LINK --}}
                     <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
                         <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
-                            <img class="h-24 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
+                            <img class="h-24 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                         </a>
                     </div>
 

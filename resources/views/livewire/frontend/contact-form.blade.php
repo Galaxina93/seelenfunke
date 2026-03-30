@@ -57,7 +57,7 @@
                             <div class="absolute inset-0 bg-gradient-to-r blur-3xl rounded-full opacity-30 transform scale-75 transition-colors duration-500"
                                  :class="showRose ? 'from-pink-500/20 to-transparent' : 'from-primary/20 to-transparent'"></div>
 
-                            <img :src="showRose ? '{{ asset('images/projekt/funki/funki_rose.webp') }}' : '{{ asset('images/projekt/funki/funki_shy.webp') }}'"
+                            <img :src="showRose ? '{{ asset('shop/projekt/funki/funki_rose.webp') }}' : '{{ asset('shop/projekt/funki/funki_shy.webp') }}'"
                                  alt="Funki Maskottchen hilft bei Kontaktanfragen und Beratung"
                                  width="256" height="256"
                                  loading="lazy"

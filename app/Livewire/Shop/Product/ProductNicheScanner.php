@@ -28,19 +28,11 @@ class ProductNicheScanner extends Component
     public $historicalRunData = null;
     public $historicalTop3Data = null;
 
-    // AI Agent Properties
-    public $availableAgents = [];
-    public $selectedAgentId = '';
-    public $aiRecommendation = null;
-    public $isRecommending = false;
 
     public function mount()
     {
-        $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)->with('role')->orderBy('name')->get()->toArray();
         $this->loadSavedRuns();
 
-        $this->aiRecommendation = \Illuminate\Support\Facades\Cache::get('niche_scanner_live_ai_rec');
-        $this->selectedAgentId = \Illuminate\Support\Facades\Cache::get('niche_scanner_live_ai_agent') ?? '';
     }
 
     public function loadSavedRuns()
@@ -54,7 +46,6 @@ class ProductNicheScanner extends Component
             $this->selectedRunId = null;
             $this->historicalRunData = null;
             $this->historicalTop3Data = null;
-            $this->aiRecommendation = null;
             session()->flash('message', 'Zurück zur Live-Ansicht gewechselt.');
             return;
         }
@@ -69,7 +60,6 @@ class ProductNicheScanner extends Component
             $this->historicalRunData = $allData;
             $this->historicalTop3Data = $allData->sortByDesc('niche_score')->take(3)->values();
 
-            $this->aiRecommendation = $run->ai_recommendation;
             session()->flash('success', 'Historischen Snapshot "' . $run->name . '" geladen.');
         }
     }
@@ -107,8 +97,8 @@ class ProductNicheScanner extends Component
             'keyword' => $this->crawlKeyword,
             'platform' => $platformStr,
             'products_data' => $products->toArray(),
-            'ai_recommendation' => $this->aiRecommendation,
-            'ai_agent_id' => $this->selectedAgentId ?: null,
+            'ai_recommendation' => null,
+            'ai_agent_id' => null,
         ]);
 
         $this->loadSavedRuns();
@@ -158,7 +148,6 @@ class ProductNicheScanner extends Component
 
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_rec');
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_agent');
-        $this->aiRecommendation = null;
 
         session()->flash('message', 'Crawler für ausgewählte Plattformen gestartet.');
         $this->crawlKeyword = '';
@@ -182,91 +171,9 @@ class ProductNicheScanner extends Component
         ProductNicheItem::truncate();
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_rec');
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_agent');
-        $this->aiRecommendation = null;
         session()->flash('message', 'Alle Crawler-Daten wurden gelöscht.');
     }
 
-    public function startAiRecommendation()
-    {
-        if (empty($this->selectedAgentId)) {
-            session()->flash('error', 'Bitte wähle zuerst einen KI-Agenten aus.');
-            return;
-        }
-
-        $this->isRecommending = true;
-
-        $agent = \App\Models\Ai\AiAgent::find($this->selectedAgentId);
-        if (!$agent) {
-            $this->isRecommending = false;
-            session()->flash('error', 'Agent nicht gefunden.');
-            return;
-        }
-
-        // Get Top 3 based on current filters
-        $query = ProductNicheItem::query();
-        if (!empty($this->filterPlatform)) $query->where('platform', $this->filterPlatform);
-        if ($this->filterMinScore > 0) $query->where('niche_score', '>=', $this->filterMinScore);
-        $top3 = $query->orderBy('niche_score', 'desc')->take(3)->get();
-
-        if ($top3->count() < 3) {
-            $this->isRecommending = false;
-            session()->flash('error', 'Es werden mindestens 3 Produkte für die Analyse benötigt.');
-            return;
-        }
-
-        $txData = $top3->map(function ($p, $index) {
-            return [
-                'ranking' => $index + 1,
-                'title' => $p->title,
-                'price' => $p->price,
-                'reviews' => $p->reviews,
-                'score' => $p->niche_score,
-                'url' => $p->url
-            ];
-        })->toJson();
-
-        $prompt = "Du bist ein erfahrener E-Commerce Experte und Berater für einen Laser-Graveur.\n";
-        $prompt .= "Der Nutzer hat einen CO2 und Faser-Laser. Er kann Produkte direkt gravieren, personalisieren und verschicken.\n";
-        $prompt .= "WICHTIGE EINSCHRÄNKUNGEN FÜR PRODUKTE:\n";
-        $prompt .= "- Maximale Größe für Trophäen/Acryl: 200x200x40mm\n";
-        $prompt .= "- Maximale Größe für Schieferplatten: 180x180mm\n";
-        $prompt .= "- Geeignete und sehr gute Artikel: Schlüsselanhänger, Flaschenöffner, Kugelschreiber, Weingläser, kleine Holzboxen.\n";
-        $prompt .= "- UNGEEIGNETE ARTIKEL (zu groß): Schränke, Stühle, große Holzfässer, Bilderrahmen größer als A4, massive Tische.\n\n";
-
-        $prompt .= "Hier sind die Top 3 Nischen-Produkte aus dem aktuellen Crawler-Scan:\n$txData\n\n";
-        $prompt .= "DEINE AUFGABE:\n";
-        $prompt .= "Analysiere diese 3 Produkte. Entscheide dich für EXAKT EIN Produkt, das unter Berücksichtigung der Maschinen-Einschränkungen das allerbeste Potenzial für den Laser-Graveur bietet.\n";
-        $prompt .= "Erkläre deine Wahl in 3-4 überzeugenden, kurzen Sätzen. Schreibe kein JSON, sondern direkt den Antwort-Text für den Nutzer.\n";
-
-        try {
-            $response = \Illuminate\Support\Facades\Http::withToken(config('services.mittwald.key'))
-                ->timeout(60)
-                ->post(config('services.mittwald.url') . '/chat/completions', [
-                    'model' => $agent->model ?? 'gpt-oss-120b',
-                    'messages' => [
-                        ['role' => 'system', 'content' => $agent->system_prompt],
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => 0.6,
-                ]);
-
-            if ($response->successful()) {
-                $this->aiRecommendation = $response->json()['choices'][0]['message']['content'] ?? 'Keine Antwort erhalten.';
-
-                // Store in cache so it persists on reload
-                \Illuminate\Support\Facades\Cache::put('niche_scanner_live_ai_rec', $this->aiRecommendation);
-                \Illuminate\Support\Facades\Cache::put('niche_scanner_live_ai_agent', $this->selectedAgentId);
-
-                session()->flash('success', 'Der KI-Agent hat die Produkte analysiert.');
-            } else {
-                session()->flash('error', 'API Verbindungsfehler zum LLM: ' . $response->status());
-            }
-        } catch (\Exception $e) {
-            session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());
-        }
-
-        $this->isRecommending = false;
-    }
 
     public function exportTop5Pdf()
     {

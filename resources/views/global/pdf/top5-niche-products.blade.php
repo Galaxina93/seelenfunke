@@ -71,7 +71,7 @@
 </div>
 
 <div class="header">
-    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+    <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title">{{ $docTitle ?? 'Marktanalyse: Top 5 Nischen-Produkte' }}</div>
     <div class="erp-tag">Generiert durch: Seelenfunke Stealth Crawler</div>
     <div class="plan-year-title">SCAN-DATUM: {{ $date }}</div>

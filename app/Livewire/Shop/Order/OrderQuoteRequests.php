@@ -209,7 +209,7 @@ class OrderQuoteRequests extends Component
             if($stripeSecret && $type === 'stripe_link') {
                 Stripe::setApiKey($stripeSecret);
 
-                $session = StripeSystemSession::create([
+                $session = StripeSession::create([
                     'payment_method_types' => ['card', 'paypal', 'klarna', 'sofort'],
                     'line_items' => [[
                         'price_data' => [

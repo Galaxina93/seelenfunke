@@ -47,8 +47,14 @@ class AdminRoutesSmokeTest extends TestCase
         foreach (self::adminRoutesProvider() as $param) {
             $url = $param[0];
             $response = $this->actingAs($admin, 'admin')->get($url);
+            if (!$response->isSuccessful()) {
+                dump("Route failed: " . $url . " | Status: " . $response->status() . " | Message: " . optional($response->exception)->getMessage());
+                // Optional: dump first 500 chars of view to see HTML errors if no exception
+                if (!$response->exception) {
+                    dump(substr($response->getContent(), 0, 500));
+                }
+            }
             
-            // Ein erfolgreicher Status (200 OK) bedeutet, dass die gesamte Blade+Livewire-Logik fehlerfrei kompiliert wurde.
             $response->assertSuccessful();
         }
     }
@@ -62,8 +68,8 @@ class AdminRoutesSmokeTest extends TestCase
             ['/admin/tasks'],
             ['/admin/calender'],
             ['/admin/company-map'],
-            ['/admin/tickets'],
-            ['/admin/ai-analytics'],
+            ['/admin/support-tickets'],
+
             ['/admin/ceo/gesundheit'],
             ['/admin/global-logs'],
             ['/admin/ai-genui'],
@@ -88,13 +94,14 @@ class AdminRoutesSmokeTest extends TestCase
             ['/admin/orders'],
             ['/admin/quote-requests'],
             ['/admin/widerruf'],
-            ['/admin/financial-evaluation'],
+            ['/admin/financial-analytics'],
             ['/admin/financial-liquidity-planning'],
             ['/admin/financial-banks'],
             ['/admin/financial-fix-costs'],
             ['/admin/financial-variable-costs'],
             ['/admin/financial-tax'],
             ['/admin/configuration'],
+            ['/admin/marketing/analytics'],
             ['/admin/blog'],
             ['/admin/voucher'],
             ['/admin/newsletter'],

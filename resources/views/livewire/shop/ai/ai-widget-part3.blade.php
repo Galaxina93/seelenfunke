@@ -194,6 +194,11 @@
 
                 document.addEventListener('livewire:navigating', () => {
                     this.destroy();
+                    localStorage.setItem('funki_isOpen', 'false');
+                });
+
+                window.addEventListener('beforeunload', () => {
+                    localStorage.setItem('funki_isOpen', 'false');
                 });
 
                 document.addEventListener('livewire:navigated', () => {

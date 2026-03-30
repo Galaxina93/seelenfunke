@@ -14,7 +14,7 @@
                 {{-- Logo --}}
                 <div class="flex items-center">
                     <a href="{{ route('home') }}" class="flex items-center gap-2 group">
-                        <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}"
+                        <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}"
                              alt="Mein Seelenfunke Logo"
                              width="600" height="229"
                              class="h-24 w-auto transition-transform duration-300 group-hover:scale-105">
@@ -139,9 +139,9 @@
                     Angebot kalkulieren
                 </a>
 
-                <a href="{{ route('login') }}" class="block mt-2 px-3 py-2 text-center text-white border border-gray-600 rounded-md hover:text-primary hover:border-primary transition-colors">
-                    Login / Kundenbereich
-                </a>
+                <div class="mt-4 border-t border-gray-700/50 pt-2 pb-2">
+                    <livewire:auth.auth-login-dropdown :isMobile="true" />
+                </div>
             </div>
         </div>
     </nav>

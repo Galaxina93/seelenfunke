@@ -113,8 +113,8 @@
                                     @if(isset($msg['profile_picture']) && $msg['profile_picture'])
                                         @php
                                             $pp = $msg['profile_picture'];
-                                            $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, '/'))
-                                                   ? asset($pp) : Storage::url($pp);
+                                            $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
+                                                   ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                                         @endphp
                                         <img src="{{ $src }}" class="w-full h-full object-cover" alt="Profile">
                                     @else
@@ -164,7 +164,7 @@
                             <div class="flex items-center gap-4 mb-2">
                                 <div class="w-16 h-16 rounded shrink-0 flex justify-center items-center bg-teal-500/10 border border-teal-500/40 shadow-[0_0_12px_currentColor] text-teal-500 overflow-hidden">
                                     @if($typingAgent && $typingAgent->profile_picture)
-                                        <img src="{{ Storage::url($typingAgent->profile_picture) }}" class="w-full h-full object-cover" alt="Dr. Funki">
+                                        <img src="{{ \Illuminate\Support\Str::startsWith($typingAgent->profile_picture, 'shop/') ? asset($typingAgent->profile_picture) : Storage::url($typingAgent->profile_picture) }}" class="w-full h-full object-cover" alt="Dr. Funki">
                                     @else
                                         <x-heroicon-o-user-plus class="w-8 h-8 animate-pulse" />
                                     @endif

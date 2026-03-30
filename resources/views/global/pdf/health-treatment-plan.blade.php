@@ -203,7 +203,7 @@
             <tr>
                 <td class="company-info">
                     @php
-                        $logoPath = public_path('images/projekt/logo/mein-seelenfunke-logo.svg');
+                        $logoPath = public_path('shop/projekt/logo/mein-seelenfunke-logo.svg');
                         $logoBase64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
                     @endphp
                     @if($logoBase64)

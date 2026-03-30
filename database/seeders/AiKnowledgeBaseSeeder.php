@@ -23,6 +23,7 @@ class AiKnowledgeBaseSeeder extends Seeder
             'Datenschutz & Infrastruktur' => 'Informationen zur Datenverarbeitung, Server-Hosting und KI.',
             'Bestell- & Produktionsprozess' => 'Konfigurator, Laser-Personalisierung und Toleranzen.',
             'Gamification & 3D-Welt' => '3D-Dashboard, Mini-Spiele, Level-System und Rabattcodes.',
+            'Support & Kundenservice' => 'Umgang mit Reklamationen, Beschwerden und Eskalationen.',
         ];
 
         $catMap = [];
@@ -37,7 +38,7 @@ class AiKnowledgeBaseSeeder extends Seeder
         }
 
         // 2. Tags definieren und anlegen
-        $tags = ['Kontakt', 'Recht', 'Personalisierung', 'Laser', 'Gamification', 'Datenschutz', 'Widerruf', 'Etsy', 'Zahlung', '3D', 'KI-Sicherheit'];
+        $tags = ['Kontakt', 'Recht', 'Personalisierung', 'Laser', 'Gamification', 'Datenschutz', 'Widerruf', 'Etsy', 'Zahlung', '3D', 'KI-Sicherheit', 'Support', 'Ticket', 'Reklamation'];
         $tagMap = [];
         foreach ($tags as $tagName) {
             $tagMap[$tagName] = AiKnowledgeBaseTag::firstOrCreate([
@@ -162,6 +163,55 @@ Sowohl die Kern-Website, die Datenbanken als auch **alle Künstlichen Intelligen
 
 **Cookies & Drittanbieter:**
 Optionale Cookies werden nur nach aktivem Consent gesetzt. Soziale Medien wie Meta (Instagram) und TikTok sammeln Daten auf ihren eigenen Portalen, hierauf hat Mein-Seelenfunke keinen tieferen technischen Einfluss, wertet dort aber statistische Insights aus.
+                "
+            ],
+            // Artikel 7: Das tatsächliche Produktsortiment
+            [
+                    'title' => 'Offizielles Sortiment & Produktkatalog',
+                'category' => 'Bestell- & Produktionsprozess',
+                'tags' => ['Personalisierung', 'Laser'],
+                'content' => "
+# Unser exklusives Produkt-Sortiment
+
+Mein-Seelenfunke bietet **ausschließlich** die folgenden Hauptprodukte an. Wir verkaufen **KEINE** Gitarren, Wallets, Schmuck, Lederwaren oder andere Massenartikel.
+Biete Kunden im Chat **nur** Produkte aus dieser echten Liste an und erfinde niemals andere Produkte:
+
+1. **Der Seelen Kristall**
+Ein absolut edler, hochwertiger Glaskristall mit filigraner 3D-Innengravur oder Flächengravur. Perfekt als Trophäe, Liebesbeweis oder Erinnerungsstück.
+
+2. **Der Seelenanhänger**
+Ein robuster, aber sehr präziser Schlüsselanhänger (z.B. aus Echtholz) mit persönlicher Gravur – ideal als ständiger Begleiter.
+
+3. **Das Seelenbuch**
+Ein wunderschön gebundenes, personalisiertes Notizbuch, Holzbuch oder Tagebuch. Der Einband wird nach Kundenwunsch hochpräzise gelasert.
+
+4. **Personalisiertes Weizenglas / Trinkglas**
+Hochwertige Trinkgläser, die durch Laser-Ätzung mit Namen, Wappen oder Sprüchen dauerhaft und spülmaschinenfest personalisiert werden.
+
+5. **Persönliche Firmen-Laser-Beratung**
+Wir bieten auch eine individuelle 1-zu-1 Beratung an, um völlig eigene B2B-Projekte oder Sonderanfertigungen (z.B. für Großbestellungen) zu planen.
+
+**Geheimhaltung der Einkaufspreise (B2B):** 
+Die Einkaufs- oder Materialkosten unserer Waren sind **strengstes Firmengeheimnis**. Sollte ein Kunde danach fragen, lehne charmant ab und weise darauf hin, dass B2B-Konditionen nur auf offizielle Anfrage gewährt werden.
+                "
+            ],
+            // Artikel 8: Customer Support & Eskalationsrichtlinie
+            [
+                'title' => 'Umgang mit Kundenbeschwerden & Eskalationen',
+                'category' => 'Support & Kundenservice',
+                'tags' => ['Support', 'Ticket', 'Reklamation'],
+                'content' => "
+# Support-Richtlinien für Funki (KI)
+
+**Grundsätzliche Haltung:**
+Funki ist der absolut loyalste, weicheste und verständnisvollste Supporter, den sich ein Kunde wünschen kann. Egal wie wütend der Kunde ist, Funki bleibt 100% deeskalierend, benutzt weiche Emojis und entschuldigt sich ernsthaft.
+
+**Eskalations-Protokoll (needs_employee):**
+Wenn ein Kunde ein sehr komplexes technisches Problem hat, wütend ist, beschädigte Ware erhalten hat (Lasergravur falsch, gesplittert etc.) oder ausdrücklich nach einem menschlichen Mitarbeiter (bzw. Alina) verlangt, **MUSS** umgehend das Werkzeug `support_mark_needs_employee` aufgerufen werden. 
+*Hinweis:* Kläre den Kunden darüber auf, dass dieses Tool sofort und vollautomatisch ein echtes priorisiertes **Ticket (TCK-...)** im Hintergrund anlegt, welches direkt auf dem Schreibtisch der Inhaberin (Alina) landet. Versichere dem Kunden, dass sein Problem 100% manuell und liebevoll gelöst wird, und verabschiede dich danach beruhigend.
+
+**Feedback & Chat-Ende:**
+Sobald alle simplen Fragen des Kunden restlos und positiv geklärt sind, rufe das Tool `support_resolve_chat` auf. Dieses Werkzeug schließt den Chat ab und erlaubt es dem Kunden, eine **5-Sterne-Bewertung** abzugeben. Bitte den Kunden höflich aber bestimmt darum, sein ehrliches Feedback zur KI da zu lassen, da Seelenfunke extrem auf Kundenzufriedenheit achtet.
                 "
             ]
         ];

@@ -243,7 +243,7 @@
             },
 
             getLogoUrl(iconName) {
-                return `/images/projekt/brands/${iconName}.svg`;
+                return `/shop/projekt/brands/${iconName}.svg`;
             },
         }));
     });

@@ -5,7 +5,7 @@ namespace Tests\Feature\Livewire\Global\Widgets;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Livewire\Livewire;
-use App\Livewire\Shop\Management\ManagementAnalytics as Analytics;
+use App\Livewire\Shop\Master\MasterAnalytics as Analytics;
 use App\Models\Admin\Admin;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;

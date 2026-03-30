@@ -10,6 +10,13 @@ use Livewire\Component;
 
 class AuthRegister extends Component
 {
+    public ?string $sessionToken = null;
+
+    public function mount(?string $sessionToken = null)
+    {
+        $this->sessionToken = $sessionToken ?? request()->cookie('sf_chat_uuid');
+    }
+
     public $firstname = '';
     public $lastname = '';
     public $email = '';
@@ -113,7 +120,15 @@ class AuthRegister extends Component
             'birthday' => $this->birthday,
         ]);
 
-        event(new Registered($customer));
+        // Chat Session Guest-Ascension Migration
+        if ($this->sessionToken) {
+            \App\Models\Support\SupportCustomerChat::where('session_token', $this->sessionToken)
+                ->whereNull('customer_id')
+                ->update(['customer_id' => $customer->id]);
+        }
+
+        // Send verification manually to circumvent Laravel 11 auto-discovery bug causing duplicate event dispatches.
+        $customer->sendEmailVerificationNotification();
 
         session()->flash('status', 'Willkommen bei Mein Seelenfunke! Wir haben dir eine E-Mail gesendet. Bitte bestätige deine Adresse, um dich einzuloggen.');
 

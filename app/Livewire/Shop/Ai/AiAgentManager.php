@@ -7,6 +7,7 @@ use Livewire\Component;
 
 class AiAgentManager extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $pingResults = [];
 
     public function render()
@@ -124,8 +125,8 @@ class AiAgentManager extends Component
         $llmStatus = 'Fehler';
         try {
             $start = microtime(true);
-            $llmUrl = env('OPENAI_API_BASE', 'https://api.openai.com/v1');
-            $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken(env('OPENAI_API_KEY'))->get(rtrim($llmUrl, '/') . '/models');
+            $llmUrl = config('services.mittwald.url') ?: 'https://api.mittwald.example/v1';
+            $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken(config('services.mittwald.key'))->get(rtrim($llmUrl, '/') . '/models');
             
             // If it returns 200, 401, or 404, the server is reachable
             if ($response->successful() || $response->status() === 401 || $response->status() === 404) {

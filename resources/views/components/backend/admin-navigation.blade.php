@@ -12,28 +12,25 @@
             <ul role="list" class="-mx-2 space-y-1">
                 @foreach($section['items'] as $item)
                     @if($item['type'] === 'single')
-                        @if(isset($item['is_ticket']) && $item['is_ticket'])
-                            {{-- Ticketsystem inkl. rotem Benachrichtigungspunkt --}}
-                            <li x-data="{ unread: hasUnreadSupport }"
-                                @admin-ticket-badge-update.window="unread = true"
-                                @clear-admin-ticket-badge.window="unread = false">
-
-                                <a href="{{ $item['route'] }}" @click="unread = false; hasUnreadSupport = false" class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ '/' . ltrim($currentPath, '/') === $item['route'] ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
-                                    <div class="relative">
-                                        <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="w-5 h-5 shrink-0 transition-transform duration-300 {{ '/' . ltrim($currentPath, '/') === $item['route'] ? 'text-primary' : 'text-gray-500 group-hover:text-white group-hover:scale-110' }}" />
-
-                                        {{-- Nutzt nun die isolierte 'unread' Variable, die sich sofort aktualisiert --}}
-                                        <span x-show="unread" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-                                        </span>
-                                    </div>
-                                    <span class="truncate">{{ $item['title'] }}</span>
-                                </a>
-                            </li>
-                        @else
-                            <x-forms.list-item route="{{ $item['route'] }}" title="{{ $item['title'] }}" pageName="{{ basename($item['route']) }}" icon="{{ $item['icon'] }}" :noColor="$item['id'] === 'dashboard'" />
-                        @endif
+                        @php
+                            $dotProps = [];
+                            if ($item['id'] === 'support-ticket') {
+                                $dotProps = [
+                                    'dotState' => 'hasUnreadSupport',
+                                    'dotEvent' => 'admin-ticket-badge-update',
+                                    'dotClearEvent' => 'clear-admin-ticket-badge'
+                                ];
+                            }
+                        @endphp
+                        <x-forms.list-item 
+                            route="{{ $item['route'] }}" 
+                            title="{{ $item['title'] }}" 
+                            pageName="{{ basename($item['route']) }}" 
+                            icon="{{ $item['icon'] }}" 
+                            :noColor="$item['id'] === 'dashboard'" 
+                            :dotState="$dotProps['dotState'] ?? null"
+                            :dotEvent="$dotProps['dotEvent'] ?? null"
+                            :dotClearEvent="$dotProps['dotClearEvent'] ?? null" />
                     @elseif($item['type'] === 'group')
                         @php
                             $isActive = \App\Services\Navigation\BackendNavigationService::isGroupActive($item, $currentPath);
@@ -56,25 +53,53 @@
                                         'red-500' => 'text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]',
                                         'rose-500' => 'text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]',
                                         'cyan-500' => 'text-cyan-500 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+                                        'indigo-500' => 'text-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]',
+                                        'teal-500' => 'text-teal-500 drop-shadow-[0_0_8px_rgba(20,184,166,0.8)]',
                                         'primary' => 'text-primary drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]',
                                         default => 'text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]'
                                     };
                                 }
                             }
+                            
+                            $displayIcon = isset($dept) && $dept->icon ? $dept->icon : $item['icon'];
                         @endphp
                         <li x-data="{ open: {{ $isActive ? 'true' : 'false' }} }">
                             <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
                                 @if(!empty($deptColorCss))
-                                    <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="h-5 w-5 shrink-0 transition-colors {{ $deptColorCss }} {{ $hasAgents ? 'animate-pulse-slow' : '' }}" />
+                                    <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $deptColorCss }} {{ $hasAgents ? 'animate-pulse-slow' : '' }}" />
                                 @else
-                                    <x-dynamic-component :component="'heroicon-o-' . $item['icon']" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                                    <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
                                 @endif
                                 <span class="flex-1">{{ $item['title'] }}</span>
                                 <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                             </button>
                             <ul x-show="open" x-collapse style="{{ $isActive ? '' : 'display: none;' }}" class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
                                 @foreach($item['children'] as $child)
-                                    <x-forms.list-item route="{{ $child['route'] }}" title="{{ $child['title'] }}" pageName="{{ basename($child['route']) }}" icon="{{ $child['icon'] }}" themeColor="{{ $deptColorName }}" />
+                                    @php
+                                        $dotProps = [];
+                                        if ($child['id'] === 'support-ticket') {
+                                            $dotProps = [
+                                                'dotState' => 'hasUnreadSupport',
+                                                'dotEvent' => 'admin-ticket-badge-update',
+                                                'dotClearEvent' => 'clear-admin-ticket-badge'
+                                            ];
+                                        } elseif ($child['id'] === 'support-chats') {
+                                            $dotProps = [
+                                                'dotState' => 'hasUnreadCustomerChats',
+                                                'dotEvent' => 'admin-customerchat-badge-update',
+                                                'dotClearEvent' => 'clear-admin-customerchat-badge'
+                                            ];
+                                        }
+                                    @endphp
+                                    <x-forms.list-item 
+                                        route="{{ $child['route'] }}" 
+                                        title="{{ $child['title'] }}" 
+                                        pageName="{{ basename($child['route']) }}" 
+                                        icon="{{ $child['icon'] }}" 
+                                        themeColor="{{ $deptColorName }}"
+                                        :dotState="$dotProps['dotState'] ?? null"
+                                        :dotEvent="$dotProps['dotEvent'] ?? null"
+                                        :dotClearEvent="$dotProps['dotClearEvent'] ?? null" />
                                 @endforeach
                             </ul>
                         </li>

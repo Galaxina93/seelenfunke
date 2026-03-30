@@ -2,7 +2,6 @@
 
 namespace App\Models\Employee;
 
-use App\Models\System\SystemRole;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,9 +38,6 @@ class Employee extends Model implements Authenticatable
         static::created(function (Employee $employee) {
             $employeeProfile = new EmployeeProfile();
             $employee->profile()->save($employeeProfile);
-
-            $employeeRole = SystemRole::where('name', 'employee')->first();
-            $employee->roles()->attach($employeeRole->id);
         });
 
         // Event-Listener für das Löschen eines Employee Profiles
@@ -50,11 +46,7 @@ class Employee extends Model implements Authenticatable
         });
     }
 
-    public function roles(): MorphToMany
-    {
-        return $this->morphToMany(SystemRole::class, 'roleable', 'roleables', 'roleable_id', 'role_id');
-    }
-
+    
     public function directories(): MorphToMany
     {
         return $this->morphToMany(\App\Models\System\SystemDirectory::class, 'user', 'directory_user');

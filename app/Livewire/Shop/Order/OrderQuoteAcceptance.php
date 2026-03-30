@@ -349,7 +349,7 @@ class OrderQuoteAcceptance extends Component
             }
         }
 
-        SystemSession::put('checkout_from_quote_id', $this->quote->id);
+        Session::put('checkout_from_quote_id', $this->quote->id);
         return redirect()->route('checkout');
     }
 

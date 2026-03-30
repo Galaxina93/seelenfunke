@@ -73,7 +73,7 @@
                     @foreach(['datev', 'dhl', 'etsy', 'finom', 'google', 'mittwald', 'stripe', 'firebase'] as $brand)
                         <button wire:click="$set('editNode.icon', '{{ $brand }}')"
                                 class="w-12 h-12 sm:w-14 sm:h-14 p-2 rounded-2xl border-2 transition-all flex items-center justify-center {{ $editNode['icon'] === $brand ? 'bg-primary/10 border-primary shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-gray-950 border-gray-800 hover:border-gray-600 shadow-inner' }}">
-                            <img src="/images/projekt/brands/{{ $brand }}.svg" alt="{{ $brand }}" class="w-full h-full object-contain">
+                            <img src="/shop/projekt/brands/{{ $brand }}.svg" alt="{{ $brand }}" class="w-full h-full object-contain">
                         </button>
                     @endforeach
                 </div>

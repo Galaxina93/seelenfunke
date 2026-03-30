@@ -278,13 +278,13 @@
             {{-- Trust Badges / Icons der Zahlungsmittel --}}
             <div class="hidden sm:flex flex-wrap justify-end gap-2 opacity-70">
                 <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                    <img src="{{ asset('images/projekt/payments/mastercard.svg') }}" class="h-4">
+                    <img src="{{ asset('shop/frontend/payments/mastercard.svg') }}" class="h-4">
                 </div>
                 <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                    <img src="{{ asset('images/projekt/payments/paypal.svg') }}" class="h-4">
+                    <img src="{{ asset('shop/frontend/payments/paypal.svg') }}" class="h-4">
                 </div>
                 <div class="h-6 w-10 flex items-center justify-center rounded bg-gray-50 border border-gray-200">
-                    <img src="{{ asset('images/projekt/payments/klarna.svg') }}" class="h-4">
+                    <img src="{{ asset('shop/frontend/payments/klarna.svg') }}" class="h-4">
                 </div>
             </div>
         </div>

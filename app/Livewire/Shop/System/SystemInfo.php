@@ -27,11 +27,14 @@ class SystemInfo extends Component
 
     public function loadReports()
     {
-        Storage::makeDirectory('reports/laravel-updates');
-        $files = Storage::files('reports/laravel-updates');
-        // Sort newest first technically or alphabetically reverse
-        rsort($files);
-        $this->reportFiles = $files;
+        try {
+            Storage::makeDirectory('reports/laravel-updates');
+            $files = Storage::files('reports/laravel-updates');
+            rsort($files);
+            $this->reportFiles = $files;
+        } catch (\Exception $e) {
+            $this->reportFiles = [];
+        }
     }
 
     public function toggleReport($filename)

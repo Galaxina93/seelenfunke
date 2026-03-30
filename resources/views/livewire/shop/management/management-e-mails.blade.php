@@ -3,12 +3,12 @@
      @folder-selected.window="mobileView = 'list'"
      @settings-opened.window="mobileView = 'settings'"
      class="h-[calc(100vh-8rem)] flex bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-800 overflow-hidden shadow-2xl relative w-full">
-    
+
     {{-- COLUMN 1: Folders & Accounts --}}
     <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full lg:w-80 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
          :class="mobileView === 'folders' ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
         <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
-            <h2 class="text-white font-serif text-xl tracking-wide">CRM Inbox</h2>
+            <h2 class="text-white font-serif text-xl tracking-wide">Postfächer</h2>
             <div class="flex gap-1">
                 <button wire:click="syncMails" class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors" title="Postfächer jetzt synchronisieren">
                     <x-heroicon-o-arrow-path class="w-5 h-5" wire:loading.class="animate-spin" wire:target="syncMails"/>
@@ -21,7 +21,7 @@
                 </button>
             </div>
         </div>
-        
+
         {{-- Accounts are now listed in the main sidebar area below --}}
 
         {{-- Modal: Neuer Ordner --}}
@@ -121,16 +121,16 @@
 
                     {{-- Alpine.js Accordion for each Account --}}
                     <div x-data="{ open: {{ $isAccActive ? 'true' : 'false' }} }" class="space-y-1">
-                        
+
                         {{-- Account Header / Accordion Toggle --}}
                         <div class="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-bold transition-colors {{ $isAccActive ? 'text-white bg-gray-800/50' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/30' }}">
-                            
+
                             <button @click="open = !open; $wire.selectAccount({{ $acc->id }})" class="flex items-center gap-2 truncate flex-1 text-left">
                                 <x-heroicon-s-chevron-right class="w-4 h-4 transition-transform duration-200 shrink-0" x-bind:class="open ? 'rotate-90 text-[var(--theme-color)]' : ''" />
                                 <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 {{ $isAccActive ? 'text-[var(--theme-color)]' : '' }}"/>
                                 <span class="truncate">{{ $acc->name }}</span>
                             </button>
-                            
+
                             <div class="flex items-center gap-1 shrink-0">
                                 @if($accTotalUnread > 0)
                                     <span class="bg-[var(--theme-color)] text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $accTotalUnread }}</span>
@@ -152,7 +152,7 @@
                                         // A folder is only visually "active" if it belongs to the currently selected account AND is the selected folder
                                         $isActiveFolder = $isAccActive && ($selectedFolder === $key);
                                         $count = $accCounts[$key] ?? 0;
-                                        
+
                                         $icon = 'folder';
                                         if($key === 'INBOX') $icon = 'inbox';
                                         if($key === 'Sent') $icon = 'paper-airplane';
@@ -161,7 +161,7 @@
                                         if($key === 'Trash') $icon = 'trash';
                                         if($key === 'Archive') $icon = 'archive-box';
                                     @endphp
-                                    
+
                                     <div class="relative group"
                                          x-data="{ isDragOver: false }"
                                          @dragover.prevent="isDragOver = true"
@@ -170,7 +170,7 @@
                                             isDragOver = false;
                                             $wire.moveMessage($event.dataTransfer.getData('text/plain'), '{{ $key }}')
                                          ">
-                                        <button wire:click.stop="selectAccountAndFolder({{ $acc->id }}, '{{ $key }}')" 
+                                        <button wire:click.stop="selectAccountAndFolder({{ $acc->id }}, '{{ $key }}')"
                                                 :class="isDragOver ? 'ring-1 ring-[var(--theme-color)] bg-[var(--theme-color-20)]' : ''"
                                                 class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors {{ $isActiveFolder ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)]' : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
                                             <div class="flex items-center gap-3 truncate">
@@ -196,10 +196,10 @@
     <div class="absolute inset-0 z-20 lg:relative lg:z-auto lg:flex-1 overflow-hidden flex transition-transform duration-300 pointer-events-none lg:pointer-events-auto"
          :class="(mobileView === 'list' || mobileView === 'detail' || mobileView === 'settings') ? 'translate-x-0 pointer-events-auto' : 'translate-x-full lg:translate-x-0 lg:pointer-events-auto'"
          x-data="{ mode: @entangle('viewMode') }">
-        
+
         {{-- INBOX VIEW --}}
         <div x-show="mode === 'inbox'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 flex bg-gray-950/50">
-            
+
             {{-- COLUMN 2: Message List --}}
             <div class="absolute inset-0 z-20 lg:relative lg:z-10 w-full lg:w-80 bg-gray-950/80 border-r border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
                  :class="(mobileView === 'list' || mobileView === 'folders') ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
@@ -234,13 +234,13 @@
                     $isMsgActive = $selectedMessage && $selectedMessage->id === $msg->id;
                 @endphp
                 {{-- Alpine.js for Custom Context Menu (Right Click) --}}
-                <div x-data="{ contextMenuOpen: false }" 
+                <div x-data="{ contextMenuOpen: false }"
                      draggable="true"
                      @dragstart="$event.dataTransfer.setData('text/plain', {{ $msg->id }})"
                      @contextmenu.prevent="contextMenuOpen = true; $event.preventDefault();"
                      @click.outside="contextMenuOpen = false"
                      class="relative border-b border-gray-800/50 cursor-grab active:cursor-grabbing">
-                     
+
                     <button wire:click="selectMessage({{ $msg->id }})" class="w-full text-left p-4 hover:bg-gray-800 transition-colors {{ $isMsgActive ? 'bg-gray-800 border-l-2 border-[var(--theme-color)]' : '' }} {{ !$msg->is_read ? 'bg-gray-900/40' : '' }}">
                         <div class="flex justify-between items-start mb-1">
                             <span class="text-sm truncate pr-2 flex items-center gap-2 {{ !$msg->is_read ? 'text-white font-bold' : 'text-gray-300' }}">
@@ -257,32 +257,32 @@
                     </button>
 
                     {{-- Context Menu Dropdown --}}
-                    <div x-show="contextMenuOpen" 
-                         style="display: none;" 
+                    <div x-show="contextMenuOpen"
+                         style="display: none;"
                          class="absolute z-50 left-10 top-10 w-48 bg-[#1E1E1E] border border-gray-700 rounded-lg shadow-2xl py-1 text-sm font-medium overflow-hidden">
-                        
+
                         <button wire:click="selectMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
                             Öffnen <x-heroicon-m-envelope-open class="w-4 h-4 text-gray-500"/>
                         </button>
-                        
+
                         <div class="h-px bg-gray-700 my-1"></div>
 
                         <button wire:click="archiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
                             Archivieren <x-heroicon-m-archive-box class="w-4 h-4 text-gray-500"/>
                         </button>
-                        
+
                         <div class="h-px bg-gray-700 my-1"></div>
 
                         <button wire:click="openCompose('reply', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
                             Antworten <x-heroicon-m-arrow-uturn-left class="w-4 h-4 text-gray-500"/>
                         </button>
-                        
+
                         <button wire:click="openCompose('forward', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
                             Weiterleiten <x-heroicon-m-arrow-uturn-right class="w-4 h-4 text-gray-500"/>
                         </button>
-                        
+
                         <div class="h-px bg-gray-700 my-1"></div>
-                        
+
                         <button wire:click="openRoutingModal({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
                             Abonnieren (Autom. in Ordner) <x-heroicon-m-inbox-arrow-down class="w-4 h-4 text-[var(--theme-color)]"/>
                         </button>
@@ -383,7 +383,7 @@
                         </div>
                         <x-heroicon-o-chevron-down class="w-4 h-4 transition-transform duration-200" x-bind:class="showAttachments ? 'rotate-180' : ''" />
                     </button>
-                    
+
                     <div x-show="showAttachments" x-collapse>
                         <div class="p-3 sm:px-6 flex flex-wrap gap-2">
                             @foreach($selectedMessage->attachments as $attachment)
@@ -481,7 +481,7 @@
                 </div>
 
                 <form wire:submit.prevent="saveAccount" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    
+
                     {{-- Allgemeine Infos --}}
                     <div class="lg:col-span-2 space-y-4">
                         <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-800 pb-2">Kontodetails</h4>

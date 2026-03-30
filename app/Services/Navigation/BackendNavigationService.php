@@ -17,7 +17,7 @@ class BackendNavigationService
                 'section' => null, // No headline
                 'items' => [
                     [
-                        'id' => 'dashboard',
+                        'id' => 'master',
                         'type' => 'single',
                         'title' => 'Dashboard',
                         'route' => '/admin/dashboard',
@@ -26,7 +26,7 @@ class BackendNavigationService
                     [
                         'id' => 'ceo',
                         'type' => 'group',
-                        'title' => 'Firmenleitung',
+                        'title' => 'Leitung',
                         'icon' => 'bolt',
                         'ai_department_id' => '019d0000-0000-0000-0000-000000000000',
                         'children' => [
@@ -43,6 +43,18 @@ class BackendNavigationService
             [
                 'section' => 'Shopverwaltung',
                 'items' => [
+                    [
+                        'id' => 'support',
+                        'type' => 'group',
+                        'title' => 'Support',
+                        'icon' => 'lifebuoy',
+                        'ai_department_id' => '019d6666-6666-6666-6666-666666666666',
+                        'children' => [
+                            ['id' => 'support-chats', 'title' => 'Chats', 'route' => '/admin/support-chats', 'icon' => 'chat-bubble-left-ellipsis'],
+                            ['id' => 'support-ticket', 'title' => 'Tickets', 'route' => '/admin/support-tickets', 'icon' => 'ticket', 'is_ticket' => true],
+                            ['id' => 'support-contact-form', 'title' => 'Kontaktanfragen', 'route' => '/admin/support-contact-form', 'icon' => 'envelope'],
+                        ]
+                    ],
                     [
                         'id' => 'products',
                         'type' => 'group',
@@ -67,6 +79,7 @@ class BackendNavigationService
                         'icon' => 'at-symbol',
                         'ai_department_id' => '019d2222-2222-2222-2222-222222222222',
                         'children' => [
+                            ['id' => 'marketing-analytics', 'title' => 'Analyse', 'route' => '/admin/marketing/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'newsletter', 'title' => 'Newsletter', 'route' => '/admin/newsletter', 'icon' => 'newspaper'],
                             ['id' => 'voucher', 'title' => 'Gutscheine', 'route' => '/admin/voucher', 'icon' => 'gift'],
                             ['id' => 'blog', 'title' => 'Blogeinträge', 'route' => '/admin/blog', 'icon' => 'document-text'],
@@ -79,6 +92,7 @@ class BackendNavigationService
                         'icon' => 'shopping-bag',
                         'ai_department_id' => '019d3333-3333-3333-3333-333333333333',
                         'children' => [
+                            ['id' => 'order-analytics', 'title' => 'Analyse', 'route' => '/admin/orders/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'orders', 'title' => 'Bestellungen', 'route' => '/admin/orders', 'icon' => 'shopping-cart'],
                             ['id' => 'quote-requests', 'title' => 'Angebote', 'route' => '/admin/quote-requests', 'icon' => 'clipboard-document-list'],
                             ['id' => 'widerruf', 'title' => 'Widerrufe', 'route' => '/admin/widerruf', 'icon' => 'archive-box-x-mark'],
@@ -91,10 +105,10 @@ class BackendNavigationService
                         'icon' => 'currency-dollar',
                         'ai_department_id' => '019d4444-4444-4444-4444-444444444444',
                         'children' => [
+                            ['id' => 'financial-analytics', 'title' => 'Analyse', 'route' => '/admin/financial-analytics', 'icon' => 'chart-bar'],
                             ['id' => 'financial-banks', 'title' => 'Banken', 'route' => '/admin/financial-banks', 'icon' => 'scale'],
                             ['id' => 'financial-tax', 'title' => 'Steuern', 'route' => '/admin/financial-tax', 'icon' => 'banknotes'],
                             ['id' => 'financial-fix-costs', 'title' => 'Fixkosten', 'route' => '/admin/financial-fix-costs', 'icon' => 'banknotes'],
-                            ['id' => 'financial-evaluation', 'title' => 'Auswertung', 'route' => '/admin/financial-evaluation', 'icon' => 'chart-bar'],
                             ['id' => 'credit-management', 'title' => 'Gutschriften', 'route' => '/admin/credit-management', 'icon' => 'document-minus'],
                             ['id' => 'invoices', 'title' => 'Rechnungen', 'route' => '/admin/invoices', 'icon' => 'document-text'],
                             ['id' => 'financial-variable-costs', 'title' => 'Variable Kosten', 'route' => '/admin/financial-variable-costs', 'icon' => 'banknotes'],
@@ -109,8 +123,9 @@ class BackendNavigationService
                     [
                         'id' => 'system_ai',
                         'type' => 'group',
-                        'title' => 'Ai Agents',
+                        'title' => 'Agenten',
                         'icon' => 'cpu-chip',
+                        'ai_department_id' => '019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                         'children' => [
                             ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai-analytics', 'icon' => 'chart-bar'],
                             ['id' => 'rollen', 'title' => 'Rollen', 'route' => '/admin/rollen', 'icon' => 'briefcase'],
@@ -129,7 +144,6 @@ class BackendNavigationService
                         'ai_department_id' => '019d5555-5555-5555-5555-555555555555',
                         'children' => [
                             ['id' => 'global-logs', 'title' => 'Log', 'route' => '/admin/global-logs', 'icon' => 'server-stack'],
-                            ['id' => 'tickets', 'title' => 'Tickets', 'route' => '/admin/tickets', 'icon' => 'ticket', 'is_ticket' => true],
                             ['id' => 'user-management', 'title' => 'Benutzer', 'route' => '/admin/user-management', 'icon' => 'users'],
                             ['id' => 'company-map', 'title' => 'Architektur-Map', 'route' => '/admin/company-map', 'icon' => 'map'],
                             ['id' => 'system-info', 'title' => 'System-Info', 'route' => '/admin/system-info', 'icon' => 'server'],

@@ -12,6 +12,7 @@ use Livewire\Component;
  */
 class AiDataVisualization extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public bool $isOpen = false;
     public string $category = '';
     public array $data = [];

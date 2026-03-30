@@ -6,7 +6,6 @@ use App\Models\Customer\Customer;
 use App\Models\Order\OrderOrder;
 use App\Models\Product\Product;
 use App\Models\Product\ProductReview;
-use App\Models\System\SystemSession;
 use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -115,9 +114,7 @@ class ProductReviews extends Component
 
             session(['permissions' => $permissions]);
 
-            if (class_exists(SystemSession::class)) {
-                $this->setBrowserSession($loggedInUser);
-            }
+
 
             $this->js("window.location.hash = 'kundenbewertungen'; window.location.reload();");
 
@@ -126,45 +123,7 @@ class ProductReviews extends Component
         }
     }
 
-    public function setBrowserSession($user)
-    {
-        $sessionId = session()->getId();
-        $payload = base64_encode(serialize(session()->all()));
 
-        $userAgent = request()->userAgent();
-        $browser = 'Unknown';
-        $os = 'Unknown';
-        $deviceType = 'Desktop';
-
-        if (preg_match('/(Windows|Mac|Linux)/i', $userAgent, $osMatches)) {
-            $os = $osMatches[1];
-            $deviceType = 'Desktop';
-        } elseif (preg_match('/(Android|iPhone|iPad)/i', $userAgent, $osMatches)) {
-            $os = $osMatches[1];
-            $deviceType = 'Mobile';
-        }
-
-        if (preg_match('/(Chrome|Firefox|Safari|Opera|MSIE|Edg|Trident)/i', $userAgent, $browserMatches)) {
-            $browser = $browserMatches[1];
-        }
-
-        if ($browser == 'MSIE' || $browser == 'Trident') $browser = 'Internet Explorer';
-        elseif ($browser == 'Edg') $browser = 'Edge';
-
-        $shortenedUserAgent = $os . ' - ' . $browser;
-
-        $sessionData = [
-            'id' => $sessionId,
-            'user_id' => $user->id,
-            'ip_address' => request()->ip(),
-            'user_agent' => $shortenedUserAgent,
-            'payload' => $payload,
-            'device_type' => $deviceType,
-            'last_activity' => time(),
-        ];
-
-        SystemSession::updateOrInsert(['user_id' => $user->id, 'ip_address' => request()->ip()], $sessionData);
-    }
 
     public function updatedNewMedia()
     {

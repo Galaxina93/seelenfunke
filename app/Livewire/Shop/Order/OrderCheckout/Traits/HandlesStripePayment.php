@@ -35,7 +35,7 @@ trait HandlesStripePayment
                 // Metadaten vorbereiten
                 $metadata = [
                     'cart_id' => $cart->id,
-                    'session_id' => SystemSession::getId(),
+                    'session_id' => Session::getId(),
                     'customer_email' => $this->email,
                     'shipping_country' => $targetCountry
                 ];
@@ -101,8 +101,8 @@ trait HandlesStripePayment
             $this->finalOrderNumber = $order->order_number;
 
             // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
-            if (SystemSession::has('checkout_from_quote_id')) {
-                $quoteId = SystemSession::get('checkout_from_quote_id');
+            if (Session::has('checkout_from_quote_id')) {
+                $quoteId = Session::get('checkout_from_quote_id');
                 $quote = OrderQuoteRequest::find($quoteId);
 
                 if ($quote) {
@@ -111,7 +111,7 @@ trait HandlesStripePayment
                         'converted_order_id' => $order->id
                     ]);
 
-                    SystemSession::forget('checkout_from_quote_id');
+                    Session::forget('checkout_from_quote_id');
 
                     \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
                 }

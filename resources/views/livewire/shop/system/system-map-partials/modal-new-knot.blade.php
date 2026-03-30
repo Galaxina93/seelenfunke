@@ -53,7 +53,7 @@
                 <div class="flex flex-wrap gap-2 mb-4">
                     @foreach(['datev', 'dhl', 'etsy', 'finom', 'google', 'mittwald', 'stripe', 'firebase'] as $brand)
                         <button wire:click="$set('newNode.icon', '{{ $brand }}')" class="w-12 h-12 sm:w-14 sm:h-14 p-2 rounded-2xl border-2 transition-all flex items-center justify-center {{ $newNode['icon'] === $brand ? 'bg-primary/10 border-primary shadow-glow' : 'bg-gray-950 border-gray-800 shadow-inner hover:border-gray-600' }}">
-                            <img src="/images/projekt/brands/{{ $brand }}.svg" alt="{{ $brand }}" class="w-full h-full object-contain">
+                            <img src="/shop/projekt/brands/{{ $brand }}.svg" alt="{{ $brand }}" class="w-full h-full object-contain">
                         </button>
                     @endforeach
                 </div>

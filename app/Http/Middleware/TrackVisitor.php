@@ -29,8 +29,23 @@ class TrackVisitor
             !$request->isMethod('GET') ||
             $request->ajax() ||
             $request->is('livewire/*') ||
-            $request->is('admin/*')
+            $request->is('admin/*') ||
+            $request->wantsJson() ||
+            !$response->isSuccessful() // Ignoriere 404 Seiten (oft fehlende .map, .jpg, etc)
         ) {
+            return;
+        }
+
+        // Ignoriere typische Asset-Muster, falls sie das Routing System erreichen
+        if (preg_match('/\.(js|css|map|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i', $request->path())) {
+            return;
+        }
+
+        // Bots und Crawler ignorieren (Google, Bing, Uptime-Checks)
+        $agent = strtolower($request->userAgent() ?? '');
+        $isBot = preg_match('/(bot|crawl|slurp|spider|mediapartners|apis-google|yandex|bing|http|monitor|inspect|health)/i', $agent);
+
+        if (empty($agent) || $isBot) {
             return;
         }
 
@@ -45,9 +60,9 @@ class TrackVisitor
                 'url'         => $request->fullUrl(),
                 'path'        => $request->path(),
                 'method'      => $request->method(),
-                'user_agent'  => Str::limit($request->userAgent(), 250),
-                'referer'     => Str::limit($request->headers->get('referer'), 250),
-                'customer_id' => Auth::guard('customer')->id(), // Erfasst, ob es ein eingeloggter Kunde ist
+                'user_agent'  => \Illuminate\Support\Str::limit($request->userAgent(), 250),
+                'referer'     => \Illuminate\Support\Str::limit($request->headers->get('referer'), 250),
+                'customer_id' => \Illuminate\Support\Facades\Auth::guard('customer')->id(), // Erfasst, ob es ein eingeloggter Kunde ist
             ]);
         } catch (\Exception $e) {
             // Falls die Datenbank mal hängt, soll das Frontend trotzdem weiter funktionieren.

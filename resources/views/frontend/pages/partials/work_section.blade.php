@@ -7,7 +7,7 @@
         {{-- Bild rechtsbündig auf Desktop --}}
         <div class="h-56 sm:h-72 md:absolute md:right-0 md:h-full md:w-1/2">
             <img class="w-full h-full object-cover opacity-90"
-                 src="{{ asset('images/projekt/other/trophy.webp') }}"
+                 src="{{ asset('shop/frontend/other/trophy.webp') }}"
                  alt="Personalisierte 3D-Glasgeschenke und Trophäen für Hochzeiten"
                  loading="lazy">
             {{-- Goldener Overlay-Schleier --}}
@@ -59,7 +59,7 @@
         {{-- Bild linksbündig auf Desktop --}}
         <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2">
             <img class="w-full h-full object-cover"
-                 src="{{ asset('images/projekt/other/appreciation.webp') }}"
+                 src="{{ asset('shop/frontend/other/appreciation.webp') }}"
                  alt="Hochwertige Firmenawards und Trophäen aus Glas für Mitarbeiter"
                  loading="lazy">
         </div>
@@ -130,7 +130,7 @@
         {{-- Bild rechtsbündig --}}
         <div class="h-56 sm:h-72 md:absolute md:right-0 md:h-full md:w-1/2">
             <img class="w-full h-full object-cover hover:grayscale-0 transition-all duration-700"
-                 src="{{ asset('images/projekt/other/handmade.webp') }}"
+                 src="{{ asset('shop/frontend/other/handmade.webp') }}"
                  alt="Lasergravur Manufaktur in Gifhorn, Deutschland"
                  loading="lazy">
         </div>
@@ -168,7 +168,7 @@
         {{-- Bild linksbündig --}}
         <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2 bg-white flex items-center justify-center">
             <img class="w-full h-full object-contain object-center p-4 md:p-0"
-                 src="{{ asset('images/projekt/funki/funki.webp') }}"
+                 src="{{ asset('shop/projekt/funki/funki.webp') }}"
                  alt="Funki Maskottchen hilft bei Kontaktfragen"
                  loading="lazy">
         </div>

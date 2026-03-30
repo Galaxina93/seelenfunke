@@ -6,6 +6,7 @@ use Livewire\Component;
 
 class AiKnowledgeBaseTags extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $tags = [];
     public $search = '';
     public $newTagName = '';

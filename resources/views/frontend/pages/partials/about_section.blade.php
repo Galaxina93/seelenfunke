@@ -40,7 +40,7 @@
                     <div class="bg-white rounded-2xl p-8 shadow-xl border-t-4 border-primary">
                         <div class="flex items-start gap-4 mb-6">
                             {{-- Hier dein Profilbild einfügen --}}
-                            <img src="{{ asset('images/projekt/about/gruender-profil.webp') }}"
+                            <img src="{{ asset('shop/projekt/about/gruender-profil.webp') }}"
                                  alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
                                  width="64" height="64"
                                  loading="lazy"
@@ -134,7 +134,7 @@
                             Geschäftsführung
                         </div>
 
-                        <img src="{{ asset('images/projekt/about/gruender-profil.webp') }}"
+                        <img src="{{ asset('shop/projekt/about/gruender-profil.webp') }}"
                              alt="Alina Steinhauer - Gründerin von Mein Seelenfunke"
                              width="128" height="128"
                              loading="lazy"
@@ -157,7 +157,7 @@
                             Expertise & Stimme
                         </div>
 
-                        <img src="{{ asset('images/projekt/ai/images/funkira_selfie.png') }}"
+                        <img src="{{ asset('shop/ai/images/funkira_selfie.png') }}"
                              alt="Funkira, die allwissende KI-Expertin von Mein Seelenfunke"
                              width="128" height="128"
                              loading="lazy"
@@ -180,7 +180,7 @@
                             System & Support
                         </div>
 
-                        <img src="{{ asset('images/projekt/ai/images/funki_selfie.png') }}"
+                        <img src="{{ asset('shop/ai/images/funki_selfie.png') }}"
                              alt="Funki, das digitale Maskottchen von Mein Seelenfunke"
                              width="128" height="128"
                              loading="lazy"
@@ -272,7 +272,7 @@
             @for ($i = 0; $i < 10; $i++)
                 <div class="flex items-center group">
                     {{-- Logo: Harmonische Größe (h-12 auf Mobile, h-20 auf Desktop) --}}
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}"
+                    <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}"
                          alt="Mein Seelenfunke Logo"
                          width="600" height="229"
                          loading="lazy"
@@ -285,7 +285,7 @@
         <div class="flex items-center gap-20 md:gap-32 animate-marquee whitespace-nowrap flex-shrink-0 ml-20 md:ml-32">
             @for ($i = 0; $i < 10; $i++)
                 <div class="flex items-center group">
-                    <img src="{{ asset('images/projekt/logo/mein-seelenfunke-logo.svg') }}"
+                    <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}"
                          alt="Mein Seelenfunke Logo"
                          width="600" height="229"
                          loading="lazy"

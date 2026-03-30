@@ -12,7 +12,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            RolesAndPermissionsSeeder::class,
+            UserSeeder::class,
             ProductSupplierSeeder::class,                  // Für den Livegang notwendig
             ProductSeeder::class,                   // Für den Livegang notwendig
             LogisticsShippingSeeder::class,                  // Für den Livegang notwendig

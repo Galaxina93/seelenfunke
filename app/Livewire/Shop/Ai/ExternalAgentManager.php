@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Http;
 
 class ExternalAgentManager extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $llm_model = '';
     public $pingRan = false;
 

@@ -11,6 +11,7 @@ use Livewire\Component;
 
 class AiAnalytics extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public function render()
     {
         $today = Carbon::today();
@@ -30,6 +31,21 @@ class AiAnalytics extends Component
         $totalChatMessages = \App\Models\Ai\AiChatMemory::where('role', 'user')
             ->whereDate('created_at', '>=', $thirtyDaysAgo)
             ->count();
+
+        // Include newly decoupled Support Chats explicitly for the Dashboard Sync
+        if (class_exists(\App\Models\Support\SupportCustomerChatMessage::class)) {
+            $totalChatMessages += \App\Models\Support\SupportCustomerChatMessage::where('sender', 'customer')
+                ->whereDate('created_at', '>=', $thirtyDaysAgo)
+                ->count();
+        }
+
+        // 1.5 Top Tools Used Globally
+        $topToolsAllAgents = AiToolUsage::select('tool_name', DB::raw('COUNT(*) as usage_count'))
+            ->whereDate('created_at', '>=', $thirtyDaysAgo)
+            ->groupBy('tool_name')
+            ->orderByDesc('usage_count')
+            ->limit(5)
+            ->get();
 
         // 2. Cost Trend (Last 30 days)
         $trendDataRaw = AiMetric::select(
@@ -82,7 +98,7 @@ class AiAnalytics extends Component
         // 5. Cognitive Load History (Heatmap/Timeline alternative)
         // Zeigt max. tokens der Agents heute an
         $cognitiveLoad = AiMetric::select('ai_agent_id', DB::raw('MAX(input_tokens) as max_tokens'))
-            ->where('type', 'cognitive_load')
+            ->where('type', 'inference')
             ->whereDate('created_at', $today)
             ->groupBy('ai_agent_id')
             ->with('agent')
@@ -103,6 +119,7 @@ class AiAnalytics extends Component
             'avgLatency' => round($avgLatency),
             'successRate' => $successRate,
             'totalChatMessages' => $totalChatMessages,
+            'topToolsAllAgents' => $topToolsAllAgents,
             'trendData' => json_encode($trendData),
             'resourceDistribution' => json_encode($resourceDistribution),
             'toolErrors' => json_encode($toolErrors),

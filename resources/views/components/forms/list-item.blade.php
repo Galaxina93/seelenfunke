@@ -1,5 +1,5 @@
 {{-- FILE: resources\views\components\forms\list-item.blade.php --}}
-@props(['route', 'title', 'pageName', 'icon', 'noColor' => false, 'themeColor' => null])
+@props(['route', 'title', 'pageName', 'icon', 'noColor' => false, 'themeColor' => null, 'dotState' => null, 'dotEvent' => null, 'dotClearEvent' => null])
 
 @php
     $currentPage = basename(request()->path());
@@ -33,9 +33,21 @@
     }
 @endphp
 
-<li>
-    <a href="{{ $route }}" class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? $activeClasses : $inactiveClasses }}">
-        <x-dynamic-component :component="'heroicon-o-' . $icon" class="w-5 h-5 shrink-0 transition-transform duration-300 {{ $isActive ? $activeIconClasses : $inactiveIconClasses }}"/>
+<li @if($dotState) x-data="{ unread: {{ $dotState }} }" @endif
+    @if($dotEvent) @{{ $dotEvent }}.window="unread = true" @endif
+    @if($dotClearEvent) @{{ $dotClearEvent }}.window="unread = false" @endif>
+    <a href="{{ $route }}" 
+       @if($dotState) @click="unread = false; {{ $dotState }} = false" @endif
+       class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? $activeClasses : $inactiveClasses }}">
+        <div class="relative">
+            <x-dynamic-component :component="'heroicon-o-' . $icon" class="w-5 h-5 shrink-0 transition-transform duration-300 {{ $isActive ? $activeIconClasses : $inactiveIconClasses }}"/>
+            @if($dotState)
+                <span x-show="unread" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                </span>
+            @endif
+        </div>
         <span class="truncate">{{ $title }}</span>
     </a>
 </li>

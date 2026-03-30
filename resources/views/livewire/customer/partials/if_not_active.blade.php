@@ -4,7 +4,7 @@
         <div class="relative w-full bg-gray-950/80 backdrop-blur-xl flex flex-col xl:flex-row items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-800 z-[250] gap-4 md:gap-6 shadow-lg">
             <div class="flex items-center justify-between w-full xl:w-auto xl:pr-6 xl:border-r border-gray-800 shrink-0">
                 <a href="/" target="_blank" class="shrink-0">
-                    <img src="{{ URL::to('/images/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
+                    <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-16 md:h-20 w-auto hover:scale-105 transition-transform duration-300" alt="Logo">
                 </a>
             </div>
 
@@ -73,7 +73,7 @@
             <div class="relative z-10 w-full md:w-5/12 flex justify-center perspective-1000">
                 <div class="relative w-72 h-72 md:w-96 md:h-96 transform hover:rotate-y-12 hover:rotate-x-12 transition-transform duration-700 ease-out">
                     <div class="absolute inset-0 bg-primary/30 rounded-full blur-[80px] animate-pulse"></div>
-                    <img src="{{ asset('gamification/models/images/funki_lvl_5_apprentice.png') }}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_30px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none">
+                    <img src="{{ asset('shop/customer/shop/customer/gamification/models/images/funki_lvl_5_apprentice.png') }}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_30px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none">
                 </div>
             </div>
         </div>

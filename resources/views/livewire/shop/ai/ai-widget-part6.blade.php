@@ -39,7 +39,7 @@
                                 t3.targetCameraDist = 500;
                                 t3.zoomSpeed = 0.006; 
                                 
-                                let zoomAudio = new Audio('/funkira/sounds/funkira_zoom_in.mp3');
+                                let zoomAudio = new Audio('/shop/ai/sounds/ai_zoom_in.mp3');
                                 zoomAudio.volume = 0.7;
                                 zoomAudio.play().catch(e => console.log('Zoom in sound blocked or missing:', e));
                             }

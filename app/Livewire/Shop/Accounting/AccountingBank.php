@@ -72,7 +72,17 @@ class AccountingBank extends Component
             $q->where('admin_id', $adminId);
         })->orderBy('name')->get()->toArray();
 
-        $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)->with('role')->orderBy('name')->get()->toArray();
+        $dept = \App\Models\Ai\AiDepartment::where('name', $this->themingDepartment)->first();
+        if ($dept) {
+            $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)
+                ->where('ai_department_id', $dept->id)
+                ->with('role')
+                ->orderBy('name')
+                ->get()
+                ->toArray();
+        } else {
+            $this->availableAgents = [];
+        }
     }
 
     public function selectBank($accountId)
@@ -363,8 +373,12 @@ class AccountingBank extends Component
     public function startAgentSorting()
     {
         if (empty($this->selectedAgentId)) {
-            session()->flash('error', 'Bitte wähle zuerst einen KI-Agenten aus.');
-            return;
+            if (!empty($this->availableAgents)) {
+                $this->selectedAgentId = $this->availableAgents[0]['id'];
+            } else {
+                session()->flash('error', 'Bitte wähle zuerst einen KI-Agenten aus.');
+                return;
+            }
         }
 
         $this->isLoading = true;

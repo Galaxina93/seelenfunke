@@ -62,7 +62,7 @@
 </div>
 
 <div class="header">
-    <img src="{{ public_path('images/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
+    <img src="{{ public_path('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Logo" class="logo">
     <div class="doc-title">LUCID Jahresbericht {{ $lucidData['year'] }}</div>
     <div class="erp-tag">Generiert durch: Seelenfunke ERP Analytics</div>
     <div class="plan-year-title">EXPORT-DATUM: {{ $date }}</div>

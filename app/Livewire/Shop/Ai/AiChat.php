@@ -12,6 +12,7 @@ use Livewire\Component;
 #[Layout('components.layouts.backend_layout')]
 class AiChat extends Component
 {
+    public string $themingDepartment = 'Agenten';
     public $input = '';
     public $messages = [];
     public $activeAgentIds = [];

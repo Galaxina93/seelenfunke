@@ -2,6 +2,8 @@
         atTop: true,
         atBottom: false,
         vouchersOpen: false,
+        chatOpen: false,
+        chatMaximized: false,
         dockOpen: window.innerWidth >= 768
     }"
      x-init="
@@ -14,7 +16,7 @@
      :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'"
 >
     {{-- INTERAKTIVE GLOW-ZONE --}}
-    <div @click="dockOpen = !dockOpen; if(!dockOpen) vouchersOpen = false"
+    <div @click="dockOpen = !dockOpen; if(!dockOpen) { vouchersOpen = false; chatOpen = false; }"
          class="absolute left-0 top-0 bottom-0 w-10 cursor-pointer flex items-center justify-center group"
          style="margin-left: -25px;">
 
@@ -35,6 +37,22 @@
     {{-- DAS HAUPT-DOCK --}}
     <div class="flex flex-col items-center bg-gray-900/95 backdrop-blur-xl py-6 px-2 rounded-l-3xl border-l border-t border-b border-white/10 shadow-[-10px_0_30px_rgba(0,0,0,0.3)] space-y-6 transition-all duration-300 hover:px-3 group/dock relative">
 
+        {{-- 0. SUPPORT CHAT (FUNKI) --}}
+        <button @click="chatOpen = !chatOpen; if(chatOpen) vouchersOpen = false"
+                class="group/icon relative p-2 text-cyan-500 hover:bg-cyan-500/20 rounded-xl transition-all"
+                title="Live Support">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 transition-transform group-hover/icon:scale-110">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.38-.49 1.636-1.61 2.898-1.674 2.97-.1.116-.08.286.035.385.116.1.286.08.386-.035.056-.065 1.558-1.849 2.503-3.08A9.096 9.096 0 0012 20.25z" />
+            </svg>
+
+            <span class="absolute right-full mr-4 px-2 py-1 bg-gray-900 text-white text-[10px] font-black rounded opacity-0 group-hover/icon:opacity-100 transition-opacity whitespace-nowrap pointer-events-none tracking-widest uppercase shadow-xl">
+                Support Chat
+            </span>
+        </button>
+
+        <div class="w-8 h-px bg-white/10"></div>
+
         {{-- 1. GUTSCHEIN TRIGGER --}}
         @php
             // Prüfe auf gültige manuelle Gutscheine
@@ -47,7 +65,7 @@
                                 ->exists();
         @endphp
 
-        <button @click="vouchersOpen = !vouchersOpen"
+        <button @click="vouchersOpen = !vouchersOpen; if(vouchersOpen) chatOpen = false"
                 class="group/icon relative p-2 text-primary hover:bg-primary/20 rounded-xl transition-all"
                 title="Gutscheine">
 
@@ -122,13 +140,29 @@
     {{-- GUTSCHEIN PANEL --}}
     <div x-show="vouchersOpen"
          x-cloak
-         @click.away="vouchersOpen = false"
          x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-500"
          x-transition:enter-start="translate-x-10 opacity-0"
          x-transition:enter-end="translate-x-0 opacity-100"
          x-transition:leave="transition ease-in duration-300"
-         class="absolute right-full mr-2 bg-white/95 backdrop-blur-2xl w-[77vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 overflow-hidden flex flex-col"
+         class="absolute right-[calc(100%+12px)] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl w-[77vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 flex flex-col pointer-events-auto"
     >
         @livewire('shop.marketing.marketing-voucher-slider')
     </div>
+
+    {{-- SUPPORT CHAT PANEL (Teleported globally via Alpine to bypass Stack Context limits) --}}
+    <template x-teleport="body">
+        <div x-show="chatOpen"
+             x-cloak
+             x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-500"
+             x-transition:enter-start="translate-x-10 opacity-0"
+             x-transition:enter-end="translate-x-0 opacity-100"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-start="translate-x-0 opacity-100"
+             x-transition:leave-end="translate-x-10 opacity-0"
+             :class="chatMaximized ? 'fixed right-2 bottom-2 sm:right-24 sm:bottom-10 sm:top-10 w-[95vw] sm:w-[450px] h-[calc(100vh-16px)] sm:h-[calc(100vh-5rem)] z-[99999]' : 'fixed right-2 bottom-20 sm:right-24 sm:top-1/2 sm:-translate-y-1/2 w-[95vw] sm:w-[380px] h-[75vh] sm:max-h-[600px] z-[99999]'"
+             class="bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] rounded-3xl border border-gray-100 overflow-hidden flex flex-col pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+        >
+            @livewire('frontend.support.customer-chat')
+        </div>
+    </template>
 </div>

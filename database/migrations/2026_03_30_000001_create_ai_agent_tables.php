@@ -215,6 +215,19 @@ return new class extends Migration
                 $table->timestamps();
             });
         }
+
+        if (!Schema::hasTable('ai_tool_usages')) {
+            Schema::create('ai_tool_usages', function (Blueprint $table) {
+                $table->id();
+                $table->uuid('ai_agent_id')->index();
+                $table->uuid('support_customer_chat_id')->nullable()->index();
+                $table->string('tool_name');
+                $table->text('arguments')->nullable();
+                $table->timestamps();
+
+                // Verzicht auf strikte Constraints zu UUIDs bei Log-Tabellen für performantere Deletes
+            });
+        }
     }
 
     /**
@@ -239,5 +252,6 @@ return new class extends Migration
         Schema::dropIfExists('ai_agents');
         Schema::dropIfExists('ai_roles');
         Schema::dropIfExists('ai_departments');
+        Schema::dropIfExists('ai_tool_usages');
     }
 };

@@ -103,7 +103,7 @@ trait HandlesConfiguratorLogic
             'id' => Str::uuid()->toString(),
             'type' => 'vector',
             'value' => 'vectors/' . $filename,
-            'url' => asset('images/configurator/vectors/' . $filename),
+            'url' => asset('shop/product/configurator/vectors/' . $filename),
             'x' => $centerX,
             'y' => $centerY,
             'size' => 100,
@@ -217,7 +217,7 @@ trait HandlesConfiguratorLogic
     {
         $rendered = [];
         foreach ($this->logos as $logo) {
-            $url = Str::startsWith($logo['value'], 'vectors/') ? asset('images/configurator/' . $logo['value']) : asset('storage/' . $logo['value']);
+            $url = Str::startsWith($logo['value'], 'vectors/') ? asset('shop/product/configurator/' . $logo['value']) : asset('storage/' . $logo['value']);
             $rendered[] = array_merge($logo, ['url' => $url]);
         }
         return $rendered;

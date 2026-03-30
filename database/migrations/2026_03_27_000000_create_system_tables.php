@@ -18,6 +18,7 @@ return new class extends Migration
                 $table->string('first_name');
                 $table->string('last_name');
                 $table->string('email')->unique();
+                $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->string('google_id')->nullable();
                 $table->rememberToken();
@@ -63,6 +64,7 @@ return new class extends Migration
                 $table->string('first_name');
                 $table->string('last_name');
                 $table->string('email')->unique();
+                $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->string('google_id')->nullable();
                 $table->rememberToken();
@@ -108,6 +110,7 @@ return new class extends Migration
                 $table->string('first_name');
                 $table->string('last_name');
                 $table->string('email')->unique();
+                $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->string('google_id')->nullable();
                 $table->rememberToken();
@@ -191,16 +194,14 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('system_sessions')) {
-            Schema::create('system_sessions', function (Blueprint $table) {
+        if (!Schema::hasTable('sessions')) {
+            Schema::create('sessions', function (Blueprint $table) {
                 $table->string('id')->primary();
                 $table->foreignUuid('user_id')->nullable()->index();
                 $table->string('ip_address', 45)->nullable();
                 $table->text('user_agent')->nullable();
-                $table->string('device_type')->nullable();
                 $table->longText('payload');
                 $table->integer('last_activity')->index();
-                $table->timestamps();
             });
         }
 
@@ -276,35 +277,6 @@ return new class extends Migration
                 $table->string('device_name')->nullable();
                 $table->timestamps();
                 $table->index(['userable_id', 'userable_type']);
-            });
-        }
-
-        // Tickets
-        if (!Schema::hasTable('support_tickets')) {
-            Schema::create('support_tickets', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->string('ticket_number')->unique();
-                $table->foreignUuid('customer_id')->constrained('customers')->cascadeOnDelete();
-                $table->foreignUuid('order_id')->nullable();
-                $table->string('subject');
-                $table->string('category');
-                $table->string('status')->default('open');
-                $table->string('priority')->default('normal');
-                $table->boolean('reward_claimed')->default(false);
-                $table->timestamps();
-            });
-        }
-
-        if (!Schema::hasTable('support_ticket_messages')) {
-            Schema::create('support_ticket_messages', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->foreignUuid('support_ticket_id')->constrained('support_tickets')->cascadeOnDelete();
-                $table->string('sender_type');
-                $table->text('message');
-                $table->json('attachments')->nullable();
-                $table->boolean('is_read_by_customer')->default(false);
-                $table->boolean('is_read_by_admin')->default(false);
-                $table->timestamps();
             });
         }
 
@@ -397,7 +369,7 @@ return new class extends Migration
                 $table->string('description')->nullable(); // NEU: Beschreibung für Tooltip
                 $table->string('status')->default('active'); // active, inactive (rot)
                 $table->timestamps();
-    
+
                 $table->foreign('source_id')->references('id')->on('system_map_nodes')->onDelete('cascade');
                 $table->foreign('target_id')->references('id')->on('system_map_nodes')->onDelete('cascade');
             });
@@ -424,7 +396,8 @@ return new class extends Migration
         Schema::dropIfExists('shop_settings');
         Schema::dropIfExists('system_directories');
         Schema::dropIfExists('system_login_attempts');
-        Schema::dropIfExists('system_sessions');
+        Schema::dropIfExists('sessions');
+
         Schema::dropIfExists('system_password_reset_tokens');
         Schema::dropIfExists('roleables');
         Schema::dropIfExists('permission_role');

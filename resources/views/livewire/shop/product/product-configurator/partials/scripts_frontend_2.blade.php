@@ -3,7 +3,8 @@
     window._threeEngineInstance = null;
 
     window.Configurator3DEngine = class Configurator3DEngine {
-        constructor(container, modelPath, bgPath, config) {
+        constructor(configuratorInstance, container, modelPath, bgPath, config) {
+            this.configurator = configuratorInstance;
             this.container = container;
             this.modelPath = modelPath;
             this.bgPath = bgPath;
@@ -501,7 +502,7 @@
         }
 
         animate() {
-            if (window._frontendConfiguratorDataInstance && window._frontendConfiguratorDataInstance.showDrawingBoard) {
+            if (this.configurator && this.configurator.showDrawingBoard) {
                 this._isAnimating = false;
                 return;
             }

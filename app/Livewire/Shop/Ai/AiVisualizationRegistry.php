@@ -9,6 +9,7 @@ use Livewire\Component;
 #[Layout('components.layouts.backend_layout')]
 class AiVisualizationRegistry extends Component
 {
+    public string $themingDepartment = 'Agenten';
     /**
      * Diese Component dient als reines Backend-Dashboard für den Entwickler,
      * um zu dokumentieren, welche Headless Generative UI Blöcke gebaut wurden.

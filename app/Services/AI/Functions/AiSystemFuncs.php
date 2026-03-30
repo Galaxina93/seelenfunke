@@ -253,12 +253,13 @@ trait AiSystemFuncs
                 }
             }
 
-            // 2. Fallbacks for AI making up URLs we explicitly want to catch
-            $fallbacks = [
-                'newsletter' => '/admin/newsletter',
-                'voucher' => '/admin/voucher',
-                'financial-evaluation' => '/admin/financial-evaluation',
-                'financials' => '/admin/financial-evaluation',
+            // 2. Automatisches & Dynamisches Index-Building aus der Backend-Navigation
+            $fallbacks = [];
+            
+            // Spezifische Synonyme (Human in the Loop Slang -> Offizielle Route)
+            $synonyms = [
+                'financial-evaluation' => '/admin/financial-analytics',
+                'financials' => '/admin/financial-analytics',
                 'beleg' => '/admin/financial-variable-costs',
                 'ausgabe' => '/admin/financial-variable-costs',
                 'einkauf' => '/admin/financial-variable-costs',
@@ -272,6 +273,26 @@ trait AiSystemFuncs
                 'bank' => '/admin/financial-banks',
                 'konten' => '/admin/financial-banks',
             ];
+
+            foreach ($structure as $section) {
+                foreach ($section['items'] as $item) {
+                    if ($item['type'] === 'single') {
+                        $fallbacks[strtolower($item['title'])] = $item['route'];
+                        $fallbacks[strtolower(basename($item['route']))] = $item['route'];
+                    } elseif ($item['type'] === 'group') {
+                        if (!empty($item['children'])) {
+                            $fallbacks[strtolower($item['title'])] = $item['children'][0]['route'];
+                        }
+                        foreach ($item['children'] as $child) {
+                            $fallbacks[strtolower($child['title'])] = $child['route'];
+                            $fallbacks[strtolower(basename($child['route']))] = $child['route'];
+                        }
+                    }
+                }
+            }
+
+            // Synonyme überschreiben die rohen Titel falls es Überschneidungen (z.B. Rechnung) gibt
+            $fallbacks = array_merge($fallbacks, $synonyms);
 
             if (!$bestMatchUrl) {
                 foreach ($fallbacks as $keyword => $targetUrl) {
