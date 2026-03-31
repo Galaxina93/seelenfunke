@@ -157,7 +157,7 @@
                     <div class="flex flex-wrap gap-2">
                         @foreach($topTools as $tTool)
                             <span class="bg-gray-900/50 border border-gray-800 text-cyan-400 text-[10px] font-mono px-2.5 py-1 rounded shadow-sm">
-                                {{ $tTool->tool_name }} ({{ $tTool->usage_count }}x)
+                                {{ $tTool['tool_name'] }} ({{ $tTool['usage_count'] }}x)
                             </span>
                         @endforeach
                     </div>

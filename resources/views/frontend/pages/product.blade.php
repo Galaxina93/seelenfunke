@@ -52,7 +52,7 @@
                         <ul class="flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-3 text-sm text-gray-500 font-medium list-none">
                             <li class="flex items-center">
                                 <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">✓</span>
-                                Sofort lieferbar
+                                {{ \App\Models\Delivery\DeliveryTime::where('is_active', true)->first()?->name === 'Standard' ? 'Sofort lieferbar' : 'Auf Lager' }}
                             </li>
                             <li class="flex items-center">
                                 <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">✓</span>

@@ -133,6 +133,139 @@ class ProductCreateTest extends TestCase
     }
 
     #[Test]
+    public function test_physical_product_wizard_integration()
+    {
+        Storage::fake('public');
+
+        $component = Livewire::test(ProductCreate::class)
+            ->call('createDraft')
+            ->set('name', 'Physisches Benchmark Produkt')
+            ->set('sku', 'BENCH-PHYS-001')
+            ->set('price_input', '19.99')
+            ->set('purchase_price_input', '5.00')
+            ->set('type', 'physical');
+
+        // Verify Step 1 Validation Gate
+        $this->assertTrue($component->instance()->canProceed(), 'Physical step 1 should proceed');
+            
+        $component->call('nextStep')
+            ->assertSet('currentStep', 2);
+
+        // Step 2 Requires Media
+        $this->assertFalse($component->instance()->canProceed(), 'Step 2 should block without media');
+
+        $image = UploadedFile::fake()->image('product.jpg');
+        $component->set('new_media', [$image])
+            ->call('nextStep')
+            ->assertSet('currentStep', 3);
+
+        // Step 3 (Lager & Attribute) & Shipping
+        $component->set('weight', 1050)
+            ->set('shipping_class', 'sperrgut')
+            ->set('laser_runtime_minutes', 45)
+            ->set('packaging_cost_input', '2.50')
+            ->set('track_quantity', true)
+            ->set('quantity', 10)
+            ->call('nextStep')
+            ->assertSet('currentStep', 4);
+
+        $component->call('finish')
+            ->assertSet('viewMode', 'list');
+
+        $product = Product::firstWhere('sku', 'BENCH-PHYS-001');
+        $this->assertEquals('active', $product->status);
+        $this->assertEquals(4, $product->completion_step);
+        $this->assertEquals(1999, $product->price);
+        $this->assertEquals(500, $product->purchase_price);
+        $this->assertEquals(1050, $product->weight);
+        $this->assertEquals('sperrgut', $product->shipping_class);
+        $this->assertEquals(45, $product->laser_runtime_minutes);
+        $this->assertEquals(250, $product->packaging_cost);
+        $this->assertEquals(10, $product->quantity);
+    }
+
+    #[Test]
+    public function test_digital_product_wizard_integration()
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        // Create Draft & Test Setup
+        $component = Livewire::test(ProductCreate::class)
+            ->call('createDraft')
+            ->set('type', 'digital')
+            ->set('name', 'Digitales E-Book')
+            ->set('sku', 'BENCH-DIGI-001')
+            ->set('price_input', '9.99');
+
+        // Digital shouldn't care about purchase price or weight
+        $this->assertTrue($component->instance()->canProceed());
+            
+        $component->call('nextStep')
+            ->assertSet('currentStep', 2);
+
+        // Step 2 Media + Secure Digital File
+        $image = UploadedFile::fake()->image('cover.jpg');
+        $digitalFile = UploadedFile::fake()->create('ebook.pdf', 1000, 'application/pdf');
+
+        $component->set('new_media', [$image])
+            ->set('new_digital_file', $digitalFile)
+            ->call('nextStep')
+            ->assertSet('currentStep', 3); // Digital only has 3 steps
+
+        $component->call('finish')
+            ->assertSet('viewMode', 'list');
+
+        $product = Product::firstWhere('sku', 'BENCH-DIGI-001');
+        $this->assertEquals('active', $product->status);
+        $this->assertEquals('digital', $product->type);
+        $this->assertEquals(3, $product->completion_step);
+        $this->assertEquals(999, $product->price);
+        $this->assertEquals(0, $product->purchase_price);
+        $this->assertNull($product->weight);
+        $this->assertNotNull($product->digital_download_path);
+        $this->assertFalse((bool) $product->track_quantity);
+    }
+
+    #[Test]
+    public function test_service_product_wizard_integration()
+    {
+        Storage::fake('public');
+
+        $component = Livewire::test(ProductCreate::class)
+            ->call('createDraft')
+            ->set('type', 'service')
+            ->set('name', 'Workshop Ticket')
+            ->set('sku', 'BENCH-SRV-001')
+            ->set('price_input', '149.00');
+
+        $this->assertTrue($component->instance()->canProceed());
+            
+        $component->call('nextStep')
+            ->assertSet('currentStep', 2);
+
+        // Upload media (required)
+        $image = UploadedFile::fake()->image('workshop.jpg');
+        $component->set('new_media', [$image])
+            ->call('nextStep')
+            ->assertSet('currentStep', 3); // Services only have 3 steps
+
+        // Set quantity to limit bookable spots
+        $component->set('track_quantity', true)
+            ->set('quantity', 5)
+            ->call('finish')
+            ->assertSet('viewMode', 'list');
+
+        $product = Product::firstWhere('sku', 'BENCH-SRV-001');
+        $this->assertEquals('active', $product->status);
+        $this->assertEquals('service', $product->type);
+        $this->assertEquals(3, $product->completion_step);
+        $this->assertEquals(14900, $product->price);
+        $this->assertTrue((bool) $product->track_quantity);
+        $this->assertEquals(5, $product->quantity);
+    }
+
+    #[Test]
     public function tax_component_updates_tax_class_and_emits_event()
     {
         $product = Product::create([

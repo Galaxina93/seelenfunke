@@ -401,9 +401,9 @@
                                         <div class="text-xs text-white font-medium truncate" title="{{ $attachment->filename }}">{{ Str::limit($attachment->filename, 20) }}</div>
                                         <div class="text-[10px] text-gray-500">{{ round($attachment->size / 1024, 1) }} KB</div>
                                     </div>
-                                    <a href="{{ $attachment->stream_url }}" download="{{ $attachment->filename }}" class="ml-auto p-1.5 text-gray-500 hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-10)] rounded-md transition-colors" @click.stop title="Herunterladen">
+                                    <button wire:click.prevent="downloadAttachment({{ $attachment->id }})" class="ml-auto p-1.5 text-gray-500 hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-10)] rounded-md transition-colors focus:outline-none" @click.stop title="Herunterladen">
                                         <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
-                                    </a>
+                                    </button>
                                 </div>
                             @endforeach
                         </div>

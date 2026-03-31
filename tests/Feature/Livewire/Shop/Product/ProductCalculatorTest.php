@@ -11,6 +11,7 @@ use App\Mail\NewCalcMailToCustomer;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -22,6 +23,7 @@ class ProductCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Cache::flush();
         
         // Populate standard tax rates for test
         DB::table('tax_rates')->insertOrIgnore([

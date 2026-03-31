@@ -173,13 +173,13 @@ class ManagementHealthTest extends TestCase
             ->assertSet('uploadedHealthFiles.0.name', 'Laborberichte')
             ->assertSet('uploadedHealthFiles.0.type', 'folder');
 
-        Storage::disk('public')->assertExists('wiki/health/Laborberichte');
+        Storage::disk('public')->assertExists('Shop/Management/Health/Laborberichte');
 
         Livewire::test(AiCeoHealth::class)
             ->call('openFolder', 'Laborberichte')
-            ->assertSet('currentPath', 'wiki/health/Laborberichte')
+            ->assertSet('currentPath', 'Shop/Management/Health/Laborberichte')
             ->call('goUp')
-            ->assertSet('currentPath', 'wiki/health');
+            ->assertSet('currentPath', 'Shop/Management/Health');
     }
 
     public function test_can_upload_files()
@@ -192,21 +192,21 @@ class ManagementHealthTest extends TestCase
             ->assertDispatched('health-files-updated')
             ->assertDispatched('docs-uploaded');
 
-        Storage::disk('public')->assertExists('wiki/health/blutbild.pdf');
-        Storage::disk('public')->assertExists('wiki/health/röntgen.png');
+        Storage::disk('public')->assertExists('Shop/Management/Health/blutbild.pdf');
+        Storage::disk('public')->assertExists('Shop/Management/Health/röntgen.png');
     }
 
     public function test_can_delete_files_and_folders()
     {
-        Storage::disk('public')->put('wiki/health/test.txt', 'Content');
-        Storage::disk('public')->makeDirectory('wiki/health/TestFolder');
+        Storage::disk('public')->put('Shop/Management/Health/test.txt', 'Content');
+        Storage::disk('public')->makeDirectory('Shop/Management/Health/TestFolder');
 
         Livewire::test(AiCeoHealth::class)
-            ->call('deleteItem', 'wiki/health/test.txt')
-            ->call('deleteItem', 'wiki/health/TestFolder');
+            ->call('deleteItem', 'Shop/Management/Health/test.txt')
+            ->call('deleteItem', 'Shop/Management/Health/TestFolder');
 
-        Storage::disk('public')->assertMissing('wiki/health/test.txt');
-        $this->assertFalse(Storage::disk('public')->exists('wiki/health/TestFolder'));
+        Storage::disk('public')->assertMissing('Shop/Management/Health/test.txt');
+        $this->assertFalse(Storage::disk('public')->exists('Shop/Management/Health/TestFolder'));
     }
 
     public function test_treatment_plan_item_toggle_and_auto_complete()

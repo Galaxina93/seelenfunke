@@ -1,7 +1,7 @@
 <div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
     @if($context !== 'preview')
-        
+
         <!-- START: Design Speichern / Laden -->
         <div class="space-y-4" x-data="{
             draftExists: false,
@@ -22,10 +22,10 @@
                 };
                 localStorage.setItem(this.storageKey, JSON.stringify(draft));
                 this.draftExists = true;
-                
+
                 this.isSaving = true;
                 setTimeout(() => { this.isSaving = false; }, 2500);
-                
+
                 $dispatch('notify', {message: 'Dein Design wurde erfolgreich auf deinem Gerät gespeichert!'});
             },
             loadDraft() {
@@ -38,10 +38,10 @@
                     $wire.logos_back = draft.logos_back || [];
                     $wire.notes = draft.notes || '';
                     $wire.uploaded_files = draft.uploaded_files || [];
-                    
+
                     this.isLoading = true;
                     setTimeout(() => { this.isLoading = false; }, 2500);
-                    
+
                     $dispatch('notify', {message: 'Gespeichertes Design erfolgreich geladen!'});
                 }
             }
@@ -50,7 +50,7 @@
                 <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
                 Dein Design Sichern
             </h3>
-            
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button type="button" @click="saveDraft" class="flex flex-col items-center justify-center p-4 rounded-[2rem] border text-sm font-bold shadow-sm transition-all group {{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-300 hover:border-[#C5A059] hover:bg-[#C5A059]/10' : 'bg-white border-slate-200 text-slate-700 hover:border-[#C5A059] hover:bg-[#C5A059]/5 hover:shadow-md' }}">
                     <template x-if="!isSaving">
@@ -82,7 +82,7 @@
                     </template>
                 </button>
             </div>
-            
+
             <p class="text-xs {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
                 Speichert dein Design lokal in deinem Browser, damit du es später exakt so für dieses Produkt fortsetzen kannst.
             </p>
@@ -148,7 +148,7 @@
                         </svg>
                     </div>
                     <p class="text-xs leading-relaxed {{ $isDark ? 'text-blue-400/80' : 'text-blue-800/80' }}">
-                        Laden Sie Ihr Logo hoch. Position, Größe und Rotation können Sie direkt oben im Vorschaubild durch Ziehen der Icons anpassen. Wir prüfen jede Datei manuell.
+                        Laden Sie Ihre eigenen Medien hoch. Position, Größe und Rotation können Sie direkt oben im Vorschaubild durch Ziehen der Icons anpassen. Wir prüfen jede Datei manuell.
                     </p>
                 </div>
             @endif

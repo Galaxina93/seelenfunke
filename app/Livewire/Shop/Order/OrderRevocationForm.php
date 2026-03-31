@@ -60,13 +60,12 @@ class OrderRevocationForm extends Component
 
             // Check: 5MB in Bytes = 5242880
             if ($file->getSize() > 5242880) {
-                // Dynamisch eine Warnung für dieses spezielle Bild anzeigen
-                $this->addError("attachments.{$index}", "Datei '" . $file->getClientOriginalName() . "' ist zu groß (Max. 5 MB) und wurde entfernt.");
+                $this->addError("attachments", "Datei '" . $file->getClientOriginalName() . "' ist zu groß (Max. 5 MB) und wurde entfernt.");
                 $isValid = false;
             } else {
                 $ext = strtolower($file->getClientOriginalExtension());
                 if (!in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'])) {
-                    $this->addError("attachments.{$index}", "Format von '" . $file->getClientOriginalName() . "' ungültig (nur JPG, PNG, PDF). Wurde entfernt.");
+                    $this->addError("attachments", "Format von '" . $file->getClientOriginalName() . "' ungültig (nur JPG, PNG, PDF). Wurde entfernt.");
                     $isValid = false;
                 }
             }

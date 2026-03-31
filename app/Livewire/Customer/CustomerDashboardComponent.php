@@ -184,8 +184,8 @@ class CustomerDashboardComponent extends Component
             }
         }
 
-        $this->modelPath = asset('funki/models/' . $currentModelName . '.glb');
-        $this->imagePath = asset('funki/models/images/' . $currentModelName . '.png');
+        $this->modelPath = asset('shop/customer/gamification/models/' . $currentModelName . '.glb');
+        $this->imagePath = asset('shop/customer/gamification/models/images/original/' . $currentModelName . '.png');
 
         $this->titlesData = $gameService->evaluateTitles($profile);
         $this->activeTitleKey = $profile->active_title;

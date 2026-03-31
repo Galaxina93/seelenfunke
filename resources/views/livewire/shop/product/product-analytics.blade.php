@@ -14,9 +14,9 @@
                     Echte Netto-Margen inklusive Einkauf, Laser und Verpackung kombiniert mit der Verkaufsgeschwindigkeit und Logistik.
                 </p>
             </div>
-            <a href="{{ route('admin.product-analytics.export.full') }}" class="hidden sm:inline-flex items-center gap-2 bg-gray-900 border border-gray-700 hover:bg-white hover:text-black text-gray-300 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-xl group">
-                <i class="bi bi-download text-red-500 group-hover:text-red-600 transition-colors"></i> Export
-            </a>
+            <button wire:click.prevent="downloadFullReport" class="hidden sm:inline-flex items-center gap-2 bg-gray-900 border border-gray-700 hover:bg-white hover:text-black text-gray-300 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-xl group">
+                <i class="fa-solid fa-file-pdf text-red-500 group-hover:text-red-600 transition-colors"></i> Jahresabschlussbericht
+            </button>
         </div>
 
         <div class="overflow-x-auto border border-gray-800 rounded-[1.5rem] bg-gray-950/50 shadow-inner">
@@ -97,10 +97,10 @@
         </div>
 
         <!-- Mobile Export Button below since it's hidden in the header -->
-        <div class="mt-6 flex justify-center sm:hidden">
-            <a href="{{ route('admin.product-analytics.export.full') }}" class="inline-flex w-full justify-center items-center gap-2 bg-gray-900 border border-gray-700 hover:bg-white hover:text-black text-gray-300 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">
-                Exportieren
-            </a>
+        <div class="mt-4 sm:hidden px-4">
+            <button wire:click.prevent="downloadFullReport" class="inline-flex w-full justify-center items-center gap-2 bg-gray-900 border border-gray-700 hover:bg-white hover:text-black text-gray-300 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">
+                <i class="bi bi-download text-red-500"></i> Gesamten Report Exportieren
+            </button>
         </div>
     </div>
 
@@ -158,10 +158,10 @@
             </table>
         </div>
 
-        <div class="mt-6 flex justify-end">
-            <a href="{{ route('admin.product-analytics.export.lucid') }}" class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-2 bg-gray-800 hover:bg-white text-gray-400 hover:text-black border border-gray-700 px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
-                <i class="bi bi-download text-red-500 hidden sm:inline-block hover:inline-block"></i> Drucken / Export
-            </a>
+        <div class="mt-6 border-t border-gray-800 pt-6">
+            <button wire:click.prevent="downloadLucidReport" class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-2 bg-gray-800 hover:bg-white text-gray-400 hover:text-black border border-gray-700 px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                <i class="fa-solid fa-leaf text-emerald-500"></i> LUCID Bericht herunterladen
+            </button>
         </div>
     </div>
 

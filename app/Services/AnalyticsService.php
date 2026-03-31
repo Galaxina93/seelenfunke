@@ -37,6 +37,8 @@ class AnalyticsService
             'open_quotes' => $this->checkQuotes(),
             'open_revocations' => $this->checkRevocations(),
             'open_losses' => $this->checkLosses(),
+            'open_chats' => $this->checkChats(),
+            'open_contact_requests' => $this->checkContactRequests(),
         ]);
     }
 
@@ -117,6 +119,44 @@ class AnalyticsService
         ];
     }
 
+    private function checkChats(): ?array
+    {
+        if (!class_exists(\App\Models\Support\SupportCustomerChat::class)) return null;
+        $totalChats = \App\Models\Support\SupportCustomerChat::count();
+        $openChats = \App\Models\Support\SupportCustomerChat::where('status', 'open')->get();
+        $cCount = $openChats->count();
+        $status = $cCount > 0 ? 'error' : 'success';
+        $msg = $cCount > 0 ? $cCount . ' Live-Chats offen' : 'Alles beantwortet';
+        if ($totalChats === 0) { $msg = 'Keine Chats vorhanden'; $status = 'warning'; }
+        return [
+            'status' => $status,
+            'icon' => 'chat-bubble-oval-left-ellipsis',
+            'title' => 'Offene Chats',
+            'message' => $msg,
+            'count' => $cCount,
+            'data' => []
+        ];
+    }
+
+    private function checkContactRequests(): ?array
+    {
+        if (!class_exists(\App\Models\Support\SupportContactRequest::class)) return null;
+        $totalReqs = \App\Models\Support\SupportContactRequest::count();
+        $openReqs = \App\Models\Support\SupportContactRequest::where('status', 'open')->get();
+        $rCount = $openReqs->count();
+        $status = $rCount > 0 ? 'error' : 'success';
+        $msg = $rCount > 0 ? $rCount . ' Kontaktanfragen offen' : 'Alles beantwortet';
+        if ($totalReqs === 0) { $msg = 'Keine Kontaktanfragen vorhanden'; $status = 'warning'; }
+        return [
+            'status' => $status,
+            'icon' => 'envelope',
+            'title' => 'Kontaktanfragen',
+            'message' => $msg,
+            'count' => $rCount,
+            'data' => []
+        ];
+    }
+
     private function checkReviews(): ?array
     {
         if (!class_exists(\App\Models\Product\ProductReview::class)) return null;
@@ -190,18 +230,18 @@ class AnalyticsService
     {
         if (!class_exists(\App\Models\Order\OrderQuoteRequest::class)) return null;
         $totalQuotes = \App\Models\Order\OrderQuoteRequest::count();
-        $oldQuotes = \App\Models\Order\OrderQuoteRequest::where('status', 'open')->where('created_at', '<', now()->subDays(5))->count();
-        $status = $oldQuotes > 0 ? 'error' : 'success';
-        $msg = $oldQuotes > 0 ? $oldQuotes . ' älter als 5 Tage' : 'Alles aktuell';
+        $openQuotes = \App\Models\Order\OrderQuoteRequest::where('status', 'open')->count();
+        $status = $openQuotes > 0 ? 'error' : 'success';
+        $msg = $openQuotes > 0 ? $openQuotes . ' Angebote offen' : 'Alles aktuell';
         if ($totalQuotes === 0) { $msg = 'Keine Angebote vorhanden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'clipboard-document-list', 'title' => 'Offene Angebote', 'message' => $msg, 'count' => $oldQuotes, 'data' => []];
+        return ['status' => $status, 'icon' => 'clipboard-document-list', 'title' => 'Offene Angebote', 'message' => $msg, 'count' => $openQuotes, 'data' => []];
     }
 
     private function checkRevocations(): ?array
     {
         if (!class_exists(\App\Models\Order\OrderRevocation::class)) return null;
         $totalRevs = \App\Models\Order\OrderRevocation::count();
-        $oldRevs = \App\Models\Order\OrderRevocation::where('status', '!=', 'completed')->where('created_at', '<', now()->subDays(2))->count();
+        $oldRevs = \App\Models\Order\OrderRevocation::whereNotIn('status', ['processed', 'declined'])->where('created_at', '<', now()->subDays(2))->count();
         $status = $oldRevs > 0 ? 'error' : 'success';
         $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
         if ($totalRevs === 0) { $msg = 'Keine Widerrufe vorhanden'; $status = 'warning'; }

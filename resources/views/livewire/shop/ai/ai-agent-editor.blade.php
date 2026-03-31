@@ -307,7 +307,7 @@
                             <div class="relative">
                                 <select x-model="provider" @change="voice = Object.keys(voicesMap[provider] || {})[0] || ''" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
                                     @foreach($ttsProviders as $key => $label)
-                                        <option value="{{ $key }}" class="bg-gray-900 text-gray-300 {{ $key === 'elevenlabs' ? 'text-red-400' : '' }}">{{ $label }}{{ $key === 'elevenlabs' ? ' - OFFLINE (Quota)' : '' }}</option>
+                                        <option value="{{ $key }}" class="bg-gray-900 text-gray-300">{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">

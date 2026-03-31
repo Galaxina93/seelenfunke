@@ -68,7 +68,7 @@
                             @endif
                         </td>
                         <td class="px-4 py-3 text-right align-middle font-mono">
-                            {{ number_format($item['calculated_total'], 2, ',', '.') }} €
+                            {{ number_format($item['calculated_total'], 2, ',', '.') }}&nbsp;€
                         </td>
                         <td class="px-4 py-3 text-right align-middle">
                             <div class="flex justify-end gap-2">
@@ -107,7 +107,7 @@
                                 @endif
                             </div>
                             <span class="font-bold text-gray-900 font-mono">
-                                {{ number_format($item['calculated_total'], 2, ',', '.') }} €
+                                {{ number_format($item['calculated_total'], 2, ',', '.') }}&nbsp;€
                             </span>
                         </div>
                         <div class="flex justify-between items-center text-sm">
@@ -151,13 +151,19 @@
                 @php
                     $expressCharge = (int)shop_setting('express_surcharge', 2500);
                     $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
+                    $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+                    $expressDisabled = $shopCapacityLevel >= 2;
                 @endphp
 
                 {{-- Container: Wenn ausgewählt, goldener Rahmen & Hintergrund, sonst grau/weiß --}}
                 <label
-                    class="block border rounded-xl p-4 cursor-pointer shadow-sm hover:shadow-md transition-all group
-                    {{ $isExpress ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-300' : 'bg-white border-gray-200 hover:border-primary/50' }}"
+                    class="block border rounded-xl p-4 transition-all group relative overflow-hidden
+                    {{ $expressDisabled ? 'bg-gray-50 border-gray-200 opacity-70 cursor-not-allowed' : ($isExpress ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-300 cursor-pointer' : 'bg-white border-gray-200 hover:border-primary/50 shadow-sm hover:shadow-md cursor-pointer') }}"
                 >
+                    @if($expressDisabled)
+                        <div class="absolute inset-0 z-10 cursor-not-allowed" title="Express aktuell deaktiviert." @click.prevent></div>
+                    @endif
+
                     <div class="flex items-start gap-4">
 
                         {{-- Checkbox (Visuell angepasst) --}}
@@ -165,7 +171,8 @@
                             <input
                                 wire:model.live="isExpress"
                                 type="checkbox"
-                                class="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer"
+                                class="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary {{ $expressDisabled ? 'opacity-50' : 'cursor-pointer' }}"
+                                {{ $expressDisabled ? 'disabled' : '' }}
                             >
                         </div>
 
@@ -181,13 +188,20 @@
 
                                 {{-- Preis Badge --}}
                                 <span class="font-bold text-primary bg-primary/10 px-2 py-1 rounded text-sm whitespace-nowrap">
-                        + {{ $formattedPrice }} €
+                        + {{ $formattedPrice }}&nbsp;€
                     </span>
                             </div>
 
                             <p class="text-sm text-gray-500 mt-1 leading-relaxed">
                                 Wir ziehen Ihre Bestellung in der Manufaktur vor. Ideal für Geburtstage oder Hochzeiten, die kurz bevorstehen.
                             </p>
+
+                            @if($expressDisabled)
+                                <div class="mt-3 text-xs font-bold text-red-600 bg-red-50/80 p-2.5 border border-red-200 rounded-lg flex items-start gap-2 shadow-sm relative z-20">
+                                    <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                    Aufgrund des extrem hohen Lieferaufkommens können wir den Expressversand momentan nicht anbieten. Wir bitten um Verständnis!
+                                </div>
+                            @endif
 
                             {{-- Datumsauswahl (Fährt weich aus) --}}
                             @if($isExpress)
@@ -236,12 +250,12 @@
                     // Warenwert VOR Abzug des Rabatts berechnen
                     $warenwertOriginal = $warenwertItemsBrutto + $volumeDiscount;
                 @endphp
-                <div class="text-sm text-gray-600">Warenwert: {{ number_format($warenwertOriginal, 2, ',', '.') }} €</div>
+                <div class="text-sm text-gray-600">Warenwert: {{ number_format($warenwertOriginal, 2, ',', '.') }}&nbsp;€</div>
 
                 {{-- NEU: Mengenrabatt anzeigen --}}
                 @if($volumeDiscount > 0)
                     <div class="text-sm text-green-600 font-bold mt-1">
-                        Mengenrabatt: -{{ number_format($volumeDiscount, 2, ',', '.') }} €
+                        Mengenrabatt: -{{ number_format($volumeDiscount, 2, ',', '.') }}&nbsp;€
                     </div>
                 @endif
 
@@ -252,7 +266,7 @@
 
                 @if($shippingCost > 0)
                     <div class="text-sm text-gray-600">
-                        Versand ({{ $form['country'] }}): {{ number_format($shippingCost, 2, ',', '.') }} €
+                        Versand ({{ $form['country'] }}): {{ number_format($shippingCost, 2, ',', '.') }}&nbsp;€
                     </div>
 
                     @if($form['country'] === 'DE')
@@ -261,7 +275,7 @@
                         @endphp
                         @if($missing > 0.01)
                             <div class="text-xs text-amber-600 font-bold mt-1">
-                                Noch <strong>{{ number_format($missing, 2, ',', '.') }} €</strong> bis zum kostenlosen Versand!
+                                Noch <strong>{{ number_format($missing, 2, ',', '.') }}&nbsp;€</strong> bis zum kostenlosen Versand!
                             </div>
                         @endif
                     @endif
@@ -274,24 +288,34 @@
 
                 {{-- Express Anzeige falls aktiv --}}
                 @if($isExpress)
-                    <div class="text-sm text-red-600">Express-Service: {{ number_format($expressCharge / 100, 2, ',', '.') }} €</div>
+                    <div class="text-sm text-red-600">Express-Service: {{ number_format($expressCharge / 100, 2, ',', '.') }}&nbsp;€</div>
                 @endif
 
                 {{-- Steuerliche Aufschlüsselung (Informativ am Ende) --}}
                 <div class="mt-2 pt-2 border-t border-gray-100">
-                    <div class="text-2xl font-bold text-primary">Gesamtbetrag: {{ number_format($totalBrutto, 2, ',', '.') }} €</div>
+                    <div class="text-2xl font-bold text-primary">Gesamtbetrag: {{ number_format($totalBrutto, 2, ',', '.') }}&nbsp;€</div>
 
                     <div class="text-[10px] text-gray-400 italic mt-1">
                         Darin enthalten:<br>
-                        Nettobetrag: {{ number_format($totalNetto, 2, ',', '.') }} € |
-                        MwSt. ({{ (float)shop_setting('default_tax_rate', 19) }}%): {{ number_format($totalMwst, 2, ',', '.') }} €
+                        Nettobetrag: {{ number_format($totalNetto, 2, ',', '.') }}&nbsp;€ |
+                        MwSt. ({{ (float)shop_setting('default_tax_rate', 19) }}%): {{ number_format($totalMwst, 2, ',', '.') }}&nbsp;€
                     </div>
                 </div>
 
                 <div class="mt-4">
-                    <button wire:click="goNext" class="w-full md:w-auto bg-gray-900 text-white px-8 py-3 rounded-lg hover:bg-black transition-all font-bold shadow-lg hover:shadow-xl active:scale-95">
-                        Angebot anfordern
-                    </button>
+                    @if($shopCapacityLevel >= 4)
+                        <div class="w-full md:w-auto bg-red-100/80 text-red-800 p-4 border border-red-200 rounded-xl shadow-sm leading-snug">
+                            <h4 class="font-black flex items-center gap-2 mb-1">
+                                <svg class="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                Absoluter Bestellstopp!
+                            </h4>
+                            <p class="text-xs">Unser maximales 100% Produktionslimit ist erschöpft. Das System hat den Checkout automatisch blockiert, um Lieferchaos zu verhindern. Bitte versuche es in wenigen Stunden oder Tagen noch einmal.</p>
+                        </div>
+                    @else
+                        <button wire:click="goNext" class="w-full md:w-auto bg-gray-900 text-white px-8 py-3 rounded-xl hover:bg-black transition-all font-bold shadow-lg hover:shadow-xl active:scale-95">
+                            Angebot anfordern
+                        </button>
+                    @endif
                 </div>
 
                 @error('cart') <div class="text-red-500 text-xs mt-2 font-bold">{{ $message }}</div> @enderror

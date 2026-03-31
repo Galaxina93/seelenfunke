@@ -335,6 +335,11 @@ class OrderOverview extends Component
         return OrderOrderItem::with('product')->find($this->selectedOrderItemId);
     }
 
+    public function downloadLaserFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadLaserSvg($itemId, $side);
+    }
+
     // --- RENDER ---
 
     public function render()

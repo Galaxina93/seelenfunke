@@ -270,9 +270,9 @@
                                     </div>
 
                                     <div class="flex items-center gap-2 pl-7 sm:pl-0 shrink-0">
-                                        <a href="{{ route('ceo.gesundheit.plan.pdf', $plan->id) }}" @click.stop class="btn btn-sm bg-teal-600 hover:bg-teal-500 text-white p-2.5 rounded-lg shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-10 relative" title="PDF Download">
+                                        <button wire:click.prevent="downloadPlanPdf('{{ $plan->id }}')" @click.stop class="btn btn-sm bg-teal-600 hover:bg-teal-500 text-white p-2.5 rounded-lg shadow-lg flex items-center justify-center transition-transform hover:scale-105 z-10 relative" title="PDF Download">
                                             <x-heroicon-s-arrow-down-tray class="w-4 h-4" />
-                                        </a>
+                                        </button>
                                     </div>
                                 </div>
 

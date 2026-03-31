@@ -146,10 +146,7 @@ class AiAgentEditor extends Component
             $this->tts_enabled = (bool) ($agent->tts_enabled ?? false);
             $this->tts_provider = $agent->tts_provider ?? 'toni_xttsv2';
             
-            // Absolute purge of ElevenLabs for existing agents
-            if ($this->tts_provider === 'elevenlabs') {
-                $this->tts_provider = 'toni_xttsv2';
-            }
+
 
             $this->tts_voice = $agent->tts_voice ?? '';
             $this->tts_api_url = $agent->tts_api_url ?? '';

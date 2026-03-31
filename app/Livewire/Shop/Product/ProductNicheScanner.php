@@ -175,10 +175,9 @@ class ProductNicheScanner extends Component
     }
 
 
-    public function exportTop5Pdf()
+    public function exportTop5Pdf(\App\Services\Export\FileDownloadService $exportService)
     {
-        $runIdParam = $this->selectedRunId ? '?product_niche_crawler_run_id=' . $this->selectedRunId : '';
-        return redirect()->to(route('shop.pdf.top5-niche') . $runIdParam);
+        return $exportService->downloadNicheCrawlerPdf($this->selectedRunId);
     }
 
     public function render()

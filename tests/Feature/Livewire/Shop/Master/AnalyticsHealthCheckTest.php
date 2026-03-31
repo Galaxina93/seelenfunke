@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Livewire\Global\Widgets;
+namespace Tests\Feature\Livewire\Shop\Master;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -141,7 +141,7 @@ class AnalyticsHealthCheckTest extends TestCase
         ]);
         
         DB::table('order_quote_requests')->insert(['id' => Str::uuid()->toString(), 'status' => 'converted', 'created_at' => now()->subDays(6), 'quote_number' => '2', 'email' => 'test@test.com', 'first_name' => 'A', 'last_name' => 'B', 'net_total' => 0, 'tax_total' => 0, 'gross_total' => 0]);
-        DB::table('order_revocations')->insert(['id' => 2, 'status' => 'completed', 'created_at' => now()->subDays(3), 'name' => 'A', 'email' => 'a@b.com', 'order_number' => '456']);
+        DB::table('order_revocations')->insert(['id' => 2, 'status' => 'processed', 'created_at' => now()->subDays(3), 'name' => 'A', 'email' => 'a@b.com', 'order_number' => '456']);
 
         Livewire::test(Analytics::class)
             ->assertSet('healthChecks.open_tasks.status', 'success')

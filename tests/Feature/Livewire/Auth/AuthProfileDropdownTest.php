@@ -24,8 +24,7 @@ class AuthProfileDropdownTest extends TestCase
     {
         parent::setUp();
 
-        // Ensure roles exist if needed by the system
-        \App\Models\System\SystemRole::firstOrCreate(['name' => 'customer']);
+
 
         $this->user = Customer::create([
             'id' => Str::uuid()->toString(),

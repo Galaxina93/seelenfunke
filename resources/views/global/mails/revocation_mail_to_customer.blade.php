@@ -114,6 +114,10 @@
             font-size: 15px;
             font-weight: bold;
             color: #111827;
+            display: block;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         /* Info-Box für den rechtlichen Hinweis */

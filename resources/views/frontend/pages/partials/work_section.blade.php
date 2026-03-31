@@ -148,13 +148,13 @@
                 </p>
                 <ul class="mt-6 space-y-3 text-white text-lg list-none">
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✔</span> Liebe zum Detail bei jedem Stück
+                        <x-heroicon-s-check class="w-6 h-6 text-yellow-500 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" /> Liebe zum Detail bei jedem Stück
                     </li>
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✔</span> Schnelle Bearbeitung (1-3 Tage)
+                        <x-heroicon-s-check class="w-6 h-6 text-yellow-500 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" /> Schnelle Bearbeitung (1-3 Tage)
                     </li>
                     <li class="flex items-center gap-3">
-                        <span class="text-primary text-xl" aria-hidden="true">✔</span> Wir starten mit Glas und haben noch viel vor.
+                        <x-heroicon-s-check class="w-6 h-6 text-yellow-500 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" /> Wir starten mit Glas und haben noch viel vor.
                     </li>
                 </ul>
             </div>

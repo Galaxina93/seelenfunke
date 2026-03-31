@@ -5,8 +5,12 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use App\Models\Order\OrderOrder; // Stelle sicher, dass der Namespace stimmt
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderOrderItem;
 use App\Models\Customer\Customer;
+use App\Models\Accounting\AccountingInvoice;
+use App\Models\Product\Product;
+use App\Models\System\SystemSetting;
 use Faker\Factory as Faker;
 
 class OrdersTableSeeder extends Seeder
@@ -18,41 +22,67 @@ class OrdersTableSeeder extends Seeder
     {
         $faker = Faker::create('de_DE');
 
-        // Wir holen uns existierende Customer IDs, um echte Verknüpfungen zu simulieren
-        // Falls keine Kunden existieren, bleibt das Array leer
-        $customerIds = [];
-        try {
-            $customerIds = Customer::pluck('id')->toArray();
-        } catch (\Exception $e) {
-            // Ignorieren, falls Model nicht existiert oder Tabelle leer
+        // Lade oder erzeuge Test-Produkte
+        $products = Product::where('status', 'active')->get();
+        if ($products->isEmpty()) {
+            $product = Product::create([
+                'id' => Str::uuid(),
+                'name' => 'Seelenfunke Premium Holzschild',
+                'slug' => 'seelenfunke-premium-holzschild-' . uniqid(),
+                'price' => 4990, // 49,90€
+                'status' => 'active',
+                'type' => 'physical',
+                'tax_rate' => 19.00,
+                'tax_included' => true,
+                'weight' => 500,
+            ]);
+            $products->push($product);
         }
 
-        for ($i = 0; $i < 30; $i++) {
+        $customerIds = Customer::pluck('id')->toArray();
 
-            // 1. Kunde bestimmen (Registriert oder Gast)
+        // 1. Kapazitätsberechnung für Standardwerte (7x10x5 -> 37 Pakete)
+        SystemSetting::updateOrCreate(['key' => 'shop_daily_working_hours'], ['value' => 7]);
+        SystemSetting::updateOrCreate(['key' => 'shop_minutes_per_order'], ['value' => 10]);
+        SystemSetting::updateOrCreate(['key' => 'shop_capacity_buffer'], ['value' => 5]);
+
+        \Illuminate\Support\Facades\Cache::forget('shop_daily_working_hours');
+        \Illuminate\Support\Facades\Cache::forget('shop_minutes_per_order');
+        \Illuminate\Support\Facades\Cache::forget('shop_capacity_buffer');
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+
+        $dailyWorkingHours = 7.0;
+        $minutesPerOrder = 10;
+        $capacityBuffer = 5;
+
+        // Theoretisches Limit und Max Capacity
+        $theoreticalLimit = ($dailyWorkingHours * 60) / max(1, $minutesPerOrder);
+        $maxCapacity = max(1, (int) round($theoreticalLimit) - $capacityBuffer);
+        
+        // 95% von 37 Paketen = 35.15 -> 35 Bestellungen = 94.6% (das nächste an 95%)
+        $targetOrders = (int) round($maxCapacity * 0.95);
+
+        // Alle bestehenden aktiven Orders löschen, um sauber zu starten
+        OrderOrder::whereIn('status', ['pending', 'processing'])->delete();
+
+        $this->command->info("Starte ultra realistisches Seeding: Generiere exakt {$targetOrders} aktive Bestellungen für 95% Auslastung...");
+
+        for ($i = 0; $i < $targetOrders; $i++) {
+
+            // Kunde generieren
             $customerId = null;
             $customerEmail = $faker->unique()->safeEmail;
             $firstName = $faker->firstName;
             $lastName = $faker->lastName;
 
-            // 70% Wahrscheinlichkeit für verknüpften Kunden, wenn Kunden existieren
             if (!empty($customerIds) && $faker->boolean(70)) {
                 $customerId = $faker->randomElement($customerIds);
-                // Optional: Echte Daten vom Kunden holen, hier simulieren wir es einfachheitshalber
             }
 
-            // 2. Status Logik
-            $status = $faker->randomElement(['pending', 'processing', 'shipped', 'completed', 'cancelled']);
+            // Garantiert "processing" oder "pending" für die Auslastung
+            $status = $faker->randomElement(['pending', 'processing']);
+            $paymentStatus = 'paid';
 
-            // Wenn versendet/fertig, dann meistens bezahlt. Wenn storniert, dann refunded oder unpaid.
-            $paymentStatus = 'unpaid';
-            if (in_array($status, ['processing', 'shipped', 'completed'])) {
-                $paymentStatus = 'paid';
-            } elseif ($status === 'cancelled') {
-                $paymentStatus = $faker->randomElement(['refunded', 'unpaid']);
-            }
-
-            // 3. Adressen generieren
             $billingAddress = [
                 'first_name' => $firstName,
                 'last_name' => $lastName,
@@ -63,77 +93,94 @@ class OrdersTableSeeder extends Seeder
                 'country' => 'DE',
             ];
 
-            // 30% Wahrscheinlichkeit für abweichende Lieferadresse
-            $shippingAddress = null;
-            if ($faker->boolean(30)) {
-                $shippingAddress = [
-                    'first_name' => $faker->firstName,
-                    'last_name' => $faker->lastName,
-                    'company' => null,
-                    'address' => $faker->streetAddress,
-                    'postal_code' => $faker->postcode,
-                    'city' => $faker->city,
-                    'country' => 'DE',
+            // Ultra realistische Produkte anhängen
+            $orderItems = [];
+            $subtotal = 0;
+            $numItems = $faker->numberBetween(1, 3);
+            
+            for ($k = 0; $k < $numItems; $k++) {
+                $product = $products->random();
+                $qty = $faker->numberBetween(1, 2);
+                $unitPrice = $product->price;
+                $lineTotal = $unitPrice * $qty;
+                $subtotal += $lineTotal;
+
+                $orderItems[] = [
+                    'id' => Str::uuid(),
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'quantity' => $qty,
+                    'unit_price' => $unitPrice,
+                    'total_price' => $lineTotal,
+                    'tax_rate' => $product->tax_rate ?? 19.00,
+                    'configuration' => [
+                        'color' => $faker->randomElement(['Naturholz', 'Schwarz', 'Weiß']),
+                        'engraving_text' => $faker->boolean(50) ? $faker->words(3, true) : null
+                    ]
                 ];
             }
 
-            // 4. Preise berechnen (in Cent)
-            $subtotal = $faker->numberBetween(1500, 25000); // 15€ bis 250€
+            $discountAmount = $faker->boolean(20) ? (int)($subtotal * 0.10) : 0;
+            $couponCode = $discountAmount > 0 ? 'RABATT10' : null;
 
-            // Versandkosten (frei ab gewissem Wert simulieren oder pauschal)
-            $shippingPrice = $subtotal > 10000 ? 0 : 490; // Kostenlos ab 100€, sonst 4,90€
-
-            // Rabatt
-            $discountAmount = 0;
-            $couponCode = null;
-            if ($faker->boolean(20)) { // 20% Chance auf Gutschein
-                $discountAmount = intval($subtotal * 0.10); // 10% Rabatt
-                $couponCode = 'WELCOME10';
-            }
-
-            // Steuer (grob 19% vom Subtotal berechnet für Demo-Zwecke)
-            $taxAmount = intval(($subtotal - $discountAmount) * 0.19);
-
-            // Endsumme
+            $shippingPrice = $subtotal > 5000 ? 0 : 490;
+            $taxAmount = (int) round(($subtotal - $discountAmount + $shippingPrice) - (($subtotal - $discountAmount + $shippingPrice) / 1.19));
             $totalPrice = $subtotal + $shippingPrice - $discountAmount;
 
-
-            // 5. Erstellen
-            OrderOrder::create([
+            $order = OrderOrder::create([
                 'id' => Str::uuid(),
                 'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
                 'customer_id' => $customerId,
-
                 'status' => $status,
-                'is_express' => $faker->boolean(10), // 10% Express
-                'deadline' => $faker->boolean(5) ? $faker->dateTimeBetween('now', '+1 week') : null,
-
+                'is_express' => $faker->boolean(15),
+                'deadline' => null, // Express deadlines usually handled separately if needed
                 'payment_status' => $paymentStatus,
-                'payment_method' => $faker->randomElement(['stripe', 'paypal', 'invoice']),
-                'payment_url' => ($paymentStatus === 'unpaid') ? 'https://checkout.stripe.com/pay/...' : null,
-                'stripe_payment_intent_id' => $paymentStatus === 'paid' ? 'pi_' . Str::random(24) : null,
-
+                'payment_method' => $faker->randomElement(['stripe', 'paypal']),
                 'email' => $customerEmail,
-
-                'billing_address' => $billingAddress, // Model castet dies automatisch zu JSON
-                'shipping_address' => $shippingAddress, // Model castet dies automatisch zu JSON
-
+                'billing_address' => $billingAddress,
+                'shipping_address' => $billingAddress, // keep simple
                 'subtotal_price' => $subtotal,
                 'tax_amount' => $taxAmount,
                 'shipping_price' => $shippingPrice,
                 'total_price' => $totalPrice,
-
-                'volume_discount' => 0,
-                'coupon_code' => $couponCode,
                 'discount_amount' => $discountAmount,
-
-                'notes' => $faker->boolean(15) ? $faker->sentence : null,
-                'cancellation_reason' => $status === 'cancelled' ? $faker->sentence : null,
-
-                // Ein paar Bestellungen in die Vergangenheit datieren für Statistiken
-                'created_at' => $faker->dateTimeBetween('-3 months', 'now'),
+                'coupon_code' => $couponCode,
+                'created_at' => $faker->dateTimeBetween('-2 days', 'now'),
                 'updated_at' => now(),
             ]);
+
+            // Save Items
+            foreach ($orderItems as $itemData) {
+                OrderOrderItem::create(array_merge($itemData, ['order_id' => $order->id]));
+            }
+
+            // Create Ultra Realistic Invoice!
+            AccountingInvoice::create([
+                'id' => Str::uuid(),
+                'invoice_number' => 'RE-' . date('Y') . '-' . mt_rand(100, 999) . '-' . str_pad(mt_rand(1, 99999), 5, '0', STR_PAD_LEFT),
+                'type' => 'invoice',
+                'order_id' => $order->id,
+                'customer_id' => $customerId,
+                'status' => 'paid',
+                'invoice_date' => $order->created_at,
+                'delivery_date' => $order->created_at->addDays(3),
+                'due_date' => $order->created_at->addDays(14),
+                'paid_at' => $order->created_at->addMinutes(15), // Sofort bezahlt
+                'billing_address' => $billingAddress,
+                'shipping_address' => $billingAddress,
+                'subtotal' => $subtotal,
+                'tax_amount' => $taxAmount,
+                'shipping_cost' => $shippingPrice,
+                'discount_amount' => $discountAmount,
+                'total' => $totalPrice,
+                'header_text' => 'Vielen Dank für Ihre Bestellung!',
+                'footer_text' => 'Bitte überweisen Sie den Betrag innerhalb von 14 Tagen. Zahlungsziel: [%ZAHLUNGSZIEL%]',
+            ]);
         }
+
+        $this->command->info("Perfekt! Die Shop Auslastung wurde auf exakt 95% gesät (Max: {$maxCapacity}, Aktiv: {$targetOrders}).");
+        
+        // Triggere die Engine um das Level zu berechnen und den Livewire Cache zu updaten
+        \Illuminate\Support\Facades\Artisan::call('shop:capacity-engine');
     }
 }

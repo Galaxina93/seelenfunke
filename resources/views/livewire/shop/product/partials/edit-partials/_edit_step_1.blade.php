@@ -210,5 +210,30 @@
                 </div>
             </div>
         </div>
+        {{-- Karte 4: Rechtliche Hinweise (Gesetzliche Kennzeichnungen) --}}
+        <div class="bg-[var(--theme-color-10)] backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-[var(--theme-color-30)] p-6 sm:p-8 mt-8">
+            <h3 class="text-xl font-serif font-bold text-[var(--theme-color)] mb-4 flex items-center gap-3">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Gesetzliche Kennzeichnungspflichten
+            </h3>
+            
+            <div class="space-y-4 text-gray-300 text-sm leading-relaxed">
+                <p><strong>1. Herstellerkennzeichnung (GPSR / ProdSG):</strong> Seit dem 13.12.2024 (allg. Produktsicherheitsverordnung) muss <strong>jedes</strong> Produkt oder dessen Verpackung zwingend mit dem <span class="text-white font-bold">Namen und der Postanschrift des Herstellers</span> versehen sein.</p>
+                
+                <p><strong>2. Verpackungsgesetz (LUCID):</strong> Eine Lizenzierung deiner Versand- und Produktverpackungen an ein Duales System ist Pflicht. Der Aufdruck von Recycling-Symbolen (z.B. Grüner Punkt) ist auf der Verpackung in Deutschland <strong>freiwillig</strong>. (Ausnahme: Versand nach Frankreich erfordert das Triman-Logo).</p>
+                
+                <p><strong>3. CE-Kennzeichnung & Spielzeug:</strong> Typische Deko-Gegenstände benötigen (und dürfen) <strong>KEIN</strong> CE-Zeichen tragen! Sieht ein Dekoartikel aus Holz jedoch aus wie Spielzeug, bringe sicherheitshalber den Hinweis an: <em>"Achtung: Dies ist ein Dekoartikel und kein Spielzeug!"</em>.</p>
+                
+                <p><strong>4. Lebensmittelkontakt (Cake-Topper, Schneidebretter):</strong> Bedarfsgegenstände, die mit Lebensmitteln in Berührung kommen, erfordern eine Konformitätserklärung sowie das <strong>Glas-Gabel-Symbol</strong> auf Artikel, Etikett oder Verpackung (außer die Bestimmung ist ohnehin offensichtlich, wie bei einer Kaffeetasse).</p>
+
+                <p><strong>5. Textilartikel (Taschen, Kissenbezüge):</strong> Bei Textilien ist nach dem Textilkennzeichnungsgesetz ein fest verbundenes Etikett mit der exakten <span class="text-white font-bold">Faserzusammensetzung</span> (z.B. "100 % Baumwolle") verpflichtend.</p>
+            </div>
+            
+            <div class="mt-6 pt-4 border-t border-[var(--theme-color-30)]/50 text-xs text-gray-400">
+                <p class="italic">Disclaimer: Diese Zusammenfassung dient als grobe Orientierungshilfe für typische Geschenkartikel und ersetzt keine professionelle Rechtsberatung, insbesondere bei Babyartikeln oder Kosmetik.</p>
+            </div>
+        </div>
     </div>
 @endif

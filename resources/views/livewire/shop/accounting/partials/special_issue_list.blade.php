@@ -221,7 +221,7 @@
                                             <div class="flex justify-center -space-x-2">
                                                 @foreach($files as $index => $path)
                                                     <div class="relative group/file">
-                                                        <a href="{{ \Illuminate\Support\Facades\Storage::url($path) }}" target="_blank" class="w-9 h-9 rounded-full bg-gray-900 border-2 border-gray-700 flex items-center justify-center text-gray-400 hover:border-orange-500 hover:text-orange-400 hover:z-10 transition-all shadow-md" title="Beleg ansehen">
+                                                        <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-9 h-9 rounded-full bg-gray-900 border-2 border-gray-700 flex items-center justify-center text-gray-400 hover:border-orange-500 hover:text-orange-400 hover:z-10 transition-all shadow-md" title="Beleg ansehen">
                                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                         </a>
                                                         {{-- Rotes X zum Löschen des einzelnen Belegs --}}
@@ -387,7 +387,7 @@
                                     <div class="flex flex-wrap gap-3 py-2">
                                         @foreach($files as $index => $path)
                                             <div class="relative">
-                                                <a href="{{ \Illuminate\Support\Facades\Storage::url($path) }}" target="_blank" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 active:border-orange-500 active:text-orange-400 transition-all shadow-md">
+                                                <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 active:border-orange-500 active:text-orange-400 transition-all shadow-md">
                                                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                 </a>
                                                 <button type="button" wire:click="deleteSpecialFile('{{ $special['id'] }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform z-20">

@@ -28,7 +28,7 @@ class ManagementHealth extends Component
     public $activeTab = 'chat'; // 'chat', 'plans', 'protocols', 'files', 'medications'
 
     // Uploads
-    public $currentPath = 'wiki/health';
+    public $currentPath = 'Shop/Management/Health';
     public $healthFiles = [];
     public $uploadedHealthFiles = [];
     public $aiLiveState = [];
@@ -230,12 +230,12 @@ class ManagementHealth extends Component
         $userName = auth()->check() ? trim(auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'Patient';
 
         // Füge System Kontext für hochgeladene Dokumente hinzu (Rekursiv alle Ordner)
-        $allSystemFiles = Storage::disk('public')->allFiles('wiki/health');
+        $allSystemFiles = Storage::disk('public')->allFiles('Shop/Management/Health');
         if (!empty($allSystemFiles)) {
             $docList = collect($allSystemFiles)->map(fn($path) => basename($path))->implode(', ');
             $apiHistory[] = [
                 'role' => 'system',
-                'content' => "System Info: Der Name deines Patienten ist {$userName}. Es wurden folgende medizinische Dokumente hochgeladen und stehen über die Knowledge Base im Verzeichnis 'wiki/health' zur Verfügung: $docList. Nutze diese als Referenz.
+                'content' => "System Info: Der Name deines Patienten ist {$userName}. Es wurden folgende medizinische Dokumente hochgeladen und stehen über die Knowledge Base im Verzeichnis 'Shop/Management/Health' zur Verfügung: $docList. Nutze diese als Referenz.
 WICHTIGSTE REGEL FÜR DR. FUNKI: Sei brillant, präzise und absolut professionell. Du MUSST eine Mischung aus verständlicher Sprache und tiefem medizinischem Fachjargon (Fachbegriffe, Latein) nutzen.
 Wenn du eine 'Diagnose & Zusammenfassung' für das PDF erstellst, erkläre die Sachlage klipp und klar.
 FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HINZU, in dem du alle von dir verwendeten medizinischen Fachwörter kurz und prägnant für den Laien erklärst.
@@ -352,7 +352,7 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function goUp()
     {
-        if ($this->currentPath !== 'wiki/health') {
+        if ($this->currentPath !== 'Shop/Management/Health') {
             $this->currentPath = dirname($this->currentPath);
             $this->loadUploadedFiles();
         }
@@ -360,8 +360,8 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function loadUploadedFiles()
     {
-        if (!Storage::disk('public')->exists('wiki/health')) {
-            Storage::disk('public')->makeDirectory('wiki/health');
+        if (!Storage::disk('public')->exists('Shop/Management/Health')) {
+            Storage::disk('public')->makeDirectory('Shop/Management/Health');
         }
 
         $files = Storage::disk('public')->files($this->currentPath);
@@ -485,6 +485,11 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
     public function deleteMedication($id)
     {
         \App\Models\Ai\AiHealthMedication::destroy($id);
+    }
+
+    public function downloadPlanPdf($planId, \App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadHealthTreatmentPlanPdf($planId);
     }
 
     public function render()

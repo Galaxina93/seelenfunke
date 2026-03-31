@@ -352,6 +352,16 @@ class FinancialSeeder extends Seeder
                 'description' => "Mittwald Hosting zum verwalten und betreiben der Domains",
                 'tags'        => ['Vertrag', 'IT', 'Gewerbe', 'Hosting'],
             ],
+            [
+                'group'       => 'Vertrag & Lizenz',
+                'name'        => 'Ai Hosting',
+                'amount'      => -39.00,
+                'interval'    => 1, // monthly
+                'start_date'  => '2026-03-11',
+                'is_business' => 1,
+                'description' => "Mittwald Ai Hosting - Agenten Modelle",
+                'tags'        => ['Vertrag', 'IT', 'Gewerbe', 'Hosting'],
+            ],
 
             // Auto (Ausgaben = Negativ)
             [

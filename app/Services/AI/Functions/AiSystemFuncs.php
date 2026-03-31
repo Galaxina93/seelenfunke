@@ -489,7 +489,7 @@ trait AiSystemFuncs
     {
         try {
             $query = $args['filename_query'] ?? null;
-            $files = Storage::disk('public')->files('wiki');
+            $files = Storage::disk('public')->files('Shop/Ai/KnowledgeBase');
 
             if (empty($files)) {
                 return ['status' => 'error', 'message' => "Es befinden sich aktuell keine Dateien im Wiki-Ordner. Der Benutzer muss erst Dateien hochladen."];

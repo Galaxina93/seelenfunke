@@ -15,8 +15,22 @@
         <span x-text="msg"></span>
     </div>
 
-    {{-- Spezialmodi Banner (Urlaub / Krankheit) mit Feedback-Button --}}
-    @if($type === 'physical' && $setting)
+    {{-- Spezialmodi Banner (Urlaub / Krankheit / LOCKDOWN) mit Feedback-Button --}}
+    @php
+        $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+    @endphp
+
+    @if($shopCapacityLevel >= 4)
+        <div class="mb-6 bg-red-100 border border-red-300 text-red-900 p-6 rounded-2xl shadow-sm flex flex-col w-full relative overflow-hidden">
+            <div class="flex items-start gap-4 relative z-10 w-full">
+                <span class="text-3xl leading-none pt-1 drop-shadow-sm">⛔</span>
+                <div class="flex-1">
+                    <h4 class="font-black text-lg mb-1 tracking-tight">Bestellstopp (Max. Auslastung)</h4>
+                    <p class="leading-relaxed font-medium text-sm">Unsere Manufaktur hat momentan die absolute Produktionsgrenze erreicht. Um Qualität und Versandzeiten bestehender Bestellungen zu sichern, nehmen wir für kurze Zeit keine neuen Aufträge an. Wir bitten um Geduld!</p>
+                </div>
+            </div>
+        </div>
+    @elseif($type === 'physical' && $setting)
         @if($setting->is_vacation_mode && !empty($setting->vacation_description))
             <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-6 rounded-2xl shadow-sm flex flex-col w-full relative overflow-hidden group">
                 <div class="flex items-start gap-4 relative z-10 w-full mb-4">
@@ -86,7 +100,7 @@
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                 </span>
-                {{ $isService ? 'Plätze verfügbar' : 'Auf Lager, sofort lieferbar' }}
+                {{ $isService ? 'Plätze verfügbar' : 'Auf Lager' }}{{ !$isService && isset($activeTime) && $activeTime->name === 'Standard' ? ', sofort lieferbar' : '' }}
             </span>
         @elseif($product->continue_selling_when_out_of_stock)
             <span class="inline-flex items-center gap-1.5 text-amber-600 font-medium">
@@ -101,8 +115,8 @@
         @endif
     @endif
 
-    {{-- Intelligente Lieferzeit mit Klick-für-Info Logik --}}
-    @if($type === 'physical' && $activeTime)
+    {{-- Intelligente Lieferzeit mit Klick-für-Info Logik (nur wenn kein Lockdown) --}}
+    @if($type === 'physical' && $activeTime && $shopCapacityLevel < 4)
         @php
             $timeColorClass = 'text-green-700';
             $iconColorClass = 'text-green-600';

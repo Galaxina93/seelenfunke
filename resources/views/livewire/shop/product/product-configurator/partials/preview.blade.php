@@ -91,7 +91,7 @@
                                           "
                                           @input="fitTextarea(textItem.id, $el)"
                                           wrap="off"
-                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none text-center"
+                                          class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none"
                                           :class="alignMap[textItem.align || 'center']"
                                           :style="`
                                                 width: ${textDims[textItem.id]?.width || 'auto'};
@@ -246,10 +246,10 @@
                 <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-3"><span>Klein</span><span>Groß</span></div>
 
                 <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-                    <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                    <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
                 </template>
                 <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
-                    <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" @input="updateTexture()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                    <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
                 </template>
             </div>
         </div>
@@ -264,14 +264,17 @@
         <div class="w-px h-10 mx-1 sm:mx-2 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200' }}"></div>
 
         <div class="flex items-center gap-1">
-            <button @click="centerHorizontal" class="flex flex-col items-center px-3 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}" title="Horizontal zentrieren">
+            <button @click="centerHorizontal" class="flex flex-col items-center justify-center min-w-[3rem] px-2 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}" title="Horizontal zentrieren">
                 <x-heroicon-m-pause class="w-5 h-5 rotate-90" />
+                <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1">Horiz.</span>
             </button>
-            <button @click="centerVertical" class="flex flex-col items-center px-3 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}" title="Vertikal zentrieren">
+            <button @click="centerVertical" class="flex flex-col items-center justify-center min-w-[3rem] px-2 py-2 rounded-xl text-gray-500 transition-colors {{ $isDark ? 'hover:bg-gray-800 hover:text-gray-300' : 'hover:bg-gray-50 hover:text-gray-700' }}" title="Vertikal zentrieren">
                 <x-heroicon-m-pause class="w-5 h-5" />
+                <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1">Vertik.</span>
             </button>
-            <button @click="centerBoth" class="flex flex-col items-center px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-colors shadow-sm" title="Exakt in die Mitte">
+            <button @click="centerBoth" class="flex flex-col items-center justify-center min-w-[3rem] px-2 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-colors shadow-sm" title="Exakt in die Mitte">
                 <x-heroicon-m-viewfinder-circle class="w-5 h-5" />
+                <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest mt-1">Mitte</span>
             </button>
         </div>
     </div>

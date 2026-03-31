@@ -135,7 +135,7 @@ class AccountingBank extends Component
         if($this->uploadingBankTxId && $this->quickUploadFile) {
             $tx = AccountingBankTransaction::find($this->uploadingBankTxId);
             if($tx && $tx->account->admin_id === auth('admin')->id()) {
-                $path = $this->quickUploadFile->store('financial/receipts', 'public');
+                $path = $this->quickUploadFile->store('Shop/Accounting/Receipts', 'local');
 
                 $files = is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths;
                 if (!is_array($files)) {
@@ -157,8 +157,8 @@ class AccountingBank extends Component
             $files = is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths;
             if (isset($files[$fileIndex])) {
                 $path = $files[$fileIndex];
-                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-                    \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                    \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
                 }
                 unset($files[$fileIndex]);
                 $tx->update(['file_paths' => array_values($files)]);

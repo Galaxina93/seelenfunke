@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Livewire\Shop\Master;
 
 use App\Models\Admin\Admin;
 use Illuminate\Foundation\Testing\RefreshDatabase;

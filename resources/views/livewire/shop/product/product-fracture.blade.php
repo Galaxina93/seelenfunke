@@ -185,7 +185,7 @@
                         <div class="flex items-center gap-2 pl-7 sm:pl-0 shrink-0">
                             @if(!$isRefunded)
                                 <button wire:click.stop="deleteLoss('{{ $loss->id }}')" wire:confirm="Dieses SupportTicket unwiderruflich löschen und Bestand wiederherstellen?" class="btn btn-sm bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-red-500 p-2.5 rounded-lg shadow-lg flex items-center justify-center transition-colors" title="Löschen">
-                                    <i class="bi bi-trash3"></i>
+                                    <x-heroicon-o-trash class="w-4 h-4" />
                                 </button>
                             @endif
                         </div>

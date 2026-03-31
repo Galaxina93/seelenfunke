@@ -397,6 +397,12 @@ class ProductConfigurator extends Component
         }
 
         if ($this->context !== 'template_admin') {
+            $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+            if ($shopCapacityLevel >= 4 && in_array($this->context, ['add', 'calculator'])) {
+                session()->flash('error', 'Bestellstopp (Level 4): Wegen zu hoher Auslastung in der Manufaktur können aktuell keine neuen Produkte in den Warenkorb gelegt werden.');
+                return;
+            }
+
             $this->validate(['qty' => 'required|integer|min:1']);
         }
 

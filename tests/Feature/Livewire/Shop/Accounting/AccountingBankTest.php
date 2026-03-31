@@ -148,7 +148,7 @@ class AccountingBankTest extends TestCase
         $tx->refresh();
         $this->assertIsArray($tx->file_paths);
         $this->assertCount(1, $tx->file_paths);
-        Storage::disk('public')->assertExists($tx->file_paths[0]);
+        Storage::disk('local')->assertExists($tx->file_paths[0]);
 
         // Delete Receipt
         Livewire::test(AccountingBank::class)

@@ -60,7 +60,7 @@
         @foreach($messages as $msg)
             @if($msg['sender'] === 'customer')
                 <div class="flex justify-end">
-                    <div class="bg-gray-800 text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] leading-relaxed break-words break-all">
+                    <div class="bg-gray-800 text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] leading-relaxed break-words">
                         {{ $msg['text'] }}
                     </div>
                 </div>

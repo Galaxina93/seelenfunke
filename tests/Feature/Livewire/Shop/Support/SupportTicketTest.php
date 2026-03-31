@@ -27,6 +27,7 @@ class SupportTicketTest extends TestCase
         parent::setUp();
         
         config(['livewire.temporary_file_upload.disk' => 'local']);
+        config(['broadcasting.default' => 'log']);
         Storage::fake('local');
         
         $this->customer = Customer::create([

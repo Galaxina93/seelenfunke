@@ -266,12 +266,16 @@ class OrderQuoteRequests extends Component
         $this->closeDetail();
     }
 
-    // NEU: Status zurücksetzen
     public function markAsOpen($id) {
         $quote = OrderQuoteRequest::find($id);
         if ($quote && $quote->status === 'rejected') {
             $quote->update(['status' => 'open']);
             session()->flash('success', 'Anfrage wurde wieder geöffnet.');
         }
+    }
+
+    public function downloadLaserFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadLaserSvg($itemId, $side);
     }
 }

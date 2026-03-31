@@ -82,6 +82,11 @@ class SystemSettingSeeder extends Seeder
             // Sonstiges
             'order_quote_validity_days' => '14',
 
+            // Produktions-Kapazitäten
+            'shop_daily_working_hours'  => '7',
+            'shop_minutes_per_order'    => '10',
+            'shop_capacity_buffer'      => '12',
+
             // Länderliste als JSON (Fallback)
             'active_countries'          => json_encode($countries),
         ];

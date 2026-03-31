@@ -29,7 +29,7 @@ class ProductCategories extends Component
         $this->product = $product;
 
         // IDs laden (Mit Fix für Ambiguous Column)
-        $this->selectedCategories = $this->product->categories()->pluck('categories.id')->toArray();
+        $this->selectedCategories = $this->product->categories()->pluck('product_categories.id')->toArray();
 
         $this->loadCategories();
     }
@@ -83,7 +83,7 @@ class ProductCategories extends Component
     public function createCategory()
     {
         $this->validate([
-            'newCategoryName' => 'required|min:2|unique:categories,name'
+            'newCategoryName' => 'required|min:2|unique:product_categories,name'
         ]);
 
         ProductCategory::create([
@@ -112,7 +112,7 @@ class ProductCategories extends Component
     public function updateCategory()
     {
         $this->validate([
-            'editingCategoryName' => 'required|min:2|unique:categories,name,' . $this->editingCategoryId
+            'editingCategoryName' => 'required|min:2|unique:product_categories,name,' . $this->editingCategoryId
         ]);
 
         $category = ProductCategory::find($this->editingCategoryId);

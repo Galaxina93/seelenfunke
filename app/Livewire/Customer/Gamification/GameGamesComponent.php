@@ -31,7 +31,7 @@ class GameGamesComponent extends Component
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if ($profile) {
             $this->currentEnergy = $profile->energy_balance;
-            
+
             // Format time until next energy if balancing is enabled (assuming typical cron setup)
             // Just a placeholder for the frontend if energy is 0
             if ($this->currentEnergy <= 0) {
@@ -76,8 +76,6 @@ class GameGamesComponent extends Component
 
             // 3. Events abfeuern (für HUD Updates)
             $this->dispatch('energy-updated');
-
-            \Log::info('consumeEnergy: Energy successfully consumed. Remaining: ' . $profile->energy_balance);
             return true;
         }
 
@@ -118,7 +116,7 @@ class GameGamesComponent extends Component
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if ($profile) {
             $safeAmount = min(intval($funkenCollected), 500); // Sicherheitslimit
-            
+
             if ($safeAmount > 0) {
                 $profile->funken_balance += $safeAmount;
                 $profile->funken_total_earned += $safeAmount;
@@ -129,9 +127,9 @@ class GameGamesComponent extends Component
             if ($dist > ($profile->funkenflug_highscore ?? 0)) {
                 $profile->funkenflug_highscore = $dist;
             }
-            
+
             $profile->save();
-            
+
             if ($safeAmount > 0) {
                 $this->dispatch('sparks-awarded');
             }

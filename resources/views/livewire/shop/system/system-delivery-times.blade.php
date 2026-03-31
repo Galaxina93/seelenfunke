@@ -35,9 +35,6 @@
                             <h5 class="font-bold text-white tracking-wide flex items-center gap-2">
                                 {{ $colorIcon }} {{ $time->name }}
                             </h5>
-                            <button wire:click="removeDeliveryTime('{{ $time->id }}')" class="text-gray-600 hover:text-red-400 transition-colors" title="Löschen">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                            </button>
                         </div>
                         <div class="mb-3">
                             <span class="text-[10px] font-mono border px-2 py-0.5 rounded shadow-inner inline-flex items-center gap-1.5 {{ $badgeClass }}">
@@ -54,37 +51,7 @@
                 </div>
             @endforeach
 
-            @if(!$isAddingNew)
-                <button wire:click="openAddForm" class="border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center text-gray-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all min-h-[160px] group shadow-inner">
-                    <div class="w-10 h-10 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-inner text-current">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
-                    </div>
-                    <span class="text-[10px] font-black uppercase tracking-widest text-current transition-colors">Lieferzeit hinzufügen</span>
-                </button>
-            @else
-                <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex flex-col justify-between min-h-[160px] animate-fade-in-up">
-                    <div class="space-y-3 mb-4">
-                        <input type="text" wire:model="newName" placeholder="Bezeichnung..." class="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner">
 
-                        <div class="flex gap-2">
-                            <input type="number" wire:model="newMinDays" placeholder="Von" class="w-1/2 bg-gray-900 border border-gray-800 text-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner">
-                            <input type="number" wire:model="newMaxDays" placeholder="Bis" class="w-1/2 bg-gray-900 border border-gray-800 text-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner">
-                        </div>
-
-                        <select wire:model="newColor" class="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner appearance-none cursor-pointer">
-                            <option value="green">🟢 Grün (Normal)</option>
-                            <option value="yellow">🟡 Gelb (Verzögert)</option>
-                            <option value="red">🔴 Rot (Kritisch)</option>
-                        </select>
-
-                        <textarea wire:model="newDescription" placeholder="Beschreibung..." rows="2" class="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all shadow-inner resize-none"></textarea>
-                    </div>
-                    <div class="flex gap-2">
-                        <button wire:click="closeAddForm" class="flex-1 py-2 text-[9px] font-black text-gray-500 hover:text-white uppercase tracking-widest transition-colors">Abbruch</button>
-                        <button wire:click="addDeliveryTime" class="flex-1 bg-primary text-gray-900 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-primary-dark transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)]">Speichern</button>
-                    </div>
-                </div>
-            @endif
         </div>
     </div>
 

@@ -12,32 +12,48 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+
+            // Für den Livegang notwendig
+
+            // System
             UserSeeder::class,
-            ProductSupplierSeeder::class,                  // Für den Livegang notwendig
-            ProductSeeder::class,                   // Für den Livegang notwendig
-            LogisticsShippingSeeder::class,                  // Für den Livegang notwendig
-            SystemSettingSeeder::class,               // Für den Livegang notwendig
-            BlogCategorySeeder::class,              // Für den Livegang notwendig
-            FinancialSeeder::class,                 // Für den Livegang notwendig
-            ProductCategorySeeder::class,                  // Für den Livegang notwendig
-            ProductAttributeSeeder::class,             // Für den Livegang notwendig
-            /*OrdersTableSeeder::class,*/           // DEAKTIVIEREN BEI LIVEGANG
-            BlogSeeder::class,                      // Für den Livegang notwendig
-            NewsletterKampagnenSeeder::class,       // Für den Livegang notwendig
-            MonthlyVoucherSeeder::class,            // Für den Livegang notwendig
+            SystemSettingSeeder::class,
+            SystemMapSeeder::class,
 
-            /*TaskSeeder::class,*/                  // DEAKTIVIEREN BEI LIVEGANG
-            DayRoutineSeeder::class,                // Für den Livegang notwendig
-            SystemMapSeeder::class,                       // Für den Livegang notwendig
-            /*ProductReviewSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
+            // Management
+            DayRoutineSeeder::class,
+            PersonProfileSeeder::class,
 
-            /* GamificationTestSeeder::class,*/     // DEAKTIVIEREN BEI LIVEGANG
-            /*FinancialDataSeeder::class,*/         // DEAKTIVIEREN BEI LIVEGANG
-            PersonProfileSeeder::class,             // Für den Livegang notwendig
-            AiAgentSeeder::class,                   // Für den Livegang notwendig
-            AiKnowledgeBaseSeeder::class,           // Für den Livegang notwendig
-            AiCompanyStructureSeeder::class,        // Für den Livegang notwendig
-            /*BankTransactionTestSeeder::class,*/       // DEAKTIVIEREN BEI LIVEGANG
+            //Product
+            ProductSeeder::class,
+            ProductCategorySeeder::class,
+            ProductAttributeSeeder::class,
+            ProductSupplierSeeder::class,
+
+            // Marketing
+            BlogCategorySeeder::class,
+            BlogSeeder::class,
+            NewsletterKampagnenSeeder::class,
+            MonthlyVoucherSeeder::class,
+
+            // Logistic
+            LogisticsShippingSeeder::class,
+
+            // Buchhaltung
+            FinancialSeeder::class,
+
+            // KI Agenten
+            AiAgentSeeder::class,
+            AiKnowledgeBaseSeeder::class,
+            AiCompanyStructureSeeder::class,
+
+            // DEAKTIVIEREN BEI LIVEGANG
+            OrdersTableSeeder::class,
+            /*TaskSeeder::class,*/
+            /*ProductReviewSeeder::class,*/
+            /*GamificationTestSeeder::class,*/
+            /*FinancialDataSeeder::class,*/
+            /*BankTransactionTestSeeder::class,*/
         ]);
 
     }

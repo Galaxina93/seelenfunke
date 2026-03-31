@@ -25,8 +25,7 @@ class ManagementEMailsTest extends TestCase
     {
         parent::setUp();
 
-        // Create the necessary role to bypass the Admin model observer bug in an empty database
-        \App\Models\System\SystemRole::firstOrCreate(['name' => 'admin']);
+
 
         // Ensure we have an authenticated admin
         $this->admin = Admin::forceCreate([

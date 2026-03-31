@@ -22,8 +22,7 @@ class OrderOverviewTest extends TestCase
     {
         parent::setUp();
         
-        \App\Models\System\SystemRole::firstOrCreate(['name' => 'admin']);
-        
+
         $admin = \App\Models\Admin\Admin::create([
             'id' => \Illuminate\Support\Str::uuid()->toString(),
             'email' => 'admin@test.de',

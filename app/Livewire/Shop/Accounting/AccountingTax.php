@@ -401,7 +401,7 @@ class AccountingTax extends Component
 
         $file = $this->receiptFiles[$itemId];
         $filename = Str::uuid() . '_' . $file->getClientOriginalName();
-        $path = $file->storeAs('receipts', $filename, 'public');
+        $path = $file->storeAs('Shop/Accounting/Receipts', $filename, 'local');
 
         if ($type === 'variable') {
             $issue = \App\Models\Accounting\AccountingSpecialIssue::find($itemId);
@@ -468,7 +468,7 @@ class AccountingTax extends Component
         foreach ($data['raw_specials'] as $special) {
             if (!empty($special->file_paths)) {
                 foreach ($special->file_paths as $idx => $path) {
-                    $source = storage_path('app/public/' . $path);
+                    $source = storage_path('app/accounting/' . $path);
                     if (File::exists($source)) {
                         $ext = pathinfo($source, PATHINFO_EXTENSION);
                         File::copy($source, $receiptsDir . "/Ausgabe_" . date('Y-m-d', strtotime($special->execution_date)) . "_" . Str::slug($special->title) . "_{$idx}.{$ext}");
@@ -596,6 +596,11 @@ class AccountingTax extends Component
             $this->addLog('error', 'ERiC API FEHLER: ' . $e->getMessage());
             $this->addLog('error', 'Die Übertragung wurde blockiert und abgebrochen.');
         }
+    }
+
+    public function downloadTaxExport($filename, \App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadTaxExport($filename);
     }
 
     public function render()

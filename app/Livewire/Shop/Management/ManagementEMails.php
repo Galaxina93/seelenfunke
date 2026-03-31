@@ -562,4 +562,9 @@ class ManagementEMails extends Component
             'folderCounts' => $this->selectedAccountId && isset($accountTree[$this->selectedAccountId]) ? $accountTree[$this->selectedAccountId]['counts'] : []
         ]);
     }
+
+    public function downloadAttachment($attachmentId, \App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadMailAttachment($attachmentId);
+    }
 }

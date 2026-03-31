@@ -18,9 +18,15 @@ class OrderRevocation extends Model
         'items',
         'attachments',
         'status',
+        'legal_check_at',
+        'product_type',
+        'rejection_reason',
+        'customer_notified_at',
     ];
 
     protected $casts = [
         'attachments' => 'array',
+        'legal_check_at' => 'datetime',
+        'customer_notified_at' => 'datetime',
     ];
 }

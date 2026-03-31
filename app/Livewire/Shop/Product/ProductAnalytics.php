@@ -262,6 +262,16 @@ class ProductAnalytics extends Component
         ];
     }
 
+    public function downloadFullReport(\App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadProductAnalyticsFullReportPdf();
+    }
+
+    public function downloadLucidReport(\App\Services\Export\FileDownloadService $exportService)
+    {
+        return $exportService->downloadProductAnalyticsLucidPdf();
+    }
+
     public function render()
     {
         $this->computeAnalytics();

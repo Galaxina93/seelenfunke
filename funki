@@ -91,6 +91,7 @@ case "$1" in
     migrate)
         echo "🗄️ Führe Migrationen und Seeder aus..."
         $PREFIX_DEFAULT php artisan migrate:fresh --seed
+        $0 rights
         ;;
     key)
         echo "🔑 Führe Key Generate aus..."
@@ -184,6 +185,9 @@ case "$1" in
             echo ""
             exit 0
         fi
+
+        echo "🔐 Führe Berechtigungs-Fix aus..."
+        $0 rights
 
         echo "🧪 Aktualisiere Testing-Umgebung..."
         $PREFIX_USER php artisan config:clear --env=testing

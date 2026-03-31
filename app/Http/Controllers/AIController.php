@@ -139,74 +139,9 @@ class AIController extends Controller
             $ttsEnabled = false;
         }
 
-        // Zwinge das System auf Toni, wenn der User in der UI den Cloudflare-Link eingegeben hat
-        if ($ttsProvider === 'elevenlabs' && $aiAgent && !empty($aiAgent->tts_api_url)) {
-            $ttsProvider = 'toni_xttsv2';
-        }
-
-        if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'elevenlabs') {
-            $apiKey = env('ELEVENLABS_API_KEY');
-            $voiceId = $aiAgent->tts_voice ?: env('ELEVENLABS_VOICE_ID', '21m00Tcm4TlvDq8ikWAM');
-
-            if (!empty($apiKey)) {
-                try {
-                    // Neu: Nutze den exklusiven TTS Helper für bessere ElevenLabs Sprachausgabe
-                    $cleanText = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($result['response']);
-
-                    $ttsResponse = \Illuminate\Support\Facades\Http::withHeaders([
-                        'xi-api-key' => $apiKey,
-                        'Content-Type' => 'application/json',
-                        'Accept' => 'audio/mpeg'
-                    ])->timeout(10)->post("https://api.elevenlabs.io/v1/text-to-speech/{$voiceId}", [
-                        'text' => $cleanText,
-                        'model_id' => 'eleven_multilingual_v2',
-                        'voice_settings' => [
-                            'stability' => 0.5,
-                            'similarity_boost' => 0.75,
-                        ]
-                    ]);
-
-                    if ($ttsResponse->successful()) {
-                        $base64Audio = base64_encode($ttsResponse->body());
-                    } else {
-                        // Auto-Fallback if the Voice ID does not exist on this account
-                        $apiResponse = $ttsResponse->json();
-                        if (($ttsResponse->status() === 400 || $ttsResponse->status() === 404) && str_contains($ttsResponse->body(), 'voice_not_found')) {
-                            \Illuminate\Support\Facades\Log::warning("Voice {$voiceId} not found in AIController. Attempting auto-fallback.");
-                            $voices = \Illuminate\Support\Facades\Http::withHeaders(['xi-api-key' => $apiKey])->get("https://api.elevenlabs.io/v1/voices")->json();
-
-                            if (!empty($voices['voices'])) {
-                                $firstVoice = $voices['voices'][0]['voice_id'];
-                                $retry = \Illuminate\Support\Facades\Http::withHeaders([
-                                    'xi-api-key' => $apiKey,
-                                    'Content-Type' => 'application/json',
-                                    'Accept' => 'audio/mpeg'
-                                ])->timeout(10)->post("https://api.elevenlabs.io/v1/text-to-speech/{$firstVoice}", [
-                                    'text' => $cleanText,
-                                    'model_id' => 'eleven_multilingual_v2',
-                                    'voice_settings' => [
-                                        'stability' => 0.5,
-                                        'similarity_boost' => 0.75,
-                                    ]
-                                ]);
-
-                                if ($retry->successful()) {
-                                    $base64Audio = base64_encode($retry->body());
-                                } else {
-                                    \Illuminate\Support\Facades\Log::warning("ElevenLabs Fallback Error in AIController: " . $retry->body());
-                                }
-                            }
-                        } else {
-                            \Illuminate\Support\Facades\Log::warning("ElevenLabs Error in AIController: " . $ttsResponse->body());
-                        }
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error("ElevenLabs TTS Fetch failed: " . $e->getMessage());
-                }
-            }
-        } elseif ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
+        if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
             try {
-                $cleanText = \App\Services\AI\TTSHelper::sanitizeForGermanTTS($result['response']);
+                $cleanText = $result['response'];
                 $speed = $aiAgent->tts_speed ?? 1.0;
                 $apiUrl = $aiAgent->tts_api_url ?: env('TONI_AI_URL', 'http://192.168.188.32:8000');
                 if (!str_ends_with(parse_url($apiUrl, PHP_URL_PATH) ?? '', '/api/toni/tts')) {

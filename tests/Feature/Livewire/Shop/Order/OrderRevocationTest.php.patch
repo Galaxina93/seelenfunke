@@ -1,0 +1,13 @@
+--- tests/Feature/Livewire/Shop/Order/OrderRevocationTest.php
++++ tests/Feature/Livewire/Shop/Order/OrderRevocationTest.php
+@@ -53,8 +53,10 @@
+     public function test_revocation_rejects_files_larger_than_5_mb()
+     {
+         $file = UploadedFile::fake()->image('huge.jpg')->size(6000); // 6MB
++        dump($file->getSize());
+ 
+         Livewire::test(OrderRevocationForm::class)
+             ->set('attachments', [$file])
++            ->dump()
+             ->assertHasErrors(['attachments.0']);
+     }

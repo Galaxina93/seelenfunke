@@ -121,7 +121,6 @@ class ProductSeeder extends Seeder
         $catIds1 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p1->categories()->attach($catIds1);
 
-
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
         $p2 = Product::create([
             'name' => 'Der Seelenanhänger',
@@ -232,93 +231,7 @@ class ProductSeeder extends Seeder
         $catIds2 = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger'])->pluck('id');
         $p2->categories()->attach($catIds2);
 
-
-        // --- PRODUKT 3: Das Seelenbuch (Digital) ---
-        $p3 = Product::create([
-            'name' => 'Das Seelenbuch',
-            'slug' => 'seelenbuch',
-            'type' => 'digital',
-            'description' => 'Ihr digitaler Begleiter für mehr Achtsamkeit und Inspiration. Dieses E-Book enthält wertvolle Impulse, Gedankenanstöße und praktische Übungen für den Alltag. Einfach herunterladen und sofort loslegen.',
-            'short_description' => 'Digitaler Guide für Inspiration & Achtsamkeit (PDF).',
-            'status' => 'active',
-            'price' => 1990,
-            'compare_at_price' => 2990,
-            'sku' => 'EBOOK-SEELEN-01',
-            'barcode' => '',
-            'brand' => 'Mein-Seelenfunke',
-            'track_quantity' => false,
-            'quantity' => 0,
-            'continue_selling_when_out_of_stock' => true,
-            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
-            'digital_download_path' => 'testdata/seelenbuch/Produktübersicht - Mein Seelenfunke.pdf',
-            'digital_filename' => 'Produktübersicht - Mein Seelenfunke.pdf',
-            'preview_image_path' => null,
-            'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/seelenbuch/Seelen-Book.png', 'is_main' => true, 'alt' => 'Das Seelenbuch Cover']
-            ],
-            'configurator_settings' => [
-                'allow_text_pos' => false,
-                'allow_logo' => false,
-            ],
-            'attributes' => [
-                'Format' => 'PDF (Digital)',
-                'Seiten' => 'Produktübersicht',
-                'Sprache' => 'Deutsch',
-                'Auslieferung' => 'Sofort-Download'
-            ],
-            'tier_pricing' => [],
-            'seo_title' => 'Das Seelenbuch | Digitaler Ratgeber | Mein-Seelenfunke',
-            'seo_description' => 'Inspiration und Achtsamkeit für jeden Tag. Jetzt das Seelenbuch als PDF herunterladen.',
-            'completion_step' => 4
-        ]);
-
-        $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
-        $p3->categories()->attach($catIds3);
-
-
-        // --- PRODUKT 4: Persönliche Laser-Beratung (Service) ---
-        $p4 = Product::create([
-            'name' => 'Persönliche Laser-Beratung',
-            'slug' => 'laser-beratung',
-            'type' => 'service',
-            'description' => 'Planen Sie ein Großprojekt oder benötigen Sie Hilfe bei der Erstellung Ihrer Gravurdaten? Buchen Sie eine 30-minütige persönliche Beratung per Video-Call mit unseren Experten.',
-            'short_description' => '30 Min. Video-Consulting für Ihr Laser-Projekt.',
-            'status' => 'active',
-            'price' => 4900,
-            'compare_at_price' => null,
-            'sku' => 'SERVICE-CONSULT-30',
-            'barcode' => '',
-            'brand' => 'Mein-Seelenfunke',
-            'track_quantity' => true,
-            'quantity' => 10,
-            'continue_selling_when_out_of_stock' => false,
-            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
-            'digital_download_path' => null, 'digital_filename' => null,
-            'preview_image_path' => null,
-            'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/laserberatung/laser-beratung.png', 'is_main' => true, 'alt' => 'Laser Beratungsservice']
-            ],
-            'configurator_settings' => [
-                'allow_text_pos' => false,
-                'allow_logo' => false,
-            ],
-            'attributes' => [
-                'Dauer' => '30 Minuten',
-                'Ort' => 'Online (Video-Call)',
-                'Sprache' => 'Deutsch',
-                'Experte' => 'Alina Steinhauer'
-            ],
-            'tier_pricing' => [],
-            'seo_title' => 'Laser-Beratung buchen | Mein-Seelenfunke Experten',
-            'seo_description' => 'Professionelle Beratung für Ihre Lasergravur-Projekte. Jetzt Termin sichern.',
-            'completion_step' => 4
-        ]);
-
-        $catIds4 = ProductCategory::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
-        $p4->categories()->attach($catIds4);
-
-
-        // --- PRODUKT 5: Personalisiertes Weizenglas (NEU) ---
+        // --- PRODUKT 3: Personalisiertes Weizenglas (NEU) ---
         $p5 = Product::create([
             'name' => 'Personalisiertes Weizenglas',
             'slug' => 'weizenglas-personalisiert',
@@ -407,5 +320,88 @@ class ProductSeeder extends Seeder
 
         $catIds5 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
         $p5->categories()->attach($catIds5);
+
+       /* // --- PRODUKT 4: Das Seelenbuch (Digital) ---
+        $p3 = Product::create([
+            'name' => 'Das Seelenbuch',
+            'slug' => 'seelenbuch',
+            'type' => 'digital',
+            'description' => 'Ihr digitaler Begleiter für mehr Achtsamkeit und Inspiration. Dieses E-Book enthält wertvolle Impulse, Gedankenanstöße und praktische Übungen für den Alltag. Einfach herunterladen und sofort loslegen.',
+            'short_description' => 'Digitaler Guide für Inspiration & Achtsamkeit (PDF).',
+            'status' => 'active',
+            'price' => 1990,
+            'compare_at_price' => 2990,
+            'sku' => 'EBOOK-SEELEN-01',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => false,
+            'quantity' => 0,
+            'continue_selling_when_out_of_stock' => true,
+            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
+            'digital_download_path' => 'testdata/seelenbuch/Produktübersicht - Mein Seelenfunke.pdf',
+            'digital_filename' => 'Produktübersicht - Mein Seelenfunke.pdf',
+            'preview_image_path' => null,
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'testdata/seelenbuch/Seelen-Book.png', 'is_main' => true, 'alt' => 'Das Seelenbuch Cover']
+            ],
+            'configurator_settings' => [
+                'allow_text_pos' => false,
+                'allow_logo' => false,
+            ],
+            'attributes' => [
+                'Format' => 'PDF (Digital)',
+                'Seiten' => 'Produktübersicht',
+                'Sprache' => 'Deutsch',
+                'Auslieferung' => 'Sofort-Download'
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Das Seelenbuch | Digitaler Ratgeber | Mein-Seelenfunke',
+            'seo_description' => 'Inspiration und Achtsamkeit für jeden Tag. Jetzt das Seelenbuch als PDF herunterladen.',
+            'completion_step' => 4
+        ]);
+
+        $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
+        $p3->categories()->attach($catIds3);
+
+        // --- PRODUKT 5: Persönliche Laser-Beratung (Service) ---
+        $p4 = Product::create([
+            'name' => 'Persönliche Laser-Beratung',
+            'slug' => 'laser-beratung',
+            'type' => 'service',
+            'description' => 'Planen Sie ein Großprojekt oder benötigen Sie Hilfe bei der Erstellung Ihrer Gravurdaten? Buchen Sie eine 30-minütige persönliche Beratung per Video-Call mit unseren Experten.',
+            'short_description' => '30 Min. Video-Consulting für Ihr Laser-Projekt.',
+            'status' => 'active',
+            'price' => 4900,
+            'compare_at_price' => null,
+            'sku' => 'SERVICE-CONSULT-30',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => true,
+            'quantity' => 10,
+            'continue_selling_when_out_of_stock' => false,
+            'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
+            'digital_download_path' => null, 'digital_filename' => null,
+            'preview_image_path' => null,
+            'media_gallery' => [
+                ['type' => 'image', 'path' => 'testdata/laserberatung/laser-beratung.png', 'is_main' => true, 'alt' => 'Laser Beratungsservice']
+            ],
+            'configurator_settings' => [
+                'allow_text_pos' => false,
+                'allow_logo' => false,
+            ],
+            'attributes' => [
+                'Dauer' => '30 Minuten',
+                'Ort' => 'Online (Video-Call)',
+                'Sprache' => 'Deutsch',
+                'Experte' => 'Alina Steinhauer'
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Laser-Beratung buchen | Mein-Seelenfunke Experten',
+            'seo_description' => 'Professionelle Beratung für Ihre Lasergravur-Projekte. Jetzt Termin sichern.',
+            'completion_step' => 4
+        ]);
+
+        $catIds4 = ProductCategory::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
+        $p4->categories()->attach($catIds4);*/
     }
 }

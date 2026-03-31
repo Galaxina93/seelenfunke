@@ -328,55 +328,102 @@
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
-                    @foreach($healthChecks as $key => $check)
-                        @php
-                            $actionUrl = match($key) {
-                                'inventory' => '/admin/products',
-                                'special_issues' => '/admin/financial-variable-costs',
-                                'contracts' => '/admin/financial-fix-costs',
-                                'open_orders' => '/admin/orders',
-                                'open_tickets' => '/admin/support-tickets',
-                                'product_reviews' => '/admin/reviews',
-                                'open_credits' => '/admin/credit-management',
-                                'unassigned_tx' => '/admin/financial-banks',
-                                'open_tasks' => '/admin/tasks',
-                                'open_quotes' => '/admin/quote-requests',
-                                'open_revocations' => '/admin/widerruf',
-                                'open_losses' => '/admin/product-fracture',
-                                default => '/admin/dashboard'
-                            };
-                        @endphp
-                        
-                        <a href="{{ $actionUrl }}" wire:key="master-health-{{ $key }}" class="bg-gray-950 border border-gray-800/80 rounded-xl overflow-hidden hover:bg-gray-900/80 transition-all hover:border-gray-700 group relative">
-                            <div class="p-4 flex justify-between items-center relative z-10 w-full">
-                                @php
-                                    $statusClass = match($check['status'] ?? 'error') {
-                                        'success' => 'text-emerald-500 group-hover:text-emerald-400',
-                                        'warning' => 'text-amber-500 group-hover:text-amber-400',
-                                        default => 'text-red-500 animate-pulse group-hover:text-red-400',
-                                    };
-                                @endphp
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="shrink-0 transition-colors {{ $statusClass }}">
-                                        <x-dynamic-component :component="'heroicon-o-' . $check['icon']" class="w-5 h-5" />
-                                    </div>
-                                    <div class="min-w-0 pr-2">
-                                        <h4 class="text-xs font-semibold text-gray-300 group-hover:text-white transition-colors">{{ $check['title'] }}</h4>
-                                        <p class="text-[10px] text-gray-500 leading-tight mt-0.5 truncate">{{ $check['message'] }}</p>
-                                    </div>
-                                </div>
-                                <div class="shrink-0 flex items-center gap-3">
-                                    @if($check['count'] > 0)
-                                        <div class="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-gray-800 text-gray-300 rounded border border-gray-700 group-hover:border-gray-600 transition-colors">
-                                            {{ $check['count'] }}
-                                        </div>
-                                    @else
-                                        <x-heroicon-m-check class="w-4 h-4 text-emerald-500/50" />
-                                    @endif
-                                </div>
+                @php
+                    $todoCategories = [
+                        'Buchhaltung & Finanzen' => ['unassigned_tx', 'special_issues', 'contracts', 'open_credits'],
+                        'Support & Kommunikation' => ['open_tickets', 'open_chats', 'open_contact_requests', 'product_reviews'],
+                        'Lager & Disposition' => ['inventory', 'open_orders', 'open_losses'],
+                        'Management & Verwaltung' => ['open_tasks', 'open_quotes', 'open_revocations'],
+                    ];
+
+                    $categorizedChecks = [];
+                    $processedKeys = [];
+                    foreach($todoCategories as $catName => $keys) {
+                        $items = [];
+                        foreach($keys as $k) {
+                            if(isset($healthChecks[$k])) {
+                                $items[$k] = $healthChecks[$k];
+                                $processedKeys[] = $k;
+                            }
+                        }
+                        if(count($items) > 0) {
+                            $categorizedChecks[$catName] = $items;
+                        }
+                    }
+                    
+                    $otherChecks = [];
+                    foreach($healthChecks as $k => $c) {
+                        if(!in_array($k, $processedKeys)) {
+                            $otherChecks[$k] = $c;
+                        }
+                    }
+                    if(count($otherChecks) > 0) {
+                        $categorizedChecks['Sonstiges'] = $otherChecks;
+                    }
+                @endphp
+
+                <div class="space-y-8">
+                    @foreach($categorizedChecks as $categoryName => $checks)
+                        <div>
+                            <div class="flex items-center gap-3 mb-4">
+                                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest">{{ $categoryName }}</h3>
+                                <div class="h-px flex-1 bg-gray-800"></div>
                             </div>
-                        </a>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
+                                @foreach($checks as $key => $check)
+                                    @php
+                                        $actionUrl = match($key) {
+                                            'inventory' => '/admin/products',
+                                            'special_issues' => '/admin/financial-variable-costs',
+                                            'contracts' => '/admin/financial-fix-costs',
+                                            'open_orders' => '/admin/orders',
+                                            'open_tickets' => '/admin/support-tickets',
+                                            'open_chats' => '/admin/support-chats',
+                                            'open_contact_requests' => '/admin/support-contact-form',
+                                            'product_reviews' => '/admin/reviews',
+                                            'open_credits' => '/admin/credit-management',
+                                            'unassigned_tx' => '/admin/financial-banks',
+                                            'open_tasks' => '/admin/tasks',
+                                            'open_quotes' => '/admin/quote-requests',
+                                            'open_revocations' => '/admin/widerruf',
+                                            'open_losses' => '/admin/product-fracture',
+                                            default => '/admin/dashboard'
+                                        };
+                                    @endphp
+                                    
+                                    <a href="{{ $actionUrl }}" wire:key="master-health-{{ $key }}" class="bg-gray-950 border border-gray-800/80 rounded-xl overflow-hidden hover:bg-gray-900/80 transition-all hover:border-gray-700 group relative">
+                                        <div class="p-4 flex justify-between items-center relative z-10 w-full">
+                                            @php
+                                                $statusClass = match($check['status'] ?? 'error') {
+                                                    'success' => 'text-emerald-500 group-hover:text-emerald-400',
+                                                    'warning' => 'text-amber-500 group-hover:text-amber-400',
+                                                    default => 'text-red-500 animate-pulse group-hover:text-red-400',
+                                                };
+                                            @endphp
+                                            <div class="flex items-center gap-3 min-w-0">
+                                                <div class="shrink-0 transition-colors {{ $statusClass }}">
+                                                    <x-dynamic-component :component="'heroicon-o-' . $check['icon']" class="w-5 h-5" />
+                                                </div>
+                                                <div class="min-w-0 pr-2">
+                                                    <h4 class="text-xs font-semibold text-gray-300 group-hover:text-white transition-colors">{{ $check['title'] }}</h4>
+                                                    <p class="text-[10px] text-gray-500 leading-tight mt-0.5 truncate">{{ $check['message'] }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="shrink-0 flex items-center gap-3">
+                                                @if($check['count'] > 0)
+                                                    <div class="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-gray-800 text-gray-300 rounded border border-gray-700 group-hover:border-gray-600 transition-colors">
+                                                        {{ $check['count'] }}
+                                                    </div>
+                                                @else
+                                                    <x-heroicon-m-check class="w-4 h-4 text-emerald-500/50" />
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
                     @endforeach
                 </div>
             </div>

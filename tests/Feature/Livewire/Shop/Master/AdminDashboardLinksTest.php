@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature;
+namespace Tests\Feature\Livewire\Shop\Master;
 
 use Tests\TestCase;
 use App\Models\Admin\Admin;

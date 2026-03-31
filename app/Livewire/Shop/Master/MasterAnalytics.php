@@ -437,7 +437,7 @@ class MasterAnalytics extends Component
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $item = AccountingCostItem::find($itemId);
         if ($item) {
-            $path = $this->uploadFile->store('contracts', 'public');
+            $path = $this->uploadFile->store('Shop/Accounting/Contracts', 'public');
             $item->update(['contract_file_path' => $path]);
             $this->reset('uploadFile');
             session()->flash('success', 'Vertrag erfolgreich hochgeladen.');
@@ -450,7 +450,7 @@ class MasterAnalytics extends Component
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $issue = AccountingSpecialIssue::find($issueId);
         if ($issue) {
-            $path = $this->uploadFile->store('financial/receipts', 'public');
+            $path = $this->uploadFile->store('Shop/Accounting/Receipts', 'public');
             $files = $issue->file_paths ?? [];
             $files[] = $path;
             $issue->update(['file_paths' => $files]);

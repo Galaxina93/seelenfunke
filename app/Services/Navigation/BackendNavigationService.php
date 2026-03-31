@@ -50,6 +50,7 @@ class BackendNavigationService
                         'icon' => 'lifebuoy',
                         'ai_department_id' => '019d6666-6666-6666-6666-666666666666',
                         'children' => [
+                            ['id' => 'support-analytics', 'title' => 'Analyse', 'route' => '/admin/support/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'support-chats', 'title' => 'Chats', 'route' => '/admin/support-chats', 'icon' => 'chat-bubble-left-ellipsis'],
                             ['id' => 'support-ticket', 'title' => 'Tickets', 'route' => '/admin/support-tickets', 'icon' => 'ticket', 'is_ticket' => true],
                             ['id' => 'support-contact-form', 'title' => 'Kontaktanfragen', 'route' => '/admin/support-contact-form', 'icon' => 'envelope'],

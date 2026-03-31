@@ -40,7 +40,7 @@ class ShopProcessTest extends TestCase
         ]);
         
         // Setup Dummy Admin for backend views
-        \App\Models\System\SystemRole::firstOrCreate(['name' => 'admin']);
+
         $admin = \App\Models\Admin\Admin::create([
             'id' => \Illuminate\Support\Str::uuid()->toString(),
             'email' => 'admin_shoptest@test.de',

@@ -50,9 +50,9 @@
                                         <p class="text-[9px] text-gray-500 font-mono mt-1">{{ $export['date'] }} • {{ $export['size'] }}</p>
                                     </div>
                                     <div class="flex gap-1 ml-3">
-                                        <a href="{{ route('admin.tax-export.download', $export['name']) }}" target="_blank" class="p-1.5 text-gray-500 hover:text-orange-400 transition-colors inline-block" title="Herunterladen">
+                                        <button wire:click.prevent="downloadTaxExport('{{ $export['name'] }}')" class="p-1.5 text-gray-500 hover:text-orange-400 transition-colors inline-block focus:outline-none" title="Herunterladen">
                                             <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
-                                        </a>
+                                        </button>
                                         <button wire:click="deleteExport('{{ $export['name'] }}')" wire:confirm="Endgültig löschen?" class="p-1.5 text-gray-500 hover:text-red-500 transition-colors" title="Löschen">
                                             <x-heroicon-m-trash class="w-4 h-4" />
                                         </button>

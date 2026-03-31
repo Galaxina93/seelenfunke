@@ -111,7 +111,7 @@
                         <div class="flex items-center justify-end">
                             <span class="flex items-center gap-1.5 {{ !$agent->tts_enabled ? 'text-gray-500 group-hover:text-gray-400' : 'text-pink-500/70 group-hover:text-pink-400' }} transition-colors">
                                 <span class="w-1.5 h-1.5 rounded-full {{ !$agent->tts_enabled ? 'bg-gray-500' : (isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['tts'], ['Offline', 'Fehler']) ? 'bg-red-500' : ($pingResults[$agent->id]['tts'] === 'Inaktiv' ? 'bg-gray-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]')) : 'bg-gray-500') }}"></span>
-                                TTS: {{ !$agent->tts_enabled ? 'Deaktiviert' : ($agent->tts_provider === 'toni_xttsv2' ? 'Toni XTTS' : ($agent->tts_provider === 'none' ? 'Inaktiv' : 'ElevenLabs')) }}
+                                TTS: {{ !$agent->tts_enabled ? 'Deaktiviert' : ($agent->tts_provider === 'toni_xttsv2' ? 'Toni XTTS' : 'Inaktiv') }}
                             </span>
                         </div>
 
