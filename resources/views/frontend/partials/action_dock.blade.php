@@ -139,17 +139,20 @@
         </a>
     </div>
 
-    {{-- GUTSCHEIN PANEL --}}
-    <div x-show="vouchersOpen"
-         x-cloak
-         x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-500"
-         x-transition:enter-start="translate-x-10 opacity-0"
-         x-transition:enter-end="translate-x-0 opacity-100"
-         x-transition:leave="transition ease-in duration-300"
-         class="absolute right-[calc(100%+12px)] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl w-[77vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 flex flex-col pointer-events-auto"
-    >
-        @livewire('shop.marketing.marketing-voucher-slider')
-    </div>
+    {{-- GUTSCHEIN PANEL (Teleported globally via Alpine to bypass Stack Context limits and overflow-hidden on body) --}}
+    <template x-teleport="body">
+        <div x-show="vouchersOpen"
+             x-cloak
+             x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-500"
+             x-transition:enter-start="translate-x-10 opacity-0"
+             x-transition:enter-end="translate-x-0 opacity-100"
+             x-transition:leave="transition ease-in duration-300"
+             class="fixed right-14 sm:right-[5.5rem] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl w-[85vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 flex flex-col pointer-events-auto"
+             style="z-index: 99998;"
+        >
+            @livewire('shop.marketing.marketing-voucher-slider')
+        </div>
+    </template>
 
     {{-- SUPPORT CHAT PANEL (Teleported globally via Alpine to bypass Stack Context limits) --}}
     <template x-teleport="body">

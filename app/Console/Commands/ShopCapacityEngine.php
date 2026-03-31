@@ -45,7 +45,24 @@ class ShopCapacityEngine extends Command
         $maxCapacity = max(1, (int)floor((($dailyHours * 60) / $minutesPerOrder) - $buffer));
 
         // 3. Hole aktuelle Last (Pending + Processing)
-        $activeOrders = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
+        $orders = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])
+            ->with('items.product')
+            ->get();
+            
+        $totalMinutesRequired = 0;
+        foreach ($orders as $order) {
+            $totalMinutesRequired += $minutesPerOrder;
+            foreach ($order->items as $item) {
+                $laserRuntime = 0;
+                if ($item->product && is_numeric($item->product->laser_runtime_minutes)) {
+                    $laserRuntime = (float)$item->product->laser_runtime_minutes;
+                }
+                $runtimePerItem = $laserRuntime > 0 ? $laserRuntime : 2;
+                $totalMinutesRequired += ($item->quantity * $runtimePerItem);
+            }
+        }
+        $orderEquivalents = $totalMinutesRequired / max(1, $minutesPerOrder);
+        $activeOrders = (int) ceil($orderEquivalents);
 
         // 4. Kalkuliere Level
         $percentage = min(100, (int)round(($activeOrders / max(1, $maxCapacity)) * 100));
@@ -77,11 +94,12 @@ class ShopCapacityEngine extends Command
         if ($autoPilot) {
             $this->info("Autopilot is ON. Adjusting delivery times...");
             
-            // Definiere die 3 Profile
+            // Definiere die 4 Profile
             $profiles = [
                 'Standard' => ['min_days' => 5, 'max_days' => 7],
                 'Erhöhtes Aufkommen' => ['min_days' => 7, 'max_days' => 10],
                 'Hohe Auslastung' => ['min_days' => 10, 'max_days' => 14],
+                'Extreme Auslastung' => ['min_days' => 16, 'max_days' => 21],
             ];
 
             // Stelle sicher, dass diese Profile existieren
@@ -99,8 +117,10 @@ class ShopCapacityEngine extends Command
             $targetDeliveryName = 'Standard';
             if ($level === 1) {
                 $targetDeliveryName = 'Erhöhtes Aufkommen';
-            } elseif ($level >= 2) {
+            } elseif ($level === 2 || $level === 3) {
                 $targetDeliveryName = 'Hohe Auslastung';
+            } elseif ($level >= 4) {
+                $targetDeliveryName = 'Extreme Auslastung';
             }
 
             // Aktive Lieferzeit updaten (falls abweichend)

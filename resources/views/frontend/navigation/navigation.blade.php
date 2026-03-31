@@ -5,7 +5,8 @@
     --}}
     <nav x-data="{ open: false }"
          @click.away="open = false"
-         class="bg-primary-dark shadow-lg fixed w-full top-0 z-[100000] transition-all duration-300"
+         class="bg-primary-dark shadow-lg fixed w-full top-0 transition-all duration-300"
+         style="z-index: 99999;"
          id="navbar">
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">

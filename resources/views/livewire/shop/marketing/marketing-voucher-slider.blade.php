@@ -80,7 +80,7 @@
         @endforelse
     </div>
 
-    <div class="p-8 pt-4 bg-gray-50/50 border-t border-gray-100">
+    <div class="p-8 pt-4 border-t border-gray-100">
         <p class="text-[10px] font-medium leading-tight text-gray-400 italic">Nur ein Gutschein pro Bestellung einlösbar.</p>
     </div>
 </div>

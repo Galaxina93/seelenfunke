@@ -52,9 +52,32 @@ class MasterShopCapacity extends Component
 
     public function calculateCapacity()
     {
-        // 1. Hole alle relevanten "offenen" Bestellungen
-        // Wir nehmen Pending und Processing, da Shipped, Completed und Cancelled nicht mehr belasten.
-        $this->activeOrders = OrderOrder::whereIn('status', ['pending', 'processing'])->count();
+        // 1. Hole alle relevanten "offenen" Bestellungen inkl. Artikel für echtes Workload-Scoring
+        $orders = OrderOrder::whereIn('status', ['pending', 'processing'])
+            ->with('items.product')
+            ->get();
+
+        $totalMinutesRequired = 0;
+
+        foreach ($orders as $order) {
+            // Grundzeit pro Bestellung für Handling, Verpacken, Etikettieren etc.
+            $totalMinutesRequired += $this->minutesPerOrder;
+
+            foreach ($order->items as $item) {
+                $laserRuntime = 0;
+                if ($item->product && is_numeric($item->product->laser_runtime_minutes)) {
+                    $laserRuntime = (float)$item->product->laser_runtime_minutes;
+                }
+                
+                // Falls keine Laserzeit hinterlegt, rechne 2 Min Fallback pro Artikel
+                $runtimePerItem = $laserRuntime > 0 ? $laserRuntime : 2; 
+                $totalMinutesRequired += ($item->quantity * $runtimePerItem);
+            }
+        }
+
+        // Wandle die gesammelte Workload in "Paket-Äquivalente" zurück, damit Slider & Settings 1:1 kompatibel bleiben
+        $orderEquivalents = $totalMinutesRequired / max(1, $this->minutesPerOrder);
+        $this->activeOrders = (int) ceil($orderEquivalents);
 
         // 2. Berechne Limit und Auslastung
         $theoreticalLimit = ($this->dailyWorkingHours * 60) / max(1, $this->minutesPerOrder);
@@ -175,11 +198,11 @@ class MasterShopCapacity extends Component
             }
         }
 
-        // Level 4: Lockdown
+        // Level 4: Extreme Auslastung
         if ($this->level === 4) {
-            $this->actionLog[] = ['type' => 'critical', 'msg' => 'Absolutes Tageslimit überschritten -> Lockdown!'];
+            $this->actionLog[] = ['type' => 'critical', 'msg' => 'Absolutes Tageslimit überschritten -> Extreme Auslastung!'];
             if ($this->autoPilotEnabled) {
-                $this->actionLog[] = ['type' => 'system', 'msg' => 'Autopilot blockiert: Absoluter Bestellstopp im Checkout wurde eingerichtet.'];
+                $this->actionLog[] = ['type' => 'system', 'msg' => 'Autopilot greift ein: Lieferprofil "Extreme Auslastung" (Schwarz) aktiv.'];
             }
         }
     }

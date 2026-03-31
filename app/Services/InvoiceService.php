@@ -16,59 +16,61 @@ class InvoiceService
      */
     public function createFromOrder(OrderOrder $order): ?AccountingInvoice
     {
-        $existing = AccountingInvoice::where('order_id', $order->id)
-            ->where('type', 'invoice')
-            ->where('status', '!=', 'cancelled')
-            ->first();
+        return retry(5, function () use ($order) {
+            $existing = AccountingInvoice::where('order_id', $order->id)
+                ->where('type', 'invoice')
+                ->where('status', '!=', 'cancelled')
+                ->first();
 
-        if ($existing) return $existing;
+            if ($existing) return $existing;
 
-        return DB::transaction(function () use ($order) {
-            $invoiceNumber = $this->generateInvoiceNumber();
+            return DB::transaction(function () use ($order) {
+                $invoiceNumber = $this->generateInvoiceNumber();
 
-            // [FIX] Status dynamisch anhand der Order ermitteln
-            $isPaid = ($order->payment_status === 'paid' && $order->payment_method !== 'invoice');
+                // [FIX] Status dynamisch anhand der Order ermitteln
+                $isPaid = ($order->payment_status === 'paid' && $order->payment_method !== 'invoice');
 
-            $invoiceStatus = $isPaid ? 'paid' : 'open';
-            $paidAt = $isPaid ? now() : null;
+                $invoiceStatus = $isPaid ? 'paid' : 'open';
+                $paidAt = $isPaid ? now() : null;
 
-            // Fälligkeit berechnen (z.B. 7 Tage bei Rechnungskauf)
-            // Nur wenn noch nicht bezahlt.
-            $dueDays = 7;
-            $dueDate = now()->addDays($dueDays);
+                // Fälligkeit berechnen (z.B. 7 Tage bei Rechnungskauf)
+                // Nur wenn noch nicht bezahlt.
+                $dueDays = 7;
+                $dueDate = now()->addDays($dueDays);
 
-            $invoice = AccountingInvoice::create([
-                'order_id' => $order->id,
-                'customer_id' => $order->customer_id,
-                'invoice_number' => $invoiceNumber,
-                'type' => 'invoice',
+                $invoice = AccountingInvoice::create([
+                    'order_id' => $order->id,
+                    'customer_id' => $order->customer_id,
+                    'invoice_number' => $invoiceNumber,
+                    'type' => 'invoice',
 
-                // [FIX] Hier nutzen wir jetzt die dynamischen Werte
-                'status' => $invoiceStatus,
-                'invoice_date' => now(),
-                'delivery_date' => $order->created_at, // Leistungsdatum = Bestelldatum
-                'due_date' => $dueDate,
-                'due_days' => $dueDays,
-                'paid_at' => $paidAt, // Ist null, wenn nicht bezahlt -> PDF zeigt Bankdaten an
+                    // [FIX] Hier nutzen wir jetzt die dynamischen Werte
+                    'status' => $invoiceStatus,
+                    'invoice_date' => now(),
+                    'delivery_date' => $order->created_at, // Leistungsdatum = Bestelldatum
+                    'due_date' => $dueDate,
+                    'due_days' => $dueDays,
+                    'paid_at' => $paidAt, // Ist null, wenn nicht bezahlt -> PDF zeigt Bankdaten an
 
-                'subject' => 'Rechnung zu Bestellung #' . $order->order_number,
-                'billing_address' => $order->billing_address,
-                'shipping_address' => $order->shipping_address,
-                'subtotal' => $order->subtotal_price,
-                'tax_amount' => $order->tax_amount,
-                'shipping_cost' => $order->shipping_price,
-                'discount_amount' => $order->discount_amount,
-                'volume_discount' => $order->volume_discount,
-                'total' => $order->total_price,
-                'notes' => $order->notes,
-                'is_e_invoice' => false,
-            ]);
+                    'subject' => 'Rechnung zu Bestellung #' . $order->order_number,
+                    'billing_address' => $order->billing_address,
+                    'shipping_address' => $order->shipping_address,
+                    'subtotal' => $order->subtotal_price,
+                    'tax_amount' => $order->tax_amount,
+                    'shipping_cost' => $order->shipping_price,
+                    'discount_amount' => $order->discount_amount,
+                    'volume_discount' => $order->volume_discount,
+                    'total' => $order->total_price,
+                    'notes' => $order->notes,
+                    'is_e_invoice' => false,
+                ]);
 
-            // PDF sofort nach Erstellung physisch speichern
-            $this->storePdf($invoice);
+                // PDF sofort nach Erstellung physisch speichern
+                $this->storePdf($invoice);
 
-            return $invoice;
-        });
+                return $invoice;
+            });
+        }, 100);
     }
 
     /**
@@ -76,41 +78,43 @@ class InvoiceService
      */
     public function cancelInvoice(AccountingInvoice $originalInvoice): AccountingInvoice
     {
-        return DB::transaction(function () use ($originalInvoice) {
-            $originalInvoice->update(['status' => 'cancelled']);
-            $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
+        return retry(5, function () use ($originalInvoice) {
+            return DB::transaction(function () use ($originalInvoice) {
+                $originalInvoice->update(['status' => 'cancelled']);
+                $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
 
-            $invoice = AccountingInvoice::create([
-                'parent_id' => $originalInvoice->id,
-                'order_id' => $originalInvoice->order_id,
-                'customer_id' => $originalInvoice->customer_id,
-                'invoice_number' => $stornoNumber,
-                'type' => 'cancellation',
-                'status' => 'paid',
-                'invoice_date' => now(),
-                'delivery_date' => now(),
-                'due_date' => now(),
-                'paid_at' => now(),
-                'subject' => 'Gutschrift zur Rechnung ' . $originalInvoice->invoice_number,
-                'header_text' => 'Hiermit erhalten Sie eine Gutschrift.',
-                'footer_text' => 'Der Betrag wird Ihnen erstattet.',
-                'billing_address' => $originalInvoice->billing_address,
-                'shipping_address' => $originalInvoice->shipping_address,
-                'subtotal' => -1 * abs($originalInvoice->subtotal),
-                'tax_amount' => -1 * abs($originalInvoice->tax_amount),
-                'shipping_cost' => -1 * abs($originalInvoice->shipping_cost),
-                'discount_amount' => -1 * abs($originalInvoice->discount_amount),
-                'volume_discount' => -1 * abs($originalInvoice->volume_discount),
-                'total' => -1 * abs($originalInvoice->total),
-                'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
-                'is_e_invoice' => $originalInvoice->is_e_invoice,
-            ]);
+                $invoice = AccountingInvoice::create([
+                    'parent_id' => $originalInvoice->id,
+                    'order_id' => $originalInvoice->order_id,
+                    'customer_id' => $originalInvoice->customer_id,
+                    'invoice_number' => $stornoNumber,
+                    'type' => 'cancellation',
+                    'status' => 'paid',
+                    'invoice_date' => now(),
+                    'delivery_date' => now(),
+                    'due_date' => now(),
+                    'paid_at' => now(),
+                    'subject' => 'Gutschrift zur Rechnung ' . $originalInvoice->invoice_number,
+                    'header_text' => 'Hiermit erhalten Sie eine Gutschrift.',
+                    'footer_text' => 'Der Betrag wird Ihnen erstattet.',
+                    'billing_address' => $originalInvoice->billing_address,
+                    'shipping_address' => $originalInvoice->shipping_address,
+                    'subtotal' => -1 * abs($originalInvoice->subtotal),
+                    'tax_amount' => -1 * abs($originalInvoice->tax_amount),
+                    'shipping_cost' => -1 * abs($originalInvoice->shipping_cost),
+                    'discount_amount' => -1 * abs($originalInvoice->discount_amount),
+                    'volume_discount' => -1 * abs($originalInvoice->volume_discount),
+                    'total' => -1 * abs($originalInvoice->total),
+                    'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
+                    'is_e_invoice' => $originalInvoice->is_e_invoice,
+                ]);
 
-            // Stornobeleg ebenfalls archivieren
-            $this->storePdf($invoice);
+                // Stornobeleg ebenfalls archivieren
+                $this->storePdf($invoice);
 
-            return $invoice;
-        });
+                return $invoice;
+            });
+        }, 100);
     }
 
     /**
@@ -119,44 +123,46 @@ class InvoiceService
      */
     public function createCreditNote(array $data): AccountingInvoice
     {
-        return DB::transaction(function () use ($data) {
-            $stornoNumber = $this->generateInvoiceNumber(prefix: 'GUT');
+        return retry(5, function () use ($data) {
+            return DB::transaction(function () use ($data) {
+                $stornoNumber = $this->generateInvoiceNumber(prefix: 'GUT');
 
-            // Formatiere Beträge ins Negative für korrekte Auswertung
-            $subtotal = -1 * abs($data['subtotal'] ?? 0);
-            $tax_amount = -1 * abs($data['tax_amount'] ?? 0);
-            $total = -1 * abs($data['total'] ?? 0);
+                // Formatiere Beträge ins Negative für korrekte Auswertung
+                $subtotal = -1 * abs($data['subtotal'] ?? 0);
+                $tax_amount = -1 * abs($data['tax_amount'] ?? 0);
+                $total = -1 * abs($data['total'] ?? 0);
 
-            $invoice = AccountingInvoice::create([
-                'customer_id' => $data['customer_id'] ?? null,
-                'invoice_number' => $stornoNumber,
-                'type' => 'credit_note', // Gutschrift
-                'status' => 'paid', // Ist direkt wirksam
-                'invoice_date' => now(),
-                'delivery_date' => now(),
-                'due_date' => now(),
-                'paid_at' => now(),
-                'subject' => $data['subject'] ?? 'Gutschrift / Rechnungskorrektur',
-                'header_text' => $data['header_text'] ?? 'Hiermit erhalten Sie eine Gutschrift.',
-                'footer_text' => $data['footer_text'] ?? 'Der Betrag wird Ihnen wie vereinbart erstattet oder verrechnet.',
-                'billing_address' => $data['billing_address'] ?? [],
-                'shipping_address' => $data['shipping_address'] ?? [],
-                'subtotal' => $subtotal,
-                'tax_amount' => $tax_amount,
-                'shipping_cost' => 0,
-                'discount_amount' => 0,
-                'volume_discount' => 0,
-                'total' => $total,
-                'notes' => $data['notes'] ?? '',
-                'custom_items' => $data['custom_items'] ?? [], // Manueller Posten-Array
-                'is_e_invoice' => false,
-            ]);
+                $invoice = AccountingInvoice::create([
+                    'customer_id' => $data['customer_id'] ?? null,
+                    'invoice_number' => $stornoNumber,
+                    'type' => 'credit_note', // Gutschrift
+                    'status' => 'paid', // Ist direkt wirksam
+                    'invoice_date' => now(),
+                    'delivery_date' => now(),
+                    'due_date' => now(),
+                    'paid_at' => now(),
+                    'subject' => $data['subject'] ?? 'Gutschrift / Rechnungskorrektur',
+                    'header_text' => $data['header_text'] ?? 'Hiermit erhalten Sie eine Gutschrift.',
+                    'footer_text' => $data['footer_text'] ?? 'Der Betrag wird Ihnen wie vereinbart erstattet oder verrechnet.',
+                    'billing_address' => $data['billing_address'] ?? [],
+                    'shipping_address' => $data['shipping_address'] ?? [],
+                    'subtotal' => $subtotal,
+                    'tax_amount' => $tax_amount,
+                    'shipping_cost' => 0,
+                    'discount_amount' => 0,
+                    'volume_discount' => 0,
+                    'total' => $total,
+                    'notes' => $data['notes'] ?? '',
+                    'custom_items' => $data['custom_items'] ?? [], // Manueller Posten-Array
+                    'is_e_invoice' => false,
+                ]);
 
-            // PDF generieren und speichern
-            $this->storePdf($invoice);
+                // PDF generieren und speichern
+                $this->storePdf($invoice);
 
-            return $invoice;
-        });
+                return $invoice;
+            });
+        }, 100);
     }
 
     /**

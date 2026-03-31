@@ -53,7 +53,7 @@ class OrderQuoteAcceptance extends Component
     public function refreshQuote()
     {
         $this->quote = OrderQuoteRequest::where('token', $this->token)
-            ->with(['items.product'])
+            ->with(['items.product.supplier'])
             ->first();
     }
 

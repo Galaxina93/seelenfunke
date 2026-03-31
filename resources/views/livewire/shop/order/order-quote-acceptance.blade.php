@@ -97,6 +97,28 @@
                         </div>
                     @endif
 
+                    @php
+                        $hasStockWarning = false;
+                        foreach($quote->items as $i) {
+                            if($i->product && $i->product->track_quantity && $i->quantity > $i->product->quantity) {
+                                $hasStockWarning = true;
+                                break;
+                            }
+                        }
+                    @endphp
+
+                    @if($hasStockWarning)
+                        <div class="bg-amber-50 border border-amber-200 text-amber-800 px-5 py-4 rounded-xl relative text-sm flex items-start gap-4 mb-4 shadow-sm animate-fade-in">
+                            <svg class="w-6 h-6 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            <div>
+                                <h4 class="font-bold text-amber-900 mb-1">Hinweis zur Produktionszeit</h4>
+                                <p class="text-amber-800/90 leading-relaxed">
+                                    Einer oder mehrere Artikel überschreiten unseren sofortigen Lagerbestand. Dies ist üblich – wir fertigen die fehlenden Stücke speziell für Sie an oder ordern Hersteller-Kontingente nach. Bitte beachten Sie die konkreten Wiederbeschaffungszeiten (ETA) direkt bei den betroffenen Positionen unten.
+                                </p>
+                            </div>
+                        </div>
+                    @endif
+
                     {{-- Items List --}}
                     <div class="border rounded-xl overflow-hidden shadow-sm">
                         <table class="w-full text-left text-sm">
@@ -115,6 +137,26 @@
                                         <div class="font-bold text-gray-900">{{ $item->product_name }}</div>
                                         @if(!empty($item->configuration['text']))
                                             <div class="text-xs text-gray-500 mt-0.5">Gravur: "{{ Str::limit($item->configuration['text'], 30) }}"</div>
+                                        @endif
+                                        @php
+                                            $pStock = $item->product ? $item->product->quantity : 0;
+                                            $pTracked = $item->product ? $item->product->track_quantity : false;
+                                            $etaText = '';
+                                            if ($pTracked && $item->quantity > $pStock && $item->product) {
+                                                $supplier = $item->product->supplier;
+                                                if ($supplier && $supplier->lead_time_land_days > 0) {
+                                                    $etaDays = $supplier->lead_time_land_days + 2; // + 2 Tage Puffer
+                                                    $etaText = "(ca. {$etaDays} Werktage durch Lieferant {$supplier->name})";
+                                                } else {
+                                                    $etaText = "(ca. 10-14 Werktage)";
+                                                }
+                                            }
+                                        @endphp
+                                        @if($pTracked && $item->quantity > $pStock)
+                                            <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-amber-100/80 text-amber-800 border border-amber-200/50 text-[10px] uppercase font-bold tracking-wider">
+                                                <svg class="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                <span>{{ max(0, $pStock) }} ab Lager / {{ $item->quantity - max(0, $pStock) }} Nachproduktion <span class="bg-amber-200/60 px-1.5 py-0.5 rounded text-amber-900 ml-1 tracking-normal">{{ $etaText }}</span></span>
+                                            </div>
                                         @endif
                                     </td>
                                     <td class="px-4 py-3 text-center align-middle font-bold">{{ $item->quantity }}</td>
