@@ -1,4 +1,5 @@
 <div class="flex flex-col h-full bg-gray-50/50" x-data="{
+        isMaximized: false,
         scrollToBottom() {
             setTimeout(() => {
                 const el = this.$refs.chatContainer;
@@ -8,6 +9,7 @@
     }"
     @message-sent.window="scrollToBottom"
     @message-received.window="scrollToBottom"
+    @toggle-chat-size.window="isMaximized = !isMaximized"
     x-init="scrollToBottom"
 >
     {{-- Header --}}
@@ -23,12 +25,12 @@
             </div>
         </div>
         <div class="flex items-center space-x-2">
-            {{-- Maximize Button --}}
-            <button @click="chatMaximized = !chatMaximized" class="text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full" title="Fenster vergrößern/verkleinern">
-                <svg x-show="!chatMaximized" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            {{-- Maximize Button (Hidden on Mobile) --}}
+            <button @click="$dispatch('toggle-chat-size')" class="hidden sm:block text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full" title="Fenster vergrößern/verkleinern">
+                <svg x-show="!isMaximized" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                 </svg>
-                <svg x-cloak x-show="chatMaximized" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <svg x-cloak x-show="isMaximized" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
                 </svg>
             </button>
