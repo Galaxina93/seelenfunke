@@ -466,12 +466,6 @@ class ProductCalculator extends Component
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
             return;
         }
-        
-        $shopLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', 0);
-        if ($shopLevel >= 4) {
-            $this->addError('cart', 'Aufgrund der extrem hohen Auslastung besteht aktuell ein Bestellstopp.');
-            return;
-        }
 
         if ($this->isExpress) {
             $this->validate([
@@ -498,12 +492,6 @@ class ProductCalculator extends Component
 
         if (count($this->cartItems) == 0) {
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
-            return;
-        }
-
-        $shopLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', 0);
-        if ($shopLevel >= 4) {
-            $this->addError('cart', 'Aufgrund der extrem hohen Auslastung besteht aktuell ein Bestellstopp.');
             return;
         }
 

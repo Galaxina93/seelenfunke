@@ -22,11 +22,8 @@
                 </label>
             </div>
 
-            {{-- KOMPAKTERES LAYOUT: h-12 statt h-14 --}}
             @php
-                $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
-                $isCheckoutBlocked = $shopCapacityLevel >= 4;
-                $buttonDisabled = !$config_confirmed || ($isCheckoutBlocked && in_array($context, ['add', 'calculator']));
+                $buttonDisabled = !$config_confirmed;
             @endphp
             <div class="flex flex-col sm:flex-row gap-3 h-auto sm:h-12">
                 @if($context !== 'template_admin')
@@ -47,7 +44,7 @@
                     </div>
                 @endif
 
-                <button @click.prevent="submitConfig()" wire:loading.attr="disabled" @disabled($buttonDisabled) :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : ({{$config_confirmed ? 'true' : 'false'}} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}')" class="{{ $isCheckoutBlocked && in_array($context, ['add', 'calculator']) ? '!bg-red-900 !text-red-300 !cursor-not-allowed' : '' }} flex-1 h-12 rounded-xl font-bold text-base transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl disabled:shadow-none relative overflow-hidden group">
+                <button @click.prevent="submitConfig()" wire:loading.attr="disabled" @disabled($buttonDisabled) :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : ({{$config_confirmed ? 'true' : 'false'}} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}')" class="flex-1 h-12 rounded-xl font-bold text-base transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl disabled:shadow-none relative overflow-hidden group">
                     @if($context !== 'template_admin')
                         <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[90px]">
                             <span class="font-serif font-bold leading-none tracking-wide {{$qty > 1 ? 'text-sm' : 'text-base'}}">{{number_format($totalPrice / 100, 2, ',', '.')}} €</span>
@@ -74,12 +71,8 @@
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
                                             <span wire:loading.remove>
-                                    @if($context === 'add')
-                                                    @if($isCheckoutBlocked && in_array($context, ['add', 'calculator']))
-                                                        Temporär blockiert
-                                                    @else
-                                                        In den Warenkorb
-                                                    @endif
+                                                @if($context === 'add')
+                                                    In den Warenkorb
                                                 @elseif($context === 'edit')
                                                     Speichern
                                                 @elseif($context === 'calculator')

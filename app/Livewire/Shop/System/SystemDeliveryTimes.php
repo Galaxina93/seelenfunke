@@ -61,8 +61,18 @@ class SystemDeliveryTimes extends Component
             ]
         );
 
-        // Aufräumen: Alles was nicht diese 3 sind, wird rigoros gelöscht
-        DeliveryTime::whereNotIn('name', ['Standard', 'Erhöhtes Aufkommen', 'Hohe Auslastung'])->delete();
+        DeliveryTime::updateOrCreate(
+            ['name' => 'Extreme Auslastung'],
+            [
+                'min_days' => 16,
+                'max_days' => 21,
+                'color' => 'red',
+                'description' => 'Aufgrund extrem hoher Auslastung kommt es derzeit zu Verzögerungen. Dein Unikat wird mit größter Sorgfalt, aber etwas später gefertigt. Danke für dein Verständnis!',
+            ]
+        );
+
+        // Aufräumen: Alles was nicht diese 4 sind, wird rigoros gelöscht
+        DeliveryTime::whereNotIn('name', ['Standard', 'Erhöhtes Aufkommen', 'Hohe Auslastung', 'Extreme Auslastung'])->delete();
 
         // Aktiven Status ermitteln, Default ist Standard
         $activeCount = DeliveryTime::where('is_active', true)->count();

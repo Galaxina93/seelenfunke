@@ -164,10 +164,12 @@
              x-transition:leave="transition ease-in duration-300"
              x-transition:leave-start="translate-x-0 opacity-100"
              x-transition:leave-end="translate-x-10 opacity-0"
-             :class="chatMaximized ? 'fixed right-2 bottom-2 sm:right-24 sm:bottom-10 sm:top-10 w-[95vw] sm:w-[450px] h-[calc(100vh-16px)] sm:h-[calc(100vh-5rem)] z-[100001]' : 'fixed right-2 bottom-20 sm:right-24 sm:top-1/2 sm:-translate-y-1/2 w-[95vw] sm:w-[380px] h-[75vh] sm:max-h-[600px] z-[99999]'"
+             :class="chatMaximized ? 'fixed right-2 bottom-2 sm:right-24 sm:bottom-10 sm:top-10 w-[95vw] sm:w-[450px] h-[calc(100vh-16px)] sm:h-[calc(100vh-5rem)]' : 'fixed right-2 bottom-20 sm:right-24 sm:top-1/2 sm:-translate-y-1/2 w-[95vw] sm:w-[380px] h-[75vh] sm:max-h-[600px]'"
              class="bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] rounded-3xl border border-gray-100 overflow-hidden flex flex-col pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
+             :style="chatMaximized ? 'z-index: 100001;' : 'z-index: 99999;'"
         >
             @livewire('frontend.support.customer-chat')
+            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] h-[calc(100vh-16px)] sm:w-[380px] h-[75vh] sm:max-h-[600px]"></div>
         </div>
     </template>
 </div>

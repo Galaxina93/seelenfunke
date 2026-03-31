@@ -303,19 +303,9 @@
                 </div>
 
                 <div class="mt-4">
-                    @if($shopCapacityLevel >= 4)
-                        <div class="w-full md:w-auto bg-red-100/80 text-red-800 p-4 border border-red-200 rounded-xl shadow-sm leading-snug">
-                            <h4 class="font-black flex items-center gap-2 mb-1">
-                                <svg class="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                                Absoluter Bestellstopp!
-                            </h4>
-                            <p class="text-xs">Unser maximales 100% Produktionslimit ist erschöpft. Das System hat den Checkout automatisch blockiert, um Lieferchaos zu verhindern. Bitte versuche es in wenigen Stunden oder Tagen noch einmal.</p>
-                        </div>
-                    @else
-                        <button wire:click="goNext" class="w-full md:w-auto bg-gray-900 text-white px-8 py-3 rounded-xl hover:bg-black transition-all font-bold shadow-lg hover:shadow-xl active:scale-95">
-                            Angebot anfordern
-                        </button>
-                    @endif
+                    <button wire:click="goNext" class="w-full md:w-auto bg-gray-900 text-white px-8 py-3 rounded-xl hover:bg-black transition-all font-bold shadow-lg hover:shadow-xl active:scale-95">
+                        Angebot anfordern
+                    </button>
                 </div>
 
                 @error('cart') <div class="text-red-500 text-xs mt-2 font-bold">{{ $message }}</div> @enderror

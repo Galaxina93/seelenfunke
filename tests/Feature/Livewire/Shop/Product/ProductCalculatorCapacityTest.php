@@ -73,7 +73,7 @@ class ProductCalculatorCapacityTest extends TestCase
     }
 
     #[Test]
-    public function it_blocks_proceeding_to_the_next_step_if_capacity_is_level_4()
+    public function it_allows_proceeding_to_the_next_step_even_if_capacity_is_level_4()
     {
         Cache::put('shop_capacity_level', 4);
 
@@ -86,10 +86,10 @@ class ProductCalculatorCapacityTest extends TestCase
         ];
 
         Livewire::test(ProductCalculator::class)
+            // session mocking is generally complex in livewire. The calculator uses a local variable that reads from session
             ->set('cartItems', $cartItems)
-            ->call('calculateTotal')
             ->call('goNext')
-            ->assertHasErrors(['cart']) // Should show the shop capacity error
-            ->assertSet('step', 0); // Stays on the same step
+            ->assertHasNoErrors() // No capacity block anymore!
+            ->assertSet('step', 3); // Proceeds successfully to the next step
     }
 }
