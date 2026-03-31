@@ -183,7 +183,6 @@
                             @if (session()->has('message'))
                                 <div class="mt-4 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center animate-fade-in-up">
                                     <p class="text-green-400 font-medium flex items-center justify-center gap-2">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                         {{ session('message') }}
                                     </p>
                                 </div>

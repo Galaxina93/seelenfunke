@@ -1,15 +1,10 @@
 <div x-data="{ expanded: false }" class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative shadow-[0_0_20px_rgba(0,0,0,0.3)] mb-8">
 
-    <!-- Hintergrund-Glühen abhängig vom Level -->
-    <div class="absolute -top-40 -right-40 w-96 h-96 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-1000
-        {{ $level === 0 ? 'bg-emerald-500' : ($level === 1 ? 'bg-amber-500' : ($level === 2 ? 'bg-orange-500' : 'bg-red-600')) }}">
-    </div>
-
     <div class="relative z-10 flex flex-col gap-6">
 
         <!-- COMPACT HEADER VIEW -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            
+
             <!-- Left: Headline & Tooltip -->
             <div class="flex items-center gap-3">
                 <h2 class="text-xl sm:text-2xl font-black text-white uppercase tracking-wider font-mono flex items-center gap-3">
@@ -37,7 +32,7 @@
                         <span aria-hidden="true" class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autoPilotEnabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
                     </button>
                 </div>
-                
+
                 <button @click="expanded = !expanded" class="flex items-center gap-2 bg-gray-900/80 hover:bg-gray-800 border border-gray-700 focus:outline-none focus:ring opacity-90 hover:opacity-100 transition duration-300 rounded-xl px-3 sm:px-4 py-2 shadow-inner text-gray-400 hover:text-white group">
                     <span class="text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider" x-text="expanded ? 'Schließen' : 'Details'"></span>
                     <i class="bi transform transition-transform duration-300 group-hover:scale-110" :class="expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
@@ -126,9 +121,9 @@
 
         <!-- EXPANDED VIEW -->
         <div x-show="expanded" x-collapse.duration.400ms class="pt-6 sm:pt-8 border-t border-gray-800/60 mt-1">
-            
+
             <div class="flex flex-col lg:flex-row gap-6">
-                
+
                 <!-- Settings Panel -->
                 <div class="flex-none w-full lg:w-48 xl:w-56 flex flex-col gap-6">
                     <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-inner">
