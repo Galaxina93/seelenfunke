@@ -168,7 +168,7 @@ class ProductCalculatorTest extends TestCase
         });
 
         Mail::assertQueued(NewCalcMailToAdmin::class, function ($mail) {
-            $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+            $owner_mail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
             return $mail->hasTo($owner_mail);
         });
     }

@@ -31,6 +31,7 @@ class Product extends Model
         'width' => 'integer',
         'length' => 'integer',
         'variants_data' => 'array',
+        'packaging_weight' => 'integer',
     ];
 
     protected function priceEuro(): Attribute
@@ -99,12 +100,11 @@ class Product extends Model
             return $globalDefault;
         }
 
-        $specialRate = DB::table('tax_rates')
-            ->where('tax_class', $this->tax_class)
-            ->where('country_code', 'DE')
-            ->value('rate');
+        if ($this->tax_class === 'reduced') {
+            return (float)shop_setting('reduced_tax_rate', 7.00);
+        }
 
-        return $specialRate !== null ? (float)$specialRate : $globalDefault;
+        return $globalDefault;
     }
 
     public function isAvailable(): bool

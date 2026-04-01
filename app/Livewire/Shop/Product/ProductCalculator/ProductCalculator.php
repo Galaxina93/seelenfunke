@@ -275,7 +275,7 @@ class ProductCalculator extends Component
     public function calculateTotal()
     {
         $shopLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
-        if ($shopLevel >= 3 && $this->isExpress) {
+        if ($shopLevel >= 2 && $this->isExpress) {
             $this->isExpress = false;
             $this->persist();
         }

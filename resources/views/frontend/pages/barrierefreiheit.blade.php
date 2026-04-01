@@ -14,7 +14,7 @@
                     Erklärung zur <span class="text-primary italic">Barrierefreiheit</span>
                 </h1>
                 <p class="text-lg text-gray-600 font-light leading-relaxed max-w-3xl">
-                    Wir bei <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> verstehen unser Handwerk als Brücke zwischen Menschen. Dazu gehört aus tiefer Überzeugung auch, dass wir unsere digitalen Angebote und unseren Onlineshop für jeden zugänglich machen möchten.
+                    Wir bei <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> verstehen unser Handwerk als Brücke zwischen Menschen. Dazu gehört aus tiefer Überzeugung auch, dass wir unsere digitalen Angebote und unseren Onlineshop für jeden zugänglich machen möchten.
                 </p>
             </header>
 
@@ -99,11 +99,11 @@
                                 <ul class="space-y-3 text-sm text-gray-300">
                                     <li class="flex items-center gap-3">
                                         <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                        <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="hover:text-primary transition-colors font-bold">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a>
+                                        <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="hover:text-primary transition-colors font-bold">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a>
                                     </li>
                                     <li class="flex items-center gap-3">
                                         <svg class="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                                        <span>{{ shop_setting('owner_phone', '+49 (0) 159 019 668 64') }}</span>
+                                        <span>{{ shop_setting('company_phone', shop_setting('owner_phone', '+49 (0) 159 019 668 64')) }}</span>
                                     </li>
                                     <li class="flex items-center gap-3 pt-2">
                                         <a href="{{ route('contact') }}" class="inline-flex items-center gap-2 text-primary font-bold hover:text-white transition-colors">
@@ -115,10 +115,10 @@
                             <div>
                                 <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary mb-3">Postanschrift</h4>
                                 <address class="text-sm text-gray-300 not-italic leading-relaxed">
-                                    {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
+                                    {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
                                     Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                    {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                                    {{ shop_setting('owner_city', '38518 Gifhorn') }}
+                                    {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                                    {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
                                 </address>
                             </div>
                         </div>

@@ -30,20 +30,29 @@ class SystemCompanyMap extends Component
     public $showEdgeForm = false;
     public $newEdge = ['source_id' => '', 'target_id' => '', 'label' => '', 'description' => '', 'status' => 'active'];
 
-    public $showNodePanel = false;
-    public $activePanelNode = null;
-
     public $activeMap = 'erp'; // 'erp' oder 'ai'
     public $liveAiState = null; // Speichert Echtzeit Cache Status
 
-
-
-    // Neues Feature: Environment Status für das Panel
-    public $envStatus = [];
+    public $brandIcons = [];
 
     public function mount()
     {
+        $this->loadBrandIcons();
         $this->loadMap();
+    }
+
+    private function loadBrandIcons()
+    {
+        $path = public_path('shop/projekt/brands');
+        if (\Illuminate\Support\Facades\File::exists($path)) {
+            $files = \Illuminate\Support\Facades\File::files($path);
+            foreach ($files as $file) {
+                if ($file->getExtension() === 'svg') {
+                    $this->brandIcons[] = $file->getFilenameWithoutExtension();
+                }
+            }
+        }
+        sort($this->brandIcons);
     }
 
     public function loadMap()
@@ -55,7 +64,6 @@ class SystemCompanyMap extends Component
     public function switchMap($mapId)
     {
         $this->activeMap = $mapId;
-        $this->closeNodePanel();
         $this->loadMap();
     }
 
@@ -160,38 +168,7 @@ class SystemCompanyMap extends Component
         $this->loadMap();
     }
 
-    public function openNodePanel($nodeId)
-    {
-        $node = SystemMapNode::find($nodeId);
-        if (!$node) return;
 
-        $this->activePanelNode = $node->toArray();
-        $this->checkEnvironmentVars($node->icon); // Prüft auf verbundene ENV Keys
-        $this->showNodePanel = true;
-    }
-
-    public function closeNodePanel()
-    {
-        $this->showNodePanel = false;
-        $this->activePanelNode = null;
-    }
-
-    private function checkEnvironmentVars($icon)
-    {
-        // Ein nützliches Feature: Prüft ob die ENV Variablen für den Dienst gesetzt sind.
-        $keys = match($icon) {
-            'stripe' => ['STRIPE_KEY', 'STRIPE_SECRET', 'STRIPE_WEBHOOK_SECRET'],
-            'etsy'   => ['ETSY_API_KEY', 'ETSY_SHOP_ID'],
-            'google' => ['GOOGLE_CLIENT_ID', 'GOOGLE_MAPS_API_KEY'],
-            'dhl'    => ['DHL_API_KEY', 'DHL_USER'],
-            default  => []
-        };
-
-        $this->envStatus = [];
-        foreach($keys as $key) {
-            $this->envStatus[$key] = env($key) ? true : false;
-        }
-    }
 
     public function createEdge()
     {

@@ -145,14 +145,15 @@ class NativeXmlInvoiceService
     private function addSeller($agreement)
     {
         $seller = $this->addElement($agreement, 'ram:SellerTradeParty');
-        $this->addElement($seller, 'ram:Name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $this->addElement($seller, 'ram:Name', shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')));
 
         // Addresse
         $address = $this->addElement($seller, 'ram:PostalTradeAddress');
-        $this->addElement($address, 'ram:PostcodeCode', shop_setting('owner_zip', '38518'));
-        $this->addElement($address, 'ram:LineOne', shop_setting('owner_street', 'Carl-Goerdeler-Ring 26'));
-        $this->addElement($address, 'ram:CityName', shop_setting('owner_city', 'Gifhorn'));
-        $this->addElement($address, 'ram:CountryID', 'DE');
+        $this->addElement($address, 'ram:PostcodeCode', shop_setting('company_zip', '38518'));
+        $street = trim(shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) . ' ' . shop_setting('company_street_number', '26'));
+        $this->addElement($address, 'ram:LineOne', $street);
+        $this->addElement($address, 'ram:CityName', shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')));
+        $this->addElement($address, 'ram:CountryID', strtoupper(shop_setting('company_country', 'DE')));
 
         // Steuernummer
         if ($ustId = shop_setting('owner_ust_id')) {

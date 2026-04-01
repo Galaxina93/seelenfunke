@@ -24,11 +24,18 @@
                     {{--Shipping--}}
                     <div x-show="open" x-collapse style="display: none;">
                         <div class="space-y-8 pt-2 w-full">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 w-full">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 w-full">
                                 <div class="w-full min-w-0">
-                                    <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Gewicht</label>
+                                    <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Produkt-Gewicht</label>
                                     <div class="relative w-full">
                                         <input type="number" wire:model.blur="weight" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all pr-12 shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
+                                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">g</span>
+                                    </div>
+                                </div>
+                                <div class="w-full min-w-0">
+                                    <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1 flex items-center gap-2">Tara / Verpackung @include('components.alerts.info-tooltip', ['key' => 'packaging_weight_grams'])</label>
+                                    <div class="relative w-full">
+                                        <input type="number" wire:model.blur="packaging_weight" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all pr-12 shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="0">
                                         <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-gray-500">g</span>
                                     </div>
                                 </div>

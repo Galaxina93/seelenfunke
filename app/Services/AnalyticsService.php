@@ -142,7 +142,7 @@ class AnalyticsService
     {
         if (!class_exists(\App\Models\Support\SupportContactRequest::class)) return null;
         $totalReqs = \App\Models\Support\SupportContactRequest::count();
-        $openReqs = \App\Models\Support\SupportContactRequest::where('status', 'open')->get();
+        $openReqs = \App\Models\Support\SupportContactRequest::where('status', '!=', 'resolved')->get();
         $rCount = $openReqs->count();
         $status = $rCount > 0 ? 'error' : 'success';
         $msg = $rCount > 0 ? $rCount . ' Kontaktanfragen offen' : 'Alles beantwortet';

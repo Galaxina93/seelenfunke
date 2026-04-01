@@ -89,6 +89,12 @@
                                                 'dotEvent' => 'admin-customerchat-badge-update',
                                                 'dotClearEvent' => 'clear-admin-customerchat-badge'
                                             ];
+                                        } elseif ($child['id'] === 'support-contact-form') {
+                                            $dotProps = [
+                                                'dotState' => 'hasUnreadContactReqs',
+                                                'dotEvent' => 'admin-contactreq-badge-update',
+                                                'dotClearEvent' => 'clear-admin-contactreq-badge'
+                                            ];
                                         }
                                     @endphp
                                     <x-forms.list-item 

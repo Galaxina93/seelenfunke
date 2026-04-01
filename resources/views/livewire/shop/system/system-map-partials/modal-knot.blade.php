@@ -70,18 +70,18 @@
                 <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-4 ml-1">Symbol / Logo wählen</label>
                 <p class="text-[8px] font-black text-gray-600 uppercase mb-2 ml-1">Spezifische Marken</p>
                 <div class="flex flex-wrap gap-2 mb-5">
-                    @foreach(['datev', 'dhl', 'etsy', 'finom', 'google', 'mittwald', 'stripe', 'firebase'] as $brand)
+                    @foreach($this->brandIcons as $brand)
                         <button wire:click="$set('editNode.icon', '{{ $brand }}')"
-                                class="w-12 h-12 sm:w-14 sm:h-14 p-2 rounded-2xl border-2 transition-all flex items-center justify-center {{ $editNode['icon'] === $brand ? 'bg-primary/10 border-primary shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-gray-950 border-gray-800 hover:border-gray-600 shadow-inner' }}">
+                                class="w-12 h-12 sm:w-14 sm:h-14 p-2 rounded-2xl border-2 transition-all flex items-center justify-center {{ $editNode['icon'] === $brand ? 'bg-[var(--theme-color-10)] border-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-30)]' : 'bg-gray-950 border-gray-800 hover:border-gray-600 shadow-inner' }}">
                             <img src="/shop/projekt/brands/{{ $brand }}.svg" alt="{{ $brand }}" class="w-full h-full object-contain">
                         </button>
                     @endforeach
                 </div>
                 <p class="text-[8px] font-black text-gray-600 uppercase mb-2 ml-1">Allgemeine Icons</p>
                 <div class="flex flex-wrap gap-2">
-                    @foreach(['cube', 'sparkles', 'shopping-bag', 'shopping-cart', 'credit-card', 'currency-euro', 'building-library', 'document-text', 'server', 'device-phone-mobile', 'globe-alt', 'truck'] as $icon)
+                    @foreach(['cube', 'sparkles', 'shopping-bag', 'shopping-cart', 'credit-card', 'currency-euro', 'building-library', 'document-text', 'server', 'device-phone-mobile', 'globe-alt', 'truck', 'chart-bar', 'chat-bubble-bottom-center-text', 'command-line', 'envelope', 'folder', 'key', 'shield-check', 'user', 'wifi', 'bolt', 'circle-stack', 'wrench-screwdriver', 'cpu-chip', 'link', 'banknotes'] as $icon)
                         <button wire:click="$set('editNode.icon', '{{ $icon }}')"
-                                class="w-10 h-10 sm:w-12 sm:h-12 p-2.5 rounded-xl border-2 transition-all flex items-center justify-center {{ $editNode['icon'] === $icon ? 'bg-primary/10 text-primary border-primary shadow-[0_0_10px_rgba(197,160,89,0.3)]' : 'bg-gray-950 border-gray-800 text-gray-500 hover:border-gray-600 hover:text-white shadow-inner' }}">
+                                class="w-10 h-10 sm:w-12 sm:h-12 p-2.5 rounded-xl border-2 transition-all flex items-center justify-center {{ $editNode['icon'] === $icon ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-30)]' : 'bg-gray-950 border-gray-800 text-gray-500 hover:border-gray-600 hover:text-white shadow-inner' }}">
                             <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-full h-full" />
                         </button>
                     @endforeach

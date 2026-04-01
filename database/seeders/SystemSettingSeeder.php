@@ -33,11 +33,21 @@ class SystemSettingSeeder extends Seeder
             'prices_entered_gross'      => 'true',
             'maintenance_mode'          => 'false',
 
-            // Inhaber Daten (Echte Daten von Alina)
+            // Inhaber Daten (Echte Daten von Alina - für juristische Erwähnungen)
             'owner_name'                => 'Mein Seelenfunke',
             'owner_proprietor'          => 'Alina Steinhauer',
             'owner_street'              => 'Carl-Goerdeler-Ring 26',
             'owner_city'                => '38518 Gifhorn',
+
+            // Firmen Stammdaten (Für das öffentliche System)
+            'company_name'              => 'Mein Seelenfunke',
+            'company_street'            => 'Carl-Goerdeler-Ring',
+            'company_street_number'     => '26',
+            'company_zip'               => '38518',
+            'company_city'              => 'Gifhorn',
+            'company_country'           => 'DE',
+            'company_phone'             => '+49 (0) 159 019 668 64',
+            'company_email'             => 'kontakt@mein-seelenfunke.de',
 
             // E-Mail Routing & Postfächer
             'owner_email'               => 'kontakt@mein-seelenfunke.de',
@@ -52,10 +62,10 @@ class SystemSettingSeeder extends Seeder
             'owner_website'             => 'www.mein-seelenfunke.de',
 
             // Bankdaten
-            'owner_bank_name'           => '',
-            'owner_bank_address'        => '',
-            'owner_bic'                 => '',
-            'owner_iban'                => '',
+            'owner_bank_name'           => 'OWNER_BANK_NAME',
+            'owner_bank_address'        => 'OWNER_BANK_ADDRESS',
+            'owner_bic'                 => '123456789',
+            'owner_iban'                => 'DE123456789123456',
 
             // Erweiterte behördliche Daten (Platzhalter)
             'owner_finanzamt_nr'        => '2319',
@@ -69,9 +79,10 @@ class SystemSettingSeeder extends Seeder
             'shipping_cost'             => '490',   // 4,90 €
             'shipping_free_threshold'   => '5000',  // 50,00 €
             'express_surcharge'         => '2500',  // 25,00 €
+            'packaging_weight_grams'    => '350',   // 350g Leergewicht für Verpackung
 
             // Produkt & Lager Einstellungen
-            'inventory_low_stock_threshold' => '20',     // Warnung ab 20 Stück
+            'inventory_low_stock_threshold' => '50',     // Warnung ab 50 Stück
             'skip_shipping_for_digital'     => 'true', // false = Digitale Produkte haben auch Versandkosten / true = Versand fällt weg bei D. Produkten
 
             // Stripe Konfiguration

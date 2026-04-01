@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
 
-    <title>{{ $title ?? shop_setting('owner_name', 'Mein Seelenfunke') }}</title>
+    <title>{{ $title ?? shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</title>
 
     <style>
         body {

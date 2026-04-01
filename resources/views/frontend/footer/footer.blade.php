@@ -32,10 +32,10 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                     </svg>
                     <address class="not-italic">
-                        <span class="font-medium text-white">{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</span><br>
-                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                        {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
-                        Deutschland
+                        <span class="font-medium text-white">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</span><br>
+                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
+                        {{ shop_setting('company_country', 'Deutschland') }}
                     </address>
                 </div>
             </div>
@@ -55,10 +55,10 @@
 
                         {{-- 1. Allgemeine Kontakt-Mail --}}
                         <li>
-                            <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}"
+                            <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}"
                                title="Senden Sie uns eine E-Mail"
                                class="hover:text-primary transition flex items-center gap-2">
-                                <span aria-hidden="true">📧</span> {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                                <span aria-hidden="true">📧</span> {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                             </a>
                         </li>
 
@@ -107,8 +107,8 @@
 
         <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="text-gray-500 text-sm text-center md:text-left">
-                &copy; {{ date('Y') }} <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong>. Alle Rechte vorbehalten.<br>
-                <span class="text-xs">Handmade with ❤️ in unserer Manufaktur in {{ shop_setting('owner_city', 'Gifhorn') }}.</span>
+                &copy; {{ date('Y') }} <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong>. Alle Rechte vorbehalten.<br>
+                <span class="text-xs">Handmade with ❤️ in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.</span>
             </div>
 
             <div class="flex space-x-4">

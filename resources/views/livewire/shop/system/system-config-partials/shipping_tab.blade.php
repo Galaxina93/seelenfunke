@@ -8,7 +8,7 @@
             Versandkosten & Konditionen
         </h3>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8 mb-10">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 xl:gap-8 mb-10">
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Standard Versand</label>
@@ -39,6 +39,17 @@
                 <div class="relative">
                     <input type="number" step="0.01" wire:model="settings.express_surcharge" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-red-400 !border-red-500/30 focus:!ring-red-500/20 focus:!border-red-400">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-red-500/50 font-bold">€</span>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Tara-Gewicht pro Paket</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'packaging_weight_grams'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="1" wire:model="settings.packaging_weight_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-blue-400 !border-blue-500/30 focus:!ring-blue-500/20 focus:!border-blue-400">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-blue-500/50 font-bold">g</span>
                 </div>
             </div>
         </div>

@@ -7,10 +7,10 @@
                 <h1 class="text-3xl md:text-4xl font-serif font-bold mb-6 text-gray-900">Impressum</h1>
                 <div class="space-y-1 text-base leading-relaxed">
                     <p>
-                        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
+                        <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong><br>
                         Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                        {{ shop_setting('owner_city', '38518 Gifhorn') }}
+                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
                     </p>
 
                     <div class="pt-4 space-y-2">
@@ -18,12 +18,12 @@
 
                         <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
                             <span class="text-gray-500 font-medium min-w-[120px]">Telefon:</span>
-                            <a href="tel:{{ str_replace([' ', '(', ')', '-'], '', shop_setting('owner_phone', '+4915901966864')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_phone', '+49 159 019 668 64') }}</a>
+                            <a href="tel:{{ str_replace([' ', '(', ')', '-'], '', shop_setting('company_phone', shop_setting('owner_phone', '+4915901966864'))) }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64')) }}</a>
                         </div>
 
                         <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
                             <span class="text-gray-500 font-medium min-w-[120px]">Allgemein:</span>
-                            <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline font-medium">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a>
+                            <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a>
                         </div>
 
                         {{-- Zeige Impressum-Mail nur, wenn sie ausgefüllt ist und sich von der allgemeinen unterscheidet --}}
@@ -79,14 +79,14 @@
                         <div id="geltungsbereich" class="scroll-mt-28">
                             <h3 class="font-bold text-lg text-gray-900 mb-2">1. Geltungsbereich und Anbieter</h3>
                             <p>
-                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> (nachfolgend „Anbieter“) tätigen.
+                                (1) Diese Allgemeinen Geschäftsbedingungen gelten für alle Bestellungen, die Sie bei dem Online-Shop <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> (nachfolgend „Anbieter“) tätigen.
                             </p>
                             <p class="mt-2 text-sm bg-gray-50 p-4 rounded border border-gray-200">
                                 <strong>Anbieterkennzeichnung:</strong><br>
-                                {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
+                                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
                                 Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                                {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
-                                E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                                {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br>
+                                E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                             </p>
                             <p class="mt-2">
                                 (2) Das Warenangebot in unserem Online-Shop richtet sich ausschließlich an Verbraucher, die das 18. Lebensjahr vollendet haben. Verbraucher ist jede natürliche Person, die ein Rechtsgeschäft zu Zwecken abschließt, die überwiegend weder ihrer gewerblichen noch ihrer selbständigen beruflichen Tätigkeit zugerechnet werden können (§ 13 BGB).
@@ -238,7 +238,7 @@
                             Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag, an dem Sie oder ein von Ihnen benannter Dritter, der nicht der Beförderer ist, die Waren in Besitz genommen haben bzw. hat.
                         </p>
                         <p>
-                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}, {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('owner_city', '38518 Gifhorn') }}, E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
+                            Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (<strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}, {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}, {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}, {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}, E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</strong>) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.
                         </p>
                         <p>
                             Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.
@@ -280,11 +280,11 @@
                     <div class="border border-gray-200 p-8 rounded-xl bg-white shadow-sm text-gray-800 font-mono text-sm leading-relaxed">
                         <p class="mb-6 font-bold">
                             An:<br>
-                            {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
+                            {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
                             {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                            {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                            {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
-                            E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                            {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                            {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br>
+                            E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                         </p>
 
                         <p class="mb-6">

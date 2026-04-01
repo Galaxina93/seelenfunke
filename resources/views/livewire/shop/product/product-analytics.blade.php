@@ -59,19 +59,40 @@
                         </td>
                         <td class="p-4 align-middle">
                             <div class="flex flex-col gap-1 w-32">
-                                <div class="flex justify-between items-center text-[10px] font-black"><span class="text-gray-500">EK:</span> <span class="text-gray-300">{{ number_format($cd['purchase_price'], 2, ',', '.') }} €</span></div>
-                                <div class="flex justify-between items-center text-[10px] font-black"><span class="text-gray-500">Laser:</span> <span class="text-amber-500">{{ number_format($cd['laser_cost'], 2, ',', '.') }} €</span></div>
-                                <div class="flex justify-between items-center text-[10px] font-black"><span class="text-gray-500">Material:</span> <span class="text-emerald-500">{{ number_format($cd['packaging_cost'], 2, ',', '.') }} €</span></div>
-                                <div class="flex justify-between items-center text-[10px] font-black"><span class="text-gray-500">Versand:</span> <span class="text-gray-400">{{ number_format($cd['shipping_cost'], 2, ',', '.') }} €</span></div>
+                                <div class="flex justify-between items-center text-[10px] font-black">
+                                    <span class="text-gray-500 flex items-center cursor-help" title="Nettopreis im Einkauf (Produktion/Hersteller).">EK <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                    <span class="text-gray-300">{{ number_format($cd['purchase_price'], 2, ',', '.') }} €</span>
+                                </div>
+                                <div class="flex justify-between items-center text-[10px] font-black">
+                                    <span class="text-gray-500 flex items-center cursor-help" title="Berechnete Stromkosten und Maschinenabnutzung pro Gravur-Minute.">Laser <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                    <span class="text-amber-500">{{ number_format($cd['laser_cost'], 2, ',', '.') }} €</span>
+                                </div>
+                                <div class="flex justify-between items-center text-[10px] font-black">
+                                    <span class="text-gray-500 flex items-center cursor-help" title="Reine Materialkosten für die Verpackung (z.B. der Karton selbst in €).">Material <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                    <span class="text-emerald-500">{{ number_format($cd['packaging_cost'], 2, ',', '.') }} €</span>
+                                </div>
+                                <div class="flex justify-between items-center text-[10px] font-black">
+                                    <span class="text-gray-500 flex items-center cursor-help" title="Die Portokosten, die für das DHL-Label gezahlt werden.">Versand <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                    <span class="text-gray-400">{{ number_format($cd['shipping_cost'], 2, ',', '.') }} €</span>
+                                </div>
+                                <div class="flex justify-between items-center text-[10px] font-black mt-1 pt-1 border-t border-gray-800/60">
+                                    <span class="text-gray-500 flex items-center cursor-help" title="Das Leergewicht der Versandverpackung (Karton, Luftpolster). Das finale Bruttogewicht für DHL setzt sich aus dem Netto-Produktgewicht und diesem Tara-Wert zusammen.">Tara <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                    <span class="text-blue-400">{{ $cd['packaging_weight'] !== null ? $cd['packaging_weight'] . ' g' : '-' }}</span>
+                                </div>
                             </div>
                         </td>
                         <td class="p-4 pr-6 align-middle text-right">
                             <div class="text-[9px] text-gray-500 uppercase tracking-wider font-black mb-1">
-                                Brutto: <span class="text-gray-400">{{ number_format($cd['price'], 2, ',', '.') }} €</span> |
-                                Netto: <span class="text-gray-300">{{ number_format($cd['net_price'], 2, ',', '.') }} €</span>
+                                <span class="cursor-help flex items-center justify-end" title="Brutto: Verkaufspreis im Shop inkl. MwSt. | Netto: Dein reiner Umsatz nach Steuerabzug.">
+                                    Brutto: <span class="text-gray-400 ml-1 mr-1">{{ number_format($cd['price'], 2, ',', '.') }} €</span> |
+                                    Netto: <span class="text-gray-300 ml-1">{{ number_format($cd['net_price'], 2, ',', '.') }} €</span>
+                                    <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>
+                                </span>
                             </div>
-                            <div class="text-[16px] font-black text-white block mb-0.5">
-                                <span class="text-[10px] tracking-widest uppercase text-gray-500 mr-1">Reingewinn:</span>
+                            <div class="text-[16px] font-black text-white block mb-0.5 mt-2 flex justify-end items-center">
+                                <span class="text-[10px] tracking-widest uppercase text-gray-500 mr-2 flex items-center cursor-help" title="Netto VK abzüglich ALLER anfallenden Kosten (EK, Laser, Material, Versand). Das ist der Betrag, der am Ende des Tages als Gewinn hängen bleibt.">
+                                    Reingewinn <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:
+                                </span>
                                 {{ number_format($cd['net_margin'], 2, ',', '.') }} €
                             </div>
                             @php

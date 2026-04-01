@@ -2,25 +2,82 @@
     <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden">
         <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
 
-        <h3 class="text-lg sm:text-xl font-serif font-bold text-white mb-8 border-b border-gray-800 pb-5 flex items-center gap-3 tracking-wide">
-            <div class="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-inner shrink-0">
+        <h3 class="text-lg sm:text-xl font-serif font-bold text-white mb-8 border-b border-gray-800 pb-5 flex items-center gap-3 tracking-wide mt-12">
+            <div class="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
             </div>
-            Rechtliche Stammdaten (Impressum & Rechnungen)
+            Firmenstammdaten (Shop, Rechnungen, DHL)
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 relative z-10 mb-12">
+            <div class="md:col-span-2">
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0 text-blue-400/80">Unternehmensname / Shop-Marke</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'company_name'])
+                </div>
+                <input type="text" wire:model="settings.company_name" class="{{ $inputClass }} !text-base !font-bold border-blue-500/30 focus:border-blue-500">
+            </div>
+
+            <div class="md:col-span-2 h-px bg-gray-800 my-2"></div>
+
+            <div>
+                <label class="{{ $labelClass }}">Straße</label>
+                <input type="text" wire:model="settings.company_street" class="{{ $inputClass }}">
+            </div>
+
+            <div>
+                <label class="{{ $labelClass }}">Hausnummer</label>
+                <input type="text" wire:model="settings.company_street_number" class="{{ $inputClass }}">
+            </div>
+
+            <div>
+                <label class="{{ $labelClass }}">Postleitzahl</label>
+                <input type="text" wire:model="settings.company_zip" class="{{ $inputClass }}">
+            </div>
+
+            <div>
+                <label class="{{ $labelClass }}">Stadt</label>
+                <input type="text" wire:model="settings.company_city" class="{{ $inputClass }}">
+            </div>
+
+            <div class="md:col-span-2">
+                <label class="{{ $labelClass }}">Land (z.B. DE, AT, CH)</label>
+                <input type="text" wire:model="settings.company_country" class="{{ $inputClass }} uppercase font-mono max-w-[120px]">
+            </div>
+
+            <div class="md:col-span-2 h-px bg-gray-800 my-2"></div>
+
+            <div>
+                <label class="{{ $labelClass }}">Öffentliche Telefonnummer</label>
+                <input type="text" wire:model="settings.company_phone" class="{{ $inputClass }}">
+            </div>
+
+            <div>
+                <label class="{{ $labelClass }}">Öffentliche Firmen-Email</label>
+                <input type="text" wire:model="settings.company_email" class="{{ $inputClass }}">
+            </div>
+        </div>
+
+
+        <h3 class="text-lg sm:text-xl font-serif font-bold text-white mb-8 border-b border-gray-800 pb-5 flex items-center gap-3 tracking-wide">
+            <div class="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-inner shrink-0">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+            </div>
+            Inhaber-Daten (Impressumspflicht & Intern)
         </h3>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 relative z-10">
             <div class="md:col-span-2">
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Shop-Marke / Unternehmensname</label>
+                    <label class="{{ $labelClass }} !mb-0 !ml-0 text-gray-500">Interner Bezeichner</label>
                     @include('components.alerts.info-tooltip', ['key' => 'owner_name'])
                 </div>
-                <input type="text" wire:model="settings.owner_name" class="{{ $inputClass }} !text-base !font-bold">
+                <input type="text" wire:model="settings.owner_name" class="{{ $inputClass }}">
             </div>
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Inhaberin</label>
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Inhaberin (Impressum)</label>
                     @include('components.alerts.info-tooltip', ['key' => 'owner_proprietor'])
                 </div>
                 <input type="text" wire:model="settings.owner_proprietor" class="{{ $inputClass }}">
@@ -32,17 +89,17 @@
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">Straße & Hausnummer</label>
+                <label class="{{ $labelClass }}">Private Straße & Hausnr.</label>
                 <input type="text" wire:model="settings.owner_street" class="{{ $inputClass }}">
             </div>
 
             <div>
-                <label class="{{ $labelClass }}">PLZ & Ort</label>
+                <label class="{{ $labelClass }}">Private PLZ & Ort</label>
                 <input type="text" wire:model="settings.owner_city" class="{{ $inputClass }}">
             </div>
 
-            <div>
-                <label class="{{ $labelClass }}">Telefonnummer</label>
+            <div class="md:col-span-2">
+                <label class="{{ $labelClass }}">Private Notfall-Telefonnummer</label>
                 <input type="text" wire:model="settings.owner_phone" class="{{ $inputClass }}">
             </div>
 

@@ -1,6 +1,54 @@
 @if($context !== 'preview')
     <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}" x-data="{saved: false}" x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 6000)">
         <div class="max-w-4xl mx-auto space-y-4">
+            {{-- EXPRESS TOGGLE --}}
+            @if($context !== 'template_admin')
+                @php
+                    $expressCharge = (int)shop_setting('express_surcharge', 2500);
+                    $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
+                    $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+                    $expressDisabled = $shopCapacityLevel >= 2;
+                @endphp
+                <div class="relative w-full transition-all duration-300 animate-fade-in-up">
+                    <label class="block border rounded-xl p-4 transition-all group relative overflow-hidden {{ $expressDisabled ? ($isDark ? 'bg-gray-900 border-gray-800 opacity-70 cursor-not-allowed' : 'bg-gray-50 border-gray-200 opacity-70 cursor-not-allowed') : ($is_express ? ($isDark ? 'bg-amber-900/20 border-amber-500/50 ring-1 ring-amber-500/50 cursor-pointer' : 'bg-amber-50 border-amber-300 ring-1 ring-amber-300 cursor-pointer') : ($isDark ? 'bg-gray-900 border-gray-800 hover:border-primary/50 cursor-pointer' : 'bg-white border-gray-200 hover:border-primary/50 shadow-sm hover:shadow-md cursor-pointer')) }}">
+                        @if($expressDisabled)
+                            <div class="absolute inset-0 z-10 cursor-not-allowed" title="Express aktuell deaktiviert." @click.prevent></div>
+                        @endif
+
+                        <div class="flex items-start gap-4">
+                            <div class="pt-1">
+                                <input wire:model.live="is_express" type="checkbox" class="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary {{ $expressDisabled ? 'opacity-50' : 'cursor-pointer' }}" {{ $expressDisabled ? 'disabled' : '' }}>
+                            </div>
+
+                            <div class="flex-1">
+                                <div class="flex justify-between items-center flex-wrap gap-2">
+                                    <h3 class="font-bold flex items-center gap-2 {{ $isDark ? 'text-gray-100' : 'text-gray-800' }}">
+                                        <span>🚀 Eiliges Geschenk (Express)?</span>
+                                        @if($is_express)
+                                            <span class="text-[10px] bg-primary text-gray-900 px-2 py-0.5 rounded-full uppercase tracking-wide font-black animate-pulse shadow-[0_0_10px_rgba(255,215,0,0.5)]">Aktiv</span>
+                                        @endif
+                                    </h3>
+
+                                    <span class="font-bold text-primary bg-primary/10 px-2 py-1 rounded text-sm whitespace-nowrap">
+                                        + {{ $formattedPrice }}&nbsp;€ <span class="text-[9px] text-gray-400 font-normal">pro Warenkorb</span>
+                                    </span>
+                                </div>
+
+                                <p class="text-xs mt-1.5 leading-relaxed {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
+                                    Wir ziehen deine komplette Bestellung in der Manufaktur zeitlich vor und fertigen sie priorisiert an.
+                                </p>
+
+                                @if($expressDisabled)
+                                    <div class="mt-3 text-[11px] font-bold text-amber-600 bg-amber-50/10 p-2.5 border border-amber-500/20 rounded-lg flex items-start gap-2 shadow-sm relative z-20">
+                                        <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                        Aufgrund extrem hohem Produktionsvolumen leider kurzzeitig deaktiviert.
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            @endif
 
             <div @class(['p-3 rounded-xl border transition-all duration-200',
                 ($isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200') => !$errors->has('config_confirmed'),

@@ -63,6 +63,23 @@ class OrderOrder extends Model
         return $this->hasMany(OrderOrderItem::class, 'order_id');
     }
 
+    public function shipments()
+    {
+        return $this->hasMany(OrderShipment::class, 'order_id');
+    }
+
+    public function getTrackingNumberAttribute()
+    {
+        $shipment = $this->shipments()->first();
+        return $shipment ? $shipment->tracking_number : null;
+    }
+
+    public function getShippingLabelPathAttribute()
+    {
+        $shipment = $this->shipments()->latest()->first();
+        return $shipment ? $shipment->shipping_label_path : null;
+    }
+
     // GEÄNDERT: Zeigt nun auf Customer::class
     public function customer()
     {

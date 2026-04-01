@@ -53,6 +53,7 @@ class ProductCreate extends Component
 
     // --- Versanddaten (Nur bei Type = physical)
     public $weight = 0; // Gramm
+    public $packaging_weight = 0; // Tara / Verpackung in Gramm
     public $height = 0; // mm
     public $width = 0;  // mm
     public $length = 0; // mm
@@ -168,6 +169,7 @@ class ProductCreate extends Component
         // 4. Reset von physischen Daten, falls nötig (Optional, aber sauber)
         if ($value !== 'physical') {
             $this->weight = 0;
+            $this->packaging_weight = 0;
             $this->height = 0;
             $this->width = 0;
             $this->length = 0;
@@ -246,6 +248,7 @@ class ProductCreate extends Component
 
         // Versanddaten laden
         $this->weight = $this->product->weight;
+        $this->packaging_weight = $this->product->packaging_weight;
         $this->height = $this->product->height;
         $this->width = $this->product->width;
         $this->length = $this->product->length;
@@ -503,6 +506,7 @@ class ProductCreate extends Component
         // 7. Versanddaten & physische Maße (Nur speichern wenn Typ physical ist)
         if ($this->type === 'physical') {
             $this->product->weight = (int) $this->weight;
+            $this->product->packaging_weight = (int) $this->packaging_weight;
             $this->product->height = (int) $this->height;
             $this->product->width = (int) $this->width;
             $this->product->length = (int) $this->length;
@@ -515,6 +519,7 @@ class ProductCreate extends Component
         } else {
             // Bereinigung falls Typ geändert wurde
             $this->product->weight = null;
+            $this->product->packaging_weight = null;
             $this->product->height = null;
             $this->product->width = null;
             $this->product->length = null;

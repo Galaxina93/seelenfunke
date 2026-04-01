@@ -67,6 +67,7 @@ class ProductSeeder extends Seeder
             'quantity' => 150,
             'continue_selling_when_out_of_stock' => true,
             'weight' => 920,
+            'packaging_weight' => 150,
             'width' => 180,
             'height' => 200,
             'length' => 40,
@@ -144,6 +145,7 @@ class ProductSeeder extends Seeder
             'continue_selling_when_out_of_stock' => true,
 
             'weight' => 19,
+            'packaging_weight' => 0,
             'height' => 40,
             'width' => 45,
             'length' => 2.3,
@@ -255,6 +257,7 @@ class ProductSeeder extends Seeder
 
             // ECHTE PHYSIKALISCHE MAßE IN MM (aus cm umgerechnet)
             'weight' => 450,
+            'packaging_weight' => null,
             'width' => 74,      // 7,4 cm
             'height' => 218,    // 21,8 cm
             'length' => 74,     // 7,4 cm

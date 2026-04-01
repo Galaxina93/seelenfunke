@@ -120,13 +120,7 @@
                                 <div>
                                     <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Funki-Tipp</h4>
                                     <p class="text-xs text-gray-400 leading-relaxed font-medium">
-                                        @if($prio->is_express)
-                                            Prüfe sofort den Lagerbestand, damit der Express-Versand heute noch rausgehen kann!
-                                        @elseif($prio->deadline && $prio->deadline->isPast())
-                                            <span class="text-red-400 font-bold">Kritisch!</span> Kontaktiere den Kunden wegen der Verzögerung, bevor du startest.
-                                        @else
-                                            Dies ist der älteste offene Auftrag. Arbeite ihn ab, um Wartezeiten gering zu halten.
-                                        @endif
+                                        {!! $this->priority_order_tip !!}
                                     </p>
                                 </div>
                             </div>
@@ -316,5 +310,75 @@
 
     {{-- VERSAND-MODAL --}}
     @include("livewire.shop.order.order-overview-partials.shipping-modal")
+
+    {{-- DHL MEHRPAKET MODAL --}}
+    @if($dhlModalOrderId)
+        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-slide-up relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-bl-full pointer-events-none"></div>
+                <div class="flex items-start gap-4 mb-6">
+                    <div class="w-12 h-12 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-serif text-white font-bold mb-1">DHL Label Erstellung</h3>
+                        <p class="text-sm text-gray-400 leading-relaxed font-medium">Besteht diese Bestellung aus mehreren Teilsendungen?</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4 mb-8">
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Anzahl der Pakete</label>
+                        <input type="number" wire:model.live="dhlPackageCount" min="1" max="30" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        @error('dhlPackageCount') <span class="text-red-400 text-[10px] mt-1">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Gewicht pro Paket (in kg)</label>
+                        <input type="number" step="0.1" wire:model.live="dhlWeightPerPackage" min="0.1" max="31.5" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        @error('dhlWeightPerPackage') <span class="text-red-400 text-[10px] mt-1">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button wire:click="closeDhlModal" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-800 text-white hover:bg-gray-700 transition-colors shadow-inner">Abbrechen</button>
+                    <button wire:click="generateDhlLabels" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-yellow-400 text-yellow-900 hover:bg-yellow-300 transition-colors shadow-inner flex items-center gap-2" wire:loading.attr="disabled">
+                        <div wire:loading wire:target="generateDhlLabels" class="animate-spin w-3 h-3 border-2 border-yellow-900/30 border-t-yellow-900 rounded-full"></div>
+                        <span wire:loading.remove wire:target="generateDhlLabels">Labels Generieren</span>
+                        <span wire:loading wire:target="generateDhlLabels">Generiert...</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- DHL ERROR MODAL --}}
+    @if($dhlError)
+        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 animate-slide-up relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-bl-full pointer-events-none"></div>
+                <div class="flex items-start gap-4 mb-6">
+                    <div class="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-serif text-white font-bold mb-1">Fehler beim Label-Druck!</h3>
+                        <p class="text-sm text-gray-400 leading-relaxed font-medium">Das DHL System hat deine Anfrage abgelehnt. Meistens liegt das an einer Fehlerhaften (z.B. falsche Hausnummer) Kundenadresse im Checkout.</p>
+                    </div>
+                </div>
+                
+                <div class="bg-black/50 border border-gray-800 rounded-xl p-4 mb-8 font-mono text-xs text-red-400 break-words whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar shadow-inner">
+                    {{ $dhlError }}
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    <button wire:click="$set('dhlError', null)" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-800 text-white hover:bg-gray-700 transition-colors shadow-inner">Schließen</button>
+                    <button wire:click="generateDhlLabels" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/40 hover:text-white transition-colors shadow-inner flex items-center gap-2" wire:loading.attr="disabled">
+                         <div wire:loading wire:target="generateDhlLabels" class="animate-spin w-3 h-3 border-2 border-red-400/30 border-t-red-400 rounded-full"></div>
+                        Erneut versuchen
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 
 </div>

@@ -49,12 +49,12 @@
                     <h3 class="font-bold text-lg mt-4">Verantwortliche Stelle</h3>
                     <p>
                         Die verantwortliche Stelle für die Datenverarbeitung auf dieser Website ist:<br><br>
-                        <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong><br>
+                        <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong><br>
                         Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                        {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                        {{ shop_setting('owner_city', '38518 Gifhorn') }}<br><br>
-                        Telefon: {{ shop_setting('owner_phone', '+49 (0) 159 019 668 64') }}<br>
-                        E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br><br>
+                        Telefon: {{ shop_setting('company_phone', shop_setting('owner_phone', '+49 (0) 159 019 668 64')) }}<br>
+                        E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Speicherdauer</h3>

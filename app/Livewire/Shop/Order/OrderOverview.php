@@ -48,6 +48,12 @@ class OrderOverview extends Component
     // STATUS FÜR DAS SICHERHEITS-MODAL
     public $confirmingShipmentId = null;
 
+    // DHL MODAL STATE
+    public $dhlModalOrderId = null;
+    public $dhlPackageCount = 1;
+    public $dhlWeightPerPackage = 1.0;
+    public $dhlError = null;
+
     protected $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => ''],
@@ -77,6 +83,37 @@ class OrderOverview extends Component
             ->first();
     }
 
+    public function getPriorityOrderTipProperty()
+    {
+        $prio = $this->priority_order;
+        if (!$prio) return '';
+
+        if ($prio->is_express) {
+            // Check stock of order items
+            $missingItems = [];
+            foreach ($prio->items as $item) {
+                if ($item->product && $item->product->track_quantity) {
+                    // Check if requested quantity exceeds current stock
+                    if ($item->quantity > $item->product->quantity && !$item->product->continue_selling_when_out_of_stock) {
+                        $missingItems[] = $item->product->name;
+                    }
+                }
+            }
+
+            if (count($missingItems) > 0) {
+                return '<span class="text-red-400 font-bold">Lagerbestand Kritisch!</span> ' . count($missingItems) . ' Artikel für diesen Express-Versand fehlen physisch. Bitte sofort prüfen!';
+            }
+
+            return '<span class="text-emerald-400 font-bold">Lagerbestand gesichert!</span> Dieser Express-Versand ist komplett auf Lager und kann sofort abgewickelt werden.';
+        }
+
+        if ($prio->deadline && $prio->deadline->isPast()) {
+            return '<span class="text-red-400 font-bold">Kritisch!</span> Kontaktiere den Kunden wegen der Verzögerung, bevor du startest.';
+        }
+
+        return 'Dies ist der älteste offene Auftrag im System. Arbeite ihn zügig ab, um die Wartezeiten gering zu halten.';
+    }
+
     // --- ACTIONS: SORTIERUNG ---
 
     public function sortBy($field)
@@ -96,7 +133,7 @@ class OrderOverview extends Component
         $this->selectedOrderId = $id;
 
         // Order laden (Eager Loading für Performance)
-        $this->selectedOrder = OrderOrder::with(['items.product', 'invoices'])->find($id);
+        $this->selectedOrder = OrderOrder::with(['items.product', 'invoices', 'shipments'])->find($id);
 
         // Daten für das Bearbeitungs-Formular laden
         if ($this->selectedOrder) {
@@ -311,20 +348,123 @@ class OrderOverview extends Component
         }
     }
 
-    private function logAdminOrderError($action, \Exception $e, $payload = [])
+    private function logAdminOrderError($action, \Exception $e, $payloadData = [])
     {
         SystemLog::create([
             'type' => 'error',
-            'agent_id' => null,
+            'ai_agent_id' => null,
             'action_id' => 'admin_order_update',
-            'message' => "Fehler bei Admin Order Aktion ($action): " . $e->getMessage(),
-            'details' => json_encode([
+            'title' => "Order Action Error: {$action}",
+            'message' => $e->getMessage(),
+            'status' => 'failed',
+            'payload' => [
+                'action_details' => $payloadData,
                 'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'payload' => $payload,
-                'trace' => $e->getTraceAsString()
-            ])
+                'line' => $e->getLine()
+            ],
+            'started_at' => now(),
+            'finished_at' => now()
         ]);
+    }
+
+    // --- DHL LABEL ---
+
+    public function openDhlModal($orderId)
+    {
+        $this->dhlModalOrderId = $orderId;
+        $this->dhlPackageCount = 1;
+        $this->dhlError = null;
+        
+        $this->calculateDhlWeight();
+    }
+
+    public function updatedDhlPackageCount()
+    {
+        $this->calculateDhlWeight();
+    }
+
+    private function calculateDhlWeight()
+    {
+        if (!$this->dhlModalOrderId) return;
+        
+        $order = OrderOrder::with('items.product')->find($this->dhlModalOrderId);
+        if (!$order) return;
+
+        $totalProductWeightGrams = 0;
+        $maxTaraWeight = 0;
+
+        foreach ($order->items as $item) {
+            if ($item->product) {
+                // Summiere das reine Produktgewicht
+                if ($item->product->weight) {
+                    $totalProductWeightGrams += ($item->product->weight * $item->quantity);
+                }
+                // Suche das leergewicht-technisch "größte" Produkt im Warenkorb
+                if ($item->product->packaging_weight && $item->product->packaging_weight > $maxTaraWeight) {
+                    $maxTaraWeight = $item->product->packaging_weight;
+                }
+            }
+        }
+
+        // Standard-Verpackungsgewicht (Kartonage + Füllmaterial) pro Paket
+        // Wenn am Produkt direkt ein Tara definiert wurde, nutze das schwerste (größte).
+        // Sonst falle auf den globalen System-Standard (z.B. 350g) zurück.
+        $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);  
+
+        $totalGrams = $totalProductWeightGrams + ($this->dhlPackageCount * $packagingWeightGrams);
+        
+        // In Kg umrechnen und durch Paketanzahl teilen
+        $weightPerPackage = ($totalGrams / 1000) / max(1, $this->dhlPackageCount);
+        
+        // Minimalwert für DHL ist oft 0.1kg. Wir runden auf 2 Nachkommastellen (z.B. "2.45")
+        $this->dhlWeightPerPackage = max(0.1, round($weightPerPackage, 2));
+    }
+
+    public function closeDhlModal()
+    {
+        $this->dhlModalOrderId = null;
+    }
+
+    public function generateDhlLabels()
+    {
+        $this->dhlError = null;
+        if (!$this->dhlModalOrderId) return;
+
+        $order = OrderOrder::find($this->dhlModalOrderId);
+        if (!$order) return;
+
+        $this->validate([
+            'dhlPackageCount' => 'required|integer|min:1|max:30',
+            'dhlWeightPerPackage' => 'required|numeric|min:0.1|max:31.5',
+        ]);
+
+        try {
+            $dhlService = new \App\Services\DhlService();
+            $dhlService->createLabels($order, $this->dhlPackageCount, $this->dhlWeightPerPackage);
+
+            // Automatisch den Order-Status auf "versendet" setzen, 
+            // damit das Live-Tracking (check-delivery-status) einhaken kann.
+            $order->update(['status' => 'shipped']);
+
+            if ($this->selectedOrder && $this->selectedOrder->id == $this->dhlModalOrderId) {
+                $this->selectedOrder->refresh();
+            }
+            session()->flash('success', "DHL Labels ($this->dhlPackageCount) erfolgreich generiert! 🚀");
+            $this->closeDhlModal();
+
+        } catch (\Exception $e) {
+            $this->dhlError = $e->getMessage();
+            $this->logAdminOrderError('generate_dhl_label', $e, ['order_id' => $this->dhlModalOrderId]);
+        }
+    }
+
+    public function downloadDhlLabel($shipmentId)
+    {
+        $shipment = \App\Models\Order\OrderShipment::find($shipmentId);
+        if ($shipment && $shipment->shipping_label_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
+            return \Illuminate\Support\Facades\Storage::disk('public')->download($shipment->shipping_label_path);
+        }
+        session()->flash('error', 'Label nicht gefunden.');
     }
 
     // --- COMPUTED PROPERTIES ---

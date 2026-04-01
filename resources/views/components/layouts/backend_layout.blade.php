@@ -38,6 +38,7 @@
     $adminId = '';
     $hasUnreadTickets = false;
     $hasUnreadCustomerChats = false;
+    $hasUnreadContactReqs = false;
 
     if(auth()->guard('admin')->check()) {
         $adminId = (string)auth()->guard('admin')->id();
@@ -52,6 +53,13 @@
         if(class_exists(\App\Models\Support\SupportCustomerChat::class)) {
             $hasUnreadCustomerChats = \App\Models\Support\SupportCustomerChat::where('status', 'needs_employee')->exists();
         }
+
+        if(class_exists(\App\Models\Support\SupportContactRequest::class)) {
+            $hasUnreadContactReqs = \App\Models\Support\SupportContactRequest::where('status', 'new')
+                ->orWhereHas('messages', function($q) {
+                    $q->where('sender_type', 'customer')->where('is_read_by_admin', false);
+                })->exists();
+        }
     }
 @endphp
 
@@ -59,6 +67,7 @@
 <div x-data="{
         hasUnreadSupport: {{ $hasUnreadTickets ? 'true' : 'false' }},
         hasUnreadCustomerChats: {{ $hasUnreadCustomerChats ? 'true' : 'false' }},
+        hasUnreadContactReqs: {{ $hasUnreadContactReqs ? 'true' : 'false' }},
         showToast: false,
         toastMessage: '',
         initAdminEcho() {
@@ -133,7 +142,8 @@
      x-init="initAdminEcho()"
       @clear-admin-ticket-badge.window="hasUnreadSupport = false"
      @clear-admin-customerchat-badge.window="hasUnreadCustomerChats = false"
-     class="relative w-full min-h-screen flex flex-col">
+     @clear-admin-contactreq-badge.window="hasUnreadContactReqs = false"
+      class="relative w-full min-h-screen flex flex-col">
 
     @if(auth()->guard('admin')->check())
         <div x-cloak x-show="showToast" style="display: none;" class="fixed bottom-6 right-6 z-[100]"

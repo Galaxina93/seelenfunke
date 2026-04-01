@@ -48,7 +48,7 @@ class CustomerOrdersComponent extends Component
     public function getSelectedOrderProperty()
     {
         if (!$this->selectedOrderId) return null;
-        return OrderOrder::with(['items.product', 'invoices'])->find($this->selectedOrderId);
+        return OrderOrder::with(['items.product', 'invoices', 'shipments'])->find($this->selectedOrderId);
     }
 
     // Computed Property für das Vorschaubild (Manufaktur Details)
@@ -63,7 +63,7 @@ class CustomerOrdersComponent extends Component
         $user = Auth::guard('customer')->user();
 
         $query = OrderOrder::where('customer_id', $user->id)
-            ->with(['items.product']); // Eager Loading für Performance
+            ->with(['items.product', 'shipments']); // Eager Loading für Performance
 
         if (!empty($this->searchOrder)) {
             $query->where('order_number', 'like', '%' . $this->searchOrder . '%');

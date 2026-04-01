@@ -168,9 +168,7 @@
             },
 
             handleNodeDblClick(node) {
-                if (node.component_key) {
-                    this.$wire.openNodePanel(node.id);
-                } else if (node.link) {
+                if (node.link) {
                     window.open(node.link, '_blank');
                 }
             },
@@ -238,7 +236,7 @@
             },
 
             isImageLogo(iconName) {
-                const brands = ['datev', 'dhl', 'etsy', 'finom', 'google', 'mittwald', 'stripe', 'firebase'];
+                const brands = @json($this->brandIcons);
                 return brands.includes(iconName);
             },
 

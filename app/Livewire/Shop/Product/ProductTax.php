@@ -47,13 +47,12 @@ class ProductTax extends Component
             return;
         }
 
-        // Holt den %-Satz passend zur gewählten Klasse (z.B. "standard" -> 19.00)
-        $rate = DB::table('tax_rates')
-            ->where('tax_class', $this->tax_class)
-            ->where('country_code', 'DE')
-            ->value('rate');
+        if ($this->tax_class === 'reduced') {
+            $this->current_tax_rate = (float)shop_setting('reduced_tax_rate', 7.0);
+            return;
+        }
 
-        $this->current_tax_rate = $rate !== null ? (float)$rate : (float)shop_setting('default_tax_rate', 19.0);
+        $this->current_tax_rate = (float)shop_setting('default_tax_rate', 19.0);
     }
 
     public function render()

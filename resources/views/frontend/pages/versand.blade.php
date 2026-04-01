@@ -18,7 +18,7 @@
 
                     @php
                         // Dynamisches Laden der Werte aus der Shop-Konfiguration
-                        $shopName = shop_setting('owner_name', 'Mein-Seelenfunke');
+                        $shopName = shop_setting('company_name', shop_setting('owner_name', 'Mein-Seelenfunke'));
                         $shippingCost = (int) shop_setting('shipping_cost', 490);
                         $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
                         $expressSurcharge = (int) shop_setting('express_surcharge', 2500);

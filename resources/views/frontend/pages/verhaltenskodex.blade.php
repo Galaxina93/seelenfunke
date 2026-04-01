@@ -16,7 +16,7 @@
                 <div class="space-y-6 text-gray-700 leading-relaxed">
 
                     <p>
-                        Bei <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}</strong> legen wir großen Wert auf ein respektvolles und faires Miteinander.
+                        Bei <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong> legen wir großen Wert auf ein respektvolles und faires Miteinander.
                         Dieser Verhaltenskodex bildet die Grundlage für den Umgang zwischen Kund:innen, Geschäftspartner:innen
                         sowie unserem gesamten Team unter der Leitung von {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}.
                     </p>
@@ -53,7 +53,7 @@
                         <p>
                             Der Schutz personenbezogener Daten hat für uns höchste Priorität.
                             Sämtliche Daten werden vertraulich behandelt und nur dann an Dritte weitergegeben,
-                            wenn dies zur Abwicklung einer Bestellung erforderlich ist. Unsere Prozesse in {{ shop_setting('owner_city', '38518 Gifhorn') }} folgen strengen Sorgfaltsmaßstäben.
+                            wenn dies zur Abwicklung einer Bestellung erforderlich ist. Unsere Prozesse in {{ shop_setting('company_city', shop_setting('owner_city', '38518 Gifhorn')) }} folgen strengen Sorgfaltsmaßstäben.
                         </p>
                     </div>
 
@@ -80,10 +80,10 @@
                             💙 Gemeinsam schaffen wir eine respektvolle und vertrauensvolle Community.
                         </p>
                         <p class="mt-2 text-sm text-gray-600">
-                            Vielen Dank für dein Vertrauen – schön, dass du Teil der <strong>{{ shop_setting('owner_name', 'Mein Seelenfunke') }}-Community</strong> bist.
+                            Vielen Dank für dein Vertrauen – schön, dass du Teil der <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}-Community</strong> bist.
                         </p>
                         <p class="mt-2 text-sm">
-                            📩 Kontakt: <a href="mailto:{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}" class="text-primary hover:underline">{{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}</a>
+                            📩 Kontakt: <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a>
                         </p>
                     </div>
 

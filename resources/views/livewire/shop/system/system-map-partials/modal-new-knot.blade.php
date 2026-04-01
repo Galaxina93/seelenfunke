@@ -51,15 +51,15 @@
             <div class="pt-4 border-t border-gray-800">
                 <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-4 ml-1">Symbol / Logo wählen</label>
                 <div class="flex flex-wrap gap-2 mb-4">
-                    @foreach(['datev', 'dhl', 'etsy', 'finom', 'google', 'mittwald', 'stripe', 'firebase'] as $brand)
-                        <button wire:click="$set('newNode.icon', '{{ $brand }}')" class="w-12 h-12 sm:w-14 sm:h-14 p-2 rounded-2xl border-2 transition-all flex items-center justify-center {{ $newNode['icon'] === $brand ? 'bg-primary/10 border-primary shadow-glow' : 'bg-gray-950 border-gray-800 shadow-inner hover:border-gray-600' }}">
+                    @foreach($this->brandIcons as $brand)
+                        <button wire:click="$set('newNode.icon', '{{ $brand }}')" class="w-12 h-12 sm:w-14 sm:h-14 p-2 rounded-2xl border-2 transition-all flex items-center justify-center {{ $newNode['icon'] === $brand ? 'bg-[var(--theme-color-10)] border-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color)]' : 'bg-gray-950 border-gray-800 shadow-inner hover:border-gray-600' }}">
                             <img src="/shop/projekt/brands/{{ $brand }}.svg" alt="{{ $brand }}" class="w-full h-full object-contain">
                         </button>
                     @endforeach
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    @foreach(['cube', 'sparkles', 'shopping-bag', 'shopping-cart', 'credit-card', 'currency-euro', 'building-library', 'document-text', 'server', 'device-phone-mobile', 'globe-alt', 'truck'] as $icon)
-                        <button wire:click="$set('newNode.icon', '{{ $icon }}')" class="w-10 h-10 sm:w-12 sm:h-12 p-2.5 rounded-xl border-2 transition-all flex items-center justify-center {{ $newNode['icon'] === $icon ? 'bg-primary/10 text-primary border-primary shadow-glow' : 'bg-gray-950 border-gray-800 text-gray-500 shadow-inner hover:text-white' }}">
+                    @foreach(['cube', 'sparkles', 'shopping-bag', 'shopping-cart', 'credit-card', 'currency-euro', 'building-library', 'document-text', 'server', 'device-phone-mobile', 'globe-alt', 'truck', 'chart-bar', 'chat-bubble-bottom-center-text', 'command-line', 'envelope', 'folder', 'key', 'shield-check', 'user', 'wifi', 'bolt', 'circle-stack', 'wrench-screwdriver', 'cpu-chip', 'link', 'banknotes'] as $icon)
+                        <button wire:click="$set('newNode.icon', '{{ $icon }}')" class="w-10 h-10 sm:w-12 sm:h-12 p-2.5 rounded-xl border-2 transition-all flex items-center justify-center {{ $newNode['icon'] === $icon ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color)]' : 'bg-gray-950 border-gray-800 text-gray-500 shadow-inner hover:text-white' }}">
                             <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-full h-full" />
                         </button>
                     @endforeach

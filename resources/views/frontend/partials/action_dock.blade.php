@@ -12,6 +12,7 @@
             atBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
         })
     "
+     @toggle-chat-size.window="chatMaximized = !chatMaximized"
      class="fixed right-0 top-1/2 -translate-y-1/2 z-[9999] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
      :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'"
 >
@@ -147,7 +148,7 @@
              x-transition:enter-start="translate-x-10 opacity-0"
              x-transition:enter-end="translate-x-0 opacity-100"
              x-transition:leave="transition ease-in duration-300"
-             class="fixed right-14 sm:right-[5.5rem] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl w-[85vw] sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 flex flex-col pointer-events-auto"
+             class="fixed left-3 right-[4.25rem] sm:left-auto sm:right-[5.5rem] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 flex flex-col pointer-events-auto"
              style="z-index: 99998;"
         >
             @livewire('shop.marketing.marketing-voucher-slider')
@@ -164,12 +165,12 @@
              x-transition:leave="transition ease-in duration-300"
              x-transition:leave-start="translate-x-0 opacity-100"
              x-transition:leave-end="translate-x-10 opacity-0"
-             :class="chatMaximized ? 'fixed right-2 bottom-2 sm:right-24 sm:bottom-10 sm:top-10 w-[95vw] sm:w-[450px] h-[calc(100vh-16px)] sm:h-[calc(100vh-5rem)]' : 'fixed right-2 bottom-20 sm:right-24 sm:top-1/2 sm:-translate-y-1/2 w-[95vw] sm:w-[380px] h-[75vh] sm:max-h-[600px]'"
+             :class="chatMaximized ? 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:bottom-10 sm:top-10 sm:w-[450px] sm:h-[calc(100vh-5rem)]' : 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:top-1/2 sm:-translate-y-1/2 sm:w-[380px] sm:h-[75vh] sm:max-h-[600px]'"
              class="bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] rounded-3xl border border-gray-100 overflow-hidden flex flex-col pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
              :style="chatMaximized ? 'z-index: 100001;' : 'z-index: 99999;'"
         >
             @livewire('frontend.support.customer-chat')
-            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] h-[calc(100vh-16px)] sm:w-[380px] h-[75vh] sm:max-h-[600px]"></div>
+            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] sm:w-[380px] sm:h-[75vh] sm:max-h-[600px] right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:bottom-10 sm:top-10 sm:top-1/2 sm:-translate-y-1/2"></div>
         </div>
     </template>
 </div>

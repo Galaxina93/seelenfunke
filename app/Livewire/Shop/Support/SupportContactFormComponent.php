@@ -46,8 +46,16 @@ class SupportContactFormComponent extends Component
 
         $this->selectedRequestId = $id;
         $req = SupportContactRequest::find($id);
-        if ($req && $req->status === 'new') {
-            $req->update(['status' => 'in_progress']);
+        if ($req) {
+            if ($req->status === 'new') {
+                $req->update(['status' => 'in_progress']);
+            }
+            
+            // Set all incoming customer replies as read
+            $req->messages()->where('sender_type', 'customer')->where('is_read_by_admin', false)->update(['is_read_by_admin' => true]);
+            
+            // Sofortiges Löschen des roten Punktes, wie bei Support Tickets gewünscht:
+            $this->dispatch('clear-admin-contactreq-badge');
         }
     }
 

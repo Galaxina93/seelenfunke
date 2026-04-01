@@ -78,6 +78,11 @@ class CartService
             ]);
         }
 
+        // NEU: Express-Wunsch aus Konfiguration global auf den Warenkorb übertragen
+        if (isset($configuration['is_express']) && $configuration['is_express']) {
+            $cart->update(['is_express' => true]);
+        }
+
         $this->refreshTotals($cart);
     }
 
@@ -100,6 +105,12 @@ class CartService
         }
 
         $item->update($data);
+
+        // NEU: Express-Wunsch auf Warenkorb übertragen
+        if (isset($configuration['is_express']) && $configuration['is_express']) {
+            $item->cart->update(['is_express' => true]);
+        }
+
         $this->refreshTotals($item->cart);
     }
 

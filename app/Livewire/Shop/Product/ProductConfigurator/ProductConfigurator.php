@@ -39,6 +39,7 @@ class ProductConfigurator extends Component
     public $currentPrice = 0;
     public $totalPrice = 0;
     public $config_confirmed = false;
+    public $is_express = false;
 
     public array $fonts = [];
     public array $vectors = [];
@@ -111,6 +112,7 @@ class ProductConfigurator extends Component
         }
 
         $this->notes = $source['notes'] ?? '';
+        $this->is_express = $source['is_express'] ?? false;
         $this->uploaded_files = $source['files'] ?? [];
 
         // ... (Der restliche bestehende Mount-Code für Texte und Logos bleibt exakt gleich)
@@ -218,6 +220,10 @@ class ProductConfigurator extends Component
 
         if ($propertyName === 'qty') {
             if ($this->qty < 1) $this->qty = 1;
+            $this->calculatePrice();
+        }
+
+        if ($propertyName === 'is_express') {
             $this->calculatePrice();
         }
 
@@ -419,6 +425,7 @@ class ProductConfigurator extends Component
                     'variant_id' => $this->variantId,
                     'variant_name' => $this->variantName,
                     'snapshot_path' => $snapshotPath,
+                    'is_express' => $this->is_express,
                 ];
 
                 if ($this->context !== 'template_admin') {

@@ -129,7 +129,7 @@ class OrderRevocationForm extends Component
             Mail::to($this->email)->send(new RevocationMailToCustomer($data));
 
             // Intern für das Protokoll speichern/benachrichtigen (Mail an Betreiber)
-            $adminEmail = shop_setting('owner_email') ?? 'kontakt@mein-seelenfunke.de';
+            $adminEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
             Mail::to($adminEmail)->send(new \App\Mail\RevocationMailToAdmin($data));
 
             Log::info("Widerruf eingegangen und in DB gespeichert für Bestellung: {$this->order_number} von {$this->email}");

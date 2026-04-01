@@ -204,6 +204,7 @@ class ProductAnalytics extends Component
                     'delivery_days' => $deliveryDays,
                     'status' => $status,
                     'supplier_name' => $product->supplier ? $product->supplier->name : '-',
+                    'packaging_weight' => $product->packaging_weight,
                 ];
             });
 

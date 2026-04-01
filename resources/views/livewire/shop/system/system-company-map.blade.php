@@ -30,8 +30,6 @@
     {{-- ===================== MODAL: VERBINDUNG ===================== --}}
     @include('livewire.shop.system.system-map-partials.modal-connection')
 
-    {{-- ===================== NODE PANEL (intelligente Datenanzeige) ===================== --}}
-    @include('livewire.shop.system.system-map-partials.panel')
 
     {{-- ===================== ALPINE.JS ===================== --}}
     @include('livewire.shop.system.system-map-partials.scripts')

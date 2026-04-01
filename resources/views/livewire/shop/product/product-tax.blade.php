@@ -41,6 +41,11 @@
                 <option value="reduced" class="bg-gray-900">Ermäßigter Satz</option>
                 <option value="zero" class="bg-gray-900">Steuerfrei / Steuerbefreit</option>
             </select>
+            
+            <p class="mt-2 text-[10px] text-gray-500 flex items-start gap-1.5 leading-relaxed">
+                <i class="bi bi-info-circle text-[var(--theme-color)] mt-0.5"></i>
+                <span>Die Prozentsätze beziehen sich global auf die <strong>Shop-Einstellungen</strong>.</span>
+            </p>
         </div>
 
         {{-- Info-Anzeige (Keine Eingabe mehr) --}}

@@ -55,6 +55,7 @@ return new class extends Migration
             $table->boolean('continue_selling_when_out_of_stock')->default(false);
 
             $table->integer('weight')->nullable(); // in Gramm
+            $table->integer('packaging_weight')->nullable(); // Tara in Gramm
             $table->integer('height')->nullable(); // in mm
             $table->integer('width')->nullable();  // in mm
             $table->integer('length')->nullable(); // in mm

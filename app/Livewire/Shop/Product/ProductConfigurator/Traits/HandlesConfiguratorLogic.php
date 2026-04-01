@@ -49,7 +49,19 @@ trait HandlesConfiguratorLogic
         }
 
         $this->currentPrice = $basePrice;
-        $this->totalPrice = $basePrice * $this->qty;
+
+        $expressFee = 0;
+        if (property_exists($this, 'is_express') && $this->is_express) {
+            $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
+            if ($shopCapacityLevel >= 2) {
+                // Bei hoher Auslastung Express deaktivieren
+                $this->is_express = false;
+            } else {
+                $expressFee = (int)shop_setting('express_surcharge', 2500);
+            }
+        }
+
+        $this->totalPrice = ($basePrice * $this->qty) + $expressFee;
     }
 
     public function addText($x = null, $y = null)

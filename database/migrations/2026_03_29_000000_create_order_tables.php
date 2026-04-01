@@ -19,6 +19,9 @@ return new class extends Migration
             $table->string('status')->default('pending');
             $table->boolean('is_express')->default(false);
             $table->date('deadline')->nullable();
+            
+            $table->string('tracking_number')->nullable();
+            $table->string('shipping_label_path')->nullable();
 
             $table->string('payment_status')->default('unpaid');
             $table->string('payment_method')->default('stripe');
@@ -144,6 +147,10 @@ return new class extends Migration
             $table->text('items')->nullable();
             $table->json('attachments')->nullable();
             $table->string('status')->default('pending'); // 'pending', 'processed', 'declined'
+            $table->timestamp('legal_check_at')->nullable();
+            $table->string('product_type')->nullable();
+            $table->string('rejection_reason')->nullable();
+            $table->timestamp('customer_notified_at')->nullable();
             $table->timestamps();
         });
     }

@@ -1,7 +1,6 @@
 <?php
 
-use App\Livewire\Customer\CustomerOrderDetail;
-use App\Livewire\Customer\CustomerOrders;
+
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:customer'])->group(function () {

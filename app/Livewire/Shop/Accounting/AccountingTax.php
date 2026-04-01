@@ -449,10 +449,10 @@ class AccountingTax extends Component
         // PDF REPORT
         $pdfPath = $tempDir . "/UStVA_Auswertung_{$monthStr}_{$yearStr}.pdf";
         $data['company'] = [
-            'name' => shop_setting('owner_name', 'Mein Seelenfunke'),
+            'name' => shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')),
             'owner' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
-            'street' => shop_setting('owner_street', 'Musterstraße 1'),
-            'city' => shop_setting('owner_city', '12345 Musterstadt'),
+            'street' => trim(shop_setting('company_street', shop_setting('owner_street', 'Musterstraße 1')) . ' ' . shop_setting('company_street_number', '')),
+            'city' => trim(shop_setting('company_zip', '') . ' ' . shop_setting('company_city', shop_setting('owner_city', '12345 Musterstadt'))),
             'tax_id' => shop_setting('owner_tax_id', 'XX/XXX/XXXXX'),
             'ust_id' => shop_setting('owner_ust_id', 'DE XXXXXXXXX'),
         ];

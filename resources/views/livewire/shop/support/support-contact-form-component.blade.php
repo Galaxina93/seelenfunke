@@ -129,12 +129,18 @@
                                                     
                                                     <div class="mt-4 flex flex-col xl:flex-row items-center justify-between gap-3">
                                                         <p class="text-[10px] text-gray-500 leading-tight w-full xl:max-w-[140px]">Wird per E-Mail an <strong class="text-gray-400 truncate block">{{ $selectedRequest->email }}</strong> gesendet.</p>
+                                                        
+                                                        <div class="flex-1 flex justify-center">
+                                                            @error('replyMessage')
+                                                                <span class="text-[11px] font-bold text-red-400 bg-red-400/10 border border-red-500/20 px-3 py-1.5 rounded-lg animate-pulse">{{ $message }}</span>
+                                                            @enderror
+                                                        </div>
+
                                                         <button type="submit" 
                                                                 x-data="{ saved: false, error: false }" 
                                                                 x-on:saved-reply.window="saved = true; setTimeout(() => saved = false, 2500)"
                                                                 x-on:error-reply.window="error = true; setTimeout(() => error = false, 4000)"
-                                                                class="inline-flex w-full xl:w-auto items-center justify-center gap-2 rounded-xl bg-[#C5A059] px-4 py-2 text-xs font-bold text-gray-900 hover:bg-[#D6B778] transition-colors shadow-sm focus:outline-none"
-                                                                {{ empty(trim($replyMessage)) ? 'disabled' : '' }}>
+                                                                class="inline-flex w-full xl:w-auto items-center justify-center gap-2 rounded-xl bg-[#C5A059] px-4 py-2 text-xs font-bold text-gray-900 hover:bg-[#D6B778] transition-colors shadow-sm focus:outline-none">
                                                             <span x-show="!saved && !error">Senden & Speichern</span>
                                                             <span x-show="saved" style="display: none;" class="text-green-900">Gesendet! ✓</span>
                                                             <span x-show="error" style="display: none;" class="text-red-900">Fehler! ×</span>

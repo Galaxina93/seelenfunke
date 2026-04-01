@@ -230,7 +230,7 @@ class MarketingNewsletter extends Component
         ]);
 
         try {
-            $adminEmail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
+            $adminEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
             $testSubject = '[TEST] ' . $this->edit_subject;
 
             // 1. Ersetze die Standard-Tags mit echten Test-Werten

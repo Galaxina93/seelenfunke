@@ -33,8 +33,8 @@ class NewCalcMailToAdmin extends Mailable implements ShouldQueue
         $prefix = ($this->data['express'] ?? false) ? '[EXPRESS] ' : '';
         $betreffName = $firma ? "$firma ($nachname)" : "$vorname $nachname";
 
-        $owner_mail = shop_setting('owner_email', 'kontakt@mein-seelenfunke.de');
-        $owner_name = shop_setting('owner_name', 'Mein Seelenfunke');
+        $owner_mail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+        $owner_name = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
 
         return new Envelope(
             from: new Address($owner_mail, $owner_name . ' Website'),

@@ -38,6 +38,9 @@ Schedule::call(function () {
 // UStVA Autopilot - Läuft am 5. jeden Monats und generiert den Steuer-Export des Vormonats
 Schedule::command('funki:generate-tax-export')->monthlyOn(5, '02:00');
 
+// Automatische DHL Sendungsverfolgung – prüft Pakete "in Zustellung" und schließt Orders automatisch ab
+Schedule::command('dhl:check-delivery-status')->everyFourHours();
+
 // System-Herzschlag für das Health-Dashboard (jede Minute)
 Schedule::call(function () {
     try {

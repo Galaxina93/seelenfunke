@@ -112,11 +112,7 @@
                     </a>
                 </template>
 
-                <template x-if="node.component_key">
-                    <button @click.stop="$wire.openNodePanel(node.id)" class="absolute -bottom-2 -right-2 sm:-bottom-3 sm:-right-3 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-500/10 border border-emerald-500/50 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-30 shadow-lg">
-                        <x-heroicon-m-arrow-top-right-on-square class="w-3 h-3 sm:w-4 sm:h-4" />
-                    </button>
-                </template>
+
 
                 {{-- Node Box --}}
                 <div class="w-16 h-16 sm:w-24 sm:h-24 rounded-2xl sm:rounded-[1.5rem] flex items-center justify-center border-2 transition-all duration-300 hover:scale-110 select-none shadow-inner relative overflow-hidden"

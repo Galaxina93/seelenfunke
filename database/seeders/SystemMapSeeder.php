@@ -26,7 +26,8 @@ class SystemMapSeeder extends Seeder
             'dhl'      => ['label' => 'DHL API', 'desc' => 'Automatischer Label-Druck', 'icon' => 'dhl', 'type' => 'api', 'status' => 'planned', 'link' => 'https://developer.dhl.com', 'x' => 85.00, 'y' => 65.00, 'panel' => 'shipping'],
             'stripe'   => ['label' => 'Stripe API', 'desc' => 'Payments & Wallets', 'icon' => 'stripe', 'type' => 'finance', 'status' => 'active', 'link' => 'https://dashboard.stripe.com', 'x' => 65.00, 'y' => 85.00, 'panel' => 'finances'],
             'finom'    => ['label' => 'Bank Finom', 'desc' => 'Geschäftskonto', 'icon' => 'finom', 'type' => 'finance', 'status' => 'active', 'link' => 'https://finom.co', 'x' => 85.00, 'y' => 90.00, 'panel' => 'finances'],
-            'mittwald' => ['label' => 'Mittwald', 'desc' => 'Server & Hosting', 'icon' => 'mittwald', 'type' => 'api', 'status' => 'active', 'link' => 'https://mittwald.de', 'x' => 20.00, 'y' => 75.00, 'panel' => ''],
+            'finapi'   => ['label' => 'Fin API', 'desc' => 'Open Banking & Kontosync', 'icon' => 'finapi', 'type' => 'finance', 'status' => 'active', 'link' => 'https://finapi.zendesk.com/hc/en-us', 'x' => 50.00, 'y' => 85.00, 'panel' => 'finances'],
+            'mittwald' => ['label' => 'Mittwald', 'desc' => 'Server & Hosting', 'icon' => 'mittwald', 'type' => 'api', 'status' => 'active', 'link' => 'https://mittwald.de', 'x' => 35.00, 'y' => 20.00, 'panel' => ''],
             'firebase' => ['label' => 'Firebase API', 'desc' => 'Push Notifications', 'icon' => 'firebase', 'type' => 'api', 'status' => 'active', 'link' => 'https://console.firebase.google.com', 'x' => 15.00, 'y' => 50.00, 'panel' => 'api_logs'],
             'etsy'     => ['label' => 'Etsy API', 'desc' => 'Marktplatz Sync', 'icon' => 'etsy', 'type' => 'sales', 'status' => 'active', 'link' => 'https://etsy.com', 'x' => 20.00, 'y' => 25.00, 'panel' => 'orders'],
         ];
@@ -68,6 +69,7 @@ class SystemMapSeeder extends Seeder
                 ['source' => 'core', 'target' => 'etsy', 'label' => 'Sync API', 'desc' => 'Importiert Etsy JSON zu internen Orders', 'status' => 'active'],
                 ['source' => 'stripe', 'target' => 'core', 'label' => 'Webhooks', 'desc' => 'Bestätigt Zahlungen in Echtzeit', 'status' => 'active'],
                 ['source' => 'stripe', 'target' => 'finom', 'label' => 'Payouts', 'desc' => 'Tägliche Payouts von Stripe an Finom', 'status' => 'active'],
+                ['source' => 'core', 'target' => 'finapi', 'label' => 'Open Banking', 'desc' => 'Zahlungs-Abgleich über Bank-Konten', 'status' => 'active'],
                 ['source' => 'core', 'target' => 'datev', 'label' => 'UStVA ZIP', 'desc' => 'Generiert DATEV-CSV', 'status' => 'inactive'],
                 ['source' => 'core', 'target' => 'eric', 'label' => 'XML Transfer', 'desc' => 'Native UStVA Direktübertragung ans Finanzamt', 'status' => 'active'],
                 ['source' => 'mittwald', 'target' => 'core', 'label' => 'Hosting', 'desc' => 'Ubuntu Space für Laravel Applikation', 'status' => 'active'],

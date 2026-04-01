@@ -215,6 +215,57 @@
 
                     {{-- RECHTE SPALTE: Info & Dokumente --}}
                     <div class="space-y-8">
+                        {{-- DHL Sendungsverfolgung (Golden Box) --}}
+                        @if($selectedOrder->shipments && $selectedOrder->shipments->isNotEmpty())
+                        <div class="bg-primary/5 p-8 rounded-[2.5rem] border border-primary/20 shadow-inner relative z-10 group overflow-hidden pointer-events-auto">
+                            <div class="absolute inset-0 overflow-hidden rounded-[2.5rem] pointer-events-none">
+                                <div class="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
+                            </div>
+
+                            <div class="relative z-20">
+                                <h4 class="text-xs font-black text-primary uppercase tracking-widest mb-6 flex items-center gap-3 drop-shadow-[0_0_8px_currentColor]">
+                                    <span class="p-2 rounded-lg bg-primary/10 border border-primary/20 shadow-inner">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                    </span>
+                                    DHL Tracking
+                                </h4>
+
+                                <div class="space-y-4">
+                                    @foreach($selectedOrder->shipments as $index => $shipment)
+                                        <div>
+                                            @if($selectedOrder->shipments->count() > 1)
+                                                <div class="flex items-center gap-2 mb-1.5 ml-1">
+                                                    <label class="text-[9px] font-black text-primary uppercase tracking-[0.2em] drop-shadow-[0_0_8px_currentColor]">Paket {{ $index + 1 }}</label>
+                                                </div>
+                                            @endif
+                                            <div class="relative flex items-center" x-data="{ copySuccess: false }">
+                                                <input type="text" readonly value="{{ $shipment->tracking_number }}"
+                                                       class="w-full rounded-2xl bg-gray-950/80 border border-primary/30 py-4 pl-5 pr-24 font-mono tracking-[0.1em] text-sm text-primary shadow-inner outline-none uppercase truncate transition-colors focus:border-primary/60">
+                                                
+                                                <div class="absolute right-2 flex gap-1 items-center">
+                                                    <button @click="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000)" 
+                                                            class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Nummer kopieren">
+                                                        <svg x-show="!copySuccess" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                                        <svg x-show="copySuccess" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                    </button>
+                                                    <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" 
+                                                       target="_blank" 
+                                                       class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Auf DHL.de verfolgen">
+                                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                                @if($selectedOrder->shipments->count() > 1)
+                                    <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 mt-4 ml-1 leading-relaxed">
+                                        Hinweis: Diese Bestellung wurde in {{ $selectedOrder->shipments->count() }} Pakete aufgeteilt.
+                                    </p>
+                                @endif
+                            </div>
+                        </div>
+                        @endif
                         <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border border-gray-800 rounded-[2.5rem] p-8">
                             <h3 class="text-xs font-black text-gray-500 mb-6 uppercase tracking-[0.3em] flex items-center gap-3">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
@@ -477,6 +528,53 @@
                                     Letztes Update: <span class="text-gray-400">{{ $o->updated_at->diffForHumans() }}</span>
                                 </div>
                             </div>
+                            
+                            {{-- DHL SENDUNGSVERFOLGUNG (OVERVIEW LISTE) --}}
+                            @if($o->shipments && $o->shipments->isNotEmpty())
+                            <div class="mt-4" x-data="{ copySuccessIds: [] }">
+                                <div class="bg-primary/5 px-8 py-6 border-t border-primary/20 shadow-inner group">
+                                    <div class="flex flex-col sm:flex-row gap-6 sm:items-center justify-between">
+                                        <div class="flex items-center gap-4">
+                                            <span class="p-2.5 rounded-xl bg-primary/10 border border-primary/20 shadow-inner text-primary">
+                                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                            </span>
+                                            <div>
+                                                <h4 class="text-sm font-black text-primary uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">DHL Tracking</h4>
+                                                @if($o->shipments->count() > 1)
+                                                    <p class="text-[10px] uppercase font-black text-primary/60 tracking-[0.2em] mt-1">Split-Versand ({{ $o->shipments->count() }} Pakete)</p>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <div class="flex-1 lg:max-w-xl grid gap-3 w-full">
+                                            @foreach($o->shipments as $index => $shipment)
+                                                <div class="relative flex items-center">
+                                                    @if($o->shipments->count() > 1)
+                                                        <span class="absolute left-4 text-[10px] font-black text-primary/60 uppercase pointer-events-none tracking-widest">Paket {{ $index + 1 }}:</span>
+                                                    @endif
+                                                    <input type="text" readonly value="{{ $shipment->tracking_number }}"
+                                                           class="w-full rounded-2xl bg-gray-950/80 border border-primary/30 py-3.5 {{ $o->shipments->count() > 1 ? 'pl-[90px]' : 'pl-5' }} pr-24 font-mono tracking-[0.1em] text-sm md:text-base text-primary shadow-inner outline-none uppercase truncate">
+                                                    
+                                                    <div class="absolute right-2 flex gap-1 items-center">
+                                                        <button @click.stop="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000)" 
+                                                                class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Kopieren">
+                                                            <svg x-show="!copySuccessIds.includes('{{ $shipment->id }}')" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                                            <svg x-show="copySuccessIds.includes('{{ $shipment->id }}')" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                        </button>
+                                                        <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" 
+                                                           target="_blank" 
+                                                           @click.stop
+                                                           class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Auf DHL.de verfogen">
+                                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            @endif
                         </div>
                     </div>
                 @empty
