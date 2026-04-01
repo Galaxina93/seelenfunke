@@ -75,6 +75,13 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
+        
+        // CACHE BOUNDING CLIENT RECT FOR POINTER LOGIC (CRITICAL MOBILE PERFORMANCE)
+        setTimeout(() => {
+            if(this.renderer.domElement) {
+                this.cachedRect = this.renderer.domElement.getBoundingClientRect();
+            }
+        }, 100);
     }
 
     initScene() {
@@ -98,9 +105,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
         this.renderer.setSize(w, h);
         
-        // Restore high resolution on mobile, cap at 1.25 to prevent extreme thermal throttling but keep it sharp. 
+        // Restore high resolution on mobile, cap at 1.0 to prevent extreme thermal throttling. 
         // We cap desktop to 1.25 as well to prevent 4K GPUs from dying on 30x high-poly meteors
-        const pixelRatio = Math.min(window.devicePixelRatio, 1.25);
+        const pixelRatio = this.isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.25);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
@@ -397,7 +404,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
     }
 
     updatePointerPos(e) {
-        const rect = this.renderer.domElement.getBoundingClientRect();
+        // ALWAYS use cachedRect on mobile to prevent catastrophic layout thrashing!
+        const rect = this.cachedRect || this.renderer.domElement.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 

@@ -157,6 +157,15 @@
                         <div id="floating-scores-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
 
                         <div x-show="gameState === 'gameover'" x-cloak x-transition.opacity class="absolute inset-0 z-40 bg-gray-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+                            
+                            {{-- FULLSCREEN TOGGLE --}}
+                            <button x-show="isFullscreen" type="button" @click="toggleFullscreen()" class="absolute top-4 right-4 text-gray-400 hover:text-emerald-400 bg-gray-900 border border-gray-700 p-2 sm:px-4 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors z-50 shadow-lg">
+                                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                </svg>
+                                <span class="hidden sm:block">Vollbild (V)</span>
+                            </button>
+
                             <h3 class="text-5xl sm:text-6xl font-serif font-bold text-emerald-400 mb-4 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]">Erfolg!</h3>
                             <div class="inline-flex items-center gap-3 bg-gray-900 px-6 py-3 rounded-2xl border border-gray-800 shadow-inner mb-8">
                                 <span class="text-gray-400 uppercase font-black text-xs tracking-widest">Ausbeute:</span>
@@ -475,6 +484,15 @@
 
 
                         <div x-show="gameState === 'gameover'" x-cloak x-transition.opacity class="absolute inset-0 z-40 bg-gray-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center pointer-events-auto">
+                            
+                            {{-- FULLSCREEN TOGGLE --}}
+                            <button x-show="isFullscreen" type="button" @click="toggleFullscreen()" class="absolute top-4 right-4 text-gray-400 hover:text-amber-400 bg-gray-900 border border-gray-700 p-2 sm:px-4 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors z-50 shadow-lg">
+                                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                </svg>
+                                <span class="hidden sm:block">Vollbild (V)</span>
+                            </button>                                
+
                             <h3 class="text-5xl sm:text-6xl font-serif font-bold text-amber-500 mb-4 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">Zerstört!</h3>
                             <div class="inline-flex flex-col items-center gap-2 bg-gray-900 px-6 py-4 rounded-2xl border border-gray-800 shadow-inner mb-8 w-full max-w-sm">
                                 <span class="text-gray-400 uppercase font-black text-xs tracking-widest border-b border-gray-800 pb-2 w-full text-center">Dein Run</span>
