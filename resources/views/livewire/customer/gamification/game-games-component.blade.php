@@ -374,11 +374,14 @@
                     </div>
                 </div>
 
-                <div class="lg:col-span-8 xl:col-span-8 w-full flex justify-center items-center relative z-10">
-                    <div class="w-full max-w-[800px] aspect-[3/4] sm:aspect-square relative rounded-[2rem] sm:rounded-[3rem] bg-gray-900 border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col touch-none">
+                <div class="lg:col-span-8 xl:col-span-8 w-full flex justify-center items-center relative z-10 w-full h-full">
+                    <div :class="{'h-[100dvh] sm:h-[100dvh] aspect-auto rounded-none border-0': isFullscreen, 'aspect-[3/4] sm:aspect-square rounded-[2rem] sm:rounded-[3rem]': !isFullscreen}" class="w-full max-w-[800px] relative bg-gray-950 sm:bg-gray-900 border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col pointer-events-auto">
                         
-                        <div id="funkenflug-container" x-ref="ffContainer" wire:ignore class="absolute inset-0 z-10 touch-none"></div>
-                        <div id="ff-floating-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
+                        {{-- SCREEN AREA (65% on mobile, 100% on desktop) --}}
+                        <div class="relative w-full h-[65%] sm:h-full shrink-0 flex flex-col bg-gray-900 border-b-2 sm:border-b-0 border-gray-800 touch-none">
+
+                            <div id="funkenflug-container" x-ref="ffContainer" wire:ignore class="absolute inset-0 z-10 touch-none"></div>
+                            <div id="ff-floating-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
 
                         {{-- UI SAFE ZONE FOR FULLSCREEN --}}
                         <div class="absolute inset-0 pointer-events-none z-40 w-full h-full flex justify-center">
@@ -408,7 +411,7 @@
                                 </div>
 
                                 {{-- SKILL BUTTONS (Mobile & Desktop Overlay) --}}
-                                <div class="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-40 flex flex-col items-center gap-2 origin-bottom-left scale-[0.7] sm:scale-[0.55] opacity-70 hover:opacity-100 transition-opacity pointer-events-auto" x-show="gameState === 'playing'">
+                                <div class="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-40 hidden sm:flex flex-col items-center gap-2 origin-bottom-left scale-[0.7] sm:scale-[0.55] opacity-70 hover:opacity-100 transition-opacity pointer-events-auto" x-show="gameState === 'playing'">
                             <!-- W Button -->
                             <div class="flex justify-center w-full">
                                 <div class="flex flex-col items-center gap-1">
@@ -516,6 +519,40 @@
                             </button>
                             <p class="text-amber-500 mt-5 font-black text-xs sm:text-sm uppercase tracking-[0.3em] opacity-80">- Kostet 1 Energie -</p>
                         </div>
+                        
+                        </div> <!-- End Screen Area Wrapper -->
+                        
+                        {{-- GAMEBOY CONTROLLER (MOBILE ONLY) --}}
+                        <div class="w-full flex-1 bg-gray-950 flex sm:hidden flex-row items-center justify-between px-2 sm:px-4 pb-4 pt-2 relative z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] pointer-events-auto border-t-2 border-gray-800" x-show="gameState === 'playing'">
+                            
+                            {{-- LEFT SIDE: Skills Grid --}}
+                            <div class="flex flex-wrap items-center gap-2 w-1/2 h-full justify-start pl-2 pt-2">
+                                <button @click="useSkill(1)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-red-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
+                                    <span class="text-xl z-10 drop-shadow-md">🔥</span>
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[0] / 30) * 100}%`"></div>
+                                </button>
+                                <button @click="useSkill(2)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-purple-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[1], 'bg-purple-900 border-purple-500': !skillFlash[1], 'opacity-40 grayscale pointer-events-none': (skillLevels[1] === 0 || skillCooldowns[1] > 0) && !skillFlash[1]}">
+                                    <span class="text-xl z-10 drop-shadow-md">⚡</span>
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[1] / 15) * 100}%`"></div>
+                                </button>
+                                <button @click="useSkill(3)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-blue-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[2], 'bg-blue-900 border-blue-500': !skillFlash[2], 'opacity-40 grayscale pointer-events-none': (skillLevels[2] === 0 || skillCooldowns[2] > 0) && !skillFlash[2]}">
+                                    <span class="text-xl z-10 drop-shadow-md">🛡️</span>
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[2] / 20) * 100}%`"></div>
+                                </button>
+                                <button @click="useSkill(4)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-yellow-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[3], 'bg-yellow-900 border-yellow-500': !skillFlash[3], 'opacity-40 grayscale pointer-events-none': (skillLevels[3] === 0 || skillCooldowns[3] > 0) && !skillFlash[3]}">
+                                    <span class="text-xl z-10 drop-shadow-md">⭐</span>
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
+                                </button>
+                            </div>
+
+                            {{-- RIGHT SIDE: Joystick Zone --}}
+                            <div class="w-1/2 h-full flex items-center justify-end pr-4 sm:pr-6 pointer-events-auto">
+                                <div id="ff-joystick-zone" class="w-[90px] h-[90px] rounded-full bg-gray-900 border-4 border-gray-800 shadow-[inset_0_10px_20px_rgba(0,0,0,1)] relative touch-none flex items-center justify-center overflow-hidden">
+                                    <div id="ff-joystick-knob" class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-400 border-[3px] border-yellow-200 shadow-[0_5px_15px_rgba(245,158,11,0.6)] absolute pointer-events-none transform transition-transform duration-75"></div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
             </div>

@@ -9,6 +9,7 @@ gameState: 'ready',
 bgmVolumeUi: 20,
 isBgmPlaying: false,
 energyWarning: false,
+isFullscreen: false,
 
 init() {
 this.$watch('bgmVolumeUi', val => {
@@ -24,6 +25,20 @@ if (!engine) { this.init3DEngine(); } else { engine.resize(); }
 this.quitGame();
 }
 });
+},
+
+toggleFullscreen() {
+let elem = this.$refs.canvasContainer ? this.$refs.canvasContainer.parentElement : null;
+if (!elem) return;
+if (!document.fullscreenElement) {
+    if (elem.requestFullscreen) { elem.requestFullscreen(); }
+    else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); } // Safari
+    this.isFullscreen = true;
+} else {
+    if (document.exitFullscreen) { document.exitFullscreen(); }
+    else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+    this.isFullscreen = false;
+}
 },
 
 toggleMute() {
@@ -104,6 +119,10 @@ engine = new window.Match3DEngine(container, callbacks);
 },
 
 startGame() {
+// AUTO FULLSCREEN ON MOBILE
+if (window.innerWidth <= 768 && !document.fullscreenElement) {
+    this.toggleFullscreen();
+}
 this.score = 0;
 this.moves = 15;
 this.gameState = 'playing';

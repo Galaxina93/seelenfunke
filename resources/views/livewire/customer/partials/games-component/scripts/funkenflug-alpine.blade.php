@@ -234,6 +234,10 @@ window.funkenflugExpress = function() {
 
         startGame() {
             console.log("[Alpine] startGame() called");
+            // AUTO FULLSCREEN ON MOBILE
+            if (window.innerWidth <= 768 && !document.fullscreenElement) {
+                this.toggleFullscreen();
+            }
             this.distance = 0;
             this.funkenCollected = 0;
             this.shieldEnergy = 100;
