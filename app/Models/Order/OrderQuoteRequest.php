@@ -19,7 +19,6 @@ class OrderQuoteRequest extends Model
 
     protected $casts = [
         'is_express' => 'boolean',
-        'deadline' => 'date',
         'expires_at' => 'datetime',
         'configuration' => 'array',
         'billing_address' => 'array',

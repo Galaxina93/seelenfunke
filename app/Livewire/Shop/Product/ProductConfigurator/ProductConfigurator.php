@@ -112,7 +112,7 @@ class ProductConfigurator extends Component
         }
 
         $this->notes = $source['notes'] ?? '';
-        $this->is_express = $source['is_express'] ?? false;
+        $this->is_express = filter_var($source['is_express'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $this->uploaded_files = $source['files'] ?? [];
 
         // ... (Der restliche bestehende Mount-Code für Texte und Logos bleibt exakt gleich)

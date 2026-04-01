@@ -12,13 +12,13 @@ trait AiSalesFuncs
     {
         return [
             [
-                'name' => 'order_get_next_deadline',
-                'description' => 'Gibt das exakte Datum und die Uhrzeit zurück, wann die nächste ausstehende Bestellung (Fulfillment) zwingend abgeschlossen oder versendet werden muss. Stichworte: Wann muss das Paket raus, Versand-Deadline, nächster Versandtermin, Fulfillment fällig.',
+                'name' => 'order_get_current_express_status',
+                'description' => 'Prüft, wie viele Express-Aufträge gerade offen sind und wie der Stau ist. Erkläre dem Kunden bei Nachfragen immer, dass Express "Priorisierte Fertigung so schnell wie möglich" bedeutet, aber keine garantierten Zustelldaten beinhaltet.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
                 ],
-                'callable' => [self::class, 'executeGetNextOrderDeadline']
+                'callable' => [self::class, 'executeGetCurrentExpressStatus']
             ],
             [
                 'name' => 'order_get_details',
@@ -60,13 +60,13 @@ trait AiSalesFuncs
         ];
     }
 
-    public static function executeGetNextOrderDeadline(array $args)
+    public static function executeGetCurrentExpressStatus(array $args)
     {
+        $expressCount = OrderOrder::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count();
         return [
             'status' => 'success',
-            'next_deadline' => now()->addDays(2)->format('Y-m-d H:i:s'),
-            'type' => 'Express-Versand',
-            'message' => 'Die nächste Bestellung muss übermorgen fertiggestellt werden.'
+            'open_express_orders' => $expressCount,
+            'message' => 'Aktuell gibt es ' . $expressCount . ' offene Express-Aufträge in der Manufaktur.'
         ];
     }
 

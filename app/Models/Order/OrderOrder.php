@@ -39,7 +39,7 @@ class OrderOrder extends Model
         'notes',
         'cancellation_reason',
         'is_express',
-        'deadline',
+        'express_price',
         'expires_at',
         'token'
     ];
@@ -54,7 +54,6 @@ class OrderOrder extends Model
         'created_at' => 'datetime',
         'expires_at' => 'datetime',
         'is_express' => 'boolean',
-        'deadline' => 'date',
         'cancellation_reason' => 'string',
     ];
 

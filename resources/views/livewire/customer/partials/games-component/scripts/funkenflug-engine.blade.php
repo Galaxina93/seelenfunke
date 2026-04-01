@@ -98,8 +98,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
         this.renderer.setSize(w, h);
         
-        // Lower pixel ratio aggressively on high-res phones (Pixel 9 Pro has huge pixel density causing lag)
-        const pixelRatio = this.isMobile ? 0.6 : Math.min(window.devicePixelRatio, 2);
+        // Restore high resolution on mobile, cap at 1.25 to prevent extreme thermal throttling but keep it sharp. 
+        // We cap desktop to 1.25 as well to prevent 4K GPUs from dying on 30x high-poly meteors
+        const pixelRatio = Math.min(window.devicePixelRatio, 1.25);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
@@ -126,8 +127,14 @@ window.FunkenflugEngine = class FunkenflugEngine {
             starVerts.push((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 50 - 10);
         }
         starGeom.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
-        this.starfield = new THREE.Points(starGeom, starMat);
-        this.scene.add(this.starfield);
+        
+        this.starfieldGroup = new THREE.Group();
+        this.starfield1 = new THREE.Points(starGeom, starMat);
+        this.starfield2 = new THREE.Points(starGeom, starMat);
+        this.starfield2.position.y = 200; // Place exactly seamlessly above the first one
+        
+        this.starfieldGroup.add(this.starfield1, this.starfield2);
+        this.scene.add(this.starfieldGroup);
 
         // Window resize
         this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -177,14 +184,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 // Add emissive engine glow to materials
                 this.shipModel.traverse((child) => {
                     if (child.isMesh) {
-                        child.castShadow = !this.isMobile;
+                        child.castShadow = false;
                         if(child.material) {
-                            if (this.isMobile) {
-                                const oldMat = child.material;
-                                child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
-                            } else {
-                                child.material.metalness = 0.5;
-                            }
+                            const oldMat = child.material;
+                            child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
                         }
                     }
                 });
@@ -201,12 +204,22 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     this.meteorModel.scale.set(1.5, 1.5, 1.5);
                     this.meteorModel.traverse((child) => {
                         if (child.isMesh) {
-                            child.castShadow = !this.isMobile;
-                            child.receiveShadow = !this.isMobile;
-                            if (child.material && this.isMobile) {
+                            child.castShadow = false;
+                            child.receiveShadow = false;
+                            if (child.material) {
                                 const oldMat = child.material;
                                 child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
                             }
+                        }
+                    });
+                    
+                    // ONCE IT LOADS: CLONE INTO ALL POOL ITEMS IMMEDIATELY
+                    this.pools.enemies.forEach(m => {
+                        if(m && m.userData) {
+                            let clone = this.meteorModel.clone();
+                            clone.visible = false;
+                            m.userData.meshGlbMeteor = clone;
+                            m.add(clone);
                         }
                     });
                 }, undefined, (e) => { console.warn("Could not load meteor GLTF."); });
@@ -220,12 +233,22 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     this.sharpstoneModel.scale.set(1.5, 1.5, 1.5);
                     this.sharpstoneModel.traverse((child) => {
                         if (child.isMesh) {
-                            child.castShadow = !this.isMobile;
-                            child.receiveShadow = !this.isMobile;
-                            if (child.material && this.isMobile) {
+                            child.castShadow = false;
+                            child.receiveShadow = false;
+                            if (child.material) {
                                 const oldMat = child.material;
                                 child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
                             }
+                        }
+                    });
+                    
+                    // ONCE IT LOADS: CLONE INTO ALL POOL ITEMS IMMEDIATELY
+                    this.pools.enemies.forEach(m => {
+                        if(m && m.userData) {
+                            let clone = this.sharpstoneModel.clone();
+                            clone.visible = false;
+                            m.userData.meshGlbSharp = clone;
+                            m.add(clone);
                         }
                     });
                 }, undefined, (e) => { console.warn("Could not load sharp stone GLTF."); });
@@ -260,6 +283,15 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Kugel rund auf Desktop, eckiger auf Mobile
         this.geomCollect = new THREE.SphereGeometry(0.6, this.isMobile ? 8 : 16, this.isMobile ? 8 : 16);
 
+        // Pool materials for particles to prevent recreating material objects 100 times
+        this.matParticleOrange = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+        this.matParticleYellow = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+        this.matParticleBlue   = new THREE.MeshBasicMaterial({ color: 0x60a5fa });
+        this.matParticleWhite  = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        this.matParticleGold   = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+        this.matParticlePurple = new THREE.MeshBasicMaterial({ color: 0xc084fc });
+        this.geomParticle      = new THREE.TetrahedronGeometry(0.3);
+
         // Populate pools - Weniger Instanzen auf Mobile um RAM zu schonen
         const bulletCount = this.isMobile ? 20 : 50;
         const enemyCount = this.isMobile ? 15 : 30;
@@ -267,7 +299,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         const particleCount = this.isMobile ? 40 : 100;
 
         for(let i=0; i<bulletCount; i++) this.pools.bullets.push(this.createBulletMesh());
-        for(let i=0; i<enemyCount; i++) this.pools.enemies.push(this.createEnemyMesh());
+        for(let i=0; i<enemyCount; i++) this.pools.enemies.push(this.createEnemyMesh(i));
         for(let i=0; i<collectCount; i++) this.pools.collectibles.push(this.createCollectMesh());
         for(let i=0; i<particleCount; i++) this.pools.particles.push(this.createParticleMesh());
     }
@@ -277,14 +309,38 @@ window.FunkenflugEngine = class FunkenflugEngine {
         const m = new THREE.Mesh(this.geomBullet, this.matBullet);
         m.visible = false; this.scene.add(m); return m;
     }
-    createEnemyMesh() {
+    createEnemyMesh(index) {
         // Pool stores generic GROUPs now, so we can swap in GLTF or fallback Mesh easily
         const container = new THREE.Group();
-        const fallback = new THREE.Mesh(this.geomEnemy[0], this.matEnemy[0]);
-        container.add(fallback);
+        
+        // Setup fallbacks
+        const fallbackNormal = new THREE.Mesh(this.geomEnemy[0], this.matEnemy[0]);
+        const fallbackElite = new THREE.Mesh(this.geomEnemy[1], this.matEnemy[1]);
+        const fallbackWall = new THREE.Mesh(this.geomEnemy[2], this.matEnemy[2]);
+        
+        container.add(fallbackNormal);
+        container.add(fallbackElite);
+        container.add(fallbackWall);
+        
+        fallbackNormal.visible = false;
+        fallbackElite.visible = false;
+        fallbackWall.visible = false;
         
         container.visible = false; 
-        container.userData = { type: 0, hp: 0, radius: 1.5, isWall: false, meshFallback: fallback, meshGlb: null };
+        
+        // Wir speichern die Fallbacks und GLBs im userData, um später nur noch `visible` zu toggeln
+        container.userData = { 
+            type: 0, 
+            hp: 0, 
+            radius: 1.5, 
+            isWall: false, 
+            fallbackNormal: fallbackNormal,
+            fallbackElite: fallbackElite,
+            fallbackWall: fallbackWall,
+            meshGlbMeteor: null,
+            meshGlbSharp: null
+        };
+        
         this.scene.add(container); 
         return container;
     }
@@ -294,7 +350,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.scene.add(m); return m;
     }
     createParticleMesh() {
-        const m = new THREE.Mesh(new THREE.TetrahedronGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        const m = new THREE.Mesh(this.geomParticle, this.matParticleWhite);
         m.visible = false; m.userData = { vel: new THREE.Vector3(), life: 0 };
         this.scene.add(m); return m;
     }
@@ -568,9 +624,11 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.checkCollisions();
 
         // Environment
-        if (this.starfield) {
-            this.starfield.position.y -= this.currentSpeed * 0.5 * dt;
-            if(this.starfield.position.y < -100) this.starfield.position.y = 100;
+        if (this.starfieldGroup) {
+            this.starfieldGroup.position.y -= this.currentSpeed * 0.5 * dt;
+            if(this.starfieldGroup.position.y <= -200) {
+                this.starfieldGroup.position.y += 200; // Seamless reset
+            }
         }
 
         this.renderer.render(this.scene, this.camera);
@@ -645,58 +703,75 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.enemySpawnTimer -= dt;
         this.collectibleSpawnTimer -= dt;
 
-        let spawnRate = Math.max(0.1, 0.5 - (this.distance / 10000)); // Higher quantity, much faster spawns
+        let spawnRate = Math.max(0.6, 1.0 - (this.distance / 20000)); // Capped spawning rate to ensure low density
 
         if (this.enemySpawnTimer <= 0) {
-            if(this.pools.enemies.length > 0) {
+            // HARD CAP: Never more than 5 enemies on screen to guarantee 60fps on any device
+            if(this.enemies.length < 5 && this.pools.enemies.length > 0) {
                 let m = this.pools.enemies.pop();
                 let seed = Math.random();
-                let extraHp = Math.floor(this.distance / 3000); // Enemies get tougher over time
+                let difficultyLevel = Math.floor(this.distance / 3000); // 0, 1, 2, 3...
+                
+                // SPEED & DRIFT SETUP
+                let baseFallSpeedMult = 1.0 + (difficultyLevel * 0.15); 
+                let isGiant = (seed < 0.05 && difficultyLevel >= 2); 
+                let doesDrift = (seed > 0.4 && difficultyLevel >= 1);
 
-                // Clean up previous GLB if any
-                if(m.userData.meshGlb) {
-                    m.remove(m.userData.meshGlb);
-                    m.userData.meshGlb = null;
-                }
+                m.userData.fallSpeedMult = baseFallSpeedMult;
+                m.userData.driftSpeed = doesDrift ? (2 + Math.random() * 3) : 0;
+                m.userData.driftRange = doesDrift ? (5 + Math.random() * 10) : 0;
+                m.userData.baseX = (Math.random() - 0.5) * 30;
+                m.userData.spawnTime = performance.now();
+
+                // Reset all visibilities first
+                if (m.userData.fallbackNormal) m.userData.fallbackNormal.visible = false;
+                if (m.userData.fallbackElite) m.userData.fallbackElite.visible = false;
+                if (m.userData.fallbackWall) m.userData.fallbackWall.visible = false;
+                if (m.userData.meshGlbMeteor) m.userData.meshGlbMeteor.visible = false;
+                if (m.userData.meshGlbSharp) m.userData.meshGlbSharp.visible = false;
 
                 if (seed < 0.15 + (this.distance / 50000)) {
-                    // Tough purple enemy (Sharp Stone or fallback)
-                    m.userData.type = 1; m.userData.hp = 3 + (extraHp * 2); m.userData.isWall = false;
+                    // Tough purple enemy
+                    m.userData.type = 1; 
+                    m.userData.hp = 3 + (difficultyLevel * 3); // HP Scaling (Bullet sponge)
+                    m.userData.isWall = false;
                     
-                    if (this.sharpstoneModel) {
-                        m.userData.meshFallback.visible = false;
-                        let clone = this.sharpstoneModel.clone();
-                        clone.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-                        m.userData.meshGlb = clone;
-                        m.add(clone);
-                        m.scale.set(1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1));
+                    if (m.userData.meshGlbSharp) {
+                        m.userData.meshGlbSharp.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                        m.userData.meshGlbSharp.visible = true;
+                        m.userData.activeMesh = m.userData.meshGlbSharp; 
                     } else {
-                        m.userData.meshFallback.material = this.matEnemy[1]; 
-                        m.userData.meshFallback.geometry = this.geomEnemy[1];
-                        m.userData.meshFallback.visible = true;
-                        m.scale.set(1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1), 1.5 + (extraHp * 0.1)); 
+                        m.userData.fallbackElite.visible = true;
+                        m.userData.activeMesh = m.userData.fallbackElite;
                     }
-                    m.userData.radius = 1.8 + (extraHp * 0.1);
-                    m.position.set((Math.random() - 0.5) * 30, 35, 0); // Spawn exactly on Z=0, Y=35 plane
+                    
+                    let scale = isGiant ? 6.0 : (1.5 + (difficultyLevel * 0.1));
+                    m.scale.set(scale, scale, scale);
+                    m.userData.radius = isGiant ? 6.0 : (1.8 + (difficultyLevel * 0.1));
+                    if(isGiant) m.userData.hp *= 5; // Boss HP
+                    
+                    m.position.set(m.userData.baseX, 35, 0); 
                 } else {
                     // Normal Meteor
-                    m.userData.type = 0; m.userData.hp = 1 + extraHp; m.userData.isWall = false;
+                    m.userData.type = 0; 
+                    m.userData.hp = 1 + (difficultyLevel * 2); 
+                    m.userData.isWall = false;
                     
-                    if (this.meteorModel) {
-                        m.userData.meshFallback.visible = false;
-                        let clone = this.meteorModel.clone();
-                        clone.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-                        m.userData.meshGlb = clone;
-                        m.add(clone);
-                        m.scale.set(1.5, 1.5, 1.5);
+                    if (m.userData.meshGlbMeteor) {
+                        m.userData.meshGlbMeteor.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                        m.userData.meshGlbMeteor.visible = true;
+                        m.userData.activeMesh = m.userData.meshGlbMeteor;
                     } else {
-                        m.userData.meshFallback.material = this.matEnemy[0]; 
-                        m.userData.meshFallback.geometry = this.geomEnemy[0];
-                        m.userData.meshFallback.visible = true;
-                        m.scale.set(1,1,1); 
+                        m.userData.fallbackNormal.visible = true;
+                        m.userData.activeMesh = m.userData.fallbackNormal;
                     }
-                    m.userData.radius = 1.5;
-                    m.position.set((Math.random() - 0.5) * 30, 35, 0); // Spawn exactly on Z=0, Y=35 plane
+                    
+                    let scale = isGiant ? 6.0 : 1.5;
+                    m.scale.set(scale, scale, scale);
+                    m.userData.radius = isGiant ? 6.0 : 1.5;
+                    if(isGiant) m.userData.hp *= 5; // Boss HP
+                    
+                    m.position.set(m.userData.baseX, 35, 0); 
                 }
 
                 m.visible = true;
@@ -745,7 +820,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 p.position.x += (Math.random() - 0.5) * 0.5;
 
                 // Orange/Yellow fire colors
-                p.material.color.setHex(Math.random() > 0.5 ? 0xf97316 : 0xfef08a);
+                p.material = (Math.random() > 0.5 ? this.matParticleOrange : this.matParticleYellow);
 
                 let speed = 20 + Math.random() * 10;
                 p.userData.vel.set((Math.random() - 0.5) * 2, -speed, 0);
@@ -767,22 +842,24 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
 
         // Enemies
-        const baseFallSpeed = (this.currentSpeed * 1.5) * dt; // Increased game speed
+        const baseFallSpeed = (this.currentSpeed * 1.5) * dt; // Game base speed
         for(let i=this.enemies.length-1; i>=0; i--) {
             let e = this.enemies[i];
-            let fallSpeedY = e.userData.isWall ? (15 * dt) : baseFallSpeed;
+            let fallSpeedY = e.userData.isWall ? (15 * dt) : (baseFallSpeed * (e.userData.fallSpeedMult || 1));
 
             e.position.y -= fallSpeedY;
+            
+            // Drift / Zick-Zack logic
+            if (e.userData.driftSpeed > 0 && !e.userData.isWall) {
+                let elapsed = (performance.now() - e.userData.spawnTime) / 1000;
+                e.position.x = e.userData.baseX + (Math.sin(elapsed * e.userData.driftSpeed) * e.userData.driftRange);
+            }
+            
             e.position.z = 0; // Lock perfectly onto 2D Plane Z=0
 
-            if(!e.userData.isWall) { 
-                if (e.userData.meshGlb) {
-                    e.userData.meshGlb.rotation.x += 1 * dt; 
-                    e.userData.meshGlb.rotation.y += 2 * dt; 
-                } else if (e.userData.meshFallback) {
-                    e.userData.meshFallback.rotation.x += 1 * dt; 
-                    e.userData.meshFallback.rotation.y += 2 * dt; 
-                }
+            if(!e.userData.isWall && e.userData.activeMesh) { 
+                e.userData.activeMesh.rotation.x += 1 * dt; 
+                e.userData.activeMesh.rotation.y += 2 * dt; 
             }
 
             if(e.position.y < -20) {
@@ -907,11 +984,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.audio.playExplosion();
         // Explosion particles
         let color = 0xffffff;
-        if(enemyMesh.userData.meshFallback && enemyMesh.userData.meshFallback.material) {
-            color = enemyMesh.userData.meshFallback.material.color.getHex();
-        } else if (enemyMesh.material) {
-            color = enemyMesh.material.color.getHex();
-        }
+        if (enemyMesh.userData.type === 1) { color = 0x8b5cf6; } // Purple
+        else if (enemyMesh.userData.type === 0) { color = 0xef4444; } // Red
         
         for(let k=0; k<15; k++) this.spawnParticle(enemyMesh.position, color);
 
@@ -933,12 +1007,25 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
     }
 
+    getParticleMaterial(colorHex) {
+        if(colorHex === 0xf97316) return this.matParticleOrange;
+        if(colorHex === 0xfef08a) return this.matParticleYellow;
+        if(colorHex === 0xffffff) return this.matParticleWhite;
+        if(colorHex === 0x60a5fa) return this.matParticleBlue;
+        if(colorHex === 0xfde047) return this.matParticleGold;
+        if(colorHex === 0xc084fc || colorHex === 0x8b5cf6) return this.matParticlePurple;
+        if(colorHex === 0xef4444) return this.matParticleOrange; // fallback Red to orange
+        if(colorHex === 0xffaa00) return this.matParticleOrange; 
+        return this.matParticleWhite; // fallback
+    }
+
     spawnParticle(pos, colorHex, count = 1) {
+        const sharedMaterial = this.getParticleMaterial(colorHex);
         for(let i=0; i<count; i++) {
             if(this.pools.particles.length > 0) {
                 let p = this.pools.particles.pop();
                 p.position.copy(pos);
-                p.material.color.setHex(colorHex);
+                p.material = sharedMaterial;
                 p.userData.life = 1.0;
                 p.userData.vel.set((Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10);
                 p.visible = true;

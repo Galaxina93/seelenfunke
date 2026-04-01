@@ -15,7 +15,9 @@
                                 🏁 Deadline: <span class="text-red-400">{{ \Carbon\Carbon::parse($model->deadline)->format('d.m.Y') }}</span>
                             </p>
                         @else
-                            <p class="text-gray-400 text-xs mt-1 font-medium">Bitte priorisiert bearbeiten (FIFO beachten).</p>
+                            <p class="text-gray-400 text-[11px] mt-1.5 font-medium leading-relaxed">
+                                Bitte vor allen Standard-Aufträgen priorisiert fertigen und versenden. Innerhalb der Express-Aufträge selbst gilt das <strong>First-In, First-Out (FIFO) Prinzip</strong>: Chronologisch nach Bestelleingang abarbeiten.
+                            </p>
                         @endif
                     </div>
                 </div>

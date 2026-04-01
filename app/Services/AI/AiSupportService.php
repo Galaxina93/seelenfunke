@@ -322,8 +322,6 @@ class AiSupportService
             ->whereIn('status', ['pending', 'processing'])
             ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
             ->orderBy('is_express', 'desc')
-            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC")
-            ->orderBy('deadline', 'asc')
             ->orderBy('created_at', 'asc')
             ->first();
     }

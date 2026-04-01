@@ -11,7 +11,7 @@ class NativeXmlInvoiceService
     private $dom;
     private $currency = 'EUR';
 
-    public function generate(Invoice $invoice)
+    public function generate(AccountingInvoice $invoice)
     {
         // 1. DOM Initialisieren
         $this->dom = new DOMDocument('1.0', 'UTF-8');
@@ -71,7 +71,7 @@ class NativeXmlInvoiceService
         return $filename;
     }
 
-    private function addItems($transaction, Invoice $invoice)
+    private function addItems($transaction, AccountingInvoice $invoice)
     {
         $isSmallBusiness = (bool)shop_setting('is_small_business', false);
 
@@ -83,6 +83,17 @@ class NativeXmlInvoiceService
                 'product_name' => 'Versandkosten',
                 'quantity' => 1,
                 'unit_price' => $invoice->shipping_cost, // in Cent
+                'tax_rate' => $isSmallBusiness ? 0 : shop_setting('default_tax_rate', 19.0)
+            ];
+        }
+
+        // Express-Zuschlag als eigene Position anhängen (falls vorhanden)
+        $expressPrice = $invoice->express_price ?? ($invoice->order->express_price ?? 0);
+        if ($invoice->is_express && $expressPrice > 0) {
+            $allItems[] = [
+                'product_name' => 'Priorisierte Fertigung (Express-Service)',
+                'quantity' => 1,
+                'unit_price' => $expressPrice, // in Cent
                 'tax_rate' => $isSmallBusiness ? 0 : shop_setting('default_tax_rate', 19.0)
             ];
         }
@@ -162,7 +173,7 @@ class NativeXmlInvoiceService
         }
     }
 
-    private function addBuyer($agreement, Invoice $invoice)
+    private function addBuyer($agreement, AccountingInvoice $invoice)
     {
         $buyer = $this->addElement($agreement, 'ram:BuyerTradeParty');
         $name = !empty($invoice->billing_address['company'])
@@ -178,7 +189,7 @@ class NativeXmlInvoiceService
         $this->addElement($address, 'ram:CountryID', $invoice->billing_address['country'] ?? 'DE');
     }
 
-    private function addSettlement($transaction, Invoice $invoice)
+    private function addSettlement($transaction, AccountingInvoice $invoice)
     {
         $settlement = $this->addElement($transaction, 'ram:ApplicableHeaderTradeSettlement');
         $this->addElement($settlement, 'ram:InvoiceCurrencyCode', $this->currency);

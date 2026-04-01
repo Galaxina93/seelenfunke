@@ -9,7 +9,7 @@
             $hasPrio = $prio !== null;
 
             // Stimmung & Bild setzen
-            if ($hasPrio && ($prio->is_express || ($prio->deadline && $prio->deadline->isPast()))) {
+            if ($hasPrio && $prio->is_express) {
                 $mood = 'alarm';
                 $funkiImg = 'funki_selfie.webp';
                 $statusText = "HOCHDRUCK";
@@ -98,11 +98,7 @@
                                         @endif
                                     </div>
                                     <div class="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest text-center sm:text-left">
-                                        @if($prio->deadline)
-                                            Deadline: <span class="{{ $prio->deadline->isPast() ? 'text-red-400 font-black animate-pulse' : 'text-gray-300' }}">{{ $prio->deadline->format('d.m.y') }}</span>
-                                        @else
-                                            Bestellt am {{ $prio->created_at->format('d.m. H:i') }} Uhr
-                                        @endif
+                                        Bestellt am {{ $prio->created_at->format('d.m. H:i') }} Uhr
                                     </div>
                                 </div>
 

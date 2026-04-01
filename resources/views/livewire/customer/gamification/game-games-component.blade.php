@@ -287,9 +287,9 @@
                     <div class="bg-gray-900 border border-gray-800 rounded-[2rem] p-6 sm:p-8 shadow-[0_20px_40px_rgba(0,0,0,0.5)] relative overflow-hidden text-center flex flex-col items-center">
                         <div class="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                        <div class="relative z-10 w-full mb-4 sm:mb-6">
-                            <p class="text-gray-500 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-2">Distanz (Punkte)</p>
-                            <h4 class="text-5xl sm:text-6xl font-serif font-bold text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]" x-text="distance"></h4>
+                        <div class="relative z-10 w-full mb-3 sm:mb-4">
+                            <p class="text-gray-500 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1">Distanz (Punkte)</p>
+                            <h4 class="text-4xl sm:text-5xl font-serif font-bold text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]" x-text="distance"></h4>
                             
                             <div class="mt-4 flex flex-col gap-2">
                                 <div class="inline-flex items-center gap-2 bg-gray-950 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-gray-800 shadow-inner justify-center">
@@ -315,12 +315,35 @@
                     {{-- VISUELLES HANDBUCH INGAME --}}
                     <div class="hidden lg:flex bg-amber-500/5 border border-amber-500/20 p-5 sm:p-6 rounded-[2rem] text-amber-300 text-xs sm:text-sm leading-relaxed flex-col gap-4 shadow-inner">
                         <strong class="text-amber-400 uppercase tracking-[0.2em] font-black text-[10px] border-b border-amber-500/20 pb-3 block w-full">Mission Briefing</strong>
-                        <ul class="space-y-4">
-                            <li class="flex gap-3 items-start">
-                                <span><strong>Steuerung:</strong> Maus/Touch für Bewegung. Mausklick=Schießen. Mobile: Touch/Drag, Auto-Fire.</span>
+                        <ul class="space-y-3">
+                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
+                                <span><strong>Steuerung:</strong> Maus/Touch Bewegung. Klick=Schießen.</span>
                             </li>
-                            <li class="flex gap-3 items-start">
-                                <span><strong>ESC / Pause:</strong> Spiel jederzeit pausieren.</span>
+                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
+                                <div class="w-3 h-3 shrink-0 bg-red-500 mt-1 shadow-md"></div>
+                                <span><strong>Normal:</strong> Rote Meteore (1 HP)</span>
+                            </li>
+                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
+                                <div class="w-3 h-3 shrink-0 bg-purple-500 mt-1 shadow-md"></div>
+                                <span><strong>Panzer:</strong> Lila Elite-Scherben (Viel HP)</span>
+                            </li>
+                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
+                                <div class="w-3 h-3 rounded-full shrink-0 bg-yellow-400 mt-1 shadow-md"></div>
+                                <span class="text-yellow-600"><strong>Gelb:</strong> Extrapunkte</span>
+                                <div class="w-3 h-3 rounded-full shrink-0 bg-blue-400 mt-1 ml-2 shadow-md"></div>
+                                <span class="text-blue-500"><strong>Blau:</strong> -5s Skill-CD</span>
+                            </li>
+                            <li class="flex gap-2 items-center text-[11px] sm:text-xs pt-1 border-t border-amber-500/10">
+                                <span class="text-lg">🔥</span> <strong>[W]</strong> Multishoot (3x Hit)
+                            </li>
+                            <li class="flex gap-2 items-center text-[11px] sm:text-xs">
+                                <span class="text-lg">⚡</span> <strong>[A]</strong> Teleport (Slow-Mo Touch)
+                            </li>
+                            <li class="flex gap-2 items-center text-[11px] sm:text-xs">
+                                <span class="text-lg">🛡️</span> <strong>[S]</strong> Schild (Schutzfeld)
+                            </li>
+                            <li class="flex gap-2 items-center text-[11px] sm:text-xs">
+                                <span class="text-lg">⭐</span> <strong>[D]</strong> Ultimate (Auto-Aim Drohnen)
                             </li>
                             <li class="flex gap-3 items-center">
                                 <span class="text-xl">🔥</span>
@@ -461,6 +484,7 @@
                                 </div>
                                 <div class="flex justify-between w-full mt-1">
                                     <span class="text-gray-400 uppercase font-bold text-xs">Funken ergattert:</span>
+                                    <span class="text-amber-500 font-bold" x-text="funkenCollected"></span>
                                 </div>
                             </div>
                             <button type="button" @click="attemptStartGame()" tabindex="0"
@@ -492,13 +516,23 @@
                         </h3>
                         <ul class="space-y-4 sm:space-y-5 text-gray-300 text-xs sm:text-sm leading-relaxed">
                             <li class="flex gap-4 items-start">
-                                <span><strong>Bullet-Hell Action:</strong> Weiche aus und vernichte Asteroiden.</span>
+                                <span><strong>Action:</strong> Weiche feindlichen Objekten aus oder zerschieße sie! Schild ist dein Leben.</span>
                             </li>
                             <li class="flex gap-4 items-start">
-                                <span><strong>Energie:</strong> Schild ist deine HP. Wenn es bei 0 ist, zerstört dich der nächste Treffer!</span>
+                                <div class="w-5 h-5 shrink-0 bg-red-500 border border-gray-600 rounded-sm mt-0.5 shadow-md"></div>
+                                <span><strong>Rote Meteore:</strong> Normale Hindernisse. Weiche ihnen aus oder zerstöre sie.</span>
                             </li>
                             <li class="flex gap-4 items-start">
-                                <span><strong>Funken:</strong> Sammele leuchtende Orbs auf, sie füllen den Punktestand direkt auf!</span>
+                                <div class="w-5 h-5 shrink-0 bg-purple-500 border border-gray-600 rounded-sm mt-0.5 shadow-[0_0_10px_rgba(168,85,247,0.4)]"></div>
+                                <span><strong>Lila Elite-Scherben:</strong> Sehr gefährlich. Brauchen deutlich mehr Treffer zum Zerstören und fliegen Zick-Zack!</span>
+                            </li>
+                            <li class="flex gap-4 items-start">
+                                <div class="w-5 h-5 shrink-0 bg-yellow-400 border border-yellow-200 rounded-full mt-0.5 shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
+                                <span><strong>Gelbe Funken:</strong> Sammle sie ein für extra Distanz & Ranking-Punkte!</span>
+                            </li>
+                            <li class="flex gap-4 items-start">
+                                <div class="w-5 h-5 shrink-0 bg-blue-400 border border-blue-200 rounded-full mt-0.5 shadow-[0_0_10px_rgba(96,165,250,0.5)]"></div>
+                                <span><strong>Blaue Sphären:</strong> Reduziert die Cooldown-Zeit (Wartezeit) all deiner Skills sofort um 5 Sekunden.</span>
                             </li>
                             <li class="flex gap-3 items-center">
                                 <span class="text-xl">🔥</span>

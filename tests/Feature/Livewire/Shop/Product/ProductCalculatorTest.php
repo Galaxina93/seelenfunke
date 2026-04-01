@@ -105,7 +105,7 @@ class ProductCalculatorTest extends TestCase
 
         // Enable Express
         $component->set('isExpress', true)
-                  ->assertSet('gesamtKosten', 75.00); // 50 + 25 (default express_surcharge)
+                  ->assertSet('gesamtKosten', 60.00); // 50 + 10 (20% express_surcharge)
 
         // Try to proceed without deadline
         $component->call('goNext')

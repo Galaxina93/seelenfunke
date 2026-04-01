@@ -21,6 +21,9 @@ class SystemCompanyMap extends Component
     public $edges = [];
     public $apiStatuses = []; // Speichert den Status der Pings (up/down)
 
+    public $showNodePanel = false;
+    public $activePanelNode = null;
+
     public $showNodeForm = false;
     public $newNode = ['label' => '', 'type' => 'default', 'status' => 'active', 'icon' => 'cube', 'description' => '', 'link' => '', 'component_key' => ''];
 
@@ -184,6 +187,21 @@ class SystemCompanyMap extends Component
 
     public function deleteNode($id) { SystemMapNode::destroy($id); $this->loadMap(); }
     public function deleteEdge($id) { SystemMapEdge::destroy($id); $this->loadMap(); }
+
+    public function openNodePanel($nodeId)
+    {
+        $node = SystemMapNode::find($nodeId);
+        if ($node) {
+            $this->activePanelNode = $node->toArray();
+            $this->showNodePanel = true;
+        }
+    }
+
+    public function closeNodePanel()
+    {
+        $this->showNodePanel = false;
+        $this->activePanelNode = null;
+    }
 
     public function render()
     {

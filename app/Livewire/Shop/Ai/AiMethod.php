@@ -112,7 +112,7 @@ class AiMethod extends Component
             'get_product_reviews',
             'get_gamification_leaderboard',
             'search_customers',
-            'get_next_order_deadline',
+            'get_current_express_status',
             'check_missing_expenses',
             'read_wiki_files',
             'get_system_map',

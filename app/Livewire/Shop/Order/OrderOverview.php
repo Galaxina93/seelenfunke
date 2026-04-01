@@ -77,8 +77,7 @@ class OrderOverview extends Component
             ->whereIn('status', ['pending', 'processing']) // Nur offene
             ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
             ->orderBy('is_express', 'desc') // Express zuerst
-            ->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC") // Terminierte zuerst
-            ->orderBy('deadline', 'asc') // Nächster Termin zuerst
+
             ->orderBy('created_at', 'asc') // Älteste zuerst (FIFO)
             ->first();
     }
@@ -107,9 +106,6 @@ class OrderOverview extends Component
             return '<span class="text-emerald-400 font-bold">Lagerbestand gesichert!</span> Dieser Express-Versand ist komplett auf Lager und kann sofort abgewickelt werden.';
         }
 
-        if ($prio->deadline && $prio->deadline->isPast()) {
-            return '<span class="text-red-400 font-bold">Kritisch!</span> Kontaktiere den Kunden wegen der Verzögerung, bevor du startest.';
-        }
 
         return 'Dies ist der älteste offene Auftrag im System. Arbeite ihn zügig ab, um die Wartezeiten gering zu halten.';
     }
@@ -545,8 +541,7 @@ class OrderOverview extends Component
      * WORKFLOW SORTIERUNG:
      * 1. Status: Offene zuerst (0), Erledigte unten (1)
      * 2. Typ: Express zuerst (DESC)
-     * 3. Termin: Nächste Deadline zuerst (ASC), NULL Deadlines dahinter
-     * 4. Alter: Älteste Aufträge zuerst (FIFO, ASC)
+     * 3. Alter: Älteste Aufträge zuerst (FIFO, ASC)
      */
     private function applyWorkflowSort($query)
     {
@@ -556,11 +551,7 @@ class OrderOverview extends Component
         // 2. Express vor Standard
         $query->orderBy('is_express', 'desc');
 
-        // 3. Deadline: Das Nächstgelegene (kleinstes Datum) zuerst.
-        // Trick: MySQL sortiert NULL bei ASC ganz nach oben. Das wollen wir nicht.
-        // Orders OHNE Deadline sollen hinter Orders MIT Deadline (innerhalb der gleichen Prio-Gruppe).
-        $query->orderByRaw("CASE WHEN deadline IS NULL THEN 1 ELSE 0 END ASC");
-        $query->orderBy('deadline', 'asc');
+
 
         // 4. Datum: Älteste zuerst (FIFO)
         $query->orderBy('created_at', 'asc');

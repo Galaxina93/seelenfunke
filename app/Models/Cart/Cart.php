@@ -17,13 +17,11 @@ class Cart extends Model
         'session_id',
         'customer_id',
         'coupon_code',
-        'is_express',
-        'deadline'
+        'is_express'
     ];
 
     protected $casts = [
-        'is_express' => 'boolean',
-        'deadline' => 'date'
+        'is_express' => 'boolean'
     ];
 
     public function items(): HasMany
