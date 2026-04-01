@@ -13482,6 +13482,9 @@ video {
   .sm\:max-h-\[600px\] {
     max-height: 600px;
   }
+  .sm\:max-h-none {
+    max-height: none;
+  }
   .sm\:min-h-\[200px\] {
     min-height: 200px;
   }
