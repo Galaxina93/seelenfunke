@@ -41,12 +41,12 @@ class ProductCalculator extends Component
     public $totalMwst = 0;
     public $totalBrutto = 0;
     public $shippingCost = 0;
+    public $expressCost = 0;
     public $totalWeight = 0;
     public $volumeDiscount = 0;
 
     // --- FORMULAR ---
     public $isExpress = false;
-    public $deadline = '';
     public $form = [
         'vorname' => '',
         'nachname' => '',
@@ -274,10 +274,13 @@ class ProductCalculator extends Component
 
     public function calculateTotal()
     {
+        $this->isExpress = collect($this->cartItems)->contains(function ($item) {
+            return isset($item['configuration']['is_express']) && filter_var($item['configuration']['is_express'], FILTER_VALIDATE_BOOLEAN);
+        });
+
         $shopLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
         if ($shopLevel >= 2 && $this->isExpress) {
             $this->isExpress = false;
-            $this->persist();
         }
 
         $quantitiesPerProduct = [];
@@ -408,13 +411,19 @@ class ProductCalculator extends Component
             $sumMwst += $shippingTax;
         }
 
+        $this->expressCost = 0;
+
         if ($this->isExpress && count($this->cartItems) > 0) {
             $defaultTaxRate = (float)shop_setting('default_tax_rate', 19);
             $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             $divisor = $isSmallBusiness ? 1.0 : (1 + ($defaultTaxRate / 100));
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
-            $expressGross = (int)shop_setting('express_surcharge', 2500);
+            $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
+            $expressMin = (int)shop_setting('express_surcharge_min', 500);
+            $calculatedExpress = (int) round(($cartSubtotalGross * 100) * ($expressPercent / 100));
+            $expressGross = max($expressMin, $calculatedExpress);
+            $this->expressCost = $expressGross;
             $expressBaseNet = $expressGross / $divisor;
 
             if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
@@ -466,17 +475,6 @@ class ProductCalculator extends Component
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
             return;
         }
-
-        if ($this->isExpress) {
-            $this->validate([
-                'deadline' => 'required|date|after:today',
-            ], [
-                'deadline.required' => 'Bitte wählen Sie einen Wunschtermin für die Express-Lieferung.',
-                'deadline.date' => 'Bitte geben Sie ein gültiges Datum ein.',
-                'deadline.after' => 'Der Termin muss in der Zukunft liegen.',
-            ]);
-        }
-
         $this->step = 3;
         $this->persist();
         $this->dispatch('scroll-top');
@@ -496,10 +494,9 @@ class ProductCalculator extends Component
         }
 
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
-        $cleanDeadline = ($this->isExpress && !empty($this->deadline)) ? $this->deadline : null;
 
         try {
-            DB::transaction(function () use ($existingCustomer, $cleanDeadline) {
+            DB::transaction(function () use ($existingCustomer) {
                 $quote = OrderQuoteRequest::create([
                     'quote_number' => 'AN-' . date('Y') . '-' . strtoupper(Str::random(5)),
                     'email' => $this->form['email'],
@@ -513,9 +510,9 @@ class ProductCalculator extends Component
                     'tax_total' => (int) round($this->totalMwst * 100),
                     'gross_total' => (int) round($this->totalBrutto * 100),
                     'shipping_price' => (int) round($this->shippingCost * 100),
+                    'express_price' => $this->expressCost,
                     'volume_discount' => (int) round($this->volumeDiscount * 100),
                     'is_express' => $this->isExpress,
-                    'deadline' => $cleanDeadline,
                     'admin_notes' => $this->form['anmerkung'] ?? null,
                 ]);
 
@@ -568,7 +565,7 @@ class ProductCalculator extends Component
 
     public function restartCalculator()
     {
-        $this->reset(['cartItems', 'form', 'isExpress', 'deadline', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates']);
+        $this->reset(['cartItems', 'form', 'isExpress', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates']);
         session()->forget(['calc_cart', 'calc_form']);
         $this->step = 1;
     }

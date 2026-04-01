@@ -18,7 +18,7 @@ return new class extends Migration
             // Status-Felder (genutzt in den Filtern und Badges)
             $table->string('status')->default('pending');
             $table->boolean('is_express')->default(false);
-            $table->date('deadline')->nullable();
+
             
             $table->string('tracking_number')->nullable();
             $table->string('shipping_label_path')->nullable();
@@ -40,10 +40,10 @@ return new class extends Migration
             $table->integer('shipping_price')->default(0);
             $table->integer('total_price');
 
-
             $table->integer('volume_discount')->default(0);
             $table->string('coupon_code')->nullable(); // Speichert den Code (z.B. "SOMMER20")
             $table->integer('discount_amount')->default(0); // Speichert den Rabatt in Cent
+            $table->integer('express_price')->default(0); // NEU: Speichert den berechneten Express-Aufpreis in Cent
 
             $table->text('notes')->nullable(); // Für interne Notizen im Backend
 
@@ -114,10 +114,11 @@ return new class extends Migration
 
             $table->integer('shipping_price')->default(0);
             $table->integer('volume_discount')->default(0);
+            $table->integer('express_price')->default(0); // NEU: Speichert den berechneten Express-Aufpreis in Cent
 
             // Flags
             $table->boolean('is_express')->default(false);
-            $table->date('deadline')->nullable();
+
 
             $table->text('admin_notes')->nullable(); // Interne Notizen
             $table->timestamps();

@@ -58,6 +58,7 @@ class InvoiceService
                     'subtotal' => $order->subtotal_price,
                     'tax_amount' => $order->tax_amount,
                     'shipping_cost' => $order->shipping_price,
+                    'express_price' => $order->express_price ?? 0,
                     'discount_amount' => $order->discount_amount,
                     'volume_discount' => $order->volume_discount,
                     'total' => $order->total_price,
@@ -102,6 +103,7 @@ class InvoiceService
                     'subtotal' => -1 * abs($originalInvoice->subtotal),
                     'tax_amount' => -1 * abs($originalInvoice->tax_amount),
                     'shipping_cost' => -1 * abs($originalInvoice->shipping_cost),
+                    'express_price' => -1 * abs($originalInvoice->express_price ?? 0),
                     'discount_amount' => -1 * abs($originalInvoice->discount_amount),
                     'volume_discount' => -1 * abs($originalInvoice->volume_discount),
                     'total' => -1 * abs($originalInvoice->total),
@@ -130,6 +132,7 @@ class InvoiceService
                 // Formatiere Beträge ins Negative für korrekte Auswertung
                 $subtotal = -1 * abs($data['subtotal'] ?? 0);
                 $tax_amount = -1 * abs($data['tax_amount'] ?? 0);
+                $express_price = -1 * abs($data['express_price'] ?? 0);
                 $total = -1 * abs($data['total'] ?? 0);
 
                 $invoice = AccountingInvoice::create([
@@ -149,6 +152,7 @@ class InvoiceService
                     'subtotal' => $subtotal,
                     'tax_amount' => $tax_amount,
                     'shipping_cost' => 0,
+                    'express_price' => $express_price,
                     'discount_amount' => 0,
                     'volume_discount' => 0,
                     'total' => $total,

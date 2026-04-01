@@ -51,7 +51,6 @@
     // --- 2. EINSTELLUNGEN LADEN ---
     $isSmallBusiness = (bool)shop_setting('is_small_business', false);
     $taxRate = (float)shop_setting('default_tax_rate', 19.0);
-    $expressSurchargeGross = (int)shop_setting('express_surcharge', 2500);
 
     // --- 3. DATEN NORMALISIEREN ---
     $data = [
@@ -79,23 +78,22 @@
 
         $rawSubtotal = $isOrder ? $model->subtotal_price : ($model->net_total ?? 0);
 
-        if ($data['is_express']) {
-            $expressNet = $expressSurchargeGross / (1 + ($taxRate / 100));
-            $data['subtotal'] = $rawSubtotal - $expressNet;
-            if($data['subtotal'] < 0) $data['subtotal'] = $rawSubtotal;
-        } else {
-            $data['subtotal'] = $rawSubtotal;
-        }
+        $data['subtotal'] = $rawSubtotal;
 
         // NEU: Zieht den exakten, aufgeschlüsselten Tax Breakdown via Traits für 0% Produkte!
         $data['tax_breakdown'] = [];
-        if (!$isSmallBusiness && method_exists($model, 'toFormattedArray')) {
+        $data['express_cost'] = 0;
+        if (method_exists($model, 'toFormattedArray')) {
             $summaryData = $model->toFormattedArray();
-            if (isset($summaryData['tax_breakdown']) && is_array($summaryData['tax_breakdown'])) {
+            if (!$isSmallBusiness && isset($summaryData['tax_breakdown']) && is_array($summaryData['tax_breakdown'])) {
                 foreach($summaryData['tax_breakdown'] as $rate => $formattedStr) {
                     $cleanFloat = (float)str_replace(['.', ','], ['', '.'], $formattedStr);
                     $data['tax_breakdown'][$rate] = (int)round($cleanFloat * 100);
                 }
+            }
+            if($data['is_express']) {
+                $expressStr = $summaryData['express_price'] ?? '0,00';
+                $data['express_cost'] = (int)round((float)str_replace(['.', ','], ['', '.'], $expressStr) * 100);
             }
         }
     }
@@ -109,6 +107,7 @@
         $data['coupon_code'] = $totals['coupon_code'] ?? null;
         $data['discount_amount'] = $totals['discount_amount'] ?? 0;
         $data['is_express'] = $totals['is_express'] ?? false;
+        $data['express_cost'] = $totals['express'] ?? 0;
         $data['shipping'] = $totals['shipping'] ?? 0;
         $data['tax_amount'] = $totals['tax'] ?? 0;
         $data['tax_breakdown'] = $totals['taxes_breakdown'] ?? [];
@@ -182,7 +181,7 @@
                     </svg>
                     Express-Service
                 </span>
-                <span class="whitespace-nowrap font-bold">+ {{ number_format($expressSurchargeGross / 100, 2, ',', '.') }}&nbsp;€</span>
+                <span class="whitespace-nowrap font-bold">+ {{ number_format($data['express_cost'] / 100, 2, ',', '.') }}&nbsp;€</span>
             </div>
         @endif
 

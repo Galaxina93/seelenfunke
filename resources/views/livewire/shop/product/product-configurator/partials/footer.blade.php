@@ -4,8 +4,17 @@
             {{-- EXPRESS TOGGLE --}}
             @if($context !== 'template_admin')
                 @php
-                    $expressCharge = (int)shop_setting('express_surcharge', 2500);
+                    $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
+                    $expressMin = (int)shop_setting('express_surcharge_min', 500);
+                    
+                    $currentConfigTotal = $currentPrice * $qty;
+                    $calculatedExpress = (int) round($currentConfigTotal * ($expressPercent / 100));
+                    $expressCharge = max($expressMin, $calculatedExpress);
+                    
                     $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
+                    $formattedPercent = number_format($expressPercent, 0, ',', '.');
+                    $formattedMin = number_format($expressMin / 100, 2, ',', '.');
+                    
                     $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
                     $expressDisabled = $shopCapacityLevel >= 2;
                 @endphp
@@ -30,12 +39,13 @@
                                     </h3>
 
                                     <span class="font-bold text-primary bg-primary/10 px-2 py-1 rounded text-sm whitespace-nowrap">
-                                        + {{ $formattedPrice }}&nbsp;€ <span class="text-[9px] text-gray-400 font-normal">pro Warenkorb</span>
+                                        + {{ $formattedPrice }}&nbsp;€ <span class="text-[9px] text-gray-400 font-normal">Aufpreis</span>
                                     </span>
                                 </div>
 
                                 <p class="text-xs mt-1.5 leading-relaxed {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
                                     Wir ziehen deine komplette Bestellung in der Manufaktur zeitlich vor und fertigen sie priorisiert an.
+                                    <span class="block mt-0.5 text-[10px] {{ $isDark ? 'text-gray-500' : 'text-gray-400' }}">({{ $formattedPercent }}% Basis-Aufschlag, verhältnismäßig auf Stückzahl/Cart, mind. {{ $formattedMin }}&nbsp;€)</span>
                                 </p>
 
                                 @if($expressDisabled)

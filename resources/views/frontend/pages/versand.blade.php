@@ -21,7 +21,8 @@
                         $shopName = shop_setting('company_name', shop_setting('owner_name', 'Mein-Seelenfunke'));
                         $shippingCost = (int) shop_setting('shipping_cost', 490);
                         $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
-                        $expressSurcharge = (int) shop_setting('express_surcharge', 2500);
+                        $expressPercent = (int) shop_setting('express_surcharge_percent', 20);
+                        $expressMin = (int) shop_setting('express_surcharge_min', 500);
                     @endphp
 
                     <p>
@@ -94,11 +95,11 @@
                     </div>
 
                     {{-- Ergänzung: Express-Option, da in Config vorhanden --}}
-                    @if($expressSurcharge > 0)
+                    @if($expressPercent > 0)
                         <div>
                             <h3 class="font-bold text-lg text-gray-900 mb-2">2. Express-Option</h3>
                             <p>
-                                Für besonders eilige Bestellungen bieten wir eine Express-Verarbeitung an. Für einen Aufpreis von <strong>{{ number_format($expressSurcharge / 100, 2, ',', '.') }} €</strong> wird Ihr Auftrag bevorzugt gefertigt und versendet.
+                                Für besonders eilige Bestellungen bieten wir eine Express-Verarbeitung an. Für einen Aufpreis von <strong>{{ $expressPercent }}% des Warenwerts (mindestens {{ number_format($expressMin / 100, 2, ',', '.') }} €)</strong> wird Ihr Auftrag bevorzugt gefertigt und versendet.
                             </p>
                         </div>
                     @endif

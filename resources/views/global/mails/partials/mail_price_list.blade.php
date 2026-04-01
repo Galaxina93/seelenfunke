@@ -31,11 +31,8 @@
                 $couponCode = $data['coupon_code'] ?? '';
             }
 
-            // 3. Express Berechnung
-            $expressGross = 0;
-            if(!empty($data['express']) || (isset($order) && $order->is_express)) {
-                $expressGross = (float)shop_setting('express_surcharge', 2500) / 100;
-            }
+            // 3. Express Berechnung (Dynamisch aus berechneten FormatsECommerceData bezogen)
+            $expressGross = $parseNum($data['express_price'] ?? 0);
 
             // 4. KORREKTE RÜCKWÄRTSRECHNUNG:
             // Warenwert = Endsumme + Rabatte - Versand - Express

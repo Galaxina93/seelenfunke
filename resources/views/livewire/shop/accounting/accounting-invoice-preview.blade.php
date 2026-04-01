@@ -205,11 +205,30 @@
                                                 @php
                                                     $totalGrossNum = (float)($invoice->total / 100);
                                                     $shippingGrossNum = (float)($invoice->shipping_cost / 100);
-                                                    $expressGrossNum = ($invoice->is_express) ? (float)shop_setting('express_surcharge', 2500) / 100 : 0;
-                                                    $goodsGrossCalculated = $totalGrossNum - $shippingGrossNum - $expressGrossNum;
+                                                    $expressStr = $data['express_price'] ?? '0,00';
+                                                    $expressGrossNum = (float)str_replace(['.', ','], ['', '.'], $expressStr);
+                                                    
+                                                    $volDiscountNum = (float)(($invoice->volume_discount ?? 0) / 100);
+                                                    $couponDiscountNum = (float)(($invoice->discount_amount ?? 0) / 100);
+                                                    
+                                                    $goodsGrossCalculated = $totalGrossNum + $volDiscountNum + $couponDiscountNum - $shippingGrossNum - $expressGrossNum;
                                                 @endphp
                                                 <span class="font-medium">{{ number_format($goodsGrossCalculated, 2, ',', '.') }} €</span>
                                             </div>
+
+                                            @if($volDiscountNum > 0)
+                                                <div class="flex justify-between text-green-600">
+                                                    <span>Mengenrabatt:</span>
+                                                    <span class="font-medium">-{{ number_format($volDiscountNum, 2, ',', '.') }} €</span>
+                                                </div>
+                                            @endif
+
+                                            @if($couponDiscountNum > 0)
+                                                <div class="flex justify-between text-green-600">
+                                                    <span>Gutschein {{ $invoice->order && $invoice->order->coupon_code ? '(' . $invoice->order->coupon_code . ')' : '' }}:</span>
+                                                    <span class="font-medium">-{{ number_format($couponDiscountNum, 2, ',', '.') }} €</span>
+                                                </div>
+                                            @endif
 
                                             @if($invoice->shipping_cost > 0)
                                                 <div class="flex justify-between text-gray-500">
@@ -221,7 +240,7 @@
                                             @if($invoice->is_express)
                                                 <div class="flex justify-between text-red-500">
                                                     <span>Express-Service:</span>
-                                                    <span class="font-medium">{{ number_format($expressGrossNum, 2, ',', '.') }} €</span>
+                                                    <span class="font-medium">+{{ number_format($expressGrossNum, 2, ',', '.') }} €</span>
                                                 </div>
                                             @endif
 

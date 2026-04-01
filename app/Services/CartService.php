@@ -78,10 +78,7 @@ class CartService
             ]);
         }
 
-        // NEU: Express-Wunsch aus Konfiguration global auf den Warenkorb übertragen
-        if (isset($configuration['is_express']) && $configuration['is_express']) {
-            $cart->update(['is_express' => true]);
-        }
+        // Express sync wird nun von refreshTotals übernommen
 
         $this->refreshTotals($cart);
     }
@@ -106,10 +103,7 @@ class CartService
 
         $item->update($data);
 
-        // NEU: Express-Wunsch auf Warenkorb übertragen
-        if (isset($configuration['is_express']) && $configuration['is_express']) {
-            $item->cart->update(['is_express' => true]);
-        }
+        // Express sync wird nun von refreshTotals übernommen
 
         $this->refreshTotals($item->cart);
     }
@@ -373,9 +367,12 @@ class CartService
         $expressTaxAmount = 0;
 
         // Express nur berechnen, wenn Versand überhaupt nötig ist!
-        // (Wenn alles digital ist -> kein Versand -> auch kein Express möglich)
         if ($cart->is_express && $this->shippingService->needsShipping($cart->items)) {
-            $expressGross = (int) shop_setting('express_surcharge', 2500);
+            $expressPercent = (float) shop_setting('express_surcharge_percent', 20.0);
+            $expressMin = (int) shop_setting('express_surcharge_min', 500);
+            $calculatedExpress = (int) round($subtotalGross * ($expressPercent / 100));
+            $expressGross = max($expressMin, $calculatedExpress);
+
             $expressTaxRate = ($isEU && !$isSmallBusiness) ? $maxTaxRate : 0.0;
 
             $expressNet = (int) round($expressGross / (1 + ($expressTaxRate / 100)));
@@ -522,6 +519,13 @@ class CartService
     }
 
     private function refreshTotals(Cart $cart) {
-        if($cart) $cart->touch();
+        if($cart) {
+            $hasExpress = $cart->items()->where('configuration->is_express', true)->exists();
+            if ($cart->is_express !== $hasExpress) {
+                $cart->is_express = $hasExpress;
+            }
+            $cart->touch(); // touch calls save internally if modified
+            $cart->save();
+        }
     }
 }

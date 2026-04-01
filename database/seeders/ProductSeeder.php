@@ -113,7 +113,7 @@ class ProductSeeder extends Seeder
                 'Größe' => '180x200x40 mm',
                 'Farbe' => 'Transparent'
             ],
-            'tier_pricing' => [],
+            'tier_pricing' => [], // Wir nutzen jetzt die relationale Datenbank für Staffelpreise
             'seo_title' => 'Der Seelen Kristall',
             'seo_description' => 'Verschenken Sie Ewigkeit.',
             'completion_step' => 4
@@ -121,6 +121,13 @@ class ProductSeeder extends Seeder
 
         $catIds1 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p1->categories()->attach($catIds1);
+
+        // Staffelpreise als relationale Datensätze
+        $p1->tierPrices()->createMany([
+            ['qty' => 5, 'percent' => 5],
+            ['qty' => 10, 'percent' => 10],
+            ['qty' => 20, 'percent' => 15]
+        ]);
 
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
         $p2 = Product::create([

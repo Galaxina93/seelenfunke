@@ -33,11 +33,22 @@
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express-Aufschlag</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'express_surcharge'])
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express-Zuschlag (%)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'express_surcharge_percent'])
                 </div>
                 <div class="relative">
-                    <input type="number" step="0.01" wire:model="settings.express_surcharge" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-red-400 !border-red-500/30 focus:!ring-red-500/20 focus:!border-red-400">
+                    <input type="number" step="0.1" wire:model="settings.express_surcharge_percent" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-red-400 !border-red-500/30 focus:!ring-red-500/20 focus:!border-red-400">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-red-500/50 font-bold">%</span>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express Mindestwert (€)</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'express_surcharge_min'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="0.01" wire:model="settings.express_surcharge_min" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-red-400 !border-red-500/30 focus:!ring-red-500/20 focus:!border-red-400">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-red-500/50 font-bold">€</span>
                 </div>
             </div>

@@ -183,7 +183,9 @@
                                     $taxRate = (float)shop_setting('default_tax_rate', 19.0);
 
                                     $hasExpress = $quote->is_express;
-                                    $expressCost = $hasExpress ? (int)shop_setting('express_surcharge', 2500) : 0;
+                                    $formatted = $quote->toFormattedArray();
+                                    $expressStr = $formatted['express_price'] ?? '0,00';
+                                    $expressCost = (int)round((float)str_replace(['.', ','], ['', '.'], $expressStr) * 100);
                                     $shippingCost = $quote->shipping_cost_calculated ?? ($quote->shipping_price ?? 0);
 
                                     // Berechnungen für die Anzeige (Alles Brutto Basis wie in der Mail)

@@ -254,7 +254,7 @@ class FinancialSeeder extends Seeder
                 'amount'      => -317.97,
                 'interval'    => 12,
                 'start_date'  => '2021-09-14',
-                'description' => "Preiserhöhung auf 341,07€ ab den 01.05.2025\nUmstel...",
+                'description' => "VersicherungsNr: 11008517578482",
                 'tags'        => ['Versicherung', 'Recht', 'Absicherung', 'Gewerbe', 'Privat'],
             ],
             [

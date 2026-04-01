@@ -149,16 +149,26 @@
         <div class="flex flex-col md:flex-row justify-between items-end gap-6">
             <div class="relative w-full md:w-auto transition-all duration-300">
                 @php
-                    $expressCharge = (int)shop_setting('express_surcharge', 2500);
+                    $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
+                    $expressMin = (int)shop_setting('express_surcharge_min', 500);
+                    
+                    $warenwertItemsBrutto = collect($cartItems)->sum('calculated_total');
+                    $calculatedExpress = (int) round(($warenwertItemsBrutto * 100) * ($expressPercent / 100));
+                    $expressCharge = max($expressMin, $calculatedExpress);
+                    
                     $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
+                    $formattedPercent = number_format($expressPercent, 0, ',', '.');
+                    $formattedMin = number_format($expressMin / 100, 2, ',', '.');
+                    
                     $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
                     $expressDisabled = $shopCapacityLevel >= 2;
                 @endphp
 
                 {{-- Container: Wenn ausgewählt, goldener Rahmen & Hintergrund, sonst grau/weiß --}}
-                <label
+                @if($isExpress)
+                <div
                     class="block border rounded-xl p-4 transition-all group relative overflow-hidden
-                    {{ $expressDisabled ? 'bg-gray-50 border-gray-200 opacity-70 cursor-not-allowed' : ($isExpress ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-300 cursor-pointer' : 'bg-white border-gray-200 hover:border-primary/50 shadow-sm hover:shadow-md cursor-pointer') }}"
+                    {{ $expressDisabled ? 'bg-gray-50 border-gray-200 opacity-70 cursor-not-allowed' : 'bg-amber-50 border-amber-300 ring-1 ring-amber-300 cursor-default' }}"
                 >
                     @if($expressDisabled)
                         <div class="absolute inset-0 z-10 cursor-not-allowed" title="Express aktuell deaktiviert." @click.prevent></div>
@@ -166,15 +176,7 @@
 
                     <div class="flex items-start gap-4">
 
-                        {{-- Checkbox (Visuell angepasst) --}}
-                        <div class="pt-1">
-                            <input
-                                wire:model.live="isExpress"
-                                type="checkbox"
-                                class="w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary {{ $expressDisabled ? 'opacity-50' : 'cursor-pointer' }}"
-                                {{ $expressDisabled ? 'disabled' : '' }}
-                            >
-                        </div>
+
 
                         <div class="flex-1">
                             <div class="flex justify-between items-center flex-wrap gap-2">
@@ -193,7 +195,8 @@
                             </div>
 
                             <p class="text-sm text-gray-500 mt-1 leading-relaxed">
-                                Wir ziehen Ihre Bestellung in der Manufaktur vor. Ideal für Geburtstage oder Hochzeiten, die kurz bevorstehen.
+                                Da du bei einem oder mehreren Artikeln die priorisierte Fertigung gewählt hast, wird <strong>der gesamte Auftrag</strong> für dich vorgezogen.
+                                <span class="block mt-0.5 text-[10px] text-gray-400">({{ $formattedPercent }}% Basis-Aufschlag, verhältnismäßig auf Stückzahl/Cart, mind. {{ $formattedMin }}&nbsp;€)</span>
                             </p>
 
                             @if($expressDisabled)
@@ -203,44 +206,11 @@
                                 </div>
                             @endif
 
-                            {{-- Datumsauswahl (Fährt weich aus) --}}
-                            @if($isExpress)
-                                <div
-                                    class="mt-4 pt-4 border-t border-amber-200/60 animate-fade-in-down"
-                                >
-                                    <label class="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                        Wann wird es benötigt?
-                                    </label>
 
-                                    <div class="relative">
-                                        <input
-                                            wire:model="deadline"
-                                            type="date"
-                                            {{-- WICHTIG: addDay() = Morgen. Der heutige Tag ist gesperrt. --}}
-                                            min="{{ now()->addDay()->format('Y-m-d') }}"
-                                            class="block w-full rounded-lg bg-white text-gray-900 shadow-sm
-                                            @error('deadline') border-red-500 focus:border-red-500 focus:ring-red-500 @else border-amber-300 focus:ring-amber-500 focus:border-amber-500 @enderror"
-                                        >
-                                    </div>
-
-                                    {{-- [NEU] FEHLERMELDUNG ANZEIGEN --}}
-                                    @error('deadline')
-                                    <p class="text-red-600 text-xs font-bold mt-1 flex items-center gap-1">
-                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                        {{ $message }}
-                                    </p>
-                                    @else
-                                        <p class="mt-2 text-xs text-amber-700 italic flex items-start gap-1">
-                                            <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                            <span>Wir setzen alles daran, diesen Termin für Sie zu halten.</span>
-                                        </p>
-                                        @enderror
-                                </div>
-                            @endif
                         </div>
                     </div>
-                </label>
+                </div>
+                @endif
             </div>
 
             <div class="text-right w-full md:w-auto">

@@ -44,6 +44,10 @@ class OrderQuoteAcceptance extends Component
             return;
         }
 
+        if ($this->quote->is_express && empty($this->quote->express_price)) {
+            $this->recalculateQuoteTotals();
+        }
+
         // Warnung bei Ablauf
         if ($this->quote->expires_at->isPast() && $this->quote->status === 'open') {
             // Wir lassen den User drauf, aber sperren Buttons (handled in view/isValidAction)
@@ -241,9 +245,14 @@ class OrderQuoteAcceptance extends Component
         // 3. Express
         $expressNet = 0;
         $expressTax = 0;
+        $expressGross = 0;
 
         if ($this->quote->is_express) {
-            $expressGross = (int) shop_setting('express_surcharge', 2500);
+            $expressPercent = (float) shop_setting('express_surcharge_percent', 20.0);
+            $expressMin = (int) shop_setting('express_surcharge_min', 500);
+            $calculatedExpress = (int) round($grossTotalProducts * ($expressPercent / 100));
+            $expressGross = max($expressMin, $calculatedExpress);
+
             if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
                 $expressNet = $expressGross / (1 + ($defaultTaxRate / 100));
                 $expressTax = $expressGross - $expressNet;
@@ -270,6 +279,7 @@ class OrderQuoteAcceptance extends Component
             'tax_total' => (int) round($finalTax),
             'gross_total' => (int) round($finalGross),
             'shipping_price' => (int) round($shippingCostCents),
+            'express_price' => $expressGross,
         ]);
 
         // Speichern der Versandkosten als temporäres Attribut für die View
@@ -291,8 +301,7 @@ class OrderQuoteAcceptance extends Component
         }
 
         // Check Minimum Order Value against Goods Gross (Gross Total - Shipping - Express)
-        $hasExpress = $this->quote->is_express;
-        $expressCost = $hasExpress ? (int)shop_setting('express_surcharge', 2500) : 0;
+        $expressCost = $this->quote->express_price ?? 0;
         $shippingCost = $this->quote->shipping_cost_calculated ?? ($this->quote->shipping_price ?? 0);
 
         $goodsGross = $this->quote->gross_total - $shippingCost - $expressCost;
@@ -330,7 +339,6 @@ class OrderQuoteAcceptance extends Component
         // Express-Status, Adress-Vorauswahl und GUTSCHEIN in das cart-Model übernehmen
         $cartUpdateData = [
             'is_express' => $this->quote->is_express,
-            'deadline' => $this->quote->deadline,
         ];
 
         if ($this->activeCoupon) {

@@ -78,7 +78,8 @@ class SystemSettingSeeder extends Seeder
             // Versand & Logistik (Preise in Cents)
             'shipping_cost'             => '490',   // 4,90 €
             'shipping_free_threshold'   => '5000',  // 50,00 €
-            'express_surcharge'         => '2500',  // 25,00 €
+            'express_surcharge_percent' => '20',    // 20% des Netto-Warenwerts
+            'express_surcharge_min'     => '500',   // Minimum 5,00 €
             'packaging_weight_grams'    => '350',   // 350g Leergewicht für Verpackung
 
             // Produkt & Lager Einstellungen

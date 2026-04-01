@@ -156,7 +156,6 @@ trait HandlesOrderCreation
                 'email' => $this->email,
                 'status' => 'pending',
                 'is_express' => $cart->is_express,
-                'deadline' => $cart->deadline,
                 'payment_status' => 'unpaid',
                 'payment_method' => 'stripe',
                 'billing_address' => [
@@ -175,6 +174,7 @@ trait HandlesOrderCreation
                 'subtotal_price' => $totals['subtotal_gross'],
                 'tax_amount' => $totals['tax'],
                 'shipping_price' => $totals['shipping'],
+                'express_price' => $totals['express'] ?? 0,
                 'total_price' => $totals['total'],
             ];
 

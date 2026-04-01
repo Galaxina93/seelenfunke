@@ -13,7 +13,6 @@ trait FormatsECommerceData
         $isSmallBusiness   = (bool)shop_setting('is_small_business', false);
         $defaultTaxRate    = (float)shop_setting('default_tax_rate', 19);
         $validityDays      = (int)shop_setting('order_quote_validity_days', 14);
-        $expressSurcharge  = (int)shop_setting('express_surcharge', 2500);
         $shippingThreshold = (int)shop_setting('shipping_free_threshold', 5000);
 
         // Divisor für Netto-Rückrechnung (z.B. 1.19)
@@ -118,8 +117,11 @@ trait FormatsECommerceData
             $taxesBreakdownCents[$strShipRate] += $shippingTaxCents;
         }
 
-        // 6. Express-Logik
-        $expressGross = $this->is_express ? $expressSurcharge : 0;
+        // 6. Express-Logik (Direkter Lesevorgang aus DB)
+        $expressGross = 0;
+        if ($this->is_express) {
+            $expressGross = $this->express_price ?? 0;
+        }
         $expressNettoCents = (int)round($expressGross / $dynamicDivisor);
 
         if ($expressGross > 0 && !$isSmallBusiness) {
@@ -152,7 +154,6 @@ trait FormatsECommerceData
                 : ($this->due_date ? $this->due_date->format('d.m.Y') : now()->addDays($validityDays)->format('d.m.Y')),
 
             'express'  => (bool)$this->is_express,
-            'deadline' => $this->deadline,
 
             'payment_url' => $this->payment_url ?? null,
 
@@ -173,6 +174,7 @@ trait FormatsECommerceData
             'volume_discount' => number_format(($this->volume_discount ?? 0) / 100, 2, ',', '.'),
             'discount_amount' => number_format(($this->discount_amount ?? 0) / 100, 2, ',', '.'),
             'coupon_code'     => $this->coupon_code ?? null,
+            'express_price'   => number_format($expressGross / 100, 2, ',', '.'),
             // -----------------------------------
 
             // Steuer Aufschlüsselung

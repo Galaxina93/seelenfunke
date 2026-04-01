@@ -56,6 +56,7 @@ return new class extends Migration
                 $table->integer('shipping_cost')->default(0);
                 $table->integer('discount_amount')->default(0);
                 $table->integer('volume_discount')->default(0);
+                $table->integer('express_price')->default(0); // NEU
                 $table->integer('total');
                 $table->json('custom_items')->nullable();
                 $table->string('stripe_payment_intent_id')->nullable();

@@ -1,7 +1,8 @@
 @php
     $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
     $shippingCost = (int) shop_setting('shipping_cost', 490);
-    $expressSurcharge = (int) shop_setting('express_surcharge', 2500);
+    $expressPercent = (int) shop_setting('express_surcharge_percent', 20);
+    $expressMin = (int) shop_setting('express_surcharge_min', 500);
 @endphp
 
 <section id="faq" class="bg-gradient-to-b from-gray-50 to-white py-24 scroll-mt-20" aria-labelledby="faq-heading">
@@ -99,7 +100,7 @@
             </details>
 
             {{-- FRAGE: Express --}}
-            @if($expressSurcharge > 0)
+            @if($expressPercent > 0)
                 <details class="group bg-white rounded-3xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden transition-all duration-300 open:ring-2 open:ring-primary/20">
                     <summary class="flex cursor-pointer items-center justify-between gap-4 p-8 text-gray-900 transition-colors hover:bg-gray-50/50">
                         <div class="flex items-center gap-4 text-serif">
@@ -116,7 +117,7 @@
                         </div>
                     </summary>
                     <div class="px-8 pb-8 sm:pl-20 text-gray-600 leading-relaxed border-t border-gray-50 pt-4 text-serif">
-                        Ja! Wenn es besonders eilig ist, kannst du für {{ number_format($expressSurcharge / 100, 2, ',', '.') }} € unseren Express-Service buchen. Dein Auftrag wird dann mit höchster Priorität gefertigt und bevorzugt dem Versanddienstleister übergeben.
+                        Ja! Wenn es besonders eilig ist, kannst du für {{ $expressPercent }}% des Warenwerts (mindestens {{ number_format($expressMin / 100, 2, ',', '.') }} €) unseren Express-Service buchen. Dein Auftrag wird dann mit höchster Priorität gefertigt und bevorzugt dem Versanddienstleister übergeben.
                     </div>
                 </details>
             @endif
@@ -172,13 +173,13 @@
             "text": "Innerhalb Deutschlands versenden wir ab einem Bestellwert von {{ number_format($freeThreshold / 100, 2, ',', '.') }} € versandkostenfrei. Darunter beträgt die Pauschale {{ number_format($shippingCost / 100, 2, ',', '.') }} €. Die Fertigung dauert ca. 1–3 Werktage."
                   }
                 }
-    @if($expressSurcharge > 0)
+    @if($expressPercent > 0)
         ,{
           "@type": "Question",
           "name": "Bietet ihr einen Express-Service an?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Ja! Für einen Aufpreis von {{ number_format($expressSurcharge / 100, 2, ',', '.') }} € wird Ihr Auftrag mit höchster Priorität gefertigt und bevorzugt versendet."
+            "text": "Ja! Für einen Aufpreis von {{ $expressPercent }}% des Warenwerts (mind. {{ number_format($expressMin / 100, 2, ',', '.') }} €) wird Ihr Auftrag mit höchster Priorität gefertigt und bevorzugt versendet."
                     }
                 }
     @endif
