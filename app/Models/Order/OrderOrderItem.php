@@ -19,6 +19,8 @@ class OrderOrderItem extends Model
         'configuration' => 'array',
         'unit_price' => 'integer',
         'total_price' => 'integer',
+        'is_completed' => 'boolean',
+        'completed_quantity' => 'integer',
     ];
 
     public function order()

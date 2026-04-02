@@ -19,6 +19,16 @@
     {{-- DETAILS / ADRESSEN & KUNDENDATEN --}}
     @include('global.mails.partials.mail_customer_info', ['showContactCard' => true])
 
+    {{-- HINWEIS: ARTIKEL ANPASSEN --}}
+    <div style="margin-top: 30px; padding: 20px; background-color: #fff8e1; border: 1px solid #ffecb3; border-radius: 8px; text-align: center;">
+        <h3 style="margin-top: 0; color: #d97706; font-size: 16px;">✏️ Fehler in deiner Produktkonfiguration bemerkt?</h3>
+        <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 0;">
+            Keine Panik! Solange deine Bestellung noch <strong>nicht in Bearbeitung</strong> genommen wurde, kannst du in deinem Kundenportal über die Detailansicht der Bestellung das Design nachträglich selbst anpassen.
+            <br><br>
+            <a href="{{ url('/orders') }}" style="display: inline-block; padding: 10px 20px; background-color: #d97706; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Bestellung prüfen</a>
+        </p>
+    </div>
+
     {{-- HINWEIS ZUR XML DATEI (Wird vom System nur bei gewerblichen Kunden befüllt/angezeigt) --}}
     @if(!empty($xmlPath))
         <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; font-size: 12px; color: #6c757d; line-height: 1.5;">

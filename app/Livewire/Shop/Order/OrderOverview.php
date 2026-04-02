@@ -256,8 +256,54 @@ class OrderOverview extends Component
     {
         $item = OrderOrderItem::find($itemId);
         if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
-            $item->update(['is_completed' => !$item->is_completed]);
+            $newStatus = !$item->is_completed;
+            $item->update([
+                'is_completed' => $newStatus,
+                'completed_quantity' => $newStatus ? $item->quantity : 0
+            ]);
             $this->selectedOrder->refresh();
+        }
+    }
+
+    public function incrementCompletedQuantity($itemId)
+    {
+        $item = OrderOrderItem::find($itemId);
+        if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
+            if ($item->completed_quantity < $item->quantity) {
+                $newQty = $item->completed_quantity + 1;
+                $item->update([
+                    'completed_quantity' => $newQty,
+                    'is_completed' => ($newQty >= $item->quantity)
+                ]);
+                $this->selectedOrder->refresh();
+            }
+        }
+    }
+
+    public function setAllCompletedQuantity($itemId)
+    {
+        $item = OrderOrderItem::find($itemId);
+        if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
+            $item->update([
+                'completed_quantity' => $item->quantity,
+                'is_completed' => true
+            ]);
+            $this->selectedOrder->refresh();
+        }
+    }
+
+    public function decrementCompletedQuantity($itemId)
+    {
+        $item = OrderOrderItem::find($itemId);
+        if ($item && $this->selectedOrder && $item->order_id == $this->selectedOrder->id) {
+            if ($item->completed_quantity > 0) {
+                $newQty = $item->completed_quantity - 1;
+                $item->update([
+                    'completed_quantity' => $newQty,
+                    'is_completed' => false // sobald eins fehlt, ist nicht mehr full-completed
+                ]);
+                $this->selectedOrder->refresh();
+            }
         }
     }
 
@@ -386,28 +432,45 @@ class OrderOverview extends Component
         $order = OrderOrder::with('items.product')->find($this->dhlModalOrderId);
         if (!$order) return;
 
+        $existingLabelsCount = \App\Models\Order\OrderShipment::where('order_id', $order->id)->count();
+
         $totalProductWeightGrams = 0;
+        $remainingProductWeightGrams = 0;
         $maxTaraWeight = 0;
+        $totalItemsCount = 0;
 
         foreach ($order->items as $item) {
             if ($item->product) {
-                // Summiere das reine Produktgewicht
-                if ($item->product->weight) {
-                    $totalProductWeightGrams += ($item->product->weight * $item->quantity);
-                }
-                // Suche das leergewicht-technisch "größte" Produkt im Warenkorb
+                // Fallback: 100g pro Artikel annehmen, falls kein Gewicht in der DB gepflegt ist, damit die Rechenlogik immer greift
+                $itemWeight = $item->product->weight > 0 ? $item->product->weight : 100;
+                
+                $totalProductWeightGrams += ($itemWeight * $item->quantity);
+                
+                $remainingQty = max(0, $item->quantity - $item->completed_quantity);
+                $remainingProductWeightGrams += ($itemWeight * $remainingQty);
+                
                 if ($item->product->packaging_weight && $item->product->packaging_weight > $maxTaraWeight) {
                     $maxTaraWeight = $item->product->packaging_weight;
                 }
+                
+                $totalItemsCount += $item->quantity;
             }
         }
 
+        // Intelligente Gewichtswahl:
+        // Wenn noch Artikel "offen" (unverpackt) sind, nehme deren Gewicht.
+        // Wurde die Bestellung *komplett verpackt* (remaining = 0), nehmen wir natürlich das Gesamtgewicht der Order!
+        $weightToUse = $remainingProductWeightGrams > 0 ? $remainingProductWeightGrams : $totalProductWeightGrams;
+
+        // Sicherheits-Fallback
+        if ($weightToUse == 0 && $totalItemsCount > 0) {
+            $weightToUse = $totalItemsCount * 100;
+        }
+
         // Standard-Verpackungsgewicht (Kartonage + Füllmaterial) pro Paket
-        // Wenn am Produkt direkt ein Tara definiert wurde, nutze das schwerste (größte).
-        // Sonst falle auf den globalen System-Standard (z.B. 350g) zurück.
         $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);  
 
-        $totalGrams = $totalProductWeightGrams + ($this->dhlPackageCount * $packagingWeightGrams);
+        $totalGrams = $weightToUse + ($this->dhlPackageCount * $packagingWeightGrams);
         
         // In Kg umrechnen und durch Paketanzahl teilen
         $weightPerPackage = ($totalGrams / 1000) / max(1, $this->dhlPackageCount);

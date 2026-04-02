@@ -11,23 +11,23 @@
             // Stimmung & Bild setzen
             if ($hasPrio && $prio->is_express) {
                 $mood = 'alarm';
-                $funkiImg = 'funki_selfie.webp';
+                $funkiImg = 'orders/bestelli_alarm.webp';
                 $statusText = "HOCHDRUCK";
-                $statusColor = "text-red-400 bg-red-500/10 border-red-500/30";
+                $statusColor = "text-red-300 bg-red-900/60 border-red-500/50";
                 $glowColor = "from-red-500/20";
                 $iconBg = "bg-red-500/10 text-red-500 border-red-500/20";
             } elseif ($hasPrio) {
                 $mood = 'work';
-                $funkiImg = 'funki_selfie.webp';
+                $funkiImg = 'orders/bestelli_work.webp';
                 $statusText = "PRODUKTIV";
-                $statusColor = "text-blue-400 bg-blue-500/10 border-blue-500/30";
+                $statusColor = "text-blue-300 bg-blue-900/60 border-blue-500/50";
                 $glowColor = "from-blue-500/20";
                 $iconBg = "bg-blue-500/10 text-blue-500 border-blue-500/20";
             } else {
                 $mood = 'chill';
-                $funkiImg = 'funki.webp';
+                $funkiImg = 'orders/bestelli_chill.webp';
                 $statusText = "STANDBY";
-                $statusColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+                $statusColor = "text-emerald-300 bg-emerald-900/60 border-emerald-500/50";
                 $glowColor = "from-emerald-500/20";
                 $iconBg = "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
             }
@@ -36,30 +36,31 @@
         {{-- ================================================== --}}
         {{-- NEUER: FUNKI KOMMANDO-BEREICH (Dark High End UX)   --}}
         {{-- ================================================== --}}
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-10 shadow-2xl border border-gray-800 relative overflow-hidden mb-8 sm:mb-12 group transition-all duration-500">
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] sm:rounded-[3rem] shadow-2xl border border-gray-800 relative overflow-hidden mb-8 sm:mb-12 group transition-all duration-500 flex flex-col md:flex-row">
 
             {{-- Dynamischer Hintergrund-Schein (Subtiler Glow) --}}
-            <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl {{ $glowColor }} to-transparent rounded-full blur-[80px] -translate-y-1/3 translate-x-1/3 pointer-events-none transition-colors duration-1000 opacity-60"></div>
+            <div class="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-bl {{ $glowColor }} to-transparent rounded-full blur-[80px] -translate-y-1/3 translate-x-1/3 pointer-events-none transition-colors duration-1000 opacity-60 z-0"></div>
 
-            <div class="relative z-10 flex flex-col md:flex-row gap-8 sm:gap-12 items-center md:items-start">
+            {{-- 1. FUNKI BILD (Voll in die Kachel integriert) --}}
+            <div class="w-full md:w-[35%] lg:w-[30%] relative shrink-0 min-h-[280px] md:min-h-full bg-gray-950 z-10 overflow-hidden border-b md:border-b-0 md:border-r border-gray-800">
+                <img src="{{ asset('shop/ai/images/' . $funkiImg) }}" class="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out" alt="Funki">
+                
+                {{-- Dunkler Farbverlauf für besseren Text-Kontrast und Übergang --}}
+                <div class="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent opacity-80"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-gray-900/80 hidden md:block"></div>
 
-                {{-- 1. FUNKI AVATAR --}}
-                <div class="relative shrink-0">
-                    <div class="w-28 h-28 md:w-36 md:h-36 rounded-full bg-gray-950 border-2 border-gray-800 shadow-[inset_0_-2px_20px_rgba(0,0,0,0.5),_0_10px_30px_rgba(0,0,0,0.5)] flex items-center justify-center relative z-10 p-1">
-                        <img src="{{ asset('shop/projekt/funki/' . $funkiImg) }}" class="w-full h-full object-contain drop-shadow-[0_10px_15px_rgba(0,0,0,0.5)] hover:scale-105 hover:-rotate-3 transition-transform duration-500 ease-out" alt="Funki">
-                    </div>
-                    {{-- Status Badge am Avatar --}}
-                    <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 {{ $statusColor }} px-4 py-1.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest border shadow-lg flex items-center gap-2 z-20 backdrop-blur-md">
-                        <span class="relative flex h-2 w-2">
-                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-current"></span>
-                          <span class="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
-                        </span>
-                        {{ $statusText }}
-                    </div>
+                {{-- Status Badge im Bild verankert --}}
+                <div class="absolute bottom-5 left-1/2 -translate-x-1/2 {{ $statusColor }} px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-2xl flex items-center gap-2 z-20 backdrop-blur-xl whitespace-nowrap">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-current"></span>
+                      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-current"></span>
+                    </span>
+                    {{ $statusText }}
                 </div>
+            </div>
 
-                {{-- 2. TEXT & ACTION BEREICH --}}
-                <div class="flex-1 text-center md:text-left pt-2 w-full">
+            {{-- 2. TEXT & ACTION BEREICH --}}
+            <div class="flex-1 p-6 sm:p-10 relative z-10 flex flex-col justify-center text-center md:text-left">
                     <h2 class="font-serif font-bold text-3xl sm:text-4xl text-white mb-3 tracking-tight">
                         @if($mood === 'alarm')
                             <span class="text-red-500">⚠️ Achtung</span>, {{ auth()->user()->first_name }}!
@@ -135,7 +136,6 @@
                         </div>
                     @endif
                 </div>
-            </div>
         </div>
 
         {{-- ================================================== --}}
@@ -361,7 +361,7 @@
                         <p class="text-sm text-gray-400 leading-relaxed font-medium">Das DHL System hat deine Anfrage abgelehnt. Meistens liegt das an einer Fehlerhaften (z.B. falsche Hausnummer) Kundenadresse im Checkout.</p>
                     </div>
                 </div>
-                
+
                 <div class="bg-black/50 border border-gray-800 rounded-xl p-4 mb-8 font-mono text-xs text-red-400 break-words whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar shadow-inner">
                     {{ $dhlError }}
                 </div>

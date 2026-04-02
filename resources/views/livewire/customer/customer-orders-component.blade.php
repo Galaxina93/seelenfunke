@@ -144,18 +144,46 @@
                                                     </p>
                                                 </div>
                                                 <p class="text-sm text-gray-400 font-medium">
-                                                    {{ $item->quantity }}x à {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
+                                                    {{ $item->quantity }}x je {{ number_format(($item->unit_price / 100), 2, ',', '.') }} €
                                                 </p>
                                             </div>
 
-                                            <div class="mt-6 flex flex-col items-start gap-4">
+                                            <div class="mt-6 flex flex-wrap items-center gap-4">
                                                 @if(!empty($item->configuration))
                                                     <button wire:click="openPreview('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $previewItemId == $item->id ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.4)]' : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' }}">
                                                         <span>{{ $previewItemId == $item->id ? 'Design verbergen' : 'Design ansehen' }}</span>
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                     </button>
                                                 @endif
+
+                                                @if($selectedOrder->status === 'pending')
+                                                    <button wire:click="openEdit('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-500/30' }}">
+                                                        <span>{{ $editItemId == $item->id ? 'Abbrechen' : 'Artikel anpassen' }}</span>
+                                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                    </button>
+                                                @endif
                                             </div>
+                                            @if($selectedOrder->status === 'pending')
+                                                <div x-data="{ successMsg: false }"
+                                                     x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
+                                                    
+                                                    <div class="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3 shadow-sm">
+                                                        <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <p class="text-xs text-amber-500/90 font-medium">
+                                                            <strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.
+                                                        </p>
+                                                    </div>
+
+                                                    <template x-if="successMsg">
+                                                        <div x-transition class="mt-2 bg-green-500/10 border border-green-500/20 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                                                            <svg class="w-5 h-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                                            <p class="text-xs text-green-400 font-medium">
+                                                                Sicherungsscreenshot unter Dokumente aktualisiert.
+                                                            </p>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            @endif
                                         </div>
                                     </li>
 
@@ -171,7 +199,25 @@
                                                 @endif
                                             </div>
                                             <div class="bg-gray-900 rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl w-full">
-                                                <livewire:shop.product.product-configurator.product-configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" />
+                                                <livewire:shop.product.product-configurator.product-configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-prev-'.$this->previewItem->id" />
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if($editItemId == $item->id && $this->editItem)
+                                        <div class="bg-gray-950 p-8 border-y border-gray-800 animate-fade-in-down shadow-inner">
+                                            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                                                <h4 class="text-sm font-black text-cyan-500 uppercase tracking-[0.3em] flex items-center gap-2">
+                                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                    Artikel anpassen
+                                                </h4>
+                                                <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                    Live-Änderung an der Bestellung
+                                                </div>
+                                            </div>
+                                            <div class="bg-gray-900 rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl w-full">
+                                                <livewire:shop.product.product-configurator.product-configurator :product="$this->editItem->product" :cartItem="$this->editItem" context="order_edit" :key="'conf-edit-'.$this->editItem->id" />
                                             </div>
                                         </div>
                                     @endif
@@ -359,7 +405,7 @@
                                                 </div>
                                             </div>
 
-                                            <a href="{{ asset('storage/' . $snap['path']) }}" download target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg" title="Herunterladen">
+                                            <a href="{{ asset('storage/' . $snap['path']) }}" download="Seelenfunke_Entwurf_{{ $this->selectedOrder->order_number }}_{{ Str::slug($snap['label']) }}.{{ pathinfo($snap['path'], PATHINFO_EXTENSION) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg" title="Herunterladen">
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                             </a>
                                         </div>

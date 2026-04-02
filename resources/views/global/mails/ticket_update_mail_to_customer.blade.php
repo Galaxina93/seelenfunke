@@ -20,7 +20,7 @@
 
     {{-- CALL TO ACTION BUTTON --}}
     <div style="text-align: center; margin: 40px 0;">
-        <a href="{{ route('login') }}" style="display: inline-block; padding: 14px 30px; background-color: #c5a059; color: #111111; text-decoration: none; font-weight: bold; border-radius: 6px; text-transform: uppercase; letter-spacing: 1px;">
+        <a href="{{ route('customer.support') }}" style="display: inline-block; padding: 14px 30px; background-color: #c5a059; color: #111111; text-decoration: none; font-weight: bold; border-radius: 6px; text-transform: uppercase; letter-spacing: 1px;">
             Jetzt einloggen & ansehen
         </a>
     </div>

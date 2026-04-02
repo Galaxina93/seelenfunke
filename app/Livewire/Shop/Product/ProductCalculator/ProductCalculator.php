@@ -274,10 +274,13 @@ class ProductCalculator extends Component
 
     public function calculateTotal()
     {
-        $this->isExpress = collect($this->cartItems)->contains(function ($item) {
+        $hasExpressItem = collect($this->cartItems)->contains(function ($item) {
             return isset($item['configuration']['is_express']) && filter_var($item['configuration']['is_express'], FILTER_VALIDATE_BOOLEAN);
         });
-
+        
+        if ($hasExpressItem) {
+            $this->isExpress = true;
+        }
         $shopLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
         if ($shopLevel >= 2 && $this->isExpress) {
             $this->isExpress = false;

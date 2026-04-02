@@ -11,6 +11,7 @@ window.funkenflugExpress = function() {
         bgmVolumeUi: 20,
         isBgmPlaying: false,
         isPaused: false,
+        isFullscreen: false,
         
 
         
@@ -29,6 +30,14 @@ window.funkenflugExpress = function() {
                 if (e.key?.toLowerCase() === 'v') {
                     this.toggleFullscreen();
                 }
+            });
+
+            // Native Fullscreen Event Listener
+            window.addEventListener('fullscreenchange', () => {
+                this.isFullscreen = !!document.fullscreenElement;
+            });
+            window.addEventListener('webkitfullscreenchange', () => {
+                this.isFullscreen = !!document.webkitFullscreenElement;
             });
 
             // Immediate Init if already active
@@ -63,14 +72,21 @@ window.funkenflugExpress = function() {
         },
 
         toggleFullscreen() {
-            let elem = document.getElementById('funkenflug-container')?.parentElement;
+            let elem = document.getElementById('ff-main-wrapper');
+            if (!elem) {
+                // Fallback falls id nicht existiert
+                elem = document.getElementById('funkenflug-container')?.parentElement?.parentElement;
+            }
             if (!elem) return;
+
             if (!document.fullscreenElement) {
-                elem.requestFullscreen().catch(err => {
-                    console.log(`Fehler beim Vollbild: ${err.message}`);
-                });
+                if (elem.requestFullscreen) { elem.requestFullscreen(); }
+                else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); } // Safari
+                this.isFullscreen = true;
             } else {
-                document.exitFullscreen();
+                if (document.exitFullscreen) { document.exitFullscreen(); }
+                else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+                this.isFullscreen = false;
             }
         },
 

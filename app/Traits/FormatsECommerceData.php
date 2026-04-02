@@ -156,6 +156,7 @@ trait FormatsECommerceData
             'express'  => (bool)$this->is_express,
 
             'payment_url' => $this->payment_url ?? null,
+            'tracking_numbers' => method_exists($this, 'shipments') && $this->shipments ? $this->shipments->pluck('tracking_number')->filter()->toArray() : [],
 
             // Kontakt & Adressen
             'contact'          => $this->getMailContactData(),

@@ -8,7 +8,7 @@
         {{-- h-40 macht ihn schön groß und präsent --}}
         <img src="{{ asset('shop/projekt/funki/checkout/funki_kiss.webp') }}"
              alt="Vielen Dank"
-             class="h-40 w-auto object-contain filter drop-shadow-sm animate-bounce-slow">
+             class="h-64 w-auto object-contain filter drop-shadow-sm animate-bounce-slow">
     </div>
 
     <h1 class="text-4xl font-serif font-bold text-gray-900 mb-4">Vielen Dank!</h1>

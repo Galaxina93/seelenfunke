@@ -317,6 +317,10 @@
                                         Einlösen
                                     </button>
                                 </form>
+                                <p class="text-[11px] text-amber-600/80 mt-3 flex items-center justify-center gap-1.5 font-medium">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    Tipp: Aktuelle Gutscheine finden Sie rechts in der Aktionsleiste!
+                                </p>
                             @else
                                 <div class="text-sm border border-gray-200 bg-gray-50 text-gray-500 p-4 rounded-lg">
                                     Gutscheine können nur für noch gültige Angebote eingelöst werden.

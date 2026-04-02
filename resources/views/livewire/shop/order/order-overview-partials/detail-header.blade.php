@@ -82,6 +82,10 @@
                             @endif
                         </div>
                     @endforeach
+                    <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="flex items-center justify-center gap-2 w-full mt-1 px-2 py-1.5 border border-dashed border-gray-700 rounded-lg text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:border-yellow-400 hover:text-yellow-400 transition-colors">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Weitere Labels
+                    </button>
                 </div>
             @elseif(in_array($this->selectedOrder->status, ['processing', 'shipped', 'completed']))
                 <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 rounded-xl font-bold text-xs hover:bg-yellow-300 transition-colors shadow-[0_0_15px_rgba(250,204,21,0.2)]">

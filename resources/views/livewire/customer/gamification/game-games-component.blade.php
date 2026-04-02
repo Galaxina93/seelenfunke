@@ -375,7 +375,7 @@
                 </div>
 
                 <div class="lg:col-span-8 xl:col-span-8 w-full flex justify-center items-center relative z-10 w-full h-full">
-                    <div :class="{'h-[100dvh] sm:h-[100dvh] aspect-auto rounded-none border-0': isFullscreen, 'aspect-[3/4] sm:aspect-square rounded-[2rem] sm:rounded-[3rem]': !isFullscreen}" class="w-full max-w-[800px] relative bg-gray-950 sm:bg-gray-900 border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col pointer-events-auto">
+                    <div id="ff-main-wrapper" :class="{'h-[100dvh] sm:h-[100dvh] aspect-auto rounded-none border-0': isFullscreen, 'aspect-[3/4] sm:aspect-square rounded-[2rem] sm:rounded-[3rem]': !isFullscreen}" class="overflow-hidden w-full max-w-[800px] relative bg-gray-950 sm:bg-gray-900 border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col pointer-events-auto">
                         
                         {{-- SCREEN AREA (65% on mobile, 100% on desktop) --}}
                         <div class="relative w-full h-[65%] sm:h-full shrink-0 flex flex-col bg-gray-900 border-b-2 sm:border-b-0 border-gray-800 touch-none">

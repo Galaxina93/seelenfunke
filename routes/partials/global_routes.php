@@ -107,19 +107,12 @@ Route::get('/kontakt', function () {
 
 
 // --- 3. Tools ---
-
 // Kalkulator
 Route::get('/calculator', function () {
     return view('frontend.pages.calculator');
 })->name('calculator');
 
-Route::get('/application', function () {
-    return view('frontend.pages.application');
-})->name('application');
-
-
 // --- 4. Rechtliches & Weiteres ---
-
 Route::get('/impressum', function () {
     return view('frontend.pages.impressum');
 })->name('impressum');
@@ -169,26 +162,9 @@ Route::get('/email/verify', function () {
 
 
 // NEU: Unsere maßgeschneiderte, ungeschützte Gast-Route für die E-Mail-Verifizierung
-Route::get('/email/verify-customer/{id}/{hash}', function (\Illuminate\Http\Request $request, $id, $hash) {
-
-    $user = \App\Models\Customer\Customer::findOrFail($id);
-
-    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
-        abort(403, 'Ungültiger oder abgelaufener Link.');
-    }
-
-    // SICHERHEITS-FIX: Wir updaten gezielt alle Profile dieses Kunden, falls durch alte Tests Duplikate in der Datenbank hängen!
-    \App\Models\Customer\CustomerProfile::where('customer_id', $user->id)
-        ->update(['email_verified_at' => now()]);
-
-    if (! $user->hasVerifiedEmail()) {
-        event(new Verified($user));
-    }
-
-    return redirect()->route('login')->with('status', 'Deine E-Mail-Adresse wurde erfolgreich bestätigt! Du kannst dich jetzt einloggen. ✨');
-
-})->middleware(['signed'])->name('customer.verification.verify');
-
+Route::get('/email/verify-customer/{id}/{hash}', [\App\Http\Controllers\Customer\CustomerVerificationController::class, 'verify'])
+    ->middleware(['signed'])
+    ->name('customer.verification.verify');
 
 // Resend-Link, falls die E-Mail nicht ankam (erfordert eingeloggten Zustand)
 Route::post('/email/verification-notification', function (\Illuminate\Http\Request $request) {
@@ -196,35 +172,6 @@ Route::post('/email/verification-notification', function (\Illuminate\Http\Reque
     return back()->with('message', 'Verifizierungs-Link gesendet!');
 })->middleware(['auth', 'throttle:6,1'])->name('verification.send');
 
-
-Route::get('/forgot-password', function () {
-    return view('global/pages/password/forgot-password');
-})->name('forgot-password');
-
-
 // --- 6. Rechnungsdownload Route ---
-Route::get('/invoice/{invoice}/download', function (App\Models\Accounting\Invoice $invoice) {
-
-    // Security Gate: Darf der User das sehen?
-    // Admin darf alles, Customer nur seine eigenen
-    if (auth()->guard('admin')->check()) {
-        // ok
-    } elseif (auth()->guard('customer')->check() && auth()->guard('customer')->id() === $invoice->customer_id) {
-        // ok
-    } else {
-        abort(403);
-    }
-
-    $service = new App\Services\InvoiceService();
-    $pdf = $service->generatePdf($invoice);
-
-    $filenamePrefix = 'Rechnung_';
-    if ($invoice->type === 'cancellation') {
-        $filenamePrefix = 'Storno_';
-    } elseif ($invoice->type === 'credit_note') {
-        $filenamePrefix = 'Gutschrift_';
-    }
-
-    return $pdf->download($filenamePrefix . $invoice->invoice_number . '.pdf');
-
-})->name('invoice.download');
+Route::get('/invoice/{invoice}/download', [\App\Http\Controllers\Accounting\InvoiceDownloadController::class, 'download'])
+    ->name('invoice.download');

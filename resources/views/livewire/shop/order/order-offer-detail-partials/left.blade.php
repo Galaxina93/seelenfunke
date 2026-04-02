@@ -170,6 +170,51 @@
                                         @endif
                                     </div>
                                 @endif
+
+                                {{-- Partial Fulfillment UI --}}
+                                @if($isOrder)
+                                    <div class="mt-4 flex items-center justify-between bg-gray-950/50 p-2.5 rounded-xl border border-gray-800 shadow-inner w-max gap-4" onclick="event.stopPropagation()">
+                                        <div class="flex items-center gap-3">
+                                            <button wire:click.prevent="decrementCompletedQuantity('{{ $item->id }}')" 
+                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 border border-transparent transition-colors disabled:opacity-50"
+                                                    @if($item->completed_quantity <= 0) disabled @endif>
+                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
+                                            </button>
+                                            
+                                            <div class="flex flex-col items-center justify-center min-w-[5rem]">
+                                                @if($item->completed_quantity < $item->quantity)
+                                                    <span class="text-[10px] font-black text-amber-500 leading-none mb-1">
+                                                        #{{ $item->completed_quantity + 1 }} in Arbeit
+                                                    </span>
+                                                @else
+                                                    <span class="text-[10px] font-black text-emerald-500 leading-none mb-1 drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]">
+                                                        Fertig
+                                                    </span>
+                                                @endif
+                                                <div class="flex items-center gap-1 font-bold text-[9px] text-gray-500 uppercase tracking-widest">
+                                                    <span>Erledigt:</span>
+                                                    <span class="text-white">{{ $item->completed_quantity }} / {{ $item->quantity }}</span>
+                                                </div>
+                                            </div>
+
+                                            <button wire:click.prevent="incrementCompletedQuantity('{{ $item->id }}')"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 border border-transparent transition-colors disabled:opacity-50"
+                                                    @if($item->completed_quantity >= $item->quantity) disabled @endif>
+                                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                                            </button>
+
+                                            @if($item->quantity > 1)
+                                                <div class="w-px h-5 bg-gray-800 mx-1"></div>
+                                                <button wire:click.prevent="setAllCompletedQuantity('{{ $item->id }}')"
+                                                        class="text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg shadow-sm hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                                                        @if($item->completed_quantity >= $item->quantity) disabled @endif
+                                                        title="Alle als verpackt markieren">
+                                                    Alles
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
 
                             {{-- Arrow Indicator --}}
@@ -287,7 +332,7 @@
                 <div class="bg-gray-950 px-6 py-5 border-t border-gray-800">
                     <div class="flex flex-col gap-3">
                         @if($hasFront)
-                            <button wire:click.prevent="downloadLaserFile({{ $previewItem->id }}, 'front')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group focus:outline-none">
+                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group focus:outline-none">
                                 <svg class="w-5 h-5 text-primary group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                                 </svg>
@@ -296,7 +341,7 @@
                         @endif
 
                         @if($hasBack)
-                            <button wire:click.prevent="downloadLaserFile({{ $previewItem->id }}, 'back')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group focus:outline-none">
+                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-primary hover:text-gray-900 hover:border-primary hover:shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all duration-300 group focus:outline-none">
                                 <svg class="w-5 h-5 text-primary group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                                 </svg>

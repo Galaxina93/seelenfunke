@@ -14,8 +14,8 @@
     <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg transition-all duration-300">
 
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
-            <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-40 h-40">
-                <img src="{{ asset('shop/projekt/funki/checkout/funki_party.webp') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
+            <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-64 h-64 sm:w-80 sm:h-80 mx-auto">
+                <img src="{{ asset('shop/projekt/funki/checkout/funki_happy.webp') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
             </div>
             <div class="text-center space-y-2">
                 <h3 class="text-xl font-bold text-gray-900 flex items-center justify-center gap-3">
@@ -127,14 +127,26 @@
             </div>
 
             <div class="flex justify-center items-center py-6">
-                <div class="relative w-32 h-32 transition-transform duration-300" :class="funkiState === 'party' ? 'scale-110' : 'scale-100'">
+                <div class="relative w-48 h-48 sm:w-64 sm:h-64">
                     <img x-show="funkiState === 'normal'"
-                         src="{{ asset('shop/projekt/funki/checkout/funki_l_n.webp') }}"
-                         class="absolute inset-0 w-full h-full object-contain animate-fade-in"
+                         x-transition:enter="transition ease-out duration-500"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-300"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         src="{{ asset('shop/projekt/funki/checkout/funki_unhappy.webp') }}"
+                         class="absolute inset-0 w-full h-full object-contain"
                          alt="Funki wartet">
                     <img x-show="funkiState === 'party'"
-                         src="{{ asset('shop/projekt/funki/checkout/funki_party.webp') }}"
-                         class="absolute inset-0 w-full h-full object-contain animate-fade-in"
+                         x-transition:enter="transition ease-out duration-500"
+                         x-transition:enter-start="opacity-0 scale-105"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-300"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         src="{{ asset('shop/projekt/funki/checkout/funki_happy.webp') }}"
+                         class="absolute inset-0 w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]"
                          alt="Funki feiert">
                 </div>
             </div>

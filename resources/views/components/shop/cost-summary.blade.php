@@ -202,9 +202,11 @@
         </div>
 
         {{-- 5. Gesamt --}}
-        <div class="border-t pt-5 mt-6 flex justify-between items-end {{ $totalDividerClass }}">
-            <span class="font-serif font-bold text-xl {{ $totalLabelClass }}">Gesamtsumme</span>
-            <span class="font-serif font-black text-3xl whitespace-nowrap {{ $totalValueClass }}">{{ number_format($data['total'] / 100, 2, ',', '.') }}&nbsp;€</span>
+        <div class="border-t pt-5 mt-6 flex flex-wrap justify-between items-end gap-x-2 gap-y-1 {{ $totalDividerClass }}">
+            <span class="font-serif font-bold text-lg sm:text-xl {{ $totalLabelClass }}">Gesamtsumme</span>
+            <div class="text-right flex-grow sm:flex-grow-0 ml-auto">
+                <span class="font-serif font-black text-2xl sm:text-3xl whitespace-nowrap {{ $totalValueClass }}">{{ number_format($data['total'] / 100, 2, ',', '.') }}&nbsp;€</span>
+            </div>
         </div>
 
         {{-- 6. MwSt --}}

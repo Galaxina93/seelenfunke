@@ -63,7 +63,7 @@
             @if($msg['sender'] === 'customer')
                 <div class="flex justify-end">
                     <div class="bg-gray-800 text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm shadow-sm max-w-[85%] leading-relaxed break-words">
-                        {{ $msg['text'] }}
+                        {!! nl2br(e($msg['text'])) !!}
                     </div>
                 </div>
             @elseif($msg['sender'] === 'ai')
@@ -151,13 +151,19 @@
                     </div>
                 </div>
             @else
-                <form wire:submit.prevent="sendMessage" class="relative flex items-center">
-                    <input wire:model="message" type="text" placeholder="Schreibe deine Nachricht..." maxlength="1000"
-                           class="w-full bg-gray-50 border border-gray-200 text-sm text-gray-800 rounded-full pl-5 pr-12 py-3.5 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 transition-all placeholder:text-gray-400"
-                           {{ $isTyping ? 'disabled' : '' }}>
+                <form wire:submit.prevent="sendMessage" class="relative bg-gray-50 border border-gray-200 rounded-2xl focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all flex items-end">
+                    <textarea wire:model="message" 
+                           @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
+                           placeholder="Schreibe deine Nachricht..." maxlength="1000" rows="1"
+                           x-data="{ resize() { $el.style.height = '46px'; $el.style.height = $el.scrollHeight + 'px'; } }"
+                           x-init="resize()"
+                           @input="resize()"
+                           @message-sent.window="$el.style.height = '46px'"
+                           class="w-full bg-transparent text-sm text-gray-800 pl-4 pr-12 py-3 focus:outline-none placeholder:text-gray-400 resize-none overflow-y-auto max-h-32 min-h-[46px]"
+                           {{ $isTyping ? 'disabled' : '' }}></textarea>
                            
                     <button type="submit" 
-                            class="absolute right-2 p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 transition-colors shadow-sm disabled:opacity-50"
+                            class="absolute right-1.5 bottom-1.5 p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 transition-colors shadow-sm disabled:opacity-50"
                             {{ $isTyping ? 'disabled' : '' }}>
                         <svg class="w-4 h-4 translate-x-[1px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

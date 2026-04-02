@@ -8,6 +8,7 @@ use Livewire\WithPagination;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderOrderItem; // Anpassen, falls dein Model anders heißt
+use Livewire\Attributes\On;
 
 class CustomerOrdersComponent extends Component
 {
@@ -16,6 +17,8 @@ class CustomerOrdersComponent extends Component
     public $searchOrder = '';
     public $selectedOrderId = null;
     public $previewItemId = null;
+    public $editItemId = null;
+    public $showSuccessMessageFor = null;
 
     // Wenn gesucht wird, springen wir zurück auf Seite 1
     public function updatingSearchOrder()
@@ -37,11 +40,29 @@ class CustomerOrdersComponent extends Component
 
     public function openPreview($itemId)
     {
+        $this->editItemId = null; // Close edit if open
         if ($this->previewItemId === $itemId) {
             $this->previewItemId = null; // Toggle zum Schließen
         } else {
             $this->previewItemId = $itemId;
         }
+    }
+
+    public function openEdit($itemId)
+    {
+        $this->previewItemId = null; // Close preview if open
+        if ($this->editItemId === $itemId) {
+            $this->editItemId = null; // Toggle zum Schließen
+        } else {
+            $this->editItemId = $itemId;
+        }
+    }
+
+    #[On('order-item-updated')]
+    public function handleItemUpdated($itemId)
+    {
+        $this->editItemId = null;
+        $this->showSuccessMessageFor = $itemId;
     }
 
     // Computed Property für die ausgewählte Bestellung
@@ -56,6 +77,13 @@ class CustomerOrdersComponent extends Component
     {
         if (!$this->previewItemId) return null;
         return OrderOrderItem::with('product')->find($this->previewItemId);
+    }
+
+    // Computed Property für die Edit-Funktion
+    public function getEditItemProperty()
+    {
+        if (!$this->editItemId) return null;
+        return OrderOrderItem::with('product')->find($this->editItemId);
     }
 
     public function render()

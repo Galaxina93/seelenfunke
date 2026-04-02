@@ -25,6 +25,13 @@ if (!engine) { this.init3DEngine(); } else { engine.resize(); }
 this.quitGame();
 }
 });
+
+window.addEventListener('fullscreenchange', () => {
+    this.isFullscreen = !!document.fullscreenElement;
+});
+window.addEventListener('webkitfullscreenchange', () => {
+    this.isFullscreen = !!document.webkitFullscreenElement;
+});
 },
 
 toggleFullscreen() {

@@ -123,7 +123,7 @@
                                 @foreach($order->invoices as $invoice)
                                     <a href="{{ route('invoice.download', $invoice->id) }}"
                                        target="_blank"
-                                       wire:click.stop
+                                       onclick="event.stopPropagation()"
                                        class="text-[9px] font-bold text-gray-400 bg-gray-950 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-800 hover:text-white transition-colors"
                                        title="Rechnung {{ $invoice->invoice_number }}">
                                         PDF
@@ -137,7 +137,7 @@
                 {{-- SPALTE 6: STATUS (SELECT) --}}
                 <td class="px-6 py-5 text-center align-middle">
                     <div class="flex flex-col items-center gap-2">
-                        <div class="relative inline-block w-40" wire:click.stop>
+                        <div class="relative inline-block w-40" onclick="event.stopPropagation()">
                             <select
                                 wire:change="updateStatus('{{ $order->id }}', $event.target.value)"
                                 wire:loading.attr="disabled"
@@ -221,7 +221,7 @@
                             @endif
                         </div>
 
-                        <div class="relative inline-block w-36" wire:click.stop>
+                        <div class="relative inline-block w-36" onclick="event.stopPropagation()">
                             <select
                                 wire:change="updateStatus('{{ $order->id }}', $event.target.value)"
                                 class="appearance-none w-full text-[9px] font-black uppercase tracking-widest rounded-xl border border-transparent py-2 pl-3 pr-6 cursor-pointer focus:ring-2 focus:ring-[var(--theme-color-20)] shadow-sm outline-none {{ $statusColors[$order->status] ?? 'bg-gray-800 text-gray-400' }}"
@@ -252,7 +252,7 @@
                                         @foreach($order->invoices as $invoice)
                                             <a href="{{ route('invoice.download', $invoice->id) }}"
                                                target="_blank"
-                                               wire:click.stop
+                                               onclick="event.stopPropagation()"
                                                class="inline-flex items-center gap-1 text-[9px] font-bold bg-gray-950 border border-gray-700 px-1.5 py-0.5 rounded text-gray-400 shadow-sm hover:text-white transition-colors">
                                                 PDF
                                             </a>

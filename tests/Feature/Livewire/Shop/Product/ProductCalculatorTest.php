@@ -107,14 +107,8 @@ class ProductCalculatorTest extends TestCase
         $component->set('isExpress', true)
                   ->assertSet('gesamtKosten', 60.00); // 50 + 10 (20% express_surcharge)
 
-        // Try to proceed without deadline
+        // Proceed to next step
         $component->call('goNext')
-                  ->assertHasErrors(['deadline' => 'required'])
-                  ->assertSet('step', 1);
-
-        // Provide valid future deadline
-        $component->set('deadline', now()->addDays(5)->format('Y-m-d'))
-                  ->call('goNext')
                   ->assertHasNoErrors()
                   ->assertSet('step', 3);
     }

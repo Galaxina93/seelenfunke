@@ -80,7 +80,12 @@ class DhlService
      */
     public function createLabels(OrderOrder $order, int $packageCount = 1, float $weightPerPackage = 1.0): array
     {
-        $shipping = $order->shipping_address ?: $order->billing_address;
+        // 1. Prüfen ob die alternative Lieferadresse *wirklich* Daten enthält
+        $hasShipping = !empty($order->shipping_address) 
+            && (isset($order->shipping_address['street']) || isset($order->shipping_address['first_name'])) 
+            && trim(($order->shipping_address['street'] ?? '') . ($order->shipping_address['first_name'] ?? '')) !== '';
+            
+        $shipping = $hasShipping ? $order->shipping_address : $order->billing_address;
 
         if (!$shipping) {
             throw new Exception("Die Bestellung hat keine gültige Liefer- oder Rechnungsadresse.");
@@ -107,6 +112,10 @@ class DhlService
             $streetName = $streetFullName ?: 'Unbekannt';
         }
 
+        // Herausfinden, wie viele Labels bereits für diese Order existieren, 
+        // damit es bei Nachgenerierungen keine "refNo" Kollision gibt!
+        $existingLabelsCount = $order->shipments()->count();
+
         // We can send multiple shipments in one request, but for simplicity
         // of tracking each individually and handling errors, we can either
         // batch them here or do one by one. DHL API v2 supports batching via 'shipments' array.
@@ -116,7 +125,7 @@ class DhlService
             $shipmentsArr[] = [
                 'product' => $productCode,
                 'billingNumber' => $billingNumber,
-                'refNo' => 'Order-' . $order->order_number . '-' . ($i+1),
+                'refNo' => 'Order-' . $order->order_number . '-' . ($i + 1 + $existingLabelsCount),
                 'shipper' => $this->senderDetails,
                 'consignee' => [
                     'name1' => mb_substr(trim(($shipping['first_name'] ?? '') . ' ' . ($shipping['last_name'] ?? '')), 0, 50),
@@ -153,7 +162,7 @@ class DhlService
                 'Content-Type' => 'application/json',
             ])
             ->timeout(30)
-            ->post($this->baseUrl . '/orders', $payload);
+            ->post($this->baseUrl . '/orders?printFormat=910-300-410', $payload);
 
         return $this->handleResponse($response, $order);
     }

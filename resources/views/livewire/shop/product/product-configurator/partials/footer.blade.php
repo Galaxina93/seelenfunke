@@ -2,19 +2,19 @@
     <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}" x-data="{saved: false}" x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 6000)">
         <div class="max-w-4xl mx-auto space-y-4">
             {{-- EXPRESS TOGGLE --}}
-            @if($context !== 'template_admin')
+            @if($context !== 'template_admin' && $context !== 'order_edit')
                 @php
                     $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
                     $expressMin = (int)shop_setting('express_surcharge_min', 500);
-                    
+
                     $currentConfigTotal = $currentPrice * $qty;
                     $calculatedExpress = (int) round($currentConfigTotal * ($expressPercent / 100));
                     $expressCharge = max($expressMin, $calculatedExpress);
-                    
+
                     $formattedPrice = number_format($expressCharge / 100, 2, ',', '.');
                     $formattedPercent = number_format($expressPercent, 0, ',', '.');
                     $formattedMin = number_format($expressMin / 100, 2, ',', '.');
-                    
+
                     $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
                     $expressDisabled = $shopCapacityLevel >= 2;
                 @endphp
@@ -84,33 +84,33 @@
                 $buttonDisabled = !$config_confirmed;
             @endphp
             <div class="flex flex-col sm:flex-row gap-3 h-auto sm:h-12">
-                @if($context !== 'template_admin')
-                    <div class="relative w-full sm:w-28 h-12 rounded-xl border transition-all flex items-center {{ $isDark ? 'bg-gray-900 border-gray-800 hover:border-gray-700 focus-within:border-primary focus-within:bg-gray-950' : 'bg-gray-100 border-transparent hover:border-gray-300 focus-within:border-primary focus-within:bg-white' }}">
-                        <label class="absolute left-3 text-[9px] font-bold uppercase tracking-wider pointer-events-none {{ $isDark ? 'text-gray-500' : 'text-gray-500' }}">Menge</label>
+                @if($context !== 'template_admin' && $context !== 'order_edit')
+                        <div class="relative w-full sm:w-28 h-12 rounded-xl border transition-all flex items-center {{ $isDark ? 'bg-gray-900 border-gray-800 hover:border-gray-700 focus-within:border-primary focus-within:bg-gray-950' : 'bg-gray-100 border-transparent hover:border-gray-300 focus-within:border-primary focus-within:bg-white' }}">
+                            <label class="absolute left-3 text-[9px] font-bold uppercase tracking-wider pointer-events-none {{ $isDark ? 'text-gray-500' : 'text-gray-500' }}">Menge</label>
 
-                        {{-- COMPACT SELECT: text-lg statt text-xl, padding leicht reduziert --}}
-                        <select wire:model.live="qty" class="appearance-none bg-transparent w-full h-full text-right font-bold text-lg focus:outline-none cursor-pointer pl-3 pr-8 pt-2.5 {{ $isDark ? 'text-white' : 'text-gray-900' }}">
-                            @for($i = 1; $i <= 100; $i++)
-                                {{-- Option mit text-sm für eine kompaktere Liste --}}
-                                <option value="{{$i}}" class="text-sm {{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">{{$i}}</option>
-                            @endfor
-                        </select>
+                            {{-- COMPACT SELECT: text-lg statt text-xl, padding leicht reduziert --}}
+                            <select wire:model.live="qty" class="appearance-none bg-transparent w-full h-full text-right font-bold text-lg focus:outline-none cursor-pointer pl-3 pr-8 pt-2.5 {{ $isDark ? 'text-white' : 'text-gray-900' }}">
+                                @for($i = 1; $i <= 100; $i++)
+                                    {{-- Option mit text-sm für eine kompaktere Liste --}}
+                                    <option value="{{$i}}" class="text-sm {{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">{{$i}}</option>
+                                @endfor
+                            </select>
 
-                        <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none {{ $isDark ? 'text-gray-600' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                            <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none {{ $isDark ? 'text-gray-600' : 'text-gray-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                 @endif
 
-                <button @click.prevent="submitConfig()" wire:loading.attr="disabled" @disabled($buttonDisabled) :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : ({{$config_confirmed ? 'true' : 'false'}} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}')" class="flex-1 h-12 rounded-xl font-bold text-base transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl disabled:shadow-none relative overflow-hidden group">
+                <button @click.prevent="submitConfig()" wire:loading.attr="disabled" @disabled($buttonDisabled) :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : ({{$config_confirmed ? 'true' : 'false'}} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}')" class="flex-1 h-20 sm:h-12 rounded-2xl sm:rounded-xl font-black sm:font-bold text-xl sm:text-base tracking-wide sm:tracking-normal w-full transition-all duration-300 flex items-center justify-center shadow-2xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
                     @if($context !== 'template_admin')
-                        <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[90px]">
-                            <span class="font-serif font-bold leading-none tracking-wide {{$qty > 1 ? 'text-sm' : 'text-base'}}">{{number_format($totalPrice / 100, 2, ',', '.')}} €</span>
+                        <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 sm:px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[100px] sm:min-w-[90px]">
+                            <span class="font-serif font-bold leading-none tracking-wide text-lg sm:text-base sm:{{$qty > 1 ? 'text-sm' : 'text-base'}}">{{number_format($totalPrice / 100, 2, ',', '.')}} €</span>
                             @if($qty > 1)
-                                <span class="text-[9px] opacity-80 font-normal leading-none mt-0.5">á {{number_format($currentPrice / 100, 2, ',', '.')}} €</span>
+                                <span class="text-xs sm:text-[9px] opacity-80 font-normal leading-none mt-1 sm:mt-0.5">je {{number_format($currentPrice / 100, 2, ',', '.')}} €</span>
                             @endif
                         </div>
-                        <div class="pl-20 pr-4 w-full flex items-center justify-center">
+                        <div class="pl-[110px] sm:pl-24 pr-4 w-full flex items-center justify-center h-14">
                             @else
                                 <div class="w-full flex items-center justify-center">
                                     @endif
@@ -133,6 +133,8 @@
                                                     In den Warenkorb
                                                 @elseif($context === 'edit')
                                                     Speichern
+                                                @elseif($context === 'order_edit')
+                                                    Änderungen speichern
                                                 @elseif($context === 'calculator')
                                                     Übernehmen
                                                 @elseif($context === 'template_admin')
@@ -145,7 +147,6 @@
                                         </div>
                                     </template>
                                 </div>
-                        </div>
                 </button>
             </div>
 

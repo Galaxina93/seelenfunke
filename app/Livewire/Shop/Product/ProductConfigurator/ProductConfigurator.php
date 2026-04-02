@@ -453,6 +453,38 @@ class ProductConfigurator extends Component
                     $this->dispatch('calculator-save', data: $configData);
                 } elseif ($this->context === 'template_admin') {
                     $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
+                } elseif ($this->context === 'order_edit') {
+                    $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id);
+
+                    if (!$orderItem) {
+                        session()->flash('error', 'Bestellposition nicht gefunden.');
+                        return;
+                    }
+
+                    if ($orderItem->order->status !== 'pending') {
+                        session()->flash('error', 'Die Bestellung wird bereits bearbeitet. Änderungen sind nicht mehr möglich.');
+                        return;
+                    }
+
+                    // Alte Snapshots physisch vom Server löschen
+                    if (!empty($orderItem->configuration['snapshot_path'])) {
+                        $paths = is_array($orderItem->configuration['snapshot_path']) 
+                                    ? $orderItem->configuration['snapshot_path'] 
+                                    : ['front' => $orderItem->configuration['snapshot_path']];
+                        foreach($paths as $path) {
+                            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+                                \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+                            }
+                        }
+                    }
+
+                    $orderItem->update([
+                        'configuration' => $configData,
+                        // Preis- oder Mengenänderungen sind streng verboten in diesem Status.
+                    ]);
+
+                    $this->dispatch('notify', message: 'Design erfolgreich aktualisiert!');
+                    $this->dispatch('order-item-updated', itemId: $orderItem->id);
                 }
             });
         } catch (\Exception $e) {
