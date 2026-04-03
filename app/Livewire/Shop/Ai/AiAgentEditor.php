@@ -248,7 +248,7 @@ class AiAgentEditor extends Component
 
         session()->flash('message', 'Agent Profil erfolgreich gespeichert.');
 
-        return redirect()->route('admin.ai-agents');
+        return redirect()->route('admin.ai-dashboard', ['activeTab' => 'agents']);
     }
 
     public function deleteProfilePicture()
@@ -267,7 +267,7 @@ class AiAgentEditor extends Component
 
     public function cancel()
     {
-        return redirect()->route('admin.ai-agents');
+        return redirect()->route('admin.ai-dashboard', ['activeTab' => 'agents']);
     }
 
     public function render()

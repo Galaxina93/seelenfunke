@@ -128,13 +128,8 @@ class BackendNavigationService
                         'icon' => 'cpu-chip',
                         'ai_department_id' => '019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                         'children' => [
-                            ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai-analytics', 'icon' => 'chart-bar'],
-                            ['id' => 'rollen', 'title' => 'Rollen', 'route' => '/admin/rollen', 'icon' => 'briefcase'],
-                            ['id' => 'agenten', 'title' => 'Agenten', 'route' => '/admin/agenten', 'icon' => 'cpu-chip'],
+                            ['id' => 'ai-dashboard', 'title' => 'Dashboard', 'route' => '/admin/ai-dashboard', 'icon' => 'server-stack'],
                             ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2'],
-                            ['id' => 'ai-chat', 'title' => 'Chat', 'route' => '/admin/ai-chat', 'icon' => 'chat-bubble-left-ellipsis'],
-                            ['id' => 'ai-knowledge_base', 'title' => 'Wiki', 'route' => '/admin/ai-knowledge_base', 'icon' => 'book-open'],
-                            ['id' => 'ai-genui', 'title' => 'Gen-Ui', 'route' => '/admin/ai-genui', 'icon' => 'window'],
                         ]
                     ],
                     [
@@ -216,6 +211,13 @@ class BackendNavigationService
             return $bestMatch;
         }
 
+        // Custom AI Editor Breadcrumbs fallback
+        if (Str::startsWith($normalizedPath, '/admin/ki-agenten') || Str::startsWith($normalizedPath, '/admin/externe-agenten')) {
+            return [
+                'text' => $baseCrumb . ' / Agenten / Editor'
+            ];
+        }
+
         // Special handling if current path equals exact group route (if applicable) or fallback
         return [
             'text' => $baseCrumb
@@ -229,8 +231,12 @@ class BackendNavigationService
     {
         $normalizedPath = '/' . ltrim($currentPath, '/');
 
-        // Custom logic for /admin/organigramm
-        if ($group['id'] === 'system_ai' && Str::startsWith($normalizedPath, '/admin/organigramm')) {
+        // Custom logic for /admin/organigramm and AI Editors
+        if ($group['id'] === 'system_ai' && (
+            Str::startsWith($normalizedPath, '/admin/organigramm') ||
+            Str::startsWith($normalizedPath, '/admin/ki-agenten') ||
+            Str::startsWith($normalizedPath, '/admin/externe-agenten')
+        )) {
             return true;
         }
 

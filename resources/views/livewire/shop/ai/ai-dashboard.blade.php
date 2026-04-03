@@ -1,0 +1,73 @@
+<div>
+    <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-serif font-bold text-white tracking-tight flex items-center gap-3">
+                <x-heroicon-s-cpu-chip class="w-8 h-8 text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+                Agenten Control Center
+            </h1>
+            <p class="text-xs text-gray-400 mt-2 font-medium">Verwalte die künstliche Intelligenz deines Systems. Analysiere Live-Logs, editiere Rollen und weise Agenten neue Fähigkeiten zu.</p>
+        </div>
+    </div>
+
+    {{-- Tabs Navigation --}}
+    <div class="mb-8 overflow-x-auto custom-scrollbar">
+        <nav class="flex space-x-2 border-b border-gray-800/80 pb-3" aria-label="Tabs">
+            @foreach($tabs as $key => $tab)
+                <button 
+                    wire:click="selectTab('{{ $key }}')"
+                    class="
+                        flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300
+                        {{ $activeTab === $key 
+                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30 shadow-[inset_0_0_20px_rgba(59,130,246,0.15)] glow-tab' 
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent' 
+                        }}
+                    "
+                >
+                    <x-dynamic-component :component="'heroicon-' . ($activeTab === $key ? 's' : 'o') . '-' . $tab['icon']" class="w-4 h-4 {{ $activeTab === $key ? 'animate-pulse-slow' : '' }}" />
+                    {{ $tab['name'] }}
+                </button>
+            @endforeach
+        </nav>
+    </div>
+
+    {{-- Dynamic Content Area --}}
+    <div class="relative min-h-[500px]">
+        {{-- Lade-Indikator, falls Sub-Komponenten beim Tab-Wechsel etwas laden muessen --}}
+        <div wire:loading wire:target="selectTab" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-3xl">
+            <div class="flex flex-col items-center gap-4 animate-fade-in">
+                <div class="w-12 h-12 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin shadow-[0_0_15px_rgba(59,130,246,0.5)]"></div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-blue-400 animate-pulse">Lade Terminal-Modul...</span>
+            </div>
+        </div>
+
+        {{-- Hier werden die Sub-Module geladen --}}
+        <div wire:loading.remove wire:target="selectTab" class="animate-fade-in-up">
+            @if($activeTab === 'analytics')
+                <livewire:shop.ai.ai-analytics />
+            @elseif($activeTab === 'roles')
+                <livewire:shop.ai.ai-role-manager />
+            @elseif($activeTab === 'agents')
+                <livewire:shop.ai.ai-agent-manager />
+            @elseif($activeTab === 'chat')
+                <livewire:shop.ai.ai-chat />
+            @elseif($activeTab === 'wiki')
+                <livewire:shop.ai.ai-knowledge-base />
+            @elseif($activeTab === 'genui')
+                <livewire:shop.ai.ai-visualization-registry />
+            @endif
+        </div>
+    </div>
+
+    <style>
+        .glow-tab {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2), inset 0 0 10px rgba(59, 130, 246, 0.1);
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
+</div>

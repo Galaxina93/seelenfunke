@@ -3,7 +3,7 @@
         <!-- Header / Back Button -->
         <div class="mb-8 flex items-center justify-between">
             <div class="flex items-center gap-4">
-                <a href="{{ route('admin.ai-agents') }}" class="h-10 w-10 bg-gray-900 border border-gray-700/50 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all shadow-sm group">
+                <a href="{{ route('admin.ai-dashboard', ['activeTab' => 'agents']) }}" class="h-10 w-10 bg-gray-900 border border-gray-700/50 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all shadow-sm group">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:-translate-x-1 transition-transform">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>

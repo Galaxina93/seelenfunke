@@ -50,15 +50,14 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     // AI Agent Universe
     // -----------------------------------------------------------------------
-    Route::get('/admin/ai-analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai-analytics');
-    Route::get('/admin/ai-genui', \App\Livewire\Shop\Ai\AiVisualizationRegistry::class)->name('admin.ai-genui');
-    Route::get('/admin/rollen', \App\Livewire\Shop\Ai\AiRoleManager::class)->name('admin.rollen');
-    Route::get('/admin/agenten', \App\Livewire\Shop\Ai\AiAgentManager::class)->name('admin.ai-agents');
+    Route::get('/admin/ai-dashboard', \App\Livewire\Shop\Ai\AiDashboard::class)->name('admin.ai-dashboard');
+    
+    // Organigramm bleibt separat
     Route::get('/admin/organigramm', \App\Livewire\Shop\Ai\AiCompanyStructure::class)->name('admin.ai-company-structure');
+    
+    // Editoren für spezifische KI Agenten bleiben, da sie ID-gebunden sind
     Route::get('/admin/ki-agenten/{id}', \App\Livewire\Shop\Ai\AiAgentEditor::class)->name('admin.ai-agents.editor');
     Route::get('/admin/externe-agenten/{id}', \App\Livewire\Shop\Ai\ExternalAgentEditor::class)->name('admin.external-agents.editor');
-    Route::get('/admin/ai-chat', \App\Livewire\Shop\Ai\AiChat::class)->name('admin.ai-chat');
-    Route::get('/admin/ai-knowledge_base', \App\Livewire\Shop\Ai\AiKnowledgeBase::class)->name('admin.ai-knowledge_base');
 
     // -----------------------------------------------------------------------
     // Products
