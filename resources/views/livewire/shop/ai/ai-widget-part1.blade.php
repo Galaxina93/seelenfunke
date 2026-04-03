@@ -90,14 +90,14 @@
              x-transition:leave="transition ease-in duration-1000"
              x-transition:leave-start="opacity-100"
              x-transition:leave-end="opacity-0"
-             style="display: none;"
-             class="fixed top-0 left-0 w-full h-[100dvh] z-[99999] bg-[#03050a] overflow-hidden font-mono">
+             style="display: none; height: 100dvh;"
+             class="fixed inset-0 z-[99999] bg-[#03050a] overflow-hidden font-mono">
 
     <!-- CSS2D Container for HTML elements in 3D -->
-    <div id="css2d-container" class="absolute top-0 left-0 w-full h-[100dvh] pointer-events-none z-10" style="pointer-events: none;"></div>
+    <div id="css2d-container" class="absolute inset-0 w-full h-full pointer-events-none z-10" style="pointer-events: none;"></div>
 
     <!-- Canvas Container -->
-    <div id="funki-canvas-container" class="absolute top-0 left-0 w-full h-[100dvh]"></div>
+    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full"></div>
 
     <!-- UI Overlay Navigation -->
     <div class="absolute top-6 right-6 z-50 flex flex-col items-end gap-2" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
@@ -155,7 +155,7 @@
     </div>
 
     <!-- Bottom Left Controls (Desktop Wake Word) -->
-    <div class="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-6 z-50 flex flex-col items-start gap-4" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <div class="absolute left-6 z-50 flex flex-col items-start gap-4" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
 
         <!-- Desktop: Wake Word Toggle -->
         <label x-show="!isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
@@ -169,7 +169,7 @@
     </div>
 
     <!-- Bottom Right Controls (Audio & Close) -->
-    <div class="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-50 flex flex-col items-end gap-3" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <div class="absolute right-6 z-50 flex flex-col items-end gap-3" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
 
         <!-- Audio Toggle & Slider -->
         <div class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black group">
@@ -199,7 +199,7 @@
     </div>
 
     <!-- Push to Talk Mobile Anchor -->
-    <div x-show="isMobile && !continuousMode" class="absolute bottom-[max(2.5rem,env(safe-area-inset-bottom)+1rem)] left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none;">
+    <div x-show="isMobile && !continuousMode" class="absolute left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none; bottom: max(2.5rem, calc(env(safe-area-inset-bottom) + 1rem));">
         <span class="text-[10px] font-mono tracking-widest text-emerald-400/80 uppercase" x-show="!listening && !thinking">Halten zum Sprechen</span>
         <span class="text-[10px] font-mono tracking-widest text-cyan-400 uppercase animate-pulse" x-show="listening" x-text="activeAgentName + ' hört zu...'"></span>
         <span class="text-[10px] font-mono tracking-widest text-purple-400 uppercase animate-pulse" x-show="thinking" x-text="activeAgentName + ' verarbeitet...'"></span>
