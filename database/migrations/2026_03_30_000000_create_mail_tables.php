@@ -29,6 +29,7 @@ return new class extends Migration
                 $table->integer('smtp_port')->default(465);
                 $table->string('smtp_encryption')->default('ssl');
                 $table->boolean('is_default')->default(false);
+                $table->boolean('is_commercial')->default(true);
                 $table->string('status')->default('connected');
                 $table->timestamp('last_sync_at')->nullable();
                 $table->timestamps();
@@ -44,7 +45,7 @@ return new class extends Migration
 
                 $table->boolean('is_archived')->default(false);
 
-                $table->string('subject')->nullable();
+                $table->text('subject')->nullable();
                 $table->string('from_name')->nullable();
                 $table->string('from_email');
                 $table->string('to_email');

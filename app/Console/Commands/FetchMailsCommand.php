@@ -32,7 +32,7 @@ class FetchMailsCommand extends Command
      */
     public function handle()
     {
-        $accounts = MailAccount::where('status', 'connected')->get();
+        $accounts = MailAccount::all();
         if ($accounts->isEmpty()) {
             $this->info("Keine aktiven Mail-Konten gefunden.");
             return;
@@ -63,8 +63,9 @@ class FetchMailsCommand extends Command
                 $count = 0;
 
                 foreach ($messages as $message) {
-                    $uid = $message->getUid();
-                    $messageId = $message->getMessageId();
+                    try {
+                        $uid = $message->getUid();
+                        $messageId = $message->getMessageId();
 
                     // Skip if we already stored it
                     if (MailMessage::where('message_id', $messageId)->exists()) {
@@ -77,9 +78,9 @@ class FetchMailsCommand extends Command
                     // Sanitize HTML body to strip out tracking pixels (like stat.alibaba.com)
                     if ($bodyHtml) {
                         // 1. Remove img tags containing known tracking domain patterns
-                        $bodyHtml = preg_replace('/<img[^>]+src=["'][^"']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"']*["'][^>]*>/i', '', $bodyHtml);
+                        $bodyHtml = preg_replace('/<img[^>]+src=["\'][^"\']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"\']*["\'][^>]*>/i', '', $bodyHtml);
                         // 2. Remove any img tags trying to render as 1x1 or 0x0
-                        $bodyHtml = preg_replace('/<img[^>]+(?:width=["']?[01]["']?[^>]*height=["']?[01]["']?|height=["']?[01]["']?[^>]*width=["']?[01]["']?)[^>]*>/i', '', $bodyHtml);
+                        $bodyHtml = preg_replace('/<img[^>]+(?:width=["\']?[01]["\']?[^>]*height=["\']?[01]["\']?|height=["\']?[01]["\']?[^>]*width=["\']?[01]["\']?)[^>]*>/i', '', $bodyHtml);
                     }
 
                     $fromObj = $message->getFrom()[0] ?? null;
@@ -112,7 +113,7 @@ class FetchMailsCommand extends Command
 
                     $mailMessage = MailMessage::create([
                         'mail_account_id' => $account->id,
-                        'message_id' => $messageId[0] ?? uniqid('msg_'),
+                        'message_id' => is_array($messageId) ? ($messageId[0] ?? uniqid('msg_')) : ($messageId ?: uniqid('msg_')),
                         'folder' => $targetFolder,
                         'subject' => $decodedSubject ?: 'Kein Betreff',
                         'from_name' => str_replace('"', '', $fromName),
@@ -154,14 +155,25 @@ class FetchMailsCommand extends Command
                     // Set message as SEEN on remote server so we don't fetch it again next poll loop
                     $message->setFlag('Seen');
                     $count++;
+                    } catch (\Exception $e) {
+                        Log::error("Failed to import single message for {$account->email}: " . $e->getMessage());
+                    }
                 }
 
                 $this->info("   -> {$count} neue Mails in Datenbank importiert.");
+                
+                if ($count > 0) {
+                    event(new \App\Events\Management\MailReceivedEvent());
+                }
                 $client->disconnect();
+
+                $account->update(['status' => 'connected', 'last_sync_at' => now()]);
 
             } catch (\Exception $e) {
                 Log::error("IMAP Fetch failed for {$account->email}: " . $e->getMessage());
                 $this->error("FEHLER beim Abruf von {$account->email} - siehe Laravel Logs.");
+                
+                $account->update(['status' => 'error']);
             }
         }
     }

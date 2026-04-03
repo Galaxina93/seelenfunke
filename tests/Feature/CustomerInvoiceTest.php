@@ -6,7 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use App\Models\Customer\Customer;
 use App\Models\Accounting\AccountingInvoice;
-use App\Models\System\SystemUser;
+use App\Models\Admin\Admin;
 use Illuminate\Support\Facades\Route;
 use App\Services\InvoiceService;
 use Mockery;
@@ -66,7 +66,7 @@ class CustomerInvoiceTest extends TestCase
         $this->app->instance(InvoiceService::class, $mock);
 
         $customer = Customer::factory()->create();
-        $admin = SystemUser::factory()->create();
+        $admin = Admin::factory()->create();
         
         $invoice = AccountingInvoice::factory()->create([
             'customer_id' => $customer->id,

@@ -4,7 +4,7 @@ namespace App\Livewire\Shop\Management;
 
 use Livewire\Attributes\Layout;
 
-use App\Models\Management\ManagementPersonProfile;
+use App\Models\Management\ManagementContact;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -12,7 +12,7 @@ use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 #[Layout('components.layouts.backend_layout')]
-class ManagementPersonProfiles extends Component
+class ManagementContacts extends Component
 {
     use WithDepartmentTheming;
 
@@ -111,7 +111,7 @@ class ManagementPersonProfiles extends Component
     public function editProfile($id)
     {
         $this->resetValidation();
-        $profile = ManagementPersonProfile::findOrFail($id);
+        $profile = ManagementContact::findOrFail($id);
 
         $this->activeProfileId = $profile->id;
         $this->isEditing = true;
@@ -181,13 +181,13 @@ class ManagementPersonProfiles extends Component
         }
 
         if ($this->editForm['id']) {
-            $profile = ManagementPersonProfile::findOrFail($this->editForm['id']);
+            $profile = ManagementContact::findOrFail($this->editForm['id']);
             $profile->update($data);
-            $message = 'Profil erfolgreich aktualisiert.';
+            $message = 'Kontakt erfolgreich aktualisiert.';
         } else {
-            $profile = ManagementPersonProfile::create($data);
+            $profile = ManagementContact::create($data);
             $this->activeProfileId = $profile->id;
-            $message = 'Neues Profil angelegt.';
+            $message = 'Neuer Kontakt angelegt.';
         }
 
         $this->isEditing = false;
@@ -197,19 +197,19 @@ class ManagementPersonProfiles extends Component
 
     public function deleteProfile($id)
     {
-        ManagementPersonProfile::findOrFail($id)->delete();
+        ManagementContact::findOrFail($id)->delete();
 
         if ($this->activeProfileId == $id) {
             $this->activeProfileId = null;
             $this->isEditing = false;
         }
 
-        session()->flash('success', 'Profil wurde gelöscht.');
+        session()->flash('success', 'Kontakt wurde gelöscht.');
     }
 
     public function toggleFavorite($id)
     {
-        $profile = ManagementPersonProfile::findOrFail($id);
+        $profile = ManagementContact::findOrFail($id);
         $profile->is_favorite = !$profile->is_favorite;
         $profile->save();
 
@@ -218,7 +218,7 @@ class ManagementPersonProfiles extends Component
 
     public function render()
     {
-        $profiles = ManagementPersonProfile::where('first_name', 'like', '%' . $this->search . '%')
+        $profiles = ManagementContact::where('first_name', 'like', '%' . $this->search . '%')
             ->orWhere('last_name', 'like', '%' . $this->search . '%')
             ->orWhere('nickname', 'like', '%' . $this->search . '%')
             ->orderBy('is_favorite', 'desc')
@@ -229,10 +229,10 @@ class ManagementPersonProfiles extends Component
             $this->activeProfileId = $profiles->first()->id;
         }
 
-        $activeProfile = $this->activeProfileId ? ManagementPersonProfile::find($this->activeProfileId) : null;
-        $totalCount = ManagementPersonProfile::count();
+        $activeProfile = $this->activeProfileId ? ManagementContact::find($this->activeProfileId) : null;
+        $totalCount = ManagementContact::count();
 
-        return view('livewire.shop.management.management-person-profiles', [
+        return view('livewire.shop.management.management-contacts', [
             'profiles' => $profiles,
             'activeProfile' => $activeProfile,
             'totalCount' => $totalCount

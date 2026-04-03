@@ -26,12 +26,14 @@ class CustomerVerificationController extends Controller
             abort(403, 'Ungültiger oder abgelaufener Link.');
         }
 
+        $needsEvent = ! $user->hasVerifiedEmail();
+
         // SICHERHEITS-FIX: Wir updaten gezielt alle Profile dieses Kunden,
         // falls durch alte Tests Duplikate in der Datenbank hängen!
         CustomerProfile::where('customer_id', $user->id)
             ->update(['email_verified_at' => now()]);
 
-        if (! $user->hasVerifiedEmail()) {
+        if ($needsEvent) {
             event(new Verified($user));
         }
 

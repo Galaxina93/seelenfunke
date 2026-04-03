@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Queue\SerializesModels;
 
-class CrmOutgoingMailToCustomer extends Mailable implements ShouldQueue
+class CrmOutgoingMailToCustomer extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -19,17 +19,19 @@ class CrmOutgoingMailToCustomer extends Mailable implements ShouldQueue
     public $signatureHtml;
     public $fromEmail;
     public $fromName;
+    public $attachmentFiles;
 
     /**
      * Create a new message instance.
      */
-    public function __construct($subjectLine, $bodyHtml, $signatureHtml, $fromEmail, $fromName)
+    public function __construct($subjectLine, $bodyHtml, $signatureHtml, $fromEmail, $fromName, $attachmentFiles = [])
     {
         $this->subjectLine = $subjectLine;
         $this->bodyHtml = $bodyHtml;
         $this->signatureHtml = $signatureHtml;
         $this->fromEmail = $fromEmail;
         $this->fromName = $fromName;
+        $this->attachmentFiles = $attachmentFiles;
     }
 
     /**
@@ -60,6 +62,12 @@ class CrmOutgoingMailToCustomer extends Mailable implements ShouldQueue
      */
     public function attachments(): array
     {
-        return [];
+        $attachments = [];
+        foreach ($this->attachmentFiles as $file) {
+            $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorage($file['path'])
+                ->as($file['filename'])
+                ->withMime($file['mime']);
+        }
+        return $attachments;
     }
 }

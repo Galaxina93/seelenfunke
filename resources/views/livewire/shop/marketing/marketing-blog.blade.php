@@ -97,7 +97,7 @@
                                     <td class="px-6 sm:px-8 py-6 align-top">
                                         <div>
                                             <div class="font-bold text-gray-300 text-sm tracking-wide">{{ $post->category->name ?? '-' }}</div>
-                                            <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mt-1.5 drop-shadow-[0_0_5px_currentColor]">{{ $post->author->name ?? 'Unbekannt' }}</div>
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mt-1.5 drop-shadow-[0_0_5px_currentColor]">{{ $post->display_author }}</div>
                                         </div>
                                     </td>
 
@@ -213,8 +213,8 @@
 
                                     /* Button-Gruppen & Buttons */
                                     .cke_toolgroup { background: #1f2937 !important; border: 1px solid #374151 !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important; border-radius: 8px !important; margin-right: 8px !important; }
-                                    .cke_button { transition: all 0.2s; padding: 4px 6px !important; }
-                                    .cke_button:hover { background: #374151 !important; border-radius: 6px !important; }
+                                    .cke_button { transition: all 0.2s; padding: 4px 6px !important; border: 1px solid transparent !important; margin: 0 !important; }
+                                    .cke_button:hover { background: #374151 !important; border-radius: 6px !important; border: 1px solid transparent !important; }
 
                                     /* Icons invertieren (hell machen) und zum Leuchten bringen */
                                     .cke_button_icon { filter: invert(0.8) hue-rotate(180deg) brightness(1.5) !important; opacity: 0.8; transition: opacity 0.2s; }
@@ -222,7 +222,7 @@
 
                                     /* Dropdowns (z.B. Format, Schriftart) */
                                     .cke_combo_text { color: #d1d5db !important; text-shadow: none !important; }
-                                    .cke_combo_button { background: #1f2937 !important; border: 1px solid #374151 !important; border-radius: 6px !important; margin-[2px_4px] !important; }
+                                    .cke_combo_button { background: #1f2937 !important; border: 1px solid #374151 !important; border-radius: 6px !important; margin: 2px 4px !important; padding: 0 !important; }
                                     .cke_combo_open { border-left: 1px solid #374151 !important; }
                                     .cke_combo_arrow { filter: invert(1) !important; }
 
@@ -345,6 +345,22 @@
                         {{-- STATUS & KATEGORIE --}}
                         <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] border border-gray-800 shadow-2xl">
                             <h3 class="font-serif font-bold text-xl text-white border-b border-gray-800 pb-4 mb-6 tracking-wide">Einstellungen</h3>
+
+                            <div class="mb-6">
+                                <label class="{{ $labelClass }}">Autor des Beitrags</label>
+                                <div class="relative group">
+                                    <select wire:model="author_name" class="{{ $inputClass }} appearance-none cursor-pointer pr-10">
+                                        <option value="{{ $shopBrand }}" class="bg-gray-900">{{ $shopBrand }} (Standard)</option>
+                                        @foreach($admins as $admin)
+                                            <option value="{{ $admin->first_name }} {{ $admin->last_name }}" class="bg-gray-900">{{ $admin->first_name }} {{ $admin->last_name }} ({{ ucfirst($admin->role ?? 'Mitarbeiter') }})</option>
+                                        @endforeach
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </div>
+                                </div>
+                                @error('author_name') <span class="text-[10px] font-bold text-red-400 mt-2 block ml-1 uppercase tracking-widest">{{ $message }}</span> @enderror
+                            </div>
 
                             <div class="mb-6">
                                 <label class="{{ $labelClass }}">Status</label>

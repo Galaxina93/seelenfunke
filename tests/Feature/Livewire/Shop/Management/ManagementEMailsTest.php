@@ -260,6 +260,50 @@ class ManagementEMailsTest extends TestCase
         $this->assertEquals('CustomFolder', $msg->fresh()->folder);
     }
 
+    public function test_can_forward_an_email_and_copy_attachments()
+    {
+        Mail::fake();
+
+        $msg = MailMessage::create([
+            'mail_account_id' => $this->account->id,
+            'message_id' => 'orig123',
+            'folder' => 'INBOX',
+            'subject' => 'Original Subject',
+            'from_email' => 'sender@news.com',
+            'from_name' => 'Sender',
+            'to_email' => $this->account->email,
+            'body_plain' => 'Test body',
+            'received_at' => now()
+        ]);
+
+        \App\Models\Management\Mail\MailAttachment::create([
+            'mail_message_id' => $msg->id,
+            'filename' => 'forwarded.pdf',
+            'content_type' => 'application/pdf',
+            'size' => 1024,
+            'path' => 'path/to/forwarded.pdf'
+        ]);
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'forward', $msg->id)
+            ->assertSet('showComposeModal', true)
+            ->assertSet('composeSubject', 'Fwd: Original Subject')
+            ->set('composeTo', 'forward@test.com')
+            ->call('sendMail')
+            ->assertSet('showComposeModal', false);
+
+        // Make sure a copy was saved to sent with attachments
+        $sentMessage = MailMessage::where('folder', 'Sent')->orderBy('id', 'desc')->first();
+        $this->assertNotNull($sentMessage);
+        $this->assertTrue((bool)$sentMessage->has_attachments);
+        
+        $this->assertTrue(\App\Models\Management\Mail\MailAttachment::where('mail_message_id', $sentMessage->id)->exists());
+        
+        Mail::assertSent(\App\Mail\CrmOutgoingMailToCustomer::class, function ($mail) {
+            return $mail->hasTo('forward@test.com');
+        });
+    }
+
     public function test_can_compose_new_email_and_send_it()
     {
         Mail::fake();
@@ -273,6 +317,106 @@ class ManagementEMailsTest extends TestCase
             ->call('sendMail')
             ->assertSet('showComposeModal', false);
 
-        Mail::assertQueued(\App\Mail\CrmOutgoingMailToCustomer::class);
+        Mail::assertSent(\App\Mail\CrmOutgoingMailToCustomer::class, function ($mail) {
+            return $mail->hasTo('target@test.com');
+        });
+    }
+
+
+    public function test_can_open_and_close_account_settings_for_new_account()
+    {
+        Livewire::test(CrmInbox::class)
+            ->call('openAccountSettings', 'new')
+            ->assertSet('viewMode', 'account_settings')
+            ->assertSet('editAccountId', null)
+            ->assertSet('imap_port', '993')
+            ->assertSet('is_commercial', true)
+            ->call('closeAccountSettings')
+            ->assertSet('viewMode', 'inbox');
+    }
+
+    public function test_can_open_account_settings_for_existing_account()
+    {
+        Livewire::test(CrmInbox::class)
+            ->call('openAccountSettings', $this->account->id)
+            ->assertSet('viewMode', 'account_settings')
+            ->assertSet('editAccountId', $this->account->id)
+            ->assertSet('account_name', $this->account->name)
+            ->assertSet('imap_host', $this->account->imap_host);
+    }
+
+    public function test_can_apply_presets_for_imap_and_smtp()
+    {
+        Livewire::test(CrmInbox::class)
+            ->call('applyPreset', 'gmail')
+            ->assertSet('imap_host', 'imap.gmail.com')
+            ->assertSet('smtp_host', 'smtp.gmail.com')
+            ->call('applyPreset', 't-online')
+            ->assertSet('imap_host', 'secureimap.t-online.de')
+            ->call('applyPreset', 'mittwald')
+            ->assertSet('imap_host', 'mail.agenturserver.de');
+    }
+
+    public function test_can_save_a_new_account_and_updates_commercial_flag()
+    {
+        Livewire::test(CrmInbox::class)
+            ->call('openAccountSettings', 'new')
+            ->set('account_name', 'Test Commercial Account')
+            ->set('email', 'commercial@test.com')
+            ->set('password', 'password123')
+            ->set('imap_host', 'imap.test.com')
+            ->set('smtp_host', 'smtp.test.com')
+            ->set('is_commercial', true)
+            ->call('saveAccount')
+            ->assertSet('viewMode', 'inbox');
+
+        $created = MailAccount::where('email', 'commercial@test.com')->first();
+        $this->assertNotNull($created);
+        $this->assertTrue($created->is_commercial);
+    }
+
+    public function test_can_delete_an_account()
+    {
+        $accountToDelete = MailAccount::forceCreate([
+            'name' => 'To Delete',
+            'email' => 'delete@example.com',
+            'password' => encrypt('secret'),
+            'imap_host' => 'imap',
+            'smtp_host' => 'smtp',
+            'status' => 'connected',
+            'is_default' => false,
+        ]);
+
+        Livewire::test(CrmInbox::class)
+            ->call('deleteAccount', $accountToDelete->id);
+
+        $this->assertNull(MailAccount::find($accountToDelete->id));
+    }
+    
+    public function test_download_attachment_returns_file_response()
+    {
+        $msg = MailMessage::create([
+            'mail_account_id' => $this->account->id,
+            'message_id' => 'att123',
+            'folder' => 'INBOX',
+            'subject' => 'With Attachment',
+            'from_email' => 'sender@test.com',
+            'to_email' => $this->account->email,
+        ]);
+
+        $attachment = \App\Models\Management\Mail\MailAttachment::create([
+            'mail_message_id' => $msg->id,
+            'filename' => 'test.pdf',
+            'path' => 'templates/dummy.pdf', // Exists or not, we might need a mock, wait we can just assert download logic if we mock ExportService
+            'content_type' => 'application/pdf',
+            'size' => 1024,
+        ]);
+
+        // Since it returns a download response, we just test if the method calls the export service
+        $mockService = \Mockery::mock(\App\Services\Export\FileDownloadService::class);
+        $mockService->shouldReceive('downloadMailAttachment')->once()->andReturn(response('mocked output'));
+
+        Livewire::test(CrmInbox::class)
+            ->call('downloadAttachment', $attachment->id, $mockService);
     }
 }

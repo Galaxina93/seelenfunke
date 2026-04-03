@@ -73,7 +73,7 @@ class AdminRoutesSmokeTest extends TestCase
             ['/admin/ceo/gesundheit'],
             ['/admin/global-logs'],
             ['/admin/ai-genui'],
-            ['/admin/person-profiles'],
+            ['/admin/contacts'],
             ['/admin/rollen'],
             ['/admin/agenten'],
             ['/admin/organigramm'],

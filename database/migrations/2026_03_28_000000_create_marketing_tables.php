@@ -36,6 +36,7 @@ return new class extends Migration
         Schema::create('marketing_blog_posts', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('user_id')->constrained('admins')->onDelete('cascade');// Author
+            $table->string('author_name')->nullable();
             $table->foreignUuid('blog_category_id')->nullable()->constrained('marketing_blog_categories')->nullOnDelete();
 
             // Inhalt

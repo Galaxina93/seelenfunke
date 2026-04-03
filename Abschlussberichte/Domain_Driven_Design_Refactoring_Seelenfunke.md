@@ -18,8 +18,8 @@ Das Seelenfunke Backend hat in den letzten Monaten massiv an Features gewonnen. 
 Sämtlicher Legacy-Code wurde analysiert, umbenannt und in fünf primäre Unternehmens-Abteilungen überführt:
 
 ### 🏢 Management (Firmenleitung / CEO Zentrale)
-- **Komponenten:** Alle Management-Ansichten (ehemals `CrmInbox`, `PersonProfilesManager`, `DayRoutine`, `AiCeoHealth` etc.) wurden in den Namespace `App\Livewire\Shop\Management` portiert und zur sofortigen Erkennung mit dem Präfix `Management...` versehen (z.B. `ManagementEMails`, `ManagementPersonProfiles`).
-- **Models & Datenbank:** Zugehörige Modelle wie `Task`, `CalendarEvent` und `PersonProfile` residieren nun isoliert in `app/Models/Management/`. Alle spezifischen Migrationen wurden nach `database/migrations/management/` verlagert.
+- **Komponenten:** Alle Management-Ansichten (ehemals `CrmInbox`, `ManagementContactsManager`, `DayRoutine`, `AiCeoHealth` etc.) wurden in den Namespace `App\Livewire\Shop\Management` portiert und zur sofortigen Erkennung mit dem Präfix `Management...` versehen (z.B. `ManagementEMails`, `ManagementManagementContacts`).
+- **Models & Datenbank:** Zugehörige Modelle wie `Task`, `CalendarEvent` und `ManagementContact` residieren nun isoliert in `app/Models/Management/`. Alle spezifischen Migrationen wurden nach `database/migrations/management/` verlagert.
 
 ### 📦 Produkte (Product & PIM)
 - **Komponenten:** Die eShop-Verwaltung (`ProductAnalytics`, `ProductCreate`, `ProductFracture`, `ProductSuppliers` etc.) befand sich glücklicherweise bereits in einer vorbildlichen Struktur (`App\Livewire\Shop\Product`).

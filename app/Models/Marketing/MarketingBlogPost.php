@@ -15,7 +15,7 @@ class MarketingBlogPost extends Model
     protected $table = 'marketing_blog_posts';
 
     protected $fillable = [
-        'user_id', 'blog_category_id', 'title', 'slug', 'excerpt', 'content',
+        'user_id', 'author_name', 'blog_category_id', 'title', 'slug', 'excerpt', 'content',
         'featured_image', 'header_image', 'status', 'published_at',
         'meta_title', 'meta_description', 'is_advertisement', 'contains_affiliate_links'
     ];
@@ -41,7 +41,7 @@ class MarketingBlogPost extends Model
 
     public function author()
     {
-        // ÄNDERUNG: belongsTo(Admin::class, ...) statt SystemUser::class
+        // ÄNDERUNG: belongsTo(Admin::class, ...)
         return $this->belongsTo(Admin::class, 'user_id');
     }
 
@@ -54,5 +54,14 @@ class MarketingBlogPost extends Model
     public function getSeoTitleAttribute(): string
     {
         return $this->meta_title ?: $this->title;
+    }
+
+    // Gibt den konkreten Namen des Autors zurück
+    public function getDisplayAuthorAttribute(): string
+    {
+        if ($this->author_name) {
+            return $this->author_name;
+        }
+        return $this->author ? ($this->author->first_name . ' ' . $this->author->last_name) : 'Mein-Seelenfunke';
     }
 }

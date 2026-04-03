@@ -6,8 +6,8 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        // Person Profiles
-        Schema::create('management_person_profiles', function (Blueprint $table) {
+        // Contact Management (ehemals Person Profiles)
+        Schema::create('management_contacts', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->boolean('is_favorite')->default(false);
             $table->string('first_name');
@@ -109,6 +109,6 @@ return new class extends Migration {
         Schema::dropIfExists('management_day_routines');
         Schema::dropIfExists('management_tasks');
         Schema::dropIfExists('management_task_lists');
-        Schema::dropIfExists('management_person_profiles');
+        Schema::dropIfExists('management_contacts');
     }
 };

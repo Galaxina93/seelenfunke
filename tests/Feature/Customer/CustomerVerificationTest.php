@@ -44,13 +44,11 @@ class CustomerVerificationTest extends TestCase
     public function test_customer_can_verify_email_with_valid_signature()
     {
         /** @var Customer $customer */
-        $customer = Customer::factory()->create([
-            'email_verified_at' => null,
-        ]);
+        $customer = Customer::factory()->create();
 
-        // Create a fake profile just to ensure the profile logic works properly.
-        CustomerProfile::factory()->create([
-            'customer_id' => $customer->id,
+        // The CustomerProfile is automatically created via the Customer model's booted event.
+        // We just need to make sure its email_verified_at is null.
+        $customer->profile()->update([
             'email_verified_at' => null,
         ]);
 
@@ -61,9 +59,7 @@ class CustomerVerificationTest extends TestCase
         $response->assertRedirect(route('login'));
         $response->assertSessionHas('status');
 
-        $this->assertNotNull($customer->fresh()->email_verified_at);
         $this->assertNotNull($customer->profile->fresh()->email_verified_at);
-
         Event::assertDispatched(Verified::class, function ($e) use ($customer) {
             return $e->user->id === $customer->id;
         });
@@ -72,7 +68,9 @@ class CustomerVerificationTest extends TestCase
     public function test_verification_fails_with_invalid_hash()
     {
         /** @var Customer $customer */
-        $customer = Customer::factory()->create([
+        $customer = Customer::factory()->create();
+        
+        $customer->profile()->update([
             'email_verified_at' => null,
         ]);
 
@@ -84,14 +82,16 @@ class CustomerVerificationTest extends TestCase
         // It should abort with 403 due to hash mismatch (not the signature, because the signature is computed on the invalid hash, making it technically pass Laravel signature check but fail our hash check).
         $response->assertStatus(403);
 
-        $this->assertNull($customer->fresh()->email_verified_at);
+        $this->assertNull($customer->profile->fresh()->email_verified_at);
         Event::assertNotDispatched(Verified::class);
     }
 
     public function test_verification_fails_with_invalid_signature()
     {
         /** @var Customer $customer */
-        $customer = Customer::factory()->create([
+        $customer = Customer::factory()->create();
+        
+        $customer->profile()->update([
             'email_verified_at' => null,
         ]);
 
@@ -105,14 +105,16 @@ class CustomerVerificationTest extends TestCase
         // The signed middleware should catch this
         $response->assertStatus(403);
 
-        $this->assertNull($customer->fresh()->email_verified_at);
+        $this->assertNull($customer->profile->fresh()->email_verified_at);
         Event::assertNotDispatched(Verified::class);
     }
 
     public function test_verification_fails_if_expired()
     {
         /** @var Customer $customer */
-        $customer = Customer::factory()->create([
+        $customer = Customer::factory()->create();
+        
+        $customer->profile()->update([
             'email_verified_at' => null,
         ]);
 
@@ -124,14 +126,16 @@ class CustomerVerificationTest extends TestCase
         // Submitting an expired signature throws 403 Invalid Signature
         $response->assertStatus(403);
 
-        $this->assertNull($customer->fresh()->email_verified_at);
+        $this->assertNull($customer->profile->fresh()->email_verified_at);
         Event::assertNotDispatched(Verified::class);
     }
 
     public function test_verified_event_is_not_dispatched_twice_if_already_verified()
     {
         /** @var Customer $customer */
-        $customer = Customer::factory()->create([
+        $customer = Customer::factory()->create();
+        
+        $customer->profile()->update([
             'email_verified_at' => now(), // Already verified
         ]);
 

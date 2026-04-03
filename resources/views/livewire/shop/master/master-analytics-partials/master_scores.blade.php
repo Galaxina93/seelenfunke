@@ -14,10 +14,10 @@
         $opHasWarnings = collect($healthChecks)->contains('status', 'warning');
         $opErrorCount = collect($healthChecks)->where('status', 'error')->count();
         $opWarningCount = collect($healthChecks)->where('status', 'warning')->count();
-        
+
         $operativeScore = 100 - ($opErrorCount * 25) - ($opWarningCount * 10) - ($totalTodos * 2);
-        $operativeScore = max(0, min(100, $operativeScore)); 
-        
+        $operativeScore = max(0, min(100, $operativeScore));
+
         $opColorClass = $operativeScore >= 80 ? 'text-emerald-400' : ($operativeScore >= 50 ? 'text-amber-400' : 'text-red-400');
         $opStrokeColor = $operativeScore >= 80 ? '#34d399' : ($operativeScore >= 50 ? '#fbbf24' : '#f87171');
         $opOffset = $circumference - ($operativeScore / 100) * $circumference;
@@ -55,7 +55,7 @@
                 'items' => ['queue', 'scheduler', 'backup']
             ]
         ];
-        
+
         $sysErrors = 0;
         $sysWarnings = 0;
         foreach($services as $sKey => $sInfo) {
@@ -92,13 +92,13 @@
 
     <!-- TOP ROW: THE 3 SCORES -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         <!-- 1. SHOP HEALTH SCORE -->
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
              :class="activeTab === 'shop' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
-             
+
             <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Shop Health</h3>
-            
+
             <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
                 <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
@@ -109,7 +109,7 @@
                     <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Score</span>
                 </div>
             </div>
-            
+
             <div class="flex-1 flex flex-col justify-end w-full">
                 <button @click="activeTab = activeTab === 'shop' ? null : 'shop'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
                     <span x-text="activeTab === 'shop' ? 'Details ausblenden' : 'Details anzeigen'"></span>
@@ -121,9 +121,9 @@
         <!-- 2. OPERATIVER SCORE -->
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
              :class="activeTab === 'operative' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
-             
+
             <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Operativer Status</h3>
-            
+
             <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
                 <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
@@ -134,7 +134,7 @@
                     <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Score</span>
                 </div>
             </div>
-            
+
             <div class="mb-4">
                 @if($totalTodos > 0)
                     <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-400">
@@ -146,7 +146,7 @@
                     <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $opScoreText }}</p>
                 @endif
             </div>
-            
+
             <div class="flex-1 flex flex-col justify-end w-full">
                 <button @click="activeTab = activeTab === 'operative' ? null : 'operative'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
                     <span x-text="activeTab === 'operative' ? 'Details ausblenden' : 'Details anzeigen'"></span>
@@ -158,11 +158,11 @@
         <!-- 3. SYSTEM SCORE -->
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
              :class="activeTab === 'system' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
-             
+
             <div class="absolute top-4 right-4 text-[9px] font-bold uppercase tracking-wider text-gray-400 bg-gray-800 px-2.5 py-1 rounded-full border border-gray-700">Live</div>
-            
+
             <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Infrastruktur</h3>
-            
+
             <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
                 <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
                     <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
@@ -173,7 +173,7 @@
                     <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Score</span>
                 </div>
             </div>
-            
+
             <div class="mb-4">
                 @if($sysErrors > 0 || $sysWarnings > 0)
                     <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-400">
@@ -185,7 +185,7 @@
                     <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $sysText }}</p>
                 @endif
             </div>
-            
+
             <div class="flex-1 flex flex-col justify-end w-full">
                 <button @click="activeTab = activeTab === 'system' ? null : 'system'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
                     <span x-text="activeTab === 'system' ? 'Details ausblenden' : 'Details anzeigen'"></span>
@@ -199,7 +199,7 @@
     <!-- MASTER DETAILS VIEW -->
     <div x-show="activeTab !== null" x-collapse x-cloak class="mt-8">
         <div class="bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 lg:p-10 shadow-2xl border border-gray-800 relative z-20">
-            
+
             <!-- 1. SHOP DETAILS -->
             <div x-show="activeTab === 'shop'" x-transition.opacity.duration.300ms class="space-y-8">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-800 pb-6">
@@ -214,7 +214,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 @if($opErrorCount > 0 || $opWarningCount > 0)
                     <div class="bg-red-950/20 rounded-xl p-5 border border-red-500/20 relative mt-4">
                          <div class="flex items-start gap-3">
@@ -226,7 +226,7 @@
                          </div>
                     </div>
                 @endif
-                
+
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Säule 1: WACHSTUM -->
                     <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5">
@@ -283,7 +283,7 @@
                                 <span class="text-base font-black text-amber-500 group-hover:text-amber-400 transition-colors">{{ number_format($stats['break_even_monthly'] ?? 0, 0, ',', '.') }} €</span>
                             </div>
                             <div class="w-full h-px bg-gray-800/50"></div>
-                            
+
                             @php
                                 $hasPending = ($stats['pending_invoices']['sum'] ?? 0) > 0;
                                 $pendingCount = $stats['pending_invoices']['count'] ?? 0;
@@ -299,9 +299,9 @@
                                     @endif
                                 </div>
                             </div>
-                            
+
                             <div class="w-full h-px bg-gray-800/50 mt-1"></div>
-                            
+
                             <div class="pt-2">
                                 <button @click="showCosts = !showCosts" class="w-full flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors bg-gray-900 px-3 py-2 rounded-lg border border-gray-800 hover:border-gray-700">
                                     <span>Kostenstruktur Details</span>
@@ -320,111 +320,141 @@
             </div>
 
             <!-- 2. OPERATIVE DETAILS -->
-            <div x-show="activeTab === 'operative'" x-transition.opacity.duration.300ms>
+            <div x-show="activeTab === 'operative'" x-transition.opacity.duration.300ms x-data="{ showAllOperative: false }">
                 <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8">
                     <div>
                         <h2 class="text-2xl font-serif font-bold text-white mb-1">To-do Liste & Operatives</h2>
-                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Warnungen aus dem Tagesgeschäft, Buchhaltung und Kundenkommunikation.</p>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Aufgaben aus dem Tagesgeschäft, Buchhaltung und Service.</p>
                     </div>
+                    <button type="button" @click="showAllOperative = !showAllOperative" :class="showAllOperative ? 'bg-[#C5A059]/20 text-[#C5A059] border-[#C5A059]/50' : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'" class="w-10 h-10 rounded-full border flex items-center justify-center transition-colors shadow-lg" title="Ansicht umschalten (Nur offene / Alle zeigen)">
+                        <x-heroicon-o-funnel class="w-5 h-5" />
+                    </button>
                 </div>
-                
+
                 @php
-                    $todoCategories = [
-                        'Buchhaltung & Finanzen' => ['unassigned_tx', 'special_issues', 'contracts', 'open_credits'],
-                        'Support & Kommunikation' => ['open_tickets', 'open_chats', 'open_contact_requests', 'product_reviews'],
-                        'Lager & Disposition' => ['inventory', 'open_orders', 'open_losses'],
-                        'Management & Verwaltung' => ['open_tasks', 'open_quotes', 'open_revocations'],
+                    $descriptions = [
+                        'inventory' => 'Prüft, ob physische Artikel den Mindestbestand unterschritten haben und nachbestellt werden müssen.',
+                        'special_issues' => 'Zeigt Sonderausgaben, für die noch kein Beleg oder keine Rechnung hochgeladen wurde.',
+                        'contracts' => 'Listet Fixkosten-Positionen auf, für die noch kein Vertragsdokument hinterlegt ist.',
+                        'open_orders' => 'Bestellungen, die bezahlt, aber noch nicht komplett versendet / abgeschlossen sind.',
+                        'open_tickets' => 'Kunden-Tickets aus dem Support, die noch nicht auf "erledigt" gesetzt wurden.',
+                        'open_chats' => 'Live-Chat Anfragen von Kunden, die auf eine Antwort vom System warten.',
+                        'open_contact_requests' => 'Eingegangene Anfragen über das Kontaktformular, die unbearbeitet sind.',
+                        'open_mails' => 'Ungelesene E-Mails im Posteingang, die Aufmerksamkeit erfordern.',
+                        'product_reviews' => 'Von Kunden eingereichte Produktbewertungen, die auf manuelle Freigabe warten.',
+                        'open_credits' => 'Erstellte Gutschriften oder Stornos, die noch nicht per E-Mail an den Kunden verschickt wurden.',
+                        'unassigned_tx' => 'Banktransaktionen, die noch keinem Auftrag und keiner Rechnung zugeordnet wurden.',
+                        'open_tasks' => 'Allgemeine, systemübergreifende To-dos, die von Mitarbeitern noch offen sind.',
+                        'open_quotes' => 'Kunden-Anfragen für individuelle Spezial-Angebote, die noch nicht kalkuliert wurden.',
+                        'open_revocations' => 'Kunden-Widerrufe, die noch nicht final bearbeitet oder gutgeschrieben wurden.',
+                        'open_losses' => 'Transport-Schäden oder Bruch auf dem Transportweg, die auf Rückerstattung oder Nachsendung warten.',
+                        'open_blog_posts' => 'Artikel, die sich momentan im Entwurf befinden oder auf ihre Veröffentlichung warten.',
                     ];
 
-                    $categorizedChecks = [];
-                    $processedKeys = [];
-                    foreach($todoCategories as $catName => $keys) {
-                        $items = [];
-                        foreach($keys as $k) {
-                            if(isset($healthChecks[$k])) {
-                                $items[$k] = $healthChecks[$k];
-                                $processedKeys[] = $k;
-                            }
+                    $actionNeeded = [];
+                    $done = [];
+
+                    foreach($healthChecks as $key => $check) {
+                        $check['description'] = $descriptions[$key] ?? 'Systemhinweis zu ' . $check['title'];
+                        if ($check['count'] > 0) {
+                            $actionNeeded[$key] = $check;
+                        } else {
+                            $done[$key] = $check;
                         }
-                        if(count($items) > 0) {
-                            $categorizedChecks[$catName] = $items;
-                        }
-                    }
-                    
-                    $otherChecks = [];
-                    foreach($healthChecks as $k => $c) {
-                        if(!in_array($k, $processedKeys)) {
-                            $otherChecks[$k] = $c;
-                        }
-                    }
-                    if(count($otherChecks) > 0) {
-                        $categorizedChecks['Sonstiges'] = $otherChecks;
                     }
                 @endphp
 
-                <div class="space-y-8">
-                    @foreach($categorizedChecks as $categoryName => $checks)
-                        <div>
-                            <div class="flex items-center gap-3 mb-4">
-                                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest">{{ $categoryName }}</h3>
-                                <div class="h-px flex-1 bg-gray-800"></div>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
-                                @foreach($checks as $key => $check)
-                                    @php
-                                        $actionUrl = match($key) {
-                                            'inventory' => '/admin/products',
-                                            'special_issues' => '/admin/financial-variable-costs',
-                                            'contracts' => '/admin/financial-fix-costs',
-                                            'open_orders' => '/admin/orders',
-                                            'open_tickets' => '/admin/support-tickets',
-                                            'open_chats' => '/admin/support-chats',
-                                            'open_contact_requests' => '/admin/support-contact-form',
-                                            'product_reviews' => '/admin/reviews',
-                                            'open_credits' => '/admin/credit-management',
-                                            'unassigned_tx' => '/admin/financial-banks',
-                                            'open_tasks' => '/admin/tasks',
-                                            'open_quotes' => '/admin/quote-requests',
-                                            'open_revocations' => '/admin/widerruf',
-                                            'open_losses' => '/admin/product-fracture',
-                                            default => '/admin/dashboard'
-                                        };
-                                    @endphp
-                                    
-                                    <a href="{{ $actionUrl }}" wire:key="master-health-{{ $key }}" class="bg-gray-950 border border-gray-800/80 rounded-xl overflow-hidden hover:bg-gray-900/80 transition-all hover:border-gray-700 group relative">
-                                        <div class="p-4 flex justify-between items-center relative z-10 w-full">
-                                            @php
-                                                $statusClass = match($check['status'] ?? 'error') {
-                                                    'success' => 'text-emerald-500 group-hover:text-emerald-400',
-                                                    'warning' => 'text-amber-500 group-hover:text-amber-400',
-                                                    default => 'text-red-500 animate-pulse group-hover:text-red-400',
-                                                };
-                                            @endphp
-                                            <div class="flex items-center gap-3 min-w-0">
-                                                <div class="shrink-0 transition-colors {{ $statusClass }}">
-                                                    <x-dynamic-component :component="'heroicon-o-' . $check['icon']" class="w-5 h-5" />
-                                                </div>
-                                                <div class="min-w-0 pr-2">
-                                                    <h4 class="text-xs font-semibold text-gray-300 group-hover:text-white transition-colors">{{ $check['title'] }}</h4>
-                                                    <p class="text-[10px] text-gray-500 leading-tight mt-0.5 truncate">{{ $check['message'] }}</p>
-                                                </div>
-                                            </div>
-                                            <div class="shrink-0 flex items-center gap-3">
-                                                @if($check['count'] > 0)
-                                                    <div class="flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-gray-800 text-gray-300 rounded border border-gray-700 group-hover:border-gray-600 transition-colors">
-                                                        {{ $check['count'] }}
-                                                    </div>
-                                                @else
-                                                    <x-heroicon-m-check class="w-4 h-4 text-emerald-500/50" />
-                                                @endif
-                                            </div>
+                <table class="w-full text-left border-separate border-spacing-y-2">
+                    <thead>
+                        <tr>
+                            <th class="pb-2 pl-4 text-[10px] font-bold uppercase tracking-widest text-gray-500">Kategorie / Aufgabe</th>
+                            <th class="pb-2 pr-4 text-[10px] font-bold uppercase tracking-widest text-gray-500 text-right">To-Do Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(array_merge($actionNeeded, $done) as $key => $check)
+                            @php
+                                $actionUrl = match($key) {
+                                    'inventory' => '/admin/products',
+                                    'special_issues' => '/admin/financial-variable-costs',
+                                    'contracts' => '/admin/financial-fix-costs',
+                                    'open_orders' => '/admin/orders',
+                                    'open_tickets' => '/admin/support-tickets',
+                                    'open_chats' => '/admin/support-chats',
+                                    'open_contact_requests' => '/admin/support-contact-form',
+                                    'open_mails' => '/admin/inbox',
+                                    'product_reviews' => '/admin/reviews',
+                                    'open_credits' => '/admin/credit-management',
+                                    'unassigned_tx' => '/admin/financial-banks',
+                                    'open_tasks' => '/admin/tasks',
+                                    'open_quotes' => '/admin/quote-requests',
+                                    'open_revocations' => '/admin/widerruf',
+                                    'open_losses' => '/admin/product-fracture',
+                                    'open_blog_posts' => '/admin/blog',
+                                    default => '/admin/dashboard'
+                                };
+
+                                $statusClass = match($check['status'] ?? 'error') {
+                                    'success' => 'text-emerald-500 group-hover:text-emerald-400',
+                                    'warning' => 'text-amber-500 group-hover:text-amber-400',
+                                    default => 'text-red-500 group-hover:text-red-400',
+                                };
+
+                                $needsAction = $check['count'] > 0;
+                            @endphp
+
+                            <tr @if(!$needsAction) x-show="showAllOperative" x-transition.opacity @endif
+                                class="bg-gray-950 hover:bg-gray-900/80 transition-all group cursor-pointer relative"
+                                onclick="window.open('{{ $actionUrl }}', '_blank')">
+
+                                <td class="py-4 pl-4 rounded-l-xl border-y border-l border-gray-800/80 group-hover:border-gray-700 relative w-full">
+                                    <div class="flex items-center gap-4">
+                                        <div class="shrink-0 transition-colors {{ $statusClass }}">
+                                            <x-dynamic-component :component="'heroicon-o-' . $check['icon']" class="w-6 h-6" />
                                         </div>
-                                    </a>
-                                @endforeach
-                            </div>
-                        </div>
-                    @endforeach
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <h4 class="text-sm font-semibold text-gray-300 group-hover:text-white transition-colors">{{ $check['title'] }}</h4>
+                                                
+                                                <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false" @click.stop>
+                                                    <x-heroicon-m-information-circle class="w-4 h-4 text-gray-600 hover:text-[#C5A059] transition-colors" />
+                                                    
+                                                    <!-- Tooltip -->
+                                                    <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[280px] p-4 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
+                                                        <div class="text-[11.5px] text-gray-300 font-medium leading-relaxed">{{ $check['description'] }}</div>
+                                                        <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-950 border-b border-r border-[#C5A059]/40 rotate-45"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="text-xs text-gray-500 mt-0.5">{{ $check['message'] }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-4 pr-4 rounded-r-xl border-y border-r border-gray-800/80 group-hover:border-gray-700 text-right whitespace-nowrap">
+                                    @if($needsAction)
+                                        <div class="inline-flex items-center gap-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg">
+                                            <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
+                                            <span class="text-xs font-bold text-gray-300">{{ $check['count'] }} Offen</span>
+                                            <x-heroicon-m-chevron-right class="w-4 h-4 text-gray-600 group-hover:text-[#C5A059] transition-colors ml-2" />
+                                        </div>
+                                    @else
+                                        <div class="inline-flex items-center gap-2 px-3 py-1.5">
+                                            <x-heroicon-m-check-circle class="w-5 h-5 text-emerald-500/50" />
+                                            <span class="text-xs font-bold text-gray-500">Erledigt</span>
+                                        </div>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+
+                <div x-show="!showAllOperative && {{ count($actionNeeded) }} === 0" class="py-12 text-center border border-dashed border-gray-800 rounded-2xl">
+                    <div class="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <x-heroicon-o-check-badge class="w-8 h-8 text-emerald-500" />
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-1">Alles erledigt!</h3>
+                    <p class="text-sm text-gray-500 max-w-sm mx-auto">Es gibt aktuell keine systemseitigen Aufgaben oder Probleme, die deiner Aufmerksamkeit bedürfen.</p>
                 </div>
             </div>
 
@@ -448,7 +478,7 @@
                                 <div class="w-1.5 h-4 rounded-full {{ $groupInfo['color'] }}"></div>
                                 <h5 class="text-xs font-black text-gray-300 uppercase tracking-widest">{{ $groupName }}</h5>
                             </div>
-                            
+
                             <div class="flex flex-col gap-4">
                                 @foreach($groupInfo['items'] as $sKey)
                                     @if($sKey === 'ws')
@@ -484,7 +514,7 @@
                         </div>
                     @endforeach
                 </div>
-                
+
                 {{-- STORAGE --}}
                 @if($storageData && isset($storageData['percent_used']))
                     <div class="mt-8 bg-gray-950/40 rounded-[2rem] border border-gray-800 p-6 shadow-inner">
@@ -502,7 +532,7 @@
                         </div>
                     </div>
                 @endif
-                
+
                 {{-- REPAIR LOG --}}
                 @if(count($repairLogs) > 0)
                     <div class="mt-6 border border-gray-800 rounded-[1.5rem] bg-gray-950 overflow-hidden shadow-inner flex flex-col">
@@ -518,7 +548,7 @@
                     </div>
                 @endif
             </div>
-            
+
         </div>
     </div>
 

@@ -34,7 +34,7 @@
             <div class="w-full lg:w-1/3 xl:w-1/4 h-[50vh] lg:h-auto bg-gray-950/50 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-10 shadow-inner">
                 <div class="p-6 border-b border-gray-800">
                     <div class="relative group">
-                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Personen durchsuchen..." class="w-full pl-11 pr-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-inner outline-none transition-all placeholder-gray-500">
+                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Kontakte durchsuchen..." class="w-full pl-11 pr-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-inner outline-none transition-all placeholder-gray-500">
                         <x-heroicon-o-magnifying-glass class="w-5 h-5 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-[var(--theme-color)] transition-colors" />
                     </div>
                 </div>
@@ -83,7 +83,7 @@
                     @empty
                         <div class="text-center py-10 px-4 text-gray-600">
                             <x-heroicon-o-users class="w-10 h-10 mx-auto mb-3 opacity-50" />
-                            <p class="text-xs uppercase tracking-widest font-black">Keine Personen gefunden</p>
+                            <p class="text-xs uppercase tracking-widest font-black">Keine Kontakte gefunden</p>
                         </div>
                     @endforelse
                 </div>
@@ -95,9 +95,9 @@
                     <!-- Form Area -->
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-12">
                         <div class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
-                            <h2 class="text-2xl font-serif text-white flex items-center gap-3">
+                            <h2 class="text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
                                 <x-heroicon-o-user-circle class="w-8 h-8 text-[var(--theme-color)]" />
-                                {{ $editForm['id'] ? 'Profil bearbeiten' : 'Neues Profil anlegen' }}
+                                {{ $editForm['id'] ? 'Kontakt bearbeiten' : 'Neuen Kontakt anlegen' }}
                             </h2>
                             <button wire:click="cancelEditing" class="text-gray-500 hover:text-white transition-colors">
                                 <x-heroicon-o-x-mark class="w-6 h-6" />
@@ -269,7 +269,7 @@
                             <button wire:click="editProfile('{{ $activeProfile->id }}')" class="p-2 bg-gray-800 border border-gray-700 hover:bg-[var(--theme-color-20)] hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
                                 <x-heroicon-o-pencil class="w-5 h-5" />
                             </button>
-                            <button wire:click="deleteProfile('{{ $activeProfile->id }}')" wire:confirm="Dieses Profil und das KI-Gedächtnis wirklich löschen?" class="p-2 bg-gray-800 border border-gray-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Löschen">
+                            <button wire:click="deleteProfile('{{ $activeProfile->id }}')" wire:confirm="Diesen Kontakt und das KI-Gedächtnis wirklich löschen?" class="p-2 bg-gray-800 border border-gray-700 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/50 text-gray-400 rounded-xl transition-all shadow-inner" title="Löschen">
                                 <x-heroicon-o-trash class="w-5 h-5" />
                             </button>
                         </div>

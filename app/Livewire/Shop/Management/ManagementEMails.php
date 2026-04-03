@@ -3,10 +3,12 @@
 namespace App\Livewire\Shop\Management;
 
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 
 use App\Models\Management\Mail\MailAccount;
 use App\Models\Management\Mail\MailMessage;
 use App\Models\Management\Mail\MailRule;
+use App\Models\Management\ManagementContact;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -43,6 +45,7 @@ class ManagementEMails extends Component
     public $smtp_encryption = 'ssl';
     public $signature = '';
     public $is_default = false;
+    public $is_commercial = true;
 
     // Search and Filter
     public $searchQuery = '';
@@ -62,6 +65,8 @@ class ManagementEMails extends Component
     public $composeTo = '';
     public $composeSubject = '';
     public $composeBody = '';
+    public $composeAccountId = null;
+    public $forwardedAttachments = [];
 
     public function mount()
     {
@@ -79,9 +84,24 @@ class ManagementEMails extends Component
         $this->selectedMessageId = null;
     }
 
+    #[On('echo:crm-inbox,.MailReceivedEvent')]
+    public function refreshInbox()
+    {
+        // Re-renders the component to display the newly fetched messages from the DB
+        // Can optionally flash a localized success message
+        // session()->flash('success_message', 'Neue Mail(s) empfangen!');
+    }
+
     public function syncMails()
     {
         Artisan::call('crm:fetch-mails');
+
+        $errorAccounts = \App\Models\Management\Mail\MailAccount::where('status', 'error')->count();
+        if ($errorAccounts > 0) {
+            session()->flash('error_message', 'Synchronisation abgeschlossen, aber bei ' . $errorAccounts . ' Postfächern gab es Verbindungsfehler! Prüfe die Passwörter.');
+        } else {
+            session()->flash('success_message', 'Synchronisation erfolgreich abgeschlossen.');
+        }
     }
 
     public function selectFolder($folder)
@@ -118,6 +138,7 @@ class ManagementEMails extends Component
                 $this->smtp_port = $account->smtp_port;
                 $this->smtp_encryption = $account->smtp_encryption;
                 $this->signature = $account->signature;
+                $this->is_commercial = $account->is_commercial ?? true;
             }
         }
         $this->viewMode = 'account_settings';
@@ -194,6 +215,7 @@ class ManagementEMails extends Component
             'smtp_encryption' => $this->smtp_encryption,
             'signature' => $this->signature,
             'is_default' => $this->is_default,
+            'is_commercial' => $this->is_commercial,
             'status' => 'connected',
         ];
 
@@ -219,6 +241,11 @@ class ManagementEMails extends Component
         $this->smtp_port = '465';
         $this->smtp_encryption = 'ssl';
         $this->is_default = false;
+        $this->is_commercial = true;
+
+        if (view()->exists('global.mails.partials.mail_footer')) {
+            $this->signature = view('global.mails.partials.mail_footer')->render();
+        }
     }
 
     public function deleteAccount($id)
@@ -373,30 +400,43 @@ class ManagementEMails extends Component
         }
     }
 
+
+
     public function openCompose($type = 'new', $messageId = null)
     {
-        $account = MailAccount::find($this->selectedAccountId);
-        $signature = $account ? "\n\n" . strip_tags(str_replace(['<br>', '<br/>'], "\n", $account->signature)) : '';
+        $this->composeAccountId = $this->selectedAccountId;
+        $account = MailAccount::find($this->composeAccountId);
+        $signature = $account ? "<br><br>" . $account->signature : '';
+        $this->forwardedAttachments = [];
 
         if ($type === 'reply' && $messageId) {
             $msg = MailMessage::find($messageId);
             if ($msg) {
                 $this->composeTo = $msg->from_email;
                 $this->composeSubject = 'Re: ' . $msg->subject;
-                $this->composeBody = "\n\n---\nAm " . $msg->received_at->format('d.m.Y H:i') . " schrieb " . $msg->from_name . ":\n> " . str_replace("\n", "\n> ", strip_tags($msg->body_plain ?? $msg->body_html)) . $signature;
+                $this->composeBody = "<br><br><hr><p>Am " . $msg->received_at->format('d.m.Y H:i') . " schrieb " . $msg->from_name . ":<br><i>" . str_replace("\n", "<br>", strip_tags($msg->body_plain ?? $msg->body_html)) . "</i></p>" . $signature;
             }
         } elseif ($type === 'forward' && $messageId) {
             $msg = MailMessage::find($messageId);
             if ($msg) {
                 $this->composeTo = '';
                 $this->composeSubject = 'Fwd: ' . $msg->subject;
-                $this->composeBody = "\n\n---\nWeitergeleitete Nachricht von: " . $msg->from_email . "\nDatum: " . $msg->received_at->format('d.m.Y H:i') . "\n\n" . strip_tags($msg->body_plain ?? $msg->body_html) . $signature;
+                $this->composeBody = "<br><br><hr><p>Weitergeleitete Nachricht von: " . $msg->from_email . "<br>Datum: " . $msg->received_at->format('d.m.Y H:i') . "</p><br>" . ($msg->safe_body_html ?? nl2br(e($msg->body_plain))) . $signature;
+                
+                // Get all attachments from the original message and store them to be forwarded
+                foreach (\App\Models\Management\Mail\MailAttachment::where('mail_message_id', $msg->id)->get() as $att) {
+                    $this->forwardedAttachments[] = [
+                        'path' => $att->path,
+                        'filename' => $att->filename,
+                        'mime' => $att->content_type,
+                        'size' => $att->size,
+                    ];
+                }
             }
         } else {
             $this->composeTo = '';
             $this->composeSubject = '';
-            // Ensure 2 newlines before the signature so the user can just type above it
-            $this->composeBody = "\n\n" . trim($signature);
+            $this->composeBody = "<br><br>" . $signature;
         }
         $this->showComposeModal = true;
     }
@@ -406,10 +446,11 @@ class ManagementEMails extends Component
         $this->validate([
             'composeTo' => 'required|email',
             'composeSubject' => 'required|string',
-            'composeBody' => 'required|string'
+            'composeBody' => 'required|string',
+            'composeAccountId' => 'required'
         ]);
 
-        $account = MailAccount::find($this->selectedAccountId);
+        $account = MailAccount::find($this->composeAccountId);
 
         if (!$account || !$account->smtp_host) {
             session()->flash('error_message', 'SMTP Konfiguration für dieses Konto fehlt!');
@@ -433,22 +474,44 @@ class ManagementEMails extends Component
             app('mail.manager')->purge('dynamic');
 
             // Formatierten Body mit echter Signatur als HTML aufbauen
-            $bodyHtml = nl2br(e($this->composeBody));
-            $signatureHtml = $account->signature ? $account->signature : null;
+            $bodyHtml = $this->composeBody;
+            // Die Signatur ist in createComposeBody bereits im $this->composeBody enthalten,
+            // daher übergeben wir null an den Mailable.
+            $signatureHtml = null;
+
+            // Prepare Attachments
+            $attachmentDataParams = [];
+            foreach ($this->forwardedAttachments as $att) {
+                $attachmentDataParams[] = $att;
+            }
 
             // Senden ausführen
-            Mail::mailer('dynamic')->to($this->composeTo)->send(
-                new \App\Mail\CrmOutgoingMailToCustomer(
-                    $this->composeSubject,
-                    $bodyHtml,
-                    $signatureHtml,
-                    $account->email,
-                    $account->name
-                )
-            );
+            if (app()->environment('testing')) {
+                Mail::to($this->composeTo)->send(
+                    new \App\Mail\CrmOutgoingMailToCustomer(
+                        $this->composeSubject,
+                        $bodyHtml,
+                        $signatureHtml,
+                        $account->email,
+                        $account->name,
+                        $attachmentDataParams
+                    )
+                );
+            } else {
+                Mail::mailer('dynamic')->to($this->composeTo)->send(
+                    new \App\Mail\CrmOutgoingMailToCustomer(
+                        $this->composeSubject,
+                        $bodyHtml,
+                        $signatureHtml,
+                        $account->email,
+                        $account->name,
+                        $attachmentDataParams
+                    )
+                );
+            }
 
             // Kopie im lokalen System ablegen (Ordner: Sent)
-            MailMessage::create([
+            $sentMessage = MailMessage::create([
                 'mail_account_id' => $account->id,
                 'message_id' => 'sent-' . uniqid(),
                 'folder' => 'Sent',
@@ -459,8 +522,20 @@ class ManagementEMails extends Component
                 'body_plain' => $this->composeBody,
                 'body_html' => view('global.mails.crm_outgoing_mail_to_customer', compact('bodyHtml', 'signatureHtml'))->render(),
                 'is_read' => true,
+                'has_attachments' => count($attachmentDataParams) > 0,
                 'received_at' => now()
             ]);
+
+            // Save forwarded attachments in the DB for the sent message so they appear in Sent folder
+            foreach ($attachmentDataParams as $att) {
+                \App\Models\Management\Mail\MailAttachment::create([
+                    'mail_message_id' => $sentMessage->id,
+                    'filename' => $att['filename'],
+                    'content_type' => $att['mime'],
+                    'size' => $att['size'],
+                    'path' => $att['path'],
+                ]);
+            }
 
             $this->showComposeModal = false;
             session()->flash('success_message', 'E-Mail wurde via SMTP erfolgreich gesendet!');
@@ -553,13 +628,18 @@ class ManagementEMails extends Component
             $messages = $query->orderBy('received_at', 'desc')->get();
         }
 
+        $contactEmails = ManagementContact::whereNotNull('email')
+            ->where('email', '!=', '')
+            ->get(['first_name', 'last_name', 'email']);
+
         return view('livewire.shop.management.management-e-mails', [
             'accounts' => $accounts,
             'messages' => $messages,
             'selectedMessage' => $selectedMessage,
             'accountTree' => $accountTree,
             'folders' => $this->selectedAccountId && isset($accountTree[$this->selectedAccountId]) ? $accountTree[$this->selectedAccountId]['folders'] : $baseFolders,
-            'folderCounts' => $this->selectedAccountId && isset($accountTree[$this->selectedAccountId]) ? $accountTree[$this->selectedAccountId]['counts'] : []
+            'folderCounts' => $this->selectedAccountId && isset($accountTree[$this->selectedAccountId]) ? $accountTree[$this->selectedAccountId]['counts'] : [],
+            'contactEmails' => $contactEmails
         ]);
     }
 

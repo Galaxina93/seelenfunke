@@ -2,7 +2,7 @@
 
 namespace App\Services\AI\Functions;
 
-use App\Models\Management\ManagementPersonProfile;
+use App\Models\Management\ManagementContact;
 use Illuminate\Support\Str;
 
 trait AiContactFuncs
@@ -143,7 +143,7 @@ trait AiContactFuncs
 
     public static function executeContactGetAll(array $args)
     {
-        $profiles = ManagementPersonProfile::all();
+        $profiles = ManagementContact::all();
         if ($profiles->isEmpty()) {
             return ['status' => 'success', 'message' => 'Es sind aktuell gar keine Personenprofile gespeichert.'];
         }
@@ -165,7 +165,7 @@ trait AiContactFuncs
         }
 
         $queryLower = strtolower(trim($args['query']));
-        $allProfiles = ManagementPersonProfile::all();
+        $allProfiles = ManagementContact::all();
         $bestMatch = null;
         $highestSimilarity = 0;
 
@@ -220,7 +220,7 @@ trait AiContactFuncs
             return ['status' => 'error', 'message' => 'Vorname ist erforderlich.'];
         }
 
-        $p = ManagementPersonProfile::create([
+        $p = ManagementContact::create([
             'first_name' => $args['first_name'],
             'last_name' => $args['last_name'] ?? null,
             'relation_type' => $args['relation_type'] ?? 'Unbekannt',
@@ -323,7 +323,7 @@ trait AiContactFuncs
     private static function findPersonProfile($queryLower)
     {
         $queryLower = strtolower(trim($queryLower));
-        $allProfiles = ManagementPersonProfile::all();
+        $allProfiles = ManagementContact::all();
         $bestMatch = null;
         $highestSimilarity = 0;
 

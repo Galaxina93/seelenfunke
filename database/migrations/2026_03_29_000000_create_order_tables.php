@@ -73,6 +73,7 @@ return new class extends Migration
 
             $table->string('product_name');
             $table->integer('quantity');
+            $table->integer('completed_quantity')->default(0);
             $table->integer('unit_price');
             $table->decimal('tax_rate', 5, 2)->nullable();
             $table->integer('total_price');

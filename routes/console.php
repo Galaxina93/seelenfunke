@@ -25,10 +25,8 @@ Artisan::command('inspire', function () {
 Schedule::command('send-newsletters')->dailyAt('08:00');
 
 // E-Mails via IMAP asynchron vom Server abrufen (Posteingang sync)
-Schedule::command('crm:fetch-mails')->everyFiveMinutes();
+Schedule::command('crm:fetch-mails')->everyFifteenSeconds();
 
-// Sendet die ultimative Anweisung an die App
-Schedule::command('funki:notify')->everyMinute();
 
 // Automatische Gutschein-Generierung für das neue Jahr (am 1. Januar)
 Schedule::call(function () {

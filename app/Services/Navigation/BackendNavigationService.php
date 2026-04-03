@@ -31,7 +31,7 @@ class BackendNavigationService
                         'ai_department_id' => '019d0000-0000-0000-0000-000000000000',
                         'children' => [
                             ['id' => 'inbox', 'title' => 'E-Mail', 'route' => '/admin/inbox', 'icon' => 'envelope-open'],
-                            ['id' => 'person-profiles', 'title' => 'Kontakte', 'route' => '/admin/person-profiles', 'icon' => 'users'],
+                            ['id' => 'contacts', 'title' => 'Kontakte', 'route' => '/admin/contacts', 'icon' => 'users'],
                             ['id' => 'routine', 'title' => 'Routine', 'route' => '/admin/routine', 'icon' => 'arrow-path'],
                             ['id' => 'tasks', 'title' => 'Aufgaben', 'route' => '/admin/tasks', 'icon' => 'check-circle'],
                             ['id' => 'calender', 'title' => 'Kalender', 'route' => '/admin/calender', 'icon' => 'calendar-days'],

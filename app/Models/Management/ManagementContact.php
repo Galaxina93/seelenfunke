@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
-class ManagementPersonProfile extends Model
+class ManagementContact extends Model
 {
     use HasFactory, HasUuids;
 
-    protected $table = 'management_person_profiles';
+    protected $table = 'management_contacts';
 
     protected $fillable = [
         'is_favorite',

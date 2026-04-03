@@ -86,7 +86,7 @@ class OrderDHLTest extends TestCase
 
         // Fake the DHL Http API response for 2 packages
         Http::fake([
-            '*dhl.com/parcel/de/shipping/v2/orders' => Http::response([
+            '*dhl.com/parcel/de/shipping/v2/orders*' => Http::response([
                 'items' => [
                     [
                         'sstatus' => ['title' => 'ok'],
@@ -136,7 +136,7 @@ class OrderDHLTest extends TestCase
 
         // Fake a failure DHL Http API response
         Http::fake([
-            '*dhl.com/parcel/de/shipping/v2/orders' => Http::response([
+            '*dhl.com/parcel/de/shipping/v2/orders*' => Http::response([
                 'items' => [
                     [
                         'sstatus' => [

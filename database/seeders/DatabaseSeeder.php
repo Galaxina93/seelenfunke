@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
 
             // Management
             DayRoutineSeeder::class,
-            PersonProfileSeeder::class,
+            ManagementContactSeeder::class,
 
             //Product
             ProductSeeder::class,
@@ -32,7 +32,7 @@ class DatabaseSeeder extends Seeder
 
             // Marketing
             BlogCategorySeeder::class,
-            BlogSeeder::class,
+            MarketingBlogSeeder::class,
             NewsletterKampagnenSeeder::class,
             MonthlyVoucherSeeder::class,
 

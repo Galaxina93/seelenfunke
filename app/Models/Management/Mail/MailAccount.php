@@ -11,6 +11,7 @@ class MailAccount extends Model
     protected $casts = [
         'password' => 'encrypted',
         'is_default' => 'boolean',
+        'is_commercial' => 'boolean',
         'last_sync_at' => 'datetime',
     ];
 

@@ -39,6 +39,7 @@ class AnalyticsService
             'open_losses' => $this->checkLosses(),
             'open_chats' => $this->checkChats(),
             'open_contact_requests' => $this->checkContactRequests(),
+            'open_mails' => $this->checkMails(),
         ]);
     }
 
@@ -52,7 +53,7 @@ class AnalyticsService
             ->get();
 
         return [
-            'title' => 'Lagerbestand',
+            'title' => 'Offene Lagerbestände',
             'status' => $lowStockProducts->count() > 0 ? 'error' : 'success',
             'message' => $lowStockProducts->count() > 0 ? $lowStockProducts->count() . " Artikel unter Limit!" : "Lagerbestände optimal.",
             'icon' => 'cube',
@@ -70,7 +71,7 @@ class AnalyticsService
         })->orderBy('execution_date', 'desc')->get();
 
         return [
-            'title' => 'Sonderausgaben',
+            'title' => 'Offene Belege',
             'status' => $missing->count() > 0 ? 'error' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Positionen ohne Beleg." : "Alle Ausgaben belegt.",
             'icon' => 'banknotes',
@@ -84,7 +85,7 @@ class AnalyticsService
         $missing = AccountingCostItem::whereNull('contract_file_path')->with('group')->get();
 
         return [
-            'title' => 'Verträge',
+            'title' => 'Offene Verträge',
             'status' => $missing->count() > 0 ? 'error' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Unterlagen fehlen." : "Dokumente vollständig.",
             'icon' => 'document-text',
@@ -138,6 +139,28 @@ class AnalyticsService
         ];
     }
 
+    private function checkMails(): ?array
+    {
+        if (!class_exists(\App\Models\Management\Mail\MailMessage::class)) return null;
+        $totalMails = \App\Models\Management\Mail\MailMessage::count();
+        $openMails = \App\Models\Management\Mail\MailMessage::where('is_read', false)
+            ->whereNotIn('folder', ['Trash', 'Sent', 'Drafts', 'Junk', 'Archiv', 'Archive', 'Gesendet', 'Entwürfe', 'Papierkorb'])
+            ->count();
+
+        $status = $openMails > 0 ? 'warning' : 'success';
+        $msg = $openMails > 0 ? $openMails . ' ungelesen' : 'Alles gelesen';
+        if ($totalMails === 0) { $msg = 'Keine Mails vorhanden'; $status = 'warning'; }
+
+        return [
+            'status' => $status,
+            'icon' => 'envelope-open',
+            'title' => 'Offene Mails',
+            'message' => $msg,
+            'count' => $openMails,
+            'data' => []
+        ];
+    }
+
     private function checkContactRequests(): ?array
     {
         if (!class_exists(\App\Models\Support\SupportContactRequest::class)) return null;
@@ -150,7 +173,7 @@ class AnalyticsService
         return [
             'status' => $status,
             'icon' => 'envelope',
-            'title' => 'Kontaktanfragen',
+            'title' => 'Offene Anfragen',
             'message' => $msg,
             'count' => $rCount,
             'data' => []
@@ -169,7 +192,7 @@ class AnalyticsService
         return [
             'status' => $status,
             'icon' => 'star',
-            'title' => 'Produkt-Reviews',
+            'title' => 'Offene Bewertungen',
             'message' => $msg,
             'count' => $rCount,
             'data' => $pendingReviews->map(function($r) {
@@ -212,7 +235,7 @@ class AnalyticsService
         $status = $unassignedTx > 0 ? 'error' : 'success';
         $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
         if ($totalTx === 0) { $msg = 'Keine Transaktionen gefunden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'banknotes', 'title' => 'Bank Umsätze', 'message' => $msg, 'count' => $unassignedTx, 'data' => []];
+        return ['status' => $status, 'icon' => 'banknotes', 'title' => 'Offene Bank Umsätze', 'message' => $msg, 'count' => $unassignedTx, 'data' => []];
     }
 
     private function checkTasks(): ?array
@@ -383,7 +406,7 @@ class AnalyticsService
             foreach ($periodCustomers as $date) {
                 $dateString = $date->format('Y-m-d');
                 $customerLabels[] = $date->format('d.m.');
-                
+
                 $customerCounts[] = $customersByDay->has($dateString) ? $customersByDay[$dateString]->total : 0;
             }
         } else {
@@ -398,12 +421,12 @@ class AnalyticsService
             while ($currentDate <= $finalDate) {
                 $y = $currentDate->year;
                 $m = $currentDate->month;
-                
+
                 $cMatch = $customersByMonth->first(fn($v) => $v->year == $y && $v->month == $m);
 
                 $customerLabels[] = $currentDate->locale('de')->shortMonthName . ' ' . $currentDate->format('y');
                 $customerCounts[] = $cMatch ? $cMatch->total : 0;
-                
+
                 $currentDate->addMonth();
             }
         }

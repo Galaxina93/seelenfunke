@@ -580,7 +580,7 @@ class AccountingTax extends Component
             
             $response = $elsterService->transmitUStVA($data, $this->submissionType, $this->authMethod, $pinToPass);
             
-            $ticketId = $response['support_ticket_id'];
+            $ticketId = $response['ticket_id'];
             if (isset($response['simulated']) && $response['simulated']) {
                 $this->addLog('success', "SIMULATION ERFOLGREICH: Die API simulierte einen ERiC Binary Connect.");
                 $this->addLog('success', "Simuliertes Transferticket generiert: {$ticketId}");

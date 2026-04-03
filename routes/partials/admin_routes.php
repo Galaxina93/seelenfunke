@@ -17,8 +17,18 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
     Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
     Route::get('/admin/ceo/gesundheit', \App\Livewire\Shop\Management\ManagementHealth::class)->name('ceo.gesundheit');
-    Route::get('/admin/person-profiles', \App\Livewire\Shop\Management\ManagementPersonProfiles::class)->name('admin.person-profiles');
+    Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
     Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');
+    Route::get('/admin/inbox/attachment/{id}', function ($id) {
+        $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
+        if (\Illuminate\Support\Facades\Storage::exists($attachment->path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::path($attachment->path), [
+                'Content-Type' => $attachment->content_type,
+                'Content-Disposition' => 'inline; filename="' . $attachment->filename . '"'
+            ]);
+        }
+        abort(404);
+    })->name('crm.mail-attachment');
 
     // -----------------------------------------------------------------------
     // System

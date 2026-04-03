@@ -34,7 +34,7 @@ class CustomerInvoiceDownloadTest extends TestCase
         Livewire::actingAs($customer, 'customer')
             ->test(\App\Livewire\Customer\CustomerInvoicesComponent::class)
             ->assertStatus(200)
-            ->assertSee('invoicesPayload')
+            ->assertViewHas('invoicesPayload')
             ->assertSee('Rechnung_INV-001.pdf')
             ->assertSee('Gutschrift_CRED-002.pdf')
             ->assertSee(route('invoice.download', $invoice1->id))

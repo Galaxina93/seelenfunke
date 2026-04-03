@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Livewire\Shop\Management;
 
-use App\Livewire\Shop\Management\ManagementPersonProfiles;
+use App\Livewire\Shop\Management\ManagementContacts;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
-class ManagementPersonProfilesTest extends TestCase
+class ManagementContactsTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -39,7 +39,7 @@ class ManagementPersonProfilesTest extends TestCase
     {
         $this->actingAs($this->admin, 'admin');
 
-        Livewire::test(ManagementPersonProfiles::class)
+        Livewire::test(ManagementContacts::class)
             ->assertStatus(200);
     }
 
@@ -48,7 +48,7 @@ class ManagementPersonProfilesTest extends TestCase
     {
         $this->actingAs($this->admin, 'admin');
 
-        Livewire::test(ManagementPersonProfiles::class)
+        Livewire::test(ManagementContacts::class)
             // Simulating a dummy method call for baseline validation
             ->call('$refresh')
             ->assertStatus(200);

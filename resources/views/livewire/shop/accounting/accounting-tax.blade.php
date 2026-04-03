@@ -179,15 +179,27 @@
                         <h4 class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-5 border-b border-gray-800 pb-3 relative z-10">Umsatzsteuer Schema (E-Commerce)</h4>
                         <div class="space-y-3 relative z-10 text-xs font-medium">
                             <div class="flex justify-between items-center text-gray-300">
-                                <span class="flex items-center gap-2">Umsatzsteuer (Verkäufe) <span class="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono group relative cursor-help" title="Kennzahl 81: Bemessungsgrundlage 19% (Zusätzlich Kz 86 bei 7% etc.)">Kz 81</span></span>
+                                <span class="flex items-center gap-2">
+                                    Umsatzsteuer (Verkäufe) 
+                                    <span class="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">Kz 81</span>
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-500 hover:text-orange-400 cursor-help transition-colors select-none" title="Erhaltene Umsatzsteuer aus deinen normalen, inländischen Produktverkäufen (B2C & B2B) an deine Kunden." />
+                                </span>
                                 <span class="font-mono text-white">{{ $activeData['vat_collected'] > 0 ? '+' : '' }} {{ number_format($activeData['vat_collected'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="flex justify-between items-center text-gray-400">
-                                <span class="flex items-center gap-2">IG Erwerb (§ 1a UStG) <span class="text-[9px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded font-mono cursor-help" title="Kennzahl 89: Innergemeinschaftliche Erwerbe">Kz 89</span></span>
+                                <span class="flex items-center gap-2">
+                                    IG Erwerb (§ 1a UStG) 
+                                    <span class="text-[9px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded font-mono">Kz 89</span>
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-600 hover:text-orange-400 cursor-help transition-colors select-none" title="Steuer auf im EU-Ausland eingekaufte physische Waren (z.B. Rohstoffe). Du musst diese Steuer fiktiv anmelden, ziehst sie aber zeitgleich als Vorsteuer wieder ab (Nullsummenspiel)." />
+                                </span>
                                 <span class="font-mono text-gray-300">{{ $activeData['ig_erwerb_tax'] > 0 ? '+' : '' }} {{ number_format($activeData['ig_erwerb_tax'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="flex justify-between items-center text-gray-400">
-                                <span class="flex items-center gap-2">Reverse Charge (§ 13b) <span class="text-[9px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded font-mono cursor-help" title="Kennzahl 46/47: Leistungen nach § 13b UStG">Kz 46</span></span>
+                                <span class="flex items-center gap-2">
+                                    Reverse Charge (§ 13b) 
+                                    <span class="text-[9px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded font-mono">Kz 46</span>
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-600 hover:text-orange-400 cursor-help transition-colors select-none" title="Steuerschuldnerschaft des Empfängers. Meist für digitale B2B Dienstleistungen aus dem Ausland (z.B. Rechnungen von Meta/Google Ads)." />
+                                </span>
                                 <span class="font-mono text-gray-300">{{ $activeData['paragraph_13b_tax'] > 0 ? '+' : '' }} {{ number_format($activeData['paragraph_13b_tax'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="border-t border-gray-800 pt-3 flex justify-between items-center text-gray-300 font-bold">
@@ -195,12 +207,19 @@
                                 <span class="font-mono text-emerald-400 drop-shadow-[0_0_5px_currentColor]">{{ number_format($activeData['total_tax'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="flex justify-between items-center text-gray-300 pt-2">
-                                <span class="flex items-center gap-2">- Vorsteuer (Ausgaben) <span class="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono cursor-help" title="Kennzahl 66: Abziehbare Vorsteuerbeträge">Kz 66</span></span>
+                                <span class="flex items-center gap-2">
+                                    - Vorsteuer (Ausgaben) 
+                                    <span class="text-[9px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">Kz 66</span>
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-500 hover:text-red-400 cursor-help transition-colors select-none" title="Deine gezahlte Umsatzsteuer auf betriebliche Rechnungen, Quittungen und Abos. Du forderst diesen Betrag als Erstattung vom Finanzamt zurück." />
+                                </span>
                                 <span class="font-mono text-red-400 drop-shadow-[0_0_5px_currentColor]">- {{ number_format($activeData['vat_paid'], 2, ',', '.') }} €</span>
                             </div>
                             <div class="border-t border-gray-700 pt-4 mt-2 flex justify-between items-end">
                                 <span class="flex flex-col gap-0.5">
-                                    <span class="text-xs font-black uppercase tracking-widest text-white">Zahllast ans FA</span>
+                                    <span class="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white">
+                                        Zahllast ans FA
+                                        <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-orange-400 cursor-help transition-colors select-none" title="Der absolute Schlusswert. Das ist exakt der Betrag, den du unaufgefordert (!) an die Bankverbindung deines Finanzamts überweisen musst (oder der erstattet wird, wenn negativ)." />
+                                    </span>
                                     <span class="text-[9px] text-gray-500 font-medium">Kennzahl 83 (Vorauszahlungssoll)</span>
                                 </span>
                                 <span class="text-2xl font-black {{ $activeData['zahllast'] > 0 ? 'text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)]' : 'text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]' }}">
@@ -308,7 +327,7 @@
                                         <div class="bg-blue-500/10 border border-blue-500/30 text-blue-400 p-3 rounded-lg flex items-center gap-3 relative z-10 font-medium">
                                             <x-heroicon-s-check-badge class="w-5 h-5 flex-shrink-0" />
                                             <span class="text-[10px] leading-relaxed">
-                                                Die Sandbox Test-PIN (123456) wird beim Test-Senden automatisch vom System an die ERiC API übergeben.
+                                                Die Sandbox Test-PIN (123456) wird bei der Übermittlung automatisch vom System an die ERiC API übergeben.
                                             </span>
                                         </div>
                                     @elseif($hasEnvPassword)
@@ -352,7 +371,7 @@
                         class="col-span-2 lg:col-span-1 py-4 bg-gray-900 border border-gray-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed hover:border-orange-500/50 hover:bg-orange-500/10 text-gray-400 relative overflow-hidden">
                             <div class="absolute inset-0 bg-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             <x-heroicon-o-paper-airplane class="w-6 h-6 group-hover:text-orange-400 transition-colors relative z-10" />
-                            <span wire:loading.remove wire:target="transmitToElster" class="group-hover:text-orange-400 transition-colors relative z-10">Test-Senden (ERiC)</span>
+                            <span wire:loading.remove wire:target="transmitToElster" class="group-hover:text-orange-400 transition-colors relative z-10">An ELSTER übermitteln</span>
                             <span wire:loading wire:target="transmitToElster" class="text-orange-400 animate-pulse relative z-10">SENDE VIA ERiC...</span>
                         </button>
                     </div>
@@ -362,7 +381,7 @@
                         <div class="mt-4 p-4 border border-red-500/20 bg-red-500/5 rounded-xl relative overflow-hidden group transition-colors animate-fade-in">
                             <h5 class="text-[10px] font-black uppercase text-red-400 tracking-widest mb-3 flex items-center gap-2">
                                 <x-heroicon-s-information-circle class="w-4 h-4" />
-                                Warten auf Freigabe: Test-Senden gesperrt
+                                Warten auf Freigabe: Übermittlung gesperrt
                             </h5>
                             <ul class="text-[10px] text-gray-400 space-y-2 list-none leading-relaxed font-medium">
                                 @if($activeData['status'] !== 'ready')
@@ -669,10 +688,10 @@
                                 <div class="absolute -right-4 -top-4 text-[80px] font-black text-white/[0.02] group-hover:text-orange-500/10 transition-colors">3</div>
                                 <h5 class="text-[11px] font-black uppercase text-orange-400 tracking-widest mb-3 flex items-center gap-2">
                                     <x-heroicon-o-paper-airplane class="w-5 h-5" />
-                                    Test-Senden starten
+                                    Übermittlung starten
                                 </h5>
                                 <p class="text-[11px] text-gray-400 leading-relaxed font-medium">
-                                    Klicke links auf den blau leuchtenden <b class="text-orange-400">Test-Senden (ERiC)</b> Button. Das System jagt nun deine Zahlen durch das offizielle ELSTER-Rechenzentrum im Testmodus. Verfolge danach das grüne <b class="text-gray-300">Terminal Log</b> unten für dein Erfolgsticket!
+                                    Klicke links auf den <b class="text-orange-400">An ELSTER übermitteln</b> Button. Das System jagt nun deine Zahlen durch das offizielle ELSTER-Rechenzentrum sicher und verschlüsselt. Verfolge danach das <b class="text-gray-300">Terminal Log</b> unten für dein Erfolgsticket!
                                 </p>
                             </div>
                         </div>

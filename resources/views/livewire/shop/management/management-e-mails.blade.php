@@ -1,4 +1,5 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" x-data="{ mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}' }"
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" 
+     x-data="{ mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}' }"
      @message-selected.window="mobileView = 'detail'"
      @folder-selected.window="mobileView = 'list'"
      @settings-opened.window="mobileView = 'settings'"
@@ -24,169 +25,109 @@
 
         {{-- Accounts are now listed in the main sidebar area below --}}
 
-        {{-- Modal: Neuer Ordner --}}
-        @if($showNewFolderModal)
-            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showNewFolderModal', false)">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showNewFolderModal', false)">
-                    <h3 class="text-xl font-bold text-white mb-4">Neuen Ordner erstellen</h3>
-                    <form wire:submit.prevent="createFolder">
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-400 mb-1">Ordnername</label>
-                            <input type="text" wire:model="newFolderName" class="w-full bg-gray-950 border border-gray-700 text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" placeholder="z.B. Rechnungen, Projekte..." required autofocus>
-                            @error('newFolderName') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="flex justify-end gap-3 mt-6">
-                            <button type="button" wire:click="$set('showNewFolderModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-6 py-2 text-sm font-bold rounded-lg transition-colors">Erstellen</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        @endif
-
-        {{-- Modal: Auto-Routing Regel --}}
-        @if($showRoutingModal)
-            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showRoutingModal', false)">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showRoutingModal', false)">
-                    <h3 class="text-xl font-bold text-white mb-2">Automatisches Einsortieren</h3>
-                    <p class="text-xs text-gray-400 mb-4">Mails von diesem Absender werden in Zukunft immer sofort in den gewählten Ordner verschoben.</p>
-                    <form wire:submit.prevent="saveRoutingRule">
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-400 mb-1">Ziel-Ordner</label>
-                            <select wire:model="routingTargetFolder" class="w-full bg-gray-950 border border-gray-700 text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" required>
-                                <option value="">-- Ordner wählen --</option>
-                                @foreach($folders as $key => $label)
-                                    @if(!in_array($key, ['Drafts', 'Sent', 'Trash', 'Junk']))
-                                        <option value="{{ $key }}">{{ $label }}</option>
-                                    @endif
-                                @endforeach
-                            </select>
-                            @error('routingTargetFolder') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="flex justify-end gap-3 mt-6">
-                            <button type="button" wire:click="$set('showRoutingModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-6 py-2 text-sm font-bold rounded-lg transition-colors">Regel aktivieren</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        @endif
-
-        {{-- Modal: E-Mail Schreiben / Antworten --}}
-        @if($showComposeModal)
-            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showComposeModal', false)">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.set('showComposeModal', false)">
-                    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950 rounded-t-2xl">
-                        <h3 class="text-lg font-bold text-white">Neue Nachricht</h3>
-                        <button wire:click="$set('showComposeModal', false)" class="text-gray-400 hover:text-white transition-colors">
-                            <x-heroicon-o-x-mark class="w-6 h-6"/>
-                        </button>
-                    </div>
-                    <form wire:submit.prevent="sendMail" class="flex flex-col flex-1 overflow-hidden">
-                        <div class="p-4 border-b border-gray-800 space-y-3 shrink-0">
-                            <div class="flex items-center gap-2">
-                                <span class="text-gray-500 text-sm w-16">An:</span>
-                                <input type="email" wire:model="composeTo" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0" placeholder="empfaenger@beispiel.de" required>
-                            </div>
-                            <div class="h-px bg-gray-800"></div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-gray-500 text-sm w-16">Betreff:</span>
-                                <input type="text" wire:model="composeSubject" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0 font-bold" placeholder="Worum geht es?" required>
-                            </div>
-                        </div>
-                        <div class="flex-1 p-0 relative">
-                            <textarea wire:model="composeBody" class="w-full h-full bg-transparent border-none text-gray-300 focus:ring-0 p-4 resize-none custom-scrollbar" placeholder="Schreibe deine Nachricht..." required></textarea>
-                        </div>
-                        <div class="p-4 border-t border-gray-800 bg-gray-950 rounded-b-2xl flex justify-end gap-3 shrink-0">
-                            <button type="button" wire:click="$set('showComposeModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Verwerfen</button>
-                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-8 py-2 text-sm font-bold rounded-lg transition-colors flex items-center gap-2">
-                                <x-heroicon-o-paper-airplane class="w-4 h-4"/> Senden
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        @endif
-
         <div class="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar">
             @if(isset($accountTree) && count($accountTree) > 0)
-                @foreach($accountTree as $accountId => $data)
-                    @php
-                        $acc = $data['model'];
-                        $accFolders = $data['folders'];
-                        $accCounts = $data['counts'];
-                        $accTotalUnread = $data['total_unread'];
-                        $isAccActive = $selectedAccountId === $acc->id;
-                    @endphp
+                @php
+                    $commercialAccounts = collect($accountTree)->filter(fn($data) => $data['model']->is_commercial ?? true);
+                    $privateAccounts = collect($accountTree)->filter(fn($data) => !($data['model']->is_commercial ?? true));
+                    $categories = [
+                        ['title' => 'Gewerblich', 'accounts' => $commercialAccounts],
+                        ['title' => 'Privat', 'accounts' => $privateAccounts],
+                    ];
+                @endphp
 
-                    {{-- Alpine.js Accordion for each Account --}}
-                    <div x-data="{ open: {{ $isAccActive ? 'true' : 'false' }} }" class="space-y-1">
-
-                        {{-- Account Header / Accordion Toggle --}}
-                        <div class="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-bold transition-colors {{ $isAccActive ? 'text-white bg-gray-800/50' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/30' }}">
-
-                            <button @click="open = !open; $wire.selectAccount({{ $acc->id }})" class="flex items-center gap-2 truncate flex-1 text-left">
-                                <x-heroicon-s-chevron-right class="w-4 h-4 transition-transform duration-200 shrink-0" x-bind:class="open ? 'rotate-90 text-[var(--theme-color)]' : ''" />
-                                <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 {{ $isAccActive ? 'text-[var(--theme-color)]' : '' }}"/>
-                                <span class="truncate">{{ $acc->name }}</span>
-                            </button>
-
-                            <div class="flex items-center gap-1 shrink-0">
-                                @if($accTotalUnread > 0)
-                                    <span class="bg-[var(--theme-color)] text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $accTotalUnread }}</span>
-                                @endif
-                                <button type="button" @click.prevent.stop="navigator.clipboard.writeText('{{ $acc->email }}'); $el.innerHTML = `<svg class='w-3.5 h-3.5 text-green-400' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 13l4 4L19 7'/></svg>`; setTimeout(() => $el.innerHTML = `<svg class='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3'/></svg>`, 2000)" class="p-1 text-gray-500 hover:text-white transition-colors" title="E-Mail kopieren">
-                                    <x-heroicon-o-clipboard-document class="w-3.5 h-3.5" />
-                                </button>
-                                <button type="button" wire:click.stop="openAccountSettings({{ $acc->id }})" class="p-1 text-gray-500 hover:text-white transition-colors" title="Konto-Einstellungen">
-                                    <x-heroicon-o-cog-6-tooth class="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {{-- Folders List (Collapsible) --}}
-                        <div x-show="open" x-collapse>
-                            <div class="pl-6 pr-2 py-1 space-y-0.5 border-l border-gray-800/50 ml-4">
-                                @foreach($accFolders as $key => $label)
+                @foreach($categories as $category)
+                    @if($category['accounts']->isNotEmpty())
+                        <div class="mb-5 last:mb-0">
+                            <h3 class="px-2 text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
+                                <span>{{ $category['title'] }}</span>
+                            </h3>
+                            <div class="space-y-1">
+                                @foreach($category['accounts'] as $accountId => $data)
                                     @php
-                                        // A folder is only visually "active" if it belongs to the currently selected account AND is the selected folder
-                                        $isActiveFolder = $isAccActive && ($selectedFolder === $key);
-                                        $count = $accCounts[$key] ?? 0;
-
-                                        $icon = 'folder';
-                                        if($key === 'INBOX') $icon = 'inbox';
-                                        if($key === 'Sent') $icon = 'paper-airplane';
-                                        if($key === 'Drafts') $icon = 'document';
-                                        if($key === 'Junk') $icon = 'shield-exclamation';
-                                        if($key === 'Trash') $icon = 'trash';
-                                        if($key === 'Archive') $icon = 'archive-box';
+                                        $acc = $data['model'];
+                                        $accFolders = $data['folders'];
+                                        $accCounts = $data['counts'];
+                                        $accTotalUnread = $data['total_unread'];
+                                        $isAccActive = $selectedAccountId === $acc->id;
                                     @endphp
 
-                                    <div class="relative group"
-                                         x-data="{ isDragOver: false }"
-                                         @dragover.prevent="isDragOver = true"
-                                         @dragleave.prevent="isDragOver = false"
-                                         @drop.prevent="
-                                            isDragOver = false;
-                                            $wire.moveMessage($event.dataTransfer.getData('text/plain'), '{{ $key }}')
-                                         ">
-                                        <button wire:click.stop="selectAccountAndFolder({{ $acc->id }}, '{{ $key }}')"
-                                                :class="isDragOver ? 'ring-1 ring-[var(--theme-color)] bg-[var(--theme-color-20)]' : ''"
-                                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors {{ $isActiveFolder ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)]' : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
-                                            <div class="flex items-center gap-3 truncate">
-                                                <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-4 h-4 shrink-0 {{ $isActiveFolder ? 'text-[var(--theme-color)]' : 'text-gray-500' }}" />
-                                                <span class="truncate">{{ $label }}</span>
+                                    {{-- Alpine.js Accordion for each Account --}}
+                                    <div x-data="{ open: {{ $isAccActive ? 'true' : 'false' }} }" class="space-y-1">
+
+                                        {{-- Account Header / Accordion Toggle --}}
+                                        <div class="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-bold transition-colors {{ $isAccActive ? 'text-white bg-gray-800/50' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/30' }}">
+
+                                            <button @click="open = !open; $wire.selectAccount({{ $acc->id }})" class="flex items-center gap-2 truncate flex-1 text-left">
+                                                <x-heroicon-s-chevron-right class="w-4 h-4 transition-transform duration-200 shrink-0" x-bind:class="open ? 'rotate-90 text-[var(--theme-color)]' : ''" />
+                                                @if($acc->status === 'error')
+                                                    <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" title="Fehler: Bitte Passwort prüfen"/>
+                                                @else
+                                                    <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" title="Verbunden"/>
+                                                @endif
+                                                <span class="truncate">{{ $acc->name }}</span>
+                                            </button>
+
+                                            <div class="flex items-center gap-1 shrink-0">
+                                                @if($accTotalUnread > 0)
+                                                    <span class="bg-[var(--theme-color)] text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $accTotalUnread }}</span>
+                                                @endif
+                                                <button type="button" @click.prevent.stop="navigator.clipboard.writeText('{{ $acc->email }}'); $el.innerHTML = `<svg class='w-3.5 h-3.5 text-green-400' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 13l4 4L19 7'/></svg>`; setTimeout(() => $el.innerHTML = `<svg class='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3'/></svg>`, 2000)" class="p-1 text-gray-500 hover:text-white transition-colors" title="E-Mail kopieren">
+                                                    <x-heroicon-o-clipboard-document class="w-3.5 h-3.5" />
+                                                </button>
+                                                <button type="button" wire:click.stop="openAccountSettings({{ $acc->id }})" class="p-1 text-gray-500 hover:text-white transition-colors" title="Konto-Einstellungen">
+                                                    <x-heroicon-o-cog-6-tooth class="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
-                                            @if($count > 0)
-                                                <span class="bg-gray-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm shrink-0">{{ $count }}</span>
-                                            @endif
-                                        </button>
+                                        </div>
+
+                                        {{-- Folders List (Collapsible) --}}
+                                        <div x-show="open" x-collapse>
+                                            <div class="pl-6 pr-2 py-1 space-y-0.5 border-l border-gray-800/50 ml-4">
+                                                @foreach($accFolders as $key => $label)
+                                                    @php
+                                                        // A folder is only visually "active" if it belongs to the currently selected account AND is the selected folder
+                                                        $isActiveFolder = $isAccActive && ($selectedFolder === $key);
+                                                        $count = $accCounts[$key] ?? 0;
+
+                                                        $icon = 'folder';
+                                                        if($key === 'INBOX') $icon = 'inbox';
+                                                        if($key === 'Sent') $icon = 'paper-airplane';
+                                                        if($key === 'Drafts') $icon = 'document';
+                                                        if($key === 'Junk') $icon = 'shield-exclamation';
+                                                        if($key === 'Trash') $icon = 'trash';
+                                                        if($key === 'Archive') $icon = 'archive-box';
+                                                    @endphp
+
+                                                    <div class="relative group"
+                                                         x-data="{ isDragOver: false }"
+                                                         @dragover.prevent="isDragOver = true"
+                                                         @dragleave.prevent="isDragOver = false"
+                                                         @drop.prevent="
+                                                            isDragOver = false;
+                                                            $wire.moveMessage($event.dataTransfer.getData('text/plain'), '{{ $key }}')
+                                                         ">
+                                                        <button wire:click.stop="selectAccountAndFolder({{ $acc->id }}, '{{ $key }}')"
+                                                                :class="isDragOver ? 'ring-1 ring-[var(--theme-color)] bg-[var(--theme-color-20)]' : ''"
+                                                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors {{ $isActiveFolder ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)]' : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+                                                            <div class="flex items-center gap-3 truncate">
+                                                                <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-4 h-4 shrink-0 {{ $isActiveFolder ? 'text-[var(--theme-color)]' : 'text-gray-500' }}" />
+                                                                <span class="truncate">{{ $label }}</span>
+                                                            </div>
+                                                            @if($count > 0)
+                                                                <span class="bg-gray-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm shrink-0">{{ $count }}</span>
+                                                            @endif
+                                                        </button>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+
                                     </div>
                                 @endforeach
                             </div>
                         </div>
-
-                    </div>
+                    @endif
                 @endforeach
             @endif
         </div>
@@ -210,9 +151,15 @@
                 </button>
                 <h3 class="text-white font-bold truncate">{{ $selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails') }}</h3>
             </div>
-            <button wire:click="openCompose('new')" class="bg-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-black p-1.5 rounded-lg transition-colors shrink-0" title="Neue E-Mail schreiben">
-                <x-heroicon-o-pencil-square class="w-5 h-5"/>
-            </button>
+            @if($accounts->isEmpty())
+                <button disabled class="bg-gray-800 text-gray-500 cursor-not-allowed p-1.5 rounded-lg shrink-0" title="Keine Postfächer hinterlegt">
+                    <x-heroicon-o-pencil-square class="w-5 h-5"/>
+                </button>
+            @else
+                <button wire:click="openCompose('new')" class="bg-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-black p-1.5 rounded-lg transition-colors shrink-0" title="Neue E-Mail schreiben">
+                    <x-heroicon-o-pencil-square class="w-5 h-5"/>
+                </button>
+            @endif
         </div>
 
         {{-- Search & Filter Bar --}}
@@ -314,16 +261,16 @@
     </div>
 
     {{-- COLUMN 3: Reading Pane --}}
-    <div class="absolute inset-0 z-10 lg:relative lg:z-auto w-full lg:flex-1 bg-gray-950 flex flex-col transition-transform duration-300"
+    <div class="absolute inset-0 z-10 lg:relative lg:z-auto w-full lg:flex-1 bg-gray-950 flex flex-col transition-transform duration-300 min-w-0"
          :class="(mobileView === 'detail' || mobileView === 'settings') ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'">
         @if (session()->has('success_message'))
-            <div class="absolute top-4 right-4 z-40 p-3 text-sm text-green-400 bg-green-900/90 border border-green-800 rounded-lg shadow-xl backdrop-blur-sm">
+            <div class="fixed top-4 right-4 z-[100] p-3 text-sm text-green-400 bg-green-900/90 border border-green-800 rounded-lg shadow-xl backdrop-blur-sm">
                 {{ session('success_message') }}
             </div>
         @endif
 
         @if (session()->has('error_message'))
-            <div class="absolute top-4 right-4 z-40 p-3 text-sm text-red-400 bg-red-900/90 border border-red-800 rounded-lg shadow-xl backdrop-blur-sm max-w-sm">
+            <div class="fixed top-4 right-4 z-[100] p-3 text-sm text-red-400 bg-red-900/90 border border-red-800 rounded-lg shadow-xl backdrop-blur-sm max-w-sm">
                 {{ session('error_message') }}
             </div>
         @endif
@@ -422,14 +369,14 @@
             @endif
 
             {{-- Mail Body --}}
-            <div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
-                <div class="prose prose-invert max-w-none text-gray-300">
-                    @if($selectedMessage->body_html)
-                        {!! $selectedMessage->body_html !!}
-                    @else
+            <div class="flex-1 overflow-hidden relative bg-white">
+                @if($selectedMessage->body_html)
+                    <iframe srcdoc="{{ $selectedMessage->safe_body_html }}" class="absolute inset-0 w-full h-full border-0" sandbox="allow-popups allow-scripts" title="E-Mail Inhalt"></iframe>
+                @else
+                    <div class="p-6 w-full h-full overflow-y-auto custom-scrollbar text-black prose max-w-none">
                         {!! nl2br(e($selectedMessage->body_plain)) !!}
-                    @endif
-                </div>
+                    </div>
+                @endif
             </div>
         @else
             <div class="flex-1 flex flex-col items-center justify-center text-gray-500">
@@ -484,7 +431,21 @@
 
                     {{-- Allgemeine Infos --}}
                     <div class="lg:col-span-2 space-y-4">
-                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-800 pb-2">Kontodetails</h4>
+                        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                            <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase">Kontodetails</h4>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-bold transition-colors" :class="!$wire.is_commercial ? 'text-white' : 'text-gray-600'">Privat</span>
+                                <button type="button" 
+                                    wire:click="$toggle('is_commercial')"
+                                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-gray-900" 
+                                    :class="$wire.is_commercial ? 'bg-[var(--theme-color)]' : 'bg-gray-700'">
+                                    <span aria-hidden="true" 
+                                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" 
+                                        :class="$wire.is_commercial ? 'translate-x-5' : 'translate-x-0'"></span>
+                                </button>
+                                <span class="text-xs font-bold transition-colors" :class="$wire.is_commercial ? 'text-[var(--theme-color)]' : 'text-gray-600'">Gewerblich</span>
+                            </div>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs text-gray-400 mb-1">Anzeigename</label>
@@ -576,6 +537,216 @@
             </div>
         </div> {{-- End SETTINGS VIEW --}}
     </div> {{-- End RIGHT SIDE WRAPPER --}}
+
+        {{-- Modal: Neuer Ordner --}}
+        @if($showNewFolderModal)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showNewFolderModal', false)">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showNewFolderModal', false)">
+                    <h3 class="text-xl font-bold text-white mb-4">Neuen Ordner erstellen</h3>
+                    <form wire:submit.prevent="createFolder">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Ordnername</label>
+                            <input type="text" wire:model="newFolderName" class="w-full bg-gray-950 border border-gray-700 text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" placeholder="z.B. Rechnungen, Projekte..." required autofocus>
+                            @error('newFolderName') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="flex justify-end gap-3 mt-6">
+                            <button type="button" wire:click="$set('showNewFolderModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
+                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-6 py-2 text-sm font-bold rounded-lg transition-colors">Erstellen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- Modal: Auto-Routing Regel --}}
+        @if($showRoutingModal)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showRoutingModal', false)">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showRoutingModal', false)">
+                    <h3 class="text-xl font-bold text-white mb-2">Automatisches Einsortieren</h3>
+                    <p class="text-xs text-gray-400 mb-4">Mails von diesem Absender werden in Zukunft immer sofort in den gewählten Ordner verschoben.</p>
+                    <form wire:submit.prevent="saveRoutingRule">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-400 mb-1">Ziel-Ordner</label>
+                            <select wire:model="routingTargetFolder" class="w-full bg-gray-950 border border-gray-700 text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" required>
+                                <option value="">-- Ordner wählen --</option>
+                                @foreach($folders as $key => $label)
+                                    @if(!in_array($key, ['Drafts', 'Sent', 'Trash', 'Junk']))
+                                        <option value="{{ $key }}">{{ $label }}</option>
+                                    @endif
+                                @endforeach
+                            </select>
+                            @error('routingTargetFolder') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="flex justify-end gap-3 mt-6">
+                            <button type="button" wire:click="$set('showRoutingModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
+                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-6 py-2 text-sm font-bold rounded-lg transition-colors">Regel aktivieren</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- Modal: E-Mail Schreiben / Antworten --}}
+        @if($showComposeModal)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showComposeModal', false)">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.set('showComposeModal', false)">
+                    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950 rounded-t-2xl">
+                        <h3 class="text-lg font-bold text-white">Neue Nachricht</h3>
+                        <button wire:click="$set('showComposeModal', false)" class="text-gray-400 hover:text-white transition-colors">
+                            <x-heroicon-o-x-mark class="w-6 h-6"/>
+                        </button>
+                    </div>
+                    <form wire:submit.prevent="sendMail" class="flex flex-col flex-1 overflow-hidden">
+                        <div class="p-4 border-b border-gray-800 space-y-3 shrink-0">
+                            @if(count($accounts) > 1)
+                                <div class="flex items-center gap-2">
+                                    <span class="text-gray-500 text-sm w-16">Von:</span>
+                                    <select wire:model="composeAccountId" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0 text-sm font-semibold cursor-pointer">
+                                        @foreach($accounts as $acc)
+                                            <option class="text-black" value="{{ $acc->id }}">{{ $acc->name }} ({{ $acc->email }})</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="h-px bg-gray-800"></div>
+                            @endif
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-500 text-sm w-16">An:</span>
+                                <input type="email" wire:model="composeTo" list="contact-emails-list" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0" required>
+                                <datalist id="contact-emails-list">
+                                    @foreach($accounts as $acc)
+                                        <option value="{{ $acc->email }}">{{ $acc->name }} (Eigenes Postfach)</option>
+                                    @endforeach
+                                    @foreach($contactEmails as $contact)
+                                        <option value="{{ $contact->email }}">{{ $contact->first_name }} {{ $contact->last_name }} (Kontakt)</option>
+                                    @endforeach
+                                </datalist>
+                            </div>
+                            <div class="h-px bg-gray-800"></div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-500 text-sm w-16">Betreff:</span>
+                                <input type="text" wire:model="composeSubject" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0 font-bold" required>
+                            </div>
+                            @if ($errors->any())
+                                <div class="bg-red-900/20 text-red-400 p-2 text-xs rounded-lg border border-red-900/50 mt-2">
+                                    Bitte alle Felder korrekt ausfüllen (Empfänger & Nachricht).
+                                </div>
+                            @endif
+                        </div>
+                        <div class="flex-1 p-0 relative" wire:ignore>
+                            <style>
+                                .cke_notification_warning { display: none !important; }
+                                .cke_notifications_area { display: none !important; }
+
+                                /* Rahmen und Basis */
+                                .cke_chrome { border: none !important; border-top: 1px solid #1f2937 !important; border-radius: 0 !important; overflow: hidden; box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5) !important; background: #030712 !important; height: 100% !important; display: flex !important; flex-direction: column !important; }
+                                
+                                /* Toolbar Hintergrund */
+                                .cke_top { background: #111827 !important; border-bottom: 1px solid #1f2937 !important; padding: 12px 10px !important; }
+                                .cke_bottom { background: #111827 !important; border-top: 1px solid #1f2937 !important; }
+
+                                /* Button-Gruppen & Buttons */
+                                .cke_toolgroup { background: #1f2937 !important; border: 1px solid #374151 !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important; border-radius: 8px !important; margin-right: 8px !important; }
+                                .cke_button { transition: all 0.2s; padding: 4px 6px !important; border: 1px solid transparent !important; margin: 0 !important; }
+                                .cke_button:hover { background: #374151 !important; border-radius: 6px !important; border: 1px solid transparent !important; }
+
+                                /* Icons invertieren (hell machen) und zum Leuchten bringen */
+                                .cke_button_icon { filter: invert(0.8) hue-rotate(180deg) brightness(1.5) !important; opacity: 0.8; transition: opacity 0.2s; }
+                                .cke_button:hover .cke_button_icon { opacity: 1; filter: invert(1) brightness(2) drop-shadow(0 0 2px rgba(255,255,255,0.5)) !important; }
+
+                                /* Dropdowns (z.B. Format, Schriftart) */
+                                .cke_combo_text { color: #d1d5db !important; text-shadow: none !important; }
+                                .cke_combo_button { background: #1f2937 !important; border: 1px solid #374151 !important; border-radius: 6px !important; margin: 2px 4px !important; padding: 0 !important; }
+                                .cke_combo_open { border-left: 1px solid #374151 !important; }
+                                .cke_combo_arrow { filter: invert(1) !important; }
+
+                                /* iFrame Hintergrund-Wrapper & Flexbox-Stretching */
+                                .cke_inner { display: flex !important; flex-direction: column !important; flex-grow: 1 !important; }
+                                .cke_contents { background: #030712 !important; flex-grow: 1 !important; height: 0 !important; }
+                                iframe.cke_wysiwyg_frame { height: 100% !important; width: 100% !important; }
+                            </style>
+                            <div x-data="{
+                                            init() {
+                                                if (CKEDITOR.instances['composeEditor']) {
+                                                    CKEDITOR.instances['composeEditor'].destroy(true);
+                                                }
+
+                                                CKEDITOR.addCss(`
+                                                    body.cke_editable {
+                                                        background-color: #030712 !important; /* bg-gray-950 */
+                                                        color: #d1d5db !important; /* text-gray-300 */
+                                                        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+                                                        font-size: 14px !important;
+                                                        line-height: 1.8 !important;
+                                                        padding: 2rem !important;
+                                                        margin: 0 !important;
+                                                    }
+                                                    ::selection { background: rgba(197, 160, 89, 0.3) !important; color: #ffffff !important; }
+                                                    p { margin-bottom: 1.2em !important; }
+                                                    a { color: #C5A059 !important; text-decoration: none !important; transition: all 0.2s; }
+                                                    a:hover { text-decoration: underline !important; color: #d4af37 !important; }
+                                                    h1, h2, h3, h4, h5, h6 { color: #ffffff !important; font-family: ui-serif, Georgia, serif !important; font-weight: bold !important; margin-top: 1.5em !important; margin-bottom: 0.5em !important; }
+                                                    ul, ol { margin-bottom: 1.2em !important; padding-left: 1.5em !important; }
+                                                    li { margin-bottom: 0.5em !important; }
+                                                    blockquote { border-left: 3px solid #C5A059 !important; padding-left: 1.5em !important; color: #9ca3af !important; font-style: italic !important; background: rgba(197, 160, 89, 0.05) !important; padding-top: 0.5em !important; padding-bottom: 0.5em !important; border-radius: 0 8px 8px 0 !important; }
+                                                `);
+
+                                                const editor = CKEDITOR.replace('composeEditor', {
+                                                    height: '100%',
+                                                    versionCheck: false,
+                                                    resize_enabled: false,
+                                                    removePlugins: 'elementspath',
+                                                    toolbarGroups: [
+                                                        { name: 'styles', groups: [ 'styles' ] },
+                                                        { name: 'basicstyles', groups: [ 'basicstyles', 'cleanup' ] },
+                                                        { name: 'paragraph', groups: [ 'list', 'indent', 'blocks', 'align' ] },
+                                                        { name: 'links', groups: [ 'links' ] },
+                                                        { name: 'insert', groups: [ 'insert' ] },
+                                                        '/',
+                                                        { name: 'document', groups: [ 'mode', 'document', 'doctools' ] },
+                                                        { name: 'tools', groups: [ 'tools' ] }
+                                                    ]
+                                                });
+
+                                                editor.on('change', function() {
+                                                    @this.set('composeBody', editor.getData());
+                                                });
+
+                                                editor.setData(@this.get('composeBody'));
+                                            }
+                                        }" x-init="init()" class="h-full flex flex-col">
+                                
+                                @if(count($forwardedAttachments) > 0)
+                                    <div class="p-3 bg-gray-900 border-b border-gray-800 shrink-0">
+                                        <div class="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wider">Erhaltene Anhänge werden bei Versand angehängt:</div>
+                                        <div class="flex flex-wrap gap-2">
+                                            @foreach($forwardedAttachments as $att)
+                                                <div class="flex items-center gap-2 bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700">
+                                                    <x-heroicon-o-paper-clip class="w-3 h-3 text-[#E6C687]" />
+                                                    <span class="truncate max-w-[200px]">{{ $att['filename'] }}</span>
+                                                    <span class="text-gray-500">({{ number_format($att['size'] / 1024, 1) }} KB)</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                                
+                                <div class="flex-1 min-h-0 bg-transparent">
+                                    <textarea id="composeEditor" class="w-full h-full"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 border-t border-gray-800 bg-gray-950 rounded-b-2xl flex justify-end gap-3 shrink-0">
+                            <button type="button" wire:click="$set('showComposeModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Verwerfen</button>
+                            <button @click="$wire.set('composeBody', CKEDITOR.instances['composeEditor'].getData())" type="submit" class="py-2.5 px-6 rounded-xl font-bold bg-[#E6C687] text-black hover:bg-[#d4b57a] hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+                                <x-heroicon-o-paper-airplane class="w-5 h-5 -rotate-45" wire:loading.class="animate-ping" wire:target="sendMail" />
+                                Senden
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
 
     <style>
     /* Custom Scrollbar for Mail Reader */

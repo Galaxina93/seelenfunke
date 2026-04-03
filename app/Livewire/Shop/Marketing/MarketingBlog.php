@@ -43,6 +43,7 @@ class MarketingBlog extends Component
     public $existingImage;
     public $headerImage;
     public $existingHeaderImage;
+    public $author_name;
 
     // SEO & Legal
     public $meta_title;
@@ -70,6 +71,7 @@ class MarketingBlog extends Component
             'meta_description' => 'nullable|max:160',
             'is_advertisement' => 'boolean',
             'contains_affiliate_links' => 'boolean',
+            'author_name' => 'nullable|string|max:255',
         ];
     }
 
@@ -116,9 +118,14 @@ class MarketingBlog extends Component
         // Kategorien immer frisch laden für das Dropdown & Modal
         $categories = MarketingBlogCategory::orderBy('name')->get();
 
+        $shopBrand = \App\Models\System\SystemSetting::where('key', 'company_name')->value('value') ?? 'Mein Seelenfunke';
+        $admins = \App\Models\Admin\Admin::orderBy('first_name')->get();
+
         return view('livewire.shop.marketing.marketing-blog', [
             'posts' => $posts,
-            'categories' => $categories
+            'categories' => $categories,
+            'shopBrand' => $shopBrand,
+            'admins' => $admins
         ]);
     }
 
@@ -130,6 +137,7 @@ class MarketingBlog extends Component
         $this->viewMode = 'create';
         $this->published_at = now()->format('Y-m-d\TH:i');
         $this->status = 'draft';
+        $this->author_name = \App\Models\System\SystemSetting::where('key', 'company_name')->value('value') ?? 'Mein Seelenfunke';
     }
 
     public function edit($id)
@@ -153,6 +161,7 @@ class MarketingBlog extends Component
         $this->meta_description = $post->meta_description;
         $this->is_advertisement = (bool)$post->is_advertisement;
         $this->contains_affiliate_links = (bool)$post->contains_affiliate_links;
+        $this->author_name = $post->author_name;
     }
 
     public function save()
@@ -171,6 +180,7 @@ class MarketingBlog extends Component
             'meta_description' => $this->meta_description,
             'is_advertisement' => $this->is_advertisement,
             'contains_affiliate_links' => $this->contains_affiliate_links,
+            'author_name' => $this->author_name,
         ];
 
         if ($this->image) {
@@ -261,7 +271,7 @@ class MarketingBlog extends Component
             'status', 'published_at', 'image', 'existingImage',
             'headerImage', 'existingHeaderImage',
             'meta_title', 'meta_description', 'is_advertisement',
-            'contains_affiliate_links', 'postId', 'showCategoryModal'
+            'contains_affiliate_links', 'postId', 'showCategoryModal', 'author_name'
         ]);
         $this->resetValidation();
         $this->image = null;
