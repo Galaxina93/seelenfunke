@@ -1,5 +1,5 @@
 <div>
-    <div class="p-10 min-h-full flex flex-col relative z-10">
+    <div class="p-10 mb-6 min-h-full flex flex-col relative z-10">
 
         {{-- SEITEN-HEADER (Wird ausgeblendet, wenn man in der Detailansicht ist) --}}
         @if(!$selectedOrderId)
