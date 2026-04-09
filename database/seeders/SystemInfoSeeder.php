@@ -14,9 +14,9 @@ class SystemInfoSeeder extends Seeder
     {
         $plans = [
             [
-                'name' => 'Mittwald Space',
+                'name' => 'Mittwald Starter',
                 'token_limit' => 5000000,
-                'price_monthly' => 5.00,
+                'price_monthly' => 9.00,
                 'is_active' => false,
             ],
             [
@@ -24,6 +24,18 @@ class SystemInfoSeeder extends Seeder
                 'token_limit' => 75000000,
                 'price_monthly' => 39.00,
                 'is_active' => true,
+            ],
+            [
+                'name' => 'Mittwald Business',
+                'token_limit' => 300000000,
+                'price_monthly' => 149.00,
+                'is_active' => false,
+            ],
+            [
+                'name' => 'Mittwald Dedicated',
+                'token_limit' => 10000000000, // Milliarden
+                'price_monthly' => 999.00,
+                'is_active' => false,
             ],
             [
                 'name' => 'Lokal gehostet',
