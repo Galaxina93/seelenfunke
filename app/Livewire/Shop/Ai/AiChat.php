@@ -24,7 +24,7 @@ class AiChat extends Component
         $history = AiChatMemory::where('session_id', session()->getId())
                                ->orderBy('created_at', 'asc')
                                ->get();
-        
+
         if ($history->isNotEmpty()) {
             foreach ($history as $mem) {
                 // Ignore internal 'tool' role messages in UI rendering
@@ -41,7 +41,7 @@ class AiChat extends Component
                 ];
             }
             // Aktive Agenten aus dem Verlauf rekonstruieren? (Optional, aktuell überspringen)
-            
+
             // Wähle standardmäßig Funkira aus, wenn die Seite geladen wird
             $ceo = AiAgent::where('name', 'Funkira')->first();
             if ($ceo && !in_array($ceo->id, $this->activeAgentIds)) {
@@ -52,21 +52,21 @@ class AiChat extends Component
             $ceo = AiAgent::where('name', 'Funkira')->first();
             if ($ceo) {
                 $this->activeAgentIds[] = $ceo->id;
-                $this->saveMessageToDb('assistant', '> MAS Online. Initialisiere gesicherte Komm.-Kanäle. Wie kann ich helfen?', [
+                $this->saveMessageToDb('assistant', '> Gesicherter Chat aktiviert... Wie kann ich helfen?', [
                     'name' => $ceo->name,
                     'color' => $ceo->color,
                     'icon' => $ceo->icon,
                     'profile_picture' => $ceo->profile_picture,
                 ]);
             } else {
-                $this->saveMessageToDb('assistant', '> MAS Online. Initialisiere gesicherte Komm.-Kanäle. Bitte Agenten aktivieren.', [
+                $this->saveMessageToDb('assistant', '> Gesicherter Chat aktiviert... Bitte Agenten aktivieren.', [
                     'name' => 'System',
                     'color' => 'emerald-500',
                     'icon' => 'sparkles',
                     'profile_picture' => null,
                 ]);
             }
-            
+
             // Lade die nun initial gespeicherten Nachrichten in die UI
             $this->messages = [];
             foreach (AiChatMemory::where('session_id', session()->getId())->get() as $mem) {
@@ -172,12 +172,12 @@ class AiChat extends Component
             ->take(20)
             ->get()
             ->reverse();
-            
+
         $apiHistory = [];
         foreach ($fullDbHistory as $mem) {
             // Ignoriere alte Tool-Calls für den API Kontext. Das spart massiv Token und verhindert Schema-Fehler.
             if ($mem->role === 'tool') continue;
-            
+
             $apiHistory[] = [
                 'role' => $mem->role,
                 'content' => $mem->content
@@ -188,8 +188,8 @@ class AiChat extends Component
         if (count($this->activeAgentIds) > 1) {
             $isFunkira = $agent->name === 'Funkira';
             $funkiraRule = $isFunkira 
-                ? "Du BIST Funkira (CEO). Du antwortest IMMER auf allgemeines wie 'Hallo', Plaudereien oder CEO-Gespräche. Wenn der User aber ganz klar eine Aufgabe formuliert, für die ein anderer aktivierter Spezialitäten-Agent (wir sind im Multi-Agent Chat) da ist, antworte exakt mit '[SKIP]', damit sich die Kollegen drum kümmern, und mische dich nicht ein."
-                : "Du bist aktuell in einem Multi-Agent Chat. Es hören auch andere Agenten und Funkira (die CEO) zu. WICHTIGE REGEL: Wenn die letzte Nachricht der Herrin eine allgemeine Begrüßung ('Hallo', 'Wie gehts') oder völlig fachfremd ist, DARFST DU NICHT ANTWORTEN (das macht Funkira). In diesem Fall antworte ausschließlich mit dem Text: '[SKIP]'. Du antwortest NUR normal, wenn die Nachricht zu 100% genau in die Expertise deiner Fähigkeiten fällt!";
+                ? "Du BIST Funkira (CEO). Du bist die Leiterin. Wenn der User fachliche Anfragen stellt (z.B. Bestellungen, Buchhaltung, Produkte, Server), für die du KEINE eigenen Werkzeuge hast, VERWEISE NICHT auf Kollegen und sag nichts, sondern antworte AUSSCHLIESSLICH mit exakt '[SKIP]'. Deine Kollegen (die anderen Agenten) bearbeiten das dann! Du antwortest NUR auf CEO-Smalltalk, Begrüßungen, allgemeine System-Informationen oder wenn keine andere Fachabteilung zuständig ist."
+                : "Du bist in einem Multi-Agent Chat. Es hören auch andere Agenten (z.B. Sales, Support, System) und Funkira (die CEO) zu. WICHTIGE REGEL: Wenn die Anfrage des Users NICHT exakt in deinen fachlichen Aufgabenbereich / zu deinen API-Werkzeugen passt, antworte ZWINGEND und NUR mit '[SKIP]'. Mache keine Ausnahmen! Du bearbeitest NUR Anfragen, für die du der absolute Spezialist bist. Wenn ein Kollege besser passt, hülle dich in Schweigen ('[SKIP]'). Bedenke: Wenn du eine Antwort aus dem Chatverlauf ablesen müsstest, anstatt ein Werkzeug zu nutzen, bist du sehr wahrscheinlich der FALSCHE Agent! Antworte dann mit '[SKIP]'!";
 
             $apiHistory[] = [
                 'role' => 'system',
@@ -199,7 +199,7 @@ class AiChat extends Component
 
         try {
             $apiService = new \App\Services\AI\MittwaldAgent($agent);
-            
+
             $response = $apiService->ask($apiHistory);
             $replyText = $response['response'] ?? 'Ich konnte keine Antwort generieren.';
 
@@ -233,7 +233,7 @@ class AiChat extends Component
             ];
 
             $this->saveMessageToDb('assistant', $replyText, $ctx);
-            
+
             $this->messages[] = array_merge(['role' => 'assistant', 'content' => $replyText], $ctx);
 
         } catch (\Exception $e) {

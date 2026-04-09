@@ -103,7 +103,7 @@ trait AiSalesFuncs
                     'order_number' => $o->order_number,
                     'customer' => $customerName,
                     'status' => $o->status,
-                    'total' => number_format($o->total_amount / 100, 2, ',', '.') . ' €',
+                    'total' => number_format($o->total_price / 100, 2, ',', '.') . ' €',
                     'items_summary' => $items,
                     'date' => $o->created_at->format('d.m.Y H:i')
                 ];
