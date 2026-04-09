@@ -147,7 +147,7 @@
     </div>
 
     <script>
-        document.addEventListener('alpine:init', () => {
+        const registerAiAnalyticsCharts = () => {
 
             Alpine.data('analyticsTrendChart', (data) => ({
                 chart: null,
@@ -272,6 +272,12 @@
                     this.chart.render();
                 }
             }));
-        });
+        };
+
+        if (window.Alpine) {
+            registerAiAnalyticsCharts();
+        } else {
+            document.addEventListener('alpine:init', registerAiAnalyticsCharts);
+        }
     </script>
 </div>
