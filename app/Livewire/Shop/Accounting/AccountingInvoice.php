@@ -491,8 +491,8 @@ class AccountingInvoice extends Component
     protected function processEInvoice(Invoice $invoice)
     {
         try {
-            // HIER DIE ÄNDERUNG: NativeXmlInvoiceService statt EInvoiceService
-            $eInvoiceService = app(\App\Services\NativeXmlInvoiceService::class);
+            // HIER DIE ÄNDERUNG: AccountingXmlInvoiceService statt EInvoiceService
+            $eInvoiceService = app(\App\Services\AccountingXmlInvoiceService::class);
 
             // XML generieren
             $xmlPath = $eInvoiceService->generate($invoice);
@@ -516,7 +516,7 @@ class AccountingInvoice extends Component
         // ... Logik wie gehabt, aber im Catch-Block ggf. auch den neuen Service nutzen:
         if (!Storage::disk('local')->exists($path)) {
             try {
-                $service = app(\App\Services\NativeXmlInvoiceService::class);
+                $service = app(\App\Services\AccountingXmlInvoiceService::class);
                 $service->generate($invoice);
                 return Storage::disk('local')->download($path);
             } catch (\Exception $e) {

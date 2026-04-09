@@ -41,6 +41,7 @@ class ProductCalculatorCapacityTest extends TestCase
                 'product_id' => $this->product->id,
                 'name' => $this->product->name,
                 'qty' => 1,
+                'configuration' => ['is_express' => true],
             ]
         ];
 
@@ -62,6 +63,7 @@ class ProductCalculatorCapacityTest extends TestCase
                 'product_id' => $this->product->id,
                 'name' => $this->product->name,
                 'qty' => 1,
+                'configuration' => ['is_express' => true],
             ]
         ];
 
@@ -82,6 +84,7 @@ class ProductCalculatorCapacityTest extends TestCase
                 'product_id' => $this->product->id,
                 'name' => $this->product->name,
                 'qty' => 1,
+                'configuration' => ['is_express' => true],
             ]
         ];
 

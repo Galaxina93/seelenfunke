@@ -84,6 +84,13 @@
                         <h4 class="text-sm font-bold text-white mb-1">Entwürfe speichern</h4>
                         <p class="text-xs text-gray-400 leading-relaxed">Wenn du noch auf Daten warten musst, speichere manuelle Rechnungen als <strong>Entwurf</strong>. Entwürfe erhalten noch keine offizielle Rechnungsnummer und können jederzeit gefahrlos komplett gelöscht werden.</p>
                     </div>
+                    <div class="bg-gray-950 p-4 rounded-2xl border border-gray-800/50 shadow-inner">
+                        <h4 class="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            ZUGFeRD 2.4 (D22B) & FACTUR-X
+                        </h4>
+                        <p class="text-xs text-gray-400 leading-relaxed">Unser System generiert vollautomatisch E-Rechnungen nach dem neuesten <strong>ZUGFeRD 2.4 Standard (technisches Format: D22B)</strong>. Dies ist 100% konform zum EN16931-Profil und rückwärtskompatibel zu D16B. Anpassungen für B2B E-Rechnungspflichten sind somit bereits abgedeckt.</p>
+                    </div>
                 </div>
             </div>
 

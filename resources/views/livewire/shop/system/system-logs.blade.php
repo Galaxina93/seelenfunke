@@ -125,11 +125,15 @@
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top">
                                     @if($log->agent)
+                                        @php 
+                                            // Lade die Abteilungsfarbe, falls verfügbar, sonst die Basis-Farbe des Agenten
+                                            $agentColor = $log->agent->department ? $log->agent->department->color : $log->agent->color; 
+                                        @endphp
                                         <div class="flex items-center gap-3 mt-1">
-                                            <div class="w-6 h-6 rounded bg-{{ $log->agent->color }}-500/10 flex items-center justify-center border border-{{ $log->agent->color }}-500/30 text-{{ $log->agent->color }}-500">
+                                            <div class="w-6 h-6 rounded bg-{{ $agentColor }}-500/10 flex items-center justify-center border border-{{ $agentColor }}-500/30 text-{{ $agentColor }}-500">
                                                 <i class="{{ $log->agent->icon }} text-xs"></i>
                                             </div>
-                                            <span class="text-{{ $log->agent->color }}-400 font-bold text-sm">{{ $log->agent->name }}</span>
+                                            <span class="text-{{ $agentColor }}-400 font-bold text-sm">{{ $log->agent->name }}</span>
                                         </div>
                                     @else
                                         <div class="flex items-center gap-3 mt-1">

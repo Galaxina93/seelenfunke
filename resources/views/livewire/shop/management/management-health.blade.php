@@ -1,4 +1,4 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="px-3 sm:px-6 lg:px-8 py-3 sm:py-8 w-full max-w-9xl mx-auto h-[100dvh] sm:h-[calc(100vh-2rem)] flex flex-col"
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="px-0 sm:px-6 lg:px-8 py-0 sm:py-8 w-full max-w-9xl mx-auto h-[100dvh] sm:h-[calc(100vh-2rem)] flex flex-col"
      x-data="{
         init() {
             this.scrollToBottom();
@@ -16,25 +16,25 @@
      x-on:start-health-ai-inference.window="$wire.processAgent()">
 
     <!-- Page Header & Tabs -->
-    <div class="mb-6">
-        <div class="sm:flex sm:justify-between sm:items-center mb-4">
-            <div class="mb-4 sm:mb-0">
-                <h1 class="text-2xl md:text-3xl text-slate-100 font-bold flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center border border-teal-500/30 shadow-[0_0_15px_rgba(20,184,166,0.3)]">
-                        <x-heroicon-o-heart class="w-7 h-7 animate-pulse" />
+    <div class="mb-2 sm:mb-6 px-3 sm:px-0 pt-3 sm:pt-0">
+        <div class="flex justify-between items-center mb-2 sm:mb-4">
+            <div>
+                <h1 class="text-lg sm:text-2xl md:text-3xl text-slate-100 font-bold flex items-center gap-2 sm:gap-3">
+                    <div class="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center border border-teal-500/30 shadow-[0_0_15px_rgba(20,184,166,0.3)]">
+                        <x-heroicon-o-heart class="w-5 h-5 sm:w-7 sm:h-7 animate-pulse" />
                     </div>
-                    Dr. Funki Zentrale
+                    Dr. Funki
                 </h1>
-                <p class="text-sm text-slate-400 mt-1 uppercase tracking-wider font-mono">Persönliches KI-Gesundheits- & Diagnostik-Terminal</p>
+                <p class="hidden sm:block text-sm text-slate-400 mt-1 uppercase tracking-wider font-mono">Persönliches KI-Gesundheits- & Diagnostik-Terminal</p>
             </div>
-            <div class="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
-                <button wire:click="clearChat" wire:confirm="Sicher, dass du den Chat-Verlauf leeren möchtest?" class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-rose-500/10 border border-rose-500/30 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-all shadow-lg hover:shadow-rose-500/30">
+            <div class="flex justify-end gap-2 shrink-0">
+                <button wire:click="clearChat" wire:confirm="Sicher, dass du den Chat-Verlauf leeren möchtest?" class="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium bg-rose-500/10 border border-rose-500/30 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-all shadow-lg hover:shadow-rose-500/30">
                     <x-heroicon-o-trash class="w-4 h-4" />
-                    Chat leeren
+                    <span class="hidden sm:inline">Chat leeren</span>
                 </button>
             </div>
         </div>        <!-- Tab Navigation -->
-        <div class="w-full flex space-x-2 sm:space-x-4 border-b border-slate-700 overflow-x-auto custom-scrollbar pb-1">
+        <div class="w-full flex space-x-2 sm:space-x-4 border-b border-slate-700 overflow-x-auto custom-scrollbar pb-1 px-3 sm:px-0">
             <button wire:click="selectTab('chat')"
                     class="py-2 px-3 sm:px-4 font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shrink-0 border-b-2 transition-colors {{ $activeTab === 'chat' ? 'border-teal-500 text-teal-400' : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600' }}">
                 <x-heroicon-o-chat-bubble-left-ellipsis class="w-4 h-4" />
@@ -74,22 +74,21 @@
 
         @if(in_array($activeTab, ['chat', 'plans', 'protocols']))
         <!-- LEFT: Dynamic View Area (2/3) -->
-        <div class="flex-1 bg-black/40 backdrop-blur-md border border-slate-700/60 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden relative">
+        <div class="flex-1 bg-black/40 backdrop-blur-md border-y sm:border border-slate-700/60 rounded-none sm:rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden relative">
 
             @if($activeTab === 'chat')
                 <!-- Chat Header -->
-                <div class="bg-teal-950/40 border-b border-teal-900/50 p-3 sm:p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-0 shrink-0">
-                    <div class="flex items-center gap-3">
-                        <div>
-                            <span class="text-teal-400 font-bold text-xs sm:text-sm tracking-widest uppercase truncate block">Gesicherte Verbindung: Dr. Funki</span>
-                        </div>
+                <div class="bg-teal-950/40 border-b border-teal-900/50 p-2 sm:p-4 flex flex-row justify-between items-center shrink-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-teal-400 font-bold text-[10px] sm:text-sm tracking-widest uppercase truncate block hidden sm:block">Gesicherte Verbindung: Dr. Funki</span>
+                        <span class="text-teal-400 font-bold text-[10px] uppercase truncate block sm:hidden">Dr. Funki aktiv</span>
                     </div>
                     <!-- Chat Search -->
-                    <div class="relative w-full sm:w-64">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <x-heroicon-o-magnifying-glass class="w-4 h-4 text-teal-500/50" />
+                    <div class="relative w-32 sm:w-64">
+                        <div class="absolute inset-y-0 left-0 pl-2 sm:pl-3 flex items-center pointer-events-none">
+                            <x-heroicon-o-magnifying-glass class="w-3 h-3 sm:w-4 sm:h-4 text-teal-500/50" />
                         </div>
-                        <input type="text" wire:model.live.debounce.300ms="searchChat" class="w-full bg-teal-950/50 border border-teal-800/60 rounded-full py-1.5 pl-9 pr-4 text-base sm:text-xs text-teal-100 placeholder-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-all font-mono" placeholder="Chat durchsuchen...">
+                        <input type="text" wire:model.live.debounce.300ms="searchChat" class="w-full bg-teal-950/50 border border-teal-800/60 rounded-full py-1 sm:py-1.5 pl-7 sm:pl-9 pr-3 text-[10px] sm:text-xs text-teal-100 placeholder-teal-600 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-all font-mono" placeholder="Suchen...">
                     </div>
                 </div>
 
@@ -124,7 +123,7 @@
                                 <span class="text-[10px] sm:text-xs font-bold text-{{ $msg['color'] ?: 'teal-500' }} tracking-widest uppercase truncate max-w-[200px]">{{ $msg['name'] }}</span>
                             </div>
                             <!-- Wichtig: markdown fähige Ausgabe class="prose prose-invert max-w-none" hinzuzufügen, falls Markdown via Parsedown konvertiert werden soll. Wir belassen es bei nl2br fürs einfache. -->
-                            <div class="relative max-w-[95%] sm:max-w-[85%] md:max-w-[80%] text-sm leading-relaxed p-3 sm:p-4 pb-5 sm:pb-6 rounded-xl break-words {{ $msg['role'] === 'user' ? 'bg-slate-800 border border-slate-700 text-slate-300 rounded-tr-none shadow-md font-mono text-left' : 'bg-teal-950/20 text-teal-50/90 rounded-tl-none border border-teal-900/60 shadow-[0_0_15px_rgba(20,184,166,0.05)] prose prose-invert prose-headings:text-teal-400 prose-a:text-teal-300 prose-sm focus:outline-none prose-p:break-words text-left' }}">
+                            <div class="relative max-w-[95%] sm:max-w-[85%] md:max-w-[80%] text-sm leading-relaxed p-2.5 sm:p-4 pb-5 sm:pb-6 rounded-xl break-words {{ $msg['role'] === 'user' ? 'bg-slate-800 border border-slate-700 text-slate-300 rounded-tr-none shadow-md font-mono text-left' : 'bg-teal-950/20 text-teal-50/90 rounded-tl-none border border-teal-900/60 shadow-[0_0_15px_rgba(20,184,166,0.05)] prose prose-invert prose-headings:text-teal-400 prose-a:text-teal-300 prose-sm focus:outline-none prose-p:break-words text-left' }}">
                                 @php
                                     $rendered = $msg['role'] === 'assistant'
                                         ? Str::markdown($msg['content'])
@@ -138,12 +137,12 @@
                                 {!! $rendered !!}
 
                                 @if($msg['role'] === 'user' && isset($msg['id']))
-                                    <div class="absolute bottom-1 right-2 flex gap-1.5 opacity-30 hover:opacity-100 transition-opacity">
+                                    <div class="absolute bottom-1 right-1 sm:right-2 flex gap-1.5 opacity-30 hover:opacity-100 transition-opacity">
                                         <button wire:click="repostMessage('{{ $msg['id'] }}')" class="text-slate-400 hover:text-teal-400 transition-colors" title="Repost">
-                                            <x-heroicon-o-arrow-path class="w-3 h-3" />
+                                            <x-heroicon-o-arrow-path class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                         </button>
                                         <button wire:click="continueFromMessage('{{ $msg['id'] }}')" class="text-slate-400 hover:text-rose-400 transition-colors" title="Chat ab hier">
-                                            <x-heroicon-o-arrow-uturn-up class="w-3 h-3" />
+                                            <x-heroicon-o-arrow-uturn-up class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                         </button>
                                     </div>
                                 @endif

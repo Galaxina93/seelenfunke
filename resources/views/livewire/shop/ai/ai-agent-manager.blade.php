@@ -31,44 +31,50 @@
                     elseif(str_contains($rawModel, 'GPT-OSS')) $shortModel = 'GPT-OSS';
                     else $shortModel = explode(' ', $rawModel)[0];
                 @endphp
-                <div wire:click="editAgent('{{ $agent->id }}')" class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-current text-{{ $agentColor }} hover:shadow-[0_0_25px_currentColor] rounded-3xl p-6 transition-all cursor-pointer group relative overflow-hidden font-mono {{ !$agent->is_active ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : '' }}">
+                <div x-data="{ expanded: false }" class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-current text-{{ $agentColor }} hover:shadow-[0_0_25px_currentColor] rounded-3xl p-6 transition-all group relative overflow-hidden font-mono {{ !$agent->is_active ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : '' }}">
 
                     <div class="absolute inset-0 bg-current/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-10 transition-opacity"></div>
 
-                    <div class="relative z-10 flex items-start justify-between mb-5">
-                        <div class="flex items-center gap-4">
+                    <div class="relative z-10 flex flex-col items-center">
+                        <div wire:click="editAgent('{{ $agent->id }}')" class="cursor-pointer w-full flex flex-col items-center pb-2">
                             @if($agent->profile_picture)
-                                <div class="h-20 w-20 rounded-2xl overflow-hidden border border-{{ $agentColor }}/30 shadow-[0_0_15px_currentColor] text-{{ $agentColor }} bg-gray-900 group-hover:scale-110 transition-transform relative shrink-0">
-                                    <div class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full {{ $statusColor }} border-2 border-gray-900 shadow-sm z-20"></div>
+                                <div class="rounded-2xl overflow-hidden border border-{{ $agentColor }}/30 shadow-[0_0_15px_currentColor] text-{{ $agentColor }} bg-gray-900 group-hover:scale-105 transition-all duration-300 relative shrink-0"
+                                     :class="expanded ? 'w-20 h-20 mb-4' : 'w-32 h-32 xl:w-40 xl:h-40 mb-6'">
+                                    <div class="absolute top-2 right-2 w-3 h-3 rounded-full {{ $statusColor }} border-2 border-gray-900 shadow-sm z-20"></div>
                                     <img src="{{ \Illuminate\Support\Str::startsWith($agent->profile_picture, 'shop/') ? asset($agent->profile_picture) : Storage::url($agent->profile_picture) }}" class="w-full h-full object-cover">
                                 </div>
                             @else
-                                <div class="h-20 w-20 rounded-2xl flex items-center justify-center bg-{{ $agentColor }}/20 text-{{ $agentColor }} border border-{{ $agentColor }}/30 shadow-[0_0_15px_currentColor] group-hover:scale-110 transition-transform relative shrink-0">
-                                    <div class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full {{ $statusColor }} border-2 border-gray-900 shadow-sm z-20"></div>
+                                <div class="rounded-2xl flex items-center justify-center bg-{{ $agentColor }}/20 text-{{ $agentColor }} border border-{{ $agentColor }}/30 shadow-[0_0_15px_currentColor] group-hover:scale-105 transition-all duration-300 relative shrink-0"
+                                     :class="expanded ? 'w-20 h-20 mb-4' : 'w-32 h-32 xl:w-40 xl:h-40 mb-6'">
+                                    <div class="absolute top-2 right-2 w-3 h-3 rounded-full {{ $statusColor }} border-2 border-gray-900 shadow-sm z-20"></div>
                                     @if(str_starts_with($agent->icon, 'bi-'))
-                                        <i class="{{ $agent->icon }} text-4xl drop-shadow-[0_0_10px_currentColor]"></i>
+                                        <i class="{{ $agent->icon }} drop-shadow-[0_0_10px_currentColor] transition-all" :class="expanded ? 'text-4xl' : 'text-6xl'"></i>
                                     @elseif(str_starts_with(trim($agent->icon), '<svg'))
-                                        <div class="w-10 h-10 [&>svg]:w-full [&>svg]:h-full drop-shadow-[0_0_10px_currentColor]">{!! $agent->icon !!}</div>
+                                        <div class="[&>svg]:w-full [&>svg]:h-full drop-shadow-[0_0_10px_currentColor] transition-all" :class="expanded ? 'w-10 h-10' : 'w-16 h-16'">{!! $agent->icon !!}</div>
                                     @else
-                                        <x-dynamic-component :component="'heroicon-o-' . $agentIcon" class="w-10 h-10" />
+                                        <x-dynamic-component :component="'heroicon-o-' . $agentIcon" class="transition-all" :class="expanded ? 'w-10 h-10' : 'w-16 h-16'" />
                                     @endif
                                 </div>
                             @endif
 
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-200 mb-0.5 group-hover:text-current transition-colors font-mono">{{ $agent->name }}</h3>
-                                @if($agent->is_active)
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest inline-block">Online</span>
-                                @else
-                                    <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-500 border border-red-500/30 uppercase tracking-widest inline-block">Offline</span>
-                                @endif
-                            </div>
+                            <h3 class="font-bold text-gray-200 mb-2 group-hover:text-current transition-all font-mono" :class="expanded ? 'text-xl' : 'text-2xl'">{{ $agent->name }}</h3>
+                            @if($agent->is_active)
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest inline-block">Online</span>
+                            @else
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold bg-red-500/20 text-red-500 border border-red-500/30 uppercase tracking-widest inline-block">Offline</span>
+                            @endif
+                        </div>
+
+                        <div @click.stop="expanded = !expanded" class="mt-4 pt-4 border-t border-gray-800/80 cursor-pointer text-gray-500 hover:text-current transition-colors font-bold text-xs uppercase tracking-widest w-full flex items-center justify-center gap-2">
+                            <span x-show="!expanded" class="flex items-center gap-2"><x-heroicon-o-chevron-down class="w-4 h-4"/> Details anzeigen</span>
+                            <span x-show="expanded" class="flex items-center gap-2" x-cloak><x-heroicon-o-chevron-up class="w-4 h-4"/> Details ausblenden</span>
                         </div>
                     </div>
 
-                    <p class="relative z-10 text-xs text-gray-400 line-clamp-2 h-8 font-mono mb-4">{{ $agent->role_description ?? 'Spezialisierung nicht definiert.' }}</p>
+                    <div x-show="expanded" x-collapse x-cloak>
+                        <p class="relative z-10 text-xs text-center text-gray-400 line-clamp-2 h-8 font-mono mb-4 mt-4 cursor-pointer" wire:click="editAgent('{{ $agent->id }}')">{{ $agent->role_description ?? 'Spezialisierung nicht definiert.' }}</p>
 
-                    {{-- Kontext Auslastung / Kognitiver Speicher --}}
+                        {{-- Kontext Auslastung / Kognitiver Speicher --}}
                     @php
                         $load = $contextLoads[$agent->id] ?? ['tokens' => 0, 'max' => 100, 'percent' => 0];
                         $barColor = $load['percent'] < 40 ? 'bg-emerald-500' : ($load['percent'] < 75 ? 'bg-amber-500' : 'bg-red-500 animate-pulse');
@@ -141,6 +147,8 @@
                                     <span class="text-gray-600 opacity-50 block mt-1">Status Unbekannt</span>
                                 @endif
                             </div>
+                        </div>
+
                         </div>
 
                     </div>

@@ -37,9 +37,10 @@ class SystemLog extends Model
     /**
      * Helper um einen Log-Eintrag schnell zu starten
      */
-    public static function start($actionId, $title, $type = 'automation')
+    public static function start($actionId, $title, $type = 'automation', $aiAgentId = null)
     {
         return self::create([
+            'ai_agent_id' => $aiAgentId,
             'action_id' => $actionId,
             'title' => $title,
             'type' => $type,

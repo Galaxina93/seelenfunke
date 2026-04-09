@@ -156,14 +156,14 @@
                                                     </button>
                                                 @endif
 
-                                                @if($selectedOrder->status === 'pending')
+                                                @if($selectedOrder->status === 'pending' && $type === 'physical')
                                                     <button wire:click="openEdit('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-500/30' }}">
                                                         <span>{{ $editItemId == $item->id ? 'Abbrechen' : 'Artikel anpassen' }}</span>
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </button>
                                                 @endif
                                             </div>
-                                            @if($selectedOrder->status === 'pending')
+                                            @if($selectedOrder->status === 'pending' && $type === 'physical')
                                                 <div x-data="{ successMsg: false }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
                                                     
@@ -365,6 +365,28 @@
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                             </a>
                                         </div>
+                                    @endforeach
+
+                                    {{-- Digitale Downloads als Dokumente --}}
+                                    @foreach($selectedOrder->items as $item)
+                                        @if($item->product && $item->product->type === 'digital' && !empty($item->product->digital_download_path))
+                                        <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10 hover:border-cyan-500/50">
+                                            <div class="flex items-center gap-4">
+                                                <div class="text-cyan-500">
+                                                    <svg class="w-8 h-8 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                </div>
+                                                <div>
+                                                    <p class="text-sm font-bold tracking-wider text-cyan-400 group-hover:text-cyan-300 transition-colors line-clamp-1" title="{{ $item->product_name }}">
+                                                        {{ $item->product_name }}
+                                                    </p>
+                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Digitale Produktdatei ({{ pathinfo($item->product->digital_filename ?? '', PATHINFO_EXTENSION) ?: 'File' }})</p>
+                                                </div>
+                                            </div>
+                                            <button wire:click="downloadDigitalFile('{{ $item->id }}')" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:border-cyan-400 transition-all shadow-lg" title="Datei herunterladen">
+                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            </button>
+                                        </div>
+                                        @endif
                                     @endforeach
 
                                     {{-- Configurator Snapshots als Dokumente --}}

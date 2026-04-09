@@ -25,7 +25,7 @@
                 this.onDrag = this.handleDrag.bind(this);
                 this.stopDrag = this.handleStop.bind(this);
 
-                Livewire.on('scroll-top', () => {
+                window.addEventListener('scroll-top', () => {
                     const anchor = document.getElementById('calculator-anchor');
                     if (anchor) {
                         anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -110,7 +110,7 @@
 </script>
 @endscript
 
-<div class="w-full" x-data="{ showLightbox: false, lightboxImage: '' }" @keydown.escape.window="showLightbox = false">
+<div class="w-full" x-data="{ showLightbox: false, lightboxImage: '' }" @keydown.escape.window="showLightbox = false" @scroll-top.window="setTimeout(() => { document.getElementById('calculator-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50)">
     @if($step === 0)
         <div class="text-center py-12 bg-primary/5 rounded-2xl border border-primary/10 px-6">
             <h2 class="text-2xl font-serif font-bold text-gray-900 mb-4">Individuelles Angebot erstellen</h2>

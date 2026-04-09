@@ -20,6 +20,64 @@ trait AiSupportFuncs
                 'callable' => [self::class, 'executeGetMyTickets']
             ],
             [
+                'name' => 'support_get_website_links',
+                'description' => 'Gibt alle wichtigen, aktuell gültigen Verlinkungen (URLs) der Webseite zurück (z.B. für Login, Registrierung, Shop, Startseite, Kundenbereich). Nutze dies IMMER, falls der Kunde fragt, wo er was findet oder du einen Link schicken willst!',
+                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'callable' => [self::class, 'executeGetWebsiteLinks']
+            ],
+            [
+                'name' => 'support_analyze_current_cart',
+                'description' => 'Liest den aktuellen Warenkorb des Kunden aus, um bei Checkout-Problemen oder fehlenden Informationen (fehlende Gravuren) zu helfen.',
+                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'callable' => [self::class, 'executeAnalyzeCart']
+            ],
+            [
+                'name' => 'support_get_delivery_times',
+                'description' => 'Liefert die tagesaktuellen Fertigungszeiten und Bearbeitungszeiten der Manufaktur inklusive Express-Daten.',
+                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'callable' => [self::class, 'executeGetDeliveryTimes']
+            ],
+            [
+                'name' => 'support_check_returns_policy',
+                'description' => 'Prüft ob eine Bestellung retourniert werden kann, abhängig davon ob die bestellten Artikel personalisiert sind.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['order_number' => ['type' => 'string']],
+                    'required' => ['order_number']
+                ],
+                'callable' => [self::class, 'executeCheckReturnsPolicy']
+            ],
+            [
+                'name' => 'support_create_claim_ticket',
+                'description' => 'Eröffnet automatisch ein Reklamationsticket mit höchster Priorität falls ein Paket/Artikel defekt angekommen ist.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'order_number' => ['type' => 'string'],
+                        'reason_summary' => ['type' => 'string']
+                    ],
+                    'required' => ['order_number', 'reason_summary']
+                ],
+                'callable' => [self::class, 'executeCreateClaimTicket']
+            ],
+            [
+                'name' => 'support_modify_pending_order',
+                'description' => 'VERWENDE DIES NUR FÜR ÄNDERUNGEN: Ändert die Lieferadresse oder storniert eine Bestellung. Geht NUR so lange die Bestellung im Status ausstehend/pending ist!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'order_number' => ['type' => 'string'],
+                        'action_type' => ['type' => 'string', 'enum' => ['change_address', 'cancel_order']],
+                        'new_address_data' => [
+                            'type' => 'object', 
+                            'description' => 'Nötig für change_address. JSON Objekt mit Keys: first_name, last_name, street, house_number, zipcode, city'
+                        ]
+                    ],
+                    'required' => ['order_number', 'action_type']
+                ],
+                'callable' => [self::class, 'executeModifyPendingOrder']
+            ],
+            [
                 'name' => 'support_get_customer_orders',
                 'description' => 'Gibt alle bisherigen Bestellungen des aktuell eingeloggten Kunden zurück.',
                 'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
@@ -207,7 +265,12 @@ trait AiSupportFuncs
             }
             $pLines = [];
             foreach ($products as $p) {
-                $pLines[] = "- {$p->name} für {$p->formatted_price}: " . mb_substr(strip_tags($p->description), 0, 80) . "...";
+                try {
+                    $url = route('product.show', $p->slug);
+                } catch (\Exception $e) {
+                    $url = url('/produkt/' . $p->slug);
+                }
+                $pLines[] = "- {$p->name} für {$p->formatted_price} (Link: {$url}): " . mb_substr(strip_tags($p->description), 0, 80) . "...";
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Folgende Produkte habe ich dazu gefunden:\n" . implode("\n", $pLines) . "\""];
         } catch (\Exception $e) {
@@ -377,6 +440,266 @@ trait AiSupportFuncs
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler.'];
+        }
+    }
+
+    public static function executeGetWebsiteLinks(array $args)
+    {
+        try {
+            $allRoutes = \Illuminate\Support\Facades\Route::getRoutes();
+            $links = [];
+            foreach ($allRoutes as $route) {
+                // Nur GET-Routen ohne zwingende Parameter
+                if (in_array('GET', $route->methods()) && empty($route->parameterNames())) {
+                    $uri = $route->uri();
+                    
+                    // Schließe System- und Admin-Routen strikt aus
+                    if (str_starts_with($uri, 'admin') || str_starts_with($uri, 'api') || str_starts_with($uri, '_') || str_starts_with($uri, 'sanctum') || str_starts_with($uri, 'livewire') || str_starts_with($uri, 'broadcasting') || $uri === 'up' || str_contains($uri, 'success') || str_contains($uri, 'verify') || str_contains($uri, 'auth/')) {
+                        continue;
+                    }
+
+                    $name = $route->getName() ?: '/' . $uri;
+                    
+                    // Unnötige/Kryptische Müll-Routen filtern
+                    if (str_contains($name, 'verification') || str_contains($name, 'checkout.success') || str_contains($name, 'newsletter.verify') || str_contains($name, 'auth.')) {
+                        continue;
+                    }
+
+                    $actionName = $name;
+
+                    // Lesbare Namen für die KI generieren
+                    if (str_contains($name, 'login') || $uri === 'login') $actionName = 'Login';
+                    elseif (str_contains($name, 'register') || $uri === 'register') $actionName = 'Konto erstellen / Registrierung';
+                    elseif ($name === 'password.request' || $uri === 'forgot-password') $actionName = 'Passwort vergessen';
+                    elseif ($name === 'home' || $uri === '/') $actionName = 'Startseite';
+                    elseif ($name === 'shop' || $uri === 'shop') $actionName = 'Shop Startseite';
+                    elseif ($name === 'cart' || $uri === 'warenkorb') $actionName = 'Warenkorb';
+                    elseif ($name === 'checkout' || $uri === 'checkout') $actionName = 'Kasse (Checkout)';
+                    elseif ($name === 'contact' || $uri === 'kontakt') $actionName = 'Kontakt & Support';
+                    elseif ($name === 'blog' || $uri === 'blog') $actionName = 'Magazin / Blog';
+                    elseif ($name === 'manufacture' || $uri === 'manufaktur') $actionName = 'Unsere Manufaktur';
+                    elseif (str_contains($name, 'customer.')) $actionName = 'Kundenportal - ' . ucfirst(str_replace('customer.', '', $name));
+
+                    $links[] = "- **{$actionName}**: [" . url($uri) . "](" . url($uri) . ")";
+                }
+            }
+            $linksStr = implode("\n", array_unique($links));
+            return [
+                'status' => 'success',
+                'message' => "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nDu hast die Routen-Datenbank abgefragt. Suche dir aus der folgenden Liste den einen korrekten Link heraus, nachdem der Kunde gefragt hat (z.b. Kontakt oder Konto erstellen).\nFormuliere dann eine freundliche eigene Antwort und zeige dem Kunden NUR den passenden Link als echten Markdown-Link (z.b. [Kontakt aufnehmen](url)).\n\nHier das Lexikon:\n\n" . $linksStr
+            ];
+        } catch (\Exception $e) {
+             return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+        }
+    }
+
+    public static function executeAnalyzeCart(array $args)
+    {
+        try {
+            $cartService = app(\App\Services\CartService::class);
+            $cart = $cartService->getCart();
+            if (!$cart || $cart->items->isEmpty()) {
+                return ['status' => 'success', 'message' => "HINTERGRUND-INFO AN KI: Der Warenkorb des Kunden ist aktuell komplett leer."];
+            }
+
+            $info = [];
+            foreach ($cart->items as $item) {
+                $product = $item->product;
+                $configStr = empty($item->configuration) ? "KEINE Personalisierung eingegeben" : json_encode($item->configuration, JSON_UNESCAPED_UNICODE);
+                $info[] = "- {$item->quantity}x {$product->name} (Benötigt Konfiguration? " . ($product->requires_configuration ? 'JA' : 'NEIN') . " | Eingegebene Konfiguration: {$configStr})";
+            }
+
+            return [
+                'status' => 'success',
+                'message' => "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): Hier sind die aktuellen Artikel im Warenkorb des Nutzers:\n" . implode("\n", $info) . "\nHinweis: Wenn ein Produkt Konfiguration benötigt, aber keine eingegeben wurde, weise den Nutzer freundlich darauf hin, diese einzutragen."
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Analysieren des Warenkorbs.'];
+        }
+    }
+
+    public static function executeGetDeliveryTimes(array $args)
+    {
+        try {
+            // Dies könnte dynamisch aus Shop-Settings kommen
+            $msg = "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nUnsere aktuelle Standard-Produktionszeit beträgt 2-3 Werktage. Der Standardversand dauert danach 1-2 Werktage.\nMit der optionalen EXPRESS-Fertigung (im Warenkorb auswählbar) priorisieren wir die Bestellung. Sie wird dann zutiefst priorisiert (meist am nächsten Werktag) versendet.";
+            return ['status' => 'success', 'message' => $msg];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler'];
+        }
+    }
+
+    public static function executeCheckReturnsPolicy(array $args)
+    {
+        try {
+            $orderNumber = $args['order_number'] ?? '';
+            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->first();
+            if (!$order) {
+                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
+            }
+
+            $hasPersonalized = false;
+            foreach ($order->items as $item) {
+                if (!empty($item->configuration)) {
+                    $hasPersonalized = true;
+                    break;
+                }
+            }
+
+            if ($hasPersonalized) {
+                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Diese Bestellung enthält ERFOLGREICH PERSONALISIERTE Artikel (Lasergravur/Sonderanfertigung). Nenne dem Kunden freundlich, dass personalisierte Artikel vom gesetzlichen Widerrufsrecht streng ausgeschlossen sind. Ein Umtausch wegen Nicht-Gefallens ist NICHT möglich. (Falls defekt: Biete an ein Reklamationsticket aufzumachen).'];
+            }
+
+            return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Diese Bestellung besteht nur aus Standard-Artikeln. Der Kunde hat ein 14-tägiges Widerrufsrecht.'];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler'];
+        }
+    }
+
+    public static function executeCreateClaimTicket(array $args)
+    {
+        try {
+            $orderNumber = $args['order_number'] ?? '';
+            $reason = $args['reason_summary'] ?? '';
+            
+            $customerId = auth()->guard('customer')->id();
+            if (!$customerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich erst einloggen, um ein Reklamationsticket zu öffnen. Bitte ihn darum.'];
+            }
+
+            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->where('customer_id', $customerId)->first();
+            if (!$order) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellung gehört nicht zum Kunden oder existiert nicht.'];
+            }
+
+            // KI-ID für Logging ermitteln
+            $agentId = null;
+            if (isset($args['__chat_id'])) {
+            $agentId = $args['__agent_id'] ?? null;
+            }
+
+            // Snapshot Start
+            $log = \App\Models\System\SystemLog::start(
+                'ai_claim_ticket', 
+                'Automatisches KI-Reklamationsticket', 
+                'automation', 
+                $agentId
+            );
+
+            $ticket = SupportTicket::create([
+                'ticket_number' => 'TCK-' . strtoupper(\Illuminate\Support\Str::random(8)),
+                'customer_id'   => $customerId,
+                'order_id'      => $order->id,
+                'subject'       => 'Reklamation Bestellung: ' . $order->order_number,
+                'category'      => 'reklamation',
+                'status'        => 'open',
+                'priority'      => 'high',
+            ]);
+            
+            \App\Models\Support\SupportTicketMessage::create([
+                'support_ticket_id' => $ticket->id,
+                'sender_type'       => 'customer',
+                'message'           => "KI-Zusammenfassung der Reklamation: \n" . $reason
+            ]);
+
+            // Snapshot End
+            $log->finish('success', 'Ticket TCK-'.$ticket->ticket_number.' erstellt.', [
+                'ticket_id' => $ticket->id,
+                'reason' => $reason
+            ]);
+
+            return [
+                'status' => 'success', 
+                'message' => 'HINTERGRUND-INFO FÜR KI: Das Reklamationsticket wurde mit Prio Hoch unter Nummer '.$ticket->ticket_number.' angelegt! Teile dem Kunden diese Ticketnummer freudig mit und bitte ihn, 1-2 Fotos des Schadens als Antwort auf die Ticket-Mail zu senden.'
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler'];
+        }
+    }
+
+    public static function executeModifyPendingOrder(array $args)
+    {
+        try {
+            $orderNumber = $args['order_number'] ?? '';
+            $action = $args['action_type'] ?? '';
+            
+            $customerId = auth()->guard('customer')->id();
+            if (!$customerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich zum Ändern einloggen.'];
+            }
+
+            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->where('customer_id', $customerId)->first();
+            if (!$order) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden oder gehört nicht zum Konto.'];
+            }
+
+            // RIGIDES SICHERHEITSNETZ
+            if ($order->status !== 'pending') {
+                return [
+                    'status' => 'error',
+                    'message' => 'HINTERGRUND-INFO FÜR KI: ABSOLUTE SPERRE - Datenrettung nicht mehr möglich! Die Bestellung hat den Status pending verlassen und ist bereits in Bearbeitung/Produktion! Verweigere die Änderung strikt und sage dem Kunden, er muss sofort telefonisch anrufen.'
+                ];
+            }
+
+            $agentId = null;
+            if (isset($args['__chat_id'])) {
+            $agentId = $args['__agent_id'] ?? null;
+            }
+            
+            $beforeData = [
+                'shipping_address' => $order->shipping_address,
+                'status' => $order->status
+            ];
+
+            if ($action === 'change_address') {
+                $newData = escapeshellarg(json_encode($args['new_address_data'])); // just avoiding array to string warning if dump
+                $newAddr = is_array($args['new_address_data']) ? $args['new_address_data'] : [];
+                if (empty($newAddr)) return ['status' => 'error', 'message' => 'Keine Daten.'];
+
+                $log = \App\Models\System\SystemLog::start(
+                    'ai_order_modify', 
+                    "KI hat Adresse von Order {$order->order_number} geändert", 
+                    'automation', 
+                    $agentId
+                );
+
+                $addr = $order->shipping_address;
+                $addr['first_name'] = $newAddr['first_name'] ?? ($addr['first_name'] ?? '');
+                $addr['last_name'] = $newAddr['last_name'] ?? ($addr['last_name'] ?? '');
+                $addr['street'] = $newAddr['street'] ?? ($addr['street'] ?? '');
+                $addr['house_number'] = $newAddr['house_number'] ?? ($addr['house_number'] ?? '');
+                $addr['zipcode'] = $newAddr['zipcode'] ?? ($addr['zipcode'] ?? '');
+                $addr['city'] = $newAddr['city'] ?? ($addr['city'] ?? '');
+                
+                $order->update(['shipping_address' => $addr]);
+
+                $log->finish('success', 'Adresse erfolgreich überschrieben.', [
+                    'before' => $beforeData,
+                    'after' => ['shipping_address' => $addr, 'status' => $order->status]
+                ]);
+
+                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Adresse wurde erfolgreich überschrieben. Gib dem Kunden kurz bescheid.'];
+            } elseif ($action === 'cancel_order') {
+                $log = \App\Models\System\SystemLog::start(
+                    'ai_order_modify', 
+                    "KI hat Order {$order->order_number} storniert", 
+                    'automation', 
+                    $agentId
+                );
+
+                $order->cancel('Kunde via KI Support Chat storniert');
+                
+                $log->finish('success', 'Bestellung storniert.', [
+                    'before' => $beforeData,
+                    'after' => ['shipping_address' => $order->shipping_address, 'status' => $order->status]
+                ]);
+
+                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Bestellung wurde erfolgreich komplett storniert.'];
+            }
+
+            return ['status' => 'error', 'message' => 'Unbekannte Aktion.'];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler aufgetreten'];
         }
     }
 }

@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Order\OrderOrder;
 use App\Services\InvoiceService;
-use App\Services\NativeXmlInvoiceService;
+use App\Services\AccountingXmlInvoiceService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -32,7 +32,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(InvoiceService $invoiceService, NativeXmlInvoiceService $xmlService): void
+    public function handle(InvoiceService $invoiceService, AccountingXmlInvoiceService $xmlService): void
     {
         // 1. Rechnung & Dokumente zentral erstellen
         $pdfPath = null;

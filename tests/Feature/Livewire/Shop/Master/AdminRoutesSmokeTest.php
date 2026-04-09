@@ -51,7 +51,11 @@ class AdminRoutesSmokeTest extends TestCase
                 dump("Route failed: " . $url . " | Status: " . $response->status() . " | Message: " . optional($response->exception)->getMessage());
                 // Optional: dump first 500 chars of view to see HTML errors if no exception
                 if (!$response->exception) {
+                    file_put_contents(storage_path('logs/admin_test_error.txt'), substr($response->getContent(), 0, 500), FILE_APPEND);
                     dump(substr($response->getContent(), 0, 500));
+                } else {
+                    $e = $response->exception;
+                    file_put_contents(storage_path('logs/admin_test_error.txt'), "Failed Route: $url\n" . $e->getMessage() . "\n" . $e->getTraceAsString(), FILE_APPEND);
                 }
             }
             

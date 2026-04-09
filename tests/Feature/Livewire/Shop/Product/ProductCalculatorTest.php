@@ -103,8 +103,13 @@ class ProductCalculatorTest extends TestCase
 
         $component->assertSet('gesamtKosten', 50.00);
 
-        // Enable Express
-        $component->set('isExpress', true)
+        // Enable Express by updating the item configuration
+        $component->call('editItem', 0)
+                  ->dispatch('calculator-save', [
+                      'product_id' => $product->id,
+                      'qty' => 1,
+                      'is_express' => true
+                  ])
                   ->assertSet('gesamtKosten', 60.00); // 50 + 10 (20% express_surcharge)
 
         // Proceed to next step

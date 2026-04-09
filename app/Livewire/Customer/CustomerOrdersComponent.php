@@ -65,6 +65,33 @@ class CustomerOrdersComponent extends Component
         $this->showSuccessMessageFor = $itemId;
     }
 
+    public function downloadDigitalFile($itemId)
+    {
+        $user = Auth::guard('customer')->user();
+        $item = OrderOrderItem::where('id', $itemId)
+            ->whereHas('order', function ($q) use ($user) {
+                $q->where('customer_id', $user->id);
+            })->first();
+
+        if (!$item || !$item->product || $item->product->type !== 'digital' || empty($item->product->digital_download_path)) {
+            session()->flash('error', 'Datei nicht verfügbar.');
+            return;
+        }
+
+        // Falls die Zahlung zwingend abgeschlossen sein soll (optional anpassbar):
+        // if ($item->order->payment_status !== 'paid' && $item->order->status !== 'completed') { ... }
+
+        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($item->product->digital_download_path)) {
+            session()->flash('error', 'Datei nicht gefunden.');
+            return;
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->download(
+            $item->product->digital_download_path, 
+            $item->product->digital_filename ?? 'Download'
+        );
+    }
+
     // Computed Property für die ausgewählte Bestellung
     public function getSelectedOrderProperty()
     {
