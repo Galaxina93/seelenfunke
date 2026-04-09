@@ -58,86 +58,95 @@
             <p class="text-gray-500 font-mono text-[10px] uppercase tracking-widest">DSGVO-konformes Hosting in Deutschland (Mittwald API)</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-stretch">
-
-            <div class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-5 font-mono flex flex-col h-full transition-all hover:border-gray-500 relative">
-                <h3 class="text-lg font-black text-gray-300 uppercase tracking-widest mb-1">Starter</h3>
-                <div class="flex items-baseline gap-2 mb-1">
-                    <span class="text-2xl font-black text-white">9 €</span>
-                </div>
-                <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-2">pro Monat zzgl. USt.*</p>
-                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">Perfekt zum Testen und Experimentieren</p>
-
-                <ul class="space-y-2 mb-2 flex-1 text-[11px] text-gray-400 tracking-wider">
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> 5 Mio. Tokens/Monat</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> 30 Requests/Minute</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> 5 parallele Requests</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Alle Modelle verfügbar</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Unbegrenzte API-Keys</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> OpenAI-kompatible API</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> DSGVO-konformes Hosting</li>
-                </ul>
+        @if(session()->has('message'))
+            <div class="mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-lg text-xs font-mono text-center">
+                {{ session('message') }}
             </div>
+        @endif
 
-            <div class="bg-gray-950 backdrop-blur-xl border-2 border-[peru] shadow-[0_0_30px_rgba(205,133,63,0.15),inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-5 font-mono flex flex-col h-full relative transform xl:scale-105 z-10 w-full">
-                <h3 class="text-lg font-black text-[peru] uppercase tracking-widest mb-1 drop-shadow-[0_0_5px_rgba(205,133,63,0.5)]">Pro</h3>
-                <div class="flex items-baseline gap-2 mb-1">
-                    <span class="text-3xl font-black text-white">39 €</span>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch mb-8">
+            @foreach($aiPlans as $plan)
+                <div wire:click="setActivePlan({{ $plan->id }})" 
+                     class="cursor-pointer font-mono flex flex-col h-full transition-all relative rounded-2xl p-5 border 
+                     {{ $plan->is_active ? 'bg-emerald-950/40 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)] transform scale-[1.02] z-10' : 'bg-black/80 backdrop-blur-xl border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-gray-500' }}">
+                    
+                    @if($plan->is_active)
+                        <div class="absolute -top-3 -right-3 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)] z-20 flex items-center gap-1">
+                            <x-heroicon-s-check-circle class="w-3 h-3" /> Aktiv
+                        </div>
+                    @endif
+
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="text-lg font-black uppercase tracking-widest {{ $plan->name === 'Mittwald Pro' || $plan->name === 'Lokal gehostet' ? 'text-[peru]' : 'text-gray-300' }}">
+                            {{ $plan->name }}
+                        </h3>
+                        @if(!$plan->is_active && !str_contains($plan->name, 'Mittwald'))
+                            <button wire:click.stop="deletePlan({{ $plan->id }})" wire:confirm="Individuelles Paket löschen?" class="text-gray-500 hover:text-red-500 transition-colors">
+                                <x-heroicon-o-trash class="w-4 h-4" />
+                            </button>
+                        @endif
+                    </div>
+                    
+                    <div class="flex items-baseline gap-2 mb-1">
+                        <span class="text-2xl font-black text-white">{{ number_format($plan->price_monthly, 2, ',', '.') }} €</span>
+                    </div>
+                    <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">pro Monat zzgl. USt.*</p>
+
+                    <ul class="space-y-2 mb-2 flex-1 text-[11px] text-gray-400 tracking-wider">
+                        <li class="flex items-start gap-2">
+                            <x-heroicon-s-check-circle class="w-3.5 h-3.5 {{ $plan->is_active ? 'text-emerald-500' : 'text-gray-600' }} shrink-0 mt-0.5" /> 
+                            <span class="{{ $plan->is_active ? 'text-white' : '' }}">
+                                {{ $plan->token_limit ? number_format($plan->token_limit, 0, ',', '.') . ' Tokens/Monat' : 'Unbegrenzte Tokens' }}
+                            </span>
+                        </li>
+                        <li class="flex items-start gap-2 text-gray-500">
+                            <x-heroicon-o-check class="w-3.5 h-3.5 shrink-0 mt-0.5" /> Alle Modelle verfügbar
+                        </li>
+                        <li class="flex items-start gap-2 text-gray-500">
+                            <x-heroicon-o-check class="w-3.5 h-3.5 shrink-0 mt-0.5" /> OpenAI-kompatible API
+                        </li>
+                    </ul>
+
+                    @if(!$plan->is_active)
+                        <div class="mt-4 text-center border border-gray-800 hover:bg-gray-800 transition-colors py-2 rounded-lg text-xs font-bold text-gray-400 uppercase tracking-widest">
+                            Auswählen
+                        </div>
+                    @endif
                 </div>
-                <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-2">pro Monat zzgl. USt.*</p>
-                <p class="text-[9px] text-[peru] font-bold uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">Für Agenturen und Produktiveinsatz</p>
-
-                <ul class="space-y-2 mb-2 flex-1 text-[11px] text-gray-300 tracking-wider">
-                    <li class="flex items-center gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0" /> <span class="font-bold text-white drop-shadow-[0_0_3px_rgba(255,255,255,0.4)]">75 Mio. Tokens/Monat</span></li>
-                    <li class="flex items-start gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0 mt-0.5" /> 60 Requests/Minute</li>
-                    <li class="flex items-start gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0 mt-0.5" /> 10 parallele Requests</li>
-                    <li class="flex items-start gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0 mt-0.5" /> Alle Modelle verfügbar</li>
-                    <li class="flex items-start gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0 mt-0.5" /> Unbegrenzte API-Keys</li>
-                    <li class="flex items-start gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0 mt-0.5" /> OpenAI-kompatible API</li>
-                    <li class="flex items-start gap-2"><x-heroicon-s-check-circle class="w-3.5 h-3.5 text-[peru] shrink-0 mt-0.5" /> DSGVO-konformes Hosting</li>
-                    <li class="flex items-center gap-2 font-bold text-[peru] mt-3 pt-3 border-t border-[peru]/20"><x-heroicon-s-star class="w-3.5 h-3.5 text-[peru] shrink-0" /> Perfekt für Production</li>
-                </ul>
-            </div>
-
-            <div class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-5 font-mono flex flex-col h-full transition-all hover:border-gray-500 relative">
-                <h3 class="text-lg font-black text-gray-300 uppercase tracking-widest mb-1">Business</h3>
-                <div class="flex items-baseline gap-2 mb-1">
-                    <span class="text-2xl font-black text-white">149 €</span>
-                </div>
-                <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-2">pro Monat zzgl. USt.*</p>
-                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">Für größere Teams und Projekte</p>
-
-                <ul class="space-y-2 mb-2 flex-1 text-[11px] text-gray-400 tracking-wider">
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> 300 Mio. Tokens/Monat</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> 150 Requests/Minute</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> 20 parallele Requests</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Alle Modelle verfügbar</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> Unbegrenzte API-Keys</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> OpenAI-kompatible API</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> DSGVO-konformes Hosting</li>
-                </ul>
-            </div>
-
-            <div class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-5 font-mono flex flex-col h-full transition-all hover:border-purple-500/50 relative overflow-hidden group">
-                <div class="absolute top-0 right-0 bg-gray-900/80 backdrop-blur-sm text-gray-500 group-hover:text-purple-400 transition-colors text-[7px] font-black uppercase tracking-widest px-2 py-1 rounded-bl-xl border-b border-l border-gray-800/60 z-10">ENTERPRISE</div>
-                <h3 class="text-lg font-black text-gray-300 group-hover:text-purple-400 transition-colors uppercase tracking-widest mb-1 mt-2 relative z-10">Dedicated</h3>
-                <div class="flex items-baseline gap-2 mb-1 relative z-10">
-                    <span class="text-2xl font-black text-white">999 €</span>
-                </div>
-                <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-2 relative z-10">pro Monat zzgl. USt.*</p>
-                <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 border-b border-gray-800 pb-2 relative z-10">Eigene GPU-Ressourcen</p>
-
-                <ul class="space-y-2 mb-2 flex-1 text-[11px] text-gray-400 tracking-wider relative z-10">
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" /> Milliarden Tokens/Monat</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" /> Eigene RTX PRO 6000</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" /> Custom-Deployments</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-purple-500 shrink-0 mt-0.5" /> Technischer Ansprechpartner</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> OpenAI-kompatible API</li>
-                    <li class="flex items-start gap-2"><x-heroicon-o-check class="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" /> DSGVO-konformes Hosting</li>
-                </ul>
-            </div>
-
+            @endforeach
         </div>
+
+        <!-- Create Custom Local Plan Form -->
+        <div class="bg-black/60 border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-xl p-6 font-mono mb-6">
+            <h3 class="text-emerald-500 font-bold uppercase tracking-widest text-sm border-b border-gray-800 pb-2 mb-4 flex items-center gap-2">
+                <x-heroicon-o-server-stack class="w-5 h-5"/> Individuelles Hosting Paket hinterlegen („Lokal gehostet“)
+            </h3>
+            <p class="text-xs text-gray-400 mb-4 tracking-wider">Definiere hier abweichende Hosting-Pakete oder eigene API Setups für genaue Analyse-Metriken im AI Dashboard.</p>
+            
+            <form wire:submit.prevent="saveNewPlan" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1">Paket-Name</label>
+                    <input type="text" wire:model="newPlanName" placeholder="Z.b. RunPod GPU / Lokal" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white text-sm focus:border-emerald-500 focus:ring-0">
+                    @error('newPlanName') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1">Token Limit / Monat</label>
+                    <input type="number" wire:model="newPlanTokens" placeholder="Leer = Unbegrenzt" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white text-sm focus:border-emerald-500 focus:ring-0">
+                    @error('newPlanTokens') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-1">Preis / Monat (€)</label>
+                    <input type="number" step="0.01" wire:model="newPlanPrice" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-white text-sm focus:border-emerald-500 focus:ring-0">
+                    @error('newPlanPrice') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase tracking-widest text-xs py-2.5 rounded-lg transition-colors border border-emerald-500">
+                        Speichern & Hinzufügen
+                    </button>
+                </div>
+            </form>
+        </div>
+
         <div class="mt-12 bg-black/90 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-[0_0_30px_rgba(234,88,12,0.05)] border border-orange-900/40 relative overflow-hidden">
             <div class="absolute top-0 right-0 p-4 opacity-10 blur-sm pointer-events-none">
                 <x-heroicon-o-document-duplicate class="w-32 h-32 text-orange-500 drop-shadow-[0_0_20px_rgba(234,88,12,1)]" />

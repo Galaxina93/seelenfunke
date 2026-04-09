@@ -21,25 +21,33 @@
             </div>
         </div>
 
-        <!-- Mittwald Pro Paket Auslastung -->
+        <!-- Paket Auslastung -->
+        @php
+            $limit = $activePlan ? $activePlan->token_limit : 75000000;
+            $isUnlimited = !$limit;
+            $percent = $isUnlimited ? 0 : min(100, ($tokensThisMonth / $limit) * 100);
+            $planName = $activePlan ? $activePlan->name : 'Unbekanntes Paket';
+            $price = $activePlan ? number_format($activePlan->price_monthly, 2, ',', '.') : '0,00';
+            
+            function formatTokenSuffix($amount) {
+                if ($amount >= 1000000) return round($amount / 1000000, 1) . ' Mio.';
+                if ($amount >= 1000) return round($amount / 1000, 1) . 'k';
+                return $amount;
+            }
+        @endphp
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 relative overflow-hidden">
             <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-blue-500/10 to-transparent"></div>
-            <div class="text-gray-400 text-sm font-medium mb-1">Paket (Mittwald Pro)</div>
+            <div class="text-gray-400 text-sm font-medium mb-1">Paket ({{ $planName }})</div>
             
-            @php 
-                $limit = 75000000; 
-                $percent = min(100, ($tokensThisMonth / $limit) * 100);
-            @endphp
-            
-            <div class="text-3xl font-bold text-white mb-2">39,00 € <span class="text-sm font-normal text-gray-400">/ Mon.</span></div>
+            <div class="text-3xl font-bold text-white mb-2">{{ $price }} € <span class="text-sm font-normal text-gray-400">/ Mon.</span></div>
             
             <div class="flex justify-between text-xs text-gray-400 mb-1 mt-2">
                 <span>{{ number_format($tokensThisMonth, 0, ',', '.') }} Tokens</span>
-                <span>75 Mio. Limit</span>
+                <span>{{ $isUnlimited ? 'Unbegrenzt' : formatTokenSuffix($limit) . ' Limit' }}</span>
             </div>
             <!-- ProgressBar -->
             <div class="w-full bg-gray-700 rounded-full h-1.5">
-                <div class="{{ $percent > 90 ? 'bg-red-500' : 'bg-blue-500' }} h-1.5 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
+                <div class="{{ $percent > 90 ? 'bg-red-500' : 'bg-blue-500' }} h-1.5 rounded-full transition-all duration-500" style="width: {{ $isUnlimited ? 100 : $percent }}%"></div>
             </div>
         </div>
 

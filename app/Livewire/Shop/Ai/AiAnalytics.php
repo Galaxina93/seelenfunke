@@ -112,6 +112,12 @@ class AiAnalytics extends Component
                 ];
             });
 
+        // 6. Active Hosting Plan
+        $activePlan = null;
+        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
+            $activePlan = \App\Models\System\SystemAiHostingPlan::where('is_active', true)->first();
+        }
+
         return view('livewire.shop.ai.ai-analytics', [
             'tokensToday' => $tokensToday,
             'tokensYesterday' => $tokensYesterday,
@@ -124,6 +130,7 @@ class AiAnalytics extends Component
             'resourceDistribution' => json_encode($resourceDistribution),
             'toolErrors' => json_encode($toolErrors),
             'cognitiveLoad' => $cognitiveLoad,
+            'activePlan' => $activePlan,
         ]);
     }
 }

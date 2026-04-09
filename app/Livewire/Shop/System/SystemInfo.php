@@ -8,6 +8,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
+use App\Models\System\SystemAiHostingPlan;
 
 #[Layout('components.layouts.backend_layout')]
 class SystemInfo extends Component
@@ -19,6 +20,10 @@ class SystemInfo extends Component
     public $uploads = [];
     public $selectedReports = [];
     public $reportFiles = [];
+
+    public string $newPlanName = '';
+    public ?int $newPlanTokens = null;
+    public string $newPlanPrice = '0.00';
 
     public function mount()
     {
@@ -82,14 +87,61 @@ class SystemInfo extends Component
         return 'Fehler: Bericht nicht gefunden.';
     }
 
+    public function setActivePlan($id)
+    {
+        if (class_exists(SystemAiHostingPlan::class)) {
+            SystemAiHostingPlan::where('is_active', true)->update(['is_active' => false]);
+            SystemAiHostingPlan::where('id', $id)->update(['is_active' => true]);
+            session()->flash('message', 'KI Hosting Paket gewechselt!');
+        }
+    }
+
+    public function saveNewPlan()
+    {
+        if (class_exists(SystemAiHostingPlan::class)) {
+            $this->validate([
+                'newPlanName' => 'required|string|max:200',
+                'newPlanTokens' => 'nullable|integer|min:0',
+                'newPlanPrice' => 'required|numeric|min:0',
+            ]);
+
+            SystemAiHostingPlan::create([
+                'name' => $this->newPlanName,
+                'token_limit' => $this->newPlanTokens ?: null,
+                'price_monthly' => $this->newPlanPrice,
+                'is_active' => false,
+            ]);
+
+            $this->newPlanName = '';
+            $this->newPlanTokens = null;
+            $this->newPlanPrice = '0.00';
+            
+            session()->flash('message', 'Individuelles Paket angelegt.');
+        }
+    }
+
+    public function deletePlan($id)
+    {
+        if (class_exists(SystemAiHostingPlan::class)) {
+            $plan = SystemAiHostingPlan::find($id);
+            if ($plan && !$plan->is_active) {
+                $plan->delete();
+                session()->flash('message', 'Paket gelöscht.');
+            }
+        }
+    }
+
     public function render()
     {
         $laravelVersion = app()->version();
         $phpVersion = PHP_VERSION;
+        
+        $aiPlans = class_exists(SystemAiHostingPlan::class) ? SystemAiHostingPlan::all() : collect();
 
         return view('livewire.shop.system.system-info', [
             'laravelVersion' => $laravelVersion,
             'phpVersion' => $phpVersion,
+            'aiPlans' => $aiPlans,
         ]);
     }
 }

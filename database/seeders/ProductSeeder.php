@@ -241,7 +241,7 @@ class ProductSeeder extends Seeder
         $p2->categories()->attach($catIds2);
 
         // --- PRODUKT 3: Personalisiertes Weizenglas (NEU) ---
-        $p5 = Product::create([
+        $p3 = Product::create([
             'name' => 'Personalisiertes Weizenglas',
             'slug' => 'weizenglas-personalisiert',
             'type' => 'physical',
@@ -329,10 +329,10 @@ class ProductSeeder extends Seeder
         ]);
 
         $catIds5 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
-        $p5->categories()->attach($catIds5);
+        $p3->categories()->attach($catIds5);
 
-       /* // --- PRODUKT 4: Das Seelenbuch (Digital) ---
-        $p3 = Product::create([
+        // --- PRODUKT 4: Das Seelenbuch (Digital) ---
+        $p4 = Product::create([
             'name' => 'Das Seelenbuch',
             'slug' => 'seelenbuch',
             'type' => 'digital',
@@ -371,10 +371,10 @@ class ProductSeeder extends Seeder
         ]);
 
         $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
-        $p3->categories()->attach($catIds3);
+        $p4->categories()->attach($catIds3);
 
         // --- PRODUKT 5: Persönliche Laser-Beratung (Service) ---
-        $p4 = Product::create([
+        $p5 = Product::create([
             'name' => 'Persönliche Laser-Beratung',
             'slug' => 'laser-beratung',
             'type' => 'service',
@@ -412,6 +412,6 @@ class ProductSeeder extends Seeder
         ]);
 
         $catIds4 = ProductCategory::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
-        $p4->categories()->attach($catIds4);*/
+        $p5->categories()->attach($catIds4);
     }
 }
