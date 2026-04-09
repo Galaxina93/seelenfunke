@@ -160,7 +160,7 @@
     </header>
 
     {{-- SEITEN-INHALT --}}
-    <div class="flex-1 overflow-x-hidden overflow-y-auto relative no-scrollbar pb-24 lg:pb-0">
+    <div class="flex-1 overflow-x-hidden overflow-y-auto relative no-scrollbar pb-20 lg:pb-0">
         {{ $slot }}
     </div>
 
