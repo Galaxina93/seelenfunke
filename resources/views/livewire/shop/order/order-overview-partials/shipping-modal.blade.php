@@ -1,5 +1,5 @@
 @if($confirmingShipmentId)
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-all">
+    <div class="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 pt-[15vh] sm:pt-4 transition-all">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all animate-fade-in-up border border-gray-100">
 
             <div class="bg-[var(--theme-color-5)] px-6 py-5 border-b border-[var(--theme-color-10)] flex items-center gap-4">

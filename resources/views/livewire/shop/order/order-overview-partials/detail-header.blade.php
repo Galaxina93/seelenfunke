@@ -1,18 +1,18 @@
-<div class="bg-gray-900/50 backdrop-blur-xl border-b border-gray-800 px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 shrink-0 z-20">
+<div class="bg-gray-900/50 backdrop-blur-xl border-b border-gray-800 px-6 py-5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 shrink-0 z-20">
 
-    <div class="flex items-center gap-4 sm:gap-6">
+    <div class="flex items-center gap-4 xl:gap-6">
         <button wire:click="closeDetail" class="group flex items-center gap-3 text-gray-500 hover:text-white transition-colors">
             <div class="w-10 h-10 rounded-full bg-gray-950 border border-gray-800 flex items-center justify-center group-hover:bg-[var(--theme-color)] group-hover:border-[var(--theme-color)] group-hover:text-gray-900 transition-all duration-300 shadow-inner">
                 <svg class="w-5 h-5 transition-transform group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             </div>
-            <span class="text-[10px] font-black uppercase tracking-widest hidden sm:inline transition-colors">Übersicht</span>
+            <span class="text-[10px] font-black uppercase tracking-widest hidden xl:inline transition-colors">Übersicht</span>
         </button>
 
         <div class="h-8 w-px bg-gray-800"></div>
 
         <div>
             <div class="flex items-center gap-3">
-                <h1 class="text-xl sm:text-2xl font-serif font-bold text-white tracking-tight">
+                <h1 class="text-xl xl:text-2xl font-serif font-bold text-white tracking-tight">
                     #{{ $this->selectedOrder->order_number }}
                 </h1>
                 @if($this->selectedOrder->is_express)
@@ -28,13 +28,13 @@
     </div>
 
     {{-- Status Actions --}}
-    <div class="w-full sm:justify-end flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:w-auto mt-4 sm:mt-0">
+    <div class="w-full xl:justify-end flex flex-col xl:flex-row items-stretch xl:items-center gap-3 xl:w-auto mt-4 xl:mt-0">
 
         {{-- Payment Status --}}
-        <div class="flex flex-col sm:items-center gap-2 w-full sm:w-auto">
-            <div class="relative w-full sm:w-auto">
+        <div class="flex flex-col xl:items-center gap-2 w-full xl:w-auto">
+            <div class="relative w-full xl:w-auto">
                 <select wire:model="payment_status" wire:change="saveStatus"
-                        class="appearance-none w-full sm:w-48 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
+                        class="appearance-none w-full xl:w-48 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
                     <option value="unpaid" class="bg-gray-900 text-white" @selected($this->selectedOrder->payment_status == 'unpaid')>❌ Offen</option>
                     <option value="paid" class="bg-gray-900 text-white" @selected($this->selectedOrder->payment_status == 'paid')>✅ Bezahlt</option>
                     <option value="refunded" class="bg-gray-900 text-white" @selected($this->selectedOrder->payment_status == 'refunded')>💳 Erstattet</option>
@@ -46,11 +46,11 @@
         </div>
 
         {{-- Order Status --}}
-        <div class="flex flex-col sm:items-center gap-2 w-full sm:w-auto">
-            <div class="relative w-full sm:w-auto">
+        <div class="flex flex-col xl:items-center gap-2 w-full xl:w-auto">
+            <div class="relative w-full xl:w-auto">
                 {{-- Achtung: Hier verwenden wir updateStatus direkt oder wir binden es auch an model/saveStatus? Der aktuelle Code nutzt wire:change="updateStatus" --}}
                 <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)"
-                        class="appearance-none w-full sm:w-56 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
+                        class="appearance-none w-full xl:w-56 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
                     <option value="pending" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'pending')>🟠 Wartend</option>
                     <option value="processing" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'processing')>🔵 In Bearbeitung</option>
                     <option value="shipped" class="bg-gray-900 text-white" @selected($this->selectedOrder->status == 'shipped')>🟣 Versendet</option>
@@ -64,11 +64,11 @@
         </div>
 
         {{-- DHL Integration --}}
-        <div class="flex flex-col sm:items-center gap-2 border-t sm:border-t-0 sm:border-l border-gray-800 pt-3 mt-1 sm:pt-0 sm:mt-0 sm:pl-4 sm:ml-2 w-full sm:w-auto">
+        <div class="flex flex-col xl:items-center gap-2 border-t xl:border-t-0 xl:border-l border-gray-800 pt-3 mt-1 xl:pt-0 xl:mt-0 xl:pl-4 xl:ml-2 w-full xl:w-auto">
             @if($this->selectedOrder->shipments->isNotEmpty())
                 <div class="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
                     @foreach($this->selectedOrder->shipments as $shipment)
-                        <div class="flex items-center gap-2 bg-gray-900/50 p-1.5 rounded-lg border border-gray-800 justify-between w-full sm:w-48">
+                        <div class="flex items-center gap-2 bg-gray-900/50 p-1.5 rounded-lg border border-gray-800 justify-between w-full xl:w-48">
                             <div class="flex flex-col min-w-0">
                                 <span class="text-[9px] text-gray-500 font-bold tracking-widest uppercase">Paket {{ $loop->iteration }}</span>
                                 <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" target="_blank" class="text-[10px] font-semibold text-[var(--theme-color)] hover:text-white transition-colors truncate">

@@ -44,19 +44,11 @@
             {{-- 1. FUNKI BILD (Voll in die Kachel integriert) --}}
             <div class="w-full md:w-[35%] lg:w-[30%] relative shrink-0 min-h-[280px] md:min-h-full bg-gray-950 z-10 overflow-hidden border-b md:border-b-0 md:border-r border-gray-800">
                 <img src="{{ asset('shop/ai/images/' . $funkiImg) }}" class="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out" alt="Funki">
-                
+
                 {{-- Dunkler Farbverlauf für besseren Text-Kontrast und Übergang --}}
                 <div class="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent opacity-80"></div>
                 <div class="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-gray-900/80 hidden md:block"></div>
 
-                {{-- Status Badge im Bild verankert --}}
-                <div class="absolute bottom-5 left-1/2 -translate-x-1/2 {{ $statusColor }} px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-2xl flex items-center gap-2 z-20 backdrop-blur-xl whitespace-nowrap">
-                    <span class="relative flex h-2.5 w-2.5">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-current"></span>
-                      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-current"></span>
-                    </span>
-                    {{ $statusText }}
-                </div>
             </div>
 
             {{-- 2. TEXT & ACTION BEREICH --}}
@@ -309,7 +301,7 @@
 
     {{-- DHL MEHRPAKET MODAL --}}
     @if($dhlModalOrderId)
-        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div class="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[15vh] sm:pt-4 animate-fade-in">
             <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-slide-up relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-bl-full pointer-events-none"></div>
                 <div class="flex items-start gap-4 mb-6">
@@ -349,7 +341,7 @@
 
     {{-- DHL ERROR MODAL --}}
     @if($dhlError)
-        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div class="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[15vh] sm:pt-4 animate-fade-in">
             <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 animate-slide-up relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-bl-full pointer-events-none"></div>
                 <div class="flex items-start gap-4 mb-6">
