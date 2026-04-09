@@ -124,6 +124,6 @@ class AiAnalytics extends Component
             'resourceDistribution' => json_encode($resourceDistribution),
             'toolErrors' => json_encode($toolErrors),
             'cognitiveLoad' => $cognitiveLoad,
-        ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
+        ]);
     }
 }

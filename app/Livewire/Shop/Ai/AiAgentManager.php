@@ -22,7 +22,7 @@ class AiAgentManager extends Component
         return view('livewire.shop.ai.ai-agent-manager', [
             'agents' => $agents,
             'contextLoads' => $contextLoads
-        ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
+        ]);
     }
 
     private function calculateContextLoad(AiAgent $agent): array

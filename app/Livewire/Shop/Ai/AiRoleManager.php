@@ -201,6 +201,6 @@ class AiRoleManager extends Component
         return view('livewire.shop.ai.ai-role-manager', [
             'groupedTools' => $groupedToolsCollection,
             'totalToolsCount' => $allTools->count()
-        ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
+        ]);
     }
 }

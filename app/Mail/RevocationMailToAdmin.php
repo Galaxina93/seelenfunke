@@ -29,7 +29,7 @@ class RevocationMailToAdmin extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'WICHTIG: Neuer Widerruf eingegangen (Bestellung: ' . $this->revocationData['order_number'] . ')',
+            subject: '[WIDERRUF] Neuer Widerruf eingegangen (Bestellung: ' . $this->revocationData['order_number'] . ')',
         );
     }
 
