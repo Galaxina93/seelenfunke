@@ -1,6 +1,6 @@
 <div>
-    <div class="p-6 lg:p-10 min-h-full flex flex-col relative z-10 w-full max-w-7xl mx-auto">
-        
+    <div class="p-10 min-h-full flex flex-col relative z-10 w-full max-w-7xl mx-auto">
+
         {{-- HEADER --}}
         <div class="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-fade-in-up">
             <div>
@@ -9,7 +9,7 @@
                 </h1>
                 <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest font-bold">Lückenlose Dokumentation deiner Käufe</p>
             </div>
-            
+
             <a href="{{ route('customer.orders') }}" class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-primary transition-colors">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 Zu den Bestellungen
@@ -18,7 +18,7 @@
 
         {{-- INFO & BATCH DOWNLOADER WIDGET --}}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12 animate-fade-in-up delay-100">
-            
+
             <div class="lg:col-span-1 bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden group hover:border-blue-500/30 transition-colors">
                 <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-colors pointer-events-none"></div>
                 <div class="w-12 h-12 rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center text-blue-400 mb-6 shadow-inner">
@@ -37,7 +37,7 @@
                         state: 'idle', // idle, analyzing, ready, downloading, done
                         progress: 0,
                         currentFile: '',
-                        
+
                         async startAnalysis() {
                             this.state = 'analyzing';
                             await new Promise(r => setTimeout(r, 800)); // Simulate Deep Scan
@@ -59,33 +59,33 @@
                             if(this.invoices.length === 0) return;
                             this.state = 'downloading';
                             this.progress = 0;
-                            
+
                             try {
                                 await this.loadJSZip();
                                 const zip = new window.JSZip();
-                                
+
                                 for(let i=0; i<this.invoices.length; i++) {
                                     let inv = this.invoices[i];
                                     this.currentFile = 'Lade ' + inv.name + ' herunter...';
-                                    
+
                                     let response = await fetch(inv.url);
                                     if(response.ok) {
                                         let blob = await response.blob();
                                         zip.file(inv.name, blob);
                                     }
-                                    
+
                                     this.progress = Math.round(((i + 1) / this.invoices.length) * 100);
                                 }
-                                
+
                                 this.currentFile = 'Zip-Archiv wird lokal kompiliert...';
                                 const zipContent = await zip.generateAsync({type: 'blob'});
-                                
+
                                 const link = document.createElement('a');
                                 link.href = URL.createObjectURL(zipContent);
                                 link.download = 'Meine_Rechnungen_Seelenfunke.zip';
                                 link.click();
                                 URL.revokeObjectURL(link.href);
-                                
+
                                 this.state = 'done';
                                 this.currentFile = 'Download erfolgreich abgeschlossen!';
                             } catch(e) {
@@ -94,7 +94,7 @@
                             }
                         }
                     }">
-                    
+
                     <div class="flex items-center gap-4 mb-4">
                         <div class="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
                             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -150,11 +150,11 @@
                                 <span class="text-[10px] font-black uppercase tracking-widest text-blue-400" x-text="state === 'done' ? 'Fertiggestellt' : 'Lade Archiv herunter'"></span>
                                 <span class="font-mono text-sm font-bold text-white" x-text="progress + '%'"></span>
                             </div>
-                            
+
                             <div class="w-full bg-gray-950 rounded-full h-2.5 border border-gray-800 overflow-hidden relative shadow-inner mb-3">
                                 <div class="bg-gradient-to-r from-blue-600 to-blue-400 h-2.5 rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.8)]" :style="'width: ' + progress + '%'"></div>
                             </div>
-                            
+
                             <div class="flex items-center gap-2">
                                 <svg x-show="state !== 'done'" class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                 <svg x-cloak x-show="state === 'done'" class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -193,13 +193,13 @@
                                     {{ $invoice->created_at->format('d.m.Y') }}
                                 </span>
                             </div>
-                            
+
                             <div class="mb-6">
                                 <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mb-1">{{ $invoice->isCreditNote() ? 'Gutschrift' : 'Rechnung' }}</p>
                                 <p class="text-lg font-bold tracking-tight text-white group-hover:text-primary transition-colors">
                                     {{ $invoice->invoice_number ?? 'Dokument #' . $invoice->id }}
                                 </p>
-                                
+
                                 @if($invoice->order_id)
                                     <div class="mt-4 pt-4 border-t border-gray-800/50">
                                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-0.5">Zugehörige Bestellung</p>
@@ -210,7 +210,7 @@
                                                 $relatedOrder = $orders->firstWhere('id', $invoice->order_id);
                                             @endphp
                                             <span class="text-sm font-bold text-gray-300">#{{ $relatedOrder ? $relatedOrder->order_number : 'Unbekannt' }}</span>
-                                            
+
                                             <a href="{{ route('customer.orders') }}" class="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 Ansehen
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
@@ -229,6 +229,6 @@
                 </div>
             @endif
         </div>
-        
+
     </div>
 </div>
