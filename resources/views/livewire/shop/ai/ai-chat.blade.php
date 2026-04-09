@@ -4,8 +4,8 @@
         isFullscreen: false,
         init() {
             this.scrollToBottom();
-            $watch('$wire.messages', () => { setTimeout(() => this.scrollToBottom(), 50) });
-            $watch('$wire.typingAgents', () => { setTimeout(() => this.scrollToBottom(), 50) });
+            $wire.$watch('messages', () => { setTimeout(() => this.scrollToBottom(), 50) });
+            $wire.$watch('typingAgents', () => { setTimeout(() => this.scrollToBottom(), 50) });
         },
         scrollToBottom() {
             let el = document.getElementById('chat-scroll-container');
