@@ -166,7 +166,7 @@
                                             @if($selectedOrder->status === 'pending' && $type === 'physical')
                                                 <div x-data="{ successMsg: false }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
-                                                    
+
                                                     <div class="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-start gap-3 shadow-sm">
                                                         <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                         <p class="text-xs text-amber-500/90 font-medium">
@@ -224,11 +224,11 @@
                                 @endforeach
                             </ul>
 
-                            <x-shop.cost-summary 
-                                :model="$selectedOrder" 
-                                design="dark" 
-                                :showTitle="false" 
-                                containerOverride="bg-gray-950 p-6 sm:p-8 border-t border-gray-800" 
+                            <x-shop.cost-summary
+                                :model="$selectedOrder"
+                                design="dark"
+                                :showTitle="false"
+                                containerOverride="bg-gray-950 p-6 sm:p-8 border-t border-gray-800"
                             />
                         </div>
                     </div>
@@ -261,15 +261,15 @@
                                             <div class="relative flex items-center" x-data="{ copySuccess: false }">
                                                 <input type="text" readonly value="{{ $shipment->tracking_number }}"
                                                        class="w-full rounded-2xl bg-gray-950/80 border border-primary/30 py-4 pl-5 pr-24 font-mono tracking-[0.1em] text-sm text-primary shadow-inner outline-none uppercase truncate transition-colors focus:border-primary/60">
-                                                
+
                                                 <div class="absolute right-2 flex gap-1 items-center">
-                                                    <button @click="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000)" 
+                                                    <button @click="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000)"
                                                             class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Nummer kopieren">
                                                         <svg x-show="!copySuccess" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                                         <svg x-show="copySuccess" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                                     </button>
-                                                    <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" 
-                                                       target="_blank" 
+                                                    <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}"
+                                                       target="_blank"
                                                        class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Auf DHL.de verfolgen">
                                                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
                                                     </a>
@@ -570,7 +570,7 @@
                                     Letztes Update: <span class="text-gray-400">{{ $o->updated_at->diffForHumans() }}</span>
                                 </div>
                             </div>
-                            
+
                             {{-- DHL SENDUNGSVERFOLGUNG (OVERVIEW LISTE) --}}
                             @if($o->shipments && $o->shipments->isNotEmpty())
                             <div class="mt-4" x-data="{ copySuccessIds: [] }">
@@ -596,15 +596,15 @@
                                                     @endif
                                                     <input type="text" readonly value="{{ $shipment->tracking_number }}"
                                                            class="w-full rounded-2xl bg-gray-950/80 border border-primary/30 py-3.5 {{ $o->shipments->count() > 1 ? 'pl-[90px]' : 'pl-5' }} pr-24 font-mono tracking-[0.1em] text-sm md:text-base text-primary shadow-inner outline-none uppercase truncate">
-                                                    
+
                                                     <div class="absolute right-2 flex gap-1 items-center">
-                                                        <button @click.stop="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000)" 
+                                                        <button @click.stop="navigator.clipboard.writeText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000)"
                                                                 class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Kopieren">
                                                             <svg x-show="!copySuccessIds.includes('{{ $shipment->id }}')" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                                                             <svg x-show="copySuccessIds.includes('{{ $shipment->id }}')" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                                         </button>
-                                                        <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" 
-                                                           target="_blank" 
+                                                        <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}"
+                                                           target="_blank"
                                                            @click.stop
                                                            class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Auf DHL.de verfogen">
                                                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
