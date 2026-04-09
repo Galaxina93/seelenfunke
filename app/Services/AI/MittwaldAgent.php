@@ -13,6 +13,7 @@ class MittwaldAgent
     protected string $baseUrl;
     protected string $apiKey;
     protected \App\Models\Ai\AiAgent $agent;
+    public string $dynamicSystemPrompt = '';
 
     public function __construct(\App\Models\Ai\AiAgent $agent)
     {
@@ -23,6 +24,11 @@ class MittwaldAgent
         if (empty($this->apiKey)) {
             Log::warning("Mittwald AI API key is missing. Ensure MITTWALD_AI_API_KEY is placed in your .env");
         }
+    }
+
+    public function setDynamicSystemPrompt(string $prompt)
+    {
+        $this->dynamicSystemPrompt = $prompt;
     }
 
     /**
@@ -63,6 +69,10 @@ class MittwaldAgent
                              'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
                              'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
                              'Reasoning: high';
+                             
+        if ($this->dynamicSystemPrompt) {
+            $systemPromptText .= "\n\n" . $this->dynamicSystemPrompt;
+        }
 
         $systemPrompt = [
             'role' => 'system',

@@ -185,20 +185,22 @@ class AiChat extends Component
         }
 
         // --- MULTI-AGENT ROUTING INJECTION ---
+        $multiAgentRule = '';
         if (count($this->activeAgentIds) > 1) {
             $isFunkira = $agent->name === 'Funkira';
             $funkiraRule = $isFunkira 
                 ? "Du BIST Funkira (CEO). Du bist die Leiterin. Wenn der User fachliche Anfragen stellt (z.B. Bestellungen, Buchhaltung, Produkte, Server), für die du KEINE eigenen Werkzeuge hast, VERWEISE NICHT auf Kollegen und sag nichts, sondern antworte AUSSCHLIESSLICH mit exakt '[SKIP]'. Deine Kollegen (die anderen Agenten) bearbeiten das dann! Du antwortest NUR auf CEO-Smalltalk, Begrüßungen, allgemeine System-Informationen oder wenn keine andere Fachabteilung zuständig ist."
                 : "Du bist in einem Multi-Agent Chat. Es hören auch andere Agenten (z.B. Sales, Support, System) und Funkira (die CEO) zu. WICHTIGE REGEL: Wenn die Anfrage des Users NICHT exakt in deinen fachlichen Aufgabenbereich / zu deinen API-Werkzeugen passt, antworte ZWINGEND und NUR mit '[SKIP]'. Mache keine Ausnahmen! Du bearbeitest NUR Anfragen, für die du der absolute Spezialist bist. Wenn ein Kollege besser passt, hülle dich in Schweigen ('[SKIP]'). Bedenke: Wenn du eine Antwort aus dem Chatverlauf ablesen müsstest, anstatt ein Werkzeug zu nutzen, bist du sehr wahrscheinlich der FALSCHE Agent! Antworte dann mit '[SKIP]'!";
 
-            $apiHistory[] = [
-                'role' => 'system',
-                'content' => "[MULTI-AGENT KOORDINATIONS-PROTOKOLL]\n" . $funkiraRule
-            ];
+            $multiAgentRule = "[MULTI-AGENT KOORDINATIONS-PROTOKOLL]\n" . $funkiraRule;
         }
 
         try {
             $apiService = new \App\Services\AI\MittwaldAgent($agent);
+            if ($multiAgentRule) {
+                $apiService->setDynamicSystemPrompt($multiAgentRule);
+            }
+            
 
             $response = $apiService->ask($apiHistory);
             $replyText = $response['response'] ?? 'Ich konnte keine Antwort generieren.';
