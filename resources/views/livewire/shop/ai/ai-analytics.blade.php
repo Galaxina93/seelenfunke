@@ -92,7 +92,7 @@
         
         <!-- Token-Trend Chart -->
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 lg:col-span-2" 
-             x-data="analyticsTrendChart({{ $trendData }})">
+             x-data='analyticsTrendChart({{ $trendData }})'>
             <h3 class="text-white font-semibold mb-4 text-lg">Token-Trend (Verbrauch / Letzte 30 Tage)</h3>
             <div class="w-full h-[350px]">
                 <div x-ref="chart"></div>
@@ -129,7 +129,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         <!-- Donut: Ressourcen Verteilung -->
-        <div class="bg-gray-800 border border-gray-700 rounded-xl p-5" x-data="analyticsDonutChart({{ $resourceDistribution }})">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-5" x-data='analyticsDonutChart({{ $resourceDistribution }})'>
             <h3 class="text-white font-semibold mb-4 text-lg">Ressourcen-Verteilung (Tokens pro Agent / Monat)</h3>
             <div class="flex justify-center h-[300px]">
                 <div x-ref="chart"></div>
@@ -137,7 +137,7 @@
         </div>
 
         <!-- Bar: Tool Fehler -->
-        <div class="bg-gray-800 border border-gray-700 rounded-xl p-5" x-data="analyticsBarChart({{ $toolErrors }})">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl p-5" x-data='analyticsBarChart({{ $toolErrors }})'>
             <h3 class="text-white font-semibold mb-4 text-lg">Tool-Fehlerquote (Most Failed)</h3>
             <div class="w-full h-[300px]">
                 <div x-ref="chart"></div>
