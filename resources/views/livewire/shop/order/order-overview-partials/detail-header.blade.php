@@ -88,7 +88,7 @@
                     </button>
                 </div>
             @elseif(in_array($this->selectedOrder->status, ['processing', 'shipped', 'completed']))
-                <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-yellow-400 text-yellow-900 rounded-xl font-bold text-xs hover:bg-yellow-300 transition-colors shadow-[0_0_15px_rgba(250,204,21,0.2)]">
+                <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold text-xs hover:bg-opacity-80 transition-all shadow-[0_0_15px_rgba(var(--theme-color-rgb,197,160,89),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-color-rgb,197,160,89),0.4)]">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     <span>Label erstellen</span>
                 </button>

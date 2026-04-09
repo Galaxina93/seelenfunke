@@ -111,22 +111,23 @@
                     @endphp
 
                     <div wire:click="selectItemForPreview('{{ $item->id }}')"
-                         class="cursor-pointer border border-[2px] rounded-[2rem] p-4 transition-all duration-300 relative overflow-hidden group
+                         class="cursor-pointer border border-[2px] rounded-[1.5rem] sm:rounded-[2rem] p-3 sm:p-4 transition-all duration-300 relative overflow-hidden group
                                 {{ $isCompletedClass }}
                                 {{ $selectedItemId == $item->id ? 'ring-2 ring-primary ring-offset-2 ring-offset-gray-950' : '' }}"
                     >
                         @if($isOrder)
                             {{-- Add Checkbox --}}
-                            <div class="absolute top-4 right-5 z-20" wire:click.stop="toggleItemCompletion('{{ $item->id }}')">
-                                 <div class="w-6 h-6 rounded-full border-[2.5px] flex items-center justify-center transition-colors {{ $item->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-900 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'border-gray-500 text-transparent hover:border-primary hover:text-primary/50' }}">
-                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            <div class="absolute top-3 sm:top-4 right-3 sm:right-5 z-20" wire:click.stop="toggleItemCompletion('{{ $item->id }}')">
+                                 <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-[2px] sm:border-[2.5px] flex items-center justify-center transition-colors {{ $item->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-900 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'border-gray-500 text-transparent hover:border-primary hover:text-primary/50' }}">
+                                     <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                  </div>
                             </div>
                         @endif
 
-                        <div class="flex gap-5">
+                        <div class="flex flex-col sm:flex-row gap-3 sm:gap-5">
                             {{-- Bild --}}
-                            <div class="h-20 w-20 bg-gray-950 rounded-2xl border border-gray-800 overflow-hidden shrink-0 relative shadow-inner">
+                            <div class="flex items-start gap-3 sm:contents">
+                                <div class="h-16 w-16 sm:h-20 sm:w-20 bg-gray-950 rounded-xl sm:rounded-2xl border border-gray-800 overflow-hidden shrink-0 relative shadow-inner">
                                 @php
                                     $conf = $item->configuration;
                                     $imgPath = $conf['preview_file'] ?? ($conf['logo_storage_path'] ?? ($item->product->preview_image_path ?? null));
@@ -145,13 +146,23 @@
                                 @endif
                             </div>
 
+                            {{-- Mobile Head (Title & Price) when stacked --}}
+                            <div class="flex-1 min-w-0 flex flex-col justify-center sm:hidden pr-8">
+                                <h4 class="font-bold text-white text-sm sm:text-base mb-1 line-clamp-2 leading-tight">{{ $item->product_name }}</h4>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-mono font-bold text-primary text-sm whitespace-nowrap">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</span>
+                                    <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">({{ $item->quantity }}x)</span>
+                                </div>
+                            </div>
+                            </div>
+
                             {{-- Infos --}}
                             <div class="flex-1 min-w-0 flex flex-col justify-center">
-                                <div class="flex justify-between items-start gap-4">
+                                <div class="hidden sm:flex justify-between items-start gap-4">
                                     <h4 class="font-bold text-white text-base truncate">{{ $item->product_name }}</h4>
                                     <span class="font-mono font-bold text-primary text-base whitespace-nowrap">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</span>
                                 </div>
-                                <p class="text-[11px] text-gray-500 font-medium mt-1 uppercase tracking-wider">{{ $item->quantity }}x á {{ number_format($item->unit_price / 100, 2, ',', '.') }} €</p>
+                                <p class="hidden sm:block text-[11px] text-gray-500 font-medium mt-1 uppercase tracking-wider">{{ $item->quantity }}x á {{ number_format($item->unit_price / 100, 2, ',', '.') }} €</p>
 
                                 {{-- Config Hints --}}
                                 @if(!empty($conf))
@@ -173,8 +184,8 @@
 
                                 {{-- Partial Fulfillment UI --}}
                                 @if($isOrder)
-                                    <div class="mt-4 flex items-center justify-between bg-gray-950/50 p-2.5 rounded-xl border border-gray-800 shadow-inner w-max gap-4" onclick="event.stopPropagation()">
-                                        <div class="flex items-center gap-3">
+                                    <div class="mt-4 flex items-center justify-between bg-gray-950/50 p-2 sm:p-2.5 rounded-xl border border-gray-800 shadow-inner w-full xl:w-max gap-2 sm:gap-4" onclick="event.stopPropagation()">
+                                        <div class="flex items-center gap-2 sm:gap-3 w-full justify-between sm:justify-start">
                                             <button wire:click.prevent="decrementCompletedQuantity('{{ $item->id }}')" 
                                                     class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 border border-transparent transition-colors disabled:opacity-50"
                                                     @if($item->completed_quantity <= 0) disabled @endif>
@@ -218,7 +229,7 @@
                             </div>
 
                             {{-- Arrow Indicator --}}
-                            <div class="self-center text-gray-600 group-hover:text-primary transition-colors group-hover:translate-x-1 transform duration-300 {{ $isOrder ? 'mr-8' : '' }}">
+                            <div class="hidden sm:block self-center text-gray-600 group-hover:text-primary transition-colors group-hover:translate-x-1 transform duration-300 {{ $isOrder ? 'mr-8' : '' }}">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                             </div>
                         </div>
