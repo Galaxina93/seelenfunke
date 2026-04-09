@@ -182,7 +182,7 @@
                             width: 2
                         },
                         xaxis: {
-                            categories: data.categories,
+                            categories: data.product_categories,
                             axisBorder: { show: false },
                             axisTicks: { show: false }
                         },
@@ -232,7 +232,7 @@
             Alpine.data('analyticsBarChart', (data) => ({
                 chart: null,
                 init() {
-                    if (data.categories.length === 0) {
+                    if (data.product_categories.length === 0) {
                         this.$refs.chart.innerHTML = '<div class="text-gray-500 flex items-center justify-center h-full text-sm italic">Aktuell liegen noch keine Daten vor.</div>';
                         return;
                     }
@@ -259,7 +259,7 @@
                             enabled: true
                         },
                         xaxis: {
-                            categories: data.categories,
+                            categories: data.product_categories,
                         },
                         grid: {
                             borderColor: '#374151',
