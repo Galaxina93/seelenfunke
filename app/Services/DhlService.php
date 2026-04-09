@@ -40,17 +40,17 @@ class DhlService
         $this->baseUrl = $this->isSandbox
             ? 'https://api-sandbox.dhl.com/parcel/de/shipping/v2'
             : 'https://api.dhl.com/parcel/de/shipping/v2';
-            
+
         $this->initSenderFromSettings();
     }
-    
+
     protected function initSenderFromSettings()
     {
         // Try to override sender details with dynamically configurable shop settings if they exist
         // And ensure they conform to DHL's strict max-length rules
         $name = shop_setting('company_name');
         if ($name) $this->senderDetails['name1'] = mb_substr(trim($name), 0, 50);
-        
+
         $street = shop_setting('company_street');
         $streetNumber = shop_setting('company_street_number');
         $zip = shop_setting('company_zip');
@@ -64,7 +64,7 @@ class DhlService
             $this->senderDetails['postalCode']    = mb_substr(trim($zip), 0, 10);
             $this->senderDetails['city']          = mb_substr(trim($city), 0, 50);
         }
-        
+
         $email = shop_setting('company_email');
         if ($email) $this->senderDetails['email'] = mb_substr(trim($email), 0, 80);
     }
@@ -81,10 +81,10 @@ class DhlService
     public function createLabels(OrderOrder $order, int $packageCount = 1, float $weightPerPackage = 1.0): array
     {
         // 1. Prüfen ob die alternative Lieferadresse *wirklich* Daten enthält
-        $hasShipping = !empty($order->shipping_address) 
-            && (isset($order->shipping_address['street']) || isset($order->shipping_address['first_name'])) 
+        $hasShipping = !empty($order->shipping_address)
+            && (isset($order->shipping_address['street']) || isset($order->shipping_address['first_name']))
             && trim(($order->shipping_address['street'] ?? '') . ($order->shipping_address['first_name'] ?? '')) !== '';
-            
+
         $shipping = $hasShipping ? $order->shipping_address : $order->billing_address;
 
         if (!$shipping) {
@@ -92,7 +92,7 @@ class DhlService
         }
 
         $isInternational = strtoupper($shipping['country'] ?? 'DE') !== 'DE';
-        
+
         // National (V01PAK) uses participation code 0101
         // International (V53WPAK) uses participation code 5301
         $productCode   = $isInternational ? 'V53WPAK' : 'V01PAK';
@@ -102,9 +102,9 @@ class DhlService
         // Extract street and house number. Often shops combine them into 'address'.
         $streetFullName = $shipping['address'] ?? ($shipping['street'] ?? '');
         preg_match('/^([^\d]+)\s*(.+)?$/', $streetFullName, $matches);
-        
+
         // Strip trailing commas from the street name which break DHL validation
-        $streetName   = rtrim(trim($matches[1] ?? $streetFullName), ','); 
+        $streetName   = rtrim(trim($matches[1] ?? $streetFullName), ',');
         $streetNumber = trim($matches[2] ?? '');
 
         // If for any reason streetName is empty after trim, fallback to original to prevent DHL error
@@ -112,7 +112,7 @@ class DhlService
             $streetName = $streetFullName ?: 'Unbekannt';
         }
 
-        // Herausfinden, wie viele Labels bereits für diese Order existieren, 
+        // Herausfinden, wie viele Labels bereits für diese Order existieren,
         // damit es bei Nachgenerierungen keine "refNo" Kollision gibt!
         $existingLabelsCount = $order->shipments()->count();
 
@@ -152,9 +152,9 @@ class DhlService
         ];
 
         // Log payload for debugging purposes
-        \Illuminate\Support\Facades\Log::info('DHL API Payload: ', $payload);
+        /*\Illuminate\Support\Facades\Log::info('DHL API Payload: ', $payload);*/
 
-        // Send POST request 
+        // Send POST request
         $response = Http::withBasicAuth($this->apiUser, $this->apiSignature)
             ->withHeaders([
                 'dhl-api-key' => $this->apiKey,
@@ -192,7 +192,7 @@ class DhlService
 
         if ($response->failed() || !isset($data['items']) || empty($data['items'])) {
             $errorMessage = "Unbekannter Fehler von DHL.";
-            
+
             // DHL V2 errors are sometimes nested
             if (isset($data['detail'])) {
                 $errorMessage = $data['detail'];
@@ -220,7 +220,7 @@ class DhlService
                         $validationDetails .= ' ' . ($msg['validationMessage'] ?? '');
                     }
                 }
-                
+
                 $detail = $item['sstatus']['detail'] ?? null;
                 if (!$detail) {
                     $detail = json_encode($item['sstatus']);

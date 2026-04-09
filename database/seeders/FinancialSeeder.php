@@ -399,7 +399,7 @@ class FinancialSeeder extends Seeder
                 'amount'      => -355.00,
                 'interval'    => 1,
                 'start_date'  => '2024-01-12',
-                'description' => "Es wurde alles durch Lenas Rechtsanwältin berechne...",
+                'description' => "Es wurde alles durch Lenas Rechtsanwältin tippe...",
                 'tags'        => ['Unterhalt', 'Familie', 'Kind', 'Verpflichtung'],
             ],
         ];

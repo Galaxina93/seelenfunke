@@ -176,7 +176,7 @@
                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
                             <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce"></span>
                         </span>
-                        <span class="text-xs text-emerald-600/70 uppercase tracking-widest animate-pulse font-bold mt-0.5">Berechne...</span>
+                        <span class="text-xs text-emerald-600/70 uppercase tracking-widest animate-pulse font-bold mt-0.5">Tippe...</span>
                     </div>
                 </div>
                 @endif
