@@ -105,10 +105,10 @@
                 @elseif($activeArticle)
                     <div class="p-8 lg:p-12 pb-6 border-b border-emerald-900/40 bg-black/60 shrink-0 relative">
                         <div class="absolute top-8 right-8 flex gap-2">
-                             <button wire:click="editArticle({{ $activeArticle->id }})" class="p-2.5 bg-black border border-emerald-900/50 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/50 text-emerald-700 rounded-xl transition-all shadow-inner" title="Bearbeiten">
+                             <button wire:click="editArticle('{{ $activeArticle->id }}')" class="p-2.5 bg-black border border-emerald-900/50 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/50 text-emerald-700 rounded-xl transition-all shadow-inner" title="Bearbeiten">
                                  <x-heroicon-o-pencil class="w-5 h-5" />
                              </button>
-                             <button wire:click="deleteArticle({{ $activeArticle->id }})" wire:confirm="Sicher, dass du diesen Eintrag endgültig löschen möchtest?" class="p-2.5 bg-black border border-emerald-900/50 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 text-emerald-800/60 rounded-xl transition-all shadow-inner" title="Löschen">
+                             <button wire:click="deleteArticle('{{ $activeArticle->id }}')" wire:confirm="Sicher, dass du diesen Eintrag endgültig löschen möchtest?" class="p-2.5 bg-black border border-emerald-900/50 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 text-emerald-800/60 rounded-xl transition-all shadow-inner" title="Löschen">
                                  <x-heroicon-o-trash class="w-5 h-5" />
                              </button>
                         </div>
