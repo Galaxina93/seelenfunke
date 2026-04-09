@@ -28,10 +28,10 @@
     </div>
 
     {{-- Status Actions --}}
-    <div class="w-full justify-between sm:justify-end flex flex-row items-center gap-3 sm:w-auto">
+    <div class="w-full sm:justify-end flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:w-auto mt-4 sm:mt-0">
 
         {{-- Payment Status --}}
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col sm:items-center gap-2 w-full sm:w-auto">
             <div class="relative w-full sm:w-auto">
                 <select wire:model="payment_status" wire:change="saveStatus"
                         class="appearance-none w-full sm:w-48 bg-gray-950 hover:bg-gray-900 border border-gray-800 text-white text-xs font-bold rounded-xl py-2.5 pl-4 pr-10 shadow-inner focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] cursor-pointer transition-all outline-none tracking-wide">
@@ -46,7 +46,7 @@
         </div>
 
         {{-- Order Status --}}
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col sm:items-center gap-2 w-full sm:w-auto">
             <div class="relative w-full sm:w-auto">
                 {{-- Achtung: Hier verwenden wir updateStatus direkt oder wir binden es auch an model/saveStatus? Der aktuelle Code nutzt wire:change="updateStatus" --}}
                 <select wire:change="updateStatus('{{ $this->selectedOrder->id }}', $event.target.value)"
@@ -64,7 +64,7 @@
         </div>
 
         {{-- DHL Integration --}}
-        <div class="flex items-center gap-2 border-l border-gray-800 pl-4 ml-2">
+        <div class="flex flex-col sm:items-center gap-2 border-t sm:border-t-0 sm:border-l border-gray-800 pt-3 mt-1 sm:pt-0 sm:mt-0 sm:pl-4 sm:ml-2 w-full sm:w-auto">
             @if($this->selectedOrder->shipments->isNotEmpty())
                 <div class="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
                     @foreach($this->selectedOrder->shipments as $shipment)

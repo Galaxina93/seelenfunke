@@ -1,4 +1,4 @@
-<div class="w-full lg:w-1/2 h-1/2 lg:h-full overflow-y-auto bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-800">
+<div class="w-full lg:w-1/2 h-auto lg:h-full lg:overflow-y-auto bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-800">
     <div class="p-6 md:p-8 space-y-8">
 
         {{-- 1. EXPRESS ALERT --}}

@@ -291,9 +291,9 @@
 
         {{-- VIEW 2: DETAIL ANSICHT --}}
     @else
-        <div class="h-[calc(100vh-2rem)] flex flex-col bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-gray-800 overflow-hidden animate-fade-in-up">
+        <div class="min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-2rem)] flex flex-col bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-gray-800 lg:overflow-hidden animate-fade-in-up">
             @include("livewire.shop.order.order-overview-partials.detail-header")
-            <div class="flex flex-col lg:flex-row flex-1 overflow-hidden bg-gray-950/50">
+            <div class="flex flex-col lg:flex-row flex-1 lg:overflow-hidden bg-gray-950/50">
                 @include('livewire.shop.order.order-offer-detail-content', [
                     'model' => $selectedOrder,
                     'context' => 'order',
