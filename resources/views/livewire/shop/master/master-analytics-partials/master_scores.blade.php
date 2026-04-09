@@ -39,7 +39,7 @@
             'queue' => ['label' => 'Queue Worker', 'host' => 'Hintergrund', 'port' => 'N/A', 'desc' => 'Verarbeitet Aufgaben (Mails, PDFs) im Hintergrund.'],
             'scheduler' => ['label' => 'Task Scheduler', 'host' => 'Cronjob', 'port' => 'CLI', 'desc' => 'Führt zeitgesteuerte Hintergrundaufgaben aus (z.B. Bereinigungen, Erinnerungen).'],
             'backup' => ['label' => 'System Backup', 'host' => 'Storage', 'port' => 'N/A', 'desc' => 'Prüft, ob in den letzten 48 Stunden eine Sicherung der Datenbank erstellt wurde.'],
-            'ws' => ['label' => 'WebSocket', 'host' => env('PUSHER_HOST', '127.0.0.1'), 'port' => env('PUSHER_PORT', '6001'), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
+            'ws' => ['label' => 'WebSocket', 'host' => env('MIX_PUSHER_HOST', env('VITE_REVERB_HOST', env('PUSHER_HOST', '127.0.0.1'))), 'port' => env('MIX_PUSHER_PORT', env('VITE_REVERB_PORT', env('PUSHER_PORT', '6001'))), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
         ];
 
         $systemGroups = [
