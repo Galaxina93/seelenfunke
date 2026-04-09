@@ -12,6 +12,7 @@ class SupportChatAnalytics extends Component
 
     public $search = '';
     public $statusFilter = '';
+    public $ratingFilter = '';
 
     public function markAsResolved($id)
     {
@@ -35,6 +36,10 @@ class SupportChatAnalytics extends Component
 
         if (!empty($this->statusFilter)) {
             $query->where('status', $this->statusFilter);
+        }
+
+        if (!empty($this->ratingFilter)) {
+            $query->where('rating', $this->ratingFilter);
         }
 
         $chats = $query->orderByRaw("FIELD(status, 'needs_employee', 'open', 'resolved')")->orderBy('updated_at', 'desc')->paginate(15);
@@ -62,6 +67,19 @@ class SupportChatAnalytics extends Component
             ->orderByDesc('count')
             ->limit(5)->get();
 
+        // Bewertungs KPIs
+        $avgRating = SupportCustomerChat::whereNotNull('rating')->avg('rating') ?? 0;
+        $totalRatings = SupportCustomerChat::whereNotNull('rating')->count();
+        $ratingBreakdown = [];
+        for ($i = 5; $i >= 1; $i--) {
+            $countForStar = SupportCustomerChat::where('rating', $i)->count();
+            $percent = $totalRatings > 0 ? round(($countForStar / $totalRatings) * 100) : 0;
+            $ratingBreakdown[$i] = [
+                'count' => $countForStar,
+                'percent' => $percent
+            ];
+        }
+
         $supportAgent = \App\Models\Ai\AiAgent::whereHas('department', function ($query) {
             $query->where('name', 'Support');
         })->where('is_active', true)->first();
@@ -86,7 +104,10 @@ class SupportChatAnalytics extends Component
             'topTopics' => $topTopics,
             'topProducts' => $topProducts,
             'agentName' => $agentName,
-            'agentImage' => $agentImage
+            'agentImage' => $agentImage,
+            'avgRating' => $avgRating,
+            'totalRatings' => $totalRatings,
+            'ratingBreakdown' => $ratingBreakdown
         ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

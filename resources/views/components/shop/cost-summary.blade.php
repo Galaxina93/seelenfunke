@@ -3,7 +3,8 @@
     'totals' => null,  // Für Cart/Checkout Arrays
     'country' => null, // Optional für Checkout (Versand DE/AT...)
     'showTitle' => true, // Ob die Überschrift "Abrechnung/Kostenübersicht" angezeigt werden soll
-    'design' => 'light' // 'light' oder 'dark'
+    'design' => 'light', // 'light' oder 'dark'
+    'containerOverride' => null // Optional: Überschreibt die kompletten Container-Klassen
 ])
 
 @php
@@ -11,9 +12,9 @@
     $isDark = $design === 'dark';
 
     // Base Container
-    $containerClass = $isDark
+    $containerClass = $containerOverride ?? ($isDark
         ? 'bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-[2rem] p-6 sm:p-8 shadow-2xl h-full'
-        : 'bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm h-full';
+        : 'bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm h-full');
 
     // Text & Border Colors
     $titleClass = $isDark ? 'text-white border-gray-800' : 'text-gray-900 border-gray-200';

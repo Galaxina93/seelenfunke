@@ -48,7 +48,7 @@ class NewOrderMailToAdmin extends Mailable implements ShouldQueue
             from: new Address(shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')), shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'))),
             replyTo: [new Address($email, "$vorname $nachname")],
             // Klarer Betreff für bezahlte Bestellungen
-            subject: $prefix . '💰 NEUE BESTELLUNG #' . $orderNum . ': ' . $betreffName,
+            subject: $prefix . '💰 [NEUE BESTELLUNG] #' . $orderNum . ': ' . $betreffName,
         );
     }
 

@@ -67,9 +67,9 @@
                     </div>
                 </div>
             @elseif($msg['sender'] === 'ai')
-                <div class="flex justify-start space-x-2">
+                <div class="flex justify-start space-x-2" style="--dept-color: {{ $this->themeColorHex }}">
                     <img src="{{ $agentImage ?: asset('shop/ai/images/funki_selfie.png') }}" alt="AI" class="w-8 h-8 rounded-full border border-gray-200 mt-1 shrink-0">
-                    <div class="bg-white border border-gray-100 text-gray-700 text-sm px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm max-w-[85%] leading-relaxed prose prose-sm prose-cyan prose-a:text-cyan-600 prose-a:font-bold prose-a:underline hover:prose-a:text-cyan-500 transition-colors">
+                    <div class="bg-white border border-gray-100 text-gray-700 text-sm px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm max-w-[85%] leading-relaxed prose prose-sm [&_a]:!text-[var(--dept-color)] [&_a]:!font-bold [&_a]:!underline [&_a]:hover:!opacity-80 transition-all">
                         {!! \Illuminate\Support\Str::markdown($msg['text']) !!}
                     </div>
                 </div>

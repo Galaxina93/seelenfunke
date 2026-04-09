@@ -35,7 +35,8 @@
              data-volume='@json($volumeData)'
              data-source='@json($sourceData)'
              data-ticketstatus='@json($ticketStatusData)'
-             data-chatstatus='@json($chatStatusData)'>
+             data-chatstatus='@json($chatStatusData)'
+             data-chatrating='@json($chatRatingData)'>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -110,6 +111,25 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {{-- Chat Rating --}}
+            <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
+                <div class="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div>
+                    <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                        <x-heroicon-o-star class="w-5 h-5 text-amber-500" />
+                        Chat Bewertungen
+                    </h3>
+                    <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
+                        <canvas id="chatRatingChart"></canvas>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-700/50">
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-amber-400 uppercase text-[10px] tracking-widest block mb-1">KI Zufriedenheit</strong>Zeigt an, wie Kunden den Chat mit dem Support bewertet haben (Sterne).</p>
+                </div>
+            </div>
+        </div>
+
         {{-- Dashboard Scripts --}}
         <script>
             document.addEventListener('alpine:init', () => {
@@ -118,6 +138,7 @@
                     let sourceChartObj = null;
                     let ticketStatusChartObj = null;
                     let chatStatusChartObj = null;
+                    let chatRatingChartObj = null;
 
                     return {
                         getPayload() {
@@ -126,7 +147,8 @@
                                 volume: JSON.parse(el.getAttribute('data-volume')),
                                 source: JSON.parse(el.getAttribute('data-source')),
                                 ticketStatus: JSON.parse(el.getAttribute('data-ticketstatus')),
-                                chatStatus: JSON.parse(el.getAttribute('data-chatstatus'))
+                                chatStatus: JSON.parse(el.getAttribute('data-chatstatus')),
+                                chatRating: JSON.parse(el.getAttribute('data-chatrating'))
                             };
                         },
 
@@ -213,6 +235,25 @@
                                     cutout: '60%'
                                 }
                             });
+
+                            // 5. Chat Rating
+                            const ctxRating = document.getElementById('chatRatingChart').getContext('2d');
+                            chatRatingChartObj = new Chart(ctxRating, {
+                                type: 'doughnut',
+                                data: {
+                                    labels: data.chatRating.labels,
+                                    datasets: [{
+                                        data: data.chatRating.data,
+                                        backgroundColor: ['#eab308', '#f59e0b', '#fbbf24', '#fcd34d', '#fef3c7'],
+                                        borderWidth: 2, borderColor: '#1f2937'
+                                    }]
+                                },
+                                options: {
+                                    responsive: true, maintainAspectRatio: false,
+                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                                    cutout: '60%'
+                                }
+                            });
                         },
 
                         updateCharts() {
@@ -222,7 +263,8 @@
                                 { obj: volumeChartObj, src: data.volume },
                                 { obj: sourceChartObj, src: data.source },
                                 { obj: ticketStatusChartObj, src: data.ticketStatus },
-                                { obj: chatStatusChartObj, src: data.chatStatus }
+                                { obj: chatStatusChartObj, src: data.chatStatus },
+                                { obj: chatRatingChartObj, src: data.chatRating }
                             ];
 
                             updateMap.forEach(m => {

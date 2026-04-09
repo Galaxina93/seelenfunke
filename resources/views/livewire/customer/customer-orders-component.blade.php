@@ -224,38 +224,12 @@
                                 @endforeach
                             </ul>
 
-                            <div class="bg-gray-950 p-8 border-t border-gray-800">
-                                <div class="flex justify-between text-sm text-gray-400 mb-3 font-medium">
-                                    <span>Zwischensumme</span>
-                                    <span>{{ number_format($selectedOrder->subtotal_price / 100, 2, ',', '.') }} €</span>
-                                </div>
-
-                                @if($selectedOrder->discount_amount > 0)
-                                    <div class="flex justify-between text-sm text-emerald-400 mb-3 font-bold">
-                                        <span>Rabatt @if($selectedOrder->coupon_code) ({{ $selectedOrder->coupon_code }}) @endif</span>
-                                        <span>- {{ number_format($selectedOrder->discount_amount / 100, 2, ',', '.') }} €</span>
-                                    </div>
-                                @endif
-
-                                <div class="flex justify-between text-sm text-gray-400 mb-3 font-medium">
-                                    <span>Versandkosten</span>
-                                    @if($selectedOrder->shipping_price == 0)
-                                        <span class="text-emerald-400 font-bold uppercase tracking-widest text-[10px] mt-1">Kostenlos</span>
-                                    @else
-                                        <span>{{ number_format($selectedOrder->shipping_price / 100, 2, ',', '.') }} €</span>
-                                    @endif
-                                </div>
-
-                                <div class="flex justify-between text-xs text-gray-600 mb-6 font-medium">
-                                    <span>Enthaltene MwSt.</span>
-                                    <span>{{ number_format($selectedOrder->tax_amount / 100, 2, ',', '.') }} €</span>
-                                </div>
-
-                                <div class="border-t border-gray-800 pt-6 flex justify-between items-center">
-                                    <span class="font-bold text-white text-xl uppercase tracking-widest">Gesamtsumme</span>
-                                    <span class="font-serif font-bold text-3xl text-primary">{{ number_format($selectedOrder->total_price / 100, 2, ',', '.') }} €</span>
-                                </div>
-                            </div>
+                            <x-shop.cost-summary 
+                                :model="$selectedOrder" 
+                                design="dark" 
+                                :showTitle="false" 
+                                containerOverride="bg-gray-950 p-6 sm:p-8 border-t border-gray-800" 
+                            />
                         </div>
                     </div>
 

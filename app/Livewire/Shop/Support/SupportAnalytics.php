@@ -31,7 +31,7 @@ class SupportAnalytics extends Component
     public array $sourceData = [];
     public array $ticketStatusData = [];
     public array $chatStatusData = [];
-
+    public array $chatRatingData = [];
 
     public function mount()
     {
@@ -128,6 +128,21 @@ class SupportAnalytics extends Component
             $cData[] = $items->count();
         }
         $this->chatStatusData = ['labels' => empty($cLabels) ? ['Keine Daten'] : $cLabels, 'data' => empty($cData) ? [1] : $cData];
+
+        // 5. Chat Rating (Doughnut)
+        $ratedChats = $chats->whereNotNull('rating');
+        if ($ratedChats->count() > 0) {
+            $rStatusGrouped = $ratedChats->groupBy('rating');
+            $rLabels = [];
+            $rData = [];
+            for ($i = 5; $i >= 1; $i--) {
+                $rLabels[] = $i . ' Sterne';
+                $rData[] = $rStatusGrouped->has($i) ? $rStatusGrouped->get($i)->count() : 0;
+            }
+            $this->chatRatingData = ['labels' => $rLabels, 'data' => $rData];
+        } else {
+            $this->chatRatingData = ['labels' => ['Keine Bewertungen'], 'data' => [1]];
+        }
     }
 
     public function render()

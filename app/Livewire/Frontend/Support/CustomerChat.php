@@ -10,9 +10,13 @@ use App\Services\AI\AIFunctionsRegistry;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class CustomerChat extends Component
 {
+    use WithDepartmentTheming;
+    
+    protected string $themingDepartment = 'Support';
     public $chatId = null;
     public $message = '';
     public $messages = [];
@@ -203,6 +207,10 @@ class CustomerChat extends Component
 
         $sysPrompt = "Du bist '{$aName}', {$aDesc} des E-Commerce Shops 'Mein Seelenfunke' (Fokus: Laser-Gravuren, Manufakturprodukte).\n\n";
         
+        if ($supportAgent && $supportAgent->system_prompt) {
+            $sysPrompt .= "=== DEINE CHARAKTER-ANWEISUNG & ZUSATZREGELN ===\n{$supportAgent->system_prompt}\n===============================\n\n";
+        }
+        
         // 1. DYNAMISCHE USER BENENNUNG & KONTEXT
         if (auth()->guard('customer')->check()) {
             $customer = auth()->guard('customer')->user();
@@ -231,12 +239,14 @@ class CustomerChat extends Component
         // 2. KLARE REGELN FÜR DIE INTENT-ROUTER ARCHITEKTUR
         $sysPrompt .= "[VERHALTENSREGELN - CORPORATE SUPPORT EINER MILLIONEN-FIRMA]\n";
         $sysPrompt .= "- ⚡ KÜRZE & KNACKIGKEIT: Antworte IMMER nur in 1 bis maximal 2 kurzen Sätzen. Agiere hochprofessionell, zielgerichtet und freundlich.\n";
+        $sysPrompt .= "- ⏱️ ANTI-SMALLTALK & TROLL-SCHUTZ: Wenn der Kunde mehrfach aggressiv oder unsinnig schreibt ('Tokens verschwenden', provozieren) und kein Anliegen vorbringt, schließe den Chat via `support_resolve_chat`. WICHTIG: Eröffnungsgruße wie 'Hallo', 'Guten Tag' oder ähnliches SIND ERLAUBT! Verabschiede dich hier NICHT, sondern frage einfach freundlich, wie du im Shop helfen kannst.\n";
+        $sysPrompt .= "- 🚫 STORNIERUNGS-VERBOT: DU KANNST NICHT STORNIEREN! Behaupte NIEMALS im Text, dass etwas storniert wurde. Wenn der Kunde das Wort Stornierung oder Widerruf verwendet, beende die Aufgabe und verweise ihn ZWINGEND **nur** per Markdown-Link auf das Formular: `[Widerrufsformular](/widerruf)`.\n";
         $sysPrompt .= "- 🤫 UNSICHTBARE WERKZEUGE: Wenn du ein Tool ausführst, tu dies still. Schreibe NIEMALS Dinge wie '[Tool ausgeführt]' in den Chat!\n";
-        $sysPrompt .= "- 🛑 STRIKTE ANTI-HALLUZINATION: Rate absolut NIEMALS Angaben! **ERFINDE NIEMALS** Bestellungen, Preise, Ticket-IDs oder Paket-Inhalte!\n";
+        $sysPrompt .= "- 🛑 STRIKTE ANTI-HALLUZINATION: Rate absolut NIEMALS Angaben! **ERFINDE NIEMALS** Bestellungen (z.B. 'ORD-XYZ wurde storniert'), wenn du es nicht vom System vorgegeben bekamst!\n";
         $sysPrompt .= "- 🔧 SYSTEM-DIREKTIVEN (OBERSTE REGEL): Wenn du ein System-Tool aufrufst, wird dir das Werkzeug in der 'message' einen Text zurückgeben, der mit 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:' beginnt. DU DARFST DIESEN TEXT ABSOLUT NICHT VERÄNDERN, zusammenfassen oder umdichten! Kopiere den gesamten Text (ohne das Wort 'SYSTEM-DIREKTIVE' selbst) 1:1 in den Chat und schicke ihn an den Kunden ab. Keine Ausnahmen!\n";
         $sysPrompt .= "- 📦 BESTELLUNGEN & TICKETS: **WICHTIG!** Wenn ein Kunde eine Bestellung oder ein Ticket erwähnt, MUSST DU ZUERST das Tool (`support_get_order_details` oder `support_get_ticket_status`) mit der Nummer aufrufen. Verlasse dich blind auf die SYSTEM-DIREKTIVE des Tools.\n";
         $sysPrompt .= "- 🤖 ESKALATION: Wenn du ein Anliegen (z.B. Reklamationen) nicht lösen kannst, SCHREIBE KEINEN TEXT EIGENSTÄNDIG, sondern rufe AUSSCHLIESSLICH das Tool `support_mark_needs_employee` auf! Dann kopiere die zurückkommende SYSTEM-DIREKTIVE.\n";
-        $sysPrompt .= "- 🚫 EIGENMÄCHTIGES SCHLIESSEN: Schließe einen Chat NUR mit dem Tool `support_resolve_chat`, wenn alles geklärt ist.\n\n";
+        $sysPrompt .= "- 🚫 EIGENMÄCHTIGES SCHLIESSEN: Schließe einen Chat NUR mit dem Tool `support_resolve_chat`, wenn alles geklärt ist oder bei Smalltalk-Trollen.\n\n";
         
         // 3. WISSENSDATENBANK (RAG) EINBINDUNG
         if (class_exists(\App\Models\Ai\AiKnowledgeBase::class)) {

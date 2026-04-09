@@ -134,7 +134,7 @@ class AiAgentSeeder extends Seeder
                 'sourceImage' => 'funki_selfie.png',
                 'wake_word' => 'Funki',
                 'role_description' => 'Kundenbetreuung, Ticket-Management und den Kundenchat.',
-                'system_prompt' => 'Du bist Funki, der verlässliche und empathische Support-Agent bei Seelenfunke. Du hilfst bei der Kundenbetreuung, managst Support-Tickets und bist im Kundenchat der Ansprechpartner Nummer eins.',
+                'system_prompt' => 'Du bist Funki, der verlässliche und empathische Support-Agent bei Seelenfunke. Du hilfst bei der Kundenbetreuung, managst Support-Tickets und bist im Kundenchat der Ansprechpartner Nummer eins. WICHTIGE REGEL: Du stornierst Bestellungen NIEMALS direkt auf Wunsch des Kunden. Wenn ein Kunde eine Bestellung stornieren oder widerrufen möchte, verweise ihn freundlich, aber bestimmt, auf unsere Widerrufs-Seite unter "/widerruf", wo er das offizielle Formular nutzen kann.',
                 'model' => 'gpt-oss-120b',
                 'temperature' => 0.6,
                 'color' => 'cyan-500',

@@ -62,14 +62,14 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_modify_pending_order',
-                'description' => 'VERWENDE DIES NUR FÜR ÄNDERUNGEN: Ändert die Lieferadresse oder storniert eine Bestellung. Geht NUR so lange die Bestellung im Status ausstehend/pending ist!',
+                'description' => 'VERWENDE DIES NUR FÜR ÄNDERUNGEN: Ändert die Lieferadresse einer Bestellung. WICHTIG: Stornierungen über diese Funktion sind strengstens untersagt! Geht NUR so lange die Bestellung im Status ausstehend/pending ist!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'order_number' => ['type' => 'string'],
-                        'action_type' => ['type' => 'string', 'enum' => ['change_address', 'cancel_order']],
+                        'action_type' => ['type' => 'string', 'enum' => ['change_address']],
                         'new_address_data' => [
-                            'type' => 'object', 
+                            'type' => 'object',
                             'description' => 'Nötig für change_address. JSON Objekt mit Keys: first_name, last_name, street, house_number, zipcode, city'
                         ]
                     ],
@@ -308,7 +308,7 @@ trait AiSupportFuncs
                     ]);
                     $chat->update(['support_ticket_id' => $ticket->id]);
                     return [
-                        'status' => 'success', 
+                        'status' => 'success',
                         'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Ein offizielles Support-Ticket wurde angelegt. Ich stoße hier als System an meine Grenzen und habe das Thema an einen internen Mitarbeiter von Mein-Seelenfunke weitergeleitet. Deine Ticketnummer lautet: ' . $ticket->ticket_number . ' - Das Team meldet sich!"'
                     ];
                 }
@@ -326,8 +326,8 @@ trait AiSupportFuncs
             if ($chatId) {
                 SupportCustomerChat::where('id', $chatId)->update(['status' => 'resolved']);
                 return [
-                    'status' => 'success', 
-                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Wunderbar! Ich schließe diesen Chat-Bereich nun ab. Es wäre mir eine riesige Freude, wenn du mir oben über das Sternchen-Menü eine ehrliche Bewertung für unsere Unterhaltung da lässt!"'
+                    'status' => 'success',
+                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Wunderbar! Ich schließe diesen Chat-Bereich nun ab. Es wäre mir eine riesige Freude, wenn du mir unten über das Sternchen-Menü eine ehrliche Bewertung für unsere Unterhaltung da lässt!"'
                 ];
             }
             return ['status' => 'error', 'message' => 'Fehler.'];
@@ -452,14 +452,14 @@ trait AiSupportFuncs
                 // Nur GET-Routen ohne zwingende Parameter
                 if (in_array('GET', $route->methods()) && empty($route->parameterNames())) {
                     $uri = $route->uri();
-                    
+
                     // Schließe System- und Admin-Routen strikt aus
                     if (str_starts_with($uri, 'admin') || str_starts_with($uri, 'api') || str_starts_with($uri, '_') || str_starts_with($uri, 'sanctum') || str_starts_with($uri, 'livewire') || str_starts_with($uri, 'broadcasting') || $uri === 'up' || str_contains($uri, 'success') || str_contains($uri, 'verify') || str_contains($uri, 'auth/')) {
                         continue;
                     }
 
                     $name = $route->getName() ?: '/' . $uri;
-                    
+
                     // Unnötige/Kryptische Müll-Routen filtern
                     if (str_contains($name, 'verification') || str_contains($name, 'checkout.success') || str_contains($name, 'newsletter.verify') || str_contains($name, 'auth.')) {
                         continue;
@@ -561,7 +561,7 @@ trait AiSupportFuncs
         try {
             $orderNumber = $args['order_number'] ?? '';
             $reason = $args['reason_summary'] ?? '';
-            
+
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich erst einloggen, um ein Reklamationsticket zu öffnen. Bitte ihn darum.'];
@@ -580,9 +580,9 @@ trait AiSupportFuncs
 
             // Snapshot Start
             $log = \App\Models\System\SystemLog::start(
-                'ai_claim_ticket', 
-                'Automatisches KI-Reklamationsticket', 
-                'automation', 
+                'ai_claim_ticket',
+                'Automatisches KI-Reklamationsticket',
+                'automation',
                 $agentId
             );
 
@@ -595,7 +595,7 @@ trait AiSupportFuncs
                 'status'        => 'open',
                 'priority'      => 'high',
             ]);
-            
+
             \App\Models\Support\SupportTicketMessage::create([
                 'support_ticket_id' => $ticket->id,
                 'sender_type'       => 'customer',
@@ -609,7 +609,7 @@ trait AiSupportFuncs
             ]);
 
             return [
-                'status' => 'success', 
+                'status' => 'success',
                 'message' => 'HINTERGRUND-INFO FÜR KI: Das Reklamationsticket wurde mit Prio Hoch unter Nummer '.$ticket->ticket_number.' angelegt! Teile dem Kunden diese Ticketnummer freudig mit und bitte ihn, 1-2 Fotos des Schadens als Antwort auf die Ticket-Mail zu senden.'
             ];
         } catch (\Exception $e) {
@@ -622,7 +622,7 @@ trait AiSupportFuncs
         try {
             $orderNumber = $args['order_number'] ?? '';
             $action = $args['action_type'] ?? '';
-            
+
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich zum Ändern einloggen.'];
@@ -645,7 +645,7 @@ trait AiSupportFuncs
             if (isset($args['__chat_id'])) {
             $agentId = $args['__agent_id'] ?? null;
             }
-            
+
             $beforeData = [
                 'shipping_address' => $order->shipping_address,
                 'status' => $order->status
@@ -657,9 +657,9 @@ trait AiSupportFuncs
                 if (empty($newAddr)) return ['status' => 'error', 'message' => 'Keine Daten.'];
 
                 $log = \App\Models\System\SystemLog::start(
-                    'ai_order_modify', 
-                    "KI hat Adresse von Order {$order->order_number} geändert", 
-                    'automation', 
+                    'ai_order_modify',
+                    "KI hat Adresse von Order {$order->order_number} geändert",
+                    'automation',
                     $agentId
                 );
 
@@ -670,7 +670,7 @@ trait AiSupportFuncs
                 $addr['house_number'] = $newAddr['house_number'] ?? ($addr['house_number'] ?? '');
                 $addr['zipcode'] = $newAddr['zipcode'] ?? ($addr['zipcode'] ?? '');
                 $addr['city'] = $newAddr['city'] ?? ($addr['city'] ?? '');
-                
+
                 $order->update(['shipping_address' => $addr]);
 
                 $log->finish('success', 'Adresse erfolgreich überschrieben.', [
@@ -680,21 +680,7 @@ trait AiSupportFuncs
 
                 return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Adresse wurde erfolgreich überschrieben. Gib dem Kunden kurz bescheid.'];
             } elseif ($action === 'cancel_order') {
-                $log = \App\Models\System\SystemLog::start(
-                    'ai_order_modify', 
-                    "KI hat Order {$order->order_number} storniert", 
-                    'automation', 
-                    $agentId
-                );
-
-                $order->cancel('Kunde via KI Support Chat storniert');
-                
-                $log->finish('success', 'Bestellung storniert.', [
-                    'before' => $beforeData,
-                    'after' => ['shipping_address' => $order->shipping_address, 'status' => $order->status]
-                ]);
-
-                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Bestellung wurde erfolgreich komplett storniert.'];
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: TECHNISCHE SPERRE. DU DARFST KEINE BESTELLUNGEN STORNIEREN! Antworte dem Kunden nun verbindlich, dass er bitte das Widerrufsformular unter /widerruf nutzen muss.'];
             }
 
             return ['status' => 'error', 'message' => 'Unbekannte Aktion.'];

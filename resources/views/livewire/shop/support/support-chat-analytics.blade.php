@@ -131,6 +131,35 @@
                 </div>
             </div>
 
+            {{-- 2.5 Ratings Breakdown --}}
+            <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700/50 mb-12 p-8 pt-10 relative overflow-hidden group">
+                <div class="flex flex-col md:flex-row md:items-start gap-8 w-full">
+                    <div class="flex flex-col items-center md:items-start shrink-0">
+                        <h3 class="text-white text-xl font-serif font-semibold drop-shadow-sm flex items-center gap-2 mb-2">
+                            <x-heroicon-o-star class="w-5 h-5 text-amber-500" />
+                            Kundenbewertungen (Chat)
+                        </h3>
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="text-5xl font-black text-white">{{ number_format($avgRating, 1, ',', '.') }}</span>
+                            <span class="text-lg text-gray-400 mt-2">von 5</span>
+                        </div>
+                        <span class="text-sm text-gray-500">{{ $totalRatings }} abgegebene Bewertungen</span>
+                    </div>
+
+                    <div class="flex-1 w-full border-t md:border-t-0 md:border-l border-gray-700/50 pt-6 md:pt-0 md:pl-8">
+                        @foreach([5, 4, 3, 2, 1] as $star)
+                            <div class="flex items-center w-full group mb-3 last:mb-0 transition-opacity">
+                                <span class="text-sm font-medium text-gray-400 w-16 text-left whitespace-nowrap">{{ $star }} Sterne</span>
+                                <div class="flex-1 mx-4 h-5 bg-gray-900 rounded-full overflow-hidden border border-gray-700/50 shadow-inner">
+                                    <div class="h-full bg-amber-500 rounded-full transition-all duration-500" style="width: {{ $ratingBreakdown[$star]['percent'] }}%;"></div>
+                                </div>
+                                <span class="text-sm text-gray-400 w-12 text-right">{{ $ratingBreakdown[$star]['percent'] }}%</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
             {{-- 3. Data Table --}}
             <div class="bg-gray-800 my-12 rounded-2xl shadow-lg border border-gray-700/50 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-700/50 flex flex-col sm:flex-row justify-between items-center bg-gray-800/50 gap-4">
@@ -141,6 +170,14 @@
                             <option value="needs_employee">Eskalation (Mitarbeiter)</option>
                             <option value="open">Offen</option>
                             <option value="resolved">Erledigt</option>
+                        </select>
+                        <select wire:model.live="ratingFilter" class="bg-gray-900 border border-gray-700 text-white rounded-xl text-sm w-full sm:w-auto">
+                            <option value="">Alle Bewertungen</option>
+                            <option value="5">5 Sterne</option>
+                            <option value="4">4 Sterne</option>
+                            <option value="3">3 Sterne</option>
+                            <option value="2">2 Sterne</option>
+                            <option value="1">1 Stern</option>
                         </select>
                         <input type="text" wire:model.live.debounce.300ms="search" placeholder="Suche in Thematik..." class="w-full sm:w-64 bg-gray-900 border border-gray-700 text-white placeholder-gray-500 text-sm rounded-xl px-4 py-2 focus:ring-cyan-500 focus:border-cyan-500">
                     </div>
@@ -153,14 +190,14 @@
                                 <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
                                 <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Thema / Fokusprodukt</th>
                                 <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Nachrichten</th>
+                                <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Sterne</th>
                                 <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Analytische Zusammenfassung</th>
                                 <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Aktion</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-700/50">
-                            @forelse($chats as $chat)
-                                <tbody x-data="{ expanded: false }" class="contents">
-                                    <tr @click="expanded = !expanded" class="hover:bg-gray-700/20 transition-colors cursor-pointer {{ $chat->status === 'needs_employee' ? 'bg-red-500/5' : '' }}">
+                        @forelse($chats as $chat)
+                            <tbody x-data="{ expanded: false }" wire:key="chat-{{ $chat->id }}">
+                                <tr @click="expanded = !expanded" class="hover:bg-gray-700/20 transition-colors cursor-pointer border-b border-gray-700/50 {{ $chat->status === 'needs_employee' ? 'bg-red-500/5' : '' }}">
                                         <td class="p-4">
                                         @if($chat->status === 'needs_employee')
                                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">
@@ -188,6 +225,15 @@
                                             <span class="text-sm text-gray-300 font-bold">{{ $chat->messages->count() }}</span>
                                         </div>
                                     </td>
+                                    <td class="p-4 text-center">
+                                        @if($chat->rating)
+                                            <div class="flex justify-center items-center text-amber-500 font-bold gap-1 text-sm">
+                                                {{ $chat->rating }} <x-heroicon-s-star class="w-4 h-4" />
+                                            </div>
+                                        @else
+                                            <span class="text-gray-600 text-xs">-</span>
+                                        @endif
+                                    </td>
                                     <td class="p-4">
                                         <p class="text-xs text-gray-400 line-clamp-2 max-w-xs">{{ $chat->ai_summary ?? 'Keine KI-Zusammenfassung vorhanden.' }}</p>
                                     </td>
@@ -202,7 +248,7 @@
                                     </td>
                                 </tr>
                                 <tr x-show="expanded" x-transition.opacity class="bg-gray-900/40">
-                                    <td colspan="5" class="p-6">
+                                    <td colspan="6" class="p-6">
                                         <div class="space-y-6">
                                             @if($chat->rating)
                                                 <div class="flex items-start gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
@@ -259,13 +305,14 @@
                                 </tr>
                                 </tbody>
                             @empty
-                                <tr>
-                                    <td colspan="5" class="p-8 text-center text-gray-500 text-sm">
-                                        Es wurden derzeit noch keine Support-Chats durch die KI verarbeitet.
-                                    </td>
-                                </tr>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="p-8 text-center text-gray-500 text-sm border-b border-gray-700/50">
+                                            Es wurden derzeit noch keine Support-Chats durch die KI verarbeitet.
+                                        </td>
+                                    </tr>
+                                </tbody>
                             @endforelse
-                        </tbody>
                     </table>
                 </div>
                 @if($chats->hasPages())

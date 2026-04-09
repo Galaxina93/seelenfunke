@@ -767,6 +767,66 @@
                         </div>
                     </div>
 
+                    {{-- TAX EXPLANATIONS / WISSENS-KACHELN --}}
+                    <div class="mt-12 mb-6 animate-fade-in-up">
+                        <h4 class="text-xl font-serif font-bold text-white tracking-tight flex items-center gap-3 mb-6">
+                            <x-heroicon-s-academic-cap class="w-6 h-6 text-orange-400" />
+                            Das 1x1 der Steuern für "{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}"
+                        </h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            
+                            {{-- Einkommenssteuer --}}
+                            <div class="bg-gray-900/80 border border-gray-800 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group hover:border-blue-500/50 transition-all">
+                                <div class="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all duration-500"></div>
+                                <h5 class="text-lg font-bold text-white mb-2 flex items-center gap-2 relative z-10">
+                                    <span class="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 border border-blue-500/30">1</span>
+                                    Einkommensteuer (ESt)
+                                </h5>
+                                <p class="text-xs text-gray-400 leading-relaxed relative z-10 mb-4 font-medium">
+                                    Diese Steuer zahlst du komplett privat auf deinen "persönlichen Gewinn" am Jahresende. Sie hat nichts mit dem monatlichen Firmenkonto zu tun! Das Finanzamt schaut sich im nächsten Jahr an, wie viel Gewinn "{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}" unterm Strich abgeworfen hat, rechnet deine persönlichen Freibeträge dagegen und besteuert den Überschuss.
+                                </p>
+                                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 shadow-inner text-[11px] text-gray-400 relative z-10">
+                                    <strong class="text-blue-400 block mb-1">💡 Tipp für dich:</strong>
+                                    Geld, das du dir privat überweist (Privatentnahmen), mindert deinen zu versteuernden Gewinn <b>nicht</b>. Lege am besten monatlich etwa 20-30% deines Gewinns auf ein separates privates Tagesgeldkonto (z.B. N26/TradeRepublic) zurück, um böse Überraschungen bei der Jahresendabrechnung zu vermeiden!
+                                </div>
+                            </div>
+
+                            {{-- Umsatzsteuer --}}
+                            <div class="bg-gray-900/80 border border-gray-800 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group hover:border-orange-500/50 transition-all">
+                                <div class="absolute -right-6 -top-6 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl group-hover:bg-orange-500/20 transition-all duration-500"></div>
+                                <h5 class="text-lg font-bold text-white mb-2 flex items-center gap-2 relative z-10">
+                                    <span class="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 border border-orange-500/30">2</span>
+                                    Umsatzsteuer (USt)
+                                </h5>
+                                <p class="text-xs text-gray-400 leading-relaxed relative z-10 mb-4 font-medium">
+                                    Das ist das Modul, in dem du dich hier gerade befindest! Bei der Umsatzsteuer bist du eigentlich nur der kostenlose "Geldsammler" für den Staat. Du verlangst von deinen Kunden 19% MwSt. auf Gravuren oder Seelenfunke-Anhänger. Im Gegenzug darfst du dir die gezahlte 19% Steuer von Einkäufen (z.B. Laser-Material, Kartons) wieder zurückholen (Vorsteuer).
+                                </p>
+                                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 shadow-inner text-[11px] text-gray-400 relative z-10">
+                                    <strong class="text-orange-400 block mb-1">💡 Tipp für dich:</strong>
+                                    Achtung bei Facebook/Google Ads oder Software-Abos aus dem EU-Ausland: Häufig steht da 0% Steuern. Hier bist du per <b class="text-gray-300">"Reverse Charge"</b> trotzdem verpflichtet, theoretische 19% zu deklarieren, darfst sie aber im selben Moment als Vorsteuer abziehen. Ein bürokratisches Nullsummenspiel!
+                                </div>
+                            </div>
+
+                            {{-- Gewerbesteuer --}}
+                            <div class="bg-gray-900/80 border border-gray-800 rounded-[2rem] p-6 shadow-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all">
+                                <div class="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all duration-500"></div>
+                                <h5 class="text-lg font-bold text-white mb-2 flex items-center gap-2 relative z-10">
+                                    <span class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30">3</span>
+                                    Gewerbesteuer (GewSt)
+                                </h5>
+                                <p class="text-xs text-gray-400 leading-relaxed relative z-10 mb-4 font-medium">
+                                    Da du "{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}" als Gewerbe angemeldet hast, möchte deine Stadt/Gemeinde einen kleinen Anteil am Erfolg. Doch Entwarnung: Für Einzelunternehmen gibt es einen fetten gesetzlichen <b>Freibetrag von aktuell 24.500 Euro REINEM GEWINN</b> pro Jahr (Umsatz minus alle Kosten). Bleibst du darunter, fällt exakt 0,00 Euro an!
+                                </p>
+                                <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 shadow-inner text-[11px] text-gray-400 relative z-10">
+                                    <strong class="text-emerald-400 block mb-1">💡 Tipp für dich:</strong>
+                                    Du musst die monatlich überhaupt nicht beachten. Die Gewerbesteuererklärung wird nur 1x jährlich zusammen mit deiner normalen Einkommenssteuer beim Finanzamt via ELSTER eingereicht. Falls Gewinn unter 24.500€, ist das praktisch nur ein kurzes Abnicken.
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+
                 </div>
 
             </div>
