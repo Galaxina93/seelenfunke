@@ -132,12 +132,19 @@ class MittwaldAgent
             'model' => $this->agent->model ?? 'gpt-oss-120b',
             'messages' => $messages,
             'temperature' => (float)($this->agent->temperature ?? 0.6),
-            'top_p' => 1.0,
-            'tool_choice' => 'auto'
+            'top_p' => 1.0
         ];
+
+        // Ministral and Devstral models on the Mittwald Proxy currently do not support Tool Calling
+        // Passing the 'tools' array to them results in a 400 Bad Request error.
+        $modelName = strtolower($this->agent->model ?? 'gpt-oss-120b');
+        if (str_contains($modelName, 'stral')) {
+            $filteredSchema = [];
+        }
 
         if (!empty($filteredSchema)) {
             $payload['tools'] = $filteredSchema;
+            $payload['tool_choice'] = 'auto';
         }
 
         try {
