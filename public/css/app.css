@@ -2335,6 +2335,9 @@ video {
 .w-screen {
   width: 100vw;
 }
+.w-\[240px\] {
+  width: 240px;
+}
 .min-w-0 {
   min-width: 0px;
 }
@@ -6694,6 +6697,9 @@ video {
 }
 .pb-28 {
   padding-bottom: 7rem;
+}
+.pt-1\.5 {
+  padding-top: 0.375rem;
 }
 .text-left {
   text-align: left;

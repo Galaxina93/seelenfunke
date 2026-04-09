@@ -39,6 +39,7 @@
             'queue' => ['label' => 'Queue Worker', 'host' => 'Hintergrund', 'port' => 'N/A', 'desc' => 'Verarbeitet Aufgaben (Mails, PDFs) im Hintergrund.'],
             'scheduler' => ['label' => 'Task Scheduler', 'host' => 'Cronjob', 'port' => 'CLI', 'desc' => 'Führt zeitgesteuerte Hintergrundaufgaben aus (z.B. Bereinigungen, Erinnerungen).'],
             'backup' => ['label' => 'System Backup', 'host' => 'Storage', 'port' => 'N/A', 'desc' => 'Prüft, ob in den letzten 48 Stunden eine Sicherung der Datenbank erstellt wurde.'],
+            'ws' => ['label' => 'WebSocket', 'host' => env('PUSHER_HOST', '127.0.0.1'), 'port' => env('PUSHER_PORT', '6001'), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
         ];
 
         $systemGroups = [
@@ -482,13 +483,21 @@
                             <div class="flex flex-col gap-4">
                                 @foreach($groupInfo['items'] as $sKey)
                                     @if($sKey === 'ws')
-                                        <div x-data="{ wsStatus: 'checking', checkConnection() { if(window.Echo){ this.wsStatus = 'connected'; } else { this.wsStatus = 'unavailable'; } } }" x-init="checkConnection()">
+                                        <div x-data="{ wsStatus: 'checking', tooltip: false, checkConnection() { if(window.Echo){ this.wsStatus = 'connected'; } else { this.wsStatus = 'unavailable'; } } }" x-init="checkConnection()" @mouseenter="tooltip = true" @mouseleave="tooltip = false" class="relative cursor-help">
                                             <div class="flex items-center gap-3">
-                                                <span class="w-2 h-2 rounded-full shadow-glow shrink-0" :class="{'bg-emerald-400': wsStatus === 'connected', 'bg-red-400': wsStatus === 'unavailable', 'bg-gray-500': wsStatus === 'checking'}"></span>
+                                                <span class="relative w-2 h-2 rounded-full shrink-0" :class="{'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]': wsStatus === 'connected', 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]': wsStatus === 'unavailable', 'bg-gray-500': wsStatus === 'checking'}">
+                                                </span>
                                                 <div class="flex-1 flex justify-between items-center text-[10px] uppercase tracking-widest font-black">
-                                                    <span class="text-gray-400">WebSocket</span>
+                                                    <span class="text-gray-400">{{ $services['ws']['label'] }}</span>
                                                     <span :class="{'text-emerald-400': wsStatus === 'connected', 'text-red-400': wsStatus === 'unavailable', 'text-gray-500': wsStatus === 'checking'}" x-text="wsStatus"></span>
                                                 </div>
+                                            </div>
+                                            
+                                            <!-- Tooltip für WebSocket -->
+                                            <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
+                                                <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services['ws']['host'] }}:{{ $services['ws']['port'] }}</div>
+                                                <div class="text-[11px] text-gray-300 font-medium leading-relaxed">{{ $services['ws']['desc'] }}</div>
+                                                <div class="absolute -bottom-1.5 right-4 w-3 h-3 bg-gray-950 border-b border-r border-[#C5A059]/40 rotate-45"></div>
                                             </div>
                                         </div>
                                     @else
@@ -496,16 +505,31 @@
                                             $health = $systemHealth[$sKey] ?? null;
                                             $status = $health ? $health['status'] : 'checking';
                                             $msg = $health ? $health['value'] : 'Prüfe...';
-                                            $dotColor = match($status) { 'connected' => 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]', 'warning' => 'bg-amber-500', 'error', 'unavailable' => 'bg-red-500', default => 'bg-gray-500' };
+                                            $dotColor = match($status) { 'connected' => 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]', 'warning' => 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]', 'error', 'unavailable' => 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]', default => 'bg-gray-500' };
                                             $textColor = match($status) { 'connected' => 'text-emerald-400', 'warning' => 'text-amber-400', 'error', 'unavailable' => 'text-red-400', default => 'text-gray-500' };
                                         @endphp
-                                        <div class="flex items-center gap-3 group">
-                                            <span class="relative w-2 h-2 rounded-full shrink-0 {{ $dotColor }}">
-                                                @if($status === 'connected' || $status === 'warning') <span class="absolute inset-0 rounded-full animate-ping opacity-50 {{ $dotColor }}"></span> @endif
-                                            </span>
-                                            <div class="flex-1 flex justify-between items-center text-[10px] uppercase tracking-widest font-black">
-                                                <span class="text-gray-400">{{ $services[$sKey]['label'] }}</span>
-                                                <span class="{{ $textColor }} text-right">{{ $msg }}</span>
+                                        <div class="relative cursor-help" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                            <div class="flex items-center gap-3">
+                                                <span class="relative w-2 h-2 rounded-full shrink-0 {{ $dotColor }}">
+                                                    @if($status === 'connected' || $status === 'warning') <span class="absolute inset-0 rounded-full animate-ping opacity-50 {{ $dotColor }}"></span> @endif
+                                                </span>
+                                                <div class="flex-1 flex justify-between items-center text-[10px] uppercase tracking-widest font-black">
+                                                    <span class="text-gray-400">{{ $services[$sKey]['label'] }}</span>
+                                                    <span class="{{ $textColor }} text-right">{{ $msg }}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Tooltip für Services -->
+                                            <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
+                                                <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services[$sKey]['host'] }}:{{ $services[$sKey]['port'] }}</div>
+                                                <div class="text-[11px] text-gray-300 font-medium leading-relaxed">{{ $services[$sKey]['desc'] }}</div>
+                                                @if(isset($health['error']) && $health['error'])
+                                                    <div class="mt-1.5 pt-1.5 border-t border-red-500/20 text-red-500 text-[10px] font-bold">{{ $health['error'] }}</div>
+                                                @endif
+                                                @if(isset($health['path']) && $health['path'])
+                                                    <div class="mt-1.5 pt-1.5 border-t border-gray-800 text-gray-400 text-[9px] font-mono break-all">{{ $health['path'] }}</div>
+                                                @endif
+                                                <div class="absolute -bottom-1.5 right-4 w-3 h-3 bg-gray-950 border-b border-r border-[#C5A059]/40 rotate-45"></div>
                                             </div>
                                         </div>
                                     @endif
