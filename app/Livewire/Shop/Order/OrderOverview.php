@@ -470,10 +470,11 @@ class OrderOverview extends Component
         // Standard-Verpackungsgewicht (Kartonage + Füllmaterial) pro Paket
         $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);  
 
-        $totalGrams = $weightToUse + ($this->dhlPackageCount * $packagingWeightGrams);
+        $packageCount = (int) $this->dhlPackageCount ?: 1;
+        $totalGrams = $weightToUse + ($packageCount * $packagingWeightGrams);
         
         // In Kg umrechnen und durch Paketanzahl teilen
-        $weightPerPackage = ($totalGrams / 1000) / max(1, $this->dhlPackageCount);
+        $weightPerPackage = ($totalGrams / 1000) / max(1, $packageCount);
         
         // Minimalwert für DHL ist oft 0.1kg. Wir runden auf 2 Nachkommastellen (z.B. "2.45")
         $this->dhlWeightPerPackage = max(0.1, round($weightPerPackage, 2));

@@ -253,7 +253,7 @@
             $editingItem = $items->firstWhere('id', $editingItemId);
         @endphp
         @if($editingItem && ($editingItem->product->type ?? 'physical') !== 'digital')
-            <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div class="fixed inset-0 z-[99999] flex items-center justify-center p-4 pt-20 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
                 <div class="absolute inset-0" wire:click="closeModal"></div>
 
                 <div class="relative bg-white w-full max-w-5xl max-h-[95vh] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-fade-in-up">

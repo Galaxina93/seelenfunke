@@ -164,6 +164,17 @@ class OrderDHLTest extends TestCase
         $this->assertDatabaseCount('order_shipments', 0);
     }
 
+    public function test_dhl_weight_calculation_handles_empty_string_package_count()
+    {
+        $order = $this->createDummyOrder();
+
+        // Simulate user clearing the input field (which passes an empty string)
+        Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->set('dhlPackageCount', '') // Livewire 3 autotriggers updatedDhlPackageCount
+            ->assertHasNoErrors();
+    }
+
     public function test_console_command_updates_delivery_status_when_all_packages_delivered()
     {
         $order = $this->createDummyOrder();
