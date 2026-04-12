@@ -69,14 +69,20 @@
     </div>
 
     <!-- Filter Bar -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 shadow-2xl items-center animate-fade-in-up">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 sm:gap-6 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 shadow-2xl items-center animate-fade-in-up">
         <div class="md:col-span-1 relative group">
             <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche in Nachricht..."
-                   class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner transition-all text-white placeholder-gray-600 outline-none text-sm">
+                   class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner transition-all text-white placeholder-gray-600 outline-none text-[10px] font-black tracking-widest uppercase">
             <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                 <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-600 group-focus-within:text-[var(--theme-color)] transition-colors" />
             </div>
         </div>
+        <select wire:model.live="domainFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
+            <option value="" class="bg-gray-900 text-white">Alle Sub-Systeme</option>
+            @foreach($uniqueDomains as $domain)
+                <option value="{{ $domain }}" class="bg-gray-900 text-white">System: {{ strtoupper($domain) }}</option>
+            @endforeach
+        </select>
         <select wire:model.live="agentFilter" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
             <option value="" class="bg-gray-900 text-white">Alle Agenten / Bereiche</option>
             <option value="system" class="bg-gray-900 text-white">System (Kein Agent)</option>
@@ -137,9 +143,19 @@
                                         </div>
                                     @else
                                         <div class="flex items-center gap-3 mt-1">
-                                            <div class="w-6 h-6 rounded bg-gray-800 flex items-center justify-center border border-gray-700 text-gray-400">
-                                                <x-heroicon-o-cpu-chip class="w-3.5 h-3.5"/>
-                                            </div>
+                                            @if(in_array($log->action_id, ['user:profile_updated_frontend', 'user:security_update']))
+                                                <div class="w-6 h-6 rounded bg-fuchsia-500/10 flex items-center justify-center border border-fuchsia-500/30 text-fuchsia-400">
+                                                    @if($log->action_id === 'user:security_update')
+                                                        <x-heroicon-o-shield-check class="w-3.5 h-3.5" />
+                                                    @else
+                                                        <x-heroicon-o-finger-print class="w-3.5 h-3.5" />
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <div class="w-6 h-6 rounded bg-gray-800 flex items-center justify-center border border-gray-700 text-gray-400">
+                                                    <x-heroicon-o-cpu-chip class="w-3.5 h-3.5"/>
+                                                </div>
+                                            @endif
                                             <span class="text-gray-300 font-bold text-sm">System <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 ml-1">({{ $log->action_id }})</span></span>
                                         </div>
                                     @endif
@@ -186,10 +202,64 @@
                                         </div>
 
                                         @if($log->payload)
-                                            <div>
-                                                <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 mt-6 flex items-center gap-2"><x-heroicon-o-code-bracket class="w-3.5 h-3.5" /> System Payload Dump</div>
-                                                <div class="text-xs text-green-500 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</div>
-                                            </div>
+                                            @if(isset($log->payload['changes']))
+                                                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div class="bg-red-900/10 p-5 rounded-2xl border border-red-500/20 shadow-inner overflow-hidden">
+                                                        <span class="text-[9px] font-black text-red-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Vorheriger Stand</span>
+                                                        <div class="text-[10px] text-red-200/70 font-mono leading-relaxed space-y-1.5 w-full break-all">
+                                                            @foreach($log->payload['changes'] as $key => $change)
+                                                                <div class="flex justify-between gap-4 py-1 border-b border-red-500/10 last:border-0">
+                                                                    <span class="font-bold text-red-300">{{ $key }}:</span>
+                                                                    <span class="text-right">
+                                                                        @if(is_bool($change['old'])) {{ $change['old'] ? 'true' : 'false' }} 
+                                                                        @elseif(is_null($change['old']) || $change['old'] === '') <em>null</em> 
+                                                                        @else {{ Str::limit((string)$change['old'], 100) }} @endif
+                                                                    </span>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                    <div class="bg-emerald-900/10 p-5 rounded-2xl border border-emerald-500/20 shadow-inner overflow-hidden">
+                                                        <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Aktueller Stand</span>
+                                                        <div class="text-[10px] text-emerald-200/70 font-mono leading-relaxed space-y-1.5 w-full break-all">
+                                                            @foreach($log->payload['changes'] as $key => $change)
+                                                                <div class="flex justify-between gap-4 py-1 border-b border-emerald-500/10 last:border-0">
+                                                                    <span class="font-bold text-emerald-300">{{ $key }}:</span>
+                                                                    <span class="text-right">
+                                                                        @if(is_bool($change['new'])) {{ $change['new'] ? 'true' : 'false' }} 
+                                                                        @elseif(is_null($change['new']) || $change['new'] === '') <em>null</em> 
+                                                                        @else {{ Str::limit((string)$change['new'], 100) }} @endif
+                                                                    </span>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @elseif(isset($log->payload['before']))
+                                                <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div class="bg-red-900/10 p-5 rounded-2xl border border-red-500/20 shadow-inner overflow-x-auto custom-scrollbar">
+                                                        <span class="text-[9px] font-black text-red-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Vorheriger Stand</span>
+                                                        <pre class="text-[10px] text-red-200/70 font-mono leading-relaxed">{{ json_encode($log->payload['before'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                                    </div>
+                                                    <div class="bg-emerald-900/10 p-5 rounded-2xl border border-emerald-500/20 shadow-inner overflow-x-auto custom-scrollbar">
+                                                        <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Aktueller Stand</span>
+                                                        <pre class="text-[10px] text-emerald-200/70 font-mono leading-relaxed">{{ json_encode($log->payload['after'] ?? $log->payload['before'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+                                                    </div>
+                                                </div>
+                                            @endif
+                                            
+                                            @php
+                                                $cPayload = is_array($log->payload) ? $log->payload : (json_decode($log->payload, true) ?? []);
+                                                $clonedPayload = collect($cPayload)
+                                                    ->except(['changes', 'before', 'after'])
+                                                    ->toArray();
+                                            @endphp
+                                            @if(!empty($clonedPayload))
+                                                <div>
+                                                    <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 mt-6 flex items-center gap-2"><x-heroicon-o-code-bracket class="w-3.5 h-3.5" /> {{ isset($log->payload['changes']) || isset($log->payload['before']) ? 'Zusätzliche Metadaten' : 'System Payload Dump' }}</div>
+                                                    <div class="text-[10px] text-green-500 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ json_encode($clonedPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</div>
+                                                </div>
+                                            @endif
                                         @endif
                                     </div>
                                 </td>

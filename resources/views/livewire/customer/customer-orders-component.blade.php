@@ -149,21 +149,21 @@
                                             </div>
 
                                             <div class="mt-6 flex flex-wrap items-center gap-4">
-                                                @if(!empty($item->configuration))
+                                                @if(!empty($item->configuration) && $item->product && $item->product->isPersonalizable())
                                                     <button wire:click="openPreview('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $previewItemId == $item->id ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.4)]' : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' }}">
                                                         <span>{{ $previewItemId == $item->id ? 'Design verbergen' : 'Design ansehen' }}</span>
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                     </button>
                                                 @endif
 
-                                                @if($selectedOrder->status === 'pending' && $type === 'physical')
+                                                @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
                                                     <button wire:click="openEdit('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-500/30' }}">
                                                         <span>{{ $editItemId == $item->id ? 'Abbrechen' : 'Artikel anpassen' }}</span>
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </button>
                                                 @endif
                                             </div>
-                                            @if($selectedOrder->status === 'pending' && $type === 'physical')
+                                            @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
                                                 <div x-data="{ successMsg: false }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
 

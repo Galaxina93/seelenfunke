@@ -262,22 +262,18 @@ class CustomerChat extends Component
 
 
 
-        // 4. DYNAMISCHES PRODUKTSORTIMENT (LIVE AUS DER DATENBANK)
-        if (class_exists(\App\Models\Product\Product::class)) {
-            $activeProducts = \App\Models\Product\Product::where('status', 'active')->pluck('name')->toArray();
-            if (!empty($activeProducts)) {
-                $sysPrompt .= "[OFFIZIELLES LIVE-SORTIMENT]\n";
-                $sysPrompt .= "Wir verkaufen aktuell exakt und AUSSCHLIESSLICH diese Stamm-Produkte:\n";
-                $sysPrompt .= "- " . implode("\n- ", $activeProducts) . "\n";
-                $sysPrompt .= "Erfinde NIEMALS andere Produkte (wie Wallets, Gitarren, Schmuck etc.)!\n\n";
-            }
-        }
+        // 4. PRODUKTSORTIMENT (Kein voller Dump mehr, um API-Latenz gering zu halten!)
+        $sysPrompt .= "[OFFIZIELLES LIVE-SORTIMENT]\n";
+        $sysPrompt .= "Wir verkaufen hauptsächlich Lasergravur-Artikel, Schmuck und Deko aus unserer Manufaktur.\n";
+        $sysPrompt .= "WICHTIG: Erfinde NIEMALS Produkte. Wenn ein Kunde nach einem Produkt sucht, benutze immer dein 'support_get_product_info' Werkzeug!\n\n";
         
         $payloadMessages = [
             ['role' => 'system', 'content' => $sysPrompt]
         ];
 
-        foreach ($chat->messages as $msg) {
+        // API-Optimierung: Nur die letzten 15 Nachrichten für Kontext anhängen (Token-Sparsamkeit, schnelle RT)
+        $recentMessages = $chat->messages->slice(-15);
+        foreach ($recentMessages as $msg) {
             $role = ($msg->sender === 'ai') ? 'assistant' : 'user';
             $payloadMessages[] = ['role' => $role, 'content' => $msg->message];
         }
@@ -305,14 +301,22 @@ class CustomerChat extends Component
             $payload['tool_choice'] = 'auto';
         }
 
+        $agentModelName = strtolower($supportAgent->model ?? '');
+        $apiUrl = config('services.mittwald.url');
+        $apiKey = config('services.mittwald.key');
+        if (str_starts_with($agentModelName, 'gemini')) {
+            $apiUrl = config('services.gemini.url');
+            $apiKey = config('services.gemini.key');
+        }
+
         try {
             $toolConfidence = 90;
             $startTime = microtime(true);
-            $response = Http::withToken(config('services.mittwald.key'))
+            $response = Http::withToken($apiKey)
                 ->connectTimeout(30)
                 ->timeout(120)
                 ->asJson()
-                ->post(rtrim(config('services.mittwald.url'), '/') . '/chat/completions', $payload);
+                ->post(rtrim($apiUrl, '/') . '/chat/completions', $payload);
             $responseTimeMs = (int) ((microtime(true) - $startTime) * 1000);
 
             if ($response->successful()) {
@@ -392,11 +396,11 @@ class CustomerChat extends Component
                     ];
                     
                     $startT2 = microtime(true);
-                    $secondCall = Http::withToken(config('services.mittwald.key'))
+                    $secondCall = Http::withToken($apiKey)
                         ->connectTimeout(30)
                         ->timeout(120)
                         ->asJson()
-                        ->post(rtrim(config('services.mittwald.url'), '/') . '/chat/completions', $payload);
+                        ->post(rtrim($apiUrl, '/') . '/chat/completions', $payload);
                     $responseTimeMs += (int) ((microtime(true) - $startT2) * 1000);
                         
                     if ($secondCall->successful()) {

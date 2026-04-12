@@ -150,6 +150,24 @@ class AuthProfileDropdown extends Component
         $this->user->profile->two_factor_is_active = true;
         $this->user->profile->save();
 
+        \App\Models\System\SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'user:security_update',
+            'title' => 'Sicherheits-Update: 2FA aktiviert',
+            'message' => "Der Nutzer '{$this->user->email}' hat die 2-Faktor-Authentifizierung (2FA) aktiviert.",
+            'status' => 'success',
+            'payload' => [
+                'actor' => 'Kunde (im Frontend)',
+                'target_user' => $this->user->email,
+                'changes' => [
+                    'two_factor_is_active' => ['old' => false, 'new' => true]
+                ],
+                'ip' => request()->ip()
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
         $this->twoFactorActive = true;
         $this->confirmPasswordOpener = false;
 
@@ -168,6 +186,25 @@ class AuthProfileDropdown extends Component
         $this->confirmPasswordOpener = false;
 
         $this->user->profile->save();
+
+        \App\Models\System\SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'user:security_update',
+            'title' => 'Sicherheits-Risiko: 2FA deaktiviert',
+            'message' => "Der Nutzer '{$this->user->email}' hat die 2-Faktor-Authentifizierung (2FA) explizit deaktiviert.",
+            'status' => 'warning',
+            'payload' => [
+                'actor' => 'Kunde (im Frontend)',
+                'target_user' => $this->user->email,
+                'changes' => [
+                    'two_factor_is_active' => ['old' => true, 'new' => false]
+                ],
+                'ip' => request()->ip()
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
         $this->twoFactorActive = false;
 
         $this->dispatch('saved');

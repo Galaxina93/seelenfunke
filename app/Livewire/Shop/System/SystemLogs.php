@@ -16,22 +16,25 @@ class SystemLogs extends Component
     public $statusFilter = '';
     public $typeFilter = '';
     public $agentFilter = '';
+    public $domainFilter = '';
     
     protected $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => ''],
         'typeFilter' => ['except' => ''],
-        'agentFilter' => ['except' => '']
+        'agentFilter' => ['except' => ''],
+        'domainFilter' => ['except' => '']
     ];
 
     public function updatingSearch() { $this->resetPage(); }
     public function updatingStatusFilter() { $this->resetPage(); }
     public function updatingTypeFilter() { $this->resetPage(); }
     public function updatingAgentFilter() { $this->resetPage(); }
+    public function updatingDomainFilter() { $this->resetPage(); }
 
     public function clearFilters()
     {
-        $this->reset(['search', 'statusFilter', 'typeFilter', 'agentFilter']);
+        $this->reset(['search', 'statusFilter', 'typeFilter', 'agentFilter', 'domainFilter']);
         $this->resetPage();
     }
 
@@ -93,6 +96,10 @@ class SystemLogs extends Component
             }
         }
 
+        if ($this->domainFilter) {
+            $query->where('action_id', 'like', $this->domainFilter . '%');
+        }
+
         $logs = $query->latest()->paginate(50);
 
         // Analytics Data
@@ -101,6 +108,18 @@ class SystemLogs extends Component
         $logsToday = SystemLog::whereDate('created_at', today())->count();
         $agents = \App\Models\Ai\AiAgent::orderBy('name')->get();
         $uniqueTypes = SystemLog::select('type')->distinct()->pluck('type');
+        
+        $actionIds = SystemLog::select('action_id')->distinct()->pluck('action_id');
+        $uniqueDomains = collect();
+        foreach($actionIds as $id) {
+            if (str_contains($id ?? '', ':')) {
+                $domain = explode(':', $id)[0];
+                if (!$uniqueDomains->contains($domain)) {
+                    $uniqueDomains->push($domain);
+                }
+            }
+        }
+        $uniqueDomains = $uniqueDomains->sort()->values();
 
         return view('livewire.shop.system.system-logs', [
             'logs' => $logs,
@@ -108,7 +127,8 @@ class SystemLogs extends Component
             'totalErrors' => $totalErrors,
             'logsToday' => $logsToday,
             'agents' => $agents,
-            'uniqueTypes' => $uniqueTypes
+            'uniqueTypes' => $uniqueTypes,
+            'uniqueDomains' => $uniqueDomains
         ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

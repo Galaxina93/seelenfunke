@@ -23,7 +23,6 @@ class SystemUserManagement extends Component
     public $search = '';
     public $filterRole = 'all';
     public $showArchive = false;
-    public $activeTab = 'users';
 
     public $editingId = null;
     public $editingType = null;
@@ -48,7 +47,7 @@ class SystemUserManagement extends Component
         'is_verified' => true,
     ];
 
-    protected $queryString = ['search', 'filterRole', 'showArchive', 'activeTab'];
+    protected $queryString = ['search', 'filterRole', 'showArchive'];
 
     public function toggleArchive()
     {
@@ -374,8 +373,7 @@ class SystemUserManagement extends Component
         $pagedResults = new \Illuminate\Pagination\LengthAwarePaginator($items->forPage($currentPage, $perPage)->values(), $items->count(), $perPage, $currentPage, ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]);
 
         return view('livewire.shop.system.system-user-management', [
-            'users' => $pagedResults,
-            'logs' => SystemLog::where('action_id', 'like', 'user:%')->latest()->paginate(10, ['*'], 'logPage')
+            'users' => $pagedResults
         ]);
     }
 }

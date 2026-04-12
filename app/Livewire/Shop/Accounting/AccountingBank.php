@@ -460,9 +460,17 @@ class AccountingBank extends Component
 
         // 6. Query LLM
         try {
-            $response = \Illuminate\Support\Facades\Http::withToken(config('services.mittwald.key'))
+            $agentModelName = strtolower($agent->model ?? '');
+            $apiUrl = config('services.mittwald.url');
+            $apiKey = config('services.mittwald.key');
+            if (str_starts_with($agentModelName, 'gemini')) {
+                $apiUrl = config('services.gemini.url');
+                $apiKey = config('services.gemini.key');
+            }
+
+            $response = \Illuminate\Support\Facades\Http::withToken($apiKey)
                 ->timeout(60)
-                ->post(config('services.mittwald.url') . '/chat/completions', [
+                ->post(rtrim($apiUrl, '/') . '/chat/completions', [
                     'model' => $agent->model ?? 'gpt-oss-120b',
                     'messages' => [
                         ['role' => 'system', 'content' => $agent->system_prompt],

@@ -426,10 +426,10 @@
                                         <div>
                                             <div class="flex items-center gap-2">
                                                 <h4 class="text-sm font-semibold text-gray-300 group-hover:text-white transition-colors">{{ $check['title'] }}</h4>
-                                                
+
                                                 <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false" @click.stop>
                                                     <x-heroicon-m-information-circle class="w-4 h-4 text-gray-600 hover:text-[#C5A059] transition-colors" />
-                                                    
+
                                                     <!-- Tooltip -->
                                                     <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-[280px] p-4 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
                                                         <div class="text-[11.5px] text-gray-300 font-medium leading-relaxed">{{ $check['description'] }}</div>
@@ -476,7 +476,7 @@
                         <h2 class="text-2xl font-serif font-bold text-white mb-1">System & Infrastruktur</h2>
                         <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Latenzen, API Verbindungen und Hintergrund-Jobs zur Serverintegrität.</p>
                     </div>
-                    <button type="button" wire:click="fixSystem" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-900 bg-primary hover:bg-primary-dark shadow-glow flex items-center gap-2">
+                    <button type="button" wire:click="fixSystem" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-900 bg-primary hover:bg-primary-dark hover:text-white shadow-glow flex items-center gap-2">
                         <span wire:loading.remove wire:target="fixSystem">Fix System Starten</span>
                         <span wire:loading wire:target="fixSystem" class="animate-pulse">Arbeite...</span>
                     </button>
@@ -502,7 +502,7 @@
                                                     <span :class="{'text-emerald-400': wsStatus === 'connected', 'text-red-400': wsStatus === 'unavailable', 'text-gray-500': wsStatus === 'checking'}" x-text="wsStatus"></span>
                                                 </div>
                                             </div>
-                                            
+
                                             <!-- Tooltip für WebSocket -->
                                             <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
                                                 <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services['ws']['host'] }}:{{ $services['ws']['port'] }}</div>
@@ -528,7 +528,7 @@
                                                     <span class="{{ $textColor }} text-right">{{ $msg }}</span>
                                                 </div>
                                             </div>
-                                            
+
                                             <!-- Tooltip für Services -->
                                             <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
                                                 <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services[$sKey]['host'] }}:{{ $services[$sKey]['port'] }}</div>

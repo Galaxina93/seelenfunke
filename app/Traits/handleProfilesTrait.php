@@ -99,6 +99,25 @@ trait handleProfilesTrait
             dd($e->errors());
         }
 
+        // Erfasse den Zustand VOR dem Update
+        $oldData = [
+            'first_name' => $this->user->first_name,
+            'last_name' => $this->user->last_name,
+            'email' => $this->user->email,
+            'phone_number' => $this->user->profile->phone_number,
+            'about' => $this->user->profile->about,
+            'url' => $this->user->profile->url,
+            'street' => $this->user->profile->street,
+            'house_number' => $this->user->profile->house_number,
+            'postal' => $this->user->profile->postal,
+            'city' => $this->user->profile->city,
+            'country' => $this->user->profile->country,
+        ];
+        if ($this->guard === 'customer') {
+            $oldData['is_business'] = $this->user->profile->is_business;
+            $oldData['birthday'] = $this->user->profile->birthday;
+        }
+
         $this->user->first_name = $validatedData['firstName'];
         $this->user->last_name = $validatedData['lastName'];
         $this->user->email = $validatedData['email'];
@@ -119,6 +138,52 @@ trait handleProfilesTrait
         }
 
         $this->user->profile->save();
+
+        // Erfasse den Zustand NACH dem Update für das Delta
+        $newData = [
+            'first_name' => $this->user->first_name,
+            'last_name' => $this->user->last_name,
+            'email' => $this->user->email,
+            'phone_number' => $this->user->profile->phone_number,
+            'about' => $this->user->profile->about,
+            'url' => $this->user->profile->url,
+            'street' => $this->user->profile->street,
+            'house_number' => $this->user->profile->house_number,
+            'postal' => $this->user->profile->postal,
+            'city' => $this->user->profile->city,
+            'country' => $this->user->profile->country,
+        ];
+        if ($this->guard === 'customer') {
+            $newData['is_business'] = $this->user->profile->is_business;
+            $newData['birthday'] = $this->user->profile->birthday;
+        }
+
+        $changes = [];
+        foreach ($oldData as $key => $oldVal) {
+            if ($oldVal != $newData[$key]) { // Benutze != statt !== wegen Typkonvertierungen z.B. 1 vs "1"
+                $changes[$key] = ['old' => $oldVal, 'new' => $newData[$key]];
+            }
+        }
+
+        // Schreibe Frontend-Audit-Log falls es eine Änderung gab
+        if (count($changes) > 0) {
+            \App\Models\System\SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'user:profile_updated_frontend',
+                'title' => 'Benutzerprofil selbstständig aktualisiert',
+                'message' => "Der Nutzer '{$this->user->email}' hat " . count($changes) . " Profil-Feld(er) im Frontend geändert.",
+                'status' => 'success',
+                'payload' => [
+                    'actor' => 'Kunde (im Frontend)',
+                    'target_user' => $this->user->email,
+                    'changes' => $changes,
+                    'ip' => request()->ip()
+                ],
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+
         session()->flash('message', 'Profil erfolgreich aktualisiert.');
     }
 
@@ -145,6 +210,24 @@ trait handleProfilesTrait
 
         $this->user->password = Hash::make($this->newPassword);
         $this->user->save();
+
+        \App\Models\System\SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'user:security_update',
+            'title' => 'Sicherheits-Update: Passwort geändert',
+            'message' => "Der Nutzer '{$this->user->email}' hat sein Zugangspasswort im Frontend neu gesetzt.",
+            'status' => 'success',
+            'payload' => [
+                'actor' => 'Kunde (im Frontend)',
+                'target_user' => $this->user->email,
+                'changes' => [
+                    'password' => ['old' => '***', 'new' => 'wurde geändert']
+                ],
+                'ip' => request()->ip()
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
 
         $this->currentPassword = '';
         $this->newPassword = '';

@@ -1,16 +1,6 @@
 <div class="space-y-6 md:space-y-8 pb-20 font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }};">
 
-    {{-- Tabs --}}
-    <div class="flex items-center gap-2 bg-gray-950 p-2 rounded-2xl w-fit border border-gray-800 shadow-inner group">
-        <button wire:click="$set('activeTab', 'users')" @class(['px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all', 'bg-gray-800 shadow-lg text-[var(--theme-color)] border border-gray-700' => $activeTab === 'users', 'text-gray-500 hover:text-white' => $activeTab !== 'users'])>
-            <x-heroicon-o-users class="w-4 h-4 inline mr-2" /> Begleiter
-        </button>
-        <button wire:click="$set('activeTab', 'logs')" @class(['px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all', 'bg-gray-800 shadow-lg text-[var(--theme-color)] border border-gray-700' => $activeTab === 'logs', 'text-gray-500 hover:text-white' => $activeTab !== 'logs'])>
-            <x-heroicon-o-document-text class="w-4 h-4 inline mr-2" /> Protokoll
-        </button>
-    </div>
-
-    @if($activeTab === 'users')
+    {{-- Table Area --}}
         {{-- Header --}}
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-gray-800 relative overflow-hidden animate-fade-in-up">
             <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none"><x-heroicon-o-sparkles class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)1)]" /></div>
@@ -69,7 +59,7 @@
                             <x-heroicon-m-shield-check class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
                             <h3 class="text-[10px] font-black uppercase tracking-widest">Account & Sicherheit</h3>
                         </div>
-                        
+
                         @if($isCreating)
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">System-Rolle</label>
@@ -83,7 +73,7 @@
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">System-Rolle</label>
                                 <div class="w-full text-sm border-gray-800 rounded-xl bg-gray-950/50 text-gray-500 px-4 py-4 border inline-flex items-center gap-2 cursor-not-allowed">
-                                    <x-heroicon-m-lock-closed class="w-4 h-4" /> 
+                                    <x-heroicon-m-lock-closed class="w-4 h-4" />
                                     @if($editingType === 'admin') Administrator @elseif($editingType === 'employee') Mitarbeiter @else Kunde @endif
                                 </div>
                             </div>
@@ -208,7 +198,7 @@
                             Zurück zur Liste
                         </button>
                         <button wire:click="{{ $isCreating ? 'saveNewUser' : 'saveInline' }}" class="flex-1 sm:flex-none px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400 hover:scale-[1.02] flex items-center justify-center gap-2">
-                            <x-heroicon-m-check class="w-5 h-5 drop-shadow-[0_0_4px_rgba(0,0,0,0.5)]" /> 
+                            <x-heroicon-m-check class="w-5 h-5 drop-shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
                             {{ $isCreating ? 'Benutzer erstellen' : 'Änderungen speichern' }}
                         </button>
                     </div>
@@ -353,74 +343,4 @@
                 @if($users->hasPages()) <div class="px-8 py-6 bg-gray-900/30 border-t border-gray-800">{{ $users->links() }}</div> @endif
             </div>
         @endif
-    @else
-        {{-- LOG BEREICH --}}
-        <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden animate-fade-in-up">
-            <div class="p-8 sm:p-10 border-b border-gray-800 flex justify-between items-center bg-gray-950/50 shadow-inner">
-                <div>
-                    <h2 class="text-2xl sm:text-3xl font-serif font-bold text-white tracking-wide">System-Historie</h2>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2">Transparente Dokumentation aller Stammdaten-Änderungen.</p>
-                </div>
-            </div>
-            <div class="divide-y divide-gray-800/50">
-                @forelse($logs as $log)
-                    <div class="p-6 sm:p-8 hover:bg-gray-800/30 transition-colors">
-                        <div class="flex items-start gap-6">
-                            <div @class(['p-4 rounded-[1rem] shrink-0 border shadow-inner',
-                                'bg-blue-500/10 text-blue-400 border-blue-500/20' => $log->action_id === 'user:update',
-                                'bg-orange-500/10 text-orange-400 border-orange-500/20' => $log->action_id === 'user:archive',
-                                'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' => $log->action_id === 'user:restore',
-                                'bg-[var(--theme-color)]/10 text-[var(--theme-color)] border-[var(--theme-color)]/20' => $log->action_id === 'user:create',
-                                'bg-red-500/10 text-red-400 border-red-500/20' => $log->action_id === 'user:destroy'])>
-                                <x-heroicon-o-finger-print class="w-6 h-6" />
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex flex-col sm:flex-row justify-between items-start gap-2">
-                                    <div>
-                                        <h4 class="font-bold text-white text-base">{{ $log->title }}</h4>
-                                        <p class="text-xs text-gray-400 font-medium mt-1">{{ $log->message }}</p>
-                                    </div>
-                                    <div class="text-right text-[9px] text-gray-500 font-black uppercase tracking-widest shrink-0">{{ $log->created_at->format('d.m.Y H:i') }}</div>
-                                </div>
-                                @if($log->payload && isset($log->payload['before']))
-                                    <div x-data="{ open: false }" class="mt-4 border-t border-gray-800/50 pt-4">
-                                        <button @click="open = !open" class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] hover:text-white transition-colors flex items-center gap-2">
-                                            Änderungs-Details <x-heroicon-m-chevron-down class="w-3.5 h-3.5 transition-transform" ::class="open ? 'rotate-180' : ''" />
-                                        </button>
-                                        <div x-show="open" x-collapse class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div class="bg-red-900/10 p-5 rounded-2xl border border-red-500/20 shadow-inner">
-                                                <span class="text-[9px] font-black text-red-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Vorheriger Stand</span>
-                                                <pre class="text-[10px] text-red-200/70 font-mono whitespace-pre-wrap leading-relaxed">{{ json_encode($log->payload['before'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                            </div>
-                                            <div class="bg-emerald-900/10 p-5 rounded-2xl border border-emerald-500/20 shadow-inner">
-                                                <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Aktueller Stand</span>
-                                                <pre class="text-[10px] text-emerald-200/70 font-mono whitespace-pre-wrap leading-relaxed">{{ json_encode($log->payload['after'] ?? $log->payload['before'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @elseif($log->payload && isset($log->payload['after']))
-                                    <div x-data="{ open: false }" class="mt-4 border-t border-gray-800/50 pt-4">
-                                        <button @click="open = !open" class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] hover:text-white transition-colors flex items-center gap-2">
-                                            Eintrags-Details <x-heroicon-m-chevron-down class="w-3.5 h-3.5 transition-transform" ::class="open ? 'rotate-180' : ''" />
-                                        </button>
-                                        <div x-show="open" x-collapse class="mt-4">
-                                            <div class="bg-emerald-900/10 p-5 rounded-2xl border border-emerald-500/20 shadow-inner">
-                                                <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest block mb-3 drop-shadow-[0_0_8px_currentColor]">Eingetragene Daten</span>
-                                                <pre class="text-[10px] text-emerald-200/70 font-mono whitespace-pre-wrap leading-relaxed">{{ json_encode($log->payload['after'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                @empty
-                    <div class="p-16 text-center text-gray-500 font-serif italic text-lg">Keine Protokolleinträge vorhanden.</div>
-                @endforelse
-            </div>
-            @if($logs->hasPages())
-                <div class="p-6 sm:p-8 bg-gray-900/30 border-t border-gray-800">{{ $logs->links() }}</div>
-            @endif
-        </div>
-    @endif
 </div>

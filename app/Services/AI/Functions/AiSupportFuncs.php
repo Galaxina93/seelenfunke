@@ -170,6 +170,28 @@ trait AiSupportFuncs
                     'required' => ['top_topic', 'ai_summary']
                 ],
                 'callable' => [self::class, 'executeRecordAnalytics']
+            ],
+            [
+                'name' => 'support_get_invoice_link',
+                'description' => 'Prüft, ob für eine Bestellung bereits eine Rechnung existiert.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['order_number' => ['type' => 'string']],
+                    'required' => ['order_number']
+                ],
+                'callable' => [self::class, 'executeGetInvoiceLink']
+            ],
+            [
+                'name' => 'support_get_manufacturing_guidelines',
+                'description' => 'Liefert Richtlinien zu Lasergravuren, Emojis und Sonderzeichen.',
+                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'callable' => [self::class, 'executeGetManufacturingGuidelines']
+            ],
+            [
+                'name' => 'support_get_cart_total',
+                'description' => 'Liefert die aktuellen Zwischensummen des Warenkorbs.',
+                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'callable' => [self::class, 'executeGetCartTotal']
             ]
         ];
     }
@@ -178,7 +200,7 @@ trait AiSupportFuncs
     {
         try {
             $customerId = auth()->guard('customer')->id();
-            if (!$customerId) return ['status' => 'error', 'message' => 'Bitte den Kunden sich einzuloggen.'];
+            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Kunde ist nicht eingeloggt. Bitte den Kunden höflich darum, sich einzuloggen.'];
 
             $tickets = SupportTicket::where('customer_id', $customerId)->where('status', '!=', 'closed')->orderBy('created_at', 'desc')->take(3)->get();
             if ($tickets->isEmpty()) {
@@ -191,15 +213,15 @@ trait AiSupportFuncs
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Ich habe offene Tickets in deinem Profil gefunden:\n" . implode("\n", $tLines) . "\""];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Datenbankfehler beim Laden der Tickets ('{$e->getMessage()}'). Entschuldige dich charmant beim Kunden und versprich, dass es später wieder geht."];
         }
     }
 
     public static function executeGetTicketStatus(array $args)
     {
         try {
-            $ticketNumber = $args['ticket_number'] ?? '';
-            if (empty($ticketNumber)) return ['status' => 'error', 'message' => 'Ticketnummer fehlt.'];
+            $ticketNumber = trim($args['ticket_number'] ?? '');
+            if (empty($ticketNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keine Ticketnummer übergeben. Bitte den Kunden nach der TCK-XXXX Nummer.'];
 
             $ticket = SupportTicket::where('ticket_number', 'ILIKE', "%{$ticketNumber}%")->first();
             if (!$ticket) {
@@ -207,15 +229,15 @@ trait AiSupportFuncs
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Ticket {$ticket->ticket_number} ('{$ticket->subject}') hat aktuell den Status: {$ticket->status}. Das Support-Team wird sich bald dazu melden!\""];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Systemfehler beim Abrufen des Ticketstatus ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeGetOrderStatus(array $args)
     {
         try {
-            $identifier = $args['identifier'] ?? '';
-            if (empty($identifier)) return ['status' => 'error', 'message' => 'IDENTIFIER fehlt.'];
+            $identifier = trim($args['identifier'] ?? '');
+            if (empty($identifier)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keinen Suchbegriff übergeben. Frage den Kunden nach der Bestellnummer oder Email.'];
 
             $order = OrderOrder::where('order_number', 'LIKE', "%{$identifier}%")
                         ->orWhere('customer_email', 'LIKE', "%{$identifier}%")->latest()->first();
@@ -223,10 +245,10 @@ trait AiSupportFuncs
             if (!$order) {
                 return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Unter dieser Nummer oder Email konnte ich leider keine Bestellung in unserer Manufaktur finden."'];
             }
-            $total = $order->total_price ? number_format($order->total_price / 100, 2) . ' €' : '0,00 €';
+            $total = $order->total_price ? number_format($order->total_price / 100, 2, ',', '.') . ' €' : '0,00 €';
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Deine Bestellung {$order->order_number} vom {$order->created_at->format('d.m.Y')} ist aktuell im Status: {$order->status}. Der Bestellwert beträgt {$total}.\""];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Ein temporärer Fehler verhindert den Abruf ('{$e->getMessage()}')."];
         }
     }
 
@@ -234,7 +256,7 @@ trait AiSupportFuncs
     {
         try {
             $customerId = auth()->guard('customer')->id();
-            if (!$customerId) return ['status' => 'error', 'message' => 'Bitte den Kunden sich einzuloggen.'];
+            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Kunde ist nicht eingeloggt. Bitte logge den Kunden verbal ein.'];
 
             $orders = OrderOrder::where('customer_id', $customerId)->latest()->take(5)->get();
             if ($orders->isEmpty()) {
@@ -243,19 +265,21 @@ trait AiSupportFuncs
 
             $oLines = [];
             foreach ($orders as $o) {
-                $total = $o->total_price ? number_format($o->total_price / 100, 2) . ' €' : '0,00 €';
+                $total = $o->total_price ? number_format($o->total_price / 100, 2, ',', '.') . ' €' : '0,00 €';
                 $oLines[] = "- {$o->order_number} ({$total}) - Status: {$o->status}";
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Deine letzten Bestellungen in der Übersicht:\n" . implode("\n", $oLines) . "\""];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Datenbankfehler beim Aufrufen der vergangenen Bestellungen ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeGetProductInfo(array $args)
     {
         try {
-            $term = $args['search_term'] ?? '';
+            $term = trim($args['search_term'] ?? '');
+            if (empty($term)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keinen Suchbegriff übergeben.'];
+
             $products = Product::where('status', 'active')->where(function($q) use ($term) {
                             $q->where('name', 'LIKE', "%{$term}%")->orWhere('sku', 'LIKE', "%{$term}%");
                         })->take(3)->get();
@@ -274,7 +298,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Folgende Produkte habe ich dazu gefunden:\n" . implode("\n", $pLines) . "\""];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Systemfehler bei der Produktsuche ('{$e->getMessage()}')."];
         }
     }
 
@@ -284,7 +308,7 @@ trait AiSupportFuncs
             $chatId = $args['__chat_id'] ?? null;
             if ($chatId) {
                 $chat = SupportCustomerChat::find($chatId);
-                if (!$chat) return ['status' => 'error', 'message' => 'Chat fehlt.'];
+                if (!$chat) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Fehler - Konnte Chat ID nicht zuordnen.'];
 
                 $customerId = auth()->guard('customer')->id();
                 if (!$customerId && !auth()->check()) {
@@ -313,9 +337,9 @@ trait AiSupportFuncs
                     ];
                 }
             }
-            return ['status' => 'error', 'message' => 'SYSTEM-DIREKTIVE: Fehler aufgetreten.'];
+            return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Chat konnte nicht identifiziert werden.'];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'SYSTEM-DIREKTIVE: Datenbankfehler.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Datenbankfehler bei der Ticket-Übergabe ('{$e->getMessage()}')."];
         }
     }
 
@@ -330,9 +354,9 @@ trait AiSupportFuncs
                     'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Wunderbar! Ich schließe diesen Chat-Bereich nun ab. Es wäre mir eine riesige Freude, wenn du mir unten über das Sternchen-Menü eine ehrliche Bewertung für unsere Unterhaltung da lässt!"'
                 ];
             }
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Chat konnte nicht identifiziert werden.'];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Chat Fehler ('{$e->getMessage()}')."];
         }
     }
 
@@ -346,28 +370,44 @@ trait AiSupportFuncs
                     'mentioned_product' => mb_substr($args['mentioned_product'] ?? '', 0, 100) ?: null,
                     'ai_summary' => $args['ai_summary'] ?? ''
                 ]);
-                return ['status' => 'success', 'message' => 'Analysedaten gesichert. Du darfst in deinem eigenen Ermessen weiter antworten.'];
+                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Analysedaten gesichert. Du darfst in deinem eigenen Ermessen weiter antworten.'];
             }
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Konnte nicht gesichert werden, Chat ID fehlt.'];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeGetOrderDetails(array $args)
     {
         try {
-            $orderNumber = $args['order_number'] ?? '';
-            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'Bestellnummer fehlt.'];
+            $orderNumber = trim($args['order_number'] ?? '');
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Es wurde keine Bestellnummer übergeben. Frage den Kunden danach.'];
 
             $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items')->first();
-            if (!$order) return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Bestellung nicht gefunden."'];
+            if (!$order) return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Leider konnte ich keine Bestellung mit dieser Nummer in unserem System finden."'];
 
             $items = [];
             foreach ($order->items as $item) {
                 $configStr = "Keine Personalisierung";
                 if (is_array($item->configuration) && !empty($item->configuration)) {
-                    $configStr = json_encode($item->configuration, JSON_UNESCAPED_UNICODE);
+                    $details = [];
+                    if (!empty($item->configuration['text'])) {
+                        $details[] = "Wunschtext: '" . $item->configuration['text'] . "'";
+                    }
+                    if (!empty($item->configuration['notes'])) {
+                        $details[] = "Notiz: '" . $item->configuration['notes'] . "'";
+                    }
+                    if (!empty($item->configuration['texts']) && is_array($item->configuration['texts'])) {
+                        $canvasTexts = [];
+                        foreach ($item->configuration['texts'] as $t) {
+                            if (!empty($t['text'])) $canvasTexts[] = $t['text'];
+                        }
+                        if (!empty($canvasTexts)) {
+                            $details[] = "LeinwandTexte: '" . implode(', ', $canvasTexts) . "'";
+                        }
+                    }
+                    $configStr = empty($details) ? "Personalisierung hinterlegt (ohne lesbaren Text)" : implode(' | ', $details);
                 }
                 $items[] = "- {$item->quantity}x {$item->product_name} (Gravur/Details: {$configStr})";
             }
@@ -376,18 +416,18 @@ trait AiSupportFuncs
                 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Hier sind die exakten Details zu der Bestellung {$order->order_number} (Status: {$order->status}):\n" . implode("\n", $items) . "\""
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Details konnten nicht geladen werden.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Details konnten wegen eines Systemfehlers nicht geladen werden ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeGetTrackingLink(array $args)
     {
         try {
-            $orderNumber = $args['order_number'] ?? '';
-            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'Fehlt.'];
+            $orderNumber = trim($args['order_number'] ?? '');
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast die Bestellnummer vergessen abzufragen.'];
 
             $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->first();
-            if (!$order) return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Bestellung nicht gefunden."'];
+            if (!$order) return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO FÜR KI: Keine Bestellung gefunden. Entschuldige dich.'];
 
             $tracking = $order->tracking_number;
             if (!$tracking) {
@@ -398,7 +438,7 @@ trait AiSupportFuncs
                 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Paket ist unterwegs! Hier ist dein offizieller DHL-Trackinglink: https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={$tracking} \""
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Abrufen der Trackingnummer ('{$e->getMessage()}')."];
         }
     }
 
@@ -406,15 +446,20 @@ trait AiSupportFuncs
     {
         try {
             $customerId = auth()->guard('customer')->id();
-            if (!$customerId) return ['status' => 'error', 'message' => 'Bitte einloggen.'];
+            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Kunde ist nicht eingeloggt.'];
 
             $stats = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
             if (!$stats || !$stats->is_active) {
-                return ['status' => 'success', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Ich sehe, du hast das Seelenfunken-Programm in deiner Zentrale noch gar nicht aktiviert! Dort entgehen dir tolle Belohnungen."'];
+                return ['status' => 'success', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text logisch so ähnlich aus: "Ich sehe, du hast das Seelenfunken-Programm in deiner Zentrale noch gar nicht aktiviert! Dort entgehen dir tolle Belohnungen."'];
             }
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Du bist aktuell Level {$stats->level} und hast stolze {$stats->funken_balance} Seelenfunken gesammelt! (Funkenflug Highscore: {$stats->funkenflug_highscore})\""];
+            
+            // Berechne fehlende Punkte (sehr simpel)
+            $nextLevelThreshold = ($stats->level * 1000); 
+            $missing = max(0, $nextLevelThreshold - $stats->funken_balance);
+
+            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text logisch so ähnlich aus: \"Du bist aktuell Level {$stats->level} und hast stolze {$stats->funken_balance} Seelenfunken gesammelt! (Noch {$missing} Funken bis zum nächsten Level). Dein Funkenflug Highscore ist: {$stats->funkenflug_highscore}.\""];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Stats konnten nicht geladen werden ('{$e->getMessage()}')."];
         }
     }
 
@@ -436,10 +481,10 @@ trait AiSupportFuncs
 
             return [
                 'status' => 'success',
-                'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Hallo {$customer->first_name}, ich habe dein Profil geladen! Du bist seit dem {$customer->created_at->format('d.m.Y')} bei uns registriert. Aktuell hast du {$openOrders} offene und {$closedOrders} abgeschlossene Bestellungen. In unserem Funken-Programm bist du auf Level " . ($gamification ? $gamification->level : 1) . ". Du hast {$activeTickets} aktive Support-Tickets. Was darf ich mir davon näher für dich ansehen?\""
+                'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text als Zusammenfassung logisch so ähnlich aus: \"Hallo {$customer->first_name}, ich habe dein Profil geladen! Du bist seit dem {$customer->created_at->format('d.m.Y')} bei uns registriert. Aktuell hast du {$openOrders} offene und {$closedOrders} abgeschlossene Bestellungen. In unserem Funken-Programm bist du auf Level " . ($gamification ? $gamification->level : 1) . ". Du hast {$activeTickets} aktive Support-Tickets. Was darf ich mir davon näher für dich ansehen?\""
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Das Profil konnte nicht geladen werden ('{$e->getMessage()}')."];
         }
     }
 
@@ -489,7 +534,7 @@ trait AiSupportFuncs
                 'message' => "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nDu hast die Routen-Datenbank abgefragt. Suche dir aus der folgenden Liste den einen korrekten Link heraus, nachdem der Kunde gefragt hat (z.b. Kontakt oder Konto erstellen).\nFormuliere dann eine freundliche eigene Antwort und zeige dem Kunden NUR den passenden Link als echten Markdown-Link (z.b. [Kontakt aufnehmen](url)).\n\nHier das Lexikon:\n\n" . $linksStr
             ];
         } catch (\Exception $e) {
-             return ['status' => 'error', 'message' => 'Laden fehlgeschlagen.'];
+             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Laden der Routen ('{$e->getMessage()}')."];
         }
     }
 
@@ -505,6 +550,7 @@ trait AiSupportFuncs
             $info = [];
             foreach ($cart->items as $item) {
                 $product = $item->product;
+                if (!$product) continue;
                 $configStr = empty($item->configuration) ? "KEINE Personalisierung eingegeben" : json_encode($item->configuration, JSON_UNESCAPED_UNICODE);
                 $info[] = "- {$item->quantity}x {$product->name} (Benötigt Konfiguration? " . ($product->requires_configuration ? 'JA' : 'NEIN') . " | Eingegebene Konfiguration: {$configStr})";
             }
@@ -514,53 +560,68 @@ trait AiSupportFuncs
                 'message' => "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): Hier sind die aktuellen Artikel im Warenkorb des Nutzers:\n" . implode("\n", $info) . "\nHinweis: Wenn ein Produkt Konfiguration benötigt, aber keine eingegeben wurde, weise den Nutzer freundlich darauf hin, diese einzutragen."
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Analysieren des Warenkorbs.'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Analysieren des Warenkorbs ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeGetDeliveryTimes(array $args)
     {
         try {
-            // Dies könnte dynamisch aus Shop-Settings kommen
-            $msg = "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nUnsere aktuelle Standard-Produktionszeit beträgt 2-3 Werktage. Der Standardversand dauert danach 1-2 Werktage.\nMit der optionalen EXPRESS-Fertigung (im Warenkorb auswählbar) priorisieren wir die Bestellung. Sie wird dann zutiefst priorisiert (meist am nächsten Werktag) versendet.";
+            $msg = "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nUnsere aktuelle Standard-Produktionszeit beträgt 2-3 Werktage. Der Standardversand dauert danach 1-2 Werktage.\nMit der optionalen EXPRESS-Fertigung (im Warenkorb auswählbar) priorisieren wir die Bestellung extrem (meist wird schon am nächsten Werktag versendet).";
             return ['status' => 'success', 'message' => $msg];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler'];
+            return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Lieferzeiten aktuell nicht abrufbar.'];
         }
     }
 
     public static function executeCheckReturnsPolicy(array $args)
     {
         try {
-            $orderNumber = $args['order_number'] ?? '';
-            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->first();
+            $orderNumber = trim($args['order_number'] ?? '');
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bitte frage erst nach der Bestellnummer!'];
+
+            $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items')->first();
             if (!$order) {
-                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
+                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung mit dieser Nummer absolut nicht gefunden.'];
             }
 
-            $hasPersonalized = false;
+            $now = now();
+            $orderDate = $order->created_at;
+            $daysPassed = $orderDate->diffInDays($now);
+            $isWithin14Days = $daysPassed <= 14;
+
+            $personalizedItems = [];
             foreach ($order->items as $item) {
                 if (!empty($item->configuration)) {
-                    $hasPersonalized = true;
-                    break;
+                    $personalizedItems[] = $item->product_name;
                 }
             }
 
-            if ($hasPersonalized) {
-                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Diese Bestellung enthält ERFOLGREICH PERSONALISIERTE Artikel (Lasergravur/Sonderanfertigung). Nenne dem Kunden freundlich, dass personalisierte Artikel vom gesetzlichen Widerrufsrecht streng ausgeschlossen sind. Ein Umtausch wegen Nicht-Gefallens ist NICHT möglich. (Falls defekt: Biete an ein Reklamationsticket aufzumachen).'];
+            $dateInfo = "Die Bestellung ist $daysPassed Tage alt " . ($isWithin14Days ? "(Innerhalb der 14 Tage Widerrufsfrist)." : "(AUSSERHALB der rechtlichen 14 Tage Widerrufsfrist! Ein Widerruf ist abgelaufen).");
+
+            if (!empty($personalizedItems)) {
+                $pList = implode(", ", $personalizedItems);
+                return [
+                    'status' => 'success', 
+                    'message' => "HINTERGRUND-INFO FÜR KI: $dateInfo ACHTUNG: Die Bestellung enthält PERSONALISIERTE Artikel ($pList). Nenne dem Kunden freundlich, dass personalisierte Artikel per Gesetz streng vom Widerrufsrecht ausgeschlossen sind. (Ein Umtausch wegen Nicht-Gefallens ist NICHT möglich. Falls defekt: Biete Reklamation an)."
+                ];
             }
 
-            return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Diese Bestellung besteht nur aus Standard-Artikeln. Der Kunde hat ein 14-tägiges Widerrufsrecht.'];
+            return ['status' => 'success', 'message' => "HINTERGRUND-INFO FÜR KI: $dateInfo Diese Bestellung besteht nur aus Standard-Artikeln. Zeige dem Kunden das Verhalten passend zum Frist-Status. Link zum offiziellen Formular: /widerruf"];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeCreateClaimTicket(array $args)
     {
         try {
-            $orderNumber = $args['order_number'] ?? '';
-            $reason = $args['reason_summary'] ?? '';
+            $orderNumber = trim($args['order_number'] ?? '');
+            $reason = trim($args['reason_summary'] ?? '');
+
+            if (empty($orderNumber) || empty($reason)) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Es muss zwingend eine Bestellnummer und ein Grund (mit exaktem Artikelnamen) genannt werden!'];
+            }
 
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) {
@@ -569,16 +630,14 @@ trait AiSupportFuncs
 
             $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->where('customer_id', $customerId)->first();
             if (!$order) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellung gehört nicht zum Kunden oder existiert nicht.'];
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Diese Bestellung gehört nicht zum eingeloggten Kunden oder existiert nicht.'];
             }
 
-            // KI-ID für Logging ermitteln
             $agentId = null;
             if (isset($args['__chat_id'])) {
-            $agentId = $args['__agent_id'] ?? null;
+                $agentId = $args['__agent_id'] ?? null;
             }
 
-            // Snapshot Start
             $log = \App\Models\System\SystemLog::start(
                 'ai_claim_ticket',
                 'Automatisches KI-Reklamationsticket',
@@ -602,7 +661,6 @@ trait AiSupportFuncs
                 'message'           => "KI-Zusammenfassung der Reklamation: \n" . $reason
             ]);
 
-            // Snapshot End
             $log->finish('success', 'Ticket TCK-'.$ticket->ticket_number.' erstellt.', [
                 'ticket_id' => $ticket->id,
                 'reason' => $reason
@@ -610,18 +668,20 @@ trait AiSupportFuncs
 
             return [
                 'status' => 'success',
-                'message' => 'HINTERGRUND-INFO FÜR KI: Das Reklamationsticket wurde mit Prio Hoch unter Nummer '.$ticket->ticket_number.' angelegt! Teile dem Kunden diese Ticketnummer freudig mit und bitte ihn, 1-2 Fotos des Schadens als Antwort auf die Ticket-Mail zu senden.'
+                'message' => 'HINTERGRUND-INFO FÜR KI: Das Reklamationsticket wurde mit Prio Hoch unter Nummer '.$ticket->ticket_number.' angelegt! Teile dem Kunden diese Ticketnummer freudig mit und bitte ihn DRINGEND, 1-2 Fotos des Schadens als Antwort auf die nun eintreffende Ticket-Mail zu senden.'
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler bei der Ticketerstellung ('{$e->getMessage()}')."];
         }
     }
 
     public static function executeModifyPendingOrder(array $args)
     {
         try {
-            $orderNumber = $args['order_number'] ?? '';
-            $action = $args['action_type'] ?? '';
+            $orderNumber = trim($args['order_number'] ?? '');
+            $action = trim($args['action_type'] ?? '');
+
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) {
@@ -630,7 +690,7 @@ trait AiSupportFuncs
 
             $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->where('customer_id', $customerId)->first();
             if (!$order) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden oder gehört nicht zum Konto.'];
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
             }
 
             // RIGIDES SICHERHEITSNETZ
@@ -643,19 +703,17 @@ trait AiSupportFuncs
 
             $agentId = null;
             if (isset($args['__chat_id'])) {
-            $agentId = $args['__agent_id'] ?? null;
+                $agentId = $args['__agent_id'] ?? null;
             }
 
-            $beforeData = [
-                'shipping_address' => $order->shipping_address,
-                'status' => $order->status
-            ];
-
             if ($action === 'change_address') {
-                $newData = escapeshellarg(json_encode($args['new_address_data'])); // just avoiding array to string warning if dump
                 $newAddr = is_array($args['new_address_data']) ? $args['new_address_data'] : [];
-                if (empty($newAddr)) return ['status' => 'error', 'message' => 'Keine Daten.'];
+                if (empty($newAddr['street']) || empty($newAddr['city']) || empty($newAddr['zipcode'])) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Es fehlen Strasse, Stadt oder PLZ in den Daten. Bitte beim Kunden genauer erfragen.'];
+                }
 
+                $beforeData = ['shipping_address' => $order->shipping_address];
+                
                 $log = \App\Models\System\SystemLog::start(
                     'ai_order_modify',
                     "KI hat Adresse von Order {$order->order_number} geändert",
@@ -665,17 +723,17 @@ trait AiSupportFuncs
 
                 $addr = $order->shipping_address;
                 $addr['first_name'] = $newAddr['first_name'] ?? ($addr['first_name'] ?? '');
-                $addr['last_name'] = $newAddr['last_name'] ?? ($addr['last_name'] ?? '');
-                $addr['street'] = $newAddr['street'] ?? ($addr['street'] ?? '');
-                $addr['house_number'] = $newAddr['house_number'] ?? ($addr['house_number'] ?? '');
-                $addr['zipcode'] = $newAddr['zipcode'] ?? ($addr['zipcode'] ?? '');
-                $addr['city'] = $newAddr['city'] ?? ($addr['city'] ?? '');
+                $addr['last_name']  = $newAddr['last_name'] ?? ($addr['last_name'] ?? '');
+                $addr['street']     = $newAddr['street'] ?? ($addr['street'] ?? '');
+                $addr['house_number']= $newAddr['house_number'] ?? ($addr['house_number'] ?? '');
+                $addr['zipcode']    = $newAddr['zipcode'] ?? ($addr['zipcode'] ?? '');
+                $addr['city']       = $newAddr['city'] ?? ($addr['city'] ?? '');
 
                 $order->update(['shipping_address' => $addr]);
 
                 $log->finish('success', 'Adresse erfolgreich überschrieben.', [
                     'before' => $beforeData,
-                    'after' => ['shipping_address' => $addr, 'status' => $order->status]
+                    'after' => ['shipping_address' => $addr]
                 ]);
 
                 return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Adresse wurde erfolgreich überschrieben. Gib dem Kunden kurz bescheid.'];
@@ -685,7 +743,65 @@ trait AiSupportFuncs
 
             return ['status' => 'error', 'message' => 'Unbekannte Aktion.'];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler aufgetreten'];
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Abbruch durch Systemfehler ('{$e->getMessage()}')."];
+        }
+    }
+
+    public static function executeGetInvoiceLink(array $args)
+    {
+        try {
+            $orderNumber = trim($args['order_number'] ?? '');
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer nicht übergeben.'];
+
+            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('invoices')->first();
+            if (!$order) {
+                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
+            }
+
+            $invoices = $order->invoices;
+            if ($invoices->isEmpty()) {
+                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Zu dieser Bestellung wurde noch keine Rechnung generiert (Status ist evt. noch nicht versendet). Vertröste den Kunden.'];
+            }
+
+            $invLines = [];
+            foreach ($invoices as $inv) {
+                $url = url("/invoice/{$inv->id}/download");
+                $invLines[] = "- Rechnung {$inv->invoice_number} über " . number_format($inv->total / 100, 2, ',', '.') . " € (Link: {$url})";
+            }
+
+            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text so ähnlich aus: \"Ich habe offizielle Rechnungs-Dokumente zu deiner Bestellung gefunden:\n" . implode("\n", $invLines) . "\""];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Suchen der Rechnung ('{$e->getMessage()}')."];
+        }
+    }
+
+    public static function executeGetManufacturingGuidelines(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => "HINTERGRUND-INFO / REGELWERK ZUR PRODUKTION:\n1. Emojis: Klassische bunte Handy-Emojis können wir mit dem Laser NICHT gravieren. Reine Text-Symbole wie <3 oder ein Standard-Herzchen (❤) sind aber meist möglich.\n2. Zeichenfolgen: Wir gravieren so, wie der Kunde es eintippt. Es wird nicht nochmal auf Rechtschreibung geprüft.\n3. Sonderwünsche: Wenn etwas graviert werden muss, was unser Konfigurator nicht zulässt, muss das Produkt ggf. abgelehnt werden."
+        ];
+    }
+
+    public static function executeGetCartTotal(array $args)
+    {
+        try {
+            $cartService = app(\App\Services\CartService::class);
+            $cart = $cartService->getCart();
+            if (!$cart || $cart->items->isEmpty()) {
+                return ['status' => 'success', 'message' => "HINTERGRUND-INFO AN KI: Der Warenkorb des Kunden ist aktuell komplett leer."];
+            }
+
+            $totals = $cartService->calculateTotals($cart);
+            $gross = number_format($totals['gross_total'] / 100, 2, ',', '.') . ' €';
+            $shipping = number_format($totals['shipping'] / 100, 2, ',', '.') . ' €';
+
+            return [
+                'status' => 'success',
+                'message' => "HINTERGRUND-INFO AN KI: Aktuelle Summe im Warenkorb:\nVersandkosten: {$shipping}\nGesamtbetrag: {$gross}\nTeile dies dem Kunden freundlich mit."
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Warenkorbsumme konnte nicht berechnet werden. ('{$e->getMessage()}')"];
         }
     }
 }

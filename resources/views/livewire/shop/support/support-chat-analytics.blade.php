@@ -289,7 +289,7 @@
                                                                         {{ $msg->sender === 'customer' ? 'Kunde' : $agentName }} • {{ $msg->created_at->format('H:i:s') }}
                                                                     </div>
                                                                 @endif
-                                                                <p class="text-sm whitespace-pre-wrap leading-relaxed">{!! \Illuminate\Support\Str::markdown($msg->message) !!}</p>
+                                                                <div class="text-sm whitespace-pre-wrap leading-relaxed [&_a]:text-cyan-400 [&_a]:font-bold [&_a]:underline [&_a]:hover:text-cyan-300 transition-all">{!! \Illuminate\Support\Str::markdown($msg->message) !!}</div>
                                                             </div>
                                                             @if($msg->sender === 'customer')
                                                                 <div class="w-7 h-7 rounded-full bg-cyan-700/50 border border-cyan-500/30 flex items-center justify-center shrink-0 mb-1">

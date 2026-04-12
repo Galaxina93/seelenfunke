@@ -11,6 +11,7 @@ use Livewire\Attributes\On;
 class MasterShopCapacity extends Component
 {
     public int $activeOrders = 0;
+    public int $rawOrdersCount = 0;
     // Konfigurierbare Werte
     public float $dailyWorkingHours = 7;
     public float $minutesPerOrder = 10;
@@ -56,6 +57,8 @@ class MasterShopCapacity extends Component
         $orders = OrderOrder::whereIn('status', ['pending', 'processing'])
             ->with('items.product')
             ->get();
+            
+        $this->rawOrdersCount = $orders->count();
 
         $totalMinutesRequired = 0;
 

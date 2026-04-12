@@ -180,6 +180,18 @@
                         </div>
                         <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 relative overflow-hidden group">
                             <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <i class="bi bi-box-seam text-8xl text-white"></i>
+                            </div>
+                            <div class="relative z-10">
+                                <div class="text-[9px] sm:text-[10px] uppercase text-gray-500 font-black tracking-widest truncate">Offene Bestellungen</div>
+                                <div class="text-2xl sm:text-3xl font-mono font-black text-white leading-none mt-2">{{ $rawOrdersCount }}</div>
+                                <div class="text-[8px] text-gray-600 uppercase tracking-wider mt-2 leading-tight hidden sm:block">
+                                    Rohwert: Tatsächliche Anzahl aller unfertigen Bestellungen
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 relative overflow-hidden group">
+                            <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
                                 <i class="bi bi-activity text-8xl text-white"></i>
                             </div>
                             <div class="relative z-10">
