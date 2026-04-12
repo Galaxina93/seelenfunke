@@ -14,32 +14,26 @@ class SystemInfoSeeder extends Seeder
     {
         $plans = [
             [
-                'name' => 'Mittwald Starter',
-                'token_limit' => 5000000,
-                'price_monthly' => 9.00,
+                'name' => 'API Studio (Free Tier)',
+                'token_limit' => 25000000,
+                'price_monthly' => 0.00,
                 'is_active' => false,
             ],
             [
-                'name' => 'Mittwald Pro',
-                'token_limit' => 75000000,
-                'price_monthly' => 39.00,
+                'name' => 'Vertex AI (Pay-as-you-go)',
+                'token_limit' => 0, // 0 = unbegrenzt
+                'price_monthly' => 0.00,
                 'is_active' => true,
             ],
             [
-                'name' => 'Mittwald Business',
-                'token_limit' => 300000000,
-                'price_monthly' => 149.00,
+                'name' => 'Kosten-Limit: 100M Tokens',
+                'token_limit' => 100000000,
+                'price_monthly' => 0.00,
                 'is_active' => false,
             ],
             [
-                'name' => 'Mittwald Dedicated',
-                'token_limit' => 10000000000, // Milliarden
-                'price_monthly' => 999.00,
-                'is_active' => false,
-            ],
-            [
-                'name' => 'Lokal gehostet',
-                'token_limit' => 999000000,
+                'name' => 'Kosten-Limit: 500M Tokens',
+                'token_limit' => 500000000,
                 'price_monthly' => 0.00,
                 'is_active' => false,
             ]

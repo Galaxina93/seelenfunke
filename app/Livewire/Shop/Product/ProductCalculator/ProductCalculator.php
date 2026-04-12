@@ -139,6 +139,7 @@ class ProductCalculator extends Component
                 'image' => !empty($p->media_gallery[0]['path']) ? 'storage/'.$p->media_gallery[0]['path'] : null,
                 'preview_image' => $previewPath ? 'storage/'.$previewPath : null,
                 'allow_logo' => $p->configurator_settings['allow_logo'] ?? true,
+                'is_personalizable' => (bool) $p->is_personalizable, // NEU
             ];
         })->keyBy('id')->toArray();
     }
@@ -160,6 +161,16 @@ class ProductCalculator extends Component
         if(!$this->currentProduct) return;
 
         $this->currentConfig = [];
+
+        // --- B2B BYPASS: Wenn nicht personalisiert, direkt in Cart legen! ---
+        if (!$this->currentProduct['is_personalizable']) {
+            $data = [
+                'product_id' => $productId,
+                'qty' => 1,
+            ];
+            $this->saveItemFromConfigurator($data);
+            return;
+        }
 
         // Prüfen, ob es aktive Vorlagen für dieses Produkt gibt
         $templates = ProductTemplate::where('product_id', $productId)

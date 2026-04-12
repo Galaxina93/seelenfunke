@@ -87,27 +87,37 @@ class OrderOverview extends Component
         $prio = $this->priority_order;
         if (!$prio) return '';
 
-        if ($prio->is_express) {
-            // Check stock of order items
-            $missingItems = [];
-            foreach ($prio->items as $item) {
-                if ($item->product && $item->product->track_quantity) {
-                    // Check if requested quantity exceeds current stock
+        $missingItems = [];
+        $isOnlyStandard = true;
+
+        foreach ($prio->items as $item) {
+            if ($item->product) {
+                if ($item->product->isPersonalizable()) {
+                    $isOnlyStandard = false;
+                }
+                
+                if ($prio->is_express && $item->product->track_quantity) {
                     if ($item->quantity > $item->product->quantity && !$item->product->continue_selling_when_out_of_stock) {
                         $missingItems[] = $item->product->name;
                     }
                 }
             }
-
-            if (count($missingItems) > 0) {
-                return '<span class="text-red-400 font-bold">Lagerbestand Kritisch!</span> ' . count($missingItems) . ' Artikel für diesen Express-Versand fehlen physisch. Bitte sofort prüfen!';
-            }
-
-            return '<span class="text-emerald-400 font-bold">Lagerbestand gesichert!</span> Dieser Express-Versand ist komplett auf Lager und kann sofort abgewickelt werden.';
         }
 
+        $standardMessage = '';
+        if ($isOnlyStandard) {
+            $standardMessage = '<div class="mt-3 bg-[var(--theme-color-10)] p-3 rounded-xl border border-[var(--theme-color-30)] shadow-inner"><span class="text-[var(--theme-color)] font-black text-sm tracking-widest block mb-1">⚡ SCHNELLE NUMMER:</span> <span class="text-white font-bold block">Ausschließlich Lagerware! Keine Personalisierung/Laser-Arbeit nötig. Einfach aus dem Regal nehmen, verpacken, Label drauf und ab die Post!</span></div>';
+        }
 
-        return 'Dies ist der älteste offene Auftrag im System. Arbeite ihn zügig ab, um die Wartezeiten gering zu halten.';
+        if ($prio->is_express) {
+            if (count($missingItems) > 0) {
+                return '<span class="text-red-400 font-bold">Lagerbestand Kritisch!</span> ' . count($missingItems) . ' Artikel für diesen Express-Versand fehlen physisch. Bitte sofort prüfen!' . $standardMessage;
+            }
+
+            return '<span class="text-emerald-400 font-bold">Lagerbestand gesichert!</span> Dieser Express-Versand ist komplett auf Lager und kann sofort abgewickelt werden.' . $standardMessage;
+        }
+
+        return 'Dies ist der älteste offene Auftrag im System. Arbeite ihn zügig ab, um die Wartezeiten gering zu halten.' . $standardMessage;
     }
 
     // --- ACTIONS: SORTIERUNG ---

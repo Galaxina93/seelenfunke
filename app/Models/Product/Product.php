@@ -22,6 +22,7 @@ class Product extends Model
         'attributes' => 'array',
         'tier_pricing' => 'array',
         'configurator_settings' => 'array',
+        'is_personalizable' => 'boolean',
         'track_quantity' => 'boolean',
         'continue_selling_when_out_of_stock' => 'boolean',
         'price' => 'integer',
@@ -157,6 +158,11 @@ class Product extends Model
     }
 
     // --- NEUE TYP-LOGIK ---
+
+    public function isPersonalizable(): bool
+    {
+        return (bool) $this->is_personalizable;
+    }
 
     public function isPhysical(): bool
     {

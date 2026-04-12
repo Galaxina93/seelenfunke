@@ -18,14 +18,14 @@
         });
      ">
     <!-- Header -->
-    <div class="mb-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 transition-all duration-300"
+    <div class="mb-5 text-center mt-4 font-mono transition-all duration-300"
          :class="isFullscreen ? 'hidden' : 'px-4 sm:px-0'">
-        <div>
-            <h2 class="text-3xl font-bold text-emerald-500 mb-1 font-mono tracking-tight shadow-emerald-500/20 drop-shadow-md">
-                KI Chat Konsole
-            </h2>
-            <p class="text-emerald-700/80 font-mono text-xs uppercase tracking-widest">Multi-Agenten System Interaktives Terminal</p>
-        </div>
+        <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+            KI Chat Konsole
+        </h1>
+        <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
+            Multi-Agenten System Interaktives Terminal
+        </p>
     </div>
 
     <!-- Matrix Chat Terminal -->

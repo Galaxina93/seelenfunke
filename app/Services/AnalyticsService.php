@@ -40,6 +40,7 @@ class AnalyticsService
             'open_chats' => $this->checkChats(),
             'open_contact_requests' => $this->checkContactRequests(),
             'open_mails' => $this->checkMails(),
+            'storage' => $this->checkStorage(),
         ]);
     }
 
@@ -53,13 +54,36 @@ class AnalyticsService
             ->get();
 
         return [
-            'title' => 'Offene Lagerbestände',
+            'title' => 'Lagerbestände',
             'status' => $lowStockProducts->count() > 0 ? 'error' : 'success',
             'message' => $lowStockProducts->count() > 0 ? $lowStockProducts->count() . " Artikel unter Limit!" : "Lagerbestände optimal.",
             'icon' => 'cube',
             'count' => $lowStockProducts->count(),
             'data' => $lowStockProducts
         ];
+    }
+
+    private function checkStorage(): ?array
+    {
+        $freeSpace = \disk_free_space(base_path());
+        $totalSpace = \disk_total_space(base_path());
+        if ($totalSpace > 0) {
+            $percentUsed = 100 - round(($freeSpace / $totalSpace) * 100);
+            $threshold1 = (int) \Illuminate\Support\Facades\Cache::get('storage_capacity_threshold_1', \App\Models\System\SystemSetting::where('key', 'storage_capacity_threshold_1')->value('value') ?? 70);
+            
+            $needsAction = $percentUsed >= $threshold1;
+            
+            return [
+                'status' => $needsAction ? 'error' : 'success',
+                'icon' => 'server',
+                'title' => 'Speicher',
+                'description' => 'Serverfestplatte',
+                'message' => $needsAction ? "Mahnung 1 ({$percentUsed}% voll)" : 'Ausreichend Platz',
+                'count' => $needsAction ? 1 : 0,
+                'data' => []
+            ];
+        }
+        return null;
     }
 
     private function checkSpecialIssues(): array
@@ -71,7 +95,7 @@ class AnalyticsService
         })->orderBy('execution_date', 'desc')->get();
 
         return [
-            'title' => 'Offene Belege',
+            'title' => 'Belege',
             'status' => $missing->count() > 0 ? 'error' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Positionen ohne Beleg." : "Alle Ausgaben belegt.",
             'icon' => 'banknotes',
@@ -85,7 +109,7 @@ class AnalyticsService
         $missing = AccountingCostItem::whereNull('contract_file_path')->with('group')->get();
 
         return [
-            'title' => 'Offene Verträge',
+            'title' => 'Verträge',
             'status' => $missing->count() > 0 ? 'error' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Unterlagen fehlen." : "Dokumente vollständig.",
             'icon' => 'document-text',
@@ -102,11 +126,11 @@ class AnalyticsService
         $tCount = $openTickets->count();
         $status = $tCount > 0 ? 'error' : 'success';
         $msg = $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet';
-        if ($totalTickets === 0) { $msg = 'Keine Tickets vorhanden'; $status = 'warning'; }
+        if ($totalTickets === 0) { $msg = 'Keine Tickets vorhanden'; $status = 'success'; }
         return [
             'status' => $status,
             'icon' => 'ticket',
-            'title' => 'Offene Tickets',
+            'title' => 'Tickets',
             'message' => $msg,
             'count' => $tCount,
             'data' => $openTickets->map(function($t) {
@@ -128,11 +152,11 @@ class AnalyticsService
         $cCount = $openChats->count();
         $status = $cCount > 0 ? 'error' : 'success';
         $msg = $cCount > 0 ? $cCount . ' Live-Chats offen' : 'Alles beantwortet';
-        if ($totalChats === 0) { $msg = 'Keine Chats vorhanden'; $status = 'warning'; }
+        if ($totalChats === 0) { $msg = 'Keine Chats vorhanden'; $status = 'success'; }
         return [
             'status' => $status,
             'icon' => 'chat-bubble-oval-left-ellipsis',
-            'title' => 'Offene Chats',
+            'title' => 'Chats',
             'message' => $msg,
             'count' => $cCount,
             'data' => []
@@ -147,14 +171,14 @@ class AnalyticsService
             ->whereNotIn('folder', ['Trash', 'Sent', 'Drafts', 'Junk', 'Archiv', 'Archive', 'Gesendet', 'Entwürfe', 'Papierkorb'])
             ->count();
 
-        $status = $openMails > 0 ? 'warning' : 'success';
+        $status = $openMails > 0 ? 'error' : 'success';
         $msg = $openMails > 0 ? $openMails . ' ungelesen' : 'Alles gelesen';
-        if ($totalMails === 0) { $msg = 'Keine Mails vorhanden'; $status = 'warning'; }
+        if ($totalMails === 0) { $msg = 'Keine Mails vorhanden'; $status = 'success'; }
 
         return [
             'status' => $status,
             'icon' => 'envelope-open',
-            'title' => 'Offene Mails',
+            'title' => 'Mails',
             'message' => $msg,
             'count' => $openMails,
             'data' => []
@@ -169,11 +193,11 @@ class AnalyticsService
         $rCount = $openReqs->count();
         $status = $rCount > 0 ? 'error' : 'success';
         $msg = $rCount > 0 ? $rCount . ' Kontaktanfragen offen' : 'Alles beantwortet';
-        if ($totalReqs === 0) { $msg = 'Keine Kontaktanfragen vorhanden'; $status = 'warning'; }
+        if ($totalReqs === 0) { $msg = 'Keine Kontaktanfragen vorhanden'; $status = 'success'; }
         return [
             'status' => $status,
             'icon' => 'envelope',
-            'title' => 'Offene Anfragen',
+            'title' => 'Anfragen',
             'message' => $msg,
             'count' => $rCount,
             'data' => []
@@ -188,11 +212,11 @@ class AnalyticsService
         $rCount = $pendingReviews->count();
         $status = $rCount > 0 ? 'error' : 'success';
         $msg = $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft';
-        if ($totalReviews === 0) { $msg = 'Noch keine Bewertungen'; $status = 'warning'; }
+        if ($totalReviews === 0) { $msg = 'Noch keine Bewertungen'; $status = 'success'; }
         return [
             'status' => $status,
             'icon' => 'star',
-            'title' => 'Offene Bewertungen',
+            'title' => 'Bewertungen',
             'message' => $msg,
             'count' => $rCount,
             'data' => $pendingReviews->map(function($r) {
@@ -210,10 +234,10 @@ class AnalyticsService
         if (!class_exists(\App\Models\Order\OrderOrder::class)) return null;
         $totalOrders = \App\Models\Order\OrderOrder::count();
         $oCount = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
-        $status = $oCount > 0 ? 'warning' : 'success';
+        $status = $oCount > 0 ? 'error' : 'success';
         $msg = $oCount > 0 ? $oCount . ' unversendet' : 'Alles versendet';
-        if ($totalOrders === 0) { $msg = 'Noch keine Bestellungen'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'shopping-cart', 'title' => 'Offene Bestellungen', 'message' => $msg, 'count' => $oCount, 'data' => []];
+        if ($totalOrders === 0) { $msg = 'Noch keine Bestellungen'; $status = 'success'; }
+        return ['status' => $status, 'icon' => 'shopping-cart', 'title' => 'Bestellungen', 'message' => $msg, 'count' => $oCount, 'data' => []];
     }
 
     private function checkCredits(): ?array
@@ -223,8 +247,8 @@ class AnalyticsService
         $cCount = \App\Models\Accounting\AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->whereNull('email_sent_at')->count();
         $status = $cCount > 0 ? 'error' : 'success';
         $msg = $cCount > 0 ? $cCount . ' unversendet' : 'Alle versendet';
-        if ($totalCredits === 0) { $msg = 'Keine Gutschriften vorhanden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'document-minus', 'title' => 'Offene Gutschriften', 'message' => $msg, 'count' => $cCount, 'data' => []];
+        if ($totalCredits === 0) { $msg = 'Keine Gutschriften vorhanden'; $status = 'success'; }
+        return ['status' => $status, 'icon' => 'document-minus', 'title' => 'Gutschriften', 'message' => $msg, 'count' => $cCount, 'data' => []];
     }
 
     private function checkUnassignedTx(): ?array
@@ -234,8 +258,8 @@ class AnalyticsService
         $unassignedTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->whereNull('assigned_by_type')->count();
         $status = $unassignedTx > 0 ? 'error' : 'success';
         $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
-        if ($totalTx === 0) { $msg = 'Keine Transaktionen gefunden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'banknotes', 'title' => 'Offene Bank Umsätze', 'message' => $msg, 'count' => $unassignedTx, 'data' => []];
+        if ($totalTx === 0) { $msg = 'Keine Transaktionen gefunden'; $status = 'success'; }
+        return ['status' => $status, 'icon' => 'banknotes', 'title' => 'Bank Umsätze', 'message' => $msg, 'count' => $unassignedTx, 'data' => []];
     }
 
     private function checkTasks(): ?array
@@ -243,10 +267,10 @@ class AnalyticsService
         if (!class_exists(\App\Models\Management\ManagementTask::class)) return null;
         $totalTasks = \App\Models\Management\ManagementTask::count();
         $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->count();
-        $status = $openTasks > 0 ? 'warning' : 'success';
+        $status = $openTasks > 0 ? 'error' : 'success';
         $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
-        if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'check-circle', 'title' => 'Offene Aufgaben', 'message' => $msg, 'count' => $openTasks, 'data' => []];
+        if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'success'; }
+        return ['status' => $status, 'icon' => 'check-circle', 'title' => 'Aufgaben', 'message' => $msg, 'count' => $openTasks, 'data' => []];
     }
 
     private function checkQuotes(): ?array
@@ -256,8 +280,8 @@ class AnalyticsService
         $openQuotes = \App\Models\Order\OrderQuoteRequest::where('status', 'open')->count();
         $status = $openQuotes > 0 ? 'error' : 'success';
         $msg = $openQuotes > 0 ? $openQuotes . ' Angebote offen' : 'Alles aktuell';
-        if ($totalQuotes === 0) { $msg = 'Keine Angebote vorhanden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'clipboard-document-list', 'title' => 'Offene Angebote', 'message' => $msg, 'count' => $openQuotes, 'data' => []];
+        if ($totalQuotes === 0) { $msg = 'Keine Angebote vorhanden'; $status = 'success'; }
+        return ['status' => $status, 'icon' => 'clipboard-document-list', 'title' => 'Angebote', 'message' => $msg, 'count' => $openQuotes, 'data' => []];
     }
 
     private function checkRevocations(): ?array
@@ -267,8 +291,8 @@ class AnalyticsService
         $oldRevs = \App\Models\Order\OrderRevocation::whereNotIn('status', ['processed', 'declined'])->where('created_at', '<', now()->subDays(2))->count();
         $status = $oldRevs > 0 ? 'error' : 'success';
         $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
-        if ($totalRevs === 0) { $msg = 'Keine Widerrufe vorhanden'; $status = 'warning'; }
-        return ['status' => $status, 'icon' => 'archive-box-x-mark', 'title' => 'Offene Widerrufe', 'message' => $msg, 'count' => $oldRevs, 'data' => []];
+        if ($totalRevs === 0) { $msg = 'Keine Widerrufe vorhanden'; $status = 'success'; }
+        return ['status' => $status, 'icon' => 'archive-box-x-mark', 'title' => 'Widerrufe', 'message' => $msg, 'count' => $oldRevs, 'data' => []];
     }
 
     private function checkLosses(): ?array
@@ -276,9 +300,9 @@ class AnalyticsService
         if (!class_exists(\App\Models\Product\ProductLoss::class)) return null;
         $totalLosses = \App\Models\Product\ProductLoss::count();
         $openLosses = \App\Models\Product\ProductLoss::whereNull('refund_received_at')->count();
-        $status = $openLosses > 0 ? 'warning' : 'success';
+        $status = $openLosses > 0 ? 'error' : 'success';
         $msg = $openLosses > 0 ? $openLosses . ' ungelöste Fälle' : 'Alles erledigt';
-        if ($totalLosses === 0) { $msg = 'Keine Schäden erfasst'; $status = 'warning'; }
+        if ($totalLosses === 0) { $msg = 'Keine Schäden erfasst'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'exclamation-triangle', 'title' => 'Schwund & Bruch', 'message' => $msg, 'count' => $openLosses, 'data' => []];
     }
 
@@ -668,7 +692,9 @@ class AnalyticsService
             'avg_profit' => $avgProfit,
             'projected_year' => $projectedProfit,
             'margin' => round($margin, 1),
-            'break_even_monthly' => ($fixGewerbe + $fixPrivat) / ($durationInDays / 30.42),
+            'break_even_monthly' => ($fixGewerbe + $fixPrivat) / max(1, ($durationInDays / 30.42)),
+            'break_even_period' => ($fixGewerbe + $fixPrivat),
+            'break_even_chart_line' => ($diffInDays <= 31) ? (($fixGewerbe + $fixPrivat) / max(1, ($durationInDays / 30.42)) / 30.42) : (($fixGewerbe + $fixPrivat) / max(1, ($durationInDays / 30.42))),
             'shop_quality_score' => $qualityScore,
             'health_score' => $healthScore,
             'fixed_income_total' => $fixedIncomeTotal,
@@ -721,6 +747,6 @@ class AnalyticsService
         $prompt .= json_encode($dataPayload, JSON_UNESCAPED_UNICODE) . "\n\n";
         $prompt .= "Analysiere diese extrem detailliert. Formuliere strategische, sofort umsetzbare Management-Handlungsanweisungen bzgl. der Wachstumsraten, Task-Prioritäten und Kalenderdichte.";
 
-        return \App\Services\AI\MittwaldAgent::processDirectPrompt($agent, $prompt);
+        return \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
     }
 }

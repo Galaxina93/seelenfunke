@@ -40,6 +40,13 @@
             'scheduler' => ['label' => 'Task Scheduler', 'host' => 'Cronjob', 'port' => 'CLI', 'desc' => 'Führt zeitgesteuerte Hintergrundaufgaben aus (z.B. Bereinigungen, Erinnerungen).'],
             'backup' => ['label' => 'System Backup', 'host' => 'Storage', 'port' => 'N/A', 'desc' => 'Prüft, ob in den letzten 48 Stunden eine Sicherung der Datenbank erstellt wurde.'],
             'ws' => ['label' => 'WebSocket ' . (app()->environment('local') ? '(Lokal)' : '(Stage/Live)'), 'host' => env('MIX_PUSHER_HOST', env('VITE_REVERB_HOST', env('PUSHER_HOST', '127.0.0.1'))), 'port' => env('MIX_PUSHER_PORT', env('VITE_REVERB_PORT', env('PUSHER_PORT', '6001'))), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
+            'dhl' => ['label' => 'DHL Paket API', 'host' => 'api.dhl.com', 'port' => '443', 'desc' => 'Label-Generierung und Sendungsverfolgung.'],
+            'finapi' => ['label' => 'finAPI (Bank)', 'host' => env('FINAPI_ENV', 'live') === 'live' ? 'live.finapi.io' : 'sandbox.finapi.io', 'port' => '443', 'desc' => 'Schnittstelle zur Bankkonto-Synchronisation.'],
+            'mittwald' => ['label' => 'Mittwald Agent', 'host' => parse_url(config('services.mittwald.url', 'https://llm.aihosting.mittwald.de'), PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de', 'port' => '443', 'desc' => 'Verbindung zur lokalen LLM-Infrastruktur.'],
+            'gemini' => ['label' => 'Google Gemini', 'host' => 'generativelanguage.googleapis.com', 'port' => '443', 'desc' => 'Google AI Basismodell für komplexe Task-Bewältigung.'],
+            'google_places' => ['label' => 'Google Places', 'host' => 'maps.googleapis.com', 'port' => '443', 'desc' => 'Schnittstelle für automatische Kundenbewertungen.'],
+            'elster' => ['label' => 'Elster (ERiC)', 'host' => 'elster.de', 'port' => '443', 'desc' => 'Anbindung zur Finanzbehörde der Bundesrepublik Deutschland.'],
+            'scraperapi' => ['label' => 'ScraperAPI', 'host' => 'api.scraperapi.com', 'port' => '80', 'desc' => 'Proxy-Service für Marktforschung und SEO-Agenten.'],
         ];
 
         $systemGroups = [
@@ -49,7 +56,11 @@
             ],
             'Schnittstellen & API' => [
                 'color' => 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]',
-                'items' => ['ws', 'stripe', 'smtp']
+                'items' => ['ws', 'stripe', 'smtp', 'dhl', 'finapi', 'elster']
+            ],
+            'AI & Daten-Agenten' => [
+                'color' => 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]',
+                'items' => ['mittwald', 'gemini', 'google_places', 'scraperapi']
             ],
             'Background & Security' => [
                 'color' => 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]',
@@ -397,7 +408,6 @@
 
                                 $statusClass = match($check['status'] ?? 'error') {
                                     'success' => 'text-emerald-500 group-hover:text-emerald-400',
-                                    'warning' => 'text-amber-500 group-hover:text-amber-400',
                                     default => 'text-red-500 group-hover:text-red-400',
                                 };
 
@@ -435,7 +445,7 @@
                                     @if($needsAction)
                                         <div class="inline-flex items-center gap-2 bg-gray-900/50 border border-gray-800 px-3 py-1.5 rounded-lg">
                                             <div class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
-                                            <span class="text-xs font-bold text-gray-300">{{ $check['count'] }} Offen</span>
+                                            <span class="text-xs font-bold text-gray-300">{{ $check['count'] }}</span>
                                             <x-heroicon-m-chevron-right class="w-4 h-4 text-gray-600 group-hover:text-[#C5A059] transition-colors ml-2" />
                                         </div>
                                     @else

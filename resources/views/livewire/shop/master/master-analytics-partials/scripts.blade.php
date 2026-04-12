@@ -56,6 +56,17 @@
                             fill: false,
                             tension: 0.4,
                             hidden: true
+                        },
+                        {
+                            label: 'Break-Even',
+                            data: Array(data.chart_data.labels.length).fill(data.break_even_chart_line),
+                            borderColor: '#ef4444', // red-500
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0,
+                            order: 2
                         }
                     ]
                 },

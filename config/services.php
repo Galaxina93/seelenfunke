@@ -55,4 +55,9 @@ return [
         'key' => env('MITTWALD_AI_API_KEY'),
     ],
 
+    'gemini' => [
+        'url' => env('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
+        'key' => env('GEMINI_API_KEY'),
+    ],
+
 ];

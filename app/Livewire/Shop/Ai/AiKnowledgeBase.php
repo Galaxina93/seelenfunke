@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Ai;
 
 use App\Models\Ai\AiKnowledgeBase as KB;
 use App\Models\Ai\AiKnowledgeBaseCategory;
+use App\Models\Ai\AiKnowledgeBaseTag;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;

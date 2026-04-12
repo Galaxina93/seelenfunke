@@ -92,11 +92,8 @@ class AIController extends Controller
             $navMap .= "- " . $name . " => " . $path . "\n";
         }
 
-        $history[] = [
-            'role' => 'system',
-            'content' => "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste. Erfinde und rate NIEMALS fremde URLs! Nutze ausschließlich diese:\n" . $navMap . "\n" .
-                         "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!"
-        ];
+        $dynamicSystemPrompt = "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste. Erfinde und rate NIEMALS fremde URLs! Nutze ausschließlich diese:\n" . $navMap . "\n" .
+                         "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!";
 
         $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
         
@@ -104,7 +101,12 @@ class AIController extends Controller
             return response()->json(['status' => 'error', 'message' => 'No AI Agent found in database.'], 500);
         }
 
-        $agent = new \App\Services\AI\MittwaldAgent($aiAgent);
+        $agent = \App\Services\AI\AiAgentFactory::make($aiAgent);
+        
+        if (method_exists($agent, 'setDynamicSystemPrompt')) {
+            $agent->setDynamicSystemPrompt($dynamicSystemPrompt);
+        }
+
         $result = $agent->ask($history);
 
         // Speichere finalen Dialog-Verlauf in der Datenbank
@@ -160,7 +162,7 @@ class AIController extends Controller
                     $payload['voice_key'] = $aiAgent->tts_voice;
                 }
 
-                $request = \Illuminate\Support\Facades\Http::timeout(30);
+                $request = \Illuminate\Support\Facades\Http::connectTimeout(2)->timeout(30);
                 if (!empty($apiKey)) {
                     $request = $request->withToken($apiKey);
                 }
@@ -189,20 +191,7 @@ class AIController extends Controller
         }
 
         // Metriken speichern (Fix für Analytics Dashboard fehlende Chat Activity)
-        if (class_exists(\App\Models\Ai\AiMetric::class) && isset($result['usage']) && isset($result['latency_ms'])) {
-            try {
-                \App\Models\Ai\AiMetric::create([
-                    'ai_agent_id' => $aiAgent ? $aiAgent->id : null,
-                    'type' => 'inference',
-                    'input_tokens' => $result['usage']['prompt_tokens'] ?? 0,
-                    'output_tokens' => $result['usage']['completion_tokens'] ?? 0,
-                    'total_time_ms' => $result['latency_ms'],
-                    'is_success' => true
-                ]);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::warning("Could not log AiMetric in AIController: " . $e->getMessage());
-            }
-        }
+            // Tracking is now automatically handled centrally in AiAgentFactory
 
         return response()->json([
             'status' => 'success',

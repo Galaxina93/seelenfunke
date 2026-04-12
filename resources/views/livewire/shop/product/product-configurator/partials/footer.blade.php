@@ -2,7 +2,7 @@
     <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}" x-data="{saved: false}" x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 6000)">
         <div class="max-w-4xl mx-auto space-y-4">
             {{-- EXPRESS TOGGLE --}}
-            @if($context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical')
+            @if($context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && $this->product->isPersonalizable())
                 @php
                     $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
                     $expressMin = (int)shop_setting('express_surcharge_min', 500);
@@ -70,6 +70,8 @@
                             Ich bestätige, dass die Vorlage korrekt konfiguriert ist und als Basis für Kunden dient.
                         @elseif($isDigital)
                             Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist begonnen wird. Mir ist bekannt, dass ich durch diese Zustimmung mein Widerrufsrecht verliere.
+                        @elseif(!$this->product->isPersonalizable())
+                            Ich bestätige meine Bestellung. Da dieses Produkt nicht personalisiert ist, gilt das gesetzliche 14-tägige Widerrufsrecht.
                         @else
                             Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
                         @endif

@@ -1,14 +1,15 @@
 <div>
     <div class="animate-fade-in-up font-mono antialiased text-emerald-600 pb-12 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-black/90 backdrop-blur-md p-6 sm:p-10 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-900/40 relative overflow-hidden mb-8">
-            <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
-                <x-heroicon-o-cpu-chip class="w-40 h-40 text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,1)]" />
-            </div>
-            <div class="relative z-10">
-                <h1 class="text-3xl sm:text-4xl font-black text-emerald-500 tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md font-mono">Generative UI</h1>
-                <p class="text-emerald-700 mt-2 text-sm font-bold uppercase tracking-widest font-mono">Intelligentes Livewire Routing für AI-Datenvisualisierung (Headless)</p>
-            </div>
-            <div class="relative z-10 bg-gray-950 p-2 rounded-xl border border-emerald-900/50 shadow-inner flex items-center gap-3 font-mono">
+        <div class="mb-12 text-center mt-4 font-mono">
+            <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+                Generative UI
+            </h1>
+            <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
+                Intelligentes Livewire Routing für AI-Datenvisualisierung (Headless)
+            </p>
+        </div>
+        <div class="flex justify-end mb-8 relative z-10 font-mono">
+            <div class="bg-gray-950 p-2 rounded-xl border border-emerald-900/50 shadow-inner flex items-center gap-3">
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-[0_0_10px_rgba(16,185,129,0.2)]">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_currentColor]"></span>
                     GenUI Aktiv

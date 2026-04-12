@@ -1,8 +1,12 @@
-<div>
+<div class="px-4 py-8 max-w-[1600px] mx-auto min-h-screen">
     <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-white mb-2">Agenten Dashboard (Analyse)</h1>
-        <p class="text-gray-400">Übersichtskennzahlen, Token-Ökonomie und Tool-Usage der gesamten digitalen Belegschaft.</p>
+    <div class="text-center mb-12 mt-4 font-mono">
+        <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+            KI Analytics
+        </h1>
+        <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
+            Übersichtskennzahlen, Token-Ökonomie und Tool-Usage der digitalen Belegschaft.
+        </p>
     </div>
 
     <!-- ApexCharts CDN Injection -->
@@ -39,7 +43,11 @@
             <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-blue-500/10 to-transparent"></div>
             <div class="text-gray-400 text-sm font-medium mb-1">Paket ({{ $planName }})</div>
             
-            <div class="text-3xl font-bold text-white mb-2">{{ $price }} € <span class="text-sm font-normal text-gray-400">/ Mon.</span></div>
+            @if($price === '0,00')
+                <div class="text-3xl font-bold text-emerald-400 mb-2">~{{ number_format($estimatedCostThisMonth, 2, ',', '.') }} € <span class="text-sm font-normal text-gray-400 uppercase tracking-widest text-[10px]">Verbrauch</span></div>
+            @else
+                <div class="text-3xl font-bold text-white mb-2">{{ $price }} € <span class="text-sm font-normal text-gray-400">/ Mon.</span></div>
+            @endif
             
             <div class="flex justify-between text-xs text-gray-400 mb-1 mt-2">
                 <span>{{ number_format($tokensThisMonth, 0, ',', '.') }} Tokens</span>

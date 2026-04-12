@@ -260,23 +260,12 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
         }
 
         try {
-            $apiService = new \App\Services\AI\MittwaldAgent($agent);
+            $apiService = \App\Services\AI\AiAgentFactory::make($agent);
 
             $response = $apiService->ask($apiHistory);
             $replyText = $response['response'] ?? 'Ich konnte keine Antwort generieren.';
 
-            if (class_exists(\App\Models\Ai\AiMetric::class) && isset($response['usage']) && isset($response['latency_ms'])) {
-                try {
-                    \App\Models\Ai\AiMetric::create([
-                        'ai_agent_id' => $agent->id,
-                        'type' => 'inference',
-                        'input_tokens' => $response['usage']['prompt_tokens'] ?? 0,
-                        'output_tokens' => $response['usage']['completion_tokens'] ?? 0,
-                        'total_time_ms' => $response['latency_ms'],
-                        'is_success' => true
-                    ]);
-                } catch (\Exception $e) {}
-            }
+            // Tracking is now automatically handled centrally in AiAgentFactory
 
             $ctx = [
                 'name' => $agent->name,

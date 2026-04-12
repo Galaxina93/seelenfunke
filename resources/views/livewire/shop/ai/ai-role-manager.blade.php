@@ -142,11 +142,16 @@
             </form>
         @else
             <!-- Standard Listen-Ansicht -->
+            <div class="mb-12 text-center mt-4 font-mono">
+                <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+                    KI Rollen
+                </h1>
+                <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
+                    Verwalte die grundlegenden KI-Rollen und Zuständigkeiten.
+                </p>
+            </div>
             <div class="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div>
-                    <h2 class="text-3xl font-black text-white mb-1 uppercase tracking-wider font-mono">Agenten Rollen</h2>
-                    <p class="text-gray-400 font-mono text-sm">Verwalte die grundlegenden KI-Rollen und Zuständigkeiten.</p>
-                </div>
+                <div></div>
                 
                 @if(count($topTools) > 0)
                 <div class="bg-black/40 border border-gray-800/60 rounded-2xl p-4 shadow-[0_0_20px_rgba(0,0,0,0.3)] min-w-[300px]">

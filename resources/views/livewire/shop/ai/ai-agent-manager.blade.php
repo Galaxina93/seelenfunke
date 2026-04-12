@@ -1,14 +1,16 @@
 <div>
     <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-black/90 backdrop-blur-md p-6 sm:p-10 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-900/40 relative overflow-hidden mb-8 mt-8">
-            <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
-                <x-heroicon-o-cpu-chip class="w-40 h-40 text-emerald-500 drop-shadow-[0_0_20px_rgba(16,185,129,1)]" />
-            </div>
-            <div class="relative z-10">
-                <h1 class="text-3xl sm:text-4xl font-black text-emerald-500 tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md font-mono">Interne Agenten</h1>
-                <p class="text-emerald-700 mt-2 text-sm font-bold uppercase tracking-widest font-mono">Verwalte hier das interne Multi-Agenten-System. Jeder Agent erhält seine Identität und Werkzeuge dynamisch über seine zugewiesene KI-Rolle.</p>
-            </div>
-            <div class="relative z-10 bg-gray-950 p-2 rounded-xl border border-emerald-900/50 shadow-inner flex items-center gap-3">
+        <div class="mb-12 text-center mt-4 font-mono">
+            <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+                KI Agenten Manager
+            </h1>
+            <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
+                Verwalte Modelle, Profile und Zugriffsrechte der internen KI-Instanzen.
+            </p>
+        </div>
+
+        <div class="flex justify-end mb-8 relative z-10">
+            <div class="bg-gray-950 p-2 rounded-xl border border-emerald-900/50 shadow-inner flex items-center gap-3">
                 <button wire:click="syncAll" class="px-6 py-2.5 bg-gray-900/80 text-gray-400 border border-gray-700/50 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-800 hover:text-white transition-all flex items-center justify-center gap-2 font-mono group">
                     <x-heroicon-o-arrow-path class="w-4 h-4" wire:loading.class="animate-spin" wire:target="syncAll" /> Sync Alle
                 </button>

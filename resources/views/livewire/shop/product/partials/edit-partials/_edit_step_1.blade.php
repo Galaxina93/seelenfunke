@@ -72,6 +72,21 @@
                     </div>
                 </label>
             </div>
+
+            {{-- NEU: Personalisierbar Toggle --}}
+            <div class="mt-8 pt-6 border-t border-gray-800">
+                <label class="flex items-center gap-4 cursor-pointer w-max group">
+                    <div class="relative">
+                        <input type="checkbox" wire:model.live="is_personalizable" class="sr-only">
+                        <div class="block w-14 h-8 {{ $is_personalizable ? 'bg-[var(--theme-color)]' : 'bg-gray-800' }} rounded-full transition-colors duration-300 shadow-inner"></div>
+                        <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition transform duration-300 ease-in-out {{ $is_personalizable ? 'translate-x-6 shadow-md' : '' }}"></div>
+                    </div>
+                    <div>
+                        <div class="font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors">Personalisierbares Produkt</div>
+                        <div class="text-[10px] text-gray-500 font-medium">Wenn deaktiviert, wird im Shop kein Design-Konfigurator geladen.</div>
+                    </div>
+                </label>
+            </div>
         </div>
 
         {{-- Karte 1: Grunddaten --}}

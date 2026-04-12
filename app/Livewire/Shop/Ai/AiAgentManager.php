@@ -3,8 +3,10 @@
 namespace App\Livewire\Shop\Ai;
 
 use App\Models\Ai\AiAgent;
+use Livewire\Attributes\Layout;
 use Livewire\Component;
 
+#[Layout('components.layouts.backend_layout')]
 class AiAgentManager extends Component
 {
     public string $themingDepartment = 'Agenten';
@@ -30,7 +32,12 @@ class AiAgentManager extends Component
         // Approximate context window based on the model name
         $maxTokens = 32000;
         $model = strtolower($agent->model ?? '');
-        if (str_contains($model, '120b') || str_contains($model, 'gpt-4')) {
+        
+        if (str_contains($model, 'gemini-3') || str_contains($model, 'gemini-1.5-pro')) {
+            $maxTokens = 2000000;
+        } elseif (str_contains($model, 'gemini')) {
+            $maxTokens = 1000000;
+        } elseif (str_contains($model, '120b') || str_contains($model, 'gpt-4')) {
             $maxTokens = 120000; // Leaving some padding
         } elseif (str_contains($model, 'ministral') || str_contains($model, 'devstral')) {
             $maxTokens = 32000;
@@ -125,8 +132,17 @@ class AiAgentManager extends Component
         $llmStatus = 'Fehler';
         try {
             $start = microtime(true);
-            $llmUrl = config('services.mittwald.url') ?: 'https://api.mittwald.example/v1';
-            $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken(config('services.mittwald.key'))->get(rtrim($llmUrl, '/') . '/models');
+            $modelStr = strtolower($agent->model ?? '');
+            
+            if (str_starts_with($modelStr, 'gemini')) {
+                $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
+                $key = config('services.gemini.key');
+            } else {
+                $llmUrl = config('services.mittwald.url') ?: 'https://api.mittwald.example/v1';
+                $key = config('services.mittwald.key');
+            }
+            
+            $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken($key)->get(rtrim($llmUrl, '/') . '/models');
             
             // If it returns 200, 401, or 404, the server is reachable
             if ($response->successful() || $response->status() === 401 || $response->status() === 404) {

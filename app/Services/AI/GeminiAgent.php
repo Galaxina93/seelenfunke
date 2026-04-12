@@ -8,7 +8,7 @@ use App\Models\System\SystemLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class MittwaldAgent
+class GeminiAgent
 {
     protected string $baseUrl;
     protected string $apiKey;
@@ -17,12 +17,12 @@ class MittwaldAgent
 
     public function __construct(\App\Models\Ai\AiAgent $agent)
     {
-        $this->baseUrl = config('services.mittwald.url');
-        $this->apiKey = config('services.mittwald.key');
+        $this->baseUrl = config('services.gemini.url');
+        $this->apiKey = config('services.gemini.key');
         $this->agent = $agent;
 
         if (empty($this->apiKey)) {
-            Log::warning("Mittwald AI API key is missing. Ensure MITTWALD_AI_API_KEY is placed in your .env");
+            Log::warning("Gemini AI API key is missing. Ensure GEMINI_AI_API_KEY is placed in your .env");
         }
     }
 
@@ -32,7 +32,7 @@ class MittwaldAgent
     }
 
     /**
-     * Send a conversation history to Mittwald, hand over the tools, and handle the execution loop
+     * Send a conversation history to Gemini, hand over the tools, and handle the execution loop
      * until the model gives a final text response.
      */
     public function ask(array $incomingMessages): array
@@ -119,7 +119,7 @@ class MittwaldAgent
     protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = []): string
     {
         if ($depth >= 5) {
-            Log::warning("Mittwald API Tool Loop depth exceeded. Halting to prevent infinite loop.");
+            Log::warning("Gemini API Tool Loop depth exceeded. Halting to prevent infinite loop.");
             return "Fehler: Meine internen Denkprozesse haben sich in einer Endlosschleife verfangen (Max Tool Depth Limit).";
         }
         $globalSchema = AIFunctionsRegistry::getSchema();
@@ -135,7 +135,7 @@ class MittwaldAgent
             'top_p' => 1.0
         ];
 
-        // Ministral and Devstral models on the Mittwald Proxy currently do not support Tool Calling
+        // Ministral and Devstral models on the Gemini Proxy currently do not support Tool Calling
         // Passing the 'tools' array to them results in a 400 Bad Request error.
         $modelName = strtolower($this->agent->model ?? 'gpt-oss-120b');
         if (str_contains($modelName, 'stral')) {
@@ -148,7 +148,7 @@ class MittwaldAgent
         }
 
         try {
-            // Log::info("Sending request to Mittwald AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
+            // Log::info("Sending request to Gemini AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
 
             \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                 'active_node' => 'cpu-chip',
@@ -161,12 +161,12 @@ class MittwaldAgent
                 ->connectTimeout(30) // Erhöhe den Verbindungs-Timeout (Standard oft 10s in cURL)
                 ->timeout(120) // Deep reasoning can take time
                 ->asJson()
-                ->post($this->baseUrl . '/chat/completions', $payload);
+                ->post(rtrim($this->baseUrl, '/') . '/chat/completions', $payload);
             $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
             if (!$response->successful()) {
-                Log::error("Mittwald API Error", ['status' => $response->status(), 'response' => $response->body()]);
-                return "⚠️ **SYSTEM WARNUNG: API VERBINDUNGSABBRUCH** ⚠️\n\nDie Mittwald Subraum-Verbindungen antworten nicht (Status: " . $response->status() . ").\n\n[GEGENMASSNAHME]\nBitte kopiere diesen Fehler und übergib ihn meinem Entwickler **Gemini**, damit er die API-Anbindung (Endpoint / Tokens) in der Architektur überprüfen kann, Alina.";
+                Log::error("Gemini API Error", ['status' => $response->status(), 'response' => $response->body()]);
+                return "⚠️ **SYSTEM WARNUNG: API VERBINDUNGSABBRUCH** ⚠️\n\nDie Gemini Subraum-Verbindungen antworten nicht (Status: " . $response->status() . ").\n\n[GEGENMASSNAHME]\nBitte kopiere diesen Fehler und übergib ihn meinem Entwickler **Gemini**, damit er die API-Anbindung (Endpoint / Tokens) in der Architektur überprüfen kann, Alina.";
             }
 
             $responseData = $response->json();
@@ -361,21 +361,21 @@ class MittwaldAgent
             return $message['content'] ?? "Ich habe meine Aufgabe ausgeführt.";
 
         } catch (\Exception $e) {
-            Log::error("Mittwald HTTP Exception", ['error' => $e->getMessage()]);
+            Log::error("Gemini HTTP Exception", ['error' => $e->getMessage()]);
             return "Systemintegrität gestört: " . $e->getMessage();
         }
     }
 
     /**
      * Schickt dynamische Analytics-Systemprompts (Ohne Tools/Funktionen) direkt an das LLM.
-     * Nutzt die konfigurierte Mittwald API.
+     * Nutzt die konfigurierte Gemini API.
      */
     public static function processDirectPrompt(\App\Models\Ai\AiAgent $agent, string $prompt): string
     {
         $payload = AiAgentService::getAgentPayload($agent);
 
-        $baseUrl = config('services.mittwald.url');
-        $apiKey = config('services.mittwald.key');
+        $baseUrl = config('services.gemini.url');
+        $apiKey = config('services.gemini.key');
 
         try {
             $startTime = microtime(true);

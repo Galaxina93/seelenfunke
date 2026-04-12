@@ -15,6 +15,7 @@ class ProductIndex extends Component
 
     public $search = '';
     public $filterType = 'all'; // all, physical, digital, service
+    public $filterPersonalizable = 'all'; // all, yes, no
     public $filterCategory = '';
     public $filterHoliday = '';
 
@@ -22,6 +23,7 @@ class ProductIndex extends Component
     protected $queryString = [
         'search' => ['except' => ''],
         'filterType' => ['except' => 'all'],
+        'filterPersonalizable' => ['except' => 'all'],
         'filterCategory' => ['except' => ''],
         'filterHoliday' => ['except' => ''],
     ];
@@ -41,6 +43,11 @@ class ProductIndex extends Component
         $this->resetPage();
     }
 
+    public function updatedFilterPersonalizable()
+    {
+        $this->resetPage();
+    }
+
     public function updatedFilterCategory()
     {
         $this->resetPage();
@@ -48,7 +55,7 @@ class ProductIndex extends Component
 
     public function resetFilters()
     {
-        $this->reset(['search', 'filterType', 'filterCategory', 'filterHoliday']);
+        $this->reset(['search', 'filterType', 'filterPersonalizable', 'filterCategory', 'filterHoliday']);
         $this->resetPage();
     }
 
@@ -86,6 +93,13 @@ class ProductIndex extends Component
             $query->whereHas('categories', function($q) {
                 $q->where('product_categories.id', $this->filterCategory);
             });
+        }
+
+        // 3b. Filter nach Personalisierbarkeit
+        if ($this->filterPersonalizable === 'yes') {
+            $query->where('is_personalizable', true);
+        } elseif ($this->filterPersonalizable === 'no') {
+            $query->where('is_personalizable', false);
         }
 
         // 4. Filter nach Anlass / Feiertag (Template Projection Feature)

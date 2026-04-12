@@ -165,6 +165,18 @@
                             <p class="text-xs text-gray-500">Persönliche Beratung & Dienstleistung</p>
                         </div>
                     </div>
+        @elseif(!$this->product->isPersonalizable())
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl p-8 transition-all hover:shadow-2xl w-full">
+                <div class="flex flex-col gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-gray-50 text-gray-600 p-3 rounded-xl border border-gray-100">
+                            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-900">Standard / Fertig Set</h4>
+                            <p class="text-xs text-gray-500">Dieses Produkt ist ohne Personalisierung sofort bestellbar.</p>
+                        </div>
+                    </div>
                     <livewire:shop.product.product-configurator.product-configurator :product="$product" context="add" />
                 </div>
             </div>

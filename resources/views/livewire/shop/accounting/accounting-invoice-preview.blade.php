@@ -186,6 +186,18 @@
                                                         @endforeach
                                                     </div>
                                                 @endif
+
+                                                @php
+                                                    $isPers = true;
+                                                    if(is_object($item) && isset($item->product)) {
+                                                        $isPers = $item->product->isPersonalizable();
+                                                    } elseif(is_array($item) && isset($item['is_personalizable'])) {
+                                                        $isPers = $item['is_personalizable'];
+                                                    }
+                                                @endphp
+                                                @if($isPers === false)
+                                                    <div class="mt-2 text-[10px] text-emerald-700 italic font-medium">✓ Handgefertigter Standard-Artikel (Ohne Kunden-Personalisierung)</div>
+                                                @endif
                                             </td>
                                             <td class="py-4 align-top text-right font-medium text-gray-900 text-[12px]">{{ is_object($item) ? $item->quantity : $item['quantity'] }}x</td>
                                             <td class="py-4 align-top text-right font-bold text-gray-900 text-[12px]">

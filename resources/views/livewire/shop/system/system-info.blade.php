@@ -45,7 +45,7 @@
             <div class="bg-black/80 backdrop-blur-xl border border-emerald-900/50 shadow-[inset_0_0_20px_rgba(16,185,129,0.1)] rounded-2xl p-4 font-mono relative overflow-hidden group hover:border-emerald-500/80 transition-all cursor-pointer flex justify-between items-center">
                 <div>
                     <div class="text-emerald-700 text-[10px] font-black uppercase tracking-widest mb-1">KI Hosting Partner</div>
-                    <div class="text-xl font-black text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.4)]">Mittwald</div>
+                    <div class="text-xl font-black text-emerald-400 drop-shadow-[0_0_5px_rgba(16,185,129,0.4)]">Google Cloud (Gemini)</div>
                 </div>
                 <div class="opacity-40 transition-opacity group-hover:opacity-80 group-hover:animate-pulse">
                     <x-heroicon-o-shield-check class="w-8 h-8 text-emerald-500" />
@@ -55,7 +55,7 @@
 
         <div class="text-center mb-4">
             <h2 class="text-xl sm:text-2xl font-black text-gray-200 tracking-widest uppercase font-mono mb-1">KI-Hosting Tarife</h2>
-            <p class="text-gray-500 font-mono text-[10px] uppercase tracking-widest">DSGVO-konformes Hosting in Deutschland (Mittwald API)</p>
+            <p class="text-gray-500 font-mono text-[10px] uppercase tracking-widest">Global Scale Hosting & Vertex AI Engine</p>
         </div>
 
         @if(session()->has('message'))
@@ -77,10 +77,10 @@
                     @endif
 
                     <div class="flex justify-between items-start mb-1">
-                        <h3 class="text-lg font-black uppercase tracking-widest {{ $plan->name === 'Mittwald Pro' || $plan->name === 'Lokal gehostet' ? 'text-[peru]' : 'text-gray-300' }}">
+                        <h3 class="text-lg font-black uppercase tracking-widest {{ str_contains($plan->name, 'Pro') || $plan->name === 'Lokal gehostet' ? 'text-[peru]' : 'text-gray-300' }}">
                             {{ $plan->name }}
                         </h3>
-                        @if(!$plan->is_active && !str_contains($plan->name, 'Mittwald'))
+                        @if(!$plan->is_active && !str_contains($plan->name, 'Google') && !str_contains($plan->name, 'Custom'))
                             <button wire:click.stop="deletePlan({{ $plan->id }})" wire:confirm="Individuelles Paket löschen?" class="text-gray-500 hover:text-red-500 transition-colors">
                                 <x-heroicon-o-trash class="w-4 h-4" />
                             </button>
@@ -88,15 +88,21 @@
                     </div>
                     
                     <div class="flex items-baseline gap-2 mb-1">
-                        <span class="text-2xl font-black text-white">{{ number_format($plan->price_monthly, 2, ',', '.') }} €</span>
+                        @if($plan->price_monthly > 0)
+                            <span class="text-2xl font-black text-white">{{ number_format($plan->price_monthly, 2, ',', '.') }} €</span>
+                        @else
+                            <span class="text-2xl font-black text-emerald-400">Verbrauch</span>
+                        @endif
                     </div>
-                    <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">pro Monat zzgl. USt.*</p>
+                    <p class="text-[9px] text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-2">
+                        {{ $plan->price_monthly > 0 ? 'pro Monat zzgl. USt.*' : 'Pay-As-You-Go (Abrechnung nach Google Tokens)' }}
+                    </p>
 
                     <ul class="space-y-2 mb-2 flex-1 text-[11px] text-gray-400 tracking-wider">
                         <li class="flex items-start gap-2">
                             <x-heroicon-s-check-circle class="w-3.5 h-3.5 {{ $plan->is_active ? 'text-emerald-500' : 'text-gray-600' }} shrink-0 mt-0.5" /> 
                             <span class="{{ $plan->is_active ? 'text-white' : '' }}">
-                                {{ $plan->token_limit ? number_format($plan->token_limit, 0, ',', '.') . ' Tokens/Monat' : 'Unbegrenzte Tokens' }}
+                                {{ $plan->token_limit > 0 ? number_format($plan->token_limit, 0, ',', '.') . ' Tokens intern tracken' : 'API Unbegrenzt' }}
                             </span>
                         </li>
                         <li class="flex items-start gap-2 text-gray-500">

@@ -413,5 +413,43 @@ class ProductSeeder extends Seeder
 
         $catIds4 = ProductCategory::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
         $p5->categories()->attach($catIds4);
+
+        // --- PRODUKT 6: Standard Deko-Holz-Zwerg (Nicht Personalisiert) ---
+        $p6 = Product::create([
+            'name' => 'Standard Deko-Holz-Zwerg',
+            'slug' => 'deko-holz-zwerg',
+            'type' => 'physical',
+            'is_personalizable' => false,
+            'description' => 'Ein witziger Deko-Zwerg aus Holz, liebevoll gefertigt und lackiert. Dieser Artikel ist ein fertiges Produkt und kann nicht personalisiert werden. Perfekt als lustiges Mitbringsel oder Dekoration für das ganze Jahr.',
+            'short_description' => 'Fertig gestalteter Holz-Zwerg zur Dekoration.',
+            'status' => 'active',
+            'price' => 1490,
+            'compare_at_price' => 1990,
+            'sku' => 'DECO-ZWERG-01',
+            'barcode' => '',
+            'brand' => 'Mein-Seelenfunke',
+            'track_quantity' => true,
+            'quantity' => 20,
+            'continue_selling_when_out_of_stock' => false,
+            'weight' => 200, 
+            'height' => 150, 
+            'width' => 80, 
+            'length' => 40, 
+            'shipping_class' => 'paket_s',
+            'media_gallery' => [],
+            'configurator_settings' => [],
+            'attributes' => [
+                'Material' => 'Holz',
+                'Höhe' => '15 cm',
+                'Eigenschaft' => 'Standard-Artikel (keine Personalisierung)'
+            ],
+            'tier_pricing' => [],
+            'seo_title' => 'Standard Deko-Holz-Zwerg | Fertiges Geschenk',
+            'seo_description' => 'Kaufen Sie unseren lustigen Deko-Zwerg für Ihr Zuhause. Direkt lieferbar ohne Konfigurator-Schleife.',
+            'completion_step' => 4
+        ]);
+
+        $catIds6 = ProductCategory::whereIn('name', ['Bestseller'])->pluck('id');
+        $p6->categories()->attach($catIds6);
     }
 }

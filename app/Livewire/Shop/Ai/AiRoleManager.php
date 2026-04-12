@@ -6,6 +6,9 @@ use App\Models\Ai\AiRole;
 use App\Models\Ai\AiTool;
 use Livewire\Component;
 
+use Livewire\Attributes\Layout;
+
+#[Layout('components.layouts.backend_layout')]
 class AiRoleManager extends Component
 {
     public string $themingDepartment = 'Agenten';

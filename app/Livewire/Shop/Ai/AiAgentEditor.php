@@ -48,7 +48,10 @@ class AiAgentEditor extends Component
         'Ministral-3-14B-Instruct-2512' => 'Ministral 3 14B',
         'Devstral-Small-2-24B-Instruct-2512' => 'Devstral Small 2 24B',
         'Qwen3-Embedding-8B' => 'Qwen3 Embedding 8B',
-        'whisper-large-v3-turbo' => 'Whisper Large v3 Turbo'
+        'whisper-large-v3-turbo' => 'Whisper Large v3 Turbo',
+        'gemini-2.5-pro' => 'Google Gemini 2.5 Pro (Standard)',
+        'gemini-2.0-flash' => 'Google Gemini 2.0 Flash',
+        'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro Preview'
     ];
 
     public $ttsProviders = [
@@ -96,6 +99,27 @@ class AiAgentEditor extends Component
             'context' => 'n/a (Audio-basiert)', 
             'license' => 'MIT',
             'use_cases' => ['Spracherkennung im Widget', 'Transkription von Nachrichten', 'Barrierefreiheit']
+        ],
+        'gemini-2.5-pro' => [
+            'type' => 'Chat + Reasoning + Vision', 
+            'capabilities' => 'Text, Bild, Tool-Calling', 
+            'context' => '2.000.000 Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Extreme Datenanalysen', 'Sehr tiefe Code-Erstellung', 'Auswertung gigantischer Kontextmengen']
+        ],
+        'gemini-2.0-flash' => [
+            'type' => 'Chat + Vision', 
+            'capabilities' => 'Text, Bild, Tool-Calling', 
+            'context' => '1.000.000 Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Blitzschneller Kundenchat', 'Hohe Frequenz, geringe Kosten', 'Alltags-Begleiter']
+        ],
+        'gemini-3.1-pro-preview' => [
+            'type' => 'Chat + Reasoning + Vision (State of the Art)', 
+            'capabilities' => 'Text, Bild, Video, Tool-Calling', 
+            'context' => '2.000.000+ Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Komplexeste Analysen', 'Erstellung von Architektur-Code', 'Aufwendiges Multi-Agent reasoning']
         ]
     ];
 
@@ -248,7 +272,7 @@ class AiAgentEditor extends Component
 
         session()->flash('message', 'Agent Profil erfolgreich gespeichert.');
 
-        return redirect()->route('admin.ai-dashboard', ['activeTab' => 'agents']);
+        return redirect()->route('admin.ai.agents');
     }
 
     public function deleteProfilePicture()
@@ -267,7 +291,7 @@ class AiAgentEditor extends Component
 
     public function cancel()
     {
-        return redirect()->route('admin.ai-dashboard', ['activeTab' => 'agents']);
+        return redirect()->route('admin.ai.agents');
     }
 
     public function render()

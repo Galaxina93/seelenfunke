@@ -6,6 +6,8 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiChatMemory;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -196,7 +198,7 @@ class AiChat extends Component
         }
 
         try {
-            $apiService = new \App\Services\AI\MittwaldAgent($agent);
+            $apiService = \App\Services\AI\AiAgentFactory::make($agent);
             if ($multiAgentRule) {
                 $apiService->setDynamicSystemPrompt($multiAgentRule);
             }
@@ -212,20 +214,7 @@ class AiChat extends Component
                 return;
             }
 
-            if (class_exists(\App\Models\Ai\AiMetric::class) && isset($response['usage']) && isset($response['latency_ms'])) {
-                try {
-                    \App\Models\Ai\AiMetric::create([
-                        'ai_agent_id' => $agent->id,
-                        'type' => 'inference',
-                        'input_tokens' => $response['usage']['prompt_tokens'] ?? 0,
-                        'output_tokens' => $response['usage']['completion_tokens'] ?? 0,
-                        'total_time_ms' => $response['latency_ms'],
-                        'is_success' => true
-                    ]);
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::warning("Could not log AiMetric: " . $e->getMessage());
-                }
-            }
+            // Tracking is now automatically handled centrally in AiAgentFactory
 
             $ctx = [
                 'name' => $agent->name,

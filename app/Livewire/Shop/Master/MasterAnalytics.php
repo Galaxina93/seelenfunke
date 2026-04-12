@@ -337,6 +337,79 @@ class MasterAnalytics extends Component
             $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim Lesen der Festplatte: ' . $e->getMessage(), 'path' => 'Unbekannt'];
         }
 
+        // 9. DHL API Check
+        try {
+            $start = microtime(true);
+            \Illuminate\Support\Facades\Http::timeout(2)->get('https://api.dhl.com');
+            $time = round((microtime(true) - $start) * 1000);
+            $health['dhl'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['dhl'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'DHL API nicht erreichbar.'];
+        }
+
+        // 10. finAPI Check
+        try {
+            $start = microtime(true);
+            $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
+            \Illuminate\Support\Facades\Http::timeout(2)->get($finapiUrl);
+            $time = round((microtime(true) - $start) * 1000);
+            $health['finapi'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['finapi'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'finAPI nicht erreichbar.'];
+        }
+
+        // 11. Mittwald AI Check
+        try {
+            $start = microtime(true);
+            $mittwaldUrl = config('services.mittwald.url', 'https://llm.aihosting.mittwald.de');
+            $host = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
+            \Illuminate\Support\Facades\Http::timeout(2)->get("https://{$host}");
+            $time = round((microtime(true) - $start) * 1000);
+            $health['mittwald'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['mittwald'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Mittwald AI nicht erreichbar.'];
+        }
+
+        // 12. Google Gemini Check
+        try {
+            $start = microtime(true);
+            \Illuminate\Support\Facades\Http::timeout(2)->get('https://generativelanguage.googleapis.com');
+            $time = round((microtime(true) - $start) * 1000);
+            $health['gemini'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['gemini'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Google Gemini API nicht erreichbar.'];
+        }
+
+        // 13. Google Places Check
+        try {
+            $start = microtime(true);
+            \Illuminate\Support\Facades\Http::timeout(2)->get('https://maps.googleapis.com');
+            $time = round((microtime(true) - $start) * 1000);
+            $health['google_places'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['google_places'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Google Maps API nicht erreichbar.'];
+        }
+
+        // 14. Elster (ERiC) Check
+        try {
+            $start = microtime(true);
+            \Illuminate\Support\Facades\Http::timeout(2)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml');
+            $time = round((microtime(true) - $start) * 1000);
+            $health['elster'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['elster'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Elster RSS nicht erreichbar.'];
+        }
+
+        // 15. ScraperAPI Check
+        try {
+            $start = microtime(true);
+            \Illuminate\Support\Facades\Http::timeout(2)->get('http://api.scraperapi.com');
+            $time = round((microtime(true) - $start) * 1000);
+            $health['scraperapi'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
+        } catch (\Exception $e) {
+            $health['scraperapi'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'ScraperAPI nicht erreichbar.'];
+        }
+
         $this->systemHealth = $health;
         $this->loadStats(app(AnalyticsService::class));
     }
@@ -681,36 +754,22 @@ class MasterAnalytics extends Component
         $prompt .= "3. FORMATIERUNG: Formatiere alles in makellosem Markdown (keine HTML-Tags). Nutze fettgedruckte Stichpunkte zur Übersicht.";
 
         try {
-            $response = \Illuminate\Support\Facades\Http::withToken(config('services.mittwald.key'))
-                ->timeout(120)
-                ->post(config('services.mittwald.url') . '/chat/completions', [
-                    'model' => $agent->model ?? 'gpt-oss-120b',
-                    'messages' => [
-                        ['role' => 'system', 'content' => $agent->system_prompt],
-                        ['role' => 'user', 'content' => $prompt]
-                    ],
-                    'temperature' => 0.6,
-                ]);
+            $markdownResponse = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
 
-            if ($response->successful()) {
-                $markdownResponse = $response->json()['choices'][0]['message']['content'] ?? 'Fehler bei der AI-Verarbeitung.';
-                
-                // Konvertiere Markdown zu HTML
-                $htmlContent = \Illuminate\Support\Str::markdown($markdownResponse);
-                
-                // FIX: DomPDF hat massive Probleme mit UTF-8 Zeichen wie '€' oder Pfeilen. Konvertiere alles zu HTML-Entities!
-                $htmlContent = mb_convert_encoding($htmlContent, 'HTML-ENTITIES', 'UTF-8');
+            // Konvertiere Markdown zu HTML
+            $htmlContent = \Illuminate\Support\Str::markdown($markdownResponse);
 
-                // Generiere PDF
-                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [
-                    'htmlContent' => $htmlContent,
-                    'agentName' => $agent->name
-                ]);
+            // FIX: DomPDF hat massive Probleme mit UTF-8 Zeichen wie '€' oder Pfeilen. Konvertiere alles zu HTML-Entities!
+            $htmlContent = mb_convert_encoding($htmlContent, 'HTML-ENTITIES', 'UTF-8');
 
-                return response()->streamDownload(fn () => print($pdf->output()), 'CEO-Strategie-Report.pdf');
-            } else {
-                session()->flash('error', 'API Verbindungsfehler zum LLM: ' . $response->status());
-            }
+            // Generiere PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [
+                'htmlContent' => $htmlContent,
+                'agentName' => $agent->name
+            ]);
+
+            return response()->streamDownload(fn () => print($pdf->output()), 'CEO-Strategie-Report.pdf');
+
         } catch (\Exception $e) {
             session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());
         }

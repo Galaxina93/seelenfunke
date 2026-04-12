@@ -238,8 +238,13 @@
             </div>
         </div>
 
-        {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) --}}
-        <div x-data="{ showFiles: false }" class="bg-gray-900/50 rounded-[2rem] shadow-inner border border-gray-800 overflow-hidden transition-all duration-300">
+        {{-- 4. HINTERLEGTE DATEIEN & DOWNLOADS (ZUGEKLAPPT) (Nur für personalisierbare Produkte) --}}
+        @php
+            $isPersonalizable = !isset($previewItem->product) || $previewItem->product->isPersonalizable() !== false;
+        @endphp
+
+        @if($isPersonalizable)
+            <div x-data="{ showFiles: false }" class="bg-gray-900/50 rounded-[2rem] shadow-inner border border-gray-800 overflow-hidden transition-all duration-300">
             <div @click="showFiles = !showFiles" class="bg-gray-950 px-6 py-4 border-b border-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-800 transition-colors">
                 <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-3">
                     <div class="p-1.5 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 shadow-inner">
@@ -335,8 +340,8 @@
 
             {{-- xTool Download --}}
             @php
-                $hasFront = !empty($previewItem->configuration['texts']) || !empty($previewItem->configuration['logos']);
-                $hasBack = !empty($previewItem->configuration['texts_back']) || !empty($previewItem->configuration['logos_back']);
+                $hasFront = (!empty($previewItem->configuration['texts']) || !empty($previewItem->configuration['logos']));
+                $hasBack = (!empty($previewItem->configuration['texts_back']) || !empty($previewItem->configuration['logos_back']));
             @endphp
 
             @if($hasFront || $hasBack)
@@ -364,6 +369,7 @@
                 </div>
             @endif
         </div>
+        @endif
 
         {{-- 5. BESONDERE KUNDENWÜNSCHE (NEU) --}}
         @if(!empty($previewItem->configuration['notes']))

@@ -62,6 +62,14 @@
                                 </div>
                             @endif
                         @endif
+
+                        {{-- HINWEIS FÜR STANDARD PRODUKTE --}}
+                        @if(isset($item['is_personalizable']) && $item['is_personalizable'] === false)
+                             <div style="margin-top: 8px; font-style: italic; color: #166534; font-size: 10px;">
+                                 ✓ Handgefertigter Standard-Artikel<br>
+                                 <span style="font-size: 9px; color: #78716c;">(Keine Personalisierung durch Kunden vorgesehen.)</span>
+                             </div>
+                        @endif
                     </div>
 
                     {{-- KUNDEN-ANMERKUNG --}}

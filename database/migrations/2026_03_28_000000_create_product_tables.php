@@ -36,6 +36,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->string('type')->default('physical')->index();
+            $table->boolean('is_personalizable')->default(true);
             $table->enum('status', ['draft', 'active', 'archived'])->default('draft')->index();
             $table->longText('description')->nullable();
             $table->text('short_description')->nullable();

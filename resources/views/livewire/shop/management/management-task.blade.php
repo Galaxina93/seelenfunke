@@ -117,7 +117,7 @@
                             <x-heroicon-o-sparkles class="w-10 h-10 text-[var(--theme-color)]" />
                         </div>
                         <p class="font-serif font-bold text-gray-400 text-xl">Wähle eine Mission</p>
-                        <p class="text-xs text-gray-600 mt-2 uppercase tracking-widest font-black">Funki wartet auf deine Anweisungen</p>
+                        <p class="text-xs text-gray-600 mt-2 uppercase tracking-widest font-black">Warte auf deine Anweisungen</p>
                     </div>
                 @else
                     <div class="max-w-4xl mx-auto space-y-3">

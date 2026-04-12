@@ -40,7 +40,20 @@
                         </button>
                     </div>
 
-                    <div class="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-1">
+                    {{-- Personalizable Filter (Pills) --}}
+                    <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar lg:ml-2">
+                        <button wire:click="$set('filterPersonalizable', 'all')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700' }}">
+                            Alle
+                        </button>
+                        <button wire:click="$set('filterPersonalizable', 'yes')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'yes' ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] shadow-sm border border-[var(--theme-color-30)]' : 'text-gray-500 hover:text-[var(--theme-color)]' }}">
+                            Personalisiert
+                        </button>
+                        <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
+                            Standard / Fertig
+                        </button>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-1 mt-4 lg:mt-0">
                         {{-- Anlass Dropdown --}}
                         <div class="relative w-full sm:w-1/3">
                             <select wire:model.live="filterHoliday" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
@@ -92,7 +105,7 @@
                 </div>
 
                 {{-- Aktive Filter anzeigen (Nur wenn etwas ausgewählt ist) --}}
-                @if($search !== '' || $filterType !== 'all' || $filterCategory !== '' || $filterHoliday !== '')
+                @if($search !== '' || $filterType !== 'all' || $filterPersonalizable !== 'all' || $filterCategory !== '' || $filterHoliday !== '')
                     <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3 animate-fade-in">
                         <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Aktive Filter:</span>
 
@@ -104,9 +117,16 @@
                         @endif
 
                         @if($filterType !== 'all')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-color-10)] white text-xs font-bold uppercase tracking-wider">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--theme-color-10)] text-gray-800 text-xs font-bold uppercase tracking-wider border border-[var(--theme-color-30)]">
                                 Typ: {{ match($filterType) { 'physical' => 'Physisch', 'digital' => 'Digital', 'service' => 'Service', default => $filterType } }}
                                 <button wire:click="$set('filterType', 'all')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            </span>
+                        @endif
+
+                        @if($filterPersonalizable !== 'all')
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-bold uppercase tracking-wider border border-gray-200">
+                                {{ $filterPersonalizable === 'yes' ? 'Personalisierbar' : 'Standard-Artikel' }}
+                                <button wire:click="$set('filterPersonalizable', 'all')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 

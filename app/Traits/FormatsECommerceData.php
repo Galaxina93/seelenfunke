@@ -52,7 +52,8 @@ trait FormatsECommerceData
                 'quantity'     => is_object($item) ? $item->quantity : ($item['quantity'] ?? 1),
                 'single_price' => number_format((is_object($item) ? ($item->unit_price ?? 0) : ($item['unit_price'] ?? 0)) / 100, 2, ',', '.'),
                 'total_price'  => number_format($lineGross / 100, 2, ',', '.'),
-                'config'       => $config
+                'config'       => $config,
+                'is_personalizable' => (is_object($item) && isset($item->product) && method_exists($item->product, 'isPersonalizable')) ? $item->product->isPersonalizable() : true,
             ];
         }
 

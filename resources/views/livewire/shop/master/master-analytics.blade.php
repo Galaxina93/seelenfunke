@@ -6,6 +6,7 @@
     @include('livewire.shop.master.master-analytics-partials.master_scores')
 
     <livewire:shop.master.master-shop-capacity />
+    <livewire:shop.master.master-storage-capacity />
 
     @include('livewire.shop.master.master-analytics-partials.profit')
     @include('livewire.shop.master.master-analytics-partials.charts')

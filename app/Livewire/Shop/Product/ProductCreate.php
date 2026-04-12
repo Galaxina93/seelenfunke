@@ -31,6 +31,7 @@ class ProductCreate extends Component
     // --- SCHRITT 1: Basis, Preis & SEO ---
     public $name = '';
     public $type = 'physical'; // NEU: Standardwert
+    public $is_personalizable = true; // NEU
     public $short_description = '';
     public $description = '';
 
@@ -210,6 +211,7 @@ class ProductCreate extends Component
             'slug' => 'draft-' . Str::uuid(),
             'status' => 'draft',
             'type' => 'physical', // Standard
+            'is_personalizable' => true,
             'price' => 0,
             'media_gallery' => [],
             'tier_pricing' => [],
@@ -228,6 +230,7 @@ class ProductCreate extends Component
         // Basisdaten
         $this->name = $this->product->name;
         $this->type = $this->product->type; // NEU: Typ laden
+        $this->is_personalizable = (bool) $this->product->is_personalizable;
         $this->description = $this->product->description;
         $this->short_description = $this->product->short_description;
         $this->status = $this->product->status;
@@ -461,6 +464,7 @@ class ProductCreate extends Component
         // 1. Basisdaten
         $this->product->name = $this->name;
         $this->product->type = $this->type; // Typ speichern
+        $this->product->is_personalizable = (bool) $this->is_personalizable;
         $this->product->description = $this->description;
         $this->product->short_description = $this->short_description;
 

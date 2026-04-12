@@ -98,7 +98,27 @@
         @endif
 
         <div class="flex-1 custom-scrollbar pb-20 w-full min-w-0">
-            @if(!$isDigital && !$isService)
+            @if(!$this->product->isPersonalizable())
+                {{-- Standard-Produkt (Nicht Personalisierbar) Layout --}}
+                <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center text-center space-y-8 relative w-full mt-4">
+                    {{-- Glow Background --}}
+                    @if($isDark)
+                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
+                    @endif
+
+                    <div class="relative z-10 w-28 h-28 rounded-full flex items-center justify-center shadow-2xl {{ $isDark ? 'bg-gray-900 border border-primary/30 text-primary shadow-[0_0_30px_rgba(197,160,89,0.2)]' : 'bg-primary/10 border border-gray-200 text-gray-600' }}">
+                         <svg class="w-14 h-14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                    </div>
+
+                    <div class="relative z-10 space-y-4">
+                        <h2 class="text-3xl sm:text-4xl font-serif font-bold {{ $isDark ? 'text-white drop-shadow-md' : 'text-gray-900' }}">Bereit zum Kauf</h2>
+                        <p class="text-sm sm:text-base max-w-lg mx-auto leading-relaxed {{ $isDark ? 'text-gray-400' : 'text-gray-600' }}">
+                            Dieses Produkt ist ein vorgefertigter Artikel und benötigt keine weitere Personalisierung.<br>
+                            Wählen Sie einfach die gewünschte Menge und legen Sie es in den Warenkorb.
+                        </p>
+                    </div>
+                </div>
+            @elseif(!$isDigital && !$isService)
                 {{-- Physisches Produkt Layout --}}
                 @include('livewire.shop.product.product-configurator.partials.preview', ['isDark' => $isDark])
                 @include('livewire.shop.product.product-configurator.partials.formluar', ['isDark' => $isDark])
