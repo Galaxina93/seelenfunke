@@ -74,8 +74,8 @@ class AiSupportFuncsTest extends TestCase
 
         $result = AiSupportFuncsDummy::executeCheckReturnsPolicy(['order_number' => '123456']);
         $this->assertEquals('success', $result['status']);
-        $this->assertStringContainsString('ERFOLGREICH PERSONALISIERTE', $result['message']);
-        $this->assertStringContainsString('vom gesetzlichen Widerrufsrecht streng ausgeschlossen', $result['message']);
+        $this->assertStringContainsString('Die Bestellung enthält PERSONALISIERTE Artikel', $result['message']);
+        $this->assertStringContainsString('streng vom Widerrufsrecht ausgeschlossen', $result['message']);
     }
 
     /** @test */
@@ -107,8 +107,8 @@ class AiSupportFuncsTest extends TestCase
 
         $result = AiSupportFuncsDummy::executeCheckReturnsPolicy(['order_number' => '789012']);
         $this->assertEquals('success', $result['status']);
-        $this->assertStringContainsString('Standard-Artikeln', $result['message']);
-        $this->assertStringContainsString('14-tägiges Widerrufsrecht', $result['message']);
+        $this->assertStringContainsString('besteht nur aus Standard-Artikeln', $result['message']);
+        $this->assertStringContainsString('Zeige dem Kunden das Verhalten passend zum Frist-Status', $result['message']);
     }
 
     /** @test */
@@ -294,10 +294,7 @@ class AiSupportFuncsTest extends TestCase
             'action_type' => 'cancel_order',
         ]);
 
-        $this->assertEquals('success', $result['status']);
-
-        $order->refresh();
-        $this->assertEquals('cancelled', $order->status);
-        $this->assertStringContainsString('Kunde via KI Support Chat storniert', $order->cancellation_reason);
+        $this->assertEquals('error', $result['status']);
+        $this->assertStringContainsString('TECHNISCHE SPERRE. DU DARFST KEINE BESTELLUNGEN STORNIEREN!', $result['message']);
     }
 }

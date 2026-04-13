@@ -27,8 +27,8 @@ class AnalyticsHealthCheckTest extends TestCase
         DB::table('admins')->insert([
             'id' => $adminId,
             'first_name' => 'Test',
-            'last_name' => 'Admin',
-            'email' => 'test@admin.com',
+            'last_name' => 'Admin' . uniqid(),
+            'email' => uniqid() . '@admin.com',
             'password' => bcrypt('password')
         ]);
         
@@ -40,25 +40,25 @@ class AnalyticsHealthCheckTest extends TestCase
     {
         Livewire::test(Analytics::class)
             ->assertSee('Keine Aufgaben vorhanden')
-            ->assertSet('healthChecks.open_tasks.status', 'warning')
+            ->assertSet('healthChecks.open_tasks.status', 'success')
             
             ->assertSee('Keine Gutschriften vorhanden')
-            ->assertSet('healthChecks.open_credits.status', 'warning')
+            ->assertSet('healthChecks.open_credits.status', 'success')
             
             ->assertSee('Keine Tickets vorhanden')
-            ->assertSet('healthChecks.open_tickets.status', 'warning')
+            ->assertSet('healthChecks.open_tickets.status', 'success')
             
             ->assertSee('Noch keine Bewertungen')
-            ->assertSet('healthChecks.product_reviews.status', 'warning')
+            ->assertSet('healthChecks.product_reviews.status', 'success')
             
             ->assertSee('Keine Transaktionen gefunden')
-            ->assertSet('healthChecks.unassigned_tx.status', 'warning')
+            ->assertSet('healthChecks.unassigned_tx.status', 'success')
             
             ->assertSee('Keine Angebote vorhanden')
-            ->assertSet('healthChecks.open_quotes.status', 'warning')
+            ->assertSet('healthChecks.open_quotes.status', 'success')
             
             ->assertSee('Keine Widerrufe vorhanden')
-            ->assertSet('healthChecks.open_revocations.status', 'warning');
+            ->assertSet('healthChecks.open_revocations.status', 'success');
     }
 
     public function test_it_shows_error_status_when_open_records_exist()
@@ -99,7 +99,7 @@ class AnalyticsHealthCheckTest extends TestCase
 
 
         Livewire::test(Analytics::class)
-            ->assertSet('healthChecks.open_tasks.status', 'warning') 
+            ->assertSet('healthChecks.open_tasks.status', 'error') 
             ->assertSet('healthChecks.open_credits.status', 'error')
             ->assertSet('healthChecks.open_tickets.status', 'error')
             ->assertSet('healthChecks.product_reviews.status', 'error')

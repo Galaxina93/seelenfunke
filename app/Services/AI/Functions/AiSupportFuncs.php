@@ -213,6 +213,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Ich habe offene Tickets in deinem Profil gefunden:\n" . implode("\n", $tLines) . "\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Datenbankfehler beim Laden der Tickets ('{$e->getMessage()}'). Entschuldige dich charmant beim Kunden und versprich, dass es später wieder geht."];
         }
     }
@@ -229,6 +230,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Ticket {$ticket->ticket_number} ('{$ticket->subject}') hat aktuell den Status: {$ticket->status}. Das Support-Team wird sich bald dazu melden!\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Systemfehler beim Abrufen des Ticketstatus ('{$e->getMessage()}')."];
         }
     }
@@ -248,6 +250,7 @@ trait AiSupportFuncs
             $total = $order->total_price ? number_format($order->total_price / 100, 2, ',', '.') . ' €' : '0,00 €';
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Deine Bestellung {$order->order_number} vom {$order->created_at->format('d.m.Y')} ist aktuell im Status: {$order->status}. Der Bestellwert beträgt {$total}.\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Ein temporärer Fehler verhindert den Abruf ('{$e->getMessage()}')."];
         }
     }
@@ -270,6 +273,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Deine letzten Bestellungen in der Übersicht:\n" . implode("\n", $oLines) . "\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Datenbankfehler beim Aufrufen der vergangenen Bestellungen ('{$e->getMessage()}')."];
         }
     }
@@ -292,12 +296,14 @@ trait AiSupportFuncs
                 try {
                     $url = route('product.show', $p->slug);
                 } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
                     $url = url('/produkt/' . $p->slug);
                 }
                 $pLines[] = "- {$p->name} für {$p->formatted_price} (Link: {$url}): " . mb_substr(strip_tags($p->description), 0, 80) . "...";
             }
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Folgende Produkte habe ich dazu gefunden:\n" . implode("\n", $pLines) . "\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Systemfehler bei der Produktsuche ('{$e->getMessage()}')."];
         }
     }
@@ -339,6 +345,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Chat konnte nicht identifiziert werden.'];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Datenbankfehler bei der Ticket-Übergabe ('{$e->getMessage()}')."];
         }
     }
@@ -356,6 +363,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Chat konnte nicht identifiziert werden.'];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Chat Fehler ('{$e->getMessage()}')."];
         }
     }
@@ -374,6 +382,7 @@ trait AiSupportFuncs
             }
             return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Konnte nicht gesichert werden, Chat ID fehlt.'];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler ('{$e->getMessage()}')."];
         }
     }
@@ -416,6 +425,7 @@ trait AiSupportFuncs
                 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Hier sind die exakten Details zu der Bestellung {$order->order_number} (Status: {$order->status}):\n" . implode("\n", $items) . "\""
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Details konnten wegen eines Systemfehlers nicht geladen werden ('{$e->getMessage()}')."];
         }
     }
@@ -438,6 +448,7 @@ trait AiSupportFuncs
                 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Paket ist unterwegs! Hier ist dein offizieller DHL-Trackinglink: https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={$tracking} \""
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Abrufen der Trackingnummer ('{$e->getMessage()}')."];
         }
     }
@@ -459,6 +470,7 @@ trait AiSupportFuncs
 
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text logisch so ähnlich aus: \"Du bist aktuell Level {$stats->level} und hast stolze {$stats->funken_balance} Seelenfunken gesammelt! (Noch {$missing} Funken bis zum nächsten Level). Dein Funkenflug Highscore ist: {$stats->funkenflug_highscore}.\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Stats konnten nicht geladen werden ('{$e->getMessage()}')."];
         }
     }
@@ -484,6 +496,7 @@ trait AiSupportFuncs
                 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text als Zusammenfassung logisch so ähnlich aus: \"Hallo {$customer->first_name}, ich habe dein Profil geladen! Du bist seit dem {$customer->created_at->format('d.m.Y')} bei uns registriert. Aktuell hast du {$openOrders} offene und {$closedOrders} abgeschlossene Bestellungen. In unserem Funken-Programm bist du auf Level " . ($gamification ? $gamification->level : 1) . ". Du hast {$activeTickets} aktive Support-Tickets. Was darf ich mir davon näher für dich ansehen?\""
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Das Profil konnte nicht geladen werden ('{$e->getMessage()}')."];
         }
     }
@@ -534,6 +547,7 @@ trait AiSupportFuncs
                 'message' => "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nDu hast die Routen-Datenbank abgefragt. Suche dir aus der folgenden Liste den einen korrekten Link heraus, nachdem der Kunde gefragt hat (z.b. Kontakt oder Konto erstellen).\nFormuliere dann eine freundliche eigene Antwort und zeige dem Kunden NUR den passenden Link als echten Markdown-Link (z.b. [Kontakt aufnehmen](url)).\n\nHier das Lexikon:\n\n" . $linksStr
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
              return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Laden der Routen ('{$e->getMessage()}')."];
         }
     }
@@ -560,6 +574,7 @@ trait AiSupportFuncs
                 'message' => "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): Hier sind die aktuellen Artikel im Warenkorb des Nutzers:\n" . implode("\n", $info) . "\nHinweis: Wenn ein Produkt Konfiguration benötigt, aber keine eingegeben wurde, weise den Nutzer freundlich darauf hin, diese einzutragen."
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Analysieren des Warenkorbs ('{$e->getMessage()}')."];
         }
     }
@@ -570,6 +585,7 @@ trait AiSupportFuncs
             $msg = "HINTERGRUND-INFO FÜR DIE KI (NICHT DIREKT AN DEN KUNDEN AUSGEBEN!): \nUnsere aktuelle Standard-Produktionszeit beträgt 2-3 Werktage. Der Standardversand dauert danach 1-2 Werktage.\nMit der optionalen EXPRESS-Fertigung (im Warenkorb auswählbar) priorisieren wir die Bestellung extrem (meist wird schon am nächsten Werktag versendet).";
             return ['status' => 'success', 'message' => $msg];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Lieferzeiten aktuell nicht abrufbar.'];
         }
     }
@@ -609,6 +625,7 @@ trait AiSupportFuncs
 
             return ['status' => 'success', 'message' => "HINTERGRUND-INFO FÜR KI: $dateInfo Diese Bestellung besteht nur aus Standard-Artikeln. Zeige dem Kunden das Verhalten passend zum Frist-Status. Link zum offiziellen Formular: /widerruf"];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler ('{$e->getMessage()}')."];
         }
     }
@@ -671,6 +688,7 @@ trait AiSupportFuncs
                 'message' => 'HINTERGRUND-INFO FÜR KI: Das Reklamationsticket wurde mit Prio Hoch unter Nummer '.$ticket->ticket_number.' angelegt! Teile dem Kunden diese Ticketnummer freudig mit und bitte ihn DRINGEND, 1-2 Fotos des Schadens als Antwort auf die nun eintreffende Ticket-Mail zu senden.'
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler bei der Ticketerstellung ('{$e->getMessage()}')."];
         }
     }
@@ -743,6 +761,7 @@ trait AiSupportFuncs
 
             return ['status' => 'error', 'message' => 'Unbekannte Aktion.'];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Abbruch durch Systemfehler ('{$e->getMessage()}')."];
         }
     }
@@ -771,6 +790,7 @@ trait AiSupportFuncs
 
             return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text so ähnlich aus: \"Ich habe offizielle Rechnungs-Dokumente zu deiner Bestellung gefunden:\n" . implode("\n", $invLines) . "\""];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler beim Suchen der Rechnung ('{$e->getMessage()}')."];
         }
     }
@@ -801,6 +821,7 @@ trait AiSupportFuncs
                 'message' => "HINTERGRUND-INFO AN KI: Aktuelle Summe im Warenkorb:\nVersandkosten: {$shipping}\nGesamtbetrag: {$gross}\nTeile dies dem Kunden freundlich mit."
             ];
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Warenkorbsumme konnte nicht berechnet werden. ('{$e->getMessage()}')"];
         }
     }

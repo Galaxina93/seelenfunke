@@ -18,7 +18,7 @@ class SupportChatAnalytics extends Component
     {
         $chat = SupportCustomerChat::find($id);
         if ($chat) {
-            $chat->update(['status' => 'resolved']);
+            $chat->update(['status' => 'resolved_admin']);
         }
     }
 
@@ -48,6 +48,8 @@ class SupportChatAnalytics extends Component
         $openCount = SupportCustomerChat::where('status', 'open')->count();
         $needsEmployeeCount = SupportCustomerChat::where('status', 'needs_employee')->count();
         $resolvedCount = SupportCustomerChat::where('status', 'resolved')->count();
+        $resolvedAdminCount = SupportCustomerChat::where('status', 'resolved_admin')->count();
+        $resolvedAutoCount = SupportCustomerChat::where('status', 'resolved_auto')->count();
 
         // Erweiterte Telemetrie KPIs
         $uniqueAiCustomers = SupportCustomerChat::whereNotNull('session_token')->distinct('session_token')->count('session_token');
@@ -98,6 +100,8 @@ class SupportChatAnalytics extends Component
             'openCount' => $openCount,
             'needsEmployeeCount' => $needsEmployeeCount,
             'resolvedCount' => $resolvedCount,
+            'resolvedAdminCount' => $resolvedAdminCount,
+            'resolvedAutoCount' => $resolvedAutoCount,
             'uniqueAiCustomers' => $uniqueAiCustomers,
             'avgResponseTime' => $avgResponseTime,
             'avgConfidence' => $avgConfidence,

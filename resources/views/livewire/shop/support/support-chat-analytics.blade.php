@@ -12,11 +12,11 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-10">
 
             {{-- 1. KPIs --}}
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-8 xl:gap-10">
                 <!-- KPI 1 -->
                 <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700/50 p-6 flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-red-400 mb-1 flex items-center gap-1" title="Anzahl der Chats, in denen die KI nicht abschließend weiterwusste und manuell an einen Mitarbeiter eskaliert hat (needs_employee).">Eskalationsstufe (KI Limit) <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
+                        <p class="text-[11px] font-medium text-red-400 mb-1 flex items-center gap-1 uppercase tracking-wider" title="Anzahl der Chats, in denen die KI nicht abschließend weiterwusste und manuell an einen Mitarbeiter eskaliert hat (needs_employee).">Eskalationsstufe <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
                         <h3 class="text-3xl font-black text-white">{{ $needsEmployeeCount }}</h3>
                     </div>
                     <div class="w-12 h-12 rounded-xl bg-red-400/20 flex items-center justify-center text-red-500 ring-1 ring-red-400/30">
@@ -27,7 +27,7 @@
                 <!-- KPI 2 -->
                 <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700/50 p-6 flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-cyan-400 mb-1 flex items-center gap-1" title="Gesamtzahl der Support-Chats, die von der KI aktuell live und aktiv betreut werden.">Aktive KI-Chats (Offen) <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
+                        <p class="text-[11px] font-medium text-cyan-400 mb-1 flex items-center gap-1 uppercase tracking-wider" title="Gesamtzahl der Support-Chats, die von der KI aktuell live und aktiv betreut werden.">Aktive KI-Chats <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
                         <h3 class="text-3xl font-black text-white">{{ $openCount }}</h3>
                     </div>
                     <div class="w-12 h-12 rounded-xl bg-cyan-400/20 flex items-center justify-center text-cyan-500 ring-1 ring-cyan-400/30">
@@ -38,11 +38,22 @@
                 <!-- KPI 3 -->
                 <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700/50 p-6 flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-green-400 mb-1 flex items-center gap-1" title="Anzahl der Chats, die von der KI erfolgreich und komplett autonom gelöst wurden.">Durch KI Gelöst <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
+                        <p class="text-[11px] font-medium text-green-400 mb-1 flex items-center gap-1 uppercase tracking-wider" title="Anzahl der Chats, die von der KI erfolgreich und komplett autonom gelöst wurden.">Durch KI Gelöst <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
                         <h3 class="text-3xl font-black text-white">{{ $resolvedCount }}</h3>
                     </div>
                     <div class="w-12 h-12 rounded-xl bg-green-400/20 flex items-center justify-center text-green-500 ring-1 ring-green-400/30">
                         <x-heroicon-o-check-circle class="w-6 h-6" />
+                    </div>
+                </div>
+
+                <!-- KPI 4 -->
+                <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700/50 p-6 flex items-center justify-between">
+                    <div>
+                        <p class="text-[11px] font-medium text-purple-400 mb-1 flex items-center gap-1 uppercase tracking-wider" title="Anzahl der Chats, die von einem Admin manuell geschlossen/gelöst wurden.">Durch Admin Gelöst <x-heroicon-o-information-circle class="w-4 h-4 opacity-75 cursor-help" /></p>
+                        <h3 class="text-3xl font-black text-white">{{ $resolvedAdminCount }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-purple-400/20 flex items-center justify-center text-purple-500 ring-1 ring-purple-400/30">
+                        <x-heroicon-o-shield-check class="w-6 h-6" />
                     </div>
                 </div>
             </div>
@@ -169,7 +180,9 @@
                             <option value="">Alle Status</option>
                             <option value="needs_employee">Eskalation (Mitarbeiter)</option>
                             <option value="open">Offen</option>
-                            <option value="resolved">Erledigt</option>
+                            <option value="resolved">Erledigt (KI)</option>
+                            <option value="resolved_admin">Erledigt (Admin)</option>
+                            <option value="resolved_auto">Timeout (Auto)</option>
                         </select>
                         <select wire:model.live="ratingFilter" class="bg-gray-900 border border-gray-700 text-white rounded-xl text-sm w-full sm:w-auto">
                             <option value="">Alle Bewertungen</option>
@@ -208,9 +221,17 @@
                                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                                                 Offen
                                             </span>
+                                        @elseif($chat->status === 'resolved_admin')
+                                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                                Admin Erledigt
+                                            </span>
+                                        @elseif($chat->status === 'resolved_auto')
+                                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                                Auto Erledigt
+                                            </span>
                                         @else
                                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
-                                                Erledigt
+                                                KI Erledigt
                                             </span>
                                         @endif
                                         <div class="text-[10px] text-gray-500 mt-2 ml-1">{{ $chat->updated_at->diffForHumans() }}</div>
@@ -237,14 +258,43 @@
                                     <td class="p-4">
                                         <p class="text-xs text-gray-400 line-clamp-2 max-w-xs">{{ $chat->ai_summary ?? 'Keine KI-Zusammenfassung vorhanden.' }}</p>
                                     </td>
-                                    <td class="p-4 text-right">
-                                        @if($chat->status === 'needs_employee')
-                                            <button wire:click="markAsResolved('{{ $chat->id }}')" class="px-4 py-2 bg-gray-700 hover:bg-green-600 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-xl text-xs text-white transition-colors shadow-sm">
-                                                Als Erledigt markieren
-                                            </button>
-                                        @else
-                                            <span class="text-gray-500 text-xs italic">Verwaltet von {{ $agentName }}</span>
-                                        @endif
+                                    <td class="p-4 text-right align-middle">
+                                        <div class="flex flex-col items-end gap-2 pr-2">
+                                            @if(!in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto']))
+                                                <button wire:click="markAsResolved('{{ $chat->id }}')" class="px-4 py-2 bg-gray-700 hover:bg-green-600 focus:ring-4 focus:outline-none focus:ring-green-900 font-medium rounded-xl text-[11px] text-white transition-colors shadow-sm whitespace-nowrap">
+                                                    Chat Schließen (Erledigt)
+                                                </button>
+                                                
+                                                @php
+                                                    $minutesPassed = now()->diffInMinutes($chat->updated_at);
+                                                    $percent = min(100, max(0, ($minutesPassed / (12 * 60)) * 100));
+                                                    $remainingMinutes = max(0, (12 * 60) - $minutesPassed);
+                                                    $remH = floor($remainingMinutes / 60);
+                                                    $remM = $remainingMinutes % 60;
+                                                    $timeStr = $remH > 0 ? $remH . 'h ' . $remM . 'm' : $remM . 'm';
+                                                @endphp
+                                                
+                                                <div class="w-full max-w-[130px] flex flex-col gap-1.5 mt-1" title="Der Chat wird bei Inaktivität nach 12 Stunden automatisch geschlossen, damit der Kunde wieder bewerten kann.">
+                                                    <div class="flex justify-between w-full text-[9px] text-gray-400 font-black uppercase tracking-widest">
+                                                        <span>Auto-Close</span>
+                                                        <span class="text-gray-300">{{ $timeStr }}</span>
+                                                    </div>
+                                                    <div class="w-full h-1.5 bg-gray-900 rounded-full overflow-hidden shadow-inner border border-gray-700/50">
+                                                        <div class="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full" style="width: {{ $percent }}%"></div>
+                                                    </div>
+                                                </div>
+                                            @else
+                                                <span class="text-gray-500 text-xs italic">
+                                                    @if($chat->status === 'resolved_admin')
+                                                        Durch Admin erledigt
+                                                    @elseif($chat->status === 'resolved_auto')
+                                                        Auto Timeout (12h)
+                                                    @else
+                                                        Verwaltet von {{ $agentName }}
+                                                    @endif
+                                                </span>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                                 <tr x-show="expanded" x-transition.opacity class="bg-gray-900/40">

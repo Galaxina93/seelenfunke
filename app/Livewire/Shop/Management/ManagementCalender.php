@@ -78,12 +78,12 @@ class ManagementCalender extends Component
     }
 
     /**
-     * Springt zu einem spezifischen Tag (aus Jahresansicht)
+     * Springt zu einem spezifischen Monat (aus Jahresansicht)
      */
-    public function goToDay($dateStr)
+    public function zoomIntoMonth($dateStr)
     {
         $this->currentDate = Carbon::parse($dateStr);
-        $this->view = 'day';
+        $this->view = 'month';
     }
 
     // --- CRUD ---
@@ -369,8 +369,8 @@ class ManagementCalender extends Component
                         $instance->start_date->setTimeFrom($template->start_date);
                     }
 
-                    $duration = $template->end_date->diffInSeconds($template->start_date);
-                    $instance->end_date = $simDate->copy()->addSeconds($duration);
+                    $duration = $template->start_date->diffInSeconds($template->end_date);
+                    $instance->end_date = $instance->start_date->copy()->addSeconds(abs($duration));
                     $instance->is_recurring_instance = true;
 
                     $generatedEvents->push($instance);

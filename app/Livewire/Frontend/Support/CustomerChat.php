@@ -55,7 +55,7 @@ class CustomerChat extends Component
             // Wir haben eine feste Chat-ID aus der Session!
             $chat = SupportCustomerChat::where('id', $sessionChatId)
                     ->whereNull('rating')
-                    ->whereIn('status', ['open', 'needs_employee', 'resolved'])
+                    ->whereIn('status', ['open', 'needs_employee', 'resolved', 'resolved_admin', 'resolved_auto'])
                     ->with(['messages'])
                     ->first();
 
@@ -66,7 +66,7 @@ class CustomerChat extends Component
                 }
                 
                 $this->chatId = $chat->id;
-                $this->isResolved = $chat->status === 'resolved';
+                $this->isResolved = in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto']);
                 $this->rating = $chat->rating ?? 0;
                 $this->feedbackText = $chat->feedback_text ?? '';
                 $this->ratingSubmitted = !empty($chat->rating);
@@ -84,7 +84,7 @@ class CustomerChat extends Component
         // Fallback: Suche nach dem jüngsten offenen/gelösten Chat des aktuellen (eingeloggten) Kunden
         if ($customerId) {
             $existing = SupportCustomerChat::whereNull('rating')
-                ->whereIn('status', ['open', 'needs_employee', 'resolved'])
+                ->whereIn('status', ['open', 'needs_employee', 'resolved', 'resolved_admin', 'resolved_auto'])
                 ->where('customer_id', $customerId)
                 ->with(['messages'])
                 ->latest()
@@ -93,7 +93,7 @@ class CustomerChat extends Component
             if ($existing) {
                 session(['current_chat_id' => $existing->id]);
                 $this->chatId = $existing->id;
-                $this->isResolved = $existing->status === 'resolved';
+                $this->isResolved = in_array($existing->status, ['resolved', 'resolved_admin', 'resolved_auto']);
                 $this->rating = $existing->rating ?? 0;
                 $this->feedbackText = $existing->feedback_text ?? '';
                 $this->ratingSubmitted = !empty($existing->rating);

@@ -73,3 +73,6 @@ Schedule::command('backup:run --only-db')
 
 // Dynamischer Kapazitäts-Berechner und Autopilot
 Schedule::command('shop:capacity-engine')->everyFiveMinutes();
+
+// Schließt inaktive KI Support-Chats nach 12 Stunden automatisch
+Schedule::command('support:auto-resolve-chats')->hourly();

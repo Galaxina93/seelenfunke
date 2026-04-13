@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Management;
 use Livewire\Attributes\Layout;
 
 use App\Models\Management\ManagementContact;
+use App\Models\Management\ManagementCalendarEvent;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -214,6 +215,45 @@ class ManagementContacts extends Component
         $profile->save();
 
         // No flash message needed for seamless inline experience
+    }
+
+    public function syncBirthdaysToCalendar()
+    {
+        $contacts = ManagementContact::all();
+        $syncedCount = 0;
+        $missingBirthdays = [];
+
+        foreach ($contacts as $contact) {
+            if ($contact->birthday) {
+                ManagementCalendarEvent::updateOrCreate(
+                    ['ics_uid' => 'contact_birthday_' . $contact->id],
+                    [
+                        'title' => 'Geburtstag: ' . $contact->full_name,
+                        'start_date' => $contact->birthday->copy()->startOfDay(),
+                        'end_date' => $contact->birthday->copy()->endOfDay(),
+                        'is_all_day' => true,
+                        'recurrence' => 'yearly',
+                        'category' => 'birthday',
+                        'description' => 'Automatisch synchronisierter Geburtstag von ' . $contact->full_name,
+                    ]
+                );
+                $syncedCount++;
+            } else {
+                $missingBirthdays[] = $contact->full_name;
+            }
+        }
+
+        $feedback = [];
+        $feedback[] = "<strong class='text-emerald-400'>Erfolg:</strong> $syncedCount Geburtstage wurden erfolgreich in den Kalender übertragen.";
+
+        if (count($missingBirthdays) > 0) {
+            $names = implode(', ', $missingBirthdays);
+            $feedback[] = "<span class='text-amber-400 font-bold'>Noch fehlende Geburtsdaten (" . count($missingBirthdays) . "):</span> $names";
+        } else {
+            $feedback[] = "<span class='text-emerald-400 font-bold'>Perfekt:</span> Alle Kontakte haben ein hinterlegtes Geburtsdatum.";
+        }
+
+        session()->flash('sync_feedback', $feedback);
     }
 
     public function render()

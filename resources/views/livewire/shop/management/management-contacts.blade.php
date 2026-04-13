@@ -12,11 +12,15 @@
                 </h1>
                 <p class="text-gray-400 mt-2 text-sm font-medium">Das soziale Gedächtnis von Mein Seelenfunke. Freunde, Familie und ihre Eigenschaften.</p>
             </div>
-            <div class="relative z-10 bg-gray-950 p-2 rounded-2xl border border-gray-800 shadow-inner flex items-center gap-3">
+            <div class="relative z-10 bg-gray-950 p-2 rounded-2xl border border-gray-800 shadow-inner flex items-center gap-3 flex-wrap">
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_10px_rgba(99,102,241,0.2)]">
                     <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_currentColor]"></span>
                     Memory Sync Active
                 </div>
+                <button wire:click="syncBirthdaysToCalendar" title="Geburtstage in den Kalender übertragen" class="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/40 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_5px_rgba(251,191,36,0.1)] focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <x-heroicon-o-calendar-days class="w-4 h-4" />
+                    Kalender-Sync
+                </button>
             </div>
         </div>
 
@@ -24,6 +28,23 @@
             <div class="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-sm flex items-center gap-3 shadow-sm">
                 <x-heroicon-o-check-circle class="w-6 h-6" />
                 {{ session('success') }}
+            </div>
+        @endif
+
+        @if (session()->has('sync_feedback'))
+            <div class="mb-6 p-5 bg-gray-900/80 border border-[var(--theme-color-30)] rounded-xl text-gray-300 text-sm flex flex-col gap-3 shadow-sm backdrop-blur-md">
+                <div class="flex items-center gap-2 text-[var(--theme-color)] font-bold text-lg mb-1">
+                    <x-heroicon-o-information-circle class="w-6 h-6" />
+                    Kalender-Synchronisation
+                </div>
+                <ul class="space-y-2">
+                    @foreach(session('sync_feedback') as $msg)
+                        <li class="flex items-start gap-2">
+                            <x-heroicon-s-chevron-right class="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
+                            <span>{!! $msg !!}</span>
+                        </li>
+                    @endforeach
+                </ul>
             </div>
         @endif
 
@@ -248,7 +269,7 @@
                                             <span>Gelerntes Logbuch</span>
                                             <span class="text-gray-500">Lesen & Schreiben für KI</span>
                                         </label>
-                                        <p class="text-xs text-gray-500 mb-2">Hier speichert Funkira selbstständig Vorlieben mit Datum ab.</p>
+                                        <p class="text-xs text-gray-500 mb-2">Hier speichert der Management Agent selbstständig Vorlieben mit Datum ab.</p>
                                         <textarea wire:model="editForm.ai_learned_facts" rows="6" class="w-full bg-gray-900 border border-sky-900 rounded-lg text-sky-100 font-mono text-xs px-4 py-3 focus:ring-sky-500 focus:border-sky-500 outline-none transition-all custom-scrollbar leading-relaxed"></textarea>
                                     </div>
                                 </div>

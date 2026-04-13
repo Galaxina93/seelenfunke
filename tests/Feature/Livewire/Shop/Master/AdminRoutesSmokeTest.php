@@ -78,7 +78,7 @@ class AdminRoutesSmokeTest extends TestCase
             ['/admin/global-logs'],
             ['/admin/contacts'],
             ['/admin/organigramm'],
-            ['/admin/ai-dashboard'],
+            ['/admin/ai/analytics'],
             ['/admin/system-info'],
             ['/admin/user-management'],
             ['/admin/products'],
