@@ -23,8 +23,9 @@ class DatabaseSeeder extends Seeder
             SystemApiNodeSeeder::class,
 
             // Management
-            DayRoutineSeeder::class,
+            ManagementDayRoutineSeeder::class,
             ManagementContactSeeder::class,
+            ManagementTimelineSeeder::class,
 
             //Product
             ProductSeeder::class,

@@ -43,6 +43,9 @@ class MasterAnalytics extends Component
     public ?string $expandedHealthKey = null;
     public array $repairLogs = [];
 
+    // AI Mission State
+    public $currentMission = null;
+
     // AI Agent Properties
     public $availableAgents = [];
     public $selectedAgentId = '';
@@ -63,13 +66,20 @@ class MasterAnalytics extends Component
 
     public function mount(AnalyticsService $service)
     {
-        // Hole für das CEO Master Dashboard primär Funkira und die Leitungs-Einheiten
+        // Hole für das CEO Master Dashboard primär die KI-Agenten, 
+        // wobei der Leitungsagent (ohne zugewiesenes Department = Stabsstelle) ganz oben steht.
         $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)
             ->with('role')
-            ->orderByRaw("name = 'Funkira' DESC") // Funkira immer ganz oben
+            ->orderByRaw("ai_department_id IS NULL DESC") // Leitungsagent immer ganz oben
             ->orderBy('name')
             ->get()
             ->toArray();
+
+        if (count($this->availableAgents) > 0) {
+            $this->selectedAgentId = $this->availableAgents[0]['id'];
+        }
+
+        $this->currentMission = \App\Models\Management\ManagementMission::latest()->first();
 
         $this->loadSettings();
         $this->loadStats($service);
@@ -739,15 +749,52 @@ class MasterAnalytics extends Component
         $prompt = "Du bist der virtuelle CFO (Chief Financial Officer) eines E-Commerce Laser-Graveur Shops.\n";
         $prompt .= "Ich präsentiere dir hier alle meine aktuellen Kennzahlen (KPIs) und Systemdaten.\n";
         $prompt .= "WICHTIGSTE MISSION: Unser Ziel ist es, die Firma auf 100.000 Euro Umsatz pro Monat zu skalieren!\n\n";
-        $prompt .= "Hier sind die Live-Zahlen des Shops (Server-Umgebung: $env):\n$statsJson\n\n";
+        $prompt .= "Hier sind die aktuellen Live-Kennzahlen des Shops (Server-Umgebung: $env):\n$statsJson\n\n";
+        
+        // Fetch contextual macro/micro data
+        $activeTimelines = \App\Models\Management\ManagementTimelineEvent::where(function($query) {
+             $query->where('start_date', '<=', now())
+                   ->where(function($q) {
+                       $q->whereNull('end_date')->orWhere('end_date', '>=', now()->startOfDay());
+                   });
+        })->get();
+        $upcomingTimelines = \App\Models\Management\ManagementTimelineEvent::where('start_date', '>', now())->orderBy('start_date', 'asc')->take(3)->get();
+        
+        $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->orderBy('priority', 'desc')->get();
+        $upcomingCalendar = \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
+             ->orderBy('start_date', 'asc')
+             ->take(5)
+             ->get();
+
+        $prompt .= "--- MANAGEMENT KONTEXT (Extrem Wichtig für Triage) ---\n";
+        $prompt .= "Aktive Timeline Events (Roadblocks, Meilensteine, OPs):\n";
+        foreach ($activeTimelines as $tl) {
+            $prompt .= "- [" . strtoupper($tl->type) . " | Impact: " . strtoupper($tl->impact_level) . "] " . $tl->title . " (Start: " . $tl->start_date->format('d.m.Y') . ", Ende: " . ($tl->end_date ? $tl->end_date->format('d.m.Y') : 'Offen') . ")\n  Info: " . $tl->description . "\n";
+        }
+        if ($activeTimelines->isEmpty()) $prompt .= "- Keine aktiven Timeline Events.\n";
+
+        $prompt .= "\nOffene operative Aufgaben:\n";
+        foreach ($openTasks as $task) {
+            $statusLabel = $task->is_completed ? 'ERLEDIGT' : 'OFFEN';
+            $prompt .= "- [" . $statusLabel . " | Prio: " . $task->priority . "] " . $task->title . "\n";
+        }
+        if ($openTasks->isEmpty()) $prompt .= "- Keine offene operative Aufgabe.\n";
+
+        $prompt .= "\nKommende Kalendertermine (Nächste 5):\n";
+        foreach ($upcomingCalendar as $cal) {
+            $prompt .= "- " . $cal->start_date->format('d.m.Y H:i') . " : " . $cal->title . " (" . $cal->category . ")\n";
+        }
+        $prompt .= "--------------------------------------------------------\n\n";
+
         $prompt .= "DEINE AUFGABE FÜR DEN PDF-REPORT:\n";
         $prompt .= "Der PDF Report MUSS zwingend so aufgebaut sein:\n\n";
-        $prompt .= "TEIL 1 - DIE MASTER-ANSAGE:\n";
-        $prompt .= "Beginne deinen Text exakt mit der Markdown-Überschrift '# MASTER-ANSAGE'. Darunter schreibst du exakt EINEN EINZIGEN SATZ, keinen mehr! Dieser eine Satz diktiert dem Geschäftsführer glasklar, autoritär und auf den Punkt, was der absolut allerwichtigste nächste Schritt ist, der JETZT getan werden muss.\n\n";
-        $prompt .= "TEIL 2 - DIE UMSETZUNG (Restliche Seite 1):\n";
-        $prompt .= "Liefere direkt darunter eine extrem klare, kurze und strukturierte Schritt-für-Schritt-Anleitung (Todos) zur Erfüllung der Master-Ansage.\n\n";
+        $prompt .= "TEIL 1 - DIE MASTER-ANSAGE (mission_get_current):\n";
+        $prompt .= "Beginne deinen Text exakt mit der Markdown-Überschrift '# Aktuelle Mission'. Darunter schreibst du exakt ZWEI BIS DREI SÄTZE, keinen mehr! Du wertest zwingend den MANAGEMENT KONTEXT (Timeline, Tasks, Kalender) zusammen mit den Shop-Daten als Triage-Advisor aus.\n";
+        $prompt .= "Wenn ein Timeline-Roadblock aktiv ist (z.B. Krankheit/Ausfall), MUSS die Mission lauten, kürzer zu treten und Prioritäten liegen zu lassen. Ansonsten leite ab, welcher nächste Task den größten Beitrag liefert, um den nächsten KPI-Milestone oder Timeline-Milestone zu erreichen.\n\n";
+        $prompt .= "TEIL 2 - DIE UMSETZUNG UND TIPPS (Restliche Seite 1):\n";
+        $prompt .= "Liefere unter der Überschrift '## Action-Plan' direkt darunter eine extrem klare, kurze und strukturierte Schritt-für-Schritt-Anleitung (Todos) zur Erfüllung der Aktuellen Mission.\n\n";
         $prompt .= "TEIL 3 - DIE ANALYSE (Folgeseiten):\n";
-        $prompt .= "Analysiere tiefgreifend die Daten. Erstelle saubere Markdown-Charts, Tabellen und gebe wertvolle Tipps/Tricks für die 100K Skalierung.\n\n";
+        $prompt .= "Analysiere tiefgreifend die Performance-Daten. Erstelle saubere Markdown-Charts, Tabellen und gebe wertvolle Tipps/Tricks für die 100K Skalierung.\n\n";
         $prompt .= "STRENGE REGELN:\n";
         $prompt .= "1. SPRACHE: Schreibe ALLES komplett auf Deutsch (GERMAN). Jedes Label, jede Markdown-Überschrift, jeder Tabellenkopf.\n";
         $prompt .= "2. ZEICHENSATZ: VERWENDE KEINERLEI EMOJIS! Verwende keine seltenen Unicode-Sonderzeichen! Der PDF-Compiler stürzt ab oder produziert Fragezeichen, wenn du Emojis benutzt. Erlaubt sind nur regulärer Text und Standard-Markdown.\n";
@@ -769,6 +816,65 @@ class MasterAnalytics extends Component
             ]);
 
             return response()->streamDownload(fn () => print($pdf->output()), 'CEO-Strategie-Report.pdf');
+
+        } catch (\Exception $e) {
+            session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());
+        }
+    }
+
+    public function generateMission()
+    {
+        if (empty($this->selectedAgentId)) {
+            session()->flash('error', 'Bitte wähle zuerst einen KI-Agenten aus (HUD).');
+            return;
+        }
+
+        $agent = \App\Models\Ai\AiAgent::find($this->selectedAgentId);
+        if (!$agent) {
+            session()->flash('error', 'Agent nicht gefunden.');
+            return;
+        }
+
+        $statsJson = json_encode($this->stats, JSON_PRETTY_PRINT);
+        $env = app()->environment();
+
+        $prompt = "Du bist der virtuelle CFO (Chief Financial Officer) eines E-Commerce Laser-Graveur Shops.\n";
+        $prompt .= "WICHTIGSTE MISSION: Unser Ziel ist es, die Firma auf 100.000 Euro Umsatz pro Monat zu skalieren!\n\n";
+        $prompt .= "Hier sind die aktuellen Live-Kennzahlen des Shops (Server-Umgebung: $env):\n$statsJson\n\n";
+        
+        $activeTimelines = \App\Models\Management\ManagementTimelineEvent::where(function($query) {
+             $query->where('start_date', '<=', now())
+                   ->where(function($q) {
+                       $q->whereNull('end_date')->orWhere('end_date', '>=', now()->startOfDay());
+                   });
+        })->get();
+        $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->orderBy('priority', 'desc')->get();
+        $upcomingCalendar = \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
+             ->orderBy('start_date', 'asc')->take(5)->get();
+
+        $prompt .= "--- MANAGEMENT KONTEXT (Extrem Wichtig für Triage) ---\n";
+        foreach ($activeTimelines as $tl) {
+            $prompt .= "- [" . strtoupper($tl->type) . " | Impact: " . strtoupper($tl->impact_level) . "] " . $tl->title . "\n";
+        }
+        if ($activeTimelines->isEmpty()) $prompt .= "- Keine aktiven Timeline Events.\n";
+        $prompt .= "--------------------------------------------------------\n\n";
+
+        $prompt .= "DEINE AUFGABE:\n";
+        $prompt .= "Du wertest zwingend den MANAGEMENT KONTEXT (Timeline, Tasks, Kalender) zusammen mit den Shop-Daten aus.\n";
+        $prompt .= "Liefere mir ALS REINEN TEXT exakt ZWEI BIS DREI SÄTZE, was JETZT für den Erfolg am wichtigsten ist.\n";
+        $prompt .= "KEINE Markdown-Formatierung, KEINE Überschriften, KEINE Listen, KEINE Begrüßung. Nur die 2-3 Sätze Direktive.\n";
+        $prompt .= "Wenn ein Timeline-Roadblock aktiv ist (z.B. Krankheit/Ausfall), formuliere die Mission so, dass Prioritäten reduziert werden.\n";
+
+        try {
+            $response = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
+
+            \App\Models\Management\ManagementMission::create([
+                'ai_agent_id' => $agent->id,
+                'mission_text' => trim($response)
+            ]);
+
+            $this->currentMission = \App\Models\Management\ManagementMission::latest()->first();
+            session()->flash('success', 'HUD Mission aktualisiert.');
 
         } catch (\Exception $e) {
             session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());

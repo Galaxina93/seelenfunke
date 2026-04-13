@@ -24,9 +24,15 @@
             },
 
             stopSpeech() {
+                if (this.chatAbortController) this.chatAbortController.abort();
+                if (this.voiceAbortController) this.voiceAbortController.abort();
+                
                 if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
                 if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
+                
                 this.isSpeaking = false;
+                this.thinking = false;
+                
                 if (this.continuousMode && !this.listening) {
                     this.listening = true;
                     this.startSafeRecognition(100);
@@ -66,6 +72,9 @@
                 }
 
                 this.isSpeaking = true;
+                
+                if (this.voiceAbortController) this.voiceAbortController.abort();
+                this.voiceAbortController = new AbortController();
 
                 fetch('/api/ai/voice', {
                     method: 'POST',
@@ -74,13 +83,16 @@
                         'Accept': 'audio/mpeg',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
                     },
-                    body: JSON.stringify({ text: cleanText })
+                    body: JSON.stringify({ text: cleanText }),
+                    signal: this.voiceAbortController.signal
                 })
                 .then(response => {
                     if (!response.ok) throw new Error(`API Error: ${response.status}`);
                     return response.blob();
                 })
                 .then(blob => {
+                    if (!this.isSpeaking) return; // aborted manually after fetch was complete
+
                     const audioUrl = URL.createObjectURL(blob);
                     window.funkiAudioPlayer = new Audio(audioUrl);
                     window.funkiAudioPlayer.playsInline = true;
@@ -106,6 +118,7 @@
                     });
                 })
                 .catch(error => {
+                    if (error.name === 'AbortError') return;
                     this.fallbackToBrowserTTS(cleanText);
                 });
             },

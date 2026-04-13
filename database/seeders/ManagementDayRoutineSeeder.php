@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 // WICHTIG: Diesen Import hinzufügen!
 
-class DayRoutineSeeder extends Seeder
+class ManagementDayRoutineSeeder extends Seeder
 {
     public function run(): void
     {

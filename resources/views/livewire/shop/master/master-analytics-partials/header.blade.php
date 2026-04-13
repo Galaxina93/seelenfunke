@@ -1,4 +1,17 @@
 <div class="flex flex-col gap-6 border-b border-gray-800 pb-6 w-full">
+    @if(session()->has('error'))
+        <div class="w-full bg-rose-900/50 border border-rose-500/50 text-rose-200 px-4 py-3 rounded-xl mb-2 flex items-center gap-3 shadow-[0_0_15px_rgba(244,63,94,0.15)]">
+            <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-rose-500" />
+            <span class="text-sm">{{ session('error') }}</span>
+        </div>
+    @endif
+    @if(session()->has('success'))
+        <div class="w-full bg-emerald-900/50 border border-emerald-500/50 text-emerald-200 px-4 py-3 rounded-xl mb-2 flex items-center gap-3 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+            <x-heroicon-o-check-circle class="w-5 h-5 text-emerald-500" />
+            <span class="text-sm">{{ session('success') }}</span>
+        </div>
+    @endif
+
     <!-- Header Row (Title + Button) -->
     <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -8,6 +21,11 @@
             <p class="text-gray-400 mt-2 text-sm">Echtzeitanalyse von Systemstatus, Finanzen und Performance.</p>
         </div>
         <div class="flex items-center gap-4 w-full md:w-auto">
+            <button wire:click="generateMission" class="h-10 px-4 rounded-xl bg-gray-900 border border-gray-700 hover:border-white text-xs font-bold text-white transition-all flex items-center justify-center gap-2 group whitespace-nowrap shadow-inner">
+                <x-heroicon-s-bolt class="w-4 h-4 text-emerald-400 group-hover:animate-pulse" />
+                <span wire:loading.remove wire:target="generateMission">Was jetzt?</span>
+                <span wire:loading wire:target="generateMission" class="animate-pulse text-gray-400">Analysiert...</span>
+            </button>
             @include('livewire.shop.ai.ask-ai-dropdown', [
                 'themeColor' => 'primary',
                 'actionMethod' => 'downloadAiReport',

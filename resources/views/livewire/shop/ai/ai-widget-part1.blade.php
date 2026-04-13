@@ -1,3 +1,11 @@
+<div x-data="funkiView()"
+     wire:ignore
+     @open-funkira.window="openFunkiView()"
+     @close-funkira.window="closeFunkiView()"
+     @funki-event.window="updateFunkiStatus($event.detail.state)"
+     @funki-force-stop.window="stopSpeech()"
+     @keyup.escape.window="closeFunkiView()">
+
 <div x-data="{ dockOpen: false }" 
      class="fixed right-0 top-1/2 -translate-y-1/2 z-[99999] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none"
      :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'">
@@ -23,11 +31,11 @@
 
     <!-- DAS HAUPT-DOCK -->
     <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-64 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
-        <div x-data="funkiView()" class="flex flex-col gap-3">
+        <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex justify-between items-center">
                     <span>KI Schnell-Steuerung</span>
-                    <button x-show="continuousMode" @click="$dispatch('funki-force-stop');" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-colors" title="Sprache Stoppen">
+                    <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-colors" title="Alles stoppen & Mikrofon aus">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
                             <rect x="5" y="5" width="10" height="10" rx="1" />
                         </svg>
@@ -74,14 +82,6 @@
     </div>
 </div>
 
-
-<div x-data="funkiView()"
-     wire:ignore
-     @open-funkira.window="openFunkiView()"
-     @close-funkira.window="closeFunkiView()"
-     @funki-event.window="updateFunkiStatus($event.detail.state)"
-     @funki-force-stop.window="stopSpeech()"
-     @keyup.escape.window="closeFunkiView()">
     <template x-teleport="body">
         <div x-show="showFunkiView"
              x-transition:enter="transition ease-out duration-1000"

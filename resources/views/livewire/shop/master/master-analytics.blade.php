@@ -3,6 +3,8 @@
 
     @include('livewire.shop.master.master-analytics-partials.header')
 
+    @include('livewire.shop.master.master-analytics-partials.master-mission-banner')
+
     @include('livewire.shop.master.master-analytics-partials.master_scores')
 
     <livewire:shop.master.master-shop-capacity />

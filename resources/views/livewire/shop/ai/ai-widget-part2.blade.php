@@ -58,8 +58,11 @@
             activeAgentName: 'System', // Neu: Speichert den Namen des antwortenden Agenten
             agentTtsEnabled: false, // Prevents calling TTS apis
 
+            chatAbortController: null,
+            voiceAbortController: null,
+
             isOutputActive() {
-                return this.isSpeaking;
+                return this.isSpeaking || this.thinking;
             },
 
             // --- AI VOICE CHAT LOGIC ---
@@ -111,6 +114,19 @@
                 }
             },
 
+            fullStop() {
+                this.continuousMode = false;
+                this.listening = false;
+                if (this.recognition) {
+                    this.recognition.onstart = null;
+                    this.recognition.onend = null;
+                    try { this.recognition.abort(); } catch(e) {}
+                    try { this.recognition.stop(); } catch(e) {}
+                }
+                this.stopSpeech();
+                this.updateCoreColor();
+            },
+
             startPushToTalk() {
                 if (this.thinking || this.isOutputActive()) return;
 
@@ -139,6 +155,9 @@
                 this.thinking = true;
                 this.updateCoreColor();
 
+                if (this.chatAbortController) this.chatAbortController.abort();
+                this.chatAbortController = new AbortController();
+
                 const pulseAudio = document.getElementById('audio-funki-pulse');
                 if (pulseAudio) {
                     pulseAudio.volume = 0.5;
@@ -160,7 +179,8 @@
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                         },
-                        body: JSON.stringify({ history: this.chatHistory })
+                        body: JSON.stringify({ history: this.chatHistory }),
+                        signal: this.chatAbortController.signal
                     });
 
                     let data;
@@ -247,6 +267,10 @@
                         if (this.funkiLogs.length > 15) this.funkiLogs = this.funkiLogs.slice(-15);
                     }
                 } catch (err) {
+                    if (err.name === 'AbortError') {
+                        console.log('AI Fetch aborted by user.');
+                        return;
+                    }
                     console.error("Fetch Error:", err);
                     this.speakResponse("Subraumkommunikation abgebrochen.");
                     this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Fehler: ${err.message}` });
@@ -255,6 +279,7 @@
                 } finally {
                     this.thinking = false;
                     this.updateCoreColor();
+
 
                     const pulseAudio = document.getElementById('audio-funki-pulse');
                     if (pulseAudio) {
