@@ -2,6 +2,41 @@
 
     @if($context !== 'preview')
 
+        <div class="space-y-4">
+            <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
+                <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
+                Symbol-Bibliothek
+            </h3>
+            <div class="border rounded-[2rem] p-5 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
+                <div class="flex gap-2 p-1 overflow-x-auto custom-scrollbar border-b pb-4 mb-4 {{ $isDark ? 'border-gray-800' : 'border-slate-200' }}">
+                    @foreach($vectors as $category => $items)
+                        <button wire:click="$set('selectedCategory', '{{ $category }}')" class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all shadow-sm border {{ $selectedCategory === $category ? ($isDark ? 'bg-[#C5A059] text-gray-900 border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-[#C5A059] text-white border-[#C5A059] shadow-md') : ($isDark ? 'bg-gray-800 text-gray-400 border-gray-700 hover:text-gray-200 hover:border-gray-600' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700') }}">
+                            {{ $category }} ({{ count($items) }})
+                        </button>
+                    @endforeach
+                </div>
+
+                <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                    @php
+                        $activeVectors = $vectors[$selectedCategory] ?? [];
+                    @endphp
+
+                    @forelse($activeVectors as $v)
+                        <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
+                            <img src="{{ asset('shop/product/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity">
+                        </button>
+                    @empty
+                        <div class="col-span-full text-center text-xs py-10 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
+                            <div class="w-12 h-12 rounded-full mb-3 mx-auto flex items-center justify-center {{ $isDark ? 'bg-gray-800' : 'bg-slate-100' }}">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                            </div>
+                            Keine Motive in dieser Kategorie vorhanden.
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+
         <!-- START: Design Speichern / Laden -->
         <div class="space-y-4" x-data="{
             draftExists: false,
@@ -88,41 +123,6 @@
             </p>
         </div>
         <!-- END: Design Speichern / Laden -->
-
-        <div class="space-y-4">
-            <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
-                <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
-                Symbol-Bibliothek
-            </h3>
-            <div class="border rounded-[2rem] p-5 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
-                <div class="flex gap-2 p-1 overflow-x-auto custom-scrollbar border-b pb-4 mb-4 {{ $isDark ? 'border-gray-800' : 'border-slate-200' }}">
-                    @foreach($vectors as $category => $items)
-                        <button wire:click="$set('selectedCategory', '{{ $category }}')" class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all shadow-sm border {{ $selectedCategory === $category ? ($isDark ? 'bg-[#C5A059] text-gray-900 border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-[#C5A059] text-white border-[#C5A059] shadow-md') : ($isDark ? 'bg-gray-800 text-gray-400 border-gray-700 hover:text-gray-200 hover:border-gray-600' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700') }}">
-                            {{ $category }} ({{ count($items) }})
-                        </button>
-                    @endforeach
-                </div>
-                
-                <div class="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                    @php
-                        $activeVectors = $vectors[$selectedCategory] ?? [];
-                    @endphp
-
-                    @forelse($activeVectors as $v)
-                        <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
-                            <img src="{{ asset('shop/product/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity">
-                        </button>
-                    @empty
-                        <div class="col-span-full text-center text-xs py-10 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
-                            <div class="w-12 h-12 rounded-full mb-3 mx-auto flex items-center justify-center {{ $isDark ? 'bg-gray-800' : 'bg-slate-100' }}">
-                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                            </div>
-                            Keine Motive in dieser Kategorie vorhanden.
-                        </div>
-                    @endforelse
-                </div>
-            </div>
-        </div>
     @endif
 
     @if($configSettings['allow_logo'])

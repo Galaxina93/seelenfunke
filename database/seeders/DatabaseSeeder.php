@@ -32,6 +32,7 @@ class DatabaseSeeder extends Seeder
             ProductCategorySeeder::class,
             ProductAttributeSeeder::class,
             ProductSupplierSeeder::class,
+            ProductTemplateSeeder::class,
 
             // Marketing
             BlogCategorySeeder::class,

@@ -1,0 +1,356 @@
+[
+    {
+        "product_slug": "seelen-kristall",
+        "name": "Frohe Weihnachten",
+        "configuration": {
+            "text": "Frohe Weihnachten!\n- Familie Mustermann -",
+            "type": "physical",
+            "files": [],
+            "logos": [
+                {
+                    "x": 50,
+                    "y": 34.4242426554362,
+                    "id": "a2f0cff1-17ef-4c56-8f80-240549bcd2ec",
+                    "url": "http:\/\/127.0.0.1\/shop\/product\/configurator\/vectors\/baby_black.svg",
+                    "size": 100,
+                    "type": "vector",
+                    "value": "vectors\/baby_black.svg",
+                    "rotation": 0
+                }
+            ],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 60,
+                    "id": "1bbc8b63-991c-4699-909a-c8fcc5b1f8b2",
+                    "font": "Dancing Script",
+                    "size": 1.5,
+                    "text": "Frohe Weihnachten!\n- Familie Mustermann -",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logo_path": "vectors\/baby_black.svg",
+            "is_digital": false,
+            "is_express": false,
+            "logos_back": [],
+            "texts_back": [],
+            "variant_id": null,
+            "variant_name": null,
+            "snapshot_path": {
+                "front": "snapshots\/3cbfde45-d3db-4663-b4b4-f7cd0603cfd1_front.jpg"
+            }
+        },
+        "is_active": true,
+        "holiday": "Weihnachten",
+        "preview_image": "product-templates\/QsbobAkvSdhwHtgKfgr1M0fiCr9lYfM9FK1iognO.jpg"
+    },
+    {
+        "product_slug": "seelen-kristall",
+        "name": "Frohes Osterfest",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "31c2dab3-2c6a-4bad-961c-d28424c22e18",
+                    "font": "Pacifico",
+                    "size": 1.8,
+                    "text": "Frohes Osterfest!",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Ostern",
+        "preview_image": null
+    },
+    {
+        "product_slug": "seelen-kristall",
+        "name": "Lieblingsmensch \/ Hochzeit",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "7831c925-b36a-4308-b345-d5d11ab39579",
+                    "font": "Great Vibes",
+                    "size": 1.6,
+                    "text": "Lieblingsmensch\n24.08.2026",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Hochzeit",
+        "preview_image": null
+    },
+    {
+        "product_slug": "seelen-kristall",
+        "name": "Alles Gute zum Geburtstag",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "2e618c2e-5bbf-49b7-a346-f3e9f87eb733",
+                    "font": "Montserrat",
+                    "size": 1.4,
+                    "text": "Happy Birthday!",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Kein Feiertag",
+        "preview_image": null
+    },
+    {
+        "product_slug": "seelen-anhaenger",
+        "name": "Frohe Weihnachten",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 60,
+                    "id": "8d31b918-9d19-458c-ba87-4169e92aca58",
+                    "font": "Dancing Script",
+                    "size": 1.5,
+                    "text": "Frohe Weihnachten!\n- Familie Mustermann -",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Weihnachten",
+        "preview_image": null
+    },
+    {
+        "product_slug": "seelen-anhaenger",
+        "name": "Frohes Osterfest",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "61558657-1a03-4ebe-9ac8-8c493b38da20",
+                    "font": "Pacifico",
+                    "size": 1.8,
+                    "text": "Frohes Osterfest!",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Ostern",
+        "preview_image": null
+    },
+    {
+        "product_slug": "seelen-anhaenger",
+        "name": "Lieblingsmensch \/ Hochzeit",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "da2c3e12-c5f2-487d-b8e7-45076c0e50dd",
+                    "font": "Great Vibes",
+                    "size": 1.6,
+                    "text": "Lieblingsmensch\n24.08.2026",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Hochzeit",
+        "preview_image": null
+    },
+    {
+        "product_slug": "seelen-anhaenger",
+        "name": "Alles Gute zum Geburtstag",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "f73d455f-4201-4e52-a1ef-67846689bf0c",
+                    "font": "Montserrat",
+                    "size": 1.4,
+                    "text": "Happy Birthday!",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Kein Feiertag",
+        "preview_image": null
+    },
+    {
+        "product_slug": "weizenglas-personalisiert",
+        "name": "Frohe Weihnachten",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 60,
+                    "id": "67f221ea-bd55-4a92-941b-4af8869662ee",
+                    "font": "Dancing Script",
+                    "size": 1.5,
+                    "text": "Frohe Weihnachten!\n- Familie Mustermann -",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Weihnachten",
+        "preview_image": null
+    },
+    {
+        "product_slug": "weizenglas-personalisiert",
+        "name": "Frohes Osterfest",
+        "configuration": {
+            "text": "Frohes Osterfest!",
+            "type": "physical",
+            "files": [],
+            "logos": [
+                {
+                    "x": 50,
+                    "y": 31.450000000000006,
+                    "id": "8d696104-9c6e-46d8-9b2a-7cdd1ae23f56",
+                    "url": "http:\/\/127.0.0.1\/shop\/product\/configurator\/vectors\/babygirl_black.svg",
+                    "size": 100,
+                    "type": "vector",
+                    "value": "vectors\/babygirl_black.svg",
+                    "rotation": 0
+                }
+            ],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "fa2a98cd-aaf1-4d58-9c57-8c67730f437f",
+                    "font": "Pacifico",
+                    "size": 1.8,
+                    "text": "Frohes Osterfest!",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logo_path": "vectors\/babygirl_black.svg",
+            "is_digital": false,
+            "is_express": false,
+            "logos_back": [],
+            "texts_back": [],
+            "variant_id": null,
+            "variant_name": null,
+            "snapshot_path": {
+                "front": "snapshots\/c854e39f-993d-4dba-a9e9-08c960483aa9_front.jpg"
+            }
+        },
+        "is_active": true,
+        "holiday": "Ostern",
+        "preview_image": null
+    },
+    {
+        "product_slug": "weizenglas-personalisiert",
+        "name": "Lieblingsmensch \/ Hochzeit",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "9bb6f8de-9dd1-423e-9539-7dd00a2f8c28",
+                    "font": "Great Vibes",
+                    "size": 1.6,
+                    "text": "Lieblingsmensch\n24.08.2026",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Hochzeit",
+        "preview_image": null
+    },
+    {
+        "product_slug": "weizenglas-personalisiert",
+        "name": "Alles Gute zum Geburtstag",
+        "configuration": {
+            "logos": [],
+            "notes": "",
+            "texts": [
+                {
+                    "x": 50,
+                    "y": 50,
+                    "id": "d66f2088-a11c-4fd7-9f26-b9bc0b4a2ca4",
+                    "font": "Montserrat",
+                    "size": 1.4,
+                    "text": "Happy Birthday!",
+                    "align": "center",
+                    "rotation": 0
+                }
+            ],
+            "logos_back": [],
+            "texts_back": [],
+            "uploaded_files": []
+        },
+        "is_active": true,
+        "holiday": "Kein Feiertag",
+        "preview_image": null
+    }
+]
