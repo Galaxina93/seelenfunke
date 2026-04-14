@@ -25,12 +25,12 @@
         <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-emerald-500/20 animate-fade-in-up w-full">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 border-b border-gray-800 pb-6 gap-4">
                 <h2 class="text-xl sm:text-2xl font-serif font-bold text-white tracking-wide flex items-center gap-4">
-                    <span class="bg-emerald-500 text-gray-900 w-8 h-8 rounded-full flex items-center justify-center text-lg font-black shrink-0">2</span>
-                    Materialien für: <span class="text-emerald-400 ml-1">{{ $this->product->name }}</span>
+                    <span class="bg-[var(--theme-color)] text-gray-900 w-8 h-8 rounded-full flex items-center justify-center text-lg font-black shrink-0">2</span>
+                    Materialien für: <span class="text-[var(--theme-color)] ml-1">{{ $this->product->name }}</span>
                 </h2>
                 
                 @if($packagings->count() > 0)
-                    <span class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-inner border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                    <span class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-inner border bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-30)]">
                         <x-heroicon-s-check-circle class="w-4 h-4 mr-2" /> {{ $packagings->count() }} Materialien gespeichert
                     </span>
                 @else
@@ -46,7 +46,7 @@
                 <form wire:submit.prevent="addMaterial" class="flex flex-col md:flex-row items-start md:items-end gap-5 mb-5">
                     <div class="w-full md:flex-1">
                         <label class="block text-xs font-black tracking-widest text-gray-400 mb-2 ml-1 uppercase">Woraus besteht die Verpackung?</label>
-                        <select wire:model.live="newType" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-sm font-bold text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-inner cursor-pointer transition-colors">
+                        <select wire:model.live="newType" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner cursor-pointer transition-colors">
                             <option value="">-- Bitte Material wählen --</option>
                             @foreach($availableTypes as $val => $label)
                                 <option value="{{ $val }}">{{ $label }}</option>
@@ -58,7 +58,7 @@
                     <div class="w-full md:w-48 shrink-0">
                         <label class="block text-xs font-black tracking-widest text-gray-400 mb-2 ml-1 uppercase">Gewicht (in Gramm)</label>
                         <div class="relative">
-                            <input type="number" wire:model="newWeightGrams" min="1" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-sm font-bold text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-inner pr-12" placeholder="z.B. 120">
+                            <input type="number" wire:model="newWeightGrams" min="1" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner pr-12" placeholder="z.B. 120">
                             <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-gray-500 uppercase tracking-widest">g</span>
                         </div>
                         @error('newWeightGrams') <span class="text-xs text-red-500 font-bold block mt-2 ml-1">{{ $message }}</span> @enderror
@@ -104,22 +104,22 @@
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border border-gray-700 bg-gray-900 p-4 sm:p-5 rounded-2xl group transition-all hover:border-gray-600 shadow-lg gap-4">
                         <div class="flex items-center gap-5 w-full sm:w-auto">
                             <div class="w-14 h-14 bg-gray-950 rounded-xl border border-gray-800 flex items-center justify-center shrink-0 shadow-inner p-3">
-                                <x-dynamic-component :component="$iconComponent" class="w-7 h-7 text-emerald-400 opacity-80" />
+                                <x-dynamic-component :component="$iconComponent" class="w-7 h-7 text-[var(--theme-color)] opacity-80" />
                             </div>
                             <div class="flex-1">
                                 <div class="text-sm font-bold text-white tracking-wide mb-1">{{ $availableTypes[$pkg->material_type] ?? $pkg->material_type }}</div>
                                 
                                 @if($editId === $pkg->id)
                                     <div class="mt-2 flex items-center gap-3 bg-gray-950 p-2 rounded-xl border border-gray-800">
-                                        <input type="number" wire:model="editWeightGrams" class="w-24 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-inner" min="1">
+                                        <input type="number" wire:model="editWeightGrams" class="w-24 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner" min="1">
                                         <span class="text-xs text-gray-500 font-black tracking-widest uppercase">Gramm</span>
                                         <div class="w-px h-6 bg-gray-800 mx-1"></div>
-                                        <button wire:click="saveEdit" class="text-emerald-400 hover:text-emerald-300 p-1 rounded-lg hover:bg-emerald-500/10 transition-colors" title="Speichern"><x-heroicon-o-check class="w-5 h-5" /></button>
+                                        <button wire:click="saveEdit" class="text-[var(--theme-color)] hover:opacity-80 p-1 rounded-lg hover:bg-[var(--theme-color-10)] transition-colors" title="Speichern"><x-heroicon-o-check class="w-5 h-5" /></button>
                                         <button wire:click="cancelEdit" class="text-gray-500 hover:text-gray-400 p-1 rounded-lg hover:bg-gray-800 transition-colors" title="Abbrechen"><x-heroicon-o-x-mark class="w-5 h-5" /></button>
                                     </div>
                                 @else
-                                    <div class="text-sm text-gray-400 font-bold mt-1 flex items-center gap-3 group/edit cursor-pointer hover:text-emerald-400 transition-colors" wire:click="startEdit({{ $pkg->id }}, {{ $pkg->weight_grams }})">
-                                        <span class="text-emerald-500 text-base">{{ number_format($pkg->weight_grams, 0, ',', '.') }}</span> Gramm 
+                                    <div class="text-sm text-gray-400 font-bold mt-1 flex items-center gap-3 group/edit cursor-pointer hover:text-[var(--theme-color)] transition-colors" wire:click="startEdit({{ $pkg->id }}, {{ $pkg->weight_grams }})">
+                                        <span class="text-[var(--theme-color)] text-base">{{ number_format($pkg->weight_grams, 0, ',', '.') }}</span> Gramm 
                                         <span class="bg-gray-800 px-2 py-1 rounded-lg text-[10px] uppercase opacity-0 group-hover/edit:opacity-100 transition-opacity flex items-center"><x-heroicon-s-pencil-square class="w-3 h-3 mx-1 inline-block" /> Bearbeiten</span>
                                     </div>
                                 @endif
