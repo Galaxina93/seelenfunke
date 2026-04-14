@@ -40,7 +40,7 @@
 
                     <div class="flex items-center gap-4 group">
                         {{-- Uhrzeit --}}
-                        <div class="w-12 text-right font-mono text-xs font-bold {{ $isActive ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]' : 'text-gray-600' }}">
+                        <div class="w-12 text-right font-mono text-xs font-bold {{ $isActive ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_var(--theme-color-50)]' : 'text-gray-600' }}">
                             {{ \Carbon\Carbon::parse($r->start_time)->format('H:i') }}
                         </div>
 
@@ -48,7 +48,7 @@
                         <div class="relative flex items-center justify-center">
                             @if($isActive)
                                 <span class="absolute inline-flex h-6 w-6 rounded-full bg-[var(--theme-color)] opacity-20 animate-ping"></span>
-                                <div class="w-3.5 h-3.5 rounded-full bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] shadow-[0_0_15px_rgba(197,160,89,1)] z-10"></div>
+                                <div class="w-3.5 h-3.5 rounded-full bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] shadow-[0_0_15px_var(--theme-color)] z-10"></div>
                             @else
                                 <div class="w-3 h-3 rounded-full border-2 border-gray-700 bg-gray-950 group-hover:border-[var(--theme-color-50)] group-hover:scale-125 transition-all duration-500 z-10"></div>
                             @endif
@@ -61,7 +61,7 @@
                         {{-- Routine Karte --}}
                         <div class="flex-1 relative transition-all duration-500 ease-in-out cursor-pointer rounded-2xl p-4 sm:p-5 border
                             {{ $isActive
-                                ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_25px_rgba(197,160,89,0.15)] scale-[1.02] z-20'
+                                ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_25px_var(--theme-color-15)] scale-[1.02] z-20'
                                 : 'bg-gray-950/50 border-gray-800 hover:border-gray-600 hover:bg-gray-900 shadow-inner' }}"
                              wire:click="edit('{{ $r->id }}')">
 
@@ -123,7 +123,7 @@
                 </div>
                 <div class="mt-8 flex gap-4">
                     <button wire:click="cancel" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 hover:text-white transition-all shadow-lg">Abbrechen</button>
-                    <button wire:click="save" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-900 bg-[var(--theme-color)] rounded-xl hover:bg-[var(--theme-color)]-dark transition-all shadow-[0_0_20px_rgba(197,160,89,0.3)]">Speichern</button>
+                    <button wire:click="save" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-900 bg-[var(--theme-color)] rounded-xl hover:brightness-110 transition-all shadow-[0_0_20px_var(--theme-color-30)]">Speichern</button>
                 </div>
             </div>
         @endif
@@ -134,6 +134,6 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(197, 160, 89, 0.4); }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--theme-color-40); }
     </style>
 </div>

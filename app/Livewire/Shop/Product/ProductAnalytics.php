@@ -22,7 +22,7 @@ class ProductAnalytics extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Produkte';
+    public string $themingDepartment = 'Produkte';
     protected $listeners = ['refreshProductAnalytics' => '$refresh'];
 
     #[Url]
@@ -97,8 +97,8 @@ class ProductAnalytics extends Component
         })->sortByDesc('cost')->take(5);
 
         $this->topLossData = [
-            'labels' => $lossByProduct->pluck('name')->toArray(),
-            'data' => $lossByProduct->pluck('cost')->toArray()
+            'labels' => $lossByProduct->pluck('name')->values()->toArray(),
+            'data' => $lossByProduct->pluck('cost')->values()->toArray()
         ];
 
         // 3. Kundenbewertungen (Doughnut - Stars distribution)

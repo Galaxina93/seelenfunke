@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Ai;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use Livewire\Attributes\Layout;
 
 use App\Models\Ai\AiAgent;
@@ -14,6 +16,8 @@ use Livewire\Component;
 #[Layout('components.layouts.backend_layout')]
 class AiChat extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     public $input = '';
     public $messages = [];

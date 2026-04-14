@@ -4,10 +4,10 @@
     <table class="w-full text-left whitespace-nowrap">
         <thead class="bg-gray-900/80 border-b border-gray-800">
             <tr>
-                <th class="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Code</th>
-                <th class="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Wert</th>
-                <th class="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Nutzung</th>
-                <th class="px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-500">Status</th>
+                <th class="px-6 py-4 text-sm font-medium text-gray-400">Code</th>
+                <th class="px-6 py-4 text-sm font-medium text-gray-400">Wert</th>
+                <th class="px-6 py-4 text-sm font-medium text-gray-400">Nutzung</th>
+                <th class="px-6 py-4 text-sm font-medium text-gray-400">Status</th>
             </tr>
         </thead>
         <tbody class="divide-y divide-gray-800/50">
@@ -16,10 +16,10 @@
                     <!-- Code -->
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center group-hover:border-emerald-500/50 transition-colors">
-                                <i class="bi bi-tag-fill text-emerald-500"></i>
+                            <div class="w-8 h-8 rounded-lg bg-[color:var(--theme-color-10)] border border-[color:var(--theme-color-30)] flex items-center justify-center transition-colors">
+                                <i class="bi bi-tag-fill text-[color:var(--theme-color)]"></i>
                             </div>
-                            <span class="font-mono text-white text-sm tracking-widest">{{ $v['code'] ?? 'N/A' }}</span>
+                            <span class="font-mono text-white text-sm">{{ $v['code'] ?? 'N/A' }}</span>
                         </div>
                     </td>
                     <!-- Wert -->
@@ -29,22 +29,22 @@
                     <!-- Nutzung -->
                     <td class="px-6 py-4">
                         <div class="flex flex-col">
-                            <span class="text-sm font-bold {{ ($v['used_count'] ?? 0) > 0 ? 'text-emerald-400' : 'text-gray-400' }}">
+                            <span class="text-sm font-medium {{ ($v['used_count'] ?? 0) > 0 ? 'text-[color:var(--theme-color)]' : 'text-gray-400' }}">
                                 {{ $v['used_count'] ?? 0 }} Einlösungen
                             </span>
                             @if(isset($v['usage_limit']) && $v['usage_limit'])
-                                <span class="text-[10px] text-gray-500 uppercase tracking-widest">Max {{ $v['usage_limit'] }}</span>
+                                <span class="text-xs text-gray-500">Max {{ $v['usage_limit'] }}</span>
                             @endif
                         </div>
                     </td>
                     <!-- Status -->
                     <td class="px-6 py-4">
                          @if(($v['is_active'] ?? true))
-                            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-md text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-[color:var(--theme-color-10)] text-[color:var(--theme-color)] border border-[color:var(--theme-color-30)]">
                                 Aktiv
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-md text-[9px] font-black bg-gray-800 text-gray-500 border border-gray-700 uppercase tracking-widest">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-500 border border-gray-700">
                                 Inaktiv
                             </span>
                         @endif

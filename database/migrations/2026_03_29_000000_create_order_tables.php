@@ -20,8 +20,6 @@ return new class extends Migration
             $table->boolean('is_express')->default(false);
 
             
-            $table->string('tracking_number')->nullable();
-            $table->string('shipping_label_path')->nullable();
 
             $table->string('payment_status')->default('unpaid');
             $table->string('payment_method')->default('stripe');
@@ -48,6 +46,14 @@ return new class extends Migration
             $table->text('notes')->nullable(); // Für interne Notizen im Backend
 
             $table->text('cancellation_reason')->nullable();
+
+            // UTM Tracking
+            $table->string('utm_source_first')->nullable();
+            $table->string('utm_campaign_first')->nullable();
+            $table->string('utm_medium_first')->nullable();
+            $table->string('utm_source_last')->nullable();
+            $table->string('utm_campaign_last')->nullable();
+            $table->string('utm_medium_last')->nullable();
 
             $table->softDeletes();
             $table->timestamps();
@@ -155,10 +161,23 @@ return new class extends Migration
             $table->timestamp('customer_notified_at')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('order_shipments', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('order_id')->constrained('order_orders')->cascadeOnDelete();
+            
+            $table->string('tracking_number'); // e.g. DHL piececode
+            $table->string('shipping_label_path')->nullable(); // stored PDF label
+            $table->string('carrier')->default('DHL'); // In case other carriers are added later
+            $table->string('status')->default('shipped'); // status of this specific package (e.g., shipped, transit, delivered)
+            
+            $table->timestamps();
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('order_shipments');
         Schema::dropIfExists('order_revocations');
         Schema::dropIfExists('order_quote_request_items');
         Schema::dropIfExists('order_quote_requests');

@@ -2,8 +2,9 @@
 @props(['route', 'title', 'pageName', 'icon', 'noColor' => false, 'themeColor' => null, 'dotState' => null, 'dotEvent' => null, 'dotClearEvent' => null])
 
 @php
-    $currentPage = basename(request()->path());
-    $isActive = $pageName === $currentPage;
+    $currentPath = request()->path();
+    $routePath = ltrim(parse_url($route, PHP_URL_PATH), '/');
+    $isActive = $routePath === $currentPath;
     
     $activeClasses = 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]';
     $activeIconClasses = 'text-primary';
@@ -20,6 +21,13 @@
             'red-500' => 'bg-red-500/10 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.15)]',
             'rose-500' => 'bg-rose-500/10 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.15)]',
             'cyan-500' => 'bg-cyan-500/10 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]',
+            'indigo-500' => 'bg-indigo-500/10 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]',
+            'teal-500' => 'bg-teal-500/10 text-teal-400 shadow-[0_0_15px_rgba(20,184,166,0.15)]',
+            'orange-500' => 'bg-orange-500/10 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.15)]',
+            'yellow-500' => 'bg-yellow-500/10 text-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.15)]',
+            'green-500' => 'bg-green-500/10 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]',
+            'sky-500' => 'bg-sky-500/10 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.15)]',
+            'pink-500' => 'bg-pink-500/10 text-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.15)]',
             default => $activeClasses
         };
         $activeIconClasses = 'text-' . $themeColor;

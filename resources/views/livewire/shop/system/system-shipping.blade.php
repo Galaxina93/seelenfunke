@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     <div class="space-y-8 animate-fade-in-up pb-12 w-full">
         <style>
@@ -148,16 +149,16 @@
                             <h2 class="text-lg font-serif font-bold text-white tracking-wide">Steuerung</h2>
                             <p class="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-1">Alle Zonen</p>
                         </div>
-                        <button wire:click="createZone" class="bg-primary hover:bg-primary-dark text-gray-900 w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-[0_0_15px_rgba(197,160,89,0.2)] hover:scale-105" title="Neue Zone">
+                        <button wire:click="createZone" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] brightness-90 text-gray-900 w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-[0_0_15px_var(--theme-color-20)] hover:scale-105" title="Neue Zone">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                         </button>
                     </div>
 
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
                         @forelse($zones as $zone)
-                            <div wire:click="editZone('{{$zone->id}}')" class="bg-gray-950 rounded-2xl p-5 border border-gray-800 shadow-inner hover:border-primary/50 hover:bg-gray-900 transition-all cursor-pointer group">
+                            <div wire:click="editZone('{{$zone->id}}')" class="bg-gray-950 rounded-2xl p-5 border border-gray-800 shadow-inner hover:border-[var(--theme-color-50)] hover:bg-gray-900 transition-all cursor-pointer group">
                                 <div class="flex justify-between items-start mb-3">
-                                    <h3 class="font-bold text-white text-base group-hover:text-primary transition-colors">{{$zone->name}}</h3>
+                                    <h3 class="font-bold text-white text-base group-hover:text-[var(--theme-color)] transition-colors">{{$zone->name}}</h3>
                                     <button wire:click.stop="deleteZone('{{$zone->id}}')" wire:confirm="Zone wirklich löschen?" class="text-gray-600 hover:text-red-500 transition-colors p-1" title="Löschen">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                     </button>
@@ -191,7 +192,7 @@
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
                         <div>
                             <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Name der Zone</label>
-                            <input type="text" wire:model="zoneName" class="w-full rounded-xl bg-gray-950 border border-gray-700 text-white p-3.5 focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all outline-none shadow-inner" placeholder="z.B. Europäische Union">
+                            <input type="text" wire:model="zoneName" class="w-full rounded-xl bg-gray-950 border border-gray-700 text-white p-3.5 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all outline-none shadow-inner" placeholder="z.B. Europäische Union">
                             @error('zoneName')<span class="text-[9px] font-bold text-red-400 mt-2 block ml-1 uppercase tracking-widest">{{$message}}</span>@enderror
                         </div>
 
@@ -199,13 +200,13 @@
                             <div class="border-t border-gray-800 pt-6">
                                 <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Länder zuweisen</label>
                                 <div class="flex gap-2 mb-4">
-                                    <select wire:model="selectedCountryToAdd" class="flex-1 rounded-xl bg-gray-950 border border-gray-700 text-gray-300 text-xs font-bold p-3 focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all outline-none shadow-inner cursor-pointer appearance-none">
+                                    <select wire:model="selectedCountryToAdd" class="flex-1 rounded-xl bg-gray-950 border border-gray-700 text-gray-300 text-xs font-bold p-3 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all outline-none shadow-inner cursor-pointer appearance-none">
                                         <option value="" class="bg-gray-900">Land wählen...</option>
                                         @foreach($availableCountries as $code => $name)
                                             <option value="{{$code}}" class="bg-gray-900">{{$name}} ({{$code}})</option>
                                         @endforeach
                                     </select>
-                                    <button wire:click="addCountry" class="bg-primary hover:bg-primary-dark text-gray-900 px-4 rounded-xl font-black text-xl transition-all shadow-[0_0_15px_rgba(197,160,89,0.2)] hover:scale-105">+</button>
+                                    <button wire:click="addCountry" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] brightness-90 text-gray-900 px-4 rounded-xl font-black text-xl transition-all shadow-[0_0_15px_var(--theme-color-20)] hover:scale-105">+</button>
                                 </div>
                                 @error('selectedCountryToAdd')<span class="text-[9px] font-bold text-red-400 mb-3 block uppercase tracking-widest ml-1">{{$message}}</span>@enderror
 
@@ -230,13 +231,13 @@
 
                                 <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 mb-5 shadow-inner">
                                     <div class="space-y-3">
-                                        <input type="text" wire:model="newRate.name" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-primary outline-none" placeholder="Name (z.B. Paket S)">
+                                        <input type="text" wire:model="newRate.name" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none" placeholder="Name (z.B. Paket S)">
                                         <div class="flex gap-2">
-                                            <input type="number" wire:model="newRate.min_weight" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-primary outline-none text-center" placeholder="Min g">
-                                            <input type="number" wire:model="newRate.max_weight" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-primary outline-none text-center" placeholder="Max g">
+                                            <input type="number" wire:model="newRate.min_weight" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none text-center" placeholder="Min g">
+                                            <input type="number" wire:model="newRate.max_weight" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none text-center" placeholder="Max g">
                                         </div>
                                         <div class="flex gap-2">
-                                            <input type="number" step="0.01" wire:model="newRate.price" class="flex-1 rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-primary outline-none font-mono" placeholder="Preis €">
+                                            <input type="number" step="0.01" wire:model="newRate.price" class="flex-1 rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none font-mono" placeholder="Preis €">
                                             <button wire:click="addRate" class="bg-emerald-500 hover:bg-emerald-400 text-gray-900 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all">Add</button>
                                         </div>
                                     </div>
@@ -255,7 +256,7 @@
                                                 <p class="text-[9px] text-gray-500 font-mono mt-0.5">{{number_format($rate->min_weight, 0, ',', '.')}}g - {{$rate->max_weight ? number_format($rate->max_weight, 0, ',', '.') . 'g' : '∞'}}</p>
                                             </div>
                                             <div class="flex items-center gap-3 shrink-0">
-                                                <span class="text-xs font-bold font-mono text-primary">{{number_format($rate->price / 100, 2, ',', '.')}}€</span>
+                                                <span class="text-xs font-bold font-mono text-[var(--theme-color)]">{{number_format($rate->price / 100, 2, ',', '.')}}€</span>
                                                 <button wire:click="removeRate('{{$rate->id}}')" class="text-gray-600 hover:text-red-400 transition-colors p-1">
                                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>
@@ -274,7 +275,7 @@
                     </div>
 
                     <div class="p-5 border-t border-gray-800 bg-gray-950/50 shrink-0">
-                        <button wire:click="saveZone" class="w-full bg-primary text-gray-900 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-white hover:scale-[1.02] transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)]">
+                        <button wire:click="saveZone" class="w-full bg-[var(--theme-color)] text-gray-900 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-white hover:scale-[1.02] transition-all shadow-[0_0_15px_var(--theme-color-30)]">
                             Zone Speichern
                         </button>
                     </div>
@@ -282,4 +283,6 @@
             </div>
         </div>
     </div>
+</div>
+
 </div>

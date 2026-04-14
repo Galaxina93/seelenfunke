@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\System;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use Livewire\Component;
 use App\Models\Delivery\DeliveryTime;
 use App\Models\Delivery\DeliverySetting;
@@ -10,6 +12,10 @@ use Livewire\Attributes\Computed;
 
 class SystemDeliveryTimes extends Component
 {
+    use WithDepartmentTheming;
+    
+    public string $themingDepartment = 'System';
+
     public $activeDeliveryTimeId = null;
 
     // Settings-Werte

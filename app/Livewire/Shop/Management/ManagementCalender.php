@@ -16,7 +16,7 @@ class ManagementCalender extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Firmenleitung';
+    public string $themingDepartment = 'Leitung';
 
     use WithFileUploads;
 
@@ -75,6 +75,12 @@ class ManagementCalender extends Component
     public function setView($view)
     {
         $this->view = $view;
+    }
+
+    public function goToDay($dateStr)
+    {
+        $this->currentDate = Carbon::parse($dateStr);
+        $this->view = 'day';
     }
 
     /**

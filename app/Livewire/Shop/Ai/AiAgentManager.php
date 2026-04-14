@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Ai;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Ai\AiAgent;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -9,6 +11,8 @@ use Livewire\Component;
 #[Layout('components.layouts.backend_layout')]
 class AiAgentManager extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     public $pingResults = [];
 

@@ -21,7 +21,7 @@
                     <button wire:click="$set('selectedListId', '{{ $list->id }}')"
                         @class([
                             'flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 text-left group w-full border',
-                            'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_15px_rgba(197,160,89,0.1)]' => $selectedListId === $list->id,
+                            'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_15px_var(--theme-color-10)]' => $selectedListId === $list->id,
                             'bg-gray-900/50 border-transparent hover:bg-gray-800 hover:border-gray-700 text-gray-500' => $selectedListId !== $list->id
                         ])>
 
@@ -84,7 +84,7 @@
 
                         <div class="flex gap-2">
                             <button wire:click="cancelCreateList" class="flex-1 py-2 text-[9px] font-black uppercase text-gray-500 hover:text-white transition-colors">Abbruch</button>
-                            <button wire:click="createList" class="flex-1 py-2 text-[9px] font-black uppercase text-gray-900 bg-[var(--theme-color)] rounded-lg hover:bg-[var(--theme-color)]-dark shadow-md transition-all">Erstellen</button>
+                            <button wire:click="createList" class="flex-1 py-2 text-[9px] font-black uppercase text-gray-900 bg-[var(--theme-color)] rounded-lg hover:brightness-110 shadow-md transition-all">Erstellen</button>
                         </div>
                     </div>
                 @endif

@@ -158,6 +158,12 @@ class GeminiAgent
 
             $startTime = microtime(true);
             $response = Http::withToken($this->apiKey)
+                ->withOptions([
+                    'verify' => false,
+                    'curl' => [
+                        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                    ]
+                ])
                 ->connectTimeout(30) // Erhöhe den Verbindungs-Timeout (Standard oft 10s in cURL)
                 ->timeout(120) // Deep reasoning can take time
                 ->asJson()
@@ -379,18 +385,45 @@ class GeminiAgent
 
         try {
             $startTime = microtime(true);
-            $response = Http::timeout(60)->withToken($apiKey)->post(rtrim($baseUrl, '/') . '/chat/completions', [
+            
+            $url = rtrim($baseUrl, '/') . '/chat/completions';
+            
+            $requestPayload = [
                 'model' => $payload['model'],
                 'temperature' => $payload['temperature'],
                 'messages' => [
                     ['role' => 'system', 'content' => $payload['system_prompt']],
                     ['role' => 'user', 'content' => $prompt]
                 ],
+            ];
+
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $apiKey,
+                'Expect:' // Prevent Expect: 100-continue which causes Docker MTU timeouts
             ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+            $responseString = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
             $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
-            if ($response->successful()) {
-                $data = $response->json();
+            if ($curlError) {
+                return "API Fehler: cURL Error - " . $curlError;
+            }
+
+            if ($httpCode === 200 && $responseString) {
+                $data = json_decode($responseString, true);
                 
                 if (isset($data['usage']) && class_exists(\App\Models\Ai\AiMetric::class)) {
                     try {
@@ -408,9 +441,106 @@ class GeminiAgent
                 return $data['choices'][0]['message']['content'] ?? 'Das LLM hat keinen Text zurückgegeben.';
             }
 
-            return "API Fehler: " . $response->status() . " - " . $response->body();
+            return "API Fehler: " . $httpCode . " - " . $responseString;
         } catch (\Exception $e) {
             return "Fehler bei der KI-Analyse: " . $e->getMessage();
+        }
+    }
+
+    /**
+     * Schickt einen Prompt zusammen mit einem Bild (Base64) an das Vision LLM (Gemini 1.5).
+     */
+    public static function processVisionPrompt(\App\Models\Ai\AiAgent $agent, string $prompt, string $base64Image, string $mimeType = 'image/jpeg'): string
+    {
+        $payload = AiAgentService::getAgentPayload($agent);
+        $apiKey = config('services.gemini.key');
+
+        if (empty($apiKey)) {
+            return "Vision API Fehler: Kein Gemini API Key konfiguriert.";
+        }
+
+        try {
+            $startTime = microtime(true);
+            
+            // Nutze explizit gemini-2.5-flash-image, da dieses spezialisierte Modell nativ Base64 unterstützt
+            // und nicht von den generellen 503 "High Demand" Ausfällen der Standardmodelle betroffen ist.
+            $googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' . $apiKey;
+            
+            // Entferne evtl. vorhandene data:image/jpeg;base64,... Header, falls Base64 nicht raw ist
+            if (str_contains($base64Image, ',')) {
+                $base64Image = explode(',', $base64Image)[1];
+            }
+
+            $requestPayload = [
+                'systemInstruction' => [
+                    'parts' => [
+                        ['text' => $payload['system_prompt']]
+                    ]
+                ],
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $prompt],
+                            [
+                                'inlineData' => [
+                                    'mimeType' => $mimeType,
+                                    'data' => $base64Image
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+
+            // WICHTIG: Ersetze Guzzle durch puren curl_init, da Guzzle / Http::post in Docker hier wegen 
+            // Expect: 100-continue und TCP MTU-Fragmentierung bei der Base64 payload in Timeout 28 rennt.
+            $ch = curl_init($googleUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Docker IPv6 Blackholing verhindern
+
+            $responseString = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            
+            $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
+
+            if ($curlError) {
+                return "Vision API Fehler: cURL Timeout/Error - {$curlError}";
+            }
+
+            if ($httpCode !== 200) {
+                return "Vision API Fehler: {$httpCode} - {$responseString}";
+            }
+
+            $data = json_decode($responseString, true);
+            
+            if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+                $text = $data['candidates'][0]['content']['parts'][0]['text'];
+                
+                // Track Usage if metric exists
+                if (class_exists(\App\Models\Ai\AiMetric::class)) {
+                    try {
+                        \App\Models\Ai\AiMetric::create([
+                            'ai_agent_id' => $agent->id,
+                            'type' => 'inference_vision',
+                            'total_time_ms' => $latencyMs,
+                            'is_success' => true
+                        ]);
+                    } catch (\Exception $e) { }
+                }
+                
+                return $text;
+            }
+
+            return "Vision API Fehler: Unerwartete Antwortstruktur von Google.";
+            
+        } catch (\Exception $e) {
+            return "Fehler bei der KI-Bildanalyse: " . $e->getMessage();
         }
     }
 }

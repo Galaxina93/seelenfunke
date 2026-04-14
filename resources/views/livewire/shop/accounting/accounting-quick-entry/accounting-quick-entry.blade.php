@@ -1,4 +1,4 @@
-<div>
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
     <div class="p-6 md:p-10 bg-transparent font-sans text-gray-300">
 
         {{-- Success Message --}}
@@ -11,8 +11,8 @@
         @endif
 
         <h3 class="text-sm font-serif font-bold text-white text-center mb-8 flex items-center justify-center gap-3 tracking-wide">
-            <div class="p-2 rounded-xl bg-orange-500/10 border border-orange-500/20 shadow-inner">
-                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            <div class="p-2 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] shadow-inner">
+                <svg class="w-5 h-5 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             </div>
             Schnellerfassung Sonderausgabe
         </h3>
@@ -35,7 +35,7 @@
             @endif
 
             @php
-                $inputClass = "w-full rounded-xl border border-gray-700 bg-gray-950 py-3.5 px-5 text-sm font-medium text-white placeholder-gray-600 focus:bg-gray-900 focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-inner outline-none";
+                $inputClass = "w-full rounded-xl border border-gray-700 bg-gray-950 py-3.5 px-5 text-sm font-medium text-white placeholder-gray-600 focus:bg-gray-900 focus:border-[var(--theme-color-50)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none";
             @endphp
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -72,7 +72,7 @@
                     <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Geschäftliche Ausgabe?</span>
                     <button type="button"
                             x-on:click="open = !open; $wire.set('specialIsBusiness', open)"
-                            :class="open ? 'bg-orange-500/80 border-orange-500' : 'bg-gray-800 border-gray-700'"
+                            :class="open ? 'bg-[var(--theme-color-70)] border-[var(--theme-color)]' : 'bg-gray-800 border-gray-700'"
                             class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-300 ease-in-out focus:outline-none shadow-inner">
                         <span aria-hidden="true" :class="open ? 'translate-x-5 bg-white shadow-[0_0_10px_rgba(249,115,22,0.8)]' : 'translate-x-0 bg-gray-400'" class="pointer-events-none inline-block h-5 w-5 transform rounded-full ring-0 transition duration-300 ease-in-out"></span>
                     </button>
@@ -96,9 +96,9 @@
                     </label>
                     <div class="relative w-full">
                         <input type="file" wire:model="specialFiles" multiple accept=".pdf,.xml,.jpg,.png,.jpeg"
-                               class="block w-full text-xs text-gray-400 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-orange-500/10 file:text-orange-400 file:border file:border-orange-500/20 hover:file:bg-orange-500/20 file:transition-colors file:cursor-pointer cursor-pointer">
+                               class="block w-full text-xs text-gray-400 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-[var(--theme-color-10)] file:text-[var(--theme-color)] file:border file:border-[var(--theme-color-20)] hover:file:bg-[var(--theme-color-20)] file:transition-colors file:cursor-pointer cursor-pointer">
 
-                        <div wire:loading wire:target="specialFiles" class="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-orange-400 flex items-center gap-2 bg-gray-950 px-3 py-1.5 rounded-lg border border-orange-500/20">
+                        <div wire:loading wire:target="specialFiles" class="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] flex items-center gap-2 bg-gray-950 px-3 py-1.5 rounded-lg border border-[var(--theme-color-20)]">
                             <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -109,7 +109,7 @@
                 </div>
             </div>
 
-            <button wire:click="createSpecial" class="w-full bg-orange-500/90 hover:bg-orange-500 border border-orange-400/50 text-white px-8 py-4 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(249,115,22,0.2)] hover:shadow-[0_0_30px_rgba(249,115,22,0.4)] hover:scale-[1.01] mt-4">
+            <button wire:click="createSpecial" class="w-full bg-[var(--theme-color-70)] hover:bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-white px-8 py-4 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_var(--theme-color-20)] hover:shadow-[0_0_30px_var(--theme-color-40)] hover:scale-[1.01] mt-4">
                 Speichern
             </button>
 

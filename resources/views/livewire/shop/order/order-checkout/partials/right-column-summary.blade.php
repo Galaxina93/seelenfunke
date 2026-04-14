@@ -126,31 +126,6 @@
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>
 
-            <div class="flex justify-center items-center py-6">
-                <div class="relative w-48 h-48 sm:w-64 sm:h-64">
-                    <img x-show="funkiState === 'normal'"
-                         x-transition:enter="transition ease-out duration-500"
-                         x-transition:enter-start="opacity-0 scale-95"
-                         x-transition:enter-end="opacity-100 scale-100"
-                         x-transition:leave="transition ease-in duration-300"
-                         x-transition:leave-start="opacity-100"
-                         x-transition:leave-end="opacity-0"
-                         src="{{ asset('shop/projekt/funki/checkout/funki_unhappy.webp') }}"
-                         class="absolute inset-0 w-full h-full object-contain"
-                         alt="Funki wartet">
-                    <img x-show="funkiState === 'party'"
-                         x-transition:enter="transition ease-out duration-500"
-                         x-transition:enter-start="opacity-0 scale-105"
-                         x-transition:enter-end="opacity-100 scale-100"
-                         x-transition:leave="transition ease-in duration-300"
-                         x-transition:leave-start="opacity-100"
-                         x-transition:leave-end="opacity-0"
-                         src="{{ asset('shop/projekt/funki/checkout/funki_happy.webp') }}"
-                         class="absolute inset-0 w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]"
-                         alt="Funki feiert">
-                </div>
-            </div>
-
             <div class="space-y-4 bg-gray-50 p-4 rounded-xl">
                 <div class="flex items-start">
                     <div class="flex h-5 items-center">
@@ -192,6 +167,32 @@
                     </div>
                 </button>
                 <p class="text-xs text-gray-400 text-center mt-4">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
+            </div>
+
+
+            <div class="flex justify-center items-center py-6">
+                <div class="relative w-48 h-48 sm:w-64 sm:h-64">
+                    <img x-show="funkiState === 'normal'"
+                         x-transition:enter="transition ease-out duration-500"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-300"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         src="{{ asset('shop/projekt/funki/checkout/funki_unhappy.webp') }}"
+                         class="absolute inset-0 w-full h-full object-contain"
+                         alt="Funki wartet">
+                    <img x-show="funkiState === 'party'"
+                         x-transition:enter="transition ease-out duration-500"
+                         x-transition:enter-start="opacity-0 scale-105"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-300"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         src="{{ asset('shop/projekt/funki/checkout/funki_happy.webp') }}"
+                         class="absolute inset-0 w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]"
+                         alt="Funki feiert">
+                </div>
             </div>
         </div>
     </div>

@@ -74,7 +74,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/product-packaging', \App\Livewire\Shop\Product\ProductPackagingConfigurator::class)->name('admin.product-packaging');
     Route::get('/admin/product-fracture', \App\Livewire\Shop\Product\ProductFracture::class)->name('admin.product-fracture');
     Route::get('/admin/product-suppliers', \App\Livewire\Shop\Product\ProductSuppliers::class)->name('admin.product-suppliers');
-    Route::get('/admin/products/nischen-scout', \App\Livewire\Shop\Product\ProductNicheScanner::class)->name('admin.products.niche');
+    Route::get('/admin/product-crawler', \App\Livewire\Shop\Product\ProductCrawler::class)->name('admin.product-crawler');
     Route::get('/admin/product-templates', \App\Livewire\Shop\Product\ProductTemplates::class)->name('admin.product-templates');
     Route::get('/admin/reviews', \App\Livewire\Shop\Product\ProductControlReviews::class)->name('admin.product-control-reviews');
 
@@ -121,7 +121,21 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     // Marketing
     // -----------------------------------------------------------------------
+    Route::get('/admin/marketing/dashboard', \App\Livewire\Shop\Marketing\MarketingDashboard::class)->name('admin.marketing-dashboard');
     Route::get('/admin/marketing/analytics', \App\Livewire\Shop\Marketing\MarketingAnalytics::class)->name('admin.marketing-analytics');
+    Route::get('/admin/marketing/landing-pages', \App\Livewire\Shop\Marketing\MarketingLandingPages::class)->name('admin.marketing-landing-pages');
+    Route::get('/admin/marketing/instagram', \App\Livewire\Shop\Marketing\MarketingInstagram::class)->name('admin.marketing-instagram');
+    Route::get('/admin/marketing/google-ads', \App\Livewire\Shop\Marketing\MarketingGoogleAds::class)->name('admin.marketing-google-ads');
+    Route::get('/admin/marketing/instagram/file/{id}', function ($id) {
+        $path = "marketing/instagram/posts/{$id}/image.jpg";
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
+                'Content-Type' => 'image/jpeg',
+                'Cache-Control' => 'public, max-age=86400'
+            ]);
+        }
+        abort(404);
+    })->name('admin.marketing-instagram.file');
     Route::get('/admin/blog', \App\Livewire\Shop\Marketing\MarketingBlog::class)->name('admin.blog');
     Route::get('/admin/voucher', \App\Livewire\Shop\Marketing\MarketingVoucher::class)->name('admin.voucher');
     Route::get('/admin/newsletter', \App\Livewire\Shop\Marketing\MarketingNewsletter::class)->name('admin.newsletter');

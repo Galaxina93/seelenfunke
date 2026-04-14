@@ -5,7 +5,7 @@
         <div class="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
             <button wire:click="closeDetail"
                     class="group flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors shrink-0">
-                <div class="w-10 h-10 rounded-full bg-gray-950 border border-gray-800 flex items-center justify-center group-hover:bg-primary group-hover:border-primary group-hover:text-gray-900 transition-all duration-300 shadow-inner">
+                <div class="w-10 h-10 rounded-full bg-gray-950 border border-gray-800 flex items-center justify-center group-hover:bg-[var(--theme-color)] group-hover:border-[var(--theme-color)] group-hover:text-gray-900 transition-all duration-300 shadow-inner">
                     <svg class="w-5 h-5 transition-transform group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
@@ -15,7 +15,7 @@
             <div class="h-8 w-px bg-gray-800 hidden lg:block shrink-0"></div>
             <div class="min-w-0 flex-1">
                 <h1 class="text-xl lg:text-2xl font-serif font-bold text-white flex flex-wrap items-center gap-3 tracking-tight">
-                    Anfrage <span class="text-primary">#{{ $quote->quote_number }}</span>
+                    Anfrage <span class="text-[var(--theme-color)]">#{{ $quote->quote_number }}</span>
                     <span class="text-[9px] lg:text-[10px] font-sans font-bold text-gray-400 bg-gray-950 px-2.5 py-1 rounded-md border border-gray-800 uppercase tracking-widest shadow-inner whitespace-nowrap">
                         {{ $quote->created_at->format('d.m.Y H:i') }}
                     </span>
@@ -52,7 +52,7 @@
                 {{-- [NEU] OPTION 2: ONLINE ZAHLUNG --}}
                 <button wire:click="convertToOrder('{{ $quote->id }}', 'stripe_link')"
                         wire:loading.attr="disabled"
-                        class="flex-1 sm:flex-none px-5 py-2.5 bg-primary border border-primary/50 text-gray-900 rounded-xl hover:bg-primary-dark hover:text-white hover:scale-[1.02] text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all flex items-center justify-center gap-2">
+                        class="flex-1 sm:flex-none px-5 py-2.5 bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 rounded-xl hover:bg-[var(--theme-color)] brightness-90 hover:text-white hover:scale-[1.02] text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_var(--theme-color-30)] transition-all flex items-center justify-center gap-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                               d="M13 10V3L4 14h7v7l9-11h-7z"/>

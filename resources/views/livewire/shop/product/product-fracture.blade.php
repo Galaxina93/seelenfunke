@@ -4,7 +4,7 @@
             <h1 class="text-2xl font-serif font-bold text-white flex items-center gap-3"><i class="solar-bomb-minimalistic-bold-duotone text-red-500 text-2xl"></i> Schwund & Bruch</h1>
             <p class="text-[11px] font-medium text-gray-400 mt-1 max-w-2xl leading-relaxed">Erfassen und Verwalten von Defekten, beschädigter Ware oder Fehlproduktionen, inklusive Händler-Reklamation und Rückerstattungs-Tracking.</p>
         </div>
-        <button wire:click="openLossModal" class="px-5 py-2.5 bg-red-600/10 hover:bg-red-500 border border-red-500/30 text-red-400 hover:text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all shadow-glow flex items-center gap-2">
+        <button wire:click="openLossModal" class="px-5 py-2.5 bg-[var(--theme-color)] hover:bg-white text-gray-900 text-[11px] font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] flex items-center gap-2">
             <i class="bi bi-plus-circle"></i> Schaden melden
         </button>
     </div>

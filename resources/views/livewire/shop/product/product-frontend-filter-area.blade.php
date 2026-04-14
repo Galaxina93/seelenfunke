@@ -19,44 +19,65 @@
 
             {{-- Filter & Search Bar --}}
             <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-6 mb-12">
-                <div class="flex flex-col lg:flex-row gap-6 justify-between items-center">
+                
+                {{-- Suchleiste Volle Breite Oben --}}
+                <div class="w-full mb-6">
+                    <div class="relative w-full group">
+                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        </div>
+                        @if($search !== '')
+                            <button wire:click="$set('search', '')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-red-500 transition-colors">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        @endif
+                    </div>
+                </div>
 
-                    {{-- Type Filter (Pills) --}}
-                    <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
-                        <button wire:click="$set('filterType', 'all')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                            Alle
-                        </button>
-                        <button wire:click="$set('filterType', 'physical')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'physical' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                            <svg class="w-4 h-4 {{ $filterType === 'physical' ? 'text-[var(--theme-color)]' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                            Physisch
-                        </button>
-                        <button wire:click="$set('filterType', 'digital')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'digital' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                            <svg class="w-4 h-4 {{ $filterType === 'digital' ? 'text-blue-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                            Digital
-                        </button>
-                        <button wire:click="$set('filterType', 'service')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'service' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                            <svg class="w-4 h-4 {{ $filterType === 'service' ? 'text-orange-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                            Service
-                        </button>
+                {{-- Untere Ebene: Pills & Dropdowns --}}
+                <div class="flex flex-col xl:flex-row gap-6 justify-between items-center">
+
+                    {{-- Type & Personalizable Pills --}}
+                    <div class="flex flex-col lg:flex-row gap-4 w-full xl:w-auto">
+                        {{-- Type Filter (Pills) --}}
+                        <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                            <button wire:click="$set('filterType', 'all')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                Alle
+                            </button>
+                            <button wire:click="$set('filterType', 'physical')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'physical' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                <svg class="w-4 h-4 {{ $filterType === 'physical' ? 'text-[var(--theme-color)]' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                Physisch
+                            </button>
+                            <button wire:click="$set('filterType', 'digital')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'digital' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                <svg class="w-4 h-4 {{ $filterType === 'digital' ? 'text-blue-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                Digital
+                            </button>
+                            <button wire:click="$set('filterType', 'service')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'service' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                <svg class="w-4 h-4 {{ $filterType === 'service' ? 'text-orange-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                Service
+                            </button>
+                        </div>
+
+                        {{-- Personalizable Filter (Pills) --}}
+                        <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                            <button wire:click="$set('filterPersonalizable', 'all')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700' }}">
+                                Alle
+                            </button>
+                            <button wire:click="$set('filterPersonalizable', 'yes')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'yes' ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] shadow-sm border border-[var(--theme-color-30)]' : 'text-gray-500 hover:text-[var(--theme-color)]' }}">
+                                Personalisiert
+                            </button>
+                            <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
+                                Standard
+                            </button>
+                        </div>
                     </div>
 
-                    {{-- Personalizable Filter (Pills) --}}
-                    <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar lg:ml-2">
-                        <button wire:click="$set('filterPersonalizable', 'all')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700' }}">
-                            Alle
-                        </button>
-                        <button wire:click="$set('filterPersonalizable', 'yes')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'yes' ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] shadow-sm border border-[var(--theme-color-30)]' : 'text-gray-500 hover:text-[var(--theme-color)]' }}">
-                            Personalisiert
-                        </button>
-                        <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
-                            Standard / Fertig
-                        </button>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-1 mt-4 lg:mt-0">
+                    {{-- Dropdowns Container --}}
+                    <div class="flex flex-col sm:flex-row gap-4 w-full xl:w-auto flex-1 h-full">
                         {{-- Anlass Dropdown --}}
-                        <div class="relative w-full sm:w-1/3">
-                            <select wire:model.live="filterHoliday" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
+                        <div class="relative w-full sm:w-1/2 h-full">
+                            <select wire:model.live="filterHoliday" class="w-full h-[46px] pl-4 pr-10 py-0 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
                                 <option value="">Alle Anlässe</option>
                                 <option value="muttertag">Muttertag</option>
                                 <option value="valentinstag">Valentinstag</option>
@@ -70,36 +91,22 @@
                                 <option value="jubilaeum">Jubiläum</option>
                                 <option value="trauer">Trauer</option>
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                            <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500" aria-hidden="true">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                             </div>
                         </div>
 
                         {{-- Kategorie Dropdown --}}
-                        <div class="relative w-full sm:w-1/3">
-                            <select wire:model.live="filterCategory" class="w-full pl-4 pr-10 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
+                        <div class="relative w-full sm:w-1/2 h-full">
+                            <select wire:model.live="filterCategory" class="w-full h-[46px] pl-4 pr-10 py-0 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
                                 <option value="">Alle Kategorien</option>
                                 @foreach($categories as $cat)
                                     <option value="{{ $cat->id }}">{{ $cat->name }}</option>
                                 @endforeach
                             </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                            <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500" aria-hidden="true">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                             </div>
-                        </div>
-
-                        {{-- Suche --}}
-                        <div class="relative w-full sm:w-2/3 group">
-                            <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-transparent rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                            </div>
-
-                            @if($search !== '')
-                                <button wire:click="$set('search', '')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-red-500 transition-colors">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            @endif
                         </div>
                     </div>
                 </div>

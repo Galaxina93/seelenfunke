@@ -1,20 +1,21 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div class="mb-12 text-center mt-4 font-mono">
-            <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+        <div class="mb-12 text-center mt-4 font-sans">
+            <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] drop-shadow-sm">
                 KI Agenten Manager
             </h1>
-            <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
+            <p class="text-gray-400 mt-2 text-sm">
                 Verwalte Modelle, Profile und Zugriffsrechte der internen KI-Instanzen.
             </p>
         </div>
 
         <div class="flex justify-end mb-8 relative z-10">
-            <div class="bg-gray-950 p-2 rounded-xl border border-emerald-900/50 shadow-inner flex items-center gap-3">
+            <div class="bg-gray-950 p-2 rounded-xl border border-gray-800 shadow-inner flex items-center gap-3">
                 <button wire:click="syncAll" class="px-6 py-2.5 bg-gray-900/80 text-gray-400 border border-gray-700/50 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-800 hover:text-white transition-all flex items-center justify-center gap-2 font-mono group">
                     <x-heroicon-o-arrow-path class="w-4 h-4" wire:loading.class="animate-spin" wire:target="syncAll" /> Sync Alle
                 </button>
-                <button wire:click="createAgent" class="px-6 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-black hover:border-emerald-500 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all flex items-center justify-center gap-2 font-mono">
+                <button wire:click="createAgent" class="px-6 py-2.5 bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[var(--theme-color)] hover:text-black hover:border-[var(--theme-color)] hover:shadow-xl shadow-[var(--theme-color-10)] transition-all flex items-center justify-center gap-2 font-mono">
                     <x-heroicon-o-plus class="w-4 h-4" /> Agent Erschaffen
                 </button>
             </div>
@@ -25,15 +26,15 @@
                 @php
                     $agentColor = $agent->department ? $agent->department->color : ($agent->color ?? 'cyan-500');
                     $agentIcon = $agent->department ? $agent->department->icon : ($agent->icon ?? 'sparkles');
-                    $statusColor = $agent->is_active ? 'bg-emerald-500' : 'bg-red-500';
-                    
+                    $statusColor = $agent->is_active ? 'bg-[var(--theme-color)]' : 'bg-red-500';
+
                     $rawModel = $agent->model ?? 'Standard';
                     if(str_contains($rawModel, 'Ministral')) $shortModel = 'Ministral';
                     elseif(str_contains($rawModel, 'Devstral')) $shortModel = 'Devstral';
                     elseif(str_contains($rawModel, 'GPT-OSS')) $shortModel = 'GPT-OSS';
                     else $shortModel = explode(' ', $rawModel)[0];
                 @endphp
-                <div x-data="{ expanded: false }" class="bg-black/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-current text-{{ $agentColor }} hover:shadow-[0_0_25px_currentColor] rounded-3xl p-6 transition-all group relative overflow-hidden font-mono {{ !$agent->is_active ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : '' }}">
+                <div x-data="{ expanded: false }" class="bg-gray-900/80 backdrop-blur-xl backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] hover:border-current text-{{ $agentColor }} hover:shadow-[0_0_25px_currentColor] rounded-3xl p-6 transition-all group relative overflow-hidden font-mono {{ !$agent->is_active ? 'opacity-60 grayscale hover:opacity-100 hover:grayscale-0' : '' }}">
 
                     <div class="absolute inset-0 bg-current/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-10 transition-opacity"></div>
 
@@ -61,7 +62,7 @@
 
                             <h3 class="font-bold text-gray-200 mb-2 group-hover:text-current transition-all font-mono" :class="expanded ? 'text-xl' : 'text-2xl'">{{ $agent->name }}</h3>
                             @if($agent->is_active)
-                                <span class="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest inline-block">Online</span>
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest inline-block">Online</span>
                             @else
                                 <span class="px-3 py-1 rounded-full text-[10px] font-bold bg-red-500/20 text-red-500 border border-red-500/30 uppercase tracking-widest inline-block">Offline</span>
                             @endif
@@ -79,8 +80,8 @@
                         {{-- Kontext Auslastung / Kognitiver Speicher --}}
                     @php
                         $load = $contextLoads[$agent->id] ?? ['tokens' => 0, 'max' => 100, 'percent' => 0];
-                        $barColor = $load['percent'] < 40 ? 'bg-emerald-500' : ($load['percent'] < 75 ? 'bg-amber-500' : 'bg-red-500 animate-pulse');
-                        $textColor = $load['percent'] < 40 ? 'text-emerald-400' : ($load['percent'] < 75 ? 'text-amber-400' : 'text-red-400 font-bold');
+                        $barColor = $load['percent'] < 40 ? 'bg-[var(--theme-color)]' : ($load['percent'] < 75 ? 'bg-amber-500' : 'bg-red-500 animate-pulse');
+                        $textColor = $load['percent'] < 40 ? 'text-[var(--theme-color)]' : ($load['percent'] < 75 ? 'text-amber-400' : 'text-red-400 font-bold');
                     @endphp
                     <div class="relative z-10 mb-5">
                         <div class="flex justify-between items-end mb-1">
@@ -100,7 +101,7 @@
                             <span class="text-[9px] font-mono {{ $textColor }}">{{ number_format($load['tokens'], 0, ',', '.') }} / {{ number_format($load['max'], 0, ',', '.') }}</span>
                         </div>
                         <div class="w-full h-1.5 bg-gray-900 rounded-full overflow-hidden border border-gray-800 relative">
-                            <div class="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 {{ $barColor }} shadow-[0_0_8px_currentColor]" 
+                            <div class="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 {{ $barColor }} shadow-[0_0_8px_currentColor]"
                                  style="width: {{ $load['percent'] }}%"></div>
                         </div>
                     </div>
@@ -112,13 +113,13 @@
                                 {{ $agent->tools->count() }} Skills
                             </span>
                             <span class="flex items-center gap-1.5 text-indigo-500/70 group-hover:text-indigo-400 transition-colors">
-                                <span class="w-1.5 h-1.5 rounded-full {{ isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['llm'], ['Offline', 'Fehler']) ? 'bg-red-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]') : 'bg-gray-500' }}"></span>
+                                <span class="w-1.5 h-1.5 rounded-full {{ isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['llm'], ['Offline', 'Fehler']) ? 'bg-red-500' : 'bg-[var(--theme-color)] shadow-[0_0_5px_var(--theme-color)]') : 'bg-gray-500' }}"></span>
                                 LLM: {{ $shortModel }}
                             </span>
                         </div>
                         <div class="flex items-center justify-end">
                             <span class="flex items-center gap-1.5 {{ !$agent->tts_enabled ? 'text-gray-500 group-hover:text-gray-400' : 'text-pink-500/70 group-hover:text-pink-400' }} transition-colors">
-                                <span class="w-1.5 h-1.5 rounded-full {{ !$agent->tts_enabled ? 'bg-gray-500' : (isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['tts'], ['Offline', 'Fehler']) ? 'bg-red-500' : ($pingResults[$agent->id]['tts'] === 'Inaktiv' ? 'bg-gray-500' : 'bg-emerald-500 shadow-[0_0_5px_#10b981]')) : 'bg-gray-500') }}"></span>
+                                <span class="w-1.5 h-1.5 rounded-full {{ !$agent->tts_enabled ? 'bg-gray-500' : (isset($pingResults[$agent->id]) ? (in_array($pingResults[$agent->id]['tts'], ['Offline', 'Fehler']) ? 'bg-red-500' : ($pingResults[$agent->id]['tts'] === 'Inaktiv' ? 'bg-gray-500' : 'bg-[var(--theme-color)] shadow-[0_0_5px_var(--theme-color)]')) : 'bg-gray-500') }}"></span>
                                 TTS: {{ !$agent->tts_enabled ? 'Deaktiviert' : ($agent->tts_provider === 'toni_xttsv2' ? 'Toni XTTS' : 'Inaktiv') }}
                             </span>
                         </div>
@@ -143,8 +144,8 @@
 
                             <div class="flex flex-col text-right text-[10px] uppercase font-bold tracking-widest min-w-0">
                                 @if(isset($pingResults[$agent->id]))
-                                    <span class="{{ $pingResults[$agent->id]['llm'] === 'Offline' || $pingResults[$agent->id]['llm'] === 'Fehler' ? 'text-red-400' : 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]' }} truncate">LLM: {{ $pingResults[$agent->id]['llm'] }}</span>
-                                    <span class="{{ $pingResults[$agent->id]['tts'] === 'Offline' || $pingResults[$agent->id]['tts'] === 'Fehler' ? 'text-red-400' : (in_array($pingResults[$agent->id]['tts'], ['Inaktiv', 'Deaktiviert']) ? 'text-gray-500' : 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]') }} truncate">TTS: {{ $pingResults[$agent->id]['tts'] }}</span>
+                                    <span class="{{ $pingResults[$agent->id]['llm'] === 'Offline' || $pingResults[$agent->id]['llm'] === 'Fehler' ? 'text-red-400' : 'text-[var(--theme-color)] drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]' }} truncate">LLM: {{ $pingResults[$agent->id]['llm'] }}</span>
+                                    <span class="{{ $pingResults[$agent->id]['tts'] === 'Offline' || $pingResults[$agent->id]['tts'] === 'Fehler' ? 'text-red-400' : (in_array($pingResults[$agent->id]['tts'], ['Inaktiv', 'Deaktiviert']) ? 'text-gray-500' : 'text-[var(--theme-color)] drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]') }} truncate">TTS: {{ $pingResults[$agent->id]['tts'] }}</span>
                                 @else
                                     <span class="text-gray-600 opacity-50 block mt-1">Status Unbekannt</span>
                                 @endif
@@ -162,3 +163,5 @@
     <livewire:shop.ai.external-agent-manager />
 </div>
 
+
+</div>

@@ -13,7 +13,7 @@ class MarketingNewsletterPage extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Marketing';
+    public string $themingDepartment = 'Marketing';
 
     public $email = '';
     public $privacy_accepted = false;

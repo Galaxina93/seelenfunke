@@ -1,4 +1,4 @@
-<div class="space-y-6 sm:space-y-8 pb-20 animate-fade-in-up font-sans antialiased text-gray-300">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="space-y-6 sm:space-y-8 pb-20 animate-fade-in-up font-sans antialiased text-gray-300">
 
     {{-- Header Bereich --}}
     <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">

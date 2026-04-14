@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Ai;
 
 use Livewire\Attributes\On;
 use Livewire\Component;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 /**
  * Der intelligente Router für das Generative UI von Funkira.
@@ -12,6 +13,8 @@ use Livewire\Component;
  */
 class AiDataVisualization extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     public bool $isOpen = false;
     public string $category = '';

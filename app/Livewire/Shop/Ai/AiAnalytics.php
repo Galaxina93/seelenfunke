@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Ai;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiMetric;
 use App\Models\Ai\AiToolUsage;
@@ -13,6 +15,8 @@ use Livewire\Component;
 #[Layout('components.layouts.backend_layout')]
 class AiAnalytics extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
 
     public function render()

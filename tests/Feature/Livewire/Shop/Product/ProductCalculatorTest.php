@@ -24,6 +24,7 @@ class ProductCalculatorTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
+        Cache::put('shop_capacity_level', 0); // Allow express delivery in tests
         
         // Populate standard tax rates for test
         DB::table('tax_rates')->insertOrIgnore([

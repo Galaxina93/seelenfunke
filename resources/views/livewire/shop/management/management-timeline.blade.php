@@ -1,4 +1,4 @@
-<div style="--theme-color: #C5A059; --theme-color-5: #C5A0590D; --theme-color-10: #C5A0591A; --theme-color-20: #C5A05933; --theme-color-50: #C5A05980;" class="p-6 md:p-10 min-h-[calc(100vh-6rem)]">
+<div style="--theme-color: var(--theme-color); --theme-color-5: var(--theme-color)0D; --theme-color-10: var(--theme-color)1A; --theme-color-20: var(--theme-color)33; --theme-color-50: var(--theme-color)80;" class="p-6 md:p-10 min-h-[calc(100vh-6rem)]">
     {{-- HAUPT-HEADER --}}
     <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6 relative z-20">
         <div>
@@ -38,7 +38,7 @@
                         $border = 'border-[var(--theme-color-50)]';
                         $dot = 'bg-[var(--theme-color)]';
                         $bg = 'bg-[var(--theme-color-5)]';
-                        $glow = 'shadow-[0_0_30px_rgba(197,160,89,0.3)]';
+                        $glow = 'shadow-[0_0_30px_var(--theme-color-30)]';
                         $icon = 'heroicon-o-flag';
                     } elseif ($event->type === 'launch') {
                         $border = 'border-emerald-500/50';
@@ -201,7 +201,7 @@
                         <button wire:click="$set('showModal', false)" class="w-full sm:w-auto h-12 md:h-14 px-8 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-900 border border-gray-800 hover:text-white transition-all shadow-inner justify-center items-center flex">
                             Abbrechen
                         </button>
-                        <button wire:click="save" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_rgba(197,160,89,0.4)] transition-all active:scale-95 flex items-center justify-center gap-3">
+                        <button wire:click="save" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_var(--theme-color-40)] transition-all active:scale-95 flex items-center justify-center gap-3">
                             <span wire:loading.remove wire:target="save">Speichern</span>
                             <span wire:loading wire:target="save" class="animate-pulse italic">Speichert...</span>
                             <x-heroicon-m-check class="w-5 h-5 stroke-2" />
@@ -236,7 +236,7 @@
         }
         .input-dark:focus {
             border-color: var(--theme-color);
-            box-shadow: 0 0 20px rgba(197, 160, 89, 0.1), inset 0 2px 4px rgba(0,0,0,0.5);
+            box-shadow: 0 0 20px var(--theme-color-10), inset 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .input-dark-sm {
@@ -256,7 +256,7 @@
             border-color: var(--theme-color);
         }
 
-        .shadow-glow { box-shadow: 0 0 15px rgba(197, 160, 89, 0.3); }
+        .shadow-glow { box-shadow: 0 0 15px var(--theme-color-30); }
 
         @media (max-width: 768px) {
             .animate-modal-up { animation: modal-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }

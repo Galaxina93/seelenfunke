@@ -1,6 +1,6 @@
 @php
     $isAuto = $voucherSectionMode === 'auto';
-    $bgClass = $isAuto ? 'from-[var(--theme-color)] to-indigo-600' : 'from-orange-500 to-red-600';
+    $bgClass = $isAuto ? 'from-[var(--theme-color)] to-indigo-600' : 'from-[var(--theme-color)] to-red-600';
     $currentMonth = now()->month; // Aktueller Monat für die Highlight-Logik
 @endphp
 
@@ -11,7 +11,7 @@
     <div class="flex flex-col md:flex-row justify-between items-start mb-10 gap-6 relative z-10">
         <div>
             <h3 class="text-2xl font-serif font-bold text-white tracking-tight flex items-center gap-3 transition-all duration-300">
-                <i class="{{ $isAuto ? 'solar-ticket-bold-duotone text-[var(--theme-color)]' : 'solar-tag-bold-duotone text-orange-400' }} text-2xl"></i>
+                <i class="{{ $isAuto ? 'solar-ticket-bold-duotone text-[var(--theme-color)]' : 'solar-tag-bold-duotone text-[var(--theme-color)]' }} text-2xl"></i>
                 {{ $isAuto ? 'Saisonale Auto-Gutscheine' : 'Manuelle Gutscheine' }}
             </h3>
             <div class="flex items-center gap-3 mt-2">
@@ -29,7 +29,7 @@
 
         <button wire:click="toggleVoucherSectionMode" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-gray-950 text-gray-400 hover:text-white border border-gray-800 shadow-inner hover:scale-[1.02]">
             @if($isAuto)
-                <span>Manuell verwalten</span> <x-heroicon-m-arrow-right class="w-4 h-4 text-orange-400" />
+                <span>Manuell verwalten</span> <x-heroicon-m-arrow-right class="w-4 h-4 text-[var(--theme-color)]" />
             @else
                 <x-heroicon-m-arrow-left class="w-4 h-4 text-[var(--theme-color)]" /> <span>Zu Autopilot</span>
             @endif
@@ -103,7 +103,7 @@
                                             // Ampel Logik
                                             if ($progressPercent < 50) $barColor = 'bg-emerald-500';
                                             elseif ($progressPercent < 80) $barColor = 'bg-yellow-500';
-                                            else $barColor = 'bg-orange-500';
+                                            else $barColor = 'bg-[var(--theme-color)]';
                                         }
                                     @endphp
                                     
@@ -142,7 +142,7 @@
         <div class="animate-fade-in w-full mt-4">
             @if(!$isCreatingManual && !$isEditingManual)
                 <div class="mb-8 flex justify-end">
-                    <button wire:click="createManualCoupon" class="bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(234,88,12,0.4)] transition-all flex items-center gap-2 hover:scale-[1.02]">
+                    <button wire:click="createManualCoupon" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_var(--theme-color-40)] transition-all flex items-center gap-2 hover:scale-[1.02]">
                         <x-heroicon-m-plus class="w-4 h-4" /> Neuer Gutschein
                     </button>
                 </div>
@@ -151,7 +151,7 @@
             @if($isCreatingManual || $isEditingManual)
                 <div class="animate-fade-in-up bg-gray-950/80 backdrop-blur-xl rounded-[3rem] p-8 lg:p-10 border border-gray-800 shadow-[0_30px_100px_rgba(0,0,0,0.6)] mb-10 relative z-10">
                     <div class="flex items-center gap-3 mb-8 border-b border-gray-800 pb-5">
-                        <div class="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-400 flex items-center justify-center">
+                        <div class="w-10 h-10 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center">
                             <x-heroicon-s-ticket class="w-5 h-5" />
                         </div>
                         <h4 class="font-serif font-bold text-white text-xl tracking-tight">{{ $isEditingManual ? 'Gutschein bearbeiten' : 'Gutschein erstellen' }}</h4>
@@ -159,9 +159,9 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         <div>
-                            <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Code <span class="text-orange-500">*</span></label>
+                            <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Code <span class="text-[var(--theme-color)]">*</span></label>
                             <div class="relative">
-                                <input type="text" wire:model="manual_code" class="w-full pl-12 pr-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 uppercase font-mono font-bold text-white tracking-wider shadow-inner transition-colors placeholder-gray-700" placeholder="z.B. SOMMER26">
+                                <input type="text" wire:model="manual_code" class="w-full pl-12 pr-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] uppercase font-mono font-bold text-white tracking-wider shadow-inner transition-colors placeholder-gray-700" placeholder="z.B. SOMMER26">
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-600">
                                     <x-heroicon-m-ticket class="h-5 w-5" />
                                 </div>
@@ -169,18 +169,18 @@
                             @error('manual_code') <span class="text-red-400 text-[10px] mt-2 block font-bold uppercase tracking-widest ml-1">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Rabatt-Typ <span class="text-orange-500">*</span></label>
-                            <select wire:model.live="manual_type" class="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 cursor-pointer shadow-inner text-sm font-bold text-white outline-none">
+                            <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Rabatt-Typ <span class="text-[var(--theme-color)]">*</span></label>
+                            <select wire:model.live="manual_type" class="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] cursor-pointer shadow-inner text-sm font-bold text-white outline-none">
                                 <option value="fixed" class="bg-gray-950">Fester Betrag (€)</option>
                                 <option value="percent" class="bg-gray-950">Prozentual (%)</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">
-                                Wert ({{ $manual_type == 'fixed' ? 'Euro' : '%' }}) <span class="text-orange-500">*</span>
+                                Wert ({{ $manual_type == 'fixed' ? 'Euro' : '%' }}) <span class="text-[var(--theme-color)]">*</span>
                             </label>
                             <div class="relative">
-                                <input type="number" step="{{ $manual_type == 'fixed' ? '0.01' : '1' }}" wire:model="manual_value" class="w-full pl-10 pr-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 font-bold shadow-inner text-white" placeholder="{{ $manual_type == 'fixed' ? '10.00' : '15' }}">
+                                <input type="number" step="{{ $manual_type == 'fixed' ? '0.01' : '1' }}" wire:model="manual_value" class="w-full pl-10 pr-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] font-bold shadow-inner text-white" placeholder="{{ $manual_type == 'fixed' ? '10.00' : '15' }}">
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 font-bold text-sm">
                                     {{ $manual_type == 'fixed' ? '€' : '%' }}
                                 </div>
@@ -192,7 +192,7 @@
                                 Mindestbestellwert <span class="text-[8px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">Optional</span>
                             </label>
                             <div class="relative">
-                                <input type="number" step="0.01" wire:model="manual_min_order_value" class="w-full pl-10 pr-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 shadow-inner text-white" placeholder="z.B. 50.00">
+                                <input type="number" step="0.01" wire:model="manual_min_order_value" class="w-full pl-10 pr-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-inner text-white" placeholder="z.B. 50.00">
                                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500">€</div>
                             </div>
                         </div>
@@ -200,13 +200,13 @@
                             <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2">
                                 Gültig bis <span class="text-[8px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">Optional</span>
                             </label>
-                            <input type="date" wire:model="manual_valid_until" class="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 shadow-inner cursor-pointer text-sm text-white [color-scheme:dark]">
+                            <input type="date" wire:model="manual_valid_until" class="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-inner cursor-pointer text-sm text-white [color-scheme:dark]">
                         </div>
                         <div>
                             <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2">
                                 Limit (Anzahl) <span class="text-[8px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">Optional</span>
                             </label>
-                            <input type="number" wire:model="manual_usage_limit" class="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 shadow-inner text-white" placeholder="z.B. 100">
+                            <input type="number" wire:model="manual_usage_limit" class="w-full px-5 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-inner text-white" placeholder="z.B. 100">
                         </div>
                     </div>
 
@@ -214,14 +214,14 @@
                         <label class="flex items-center gap-3 cursor-pointer group bg-gray-900/50 px-4 py-2.5 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
                             <div class="relative flex items-center h-5 mt-0.5 shrink-0">
                                 <input type="checkbox" wire:model="manual_is_active" class="peer sr-only">
-                                <div class="w-5 h-5 bg-gray-950 border-2 border-gray-700 rounded transition-all peer-checked:bg-orange-500 peer-checked:border-orange-400 shadow-inner"></div>
+                                <div class="w-5 h-5 bg-gray-950 border-2 border-gray-700 rounded transition-all peer-checked:bg-[var(--theme-color)] peer-checked:border-[var(--theme-color)] shadow-inner"></div>
                                 <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                             </div>
                             <span class="text-xs font-bold text-gray-400 group-hover:text-white uppercase tracking-widest select-none transition-colors">Gutschein aktiv</span>
                         </label>
                         <div class="flex gap-4 w-full md:w-auto">
                             <button wire:click="cancelManualCoupon" class="flex-1 md:flex-none px-6 py-4 border border-gray-800 bg-gray-900 text-gray-400 rounded-xl hover:bg-gray-800 hover:text-white transition-colors uppercase tracking-widest text-[10px] font-black">Abbrechen</button>
-                            <button wire:click="saveManualCoupon" class="flex-1 md:flex-none px-8 py-4 bg-orange-600 text-white rounded-xl hover:bg-orange-500 hover:scale-[1.03] transition-all shadow-[0_0_20px_rgba(234,88,12,0.4)] flex justify-center items-center gap-2 uppercase tracking-widest text-[10px] font-black">
+                            <button wire:click="saveManualCoupon" class="flex-1 md:flex-none px-8 py-4 bg-[var(--theme-color)] text-white rounded-xl hover:bg-[var(--theme-color)] hover:scale-[1.03] transition-all shadow-[0_0_20px_var(--theme-color-40)] flex justify-center items-center gap-2 uppercase tracking-widest text-[10px] font-black">
                                 <x-heroicon-m-check class="w-4 h-4" /> Speichern
                             </button>
                         </div>
@@ -313,7 +313,7 @@
                             </td>
                             <td class="px-6 sm:px-8 py-5 text-right">
                                 <div class="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button wire:click="editManualCoupon('{{ $c->id }}')" class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 hover:bg-orange-500/10 hover:border-orange-500/30 hover:text-orange-400 transition-all shadow-inner" title="Bearbeiten">
+                                    <button wire:click="editManualCoupon('{{ $c->id }}')" class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color-30)] hover:text-[var(--theme-color)] transition-all shadow-inner" title="Bearbeiten">
                                         <x-heroicon-m-pencil-square class="w-4 h-4" />
                                     </button>
                                     <button wire:click="deleteManualCoupon('{{ $c->id }}')" wire:confirm="Möchten Sie den Gutschein '{{ $c->code }}' wirklich löschen?" class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-all shadow-inner" title="Löschen">

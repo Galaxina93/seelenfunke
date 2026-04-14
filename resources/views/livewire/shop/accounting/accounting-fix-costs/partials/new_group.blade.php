@@ -22,7 +22,7 @@
 
             <div class="flex gap-3 justify-center pt-4 border-t border-gray-800">
                 <button @click="open = false" class="px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-gray-800 rounded-xl transition-all border border-transparent">Abbrechen</button>
-                <button wire:click="createGroup" @click="open = false" class="bg-[var(--theme-color)] text-gray-900 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[var(--theme-color)]-dark transition-all shadow-[0_0_15px_rgba(197,160,89,0.2)] hover:scale-[1.02]">Erstellen</button>
+                <button wire:click="createGroup" @click="open = false" class="bg-[var(--theme-color)] text-gray-900 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[var(--theme-color)]-dark transition-all shadow-[0_0_15px_var(--theme-color-20)] hover:scale-[1.02]">Erstellen</button>
             </div>
         </div>
     </div>

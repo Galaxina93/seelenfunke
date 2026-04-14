@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\System;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Logistics\LogisticsShippingRate;
 use App\Models\Logistics\LogisticsShippingZone;
 use App\Models\Logistics\LogisticsShippingZoneCountry;
@@ -9,6 +11,10 @@ use Livewire\Component;
 
 class SystemShipping extends Component
 {
+    use WithDepartmentTheming;
+    
+    public string $themingDepartment = 'System';
+
     // --- STATE ---
     public $view = 'list'; // 'list', 'edit', 'create'
     public $activeZoneId = null;

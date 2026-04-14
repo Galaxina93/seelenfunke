@@ -117,10 +117,75 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
         });
+        // Instagram Posts
+        Schema::create('marketing_instagram_posts', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('ai_agent_id')->nullable();
+            
+            $table->string('image_url')->nullable();
+            $table->text('caption');
+            $table->json('hashtags')->nullable();
+            
+            $table->string('status')->default('draft'); // draft, published, rejected
+            
+            $table->timestamps();
+            
+            $table->foreign('ai_agent_id')
+                ->references('id')
+                ->on('ai_agents')
+                ->onDelete('set null');
+        });
+
+        // Landing Pages
+        Schema::create('marketing_landing_pages', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('product_id')->nullable();
+            $table->string('slug')->unique();
+            $table->string('title')->nullable();
+            $table->string('headline')->nullable();
+            $table->text('sales_copy')->nullable();
+            $table->string('cta_text')->nullable();
+            $table->string('status')->default('active'); // active, draft
+            $table->timestamps();
+
+            $table->foreign('product_id')
+                ->references('id')
+                ->on('products')
+                ->nullOnDelete();
+        });
+
+        // Google Ads Campaigns
+        Schema::create('marketing_google_ads_campaigns', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('product_id')->nullable();
+            
+            $table->string('campaign_name');
+            $table->string('ad_group_name');
+            $table->json('keywords');
+            $table->json('negative_keywords');
+            
+            $table->string('headline_1', 30);
+            $table->string('headline_2', 30);
+            $table->string('headline_3', 30);
+            $table->string('description_1', 90);
+            $table->string('description_2', 90);
+            
+            $table->string('status')->default('draft'); // draft, active, exported
+            
+            $table->timestamps();
+            
+            $table->foreign('product_id')
+                ->references('id')
+                ->on('products')
+                ->nullOnDelete();
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('marketing_google_ads_campaigns');
+        Schema::dropIfExists('marketing_landing_pages');
+        Schema::dropIfExists('marketing_instagram_posts');
         Schema::dropIfExists('marketing_vouchers');
         Schema::dropIfExists('marketing_newsletters');
         Schema::dropIfExists('marketing_blog_posts');

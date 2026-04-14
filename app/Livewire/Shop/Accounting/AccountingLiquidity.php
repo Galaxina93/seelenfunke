@@ -19,7 +19,7 @@ class AccountingLiquidity extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Buchhaltung';
+    public string $themingDepartment = 'Buchhaltung';
 
     public array $years = [];
     public int $activeYear;

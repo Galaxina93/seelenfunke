@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Ai;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Ai\AiKnowledgeBase as KB;
 use App\Models\Ai\AiKnowledgeBaseCategory;
 use App\Models\Ai\AiKnowledgeBaseTag;
@@ -14,6 +16,8 @@ use Livewire\WithFileUploads;
 #[Layout('components.layouts.backend_layout')]
 class AiKnowledgeBase extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     use WithFileUploads;
 

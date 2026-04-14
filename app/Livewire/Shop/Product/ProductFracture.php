@@ -17,7 +17,7 @@ class ProductFracture extends Component
 {
     use WithPagination, WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Produkte';
+    public string $themingDepartment = 'Produkte';
 
     // Workflow state
     public $lossModalOpen = false;

@@ -15,7 +15,7 @@ class OrderAnalytics extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Bestellungen';
+    public string $themingDepartment = 'Bestellungen';
 
     // Filters
     public $dateRange = '30'; // 7, 30, 90, 365, all

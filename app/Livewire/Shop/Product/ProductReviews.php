@@ -19,7 +19,7 @@ class ProductReviews extends Component
 {
     use WithPagination, WithFileUploads, WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Sales';
+    public string $themingDepartment = 'Sales';
 
     public Product $product;
     public $rating = 5;

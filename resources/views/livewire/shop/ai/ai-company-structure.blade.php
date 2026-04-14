@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div class="w-full mx-auto py-10 px-4 sm:px-6 lg:px-8 font-mono relative min-h-screen pb-32"
      x-data="{
          pulseLogo: false,
@@ -17,7 +18,7 @@
              this.draggedId = null;
              e.target.classList.remove('opacity-40', 'scale-95', 'z-50');
              document.querySelectorAll('.drag-over-active').forEach(el =>
-                 el.classList.remove('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black')
+                 el.classList.remove('drag-over-active', 'ring-2', 'ring-[var(--theme-color)]', 'ring-offset-2', 'ring-offset-black')
              );
          },
          dragOver(e, type) {
@@ -26,16 +27,16 @@
          },
          dragEnter(e, type) {
              if (this.draggedType === 'role' && type === 'department')
-                 e.currentTarget.classList.add('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
+                 e.currentTarget.classList.add('drag-over-active', 'ring-2', 'ring-[var(--theme-color)]', 'ring-offset-2', 'ring-offset-black');
              if (this.draggedType === 'agent' && type === 'role')
-                 e.currentTarget.classList.add('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
+                 e.currentTarget.classList.add('drag-over-active', 'ring-2', 'ring-[var(--theme-color)]', 'ring-offset-2', 'ring-offset-black');
          },
          dragLeave(e) {
-             e.currentTarget.classList.remove('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
+             e.currentTarget.classList.remove('drag-over-active', 'ring-2', 'ring-[var(--theme-color)]', 'ring-offset-2', 'ring-offset-black');
          },
          drop(e, targetType, targetId) {
              e.preventDefault();
-             e.currentTarget.classList.remove('drag-over-active', 'ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-black');
+             e.currentTarget.classList.remove('drag-over-active', 'ring-2', 'ring-[var(--theme-color)]', 'ring-offset-2', 'ring-offset-black');
 
              if (this.draggedType === 'role' && targetType === 'department') {
                  $wire.moveRole(this.draggedId, targetId);
@@ -71,7 +72,7 @@
         </div>
 
         <div class="text-center mb-12">
-            <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">KI Organigramm</h1>
+            <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-[0_0_15px_var(--theme-color)]/20 drop-shadow-md">KI Organigramm</h1>
             <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">Die vollständige KI-Unternehmensstruktur im Überblick.</p>
         </div>
 
@@ -86,16 +87,16 @@
                     {{-- ROOT NODE: LOGO --}}
                     <div class="flex flex-col items-center relative z-10 group cursor-default">
                         <div class="bg-gray-950 p-6 sm:px-8 sm:py-6 rounded-3xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all relative text-center"
-                             :class="pulseLogo ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-[1.02]' : 'border-gray-800 hover:border-primary/50'">
+                             :class="pulseLogo ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-[1.02]' : 'border-gray-800 hover:border-[var(--theme-color-50)]'">
 
                             <button @click="showStaff = !showStaff" class="absolute top-2 right-2 p-1.5 text-gray-600 hover:text-emerald-400 transition-colors z-20" title="Stabsstelle anzeigen/ausblenden">
                                 <x-heroicon-s-cog-8-tooth class="w-5 h-5 transition-transform" ::class="showStaff ? 'text-emerald-500 rotate-90' : 'hover:rotate-90'" />
                             </button>
 
-                            <img src="/shop/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-[0_0_25px_rgba(197,160,89,0.4)] mx-auto mb-2 pointer-events-none">
-                            <span class="text-primary tracking-widest uppercase font-black text-sm block drop-shadow-md">Headquarters</span>
+                            <img src="/shop/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-[0_0_25px_var(--theme-color-40)] mx-auto mb-2 pointer-events-none">
+                            <span class="text-[var(--theme-color)] tracking-widest uppercase font-black text-sm block drop-shadow-md">Headquarters</span>
                             <div class="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button wire:click="createDepartment" class="bg-primary/10 text-primary border border-primary/30 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-primary hover:text-black flex items-center gap-1 shadow-[0_0_15px_rgba(197,160,89,0.2)]">
+                                <button wire:click="createDepartment" class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-[var(--theme-color)] hover:text-black flex items-center gap-1 shadow-[0_0_15px_var(--theme-color-20)]">
                                     <x-heroicon-m-plus class="w-3 h-3" /> Abteilung
                                 </button>
                             </div>
@@ -248,7 +249,7 @@
                                                 'rose-500' => 'border-gray-800 hover:border-rose-500/50 hover:shadow-[0_0_15px_rgba(244,63,94,0.15)]',
                                                 'cyan-500' => 'border-gray-800 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)]',
                                                 'sky-500' => 'border-gray-800 hover:border-sky-500/50 hover:shadow-[0_0_15px_rgba(14,165,233,0.15)]',
-                                                'primary' => 'border-gray-800 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(197,160,89,0.15)]',
+                                                'primary' => 'border-gray-800 hover:border-[var(--theme-color-50)] hover:shadow-[0_0_15px_var(--theme-color-15)]',
                                                 default => 'border-gray-800 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)]'
                                             };
                                             $iconStyleClass = match($c) {
@@ -260,7 +261,7 @@
                                                 'rose-500' => 'bg-rose-500/10 text-rose-500 border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.5)]',
                                                 'cyan-500' => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.5)]',
                                                 'sky-500' => 'bg-sky-500/10 text-sky-500 border-sky-500/20 shadow-[0_0_15px_rgba(14,165,233,0.5)]',
-                                                'primary' => 'bg-primary/10 text-primary border-primary/20 shadow-[0_0_15px_rgba(197,160,89,0.5)]',
+                                                'primary' => 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-20)] shadow-[0_0_15px_var(--theme-color-50)]',
                                                 default => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.5)]'
                                             };
                                         @endphp
@@ -373,13 +374,13 @@
             <div class="space-y-8">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Name der Abteilung <span class="text-primary">*</span></label>
-                        <input type="text" wire:model.live.debounce.500ms="deptName" placeholder="z.B. Marketing" class="w-full bg-black/40 border {{ $errors->has('deptName') ? 'border-red-500' : 'border-gray-700' }} rounded-xl focus:border-primary focus:ring focus:ring-primary/20 text-white p-3 transition-all">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Name der Abteilung <span class="text-[var(--theme-color)]">*</span></label>
+                        <input type="text" wire:model.live.debounce.500ms="deptName" placeholder="z.B. Marketing" class="w-full bg-black/40 border {{ $errors->has('deptName') ? 'border-red-500' : 'border-gray-700' }} rounded-xl focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white p-3 transition-all">
                         @error('deptName') <span class="text-red-500 text-[10px] mt-1 block uppercase">{{ $message }}</span> @enderror
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Beschreibung</label>
-                        <input type="text" wire:model.live.debounce.500ms="deptDescription" placeholder="Kurzbeschreibung des Bereichs..." class="w-full bg-black/40 border border-gray-700 rounded-xl focus:border-primary focus:ring focus:ring-primary/20 text-gray-300 p-3 transition-all">
+                        <input type="text" wire:model.live.debounce.500ms="deptDescription" placeholder="Kurzbeschreibung des Bereichs..." class="w-full bg-black/40 border border-gray-700 rounded-xl focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-300 p-3 transition-all">
                     </div>
                 </div>
 
@@ -387,13 +388,13 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-3">
                             Abteilungs-Icon Auswählen:
-                            <div class="w-8 h-8 bg-gray-900 border border-gray-700 rounded-lg flex items-center justify-center text-primary shadow-[0_0_10px_rgba(197,160,89,0.2)]">
+                            <div class="w-8 h-8 bg-gray-900 border border-gray-700 rounded-lg flex items-center justify-center text-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-20)]">
                                 <x-dynamic-component :component="'heroicon-o-' . ($deptIcon ?: 'building-office')" class="w-5 h-5" />
                             </div>
                         </label>
                         <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-14 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-3 bg-black/40 border border-gray-800 rounded-xl">
                             @foreach($availableIcons as $icon)
-                                <button type="button" wire:click="$set('deptIcon', '{{ $icon }}')" class="w-10 h-10 rounded-lg flex items-center justify-center transition-all {{ $deptIcon === $icon ? 'bg-primary text-black shadow-[0_0_15px_rgba(197,160,89,0.5)] scale-110 z-10' : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-600 hover:text-white hover:bg-gray-800' }}">
+                                <button type="button" wire:click="$set('deptIcon', '{{ $icon }}')" class="w-10 h-10 rounded-lg flex items-center justify-center transition-all {{ $deptIcon === $icon ? 'bg-[var(--theme-color)] text-black shadow-[0_0_15px_var(--theme-color-50)] scale-110 z-10' : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-600 hover:text-white hover:bg-gray-800' }}">
                                     <x-dynamic-component :component="'heroicon-o-' . $icon" class="w-5 h-5" />
                                 </button>
                             @endforeach
@@ -435,11 +436,13 @@
                     <button wire:click="closeEditor" class="flex-1 sm:flex-none px-4 sm:px-6 py-3 bg-gray-900 border border-gray-700 text-gray-400 rounded-xl hover:text-white hover:bg-gray-800 transition-colors text-xs font-bold uppercase tracking-widest">
                         Abbrechen
                     </button>
-                    <button wire:click="saveDepartment" class="flex-1 sm:flex-none px-5 sm:px-8 py-3 bg-primary text-black font-black uppercase tracking-widest text-xs rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.4)] hover:scale-105 transition-all text-center">
+                    <button wire:click="saveDepartment" class="flex-1 sm:flex-none px-5 sm:px-8 py-3 bg-[var(--theme-color)] text-black font-black uppercase tracking-widest text-xs rounded-xl shadow-[0_0_20px_var(--theme-color-40)] hover:scale-105 transition-all text-center">
                         {{ $editingId ? 'Speichern' : 'Erstellen' }}
                     </button>
                 </div>
             </div>
         </div>
     @endif
+</div>
+
 </div>

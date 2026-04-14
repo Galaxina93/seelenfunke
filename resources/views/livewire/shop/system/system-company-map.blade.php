@@ -2,7 +2,7 @@
          style="--theme-color: {{ $this->themeColorHex }};"
          x-data="companyMapData({ nodes: @entangle('nodes').live, edges: @entangle('edges').live, liveAiPulse: @entangle('liveAiState'), activeMap: @entangle('activeMap') })">
 
-    <div class="absolute top-0 left-0 w-1 sm:w-1.5 h-full bg-gradient-to-b from-primary to-primary-dark z-10 pointer-events-none opacity-80"></div>
+    <div class="absolute top-0 left-0 w-1 sm:w-1.5 h-full bg-gradient-to-b from-[var(--theme-color)] to-primary-dark z-10 pointer-events-none opacity-80"></div>
 
     {{-- Toast Notification (Alpine) für Funki Log Feedbacks --}}
     <div x-data="{ show: false, msg: '', type: 'info' }"

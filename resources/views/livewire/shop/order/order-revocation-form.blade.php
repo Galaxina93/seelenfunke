@@ -35,28 +35,28 @@
                 {{-- Name --}}
                 <div>
                     <label for="name" class="block text-sm font-bold text-gray-700 mb-2">Vollständiger Name des Verbrauchers *</label>
-                    <input type="text" id="name" wire:model="name" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all @error('name') border-red-500 ring-2 ring-red-500/20 @enderror" placeholder="Max Mustermann">
+                    <input type="text" id="name" wire:model="name" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] transition-all @error('name') border-red-500 ring-2 ring-red-500/20 @enderror" placeholder="Max Mustermann">
                     @error('name') <span class="text-red-500 text-xs font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
 
                 {{-- E-Mail --}}
                 <div>
                     <label for="email" class="block text-sm font-bold text-gray-700 mb-2">E-Mail-Adresse für die Eingangsbestätigung *</label>
-                    <input type="email" id="email" wire:model="email" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all @error('email') border-red-500 ring-2 ring-red-500/20 @enderror" placeholder="max@beispiel.de">
+                    <input type="email" id="email" wire:model="email" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] transition-all @error('email') border-red-500 ring-2 ring-red-500/20 @enderror" placeholder="max@beispiel.de">
                     @error('email') <span class="text-red-500 text-xs font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
 
                 {{-- Bestellnummer --}}
                 <div>
                     <label for="order_number" class="block text-sm font-bold text-gray-700 mb-2">Angaben zur Identifizierung des Vertrags *</label>
-                    <input type="text" id="order_number" wire:model="order_number" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all @error('order_number') border-red-500 ring-2 ring-red-500/20 @enderror" placeholder="Z. B. Bestellnummer, Auftragsnummer">
+                    <input type="text" id="order_number" wire:model="order_number" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] transition-all @error('order_number') border-red-500 ring-2 ring-red-500/20 @enderror" placeholder="Z. B. Bestellnummer, Auftragsnummer">
                     @error('order_number') <span class="text-red-500 text-xs font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
 
                 {{-- Optionale Artikel --}}
                 <div>
                     <label for="items" class="block text-sm font-bold text-gray-700 mb-2">Zusätzliche Angaben (Optional)</label>
-                    <textarea id="items" wire:model="items" rows="3" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all custom-scrollbar" placeholder="Sollten Sie nur einen Teil der Bestellung widerrufen wollen, geben Sie hier bitte die betroffenen Artikel an."></textarea>
+                    <textarea id="items" wire:model="items" rows="3" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] transition-all custom-scrollbar" placeholder="Sollten Sie nur einen Teil der Bestellung widerrufen wollen, geben Sie hier bitte die betroffenen Artikel an."></textarea>
                     @error('items') <span class="text-red-500 text-xs font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
 
@@ -65,7 +65,7 @@
                     <label class="block text-sm font-bold text-gray-700 mb-2">Nachweise / Bilder (Optional)</label>
                     <div 
                         class="relative flex flex-col justify-center items-center w-full h-32 bg-gray-50 rounded-xl border-2 border-dashed transition-colors"
-                        x-bind:class="isDropping ? 'border-primary bg-primary/5' : 'border-gray-300 hover:bg-gray-100'"
+                        x-bind:class="isDropping ? 'border-[var(--theme-color)] bg-[var(--theme-color)]/5' : 'border-gray-300 hover:bg-gray-100'"
                         x-on:dragover.prevent="isDropping = true"
                         x-on:dragleave.prevent="isDropping = false"
                         x-on:drop.prevent="isDropping = false; $refs.fileInput.files = $event.dataTransfer.files; $refs.fileInput.dispatchEvent(new Event('change'))"
@@ -84,8 +84,8 @@
                     @error('attachments.*') <span class="text-red-500 text-xs font-bold mt-2 block">{{ $message }}</span> @enderror
 
                     <!-- Lade-Indikator -->
-                    <div wire:loading wire:target="attachments" class="text-sm font-semibold text-primary mt-3 flex items-center gap-2">
-                        <svg class="animate-spin h-4 w-4 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <div wire:loading wire:target="attachments" class="text-sm font-semibold text-[var(--theme-color)] mt-3 flex items-center gap-2">
+                        <svg class="animate-spin h-4 w-4 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>

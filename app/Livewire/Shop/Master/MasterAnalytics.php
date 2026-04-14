@@ -22,7 +22,7 @@ class MasterAnalytics extends Component
 {
     use WithFileUploads, WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Architektur';
+    public string $themingDepartment = 'Architektur';
 
     public $stats = [];
     public $healthChecks = [];

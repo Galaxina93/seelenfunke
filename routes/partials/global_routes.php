@@ -7,7 +7,7 @@ use App\Livewire\Shop\Order\OrderCheckout\OrderCheckout;
 use App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess;
 use App\Livewire\Shop\Marketing\MarketingNewsletterPage;
 use App\Livewire\Shop\Order\OrderQuoteAcceptance;
-use App\Livewire\Shop\Product\ProductIndex;
+use App\Livewire\Shop\Product\ProductFrontendFilterArea;
 use App\Livewire\Shop\Product\ProductShow;
 use App\Models\Tracking\PageVisit;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
@@ -83,17 +83,15 @@ Route::get('/', function () {
     return view('frontend.pages.welcome');
 })->name('home');
 
-// Produkt-Detailseite
-Route::get('/seelen-kristall', function () {
-    return view('frontend.pages.product');
-})->name('product.detail');
-
 // Manufaktur & Qualität
 Route::get('/manufaktur', function () {
     return view('frontend.pages.manufacture');
 })->name('manufacture');
 
-Route::get('/shop', ProductIndex::class)->name('shop');
+Route::get('/shop', ProductFrontendFilterArea::class)->name('shop');
+
+// Marketing Landing Page
+Route::get('/l/{slug}', \App\Livewire\Landing\LandingPageView::class)->name('landing-page');
 
 Route::get('/blog', MarketingBlogIndex::class)->name('blog');
 

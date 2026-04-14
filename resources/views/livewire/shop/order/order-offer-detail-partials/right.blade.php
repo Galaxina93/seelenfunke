@@ -5,7 +5,7 @@
                 <div class="bg-gray-950 border-b border-gray-800 px-5 sm:px-8 py-4 sm:py-5 shrink-0 flex justify-between items-center shadow-inner">
                     <div class="min-w-0 pr-4">
                         <h3 class="font-bold text-white text-base sm:text-lg truncate tracking-wide">{{ $previewItem->product_name }}</h3>
-                        <p class="text-[9px] text-primary font-black uppercase tracking-[0.2em] mt-1">Live-Konfigurations-Vorschau</p>
+                        <p class="text-[9px] text-[var(--theme-color)] font-black uppercase tracking-[0.2em] mt-1">Live-Konfigurations-Vorschau</p>
                     </div>
                     @if($isDigitalItem)
                         <span class="bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[9px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-[0_0_15px_rgba(59,130,246,0.15)] shrink-0">Digital</span>

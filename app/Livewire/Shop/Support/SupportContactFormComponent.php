@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Support;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Support\SupportContactRequest;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -11,6 +13,10 @@ use App\Traits\handleMailsTrait;
 #[Layout('components.layouts.backend_layout')]
 class SupportContactFormComponent extends Component
 {
+    use WithDepartmentTheming;
+
+    public string $themingDepartment = 'Support';
+
     use WithPagination;
     use handleMailsTrait; // Zum Versenden der Admin-Antworten an den Kunden
 

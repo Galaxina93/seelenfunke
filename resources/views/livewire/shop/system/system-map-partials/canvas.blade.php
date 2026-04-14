@@ -73,7 +73,7 @@
                         <foreignObject x-show="edge && edge.description" :x="getMidPoint(edge).x - 100" :y="getMidPoint(edge).y + 20"
                                        width="200" height="100" class="pointer-events-none opacity-0 group-hover/edge:opacity-100 transition-opacity" style="z-index: 50;">
                             <div xmlns="http://www.w3.org/1999/xhtml" class="bg-gray-900 border border-gray-700 text-gray-300 text-[10px] font-medium p-3 rounded-xl shadow-2xl text-center leading-relaxed">
-                                <strong class="block text-primary mb-1 uppercase tracking-widest" x-text="edge.label"></strong>
+                                <strong class="block text-[var(--theme-color)] mb-1 uppercase tracking-widest" x-text="edge.label"></strong>
                                 <span x-text="edge.description"></span>
                             </div>
                         </foreignObject>
@@ -89,7 +89,7 @@
 
                 {{-- Hover Tooltip --}}
                 <div class="absolute bottom-full mb-4 bg-gray-900 border border-gray-700 text-white text-sm p-4 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-[0_20px_40px_rgba(0,0,0,0.8)] w-56 text-center" style="z-index: 9999;">
-                    <strong x-text="node.label" class="block mb-1 text-primary text-base font-serif tracking-wide"></strong>
+                    <strong x-text="node.label" class="block mb-1 text-[var(--theme-color)] text-base font-serif tracking-wide"></strong>
                     <span x-text="node.description" class="text-[11px] text-gray-400 leading-relaxed block mb-3"></span>
                     <div class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-950 py-1 rounded-md mb-2" x-text="'Typ: ' + node.type"></div>
                     <template x-if="node.component_key">
@@ -102,7 +102,7 @@
                     <x-heroicon-m-x-mark class="w-3 h-3 sm:w-4 sm:h-4" />
                 </button>
 
-                <button @click.stop="$wire.openEditForm(node.id)" class="absolute -bottom-2 -left-2 sm:-bottom-3 sm:-left-3 w-6 h-6 sm:w-8 sm:h-8 bg-gray-800 border border-gray-700 hover:bg-primary hover:border-primary hover:text-gray-900 text-gray-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-30 shadow-lg">
+                <button @click.stop="$wire.openEditForm(node.id)" class="absolute -bottom-2 -left-2 sm:-bottom-3 sm:-left-3 w-6 h-6 sm:w-8 sm:h-8 bg-gray-800 border border-gray-700 hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] hover:text-gray-900 text-gray-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all z-30 shadow-lg">
                     <x-heroicon-m-cog-6-tooth class="w-3 h-3 sm:w-4 sm:h-4" />
                 </button>
 
@@ -158,7 +158,7 @@
                 {{-- Node Label --}}
                 <template x-if="node.link">
                     <a :href="node.link" target="_blank" @click.stop
-                       class="mt-2 sm:mt-3 bg-gray-900/90 backdrop-blur-md px-3 sm:px-4 py-1 sm:py-1.5 rounded-lg border border-gray-700 shadow-lg whitespace-nowrap cursor-pointer hover:bg-primary hover:border-primary transition-colors group/link">
+                       class="mt-2 sm:mt-3 bg-gray-900/90 backdrop-blur-md px-3 sm:px-4 py-1 sm:py-1.5 rounded-lg border border-gray-700 shadow-lg whitespace-nowrap cursor-pointer hover:bg-[var(--theme-color)] hover:border-[var(--theme-color)] transition-colors group/link">
                         <span class="text-[8px] sm:text-[10px] font-black text-gray-300 group-hover/link:text-gray-900 uppercase tracking-widest" x-text="node.label"></span>
                     </a>
                 </template>

@@ -15,7 +15,7 @@ class MarketingVoucher extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Marketing';
+    public string $themingDepartment = 'Marketing';
 
     use WithPagination, WithDepartmentTheming;
 

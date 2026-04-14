@@ -18,7 +18,7 @@ class ProductTemplates extends Component
 {
     use WithFileUploads, WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Produkte';
+    public string $themingDepartment = 'Produkte';
 
     // Steuert die aktuelle Ansicht ('list', 'create_select_product', 'configure')
     public $viewMode = 'list';

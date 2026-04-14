@@ -13,7 +13,7 @@ class SystemShopConfig extends Component
 {
     use \App\Livewire\Traits\WithDepartmentTheming;
 
-    protected string $themingDepartment = 'System';
+    public string $themingDepartment = 'System';
     public $settings = [];
 
     protected $configKeys = [

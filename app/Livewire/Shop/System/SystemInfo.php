@@ -15,7 +15,7 @@ class SystemInfo extends Component
 {
     use WithFileUploads, \App\Livewire\Traits\WithDepartmentTheming;
 
-    protected string $themingDepartment = 'System';
+    public string $themingDepartment = 'System';
 
     public $uploads = [];
     public $selectedReports = [];

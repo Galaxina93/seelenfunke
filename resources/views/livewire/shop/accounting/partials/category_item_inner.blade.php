@@ -1,6 +1,6 @@
 @if($editingCategoryId === $cat->id)
     <div class="flex items-center gap-2 animate-fade-in">
-        <input type="text" wire:model="editCategoryName" class="w-full text-sm font-bold text-white border-b-2 border-orange-500 focus:outline-none bg-transparent px-2 py-1.5" autofocus wire:keydown.enter="updateCategory">
+        <input type="text" wire:model="editCategoryName" class="w-full text-sm font-bold text-white border-b-2 border-[var(--theme-color)] focus:outline-none bg-transparent px-2 py-1.5" autofocus wire:keydown.enter="updateCategory">
         <button wire:click="updateCategory" class="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-inner" title="Speichern">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
         </button>
@@ -11,7 +11,7 @@
 @else
     <div class="flex items-center justify-between">
         <div class="flex items-center gap-3 overflow-hidden">
-            <div class="w-1.5 h-8 bg-gray-800 rounded-full group-hover/cat:bg-orange-500 group-hover/cat:shadow-[0_0_8px_rgba(249,115,22,0.8)] transition-all shrink-0"></div>
+            <div class="w-1.5 h-8 bg-gray-800 rounded-full group-hover/cat:bg-[var(--theme-color)] group-hover/cat:shadow-[0_0_8px_var(--theme-color-80)] transition-all shrink-0"></div>
             <span class="font-bold text-gray-300 truncate group-hover/cat:text-white transition-colors text-sm tracking-wide">{{ $cat->name }}</span>
             <span class="text-[9px] font-black text-gray-500 bg-gray-900 px-2 py-0.5 rounded-md border border-gray-800 shadow-inner group-hover/cat:border-gray-700">{{ $cat->usage_count }}x</span>
         </div>

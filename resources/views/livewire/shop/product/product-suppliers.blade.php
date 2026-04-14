@@ -332,7 +332,7 @@
                     <button type="submit" 
                         x-data="{ hasError: false }"
                         @validation-failed.window="hasError = true; setTimeout(() => hasError = false, 3000)"
-                        :class="hasError ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)] text-white' : 'bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-hover shadow-[0_0_20px_rgba(197,160,89,0.2)] hover:shadow-[0_0_25px_rgba(197,160,89,0.4)] text-gray-900'"
+                        :class="hasError ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)] text-white' : 'bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-hover shadow-[0_0_20px_var(--theme-color-20)] hover:shadow-[0_0_25px_var(--theme-color-40)] text-gray-900'"
                         class="w-full sm:w-auto font-black text-sm uppercase tracking-widest px-10 py-4 rounded-xl transition-all flex items-center justify-center gap-3">
                         <span x-show="!hasError" class="flex items-center gap-2"><x-heroicon-o-check class="w-5 h-5" /> Lieferanten speichern</span>
                         <span x-show="hasError" x-cloak class="flex items-center gap-2"><x-heroicon-o-exclamation-triangle class="w-5 h-5" /> Fehlende Angaben</span>

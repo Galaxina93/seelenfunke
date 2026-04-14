@@ -23,7 +23,7 @@
                     <span wire:loading wire:target="syncLiveData">Lade Daten...</span>
                 </button>
 
-                <button wire:click="exportPdf" wire:loading.class="opacity-50 grayscale cursor-not-allowed" wire:loading.attr="disabled" class="col-span-2 w-full sm:w-auto px-4 py-2.5 bg-[var(--theme-color)] text-gray-900 hover:text-white active:opacity-50 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] flex items-center justify-center gap-2">
+                <button wire:click="exportPdf" wire:loading.class="opacity-50 grayscale cursor-not-allowed" wire:loading.attr="disabled" class="col-span-2 w-full sm:w-auto px-4 py-2.5 bg-[var(--theme-color)] text-gray-900 hover:text-white active:opacity-50 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_var(--theme-color-30)] flex items-center justify-center gap-2">
                     <svg class="w-3.5 h-3.5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                     <span>Als PDF Exportieren</span>
                 </button>
@@ -47,7 +47,7 @@
 
         {{-- CONFIGURATION PANEL --}}
         <div class="bg-gray-900/60 backdrop-blur-md rounded-2xl md:rounded-[2.5rem] border border-gray-800 p-4 sm:p-6 mb-2 mt-4 shadow-xl">
-            <h3 class="text-[10px] sm:text-xs font-black uppercase text-[#d4af37] tracking-widest mb-4 flex items-center gap-2">
+            <h3 class="text-[10px] sm:text-xs font-black uppercase text-[var(--theme-color)] tracking-widest mb-4 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 Projekt-Start & Darlehens-Parameter
             </h3>
@@ -59,7 +59,7 @@
                         Gründungsjahr
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Das Kalenderjahr, ab dem das Projekt offiziell startet und ab dem das System bei Engpässen ggf. automatische Darlehen genehmigt."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </label>
-                    <input type="number" wire:model.live.debounce.800ms="configStartYear" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                    <input type="number" wire:model.live.debounce.800ms="configStartYear" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors focus:bg-gray-900">
                 </div>
                 {{-- Start Month --}}
                 <div class="space-y-1">
@@ -67,7 +67,7 @@
                         Gründungsmonat (1-12)
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Der Monat im angegebenen Gründungsjahr, ab dem die Liquiditätsberechnung startet."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </label>
-                    <input type="number" min="1" max="12" wire:model.live.debounce.800ms="configStartMonth" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                    <input type="number" min="1" max="12" wire:model.live.debounce.800ms="configStartMonth" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors focus:bg-gray-900">
                 </div>
                 {{-- Interest Rate --}}
                 <div class="space-y-1">
@@ -75,7 +75,7 @@
                         Autokredit-Zins p.a. (%)
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Die Kredithöhe berechnet das System komplett selbst (min. 3.000 €, immer passend in 1.000 € Schritten), sobald das Konto theoretisch ins Minus rutscht. Hier legst du lediglich den Zins für diese vollautomatischen Kredite fest."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </label>
-                    <input type="number" step="0.1" wire:model.live.debounce.800ms="configInterestRate" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                    <input type="number" step="0.1" wire:model.live.debounce.800ms="configInterestRate" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors focus:bg-gray-900">
                 </div>
                 {{-- Repayment Months --}}
                 <div class="space-y-1">
@@ -83,7 +83,7 @@
                         Tilgungsdauer (Monate)
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-gray-500 hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" title="Gibt an, über wie viele Monate ein automatisch aufgenommener Kredit linear abbezahlt werden soll (z. B. 60 Monate = 5 Jahre)."><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </label>
-                    <input type="number" min="1" wire:model.live.debounce.800ms="configRepaymentMonths" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[#d4af37] outline-none transition-colors focus:bg-gray-900">
+                    <input type="number" min="1" wire:model.live.debounce.800ms="configRepaymentMonths" class="w-full bg-gray-950/50 border border-gray-800 rounded-xl px-3 py-2 text-xs md:text-sm text-gray-200 font-mono focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors focus:bg-gray-900">
                 </div>
                 {{-- Demo Data Toggle --}}
                 <div class="space-y-1 flex flex-col justify-start mt-1 col-span-2 md:col-span-1">
@@ -94,7 +94,7 @@
                     <label class="flex items-center cursor-pointer group">
                         <div class="relative">
                             <input type="checkbox" wire:model.live="configLoadDemoData" class="sr-only">
-                            <div class="block bg-gray-800 w-10 h-6 rounded-full transition-colors {{ $configLoadDemoData ? 'bg-[#d4af37]' : 'group-hover:bg-gray-700' }}"></div>
+                            <div class="block bg-gray-800 w-10 h-6 rounded-full transition-colors {{ $configLoadDemoData ? 'bg-[var(--theme-color)]' : 'group-hover:bg-gray-700' }}"></div>
                             <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform {{ $configLoadDemoData ? 'transform translate-x-4' : '' }}"></div>
                         </div>
                         <div class="ml-3 text-[10px] md:text-xs text-gray-300 font-bold uppercase tracking-wider">
@@ -109,7 +109,7 @@
         <div class="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 md:gap-2 bg-gray-950 p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-gray-800 shadow-[0_0_20px_rgba(0,0,0,0.5)] w-full sm:w-max mx-auto sm:mx-0">
             @foreach($years as $year)
                 <button wire:click="setActiveYear({{ $year }})"
-                        class="flex-1 sm:flex-none px-3 md:px-6 py-2.5 md:py-3 rounded-lg md:rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 {{ $activeYear === $year ? 'bg-gradient-to-br from-[#d4af37] to-[#e2c78d] text-gray-900 shadow-[0_0_20px_rgba(212,175,55,0.4)]' : 'text-gray-500 hover:text-[#d4af37] hover:bg-gray-900' }}">
+                        class="flex-1 sm:flex-none px-3 md:px-6 py-2.5 md:py-3 rounded-lg md:rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 {{ $activeYear === $year ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_20px_var(--theme-color-40)]' : 'text-gray-500 hover:text-[var(--theme-color)] hover:bg-gray-900' }}">
                     Jahr {{ $year }}
                 </button>
             @endforeach
@@ -675,12 +675,12 @@
                         datasets:[{
                             label: 'Kontostand (€)',
                             data:[],
-                            borderColor: '#C5A059',
-                            backgroundColor: 'rgba(197, 160, 89, 0.1)',
+                            borderColor: '{{ $this->themeColorHex }}',
+                            backgroundColor: '{{ $this->themeColorHex }}1A',
                             borderWidth: 3,
                             fill: true,
                             tension: 0.4,
-                            pointBackgroundColor: '#C5A059',
+                            pointBackgroundColor: '{{ $this->themeColorHex }}',
                             pointRadius: 4
                         }]
                     },

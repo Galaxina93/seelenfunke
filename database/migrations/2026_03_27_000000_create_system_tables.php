@@ -374,6 +374,17 @@ return new class extends Migration
                 $table->foreign('target_id')->references('id')->on('system_map_nodes')->onDelete('cascade');
             });
         }
+
+        if (!Schema::hasTable('system_ai_hosting_plans')) {
+            Schema::create('system_ai_hosting_plans', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->unsignedBigInteger('token_limit')->nullable(); // null for unlimited
+                $table->decimal('price_monthly', 8, 2)->default(0.00);
+                $table->boolean('is_active')->default(false);
+                $table->timestamps();
+            });
+        }
     }
 
     /**
@@ -381,6 +392,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('system_ai_hosting_plans');
         Schema::dropIfExists('system_map_edges');
         Schema::dropIfExists('system_map_nodes');
         Schema::dropIfExists('directory_user');

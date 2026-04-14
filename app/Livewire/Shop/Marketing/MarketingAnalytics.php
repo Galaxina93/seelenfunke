@@ -19,7 +19,7 @@ class MarketingAnalytics extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Marketing';
+    public string $themingDepartment = 'Marketing';
 
     #[Url]
     public $dateRange = '30';
@@ -32,6 +32,8 @@ class MarketingAnalytics extends Component
     public array $voucherData = [];
     public array $blogData = [];
     public array $voucherTypeData = [];
+    public array $landingPageData = [];
+    public array $topLandingPages = [];
 
 
     public function mount()
@@ -128,6 +130,43 @@ class MarketingAnalytics extends Component
             $vtData[] = $items->count();
         }
         $this->voucherTypeData = ['labels' => $vtLabels, 'data' => $vtData];
+        // 5. Landing Page Visits
+        $landingPageVisits = \App\Models\Tracking\PageVisit::where('path', 'like', '/l/%')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->get();
+            
+        $lpGrouped = $landingPageVisits->groupBy(fn($v) => $v->created_at->format($groupByFormat));
+        $lpLabels = [];
+        $lpData = [];
+        foreach ($lpGrouped->sortKeys() as $gDate => $items) {
+            $lpLabels[] = $groupByFormat === 'Y-m' 
+                ? Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4)
+                : Carbon::createFromFormat('Y-m-d', $gDate)->format('d.m.y');
+            $lpData[] = $items->count();
+        }
+        $this->landingPageData = ['labels' => $lpLabels, 'data' => $lpData];
+
+        // 6. Top Landing Pages Ranking
+        $topPages = \App\Models\Tracking\PageVisit::where('path', 'like', '/l/%')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->selectRaw('path, count(*) as visits_count')
+            ->groupBy('path')
+            ->orderByDesc('visits_count')
+            ->limit(4)
+            ->get();
+            
+        $enrichedTopPages = [];
+        foreach($topPages as $page) {
+            $slug = str_replace('/l/', '', $page->path);
+            $lp = \App\Models\Marketing\MarketingLandingPage::where('slug', $slug)->with('product')->first();
+            $enrichedTopPages[] = [
+                'path' => $page->path,
+                'slug' => $slug,
+                'product_name' => $lp ? $lp->product->name : 'Gelöscht/Unbekannt',
+                'visits' => $page->visits_count
+            ];
+        }
+        $this->topLandingPages = $enrichedTopPages;
     }
 
     public function render()

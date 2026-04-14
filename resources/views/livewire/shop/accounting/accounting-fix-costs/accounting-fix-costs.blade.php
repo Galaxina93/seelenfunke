@@ -223,7 +223,7 @@
 
                         {{-- GROUP CARD (Dropzone für Gruppen UND Items) --}}
                         <div data-group-id="{{ $group->id }}"
-                             class="group-sortable-card bg-gray-900/80 backdrop-blur-md border rounded-[2rem] overflow-hidden shadow-2xl transition-all duration-300 {{ $activeGroupId === $group->id ? 'border-[var(--theme-color-50)] shadow-[0_0_30px_rgba(197,160,89,0.15)] lg:col-span-2' : 'border-gray-800 hover:border-gray-700' }}"
+                             class="group-sortable-card bg-gray-900/80 backdrop-blur-md border rounded-[2rem] overflow-hidden shadow-2xl transition-all duration-300 {{ $activeGroupId === $group->id ? 'border-[var(--theme-color-50)] shadow-[0_0_30px_var(--theme-color-15)] lg:col-span-2' : 'border-gray-800 hover:border-gray-700' }}"
                              draggable="true"
                              @dragstart.stop="draggedGroup = $el; $el.classList.add('opacity-40', 'scale-[0.98]', 'border-dashed')"
                              @dragend.stop="draggedGroup = null; $el.classList.remove('opacity-40', 'scale-[0.98]', 'border-dashed')"
@@ -238,7 +238,7 @@
                                     $wire.moveCostItem(draggingItemId, '{{ $group->id }}');
                                 }
                              "
-                             :class="isDraggingOver ? 'ring-2 ring-[var(--theme-color)] bg-gray-900 scale-[1.01] shadow-[0_0_40px_rgba(197,160,89,0.2)]' : ''"
+                             :class="isDraggingOver ? 'ring-2 ring-[var(--theme-color)] bg-gray-900 scale-[1.01] shadow-[0_0_40px_var(--theme-color-20)]' : ''"
                         >
                             {{-- Drag Handle Indikator für die Gruppe --}}
                             <div class="w-full py-2 bg-gray-950 flex items-center justify-center cursor-grab active:cursor-grabbing border-b border-gray-800 opacity-50 hover:opacity-100 transition-opacity shadow-inner" title="Gruppe verschieben">
@@ -256,7 +256,7 @@
                                         @foreach($group->items as $item)
                                             {{-- ITEM CARD (Draggable) --}}
                                             <div wire:key="item-card-{{ $item->id }}"
-                                                 class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-[0_0_15px_rgba(197,160,89,0.1)] transition-all cursor-grab active:cursor-grabbing group/item overflow-hidden"
+                                                 class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-[0_0_15px_var(--theme-color-10)] transition-all cursor-grab active:cursor-grabbing group/item overflow-hidden"
                                                  draggable="true"
                                                  @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
                                                  @dragend.stop="draggingItemId = null">

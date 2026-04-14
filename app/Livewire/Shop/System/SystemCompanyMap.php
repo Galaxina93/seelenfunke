@@ -16,7 +16,7 @@ class SystemCompanyMap extends Component
 {
     use \App\Livewire\Traits\WithDepartmentTheming;
 
-    protected string $themingDepartment = 'System';
+    public string $themingDepartment = 'System';
     public $nodes = [];
     public $edges = [];
     public $apiStatuses = []; // Speichert den Status der Pings (up/down)

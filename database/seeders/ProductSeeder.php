@@ -50,8 +50,8 @@ class ProductSeeder extends Seeder
             'name' => 'Der Seelen Kristall',
             'slug' => 'seelen-kristall',
             'type' => 'physical',
-            'description' => 'Ein handgeschliffener Kristall für besondere Momente. Durch die hochwertige 3D-Innengravur schwebt Ihr Wunschmotiv förmlich im Glas.',
-            'short_description' => 'Personalisiertes 3D-Glasgeschenk inkl. Geschenkbox.',
+            'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in einer schützenden Premium-Geschenkbox geliefert, optimal vorbereitet für die sofortige Übergabe.',
+            'short_description' => 'Hochgradig personalisierbares und exklusiv veredeltes Premium-Kristallglas. Inklusive maßgeschneiderter 3D-Innengravur und edler Geschenkpräsentation.',
             'status' => 'active',
             'price' => 3990,
             'compare_at_price' => null,
@@ -114,8 +114,8 @@ class ProductSeeder extends Seeder
                 'Farbe' => 'Transparent'
             ],
             'tier_pricing' => [], // Wir nutzen jetzt die relationale Datenbank für Staffelpreise
-            'seo_title' => 'Der Seelen Kristall',
-            'seo_description' => 'Verschenken Sie Ewigkeit.',
+            'seo_title' => 'Der Seelen Kristall | Personalisiertes Premium Glas-Geschenk online gestalten',
+            'seo_description' => 'Erwecken Sie Erinnerungen zum Leben. Entdecken Sie den Seelen Kristall aus exklusivem K9-Glas mit präziser 3D-Gravur. Ihr individuelles Geschenk für besondere Menschen.',
             'completion_step' => 4
         ]);
 
@@ -134,8 +134,8 @@ class ProductSeeder extends Seeder
             'name' => 'Der Seelenanhänger',
             'slug' => 'seelen-anhaenger',
             'type' => 'physical',
-            'description' => 'Ein Aluminium Metall Herz das ganz besondere Gefühle auslösen kann. Es ist sehr hochwertig und schwer, wodurch es sich besonders wertig in der Hand anfühlt. Ideal als Handschmeichler oder persönlicher Glücksbringer.',
-            'short_description' => 'Hochwertiges, schweres Aluminium-Herz für besondere Momente.',
+            'description' => 'Der Seelenanhänger verkörpert pure Emotion in einer greifbaren Form. Dieses außergewöhnlich schwere und massiv gefertigte Aluminium-Herz besticht durch eine Handschmeichler-Haptik, die beruhigend und überzeugend zugleich wirkt. Durch unsere exklusive Laser-Veredelung können Sie das Herz sowohl auf der Vorder- als auch auf der Rückseite mit feinsten Botschaften, Koordinaten oder Initialen versehen lassen. Ein idealer ständiger Begleiter, sei es am Schlüsselbund oder als stiller Glücksbringer in der Hosentasche.',
+            'short_description' => 'Massives, handschmeichelndes Aluminium-Herz mit beidseitiger, hochpräziser Lasergravur. Ein fühlbarer Ausdruck wahrer Zuneigung.',
             'status' => 'active',
             'price' => 1699,
             'compare_at_price' => null,
@@ -233,20 +233,21 @@ class ProductSeeder extends Seeder
                 'Form' => 'Herz'
             ],
             'tier_pricing' => [],
-            'seo_title' => 'Der Seelenanhänger',
+            'seo_title' => 'Der Seelenanhänger | Massives graviertes Alu-Herz als Geschenk',
+            'seo_description' => 'Zeigen Sie Zuneigung, die man fühlen kann. Der Seelenanhänger: Ein schweres, massives Metallherz mit individueller Zwei-Seiten-Gravur. Online konfigurieren.',
             'completion_step' => 4
         ]);
 
         $catIds2 = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger'])->pluck('id');
         $p2->categories()->attach($catIds2);
 
-        // --- PRODUKT 3: Personalisiertes Weizenglas (NEU) ---
+        // --- PRODUKT 3: Der Feierabend-Funke (NEU) ---
         $p3 = Product::create([
-            'name' => 'Personalisiertes Weizenglas',
+            'name' => 'Der Feierabend-Funke',
             'slug' => 'weizenglas-personalisiert',
             'type' => 'physical',
-            'description' => 'Stoßen Sie mit Ihrem ganz persönlichen Weizenglas an! Durch unsere präzise Lasertechnik wird Ihr Wunschtext oder Logo als edle 360° Rundum-Gravur tief ins Glas eingebrannt. Spülmaschinenfest und ein absoluter Hingucker auf jeder Feier.',
-            'short_description' => 'Hochwertiges Weizenbierglas (580 ml) mit 360° Rundum-Gravur.',
+            'description' => 'Krönen Sie den wohlverdienten Feierabend mit einem Glas, das genauso einzigartig ist wie Sie! Der Feierabend-Funke ist ein klassisch geformtes, hochwertiges Kristall-Weizenbierglas, das durch eine atemberaubende 360° Rundum-Gravur Ihr persönliches Highlight wird. Mittels feinster Laser-Rotationstechnik brennen wir Ihre Texte, Vereinslogos oder humorvollen Sprüche tief und abriebfest ins Material ein. Das Glas bleibt dabei zu 100% spülmaschinenfest und behält auch nach vielen Einsätzen seine vollkommene Brillanz.',
+            'short_description' => 'Premium-Weizenbierglas (0,5l) versehen mit einer beeindruckenden, spülmaschinenfesten 360° Lasergravur. Perfekt als Vereins- oder Männergeschenk.',
             'status' => 'active',
             'price' => 2490,
             'compare_at_price' => 2990,
@@ -337,6 +338,7 @@ class ProductSeeder extends Seeder
             'slug' => 'seelenbuch',
             'type' => 'digital',
             'description' => 'Ihr digitaler Begleiter für mehr Achtsamkeit und Inspiration. Dieses E-Book enthält wertvolle Impulse, Gedankenanstöße und praktische Übungen für den Alltag. Einfach herunterladen und sofort loslegen.',
+            'is_personalizable' => false,
             'short_description' => 'Digitaler Guide für Inspiration & Achtsamkeit (PDF).',
             'status' => 'active',
             'price' => 1990,
@@ -379,6 +381,7 @@ class ProductSeeder extends Seeder
             'slug' => 'laser-beratung',
             'type' => 'service',
             'description' => 'Planen Sie ein Großprojekt oder benötigen Sie Hilfe bei der Erstellung Ihrer Gravurdaten? Buchen Sie eine 30-minütige persönliche Beratung per Video-Call mit unseren Experten.',
+            'is_personalizable' => false,
             'short_description' => '30 Min. Video-Consulting für Ihr Laser-Projekt.',
             'status' => 'active',
             'price' => 4900,
@@ -431,10 +434,10 @@ class ProductSeeder extends Seeder
             'track_quantity' => true,
             'quantity' => 20,
             'continue_selling_when_out_of_stock' => false,
-            'weight' => 200, 
-            'height' => 150, 
-            'width' => 80, 
-            'length' => 40, 
+            'weight' => 200,
+            'height' => 150,
+            'width' => 80,
+            'length' => 40,
             'shipping_class' => 'paket_s',
             'media_gallery' => [],
             'configurator_settings' => [],

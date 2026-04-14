@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div class="mb-8 flex items-center gap-4">
@@ -22,13 +23,13 @@
         <form wire:submit.prevent="save" class="space-y-10">
 
             <!-- Identität -->
-            <section class="bg-black/40 border {{ $agentId === 1 ? 'border-primary shadow-[0_0_20px_rgba(197,160,89,0.15)]' : 'border-gray-800/60 shadow-[0_0_20px_rgba(0,0,0,0.3)]' }} rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden">
+            <section class="bg-black/40 border {{ $agentId === 1 ? 'border-[var(--theme-color)] shadow-[0_0_20px_var(--theme-color-15)]' : 'border-gray-800/60 shadow-[0_0_20px_rgba(0,0,0,0.3)]' }} rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden">
                 <div class="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-transparent pointer-events-none"></div>
                 
                 <div class="relative z-10 flex items-center justify-between border-b border-gray-800/80 pb-4 mb-8">
                     <div>
                         <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
-                            <div class="p-2 rounded-lg bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(197,160,89,0.2)]">
+                            <div class="p-2 rounded-lg bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shadow-[0_0_10px_var(--theme-color-20)]">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" /></svg>
                             </div>
                             1. Identität & Rolle
@@ -52,14 +53,14 @@
                     <div class="flex flex-col sm:flex-row gap-6 items-start">
                         <div class="shrink-0">
                             <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Profilbild</label>
-                            <div class="relative group cursor-pointer w-32 h-32 rounded-2xl border-2 border-dashed {{ $profile_picture || $existing_profile_picture ? 'border-primary/50' : 'border-gray-700' }} hover:border-primary transition-colors bg-gray-900/50 flex items-center justify-center overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                            <div class="relative group cursor-pointer w-32 h-32 rounded-2xl border-2 border-dashed {{ $profile_picture || $existing_profile_picture ? 'border-[var(--theme-color-50)]' : 'border-gray-700' }} hover:border-[var(--theme-color)] transition-colors bg-gray-900/50 flex items-center justify-center overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.5)]">
                                 
                                 @if ($profile_picture)
                                     <img src="{{ $profile_picture->temporaryUrl() }}" class="w-full h-full object-cover">
                                 @elseif ($existing_profile_picture)
                                     <img src="{{ \Illuminate\Support\Str::startsWith($existing_profile_picture, 'shop/') ? asset($existing_profile_picture) : Storage::url($existing_profile_picture) }}" class="w-full h-full object-cover">
                                 @else
-                                    <div class="text-center text-gray-500 group-hover:text-primary transition-colors flex flex-col items-center">
+                                    <div class="text-center text-gray-500 group-hover:text-[var(--theme-color)] transition-colors flex flex-col items-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 mb-2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
                                         <span class="text-[10px] font-mono uppercase tracking-wider">Upload</span>
                                     </div>
@@ -69,7 +70,7 @@
 
                                 <!-- Loading Overlay -->
                                 <div wire:loading wire:target="profile_picture" class="absolute inset-0 bg-black/80 flex items-center justify-center">
-                                    <svg class="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    <svg class="animate-spin h-6 w-6 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 </div>
                             </div>
                             @if($existing_profile_picture || $profile_picture)
@@ -83,13 +84,13 @@
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Name des Agenten <span class="text-red-500">*</span></label>
-                                    <input type="text" wire:model.defer="name" required placeholder="z.B. IT Administrator" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <input type="text" wire:model.defer="name" required placeholder="z.B. IT Administrator" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
                                     @error('name') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aktivierungswort <span class="text-gray-600">(Wake Word)</span></label>
-                                    <input type="text" wire:model.defer="wake_word" placeholder="z.B. Computer oder den echten Namen" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 font-mono transition-all">
-                                    <p class="text-[10px] text-gray-500 mt-1 font-mono">Bleibt dieses Feld leer, wird automatisch der <span class="text-primary font-bold">Name des Agenten</span> gewählt.</p>
+                                    <input type="text" wire:model.defer="wake_word" placeholder="z.B. Computer oder den echten Namen" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <p class="text-[10px] text-gray-500 mt-1 font-mono">Bleibt dieses Feld leer, wird automatisch der <span class="text-[var(--theme-color)] font-bold">Name des Agenten</span> gewählt.</p>
                                     @error('wake_word') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                             </div>
@@ -97,7 +98,7 @@
                                 <div>
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aufgaben-Rolle</label>
                                     <div class="relative">
-                                        <select wire:model.live="ai_role_id" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
+                                        <select wire:model.live="ai_role_id" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
                                             <option value="">-- Keine spezifische Rolle --</option>
                                             @foreach($aiRoles as $role)
                                                 <option value="{{ $role->id }}" class="bg-gray-900 text-gray-300">{{ $role->name }}</option>
@@ -111,7 +112,7 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Rollen-Kurzbeschreibung (für UI)</label>
-                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
                                 </div>
                             </div>
                             <!-- Personality Presets -->
@@ -163,8 +164,8 @@
 
                             <div>
                                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Master System-Prompt</label>
-                                <textarea wire:model.defer="system_prompt" rows="8" placeholder="Du bist der IT-Admin Bot. Analysiere Fehler präzise und effizient..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-emerald-400/90 p-4 font-mono text-sm leading-relaxed transition-all resize-y custom-scrollbar"></textarea>
-                                <p class="text-[10px] text-gray-500 mt-2 font-mono"><span class="text-primary font-bold">INFO:</span> Dieser Text bildet die Kern-Grundanweisung (Persona), die bei jeder Anfrage als System-Message mitgeschickt wird.</p>
+                                <textarea wire:model.defer="system_prompt" rows="8" placeholder="Du bist der IT-Admin Bot. Analysiere Fehler präzise und effizient..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-emerald-400/90 p-4 font-mono text-sm leading-relaxed transition-all resize-y custom-scrollbar"></textarea>
+                                <p class="text-[10px] text-gray-500 mt-2 font-mono"><span class="text-[var(--theme-color)] font-bold">INFO:</span> Dieser Text bildet die Kern-Grundanweisung (Persona), die bei jeder Anfrage als System-Message mitgeschickt wird.</p>
                             </div>
                         </div>
                     </div>
@@ -182,7 +183,7 @@
                         @endif
 
                         <h4 class="text-xs font-bold text-gray-300 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-gray-800/50 pb-2 relative z-10">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-primary"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-[var(--theme-color)]"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
                             Optische Identität (UI Präsentation)
                         </h4>
                         
@@ -215,7 +216,7 @@
                                     @foreach($availableIcons as $ico)
                                         <button type="button" wire:click="$set('icon', '{{ $ico }}')" 
                                             class="w-10 h-10 rounded-xl border transition-all flex items-center justify-center
-                                            {{ $icon === $ico ? 'border-primary bg-primary/20 text-primary shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'border-gray-800 bg-gray-900/50 text-gray-500 hover:border-gray-600 hover:text-gray-300' }}"
+                                            {{ $icon === $ico ? 'border-[var(--theme-color)] bg-[var(--theme-color-20)] text-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-30)]' : 'border-gray-800 bg-gray-900/50 text-gray-500 hover:border-gray-600 hover:text-gray-300' }}"
                                             title="{{ $ico }}">
                                             <!-- Dynamically render heroicon out of standard set -->
                                             <x-dynamic-component :component="'heroicon-o-' . $ico" class="w-6 h-6" />
@@ -374,7 +375,7 @@
 
             <div class="flex justify-between pt-6 border-t border-gray-800/80 items-center">
                 <button type="button" wire:click="cancel" class="text-gray-400 hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-900">Abbrechen</button>
-                <button type="submit" class="bg-primary hover:bg-primary/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:shadow-[0_0_30px_rgba(197,160,89,0.5)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
+                <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
                     <svg wire:loading.remove wire:target="save" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" /></svg>
                     <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                     Agent Speichern
@@ -382,4 +383,6 @@
             </div>
         </form>
     </div>
+</div>
+
 </div>

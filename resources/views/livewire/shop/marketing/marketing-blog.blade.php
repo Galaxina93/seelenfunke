@@ -11,7 +11,7 @@
                         <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-wide">Magazin & Blog</h1>
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mt-2">Inhalte verwalten, inspirieren und informieren.</p>
                     </div>
-                    <button wire:click="create" class="w-full sm:w-auto bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-[var(--theme-color)] hover:brightness-90 hover:scale-[1.02] transition-all flex items-center justify-center gap-3">
+                    <button wire:click="create" class="w-full sm:w-auto bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-6 py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:brightness-90 hover:scale-[1.02] transition-all flex items-center justify-center gap-3">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
                         Neuer Beitrag
                     </button>
@@ -159,7 +159,7 @@
                     </div>
                     <div class="flex items-center gap-4 w-full md:w-auto">
                         <button wire:click="cancel" class="flex-1 md:flex-none px-5 py-3.5 bg-gray-950 border border-gray-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors shadow-inner">Abbrechen</button>
-                        <button wire:click="save" class="flex-1 md:flex-none bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-6 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-[var(--theme-color)] hover:brightness-90 hover:text-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
+                        <button wire:click="save" class="flex-1 md:flex-none bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-6 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_var(--theme-color-30)] hover:bg-[var(--theme-color)] hover:brightness-90 hover:text-white hover:scale-[1.02] transition-all flex items-center justify-center gap-2">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
                             {{ $viewMode === 'create' ? 'Veröffentlichen' : 'Speichern' }}
                         </button>
@@ -248,7 +248,7 @@
                                                             margin: 0 !important;
                                                         }
                                                         /* Schicke Text-Auswahlfarbe in Gold */
-                                                        ::selection { background: rgba(197, 160, 89, 0.3) !important; color: #ffffff !important; }
+                                                        ::selection { background: var(--theme-color-30) !important; color: #ffffff !important; }
 
                                                         /* Grundlegende Typografie im Darkmode */
                                                         p { margin-bottom: 1.2em !important; }
@@ -273,7 +273,7 @@
                                                             padding-left: 1.5em !important;
                                                             color: #9ca3af !important;
                                                             font-style: italic !important;
-                                                            background: rgba(197, 160, 89, 0.05) !important;
+                                                            background: var(--theme-color-10) !important;
                                                             padding-top: 0.5em !important;
                                                             padding-bottom: 0.5em !important;
                                                             border-radius: 0 8px 8px 0 !important;
@@ -413,7 +413,7 @@
                                 <h3 class="font-serif font-bold text-xl text-white border-b border-gray-800 pb-4 mb-6 tracking-wide">Kachelbild (Übersicht)</h3>
                             <div class="mb-6">
                                 @if ($image)
-                                    <div class="relative group rounded-2xl overflow-hidden border-2 border-[var(--theme-color)] shadow-[0_0_15px_rgba(197,160,89,0.2)]">
+                                    <div class="relative group rounded-2xl overflow-hidden border-2 border-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-20)]">
                                         <img src="{{ $image->temporaryUrl() }}" class="w-full h-48 object-cover">
                                         <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <span class="text-white text-[10px] font-black uppercase tracking-widest bg-gray-950/80 border border-gray-700 px-3 py-1.5 rounded-lg shadow-xl">Vorschau</span>
@@ -445,7 +445,7 @@
                                 <h3 class="font-serif font-bold text-xl text-white border-b border-gray-800 pb-4 mb-6 tracking-wide">Hintergrundbild (Artikel)</h3>
                                 <div class="mb-6">
                                     @if ($headerImage)
-                                        <div class="relative group rounded-2xl overflow-hidden border-2 border-[var(--theme-color)] shadow-[0_0_15px_rgba(197,160,89,0.2)]">
+                                        <div class="relative group rounded-2xl overflow-hidden border-2 border-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-20)]">
                                             <img src="{{ $headerImage->temporaryUrl() }}" class="w-full h-48 object-cover">
                                             <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <span class="text-white text-[10px] font-black uppercase tracking-widest bg-gray-950/80 border border-gray-700 px-3 py-1.5 rounded-lg shadow-xl">Vorschau</span>
@@ -532,7 +532,7 @@
                             <input type="text" wire:model="newCategoryName" placeholder="Neue Kategorie..."
                                    class="flex-1 border border-gray-800 bg-gray-950 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] focus:bg-black transition-all shadow-inner outline-none placeholder-gray-600"
                                    wire:keydown.enter="createCategory">
-                            <button wire:click="createCategory" class="bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[var(--theme-color)] hover:brightness-90 hover:scale-[1.05] transition-all shadow-[0_0_15px_rgba(197,160,89,0.2)]">
+                            <button wire:click="createCategory" class="bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[var(--theme-color)] hover:brightness-90 hover:scale-[1.05] transition-all shadow-[0_0_15px_var(--theme-color-20)]">
                                 Hinzufügen
                             </button>
                         </div>

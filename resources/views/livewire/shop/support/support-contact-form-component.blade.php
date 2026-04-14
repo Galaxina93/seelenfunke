@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     <div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto">
         <div class="sm:flex sm:justify-between sm:items-center mb-8">
@@ -10,9 +11,9 @@
                     <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                         <svg class="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" /></svg>
                     </div>
-                    <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche..." class="block w-full rounded-xl bg-gray-900 border border-gray-700 py-2 pl-10 text-gray-200 placeholder-gray-500 focus:ring-[#C5A059] focus:border-[#C5A059] sm:text-sm shadow-inner transition-colors">
+                    <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche..." class="block w-full rounded-xl bg-gray-900 border border-gray-700 py-2 pl-10 text-gray-200 placeholder-gray-500 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] sm:text-sm shadow-inner transition-colors">
                 </div>
-                <select wire:model.live="statusFilter" class="block w-full rounded-xl bg-gray-900 border border-gray-700 py-2 pl-3 pr-10 text-gray-200 focus:ring-[#C5A059] focus:border-[#C5A059] sm:text-sm shadow-inner transition-colors">
+                <select wire:model.live="statusFilter" class="block w-full rounded-xl bg-gray-900 border border-gray-700 py-2 pl-3 pr-10 text-gray-200 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] sm:text-sm shadow-inner transition-colors">
                     <option value="">Alle Status</option>
                     <option value="new">Neu</option>
                     <option value="in_progress">In Bearbeitung</option>
@@ -38,12 +39,12 @@
                     <tbody class="divide-y divide-gray-700/50 bg-gray-800">
                         @forelse($requests as $req)
                             <tr class="hover:bg-gray-700/20 transition-colors {{ $req->status === 'new' ? 'bg-amber-500/5' : '' }} {{ $selectedRequestId === $req->id ? 'bg-gray-700/40 border-b border-gray-700/50' : '' }}">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-200 border-l-4 {{ $req->status==='new' ? 'border-amber-400' : ($selectedRequestId === $req->id ? 'border-[#C5A059]' : 'border-transparent') }}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-200 border-l-4 {{ $req->status==='new' ? 'border-amber-400' : ($selectedRequestId === $req->id ? 'border-[var(--theme-color)]' : 'border-transparent') }}">
                                     {{ $req->ticket_number }}
                                 </td>
                                 <td class="px-3 py-4 whitespace-nowrap">
                                     <div class="text-sm font-semibold text-gray-200">{{ $req->first_name }} {{ $req->last_name }}</div>
-                                    <div class="text-[12px] text-gray-400"><a href="mailto:{{ $req->email }}" class="hover:text-[#C5A059] transition-colors">{{ $req->email }}</a></div>
+                                    <div class="text-[12px] text-gray-400"><a href="mailto:{{ $req->email }}" class="hover:text-[var(--theme-color)] transition-colors">{{ $req->email }}</a></div>
                                 </td>
                                 <td class="px-4 py-4">
                                     <div class="text-[13px] font-medium text-gray-300 truncate max-w-[200px] xl:max-w-[280px]" title="{{ $req->subject }}">{{ $req->subject }}</div>
@@ -66,7 +67,7 @@
                                     {{ $req->created_at->format('d.m.Y - H:i') }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                    <button wire:click="openRequest('{{ $req->id }}')" class="inline-flex items-center justify-center min-w-[145px] gap-2 px-3 py-1.5 {{ $selectedRequestId === $req->id ? 'bg-[#C5A059] text-gray-900 border-[#C5A059]' : 'bg-gray-900 text-[#C5A059] border-[#C5A059]/50 hover:bg-[#C5A059] hover:text-white' }} border text-xs font-bold rounded-lg transition-all shadow-sm focus:outline-none">
+                                    <button wire:click="openRequest('{{ $req->id }}')" class="inline-flex items-center justify-center min-w-[145px] gap-2 px-3 py-1.5 {{ $selectedRequestId === $req->id ? 'bg-[var(--theme-color)] text-gray-900 border-[var(--theme-color)]' : 'bg-gray-900 text-[var(--theme-color)] border-[var(--theme-color)]/50 hover:bg-[var(--theme-color)] hover:text-white' }} border text-xs font-bold rounded-lg transition-all shadow-sm focus:outline-none">
                                         @if($selectedRequestId === $req->id)
                                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
                                             Schließen
@@ -82,7 +83,7 @@
                             @if($selectedRequestId === $req->id && $selectedRequest)
                                 <tr>
                                     <td colspan="6" class="p-0 border-b border-gray-700 bg-gray-900/40">
-                                        <div class="animate-[fadeIn_0.15s_ease-out] border-l-4 border-l-[#C5A059] grid grid-cols-1 lg:grid-cols-5 2xl:grid-cols-3">
+                                        <div class="animate-[fadeIn_0.15s_ease-out] border-l-4 border-l-[var(--theme-color)] grid grid-cols-1 lg:grid-cols-5 2xl:grid-cols-3">
                                             
                                             <!-- Chat History -->
                                             <div class="lg:col-span-3 2xl:col-span-2 px-6 py-5 max-h-[380px] overflow-y-auto border-r border-gray-700 custom-scrollbar">
@@ -101,12 +102,12 @@
                                                             <div class="flex flex-col items-end max-w-[90%] ml-auto">
                                                                 <div class="flex items-center space-x-2 mb-1 justify-end mr-1 opacity-90">
                                                                     <span class="text-[10px] font-medium text-gray-500">{{ $msg->created_at->format('d.m.y - H:i') }} &bull;</span>
-                                                                    <span class="text-[11px] font-bold text-[#C5A059]">Support</span>
-                                                                    <div class="w-6 h-6 bg-gradient-to-r from-[#C5A059] to-[#D6B778] rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-md border border-[#D6B778]/50">
+                                                                    <span class="text-[11px] font-bold text-[var(--theme-color)]">Support</span>
+                                                                    <div class="w-6 h-6 bg-gradient-to-r from-[var(--theme-color)] to-[#D6B778] rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-md border border-[#D6B778]/50">
                                                                         S
                                                                     </div>
                                                                 </div>
-                                                                <div class="bg-gradient-to-br from-[#1c160b] to-[#2a2212] border border-[#C5A059]/30 shadow-md rounded-xl rounded-tr-sm px-4 py-3 text-[13px] text-gray-200 whitespace-pre-wrap mr-7 leading-relaxed">{{ $msg->message }}</div>
+                                                                <div class="bg-gradient-to-br from-[#1c160b] to-[#2a2212] border border-[var(--theme-color)]/30 shadow-md rounded-xl rounded-tr-sm px-4 py-3 text-[13px] text-gray-200 whitespace-pre-wrap mr-7 leading-relaxed">{{ $msg->message }}</div>
                                                             </div>
                                                         @endif
                                                     @endforeach
@@ -125,7 +126,7 @@
                                                         </div>
                                                     </div>
                                                     
-                                                    <textarea wire:model="replyMessage" class="block w-full flex-grow min-h-[140px] resize-none rounded-xl bg-gray-900 border border-gray-700 py-3 px-4 text-[13px] text-gray-200 shadow-inner focus:ring-1 focus:border-[#C5A059] focus:ring-[#C5A059]/50 transition-colors" placeholder="Nachricht an {{ $selectedRequest->first_name }}..."></textarea>
+                                                    <textarea wire:model="replyMessage" class="block w-full flex-grow min-h-[140px] resize-none rounded-xl bg-gray-900 border border-gray-700 py-3 px-4 text-[13px] text-gray-200 shadow-inner focus:ring-1 focus:border-[var(--theme-color)] focus:ring-[var(--theme-color)]/50 transition-colors" placeholder="Nachricht an {{ $selectedRequest->first_name }}..."></textarea>
                                                     
                                                     <div class="mt-4 flex flex-col xl:flex-row items-center justify-between gap-3">
                                                         <p class="text-[10px] text-gray-500 leading-tight w-full xl:max-w-[140px]">Wird per E-Mail an <strong class="text-gray-400 truncate block">{{ $selectedRequest->email }}</strong> gesendet.</p>
@@ -140,7 +141,7 @@
                                                                 x-data="{ saved: false, error: false }" 
                                                                 x-on:saved-reply.window="saved = true; setTimeout(() => saved = false, 2500)"
                                                                 x-on:error-reply.window="error = true; setTimeout(() => error = false, 4000)"
-                                                                class="inline-flex w-full xl:w-auto items-center justify-center gap-2 rounded-xl bg-[#C5A059] px-4 py-2 text-xs font-bold text-gray-900 hover:bg-[#D6B778] transition-colors shadow-sm focus:outline-none">
+                                                                class="inline-flex w-full xl:w-auto items-center justify-center gap-2 rounded-xl bg-[var(--theme-color)] px-4 py-2 text-xs font-bold text-gray-900 hover:bg-[#D6B778] transition-colors shadow-sm focus:outline-none">
                                                             <span x-show="!saved && !error">Senden & Speichern</span>
                                                             <span x-show="saved" style="display: none;" class="text-green-900">Gesendet! ✓</span>
                                                             <span x-show="error" style="display: none;" class="text-red-900">Fehler! ×</span>
@@ -171,4 +172,6 @@
             </div>
         </div>
     </div>
+</div>
+
 </div>

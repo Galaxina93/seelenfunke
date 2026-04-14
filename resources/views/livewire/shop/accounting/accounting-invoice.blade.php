@@ -12,7 +12,7 @@
                 {{ $isCreatingManual ? 'Zurück zur Liste' : '+ Rechnung erstellen' }}
             </button>
             <button wire:click="generateForPaidOrders" wire:loading.attr="disabled"
-                    class="flex-1 md:flex-none bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-5 py-2.5 rounded-xl hover:bg-[var(--theme-color)]-dark hover:text-white transition-all shadow-[0_0_20px_rgba(197,160,89,0.3)] text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02]">
+                    class="flex-1 md:flex-none bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-5 py-2.5 rounded-xl hover:bg-[var(--theme-color)]-dark hover:text-white transition-all shadow-[0_0_20px_var(--theme-color-30)] text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02]">
                 <span wire:loading.remove wire:target="generateForPaidOrders">Bulk-Action</span>
                 <span wire:loading wire:target="generateForPaidOrders" class="flex items-center gap-2">
                     <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
@@ -107,9 +107,9 @@
                     <svg viewBox="0 0 1000 200" class="w-full h-auto drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
                         <defs>
                             <linearGradient id="bulkPathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stop-color="#C5A059" stop-opacity="0.3"/>
-                                <stop offset="50%" stop-color="#C5A059" stop-opacity="0.9"/>
-                                <stop offset="100%" stop-color="#C5A059" stop-opacity="0.3"/>
+                                <stop offset="0%" stop-color="var(--theme-color)" stop-opacity="0.3"/>
+                                <stop offset="50%" stop-color="var(--theme-color)" stop-opacity="0.9"/>
+                                <stop offset="100%" stop-color="var(--theme-color)" stop-opacity="0.3"/>
                             </linearGradient>
                             <filter id="glowBulk" x="-20%" y="-20%" width="140%" height="140%">
                                 <feGaussianBlur stdDeviation="8" result="blur" />
@@ -140,9 +140,9 @@
 
                         <!-- Node 3: Send (Highlight) -->
                         <g transform="translate(625, 70)">
-                            <circle cx="0" cy="0" r="42" fill="rgba(197,160,89, 0.15)" stroke="#C5A059" stroke-width="3" filter="url(#glowBulk)" />
-                            <text x="0" y="6" fill="#C5A059" font-size="24" font-weight="900" text-anchor="middle">3</text>
-                            <text x="0" y="70" fill="#C5A059" font-size="15" font-weight="bold" text-anchor="middle">E-Mail Versand</text>
+                            <circle cx="0" cy="0" r="42" fill="var(--theme-color-15)" stroke="var(--theme-color)" stroke-width="3" filter="url(#glowBulk)" />
+                            <text x="0" y="6" fill="var(--theme-color)" font-size="24" font-weight="900" text-anchor="middle">3</text>
+                            <text x="0" y="70" fill="var(--theme-color)" font-size="15" font-weight="bold" text-anchor="middle">E-Mail Versand</text>
                             <text x="0" y="90" fill="#9ca3af" font-size="12" font-weight="bold" text-anchor="middle">Kunde erhält automatisch</text>
                             <text x="0" y="105" fill="#6b7280" font-size="11" text-anchor="middle">die finale Email (+ Rechnung).</text>
                         </g>

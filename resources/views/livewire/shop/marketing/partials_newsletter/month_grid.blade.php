@@ -9,11 +9,11 @@
     @foreach($calendarGrid as $day)
         <div @class([
                                 'min-h-[160px] border-[1.5px] rounded-[2rem] p-4 flex flex-col relative transition-all duration-300',
-                                'bg-white border-gray-100 hover:border-orange-200 hover:shadow-xl hover:-translate-y-1' => $day['is_current_month'],
+                                'bg-white border-gray-100 hover:border-[var(--theme-color-50)] hover:shadow-xl hover:-translate-y-1' => $day['is_current_month'],
                                 'bg-gray-50/50 border-transparent opacity-40' => !$day['is_current_month'],
-                                'ring-4 ring-orange-500/20 border-orange-500 shadow-2xl z-10' => $day['is_today']
+                                'ring-4 ring-[var(--theme-color-20)] border-[var(--theme-color)] shadow-2xl z-10' => $day['is_today']
                             ])>
-                                <span @class(['text-sm font-black', 'text-orange-600' => $day['is_today'], 'text-gray-300' => !$day['is_current_month'], 'text-gray-900' => $day['is_current_month'] && !$day['is_today']])>
+                                <span @class(['text-sm font-black', 'text-[var(--theme-color)]' => $day['is_today'], 'text-gray-300' => !$day['is_current_month'], 'text-gray-900' => $day['is_current_month'] && !$day['is_today']])>
                                     {{ $day['date']->format('d') }}
                                 </span>
 
@@ -25,7 +25,7 @@
                         </div>
                     @else
                         <div wire:click="editTemplate('{{ $event['template_id'] }}')"
-                             class="cursor-pointer text-[9px] bg-slate-900 text-white px-2.5 py-1.5 rounded-xl font-bold shadow-md hover:bg-orange-600 transition-all truncate border border-slate-800">
+                             class="cursor-pointer text-[9px] bg-slate-900 text-white px-2.5 py-1.5 rounded-xl font-bold shadow-md hover:bg-[var(--theme-color)] transition-all truncate border border-slate-800">
                             {{ $event['title'] }}
                         </div>
                     @endif
@@ -33,7 +33,7 @@
             </div>
 
             @if($day['is_today'])
-                <div class="absolute bottom-2 right-4 text-[8px] font-black text-orange-500 uppercase tracking-widest">Heute</div>
+                <div class="absolute bottom-2 right-4 text-[8px] font-black text-[var(--theme-color)] uppercase tracking-widest">Heute</div>
             @endif
         </div>
     @endforeach

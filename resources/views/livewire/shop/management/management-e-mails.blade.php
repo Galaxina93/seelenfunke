@@ -680,14 +680,14 @@
                                                         padding: 2rem !important;
                                                         margin: 0 !important;
                                                     }
-                                                    ::selection { background: rgba(197, 160, 89, 0.3) !important; color: #ffffff !important; }
+                                                    ::selection { background: var(--theme-color-30) !important; color: #ffffff !important; }
                                                     p { margin-bottom: 1.2em !important; }
-                                                    a { color: #C5A059 !important; text-decoration: none !important; transition: all 0.2s; }
+                                                    a { color: var(--theme-color) !important; text-decoration: none !important; transition: all 0.2s; }
                                                     a:hover { text-decoration: underline !important; color: #d4af37 !important; }
                                                     h1, h2, h3, h4, h5, h6 { color: #ffffff !important; font-family: ui-serif, Georgia, serif !important; font-weight: bold !important; margin-top: 1.5em !important; margin-bottom: 0.5em !important; }
                                                     ul, ol { margin-bottom: 1.2em !important; padding-left: 1.5em !important; }
                                                     li { margin-bottom: 0.5em !important; }
-                                                    blockquote { border-left: 3px solid #C5A059 !important; padding-left: 1.5em !important; color: #9ca3af !important; font-style: italic !important; background: rgba(197, 160, 89, 0.05) !important; padding-top: 0.5em !important; padding-bottom: 0.5em !important; border-radius: 0 8px 8px 0 !important; }
+                                                    blockquote { border-left: 3px solid var(--theme-color) !important; padding-left: 1.5em !important; color: #9ca3af !important; font-style: italic !important; background: var(--theme-color-5) !important; padding-top: 0.5em !important; padding-bottom: 0.5em !important; border-radius: 0 8px 8px 0 !important; }
                                                 `);
 
                                                 const editor = CKEDITOR.replace('composeEditor', {

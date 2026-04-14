@@ -18,7 +18,7 @@ class SupportAnalytics extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Support';
+    public string $themingDepartment = 'Support';
 
     #[Url]
     public $dateRange = '30';

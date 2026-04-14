@@ -10,7 +10,7 @@
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <i class="bi bi-search text-gray-500"></i>
             </div>
-            <input type="text" wire:model.live.debounce.300ms="search" placeholder="Durchsuchen..." class="w-full bg-gray-950/50 border border-gray-800 rounded-lg py-1.5 pl-9 pr-3 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all">
+            <input type="text" wire:model.live.debounce.300ms="search" placeholder="Durchsuchen..." class="w-full bg-gray-950/50 border border-gray-800 rounded-lg py-1.5 pl-9 pr-3 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-[var(--theme-color-50)] focus:ring-1 focus:ring-[var(--theme-color)]/50 transition-all">
         </div>
     </div>
     
@@ -18,12 +18,12 @@
         @foreach($methods as $method)
             <div x-data="{ open: false }" class="bg-gray-950/30 border border-gray-800 hover:border-gray-700 rounded-lg p-3 transition-colors flex flex-col h-full">
                 <div class="flex items-start justify-between mb-2 cursor-pointer select-none" @click="open = !open">
-                    <h5 class="font-bold text-gray-200 text-xs font-mono group-hover:text-primary transition-colors pr-2">
+                    <h5 class="font-bold text-gray-200 text-xs font-mono group-hover:text-[var(--theme-color)] transition-colors pr-2">
                         {{ $method['name'] }}
                     </h5>
                     <div class="flex items-center gap-2">
                         @if(($method['usage_count'] ?? 0) > 0)
-                            <span class="text-[9px] bg-primary/20 border border-primary/30 text-primary px-1.5 py-0.5 rounded-full">{{ $method['usage_count'] }}x</span>
+                            <span class="text-[9px] bg-[var(--theme-color-20)] border border-[var(--theme-color-30)] text-[var(--theme-color)] px-1.5 py-0.5 rounded-full">{{ $method['usage_count'] }}x</span>
                         @endif
                         <i class="bi text-gray-600 text-[10px] transition-transform duration-200" :class="open ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
                     </div>
@@ -39,7 +39,7 @@
                             <ul class="text-[9px] text-gray-500 space-y-1 font-mono">
                                 @foreach($method['parameters'] as $paramName => $paramData)
                                     <li class="flex flex-col gap-0.5">
-                                        <span class="text-primary/80 font-semibold">{{ $paramName }}:</span>
+                                        <span class="text-[var(--theme-color)]/80 font-semibold">{{ $paramName }}:</span>
                                         <span class="text-gray-500 break-words leading-tight">{{ $paramData['description'] ?? '-' }}</span>
                                     </li>
                                 @endforeach

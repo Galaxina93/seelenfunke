@@ -5,10 +5,13 @@ namespace App\Livewire\Shop\Ai;
 use Livewire\Attributes\Layout;
 
 use Livewire\Component;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 #[Layout('components.layouts.backend_layout')]
 class AiVisualizationRegistry extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     /**
      * Diese Component dient als reines Backend-Dashboard für den Entwickler,
@@ -52,6 +55,6 @@ class AiVisualizationRegistry extends Component
 
     public function render()
     {
-        return view('livewire.shop.ai.visualization-registry');
+        return view('livewire.shop.ai.ai-visualization-registry');
     }
 }

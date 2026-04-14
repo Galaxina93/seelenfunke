@@ -13,7 +13,7 @@ class OrderRevocations extends Component
 {
     use WithPagination, WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Bestellungen';
+    public string $themingDepartment = 'Bestellungen';
 
     public function markAsProcessed($id)
     {

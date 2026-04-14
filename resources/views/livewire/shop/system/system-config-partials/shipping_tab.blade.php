@@ -59,8 +59,8 @@
                     @include('components.alerts.info-tooltip', ['key' => 'packaging_weight_grams'])
                 </div>
                 <div class="relative">
-                    <input type="number" step="1" wire:model="settings.packaging_weight_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-blue-400 !border-blue-500/30 focus:!ring-blue-500/20 focus:!border-blue-400">
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-blue-500/50 font-bold">g</span>
+                    <input type="number" step="1" wire:model="settings.packaging_weight_grams" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-[var(--theme-color)] !border-[var(--theme-color-30)] focus:!ring-[var(--theme-color-20)] focus:!border-blue-400">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--theme-color-50)] font-bold">g</span>
                 </div>
             </div>
         </div>

@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div class="space-y-10 animate-fade-in-up">
     @if (session()->has('success'))
         <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)" class="bg-emerald-500/10 border-l-4 border-emerald-500 p-4 rounded-r-xl shadow-inner text-emerald-400 text-xs font-black uppercase tracking-widest flex items-center gap-3">
@@ -29,7 +30,7 @@
                         default => 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
                     };
                 @endphp
-                <div class="relative group p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between min-h-[160px] {{ $isActive ? 'shadow-[0_0_20px_rgba(197,160,89,0.15)] border-primary/50 bg-gray-900' : 'bg-gray-950 border-gray-800 hover:border-gray-700 shadow-inner' }}">
+                <div class="relative group p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between min-h-[160px] {{ $isActive ? 'shadow-[0_0_20px_var(--theme-color-15)] border-[var(--theme-color-50)] bg-gray-900' : 'bg-gray-950 border-gray-800 hover:border-gray-700 shadow-inner' }}">
                     <div>
                         <div class="flex justify-between items-start mb-3">
                             <h5 class="font-bold text-white tracking-wide flex items-center gap-2">
@@ -45,7 +46,7 @@
                         <p class="text-xs text-gray-500 leading-relaxed line-clamp-3 mb-4">{{ $time->description }}</p>
                     </div>
 
-                    <button wire:click="setActiveDeliveryTime('{{ $time->id }}')" class="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $isActive ? 'bg-primary text-gray-900 shadow-glow' : 'bg-gray-900 text-gray-400 border border-gray-700 hover:bg-gray-800 hover:text-white' }}">
+                    <button wire:click="setActiveDeliveryTime('{{ $time->id }}')" class="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $isActive ? 'bg-[var(--theme-color)] text-gray-900 shadow-glow' : 'bg-gray-900 text-gray-400 border border-gray-700 hover:bg-gray-800 hover:text-white' }}">
                         {{ $isActive ? 'Im Shop aktiv' : 'Im Shop nutzen' }}
                     </button>
                 </div>
@@ -205,4 +206,6 @@
             </div>
         </div>
     @endif
+</div>
+
 </div>

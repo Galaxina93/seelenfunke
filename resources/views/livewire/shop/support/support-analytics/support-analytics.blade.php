@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     {{-- Header --}}
     <div class="mb-6 md:flex md:items-center md:justify-between py-2">
@@ -12,7 +13,7 @@
         </div>
         
         <div class="mt-4 flex md:ml-4 md:mt-0 gap-3">
-            <select wire:model.live="dateRange" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-300 bg-gray-900 shadow-sm ring-1 ring-inset ring-gray-700 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6 transition-all duration-300">
+            <select wire:model.live="dateRange" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-300 bg-gray-900 shadow-sm ring-1 ring-inset ring-gray-700 focus:ring-2 focus:ring-inset focus:ring-[var(--theme-color)] sm:text-sm sm:leading-6 transition-all duration-300">
                 <option value="7">Letzte 7 Tage</option>
                 <option value="30">Letzte 30 Tage</option>
                 <option value="90">Letzte 90 Tage</option>
@@ -280,4 +281,6 @@
             });
         </script>
     </div>
+</div>
+
 </div>

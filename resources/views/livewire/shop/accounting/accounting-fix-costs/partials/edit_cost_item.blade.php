@@ -3,7 +3,7 @@
     {{-- Label / Header --}}
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-800 pb-5 gap-4">
         <div class="flex items-center gap-3">
-            <div class="h-2 w-2 bg-[var(--theme-color)] rounded-full shadow-[0_0_8px_rgba(197,160,89,0.8)] animate-pulse"></div>
+            <div class="h-2 w-2 bg-[var(--theme-color)] rounded-full shadow-[0_0_8px_var(--theme-color-80)] animate-pulse"></div>
             <span class="text-[10px] uppercase font-black text-gray-400 tracking-[0.2em]">Kostenstelle bearbeiten</span>
         </div>
         {{-- Gruppe wechseln Select --}}
@@ -134,7 +134,7 @@
                     <ul class="space-y-4 relative z-10">
                         @foreach($item->histories as $history)
                             <li class="flex items-start gap-4" x-data="{ expanded: false }">
-                                <div class="w-6 h-6 rounded-full bg-gray-900 border-2 border-[var(--theme-color-50)] flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_10px_rgba(197,160,89,0.2)]">
+                                <div class="w-6 h-6 rounded-full bg-gray-900 border-2 border-[var(--theme-color-50)] flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_10px_var(--theme-color-20)]">
                                     <div class="w-2 h-2 rounded-full bg-[var(--theme-color)] animate-pulse"></div>
                                 </div>
                                 <div class="flex-1 bg-gray-900/80 p-3 rounded-xl border border-gray-800 shadow-inner group transition-all hover:border-gray-700">
@@ -199,8 +199,8 @@
 
                         // Gradient setup
                         const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                        gradient.addColorStop(0, 'rgba(197, 160, 89, 0.5)'); // primary
-                        gradient.addColorStop(1, 'rgba(197, 160, 89, 0.0)');
+                        gradient.addColorStop(0, 'var(--theme-color-50)'); // primary
+                        gradient.addColorStop(1, 'transparent');
 
                         this.chart = new Chart(ctx, {
                             type: 'line',
@@ -209,13 +209,13 @@
                                 datasets: [{
                                     label: 'Kostenentwicklung (€)',
                                     data: amounts,
-                                    borderColor: '#c5a059',
+                                    borderColor: '{{ $this->themeColorHex }}',
                                     borderWidth: 2,
                                     backgroundColor: gradient,
                                     fill: true,
                                     tension: 0.4,
                                     pointBackgroundColor: '#111827',
-                                    pointBorderColor: '#c5a059',
+                                    pointBorderColor: '{{ $this->themeColorHex }}',
                                     pointBorderWidth: 2,
                                     pointRadius: 4,
                                     pointHoverRadius: 6
@@ -231,7 +231,7 @@
                                         titleColor: '#9ca3af',
                                         bodyColor: '#fff',
                                         bodyFont: { family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas' },
-                                        borderColor: 'rgba(197, 160, 89, 0.3)',
+                                        borderColor: 'var(--theme-color-30)',
                                         borderWidth: 1,
                                         padding: 10,
                                         displayColors: false,

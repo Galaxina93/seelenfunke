@@ -20,7 +20,7 @@ class SupportTicket extends Component
 {
     use WithPagination, WithFileUploads, \App\Livewire\Traits\WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Support';
+    public string $themingDepartment = 'Support';
 
     public $filterStatus = 'open';
     public $search = '';

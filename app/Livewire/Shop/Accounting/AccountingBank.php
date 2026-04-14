@@ -18,7 +18,7 @@ class AccountingBank extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Buchhaltung';
+    public string $themingDepartment = 'Buchhaltung';
 
     use WithPagination, WithFileUploads;
 

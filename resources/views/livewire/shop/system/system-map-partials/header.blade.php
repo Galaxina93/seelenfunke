@@ -3,7 +3,7 @@
         <h3 class="text-lg sm:text-2xl font-serif font-bold text-white tracking-tight">System Architektur Map</h3>
         
         <div class="mt-2 flex gap-2">
-            <button wire:click="switchMap('erp')" class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border {{ $activeMap === 'erp' ? 'bg-primary/20 text-primary border-primary/50 shadow-[0_0_10px_rgba(197,160,89,0.2)]' : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white' }}">
+            <button wire:click="switchMap('erp')" class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border {{ $activeMap === 'erp' ? 'bg-[var(--theme-color-20)] text-[var(--theme-color)] border-[var(--theme-color-50)] shadow-[0_0_10px_var(--theme-color-20)]' : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white' }}">
                 ERP Ökosystem
             </button>
             <button wire:click="switchMap('ai')" class="px-3 py-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border {{ $activeMap === 'ai' ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'bg-gray-900 text-gray-400 border-gray-800 hover:text-white' }}">
@@ -31,11 +31,11 @@
             <x-heroicon-m-arrows-pointing-in class="w-4 h-4" /> Reset Ansicht
         </button>
 
-        <button wire:click="$toggle('showEdgeForm')" class="shrink-0 px-4 py-3 bg-gray-900 border border-gray-700 text-gray-300 rounded-xl text-[9px] font-black uppercase tracking-widest hover:border-primary/50 hover:text-primary transition-all shadow-inner flex items-center justify-center gap-2 active:scale-95">
+        <button wire:click="$toggle('showEdgeForm')" class="shrink-0 px-4 py-3 bg-gray-900 border border-gray-700 text-gray-300 rounded-xl text-[9px] font-black uppercase tracking-widest hover:border-[var(--theme-color-50)] hover:text-[var(--theme-color)] transition-all shadow-inner flex items-center justify-center gap-2 active:scale-95">
             <x-heroicon-m-arrows-right-left class="w-4 h-4" /> Verbindung
         </button>
 
-        <button wire:click="$toggle('showNodeForm')" class="shrink-0 px-5 py-3 bg-primary text-gray-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-primary-dark transition-all shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-[1.02] flex items-center justify-center gap-2">
+        <button wire:click="$toggle('showNodeForm')" class="shrink-0 px-5 py-3 bg-[var(--theme-color)] text-gray-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-[var(--theme-color)] brightness-90 transition-all shadow-[0_0_15px_var(--theme-color-30)] hover:scale-[1.02] flex items-center justify-center gap-2">
             <x-heroicon-m-plus class="w-4 h-4 stroke-2" /> Knoten
         </button>
     </div>

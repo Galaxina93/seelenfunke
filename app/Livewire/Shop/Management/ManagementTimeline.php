@@ -12,7 +12,7 @@ class ManagementTimeline extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Leitung';
+    public string $themingDepartment = 'Leitung';
 
     public $events = [];
     public $showModal = false;

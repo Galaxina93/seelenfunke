@@ -9,10 +9,13 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use App\Livewire\Traits\WithDepartmentTheming;
 
 class AccountingQuickEntry extends Component
 {
-    use WithFileUploads;
+    use WithFileUploads, WithDepartmentTheming;
+
+    public string $themingDepartment = 'Buchhaltung';
 
     // Forms: Schnellerfassung Sonderausgaben
     #[Rule('required', message: 'Bitte geben Sie einen Titel an.')]

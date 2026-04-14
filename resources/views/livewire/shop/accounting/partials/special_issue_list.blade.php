@@ -9,15 +9,15 @@
             {{-- Links: Titel & Suche --}}
             <div class="flex-1 w-full xl:max-w-md">
                 <h2 class="text-xl font-serif font-bold text-white tracking-wide mb-4 flex items-center gap-3">
-                    <svg class="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <svg class="w-6 h-6 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     Buchungsjournal
                 </h2>
                 <div class="relative w-full group">
                     <input type="text" wire:model.live.debounce.300ms="specialSearch"
-                           class="w-full pl-12 pr-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-black focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-all shadow-inner outline-none placeholder-gray-500 font-medium"
+                           class="w-full pl-12 pr-4 py-3.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-500 font-medium"
                            placeholder="Suchen nach Titel, Ort oder Kategorie...">
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <svg class="w-5 h-5 text-gray-500 group-focus-within:text-orange-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <svg class="w-5 h-5 text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     </div>
                 </div>
             </div>
@@ -38,7 +38,7 @@
                                 @endphp
                                 <div class="flex items-center justify-between text-xs">
                                     <span class="flex items-center gap-2 truncate pr-2">
-                                        <span class="w-2 h-2 rounded-full bg-orange-500 shrink-0" style="opacity: {{ (int)$opacity / 100 }};"></span>
+                                        <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] shrink-0" style="opacity: {{ (int)$opacity / 100 }};"></span>
                                         <span class="font-bold text-gray-300 truncate" title="{{ $label }}">{{ \Illuminate\Support\Str::limit($label, 12) }}</span>
                                     </span>
                                     <span class="font-mono font-bold text-white">{{ number_format($chartData[$index] ?? 0, 0, ',', '.') }}€</span>
@@ -75,7 +75,7 @@
                                     <input type="date"
                                            value="{{ \Carbon\Carbon::parse($special['execution_date'])->format('Y-m-d') }}"
                                            wire:change="updateSpecialField('{{ $special['id'] }}', 'execution_date', $event.target.value)"
-                                           class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-sm font-bold text-gray-300 px-3 py-2.5 outline-none transition-all cursor-pointer shadow-inner [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
+                                           class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl text-sm font-bold text-gray-300 px-3 py-2.5 outline-none transition-all cursor-pointer shadow-inner [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
                                 @else
                                     <div class="px-3 py-2.5 text-sm font-bold text-gray-400">
                                         {{ $special['execution_date'] ? \Carbon\Carbon::parse($special['execution_date'])->format('d.m.Y') : '-' }}
@@ -91,7 +91,7 @@
                                                value="{{ $special['title'] }}"
                                                wire:change="updateSpecialField('{{ $special['id'] }}', 'title', $event.target.value)"
                                                placeholder="Titel eingeben..."
-                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-orange-500 rounded-xl font-bold text-white text-base tracking-wide px-3 py-2.5 outline-none transition-all shadow-inner placeholder-gray-600">
+                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl font-bold text-white text-base tracking-wide px-3 py-2.5 outline-none transition-all shadow-inner placeholder-gray-600">
                                     @else
                                         <div class="px-3 py-2.5 text-base font-bold text-blue-300 tracking-wide truncate">
                                             {{ $special['title'] }}
@@ -106,7 +106,7 @@
                                                        value="{{ $special['location'] }}"
                                                        wire:change="updateSpecialField('{{ $special['id'] }}', 'location', $event.target.value)"
                                                        placeholder="Ort hinzufügen..."
-                                                       class="w-full bg-gray-900/30 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-orange-500 rounded-lg text-xs font-medium text-gray-400 uppercase tracking-wider pl-9 pr-3 py-2 outline-none transition-all shadow-inner">
+                                                       class="w-full bg-gray-900/30 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-lg text-xs font-medium text-gray-400 uppercase tracking-wider pl-9 pr-3 py-2 outline-none transition-all shadow-inner">
                                             @else
                                                 <div class="w-full bg-transparent pl-9 pr-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider truncate">
                                                     {{ $special['location'] ?: 'Kein Ort' }}
@@ -127,11 +127,11 @@
                                                 <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 peer-checked:text-blue-400 transition-colors">B2B</span>
                                             </label>
                                         @else
-                                            <button wire:click="toggleBusinessStatus('{{ $special['type'] }}', '{{ $special['id'] }}')" class="relative flex-shrink-0 inline-flex h-6 w-32 items-center rounded-full transition-colors {{ $special['is_business'] ? 'bg-orange-500/20 shadow-[0_0_10px_rgba(249,115,22,0.2)] border border-orange-500/50' : 'bg-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)] border border-blue-500/50' }}">
-                                                <span class="absolute left-2 text-[9px] font-black uppercase tracking-widest {{ $special['is_business'] ? 'text-orange-400' : 'text-blue-400' }} drop-shadow-md">
+                                            <button wire:click="toggleBusinessStatus('{{ $special['type'] }}', '{{ $special['id'] }}')" class="relative flex-shrink-0 inline-flex h-6 w-32 items-center rounded-full transition-colors {{ $special['is_business'] ? 'bg-[var(--theme-color-20)] shadow-[0_0_10px_var(--theme-color-20)] border border-[var(--theme-color-50)]' : 'bg-blue-500/20 shadow-[0_0_10px_rgba(59,130,246,0.2)] border border-blue-500/50' }}">
+                                                <span class="absolute left-2 text-[9px] font-black uppercase tracking-widest {{ $special['is_business'] ? 'text-[var(--theme-color)]' : 'text-blue-400' }} drop-shadow-md">
                                                     {{ $special['is_business'] ? 'Gewerbe' : 'Privat' }}
                                                 </span>
-                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 {{ $special['is_business'] ? 'translate-x-26 shadow-[0_0_8px_rgba(249,115,22,0.8)]' : 'translate-x-1 shadow-[0_0_8px_rgba(59,130,246,0.8)]' }}"></span>
+                                                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 {{ $special['is_business'] ? 'translate-x-26 shadow-[0_0_8px_var(--theme-color-80)]' : 'translate-x-1 shadow-[0_0_8px_rgba(59,130,246,0.8)]' }}"></span>
                                             </button>
                                         @endif
 
@@ -154,7 +154,7 @@
                                                value="{{ $special['category'] }}"
                                                wire:change="updateSpecialField('{{ $special['id'] }}', 'category', $event.target.value)"
                                                placeholder="Kategorie..."
-                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2.5 outline-none transition-all shadow-inner">
+                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2.5 outline-none transition-all shadow-inner">
                                         <datalist id="cat-list-{{$special['id']}}">
                                             @foreach($this->manageableCategories as $cat)
                                                 @if($special['is_business'] || !$cat->is_business)
@@ -188,7 +188,7 @@
                                                     @endforeach
                                                 @endif
                                             </div>
-                                            <input type="text" x-model="newTag" @keydown.enter.prevent="$wire.addTag('{{ $special['type'] }}', '{{ $special['id'] }}', newTag); newTag = ''" placeholder="+ Tag (Enter)" class="w-full bg-gray-900/50 border border-gray-800 hover:border-gray-700 text-[10px] rounded-lg px-2 py-1.5 text-gray-300 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none placeholder-gray-600 transition-colors">
+                                            <input type="text" x-model="newTag" @keydown.enter.prevent="$wire.addTag('{{ $special['type'] }}', '{{ $special['id'] }}', newTag); newTag = ''" placeholder="+ Tag (Enter)" class="w-full bg-gray-900/50 border border-gray-800 hover:border-gray-700 text-[10px] rounded-lg px-2 py-1.5 text-gray-300 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none placeholder-gray-600 transition-colors">
                                         </div>
                                     @endif
                                 </div>
@@ -196,7 +196,7 @@
 
                             {{-- Betrag --}}
                             <td class="px-4 py-4 align-top text-right">
-                                <div class="flex items-center justify-end bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus-within:bg-gray-950 focus-within:border-orange-500 rounded-xl transition-all shadow-inner overflow-hidden pr-3">
+                                <div class="flex items-center justify-end bg-gray-900/40 border border-transparent hover:border-gray-700 hover:bg-gray-900 focus-within:bg-gray-950 focus-within:border-[var(--theme-color)] rounded-xl transition-all shadow-inner overflow-hidden pr-3">
                                     @if($special['type'] === 'special')
                                         <input type="number" step="0.01"
                                                value="{{ $special['amount'] }}"
@@ -221,7 +221,7 @@
                                             <div class="flex justify-center -space-x-2">
                                                 @foreach($files as $index => $path)
                                                     <div class="relative group/file">
-                                                        <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-9 h-9 rounded-full bg-gray-900 border-2 border-gray-700 flex items-center justify-center text-gray-400 hover:border-orange-500 hover:text-orange-400 hover:z-10 transition-all shadow-md" title="Beleg ansehen">
+                                                        <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-9 h-9 rounded-full bg-gray-900 border-2 border-gray-700 flex items-center justify-center text-gray-400 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] hover:z-10 transition-all shadow-md" title="Beleg ansehen">
                                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                         </a>
                                                         {{-- Rotes X zum Löschen des einzelnen Belegs --}}
@@ -234,14 +234,14 @@
                                         @endif
 
                                         <div class="relative group/upload flex justify-center w-full mt-1">
-                                            <label class="w-full cursor-pointer text-[9px] font-black uppercase tracking-widest text-gray-400 bg-gray-900/50 hover:bg-gray-900 py-2 rounded-lg border border-transparent hover:border-gray-700 transition-all hover:text-orange-400 flex items-center justify-center gap-1 shadow-inner">
+                                            <label class="w-full cursor-pointer text-[9px] font-black uppercase tracking-widest text-gray-400 bg-gray-900/50 hover:bg-gray-900 py-2 rounded-lg border border-transparent hover:border-gray-700 transition-all hover:text-[var(--theme-color)] flex items-center justify-center gap-1 shadow-inner">
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                 Upload
                                                 <input type="file" class="hidden" wire:model.live="quickUploadFile" wire:loading.attr="disabled" wire:click="$set('uploadingMissingSpecialId', '{{ $special['type'] }}-{{ $special['id'] }}')">
                                             </label>
                                             @if($uploadingMissingSpecialId === ($special['type'] . '-' . $special['id']))
                                                 <div class="absolute -top-1 -right-1 bg-gray-900 rounded-full p-1 border border-gray-800 shadow-sm z-10">
-                                                    <svg class="animate-spin h-4 w-4 text-orange-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                                    <svg class="animate-spin h-4 w-4 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                                                 </div>
                                             @endif
                                         </div>
@@ -281,14 +281,14 @@
                                            value="{{ $special['title'] }}"
                                            wire:change="updateSpecialField('{{ $special['id'] }}', 'title', $event.target.value)"
                                            placeholder="Titel..."
-                                           class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-base font-bold text-white px-3 py-2 outline-none transition-all shadow-inner">
+                                           class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl text-base font-bold text-white px-3 py-2 outline-none transition-all shadow-inner">
                                 @else
                                     <div class="px-3 py-2 text-base font-bold text-blue-300 truncate">
                                         {{ $special['title'] }}
                                     </div>
                                 @endif
                             </div>
-                            <div class="shrink-0 flex items-center bg-gray-900/40 border border-transparent hover:border-gray-700 focus-within:bg-gray-950 focus-within:border-orange-500 rounded-xl shadow-inner transition-all overflow-hidden pr-2">
+                            <div class="shrink-0 flex items-center bg-gray-900/40 border border-transparent hover:border-gray-700 focus-within:bg-gray-950 focus-within:border-[var(--theme-color)] rounded-xl shadow-inner transition-all overflow-hidden pr-2">
                                 @if($special['type'] === 'special')
                                     <input type="number" step="0.01"
                                            value="{{ $special['amount'] }}"
@@ -309,7 +309,7 @@
                                 <input type="date"
                                        value="{{ \Carbon\Carbon::parse($special['execution_date'])->format('Y-m-d') }}"
                                        wire:change="updateSpecialField('{{ $special['id'] }}', 'execution_date', $event.target.value)"
-                                       class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-sm font-medium text-gray-400 px-3 py-2 outline-none transition-all shadow-inner [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)] cursor-pointer">
+                                       class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl text-sm font-medium text-gray-400 px-3 py-2 outline-none transition-all shadow-inner [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)] cursor-pointer">
                             @else
                                 <div class="px-3 py-2 text-sm font-medium text-gray-400">
                                     {{ $special['execution_date'] ? \Carbon\Carbon::parse($special['execution_date'])->format('d.m.Y') : '-' }}
@@ -323,7 +323,7 @@
                                            value="{{ $special['location'] }}"
                                            wire:change="updateSpecialField('{{ $special['id'] }}', 'location', $event.target.value)"
                                            placeholder="Ort hinzufügen..."
-                                           class="w-full bg-gray-900/30 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-medium text-gray-400 uppercase tracking-wider pl-9 pr-3 py-2 outline-none transition-all shadow-inner">
+                                           class="w-full bg-gray-900/30 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl text-xs font-medium text-gray-400 uppercase tracking-wider pl-9 pr-3 py-2 outline-none transition-all shadow-inner">
                                 @else
                                     <div class="w-full pl-9 pr-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         {{ $special['location'] ?: 'Kein Ort' }}
@@ -342,7 +342,7 @@
                                         <input type="text" list="cat-list-mobile-{{$special['id']}}"
                                                value="{{ $special['category'] }}"
                                                wire:change="updateSpecialField('{{ $special['id'] }}', 'category', $event.target.value)"
-                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-orange-500 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2 outline-none transition-all shadow-inner">
+                                               class="w-full bg-gray-900/40 border border-transparent hover:border-gray-700 focus:bg-gray-950 focus:border-[var(--theme-color)] rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 px-3 py-2 outline-none transition-all shadow-inner">
                                         <datalist id="cat-list-mobile-{{$special['id']}}">
                                             @foreach($this->manageableCategories as $cat)
                                                 @if($special['is_business'] || !$cat->is_business)
@@ -371,7 +371,7 @@
                                     </label>
                                 @else
                                     <div class="px-3 py-2 rounded-xl bg-gray-900/10 shrink-0">
-                                        <span class="text-[10px] font-black uppercase tracking-widest {{ $special['is_business'] ? 'text-orange-400' : 'text-blue-400' }}">
+                                        <span class="text-[10px] font-black uppercase tracking-widest {{ $special['is_business'] ? 'text-[var(--theme-color)]' : 'text-blue-400' }}">
                                             {{ $special['is_business'] ? 'Gewerblich' : 'Privat' }}
                                         </span>
                                     </div>
@@ -387,7 +387,7 @@
                                     <div class="flex flex-wrap gap-3 py-2">
                                         @foreach($files as $index => $path)
                                             <div class="relative">
-                                                <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 active:border-orange-500 active:text-orange-400 transition-all shadow-md">
+                                                <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 active:border-[var(--theme-color)] active:text-[var(--theme-color)] transition-all shadow-md">
                                                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                 </a>
                                                 <button type="button" wire:click="deleteSpecialFile('{{ $special['id'] }}', {{ $index }})" wire:confirm="Beleg löschen?" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform z-20">
@@ -401,13 +401,13 @@
                                 <div class="flex items-center justify-between w-full mt-1">
                                     <div class="flex-1 pr-4">
                                         <div class="relative group/upload w-full">
-                                            <label class="w-full cursor-pointer p-2.5 text-xs font-black uppercase tracking-widest text-gray-400 bg-gray-950 border border-gray-800 rounded-xl shadow-inner hover:text-orange-400 transition-colors flex items-center justify-center gap-2">
+                                            <label class="w-full cursor-pointer p-2.5 text-xs font-black uppercase tracking-widest text-gray-400 bg-gray-950 border border-gray-800 rounded-xl shadow-inner hover:text-[var(--theme-color)] transition-colors flex items-center justify-center gap-2">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                                 Beleg hochladen
                                                 <input type="file" class="hidden" wire:model="quickUploadFile" wire:click="$set('uploadingMissingSpecialId', '{{ $special['id'] }}')">
                                             </label>
                                             @if($uploadingMissingSpecialId === $special['id'])
-                                                <div wire:loading wire:target="quickUploadFile" class="absolute inset-0 bg-gray-900 rounded-xl border border-orange-500/50 flex items-center justify-center z-10 text-orange-400">
+                                                <div wire:loading wire:target="quickUploadFile" class="absolute inset-0 bg-gray-900 rounded-xl border border-[var(--theme-color-50)] flex items-center justify-center z-10 text-[var(--theme-color)]">
                                                     <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                                                 </div>
                                             @endif

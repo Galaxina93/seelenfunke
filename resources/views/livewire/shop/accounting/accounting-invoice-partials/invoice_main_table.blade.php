@@ -1,13 +1,13 @@
 <div class="animate-fade-in-up">
     {{-- Navigation Tabs --}}
     <div class="flex items-center gap-2 sm:gap-4 mb-8 border-b border-gray-800 overflow-x-auto no-scrollbar">
-        <button wire:click="switchTab('list')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'list' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'])>
+        <button wire:click="switchTab('list')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'list' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'])>
             Alle Belege
         </button>
-        <button wire:click="switchTab('e_invoices')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'e_invoices' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'])>
+        <button wire:click="switchTab('e_invoices')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'e_invoices' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'])>
             E-Rechnungen
         </button>
-        <button wire:click="switchTab('archive')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'archive' ? 'border-primary text-primary drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'])>
+        <button wire:click="switchTab('archive')" @class(['px-4 sm:px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap', $activeTab === 'archive' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'])>
             PDF-Archiv (Storage)
         </button>
     </div>
@@ -46,7 +46,7 @@
                             <td class="px-4 py-4 text-xs font-black text-gray-500 uppercase tracking-widest">{{ $file['size'] }}</td>
                             <td class="px-4 py-4 text-xs font-bold text-gray-400">{{ $file['date'] }}</td>
                             <td class="px-6 sm:px-8 py-4 text-right">
-                                <button wire:click="downloadPdfByFilename('{{ $file['name'] }}')" class="text-primary font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors border-b border-primary/30 pb-0.5 hover:border-white">Download</button>
+                                <button wire:click="downloadPdfByFilename('{{ $file['name'] }}')" class="text-[var(--theme-color)] font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors border-b border-[var(--theme-color)]/30 pb-0.5 hover:border-white">Download</button>
                             </td>
                         </tr>
                     @empty
@@ -60,13 +60,13 @@
         {{-- Toolbar & Suche --}}
         <div class="bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 flex flex-col md:flex-row gap-4 mb-8 shadow-2xl items-center w-full">
             <div class="relative flex-1 w-full lg:max-w-lg group">
-                <input type="text" wire:model.live="search" placeholder="Suche nach Nummer oder Name..." class="w-full pl-12 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-[1.5rem] text-sm text-white focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all placeholder-gray-600 shadow-inner outline-none">
+                <input type="text" wire:model.live="search" placeholder="Suche nach Nummer oder Name..." class="w-full pl-12 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-[1.5rem] text-sm text-white focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-600 shadow-inner outline-none">
                 <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <svg class="w-5 h-5 text-gray-500 group-focus-within:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-width="2"/></svg>
+                    <svg class="w-5 h-5 text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-width="2"/></svg>
                 </div>
             </div>
             <div class="flex gap-3 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0 px-1">
-                <select wire:model.live="filterType" class="flex-1 md:flex-none bg-gray-950 border border-gray-800 text-gray-400 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest p-3 sm:px-5 focus:bg-black focus:ring-2 focus:ring-primary focus:border-primary cursor-pointer hover:bg-gray-800 hover:text-white transition-all shadow-inner outline-none min-w-[160px]">
+                <select wire:model.live="filterType" class="flex-1 md:flex-none bg-gray-950 border border-gray-800 text-gray-400 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest p-3 sm:px-5 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] cursor-pointer hover:bg-gray-800 hover:text-white transition-all shadow-inner outline-none min-w-[160px]">
                     <option value="">Alle Belege</option>
                     <option value="invoice">Rechnungen</option>
                     <option value="draft">Entwürfe</option>
@@ -151,7 +151,7 @@
                                 @if($inv->status !== 'cancelled' && $inv->status !== 'draft' && $inv->type !== 'cancellation')
                                     <button wire:confirm="Rechnung wirklich stornieren? Dies erstellt eine Gutschrift." wire:click="cancelInvoice('{{ $inv->id }}')" class="text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest border-b border-red-500/30 pb-0.5 hover:border-red-400 transition-colors">Storno</button>
                                 @endif
-                                <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="text-primary hover:text-white text-[10px] font-black uppercase tracking-widest border-b border-primary/30 pb-0.5 hover:border-white transition-colors">Vorschau</button>
+                                <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="text-[var(--theme-color)] hover:text-white text-[10px] font-black uppercase tracking-widest border-b border-[var(--theme-color)]/30 pb-0.5 hover:border-white transition-colors">Vorschau</button>
                             </div>
                         </td>
                     </tr>
@@ -192,7 +192,7 @@
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mt-2">
                                 <div class="min-w-0 pr-4">
                                     <div class="text-sm font-bold text-white truncate">{{ $inv->billing_address['last_name'] }}</div>
-                                    <div @class(['text-xl font-serif font-bold mt-1', 'text-primary' => $inv->total >= 0, 'text-red-400' => $inv->total < 0])>{{ number_format($inv->total / 100, 2, ',', '.') }} €</div>
+                                    <div @class(['text-xl font-serif font-bold mt-1', 'text-[var(--theme-color)]' => $inv->total >= 0, 'text-red-400' => $inv->total < 0])>{{ number_format($inv->total / 100, 2, ',', '.') }} €</div>
                                 </div>
                                 <div class="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                                     <button wire:click="downloadPdf('{{ $inv->id }}')" class="p-3 bg-gray-950 rounded-xl text-gray-400 border border-gray-800 shadow-inner hover:text-white hover:border-gray-600 transition-colors">
@@ -202,7 +202,7 @@
                                         <button wire:click="editDraft('{{ $inv->id }}')" class="px-4 py-3 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-inner">Edit</button>
                                         <button wire:confirm="Löschen?" wire:click="deleteDraft('{{ $inv->id }}')" class="px-4 py-3 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-inner">Del</button>
                                     @endif
-                                    <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="px-4 py-3 bg-primary/10 border border-primary/20 text-primary rounded-xl text-[9px] font-black uppercase tracking-widest shadow-inner flex-1 sm:flex-none text-center">Vorschau</button>
+                                    <button wire:click="$dispatch('openInvoicePreview', { id: '{{ $inv->id }}' })" class="px-4 py-3 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] rounded-xl text-[9px] font-black uppercase tracking-widest shadow-inner flex-1 sm:flex-none text-center">Vorschau</button>
                                 </div>
                             </div>
                         </div>

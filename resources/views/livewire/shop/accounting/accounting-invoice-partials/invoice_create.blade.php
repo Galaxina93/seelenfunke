@@ -6,7 +6,7 @@
             @include('components.alerts.info-tooltip', ['key' => 'e_invoice'])
             <label class="relative inline-flex items-center cursor-pointer ml-1">
                 <input type="checkbox" wire:model.live="manualInvoice.is_e_invoice" class="sr-only peer">
-                <div class="w-10 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
+                <div class="w-10 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
             </label>
         </div>
         <div class="flex gap-3 w-full sm:w-auto">
@@ -15,7 +15,7 @@
                 {{ $draftSuccess ? 'Gespeichert' : 'Entwurf speichern' }}
             </button>
             <button wire:click="saveManualInvoice('paid')"
-                    class="flex-1 sm:flex-none px-6 py-2.5 rounded-xl transition-all text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-lg {{ $saveSuccess ? 'bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-primary border border-primary/50 text-gray-900 hover:bg-primary-dark hover:scale-[1.02] shadow-[0_0_15px_rgba(197,160,89,0.2)]' }}">
+                    class="flex-1 sm:flex-none px-6 py-2.5 rounded-xl transition-all text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-lg {{ $saveSuccess ? 'bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 hover:bg-[var(--theme-color)] brightness-90 hover:scale-[1.02] shadow-[0_0_15px_var(--theme-color-20)]' }}">
                 {{ $saveSuccess ? 'Wird umgeleitet...' : 'Abschließen' }}
             </button>
         </div>
@@ -44,7 +44,7 @@
                     <h3 class="text-sm font-serif font-bold text-white tracking-wide">Empfänger</h3>
                     <div class="flex items-center gap-3 w-full sm:w-auto">
                         @include('components.alerts.info-tooltip', ['key' => 'customer'])
-                        <select wire:model.live="selectedCustomerId" class="flex-1 sm:flex-none bg-gray-950 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold p-2 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none shadow-inner cursor-pointer">
+                        <select wire:model.live="selectedCustomerId" class="flex-1 sm:flex-none bg-gray-950 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold p-2 focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] outline-none shadow-inner cursor-pointer">
                             <option value="">Bestandskunde wählen...</option>
                             @foreach($customers as $c)
                                 <option value="{{ $c->id }}">{{ $c->last_name }}, {{ $c->first_name }}</option>
@@ -54,7 +54,7 @@
                 </div>
 
                 @php
-                    $inputClass = "w-full bg-gray-950 border border-gray-800 text-white rounded-xl text-sm p-3 focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all shadow-inner outline-none placeholder-gray-600";
+                    $inputClass = "w-full bg-gray-950 border border-gray-800 text-white rounded-xl text-sm p-3 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-600";
                     $errorClass = "border-red-500/50 focus:ring-red-500/30 focus:border-red-500 bg-red-900/10";
                 @endphp
 
@@ -206,7 +206,7 @@
                         </tbody>
                     </table>
                 </div>
-                <button wire:click="addItem" class="text-primary text-[10px] font-black uppercase tracking-widest mt-4 inline-flex items-center gap-2 hover:text-white transition-colors bg-primary/10 border border-primary/20 px-4 py-2 rounded-xl">
+                <button wire:click="addItem" class="text-[var(--theme-color)] text-[10px] font-black uppercase tracking-widest mt-4 inline-flex items-center gap-2 hover:text-white transition-colors bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-4 py-2 rounded-xl">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                     Zeile hinzufügen
                 </button>
@@ -250,15 +250,15 @@
         {{-- Vorschau (Rechte Spalte) --}}
         <div class="hidden xl:block">
             <div class="sticky top-10 scale-[0.9] origin-top">
-                <div class="bg-white shadow-[0_20px_60px_rgba(0,0,0,0.8)] p-12 min-h-[297mm] w-[210mm] mx-auto text-sm text-gray-800 border-t-8 border-primary relative">
+                <div class="bg-white shadow-[0_20px_60px_rgba(0,0,0,0.8)] p-12 min-h-[297mm] w-[210mm] mx-auto text-sm text-gray-800 border-t-8 border-[var(--theme-color)] relative">
 
                     @if(shop_setting('is_small_business', false))
                         <div class="absolute top-6 right-1/2 translate-x-1/2 bg-gray-100 text-gray-400 text-[9px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest border border-gray-200 select-none opacity-80">Kleinunternehmer-Modus</div>
                     @endif
 
                     {{-- Briefkopf --}}
-                    <div class="flex justify-between border-b-2 border-primary pb-8 mb-10 mt-4">
-                        <div class="font-serif text-3xl font-bold text-primary italic">Mein Seelenfunke</div>
+                    <div class="flex justify-between border-b-2 border-[var(--theme-color)] pb-8 mb-10 mt-4">
+                        <div class="font-serif text-3xl font-bold text-[var(--theme-color)] italic">Mein Seelenfunke</div>
                         <div class="text-right">
                             <div class="uppercase font-black text-gray-900 tracking-[0.3em] text-2xl mb-1">Rechnung</div>
                             <div class="text-xs font-mono font-bold text-gray-500 tracking-wider">{{ $manualInvoice['invoice_number'] ?: '---' }}</div>
@@ -270,7 +270,7 @@
                         <div class="w-1/2">
                             <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 pb-1 border-b border-gray-100 inline-block">Mein Seelenfunke · C.-Goerdeler-Ring 26 · 38518 Gifhorn</div>
                             <div class="font-bold text-gray-900 text-base leading-relaxed mt-2">
-                                @if($manualInvoice['company']) <span class="text-primary">{{ $manualInvoice['company'] }}</span><br> @endif
+                                @if($manualInvoice['company']) <span class="text-[var(--theme-color)]">{{ $manualInvoice['company'] }}</span><br> @endif
                                 {{ $manualInvoice['first_name'] ?: 'Vorname' }} {{ $manualInvoice['last_name'] ?: 'Nachname' }}<br>
                                 {{ $manualInvoice['address'] ?: 'Straße Hausnummer' }}<br>
                                 @if($manualInvoice['address_addition']) {{ $manualInvoice['address_addition'] }}<br> @endif
@@ -282,7 +282,7 @@
                             <table class="ml-auto border-separate border-spacing-y-2">
                                 <tr><td class="text-gray-400 pr-5 uppercase font-bold text-[10px] tracking-wider text-right">Datum:</td><td class="bg-gray-50 border border-gray-100 px-3 py-1 rounded font-mono font-bold text-gray-700">{{ $manualInvoice['invoice_date'] ? date('d.m.Y', strtotime($manualInvoice['invoice_date'])) : date('d.m.Y') }}</td></tr>
                                 <tr><td class="text-gray-400 pr-5 uppercase font-bold text-[10px] tracking-wider text-right">Leistung:</td><td class="bg-gray-50 border border-gray-100 px-3 py-1 rounded font-mono font-bold text-gray-700">{{ $manualInvoice['delivery_date'] ? date('d.m.Y', strtotime($manualInvoice['delivery_date'])) : date('d.m.Y') }}</td></tr>
-                                <tr><td class="text-gray-400 pr-5 uppercase font-bold text-[10px] tracking-wider text-right">Fällig:</td><td class="font-bold text-primary bg-primary/5 border border-primary/20 px-3 py-1 rounded font-mono">{{ $manualInvoice['due_date'] ? date('d.m.Y', strtotime($manualInvoice['due_date'])) : '---' }}</td></tr>
+                                <tr><td class="text-gray-400 pr-5 uppercase font-bold text-[10px] tracking-wider text-right">Fällig:</td><td class="font-bold text-[var(--theme-color)] bg-[var(--theme-color)]/5 border border-[var(--theme-color-20)] px-3 py-1 rounded font-mono">{{ $manualInvoice['due_date'] ? date('d.m.Y', strtotime($manualInvoice['due_date'])) : '---' }}</td></tr>
                                 @if($manualInvoice['reference_number'])
                                     <tr><td class="text-gray-400 pr-5 uppercase font-bold text-[10px] tracking-wider text-right">Ref:</td><td class="bg-gray-50 border border-gray-100 px-3 py-1 rounded font-mono font-bold text-gray-700">{{ $manualInvoice['reference_number'] }}</td></tr>
                                 @endif
@@ -292,7 +292,7 @@
 
                     {{-- Kopftext --}}
                     <div class="mb-10">
-                        <div class="font-bold text-xl mb-5 border-l-4 border-primary pl-4 py-1 text-gray-900">{{ $manualInvoice['subject'] ?: 'Betreffzeile' }}</div>
+                        <div class="font-bold text-xl mb-5 border-l-4 border-[var(--theme-color)] pl-4 py-1 text-gray-900">{{ $manualInvoice['subject'] ?: 'Betreffzeile' }}</div>
                         <div class="whitespace-pre-line text-gray-600 leading-relaxed">{{ $manualInvoice['header_text'] }}</div>
                     </div>
 
@@ -371,7 +371,7 @@
                         @endif
                         <div class="flex justify-between items-center font-black text-2xl border-t-2 border-gray-900 pt-5 mt-4 text-gray-900 tracking-tighter">
                             <span class="uppercase text-lg">Gesamtbetrag</span>
-                            <span class="text-primary font-serif whitespace-nowrap">{{ number_format($totalsPreview['gross'], 2, ',', '.') }} €</span>
+                            <span class="text-[var(--theme-color)] font-serif whitespace-nowrap">{{ number_format($totalsPreview['gross'], 2, ',', '.') }} €</span>
                         </div>
                         @if(shop_setting('is_small_business', false))
                             <div class="pt-3 text-[8px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG.</div>
@@ -384,7 +384,7 @@
                             $previewFooter = str_replace(
                                 ['[%ZAHLUNGSZIEL%]', '[%KONTAKTPERSON%]', '[%RECHNUNGSNUMMER%]'],
                                 [
-                                    '<span class="text-primary font-bold px-1 bg-primary/5 rounded">'.($manualInvoice['due_date'] ? date('d.m.Y', strtotime($manualInvoice['due_date'])) : '---').'</span>',
+                                    '<span class="text-[var(--theme-color)] font-bold px-1 bg-[var(--theme-color)]/5 rounded">'.($manualInvoice['due_date'] ? date('d.m.Y', strtotime($manualInvoice['due_date'])) : '---').'</span>',
                                     '<span class="font-bold text-gray-900">'.shop_setting('owner_proprietor', 'Alina Steinhauer').'</span>',
                                     '<span class="font-mono font-bold bg-gray-100 px-1 rounded">'.$manualInvoice['invoice_number'].'</span>'
                                 ],

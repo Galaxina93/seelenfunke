@@ -1,0 +1,332 @@
+{{--
+    SECTION 1: HERO
+    Fokus: Viel Weißraum, edle Typografie, großes Produktbild.
+--}}
+<section class="relative bg-white pt-32 pb-16 lg:pt-40 lg:pb-32 overflow-hidden" aria-label="Produktvorstellung">
+    {{-- Dezentster Hintergrund-Verlauf (kaum wahrnehmbar für Tiefe) --}}
+    <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-gray-50/50 to-white pointer-events-none" aria-hidden="true"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+
+            {{-- Linke Seite: Text & CTA --}}
+            <div class="order-2 lg:order-1 text-center lg:text-left">
+                {{-- Badge --}}
+                <div class="inline-flex items-center px-4 py-1.5 rounded-full bg-primary/5 border border-primary/20 text-primary-dark text-[11px] font-bold uppercase tracking-[0.2em] mb-8">
+                    Exklusiv-Angebot
+                </div>
+
+                {{-- Headline --}}
+                <h1 class="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold text-gray-900 leading-[1.1] mb-6">
+                    {{ $landingPage->product->name }}
+                </h1>
+
+                {{-- Subline --}}
+                <p class="text-lg sm:text-xl text-gray-500 mb-10 leading-relaxed font-light max-w-lg mx-auto lg:mx-0">
+                    {{ $landingPage->product->short_description ?? 'Das perfekte Geschenk.' }}
+                    <span class="block mt-2 text-gray-900 font-medium">
+                        {!! str_replace($landingPage->product->name, '<span class="text-primary italic font-serif">' . $landingPage->product->name . '</span>', $landingPage->headline) !!}
+                    </span>
+                </p>
+
+                {{-- Buttons --}}
+                <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-12">
+                    <a href="{{ route('product.show', $landingPage->product->slug) }}"
+                       title="{{ $landingPage->product->name }} ansehen"
+                       class="group inline-flex justify-center items-center px-8 py-4 bg-primary text-white text-lg font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dark hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300">
+                        {{ $landingPage->cta_text }}
+                        <svg class="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </a>
+                    <a href="#details"
+                       title="Details zum Produkt ansehen"
+                       class="inline-flex justify-center items-center px-8 py-4 bg-white border border-gray-200 text-lg font-bold rounded-xl text-gray-600 hover:text-primary hover:border-primary/50 transition-colors shadow-sm">
+                        Details ansehen
+                    </a>
+                </div>
+
+                {{-- Trust Indicators --}}
+                <ul class="flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-3 text-sm text-gray-500 font-medium list-none">
+                    <li class="flex items-center">
+                        @if($landingPage->product->isAvailable())
+                            <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">✓</span>
+                            Direkt aus unserer Manufaktur
+                        @else
+                            <span class="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">✗</span>
+                            Derzeit vergriffen
+                        @endif
+                    </li>
+                    <li class="flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">✓</span>
+                        Ab 1 Stück
+                    </li>
+                    <li class="flex items-center">
+                        <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">★</span>
+                        Premium Qualität
+                    </li>
+                </ul>
+            </div>
+
+            {{-- Rechte Seite: Großes Produktbild --}}
+            <div class="order-1 lg:order-2 relative group perspective-1000">
+                {{-- Dekorativer Hintergrundkreis (Subtil) --}}
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-radial-gradient from-gray-100 to-transparent opacity-60 blur-3xl -z-10" aria-hidden="true"></div>
+
+                <div class="relative w-full aspect-square md:aspect-auto md:h-full rounded-3xl overflow-hidden shadow-2xl shadow-gray-200/50 border border-gray-100 bg-white p-2 md:p-4 transform transition-transform duration-700 hover:scale-[1.02]">
+                    
+                    {{-- Badges --}}
+                    <div class="absolute top-8 left-8 z-30 flex flex-col gap-2 pointer-events-none">
+                        @if($landingPage->product->type === 'digital')
+                            <div class="bg-blue-600/90 backdrop-blur text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-lg flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                Digital
+                            </div>
+                        @endif
+                        @if($landingPage->product->type === 'service')
+                            <div class="bg-orange-500/90 backdrop-blur text-white text-[10px] font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-lg flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                Service
+                            </div>
+                        @endif
+                        @if($landingPage->product->compare_at_price > $landingPage->product->price)
+                            <span class="bg-red-500 text-white text-[10px] font-black px-4 py-2 rounded-full shadow-lg uppercase tracking-wider">Sale</span>
+                        @endif
+                        @if($landingPage->product->created_at->diffInDays() < 21)
+                            <span class="bg-white/95 backdrop-blur text-gray-900 text-[10px] font-black px-4 py-2 rounded-full shadow-lg uppercase tracking-wider border border-gray-100">Neu</span>
+                        @endif
+                    </div>
+                    @if(count($landingPage->product->media_gallery) > 0)
+                        <img src="{{ asset('storage/' . $landingPage->product->media_gallery[0]['path']) }}"
+                             alt="{{ $landingPage->product->name }}"
+                             loading="eager"
+                             class="w-full h-auto rounded-2xl object-cover">
+                    @else
+                        <div class="w-full h-64 bg-gray-100 flex items-center justify-center rounded-2xl">Kein Bild vorhanden</div>
+                    @endif
+
+                    {{-- Floating Badge --}}
+                    <div class="absolute top-8 right-8 bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-4 text-center border border-white/50">
+                        <span class="block text-gray-400 text-[10px] uppercase font-bold tracking-wider">Ab</span>
+                        <span class="block text-3xl font-serif font-bold text-gray-900">{{ $landingPage->product->formatted_price }}</span>
+                        <span class="block text-[9px] text-gray-500 font-normal mt-1 uppercase tracking-wider leading-tight">
+                            inkl. MwSt.<br>
+                            <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-700">zzgl. Versand</a>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{{--
+    SECTION 2: HIGHLIGHTS (Icons)
+    Clean, Gray Background zur Abgrenzung
+--}}
+<section id="details" class="py-24 bg-gray-50 border-y border-gray-100/50" aria-labelledby="details-heading">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-3xl mx-auto mb-16">
+            <h2 id="details-heading" class="text-3xl font-serif font-bold text-gray-900 mb-4">Warum {{ $landingPage->product->name }}?</h2>
+            <p class="text-gray-500">Qualität, die man spürt. Ein Geschenk, das bleibt.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {{-- Feature 1 --}}
+            <article class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
+                <div class="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 text-2xl mb-6 group-hover:scale-110 transition-transform" aria-hidden="true">
+                    💎
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-3">Ausgewählte Qualität</h3>
+                <p class="text-gray-500 leading-relaxed text-sm">Unsere Roh-Produkte werden sorgfältig ausgewählt und geprüft, um dir lange Freude an deinem persönlichen Geschenk zu ermöglichen.</p>
+            </article>
+
+            {{-- Feature 2 --}}
+            <article class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
+                <div class="w-14 h-14 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 text-2xl mb-6 group-hover:scale-110 transition-transform" aria-hidden="true">
+                    ✨
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-3">Persönlich Handveredelt</h3>
+                <p class="text-gray-500 leading-relaxed text-sm">Dein Wunschmotiv wird in unserer Manufaktur durch absolut präzise Lasertechnik dauerhaft und gestochen scharf verewigt.</p>
+            </article>
+
+            {{-- Feature 3 --}}
+            <article class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
+                <div class="w-14 h-14 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 text-2xl mb-6 group-hover:scale-110 transition-transform" aria-hidden="true">
+                    🎁
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-3">Sichere Geschenkbox</h3>
+                <p class="text-gray-500 leading-relaxed text-sm">Dein Produkt kommt je nach Typ sicher und ästhetisch verpackt zu dir nach Hause. Perfekt vorbereitet für die direkte Übergabe an den Empfänger.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+{{--
+    SECTION 3: DETAILS & EMOTION
+    Weißer Hintergrund
+--}}
+<section class="py-24 bg-white overflow-hidden" aria-labelledby="specs-heading">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+
+            {{-- Linke Seite: Bild --}}
+            <div class="relative">
+                <div class="absolute inset-0 bg-gray-100 rounded-3xl transform rotate-3 scale-95 origin-bottom-right -z-10" aria-hidden="true"></div>
+                @if(isset($landingPage->product->media_gallery[1]))
+                    <img src="{{ asset('storage/' . $landingPage->product->media_gallery[1]['path']) }}"
+                         alt="{{ $landingPage->product->name }} Detailansicht"
+                         loading="lazy"
+                         class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
+                @elseif(count($landingPage->product->media_gallery) > 0)
+                    <img src="{{ asset('storage/' . $landingPage->product->media_gallery[0]['path']) }}"
+                         alt="{{ $landingPage->product->name }}"
+                         loading="lazy"
+                         class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
+                @else
+                    <div class="rounded-3xl shadow-2xl w-full h-[500px] bg-gray-100 border border-gray-100 flex items-center justify-center">Detailbild</div>
+                @endif
+
+                {{-- Kleines Detailbild Overlay --}}
+                <div class="absolute -bottom-8 -right-8 w-40 h-40 bg-white p-3 rounded-2xl shadow-xl hidden md:block border border-gray-100 animate-float" aria-hidden="true">
+                    <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-full h-full object-contain rounded-lg" alt="">
+                </div>
+            </div>
+
+            {{-- Rechte Seite: Tabelle --}}
+            <div>
+                <h2 id="specs-heading" class="text-4xl font-serif font-bold text-gray-900 mb-6">
+                    Details, die überzeugen.
+                </h2>
+                <div class="text-gray-600 mb-10 text-lg font-light leading-relaxed prose prose-p:leading-relaxed">
+                    {!! nl2br($landingPage->sales_copy) !!}
+                </div>
+
+                @if($landingPage->product->attributes && count($landingPage->product->attributes) > 0)
+                <div class="bg-white rounded-2xl p-8 shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] border border-gray-100">
+                    <h3 class="text-xs font-bold text-primary uppercase tracking-[0.2em] mb-6">Technische Spezifikationen</h3>
+
+                    <dl class="divide-y divide-gray-100">
+                        @foreach($landingPage->product->attributes as $key => $value)
+                        <div class="grid grid-cols-3 gap-4 py-4">
+                            <dt class="text-gray-500 font-medium text-sm">{{ $key }}</dt>
+                            <dd class="col-span-2 font-bold text-gray-900">{{ $value }}</dd>
+                        </div>
+                        @endforeach
+                    </dl>
+                </div>
+                @endif
+                
+                <div class="mt-8 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-gray-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <p class="text-xs text-gray-400 italic">
+                        Hinweis: Da die finale Gravur und Veredelung für jedes Produkt ganz individuell durchgeführt wird, gleicht kein Stück exakt dem anderen. Du erhältst ein absolutes Unikat.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+@php
+    $gallery = is_array($landingPage->product->media_gallery) ? collect($landingPage->product->media_gallery) : collect();
+    $videoMedia = $gallery->firstWhere('type', 'video');
+    $images = $gallery->filter(fn($m) => !isset($m['type']) || $m['type'] === 'image')->values();
+    // Index 0 and 1 represent Hero and Detail images, so we skip them for the gallery
+    $extraImages = $images->skip(2);
+@endphp
+
+@if($videoMedia)
+{{--
+    SECTION: VIDEO HERO
+    Cinematic dark section to showcase the product video
+--}}
+<section class="bg-gray-950 py-24 relative overflow-hidden" aria-labelledby="video-heading">
+    <div class="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/30 via-gray-900 to-gray-950"></div>
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="text-center mb-16">
+            <h2 id="video-heading" class="text-3xl sm:text-4xl font-serif font-bold text-white mb-4">Live in Action</h2>
+            <p class="text-gray-400 text-lg font-light">Erleben Sie die Faszination von {{ $landingPage->product->name }} aus jeder Perspektive.</p>
+        </div>
+        <div class="relative w-full aspect-video rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.6)] border border-gray-800">
+            <video 
+                src="{{ asset('storage/' . $videoMedia['path']) }}" 
+                class="w-full h-full object-cover"
+                controls 
+                muted
+                autoplay
+                loop
+                playsinline
+            >
+                Ihr Browser unterstützt leider kein HTML5 Video.
+            </video>
+        </div>
+    </div>
+</section>
+@endif
+
+@if($extraImages->count() > 0)
+{{--
+    SECTION: EXTRA IMAGES GALLERY
+--}}
+<section class="py-24 bg-gray-50 border-y border-gray-100" aria-labelledby="gallery-heading">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16">
+            <h2 id="gallery-heading" class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4">Weitere faszinierende Einblicke</h2>
+            <p class="text-gray-500 font-light">Entdecken Sie alle Facetten dieses Meisterwerks im Detail.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            @foreach($extraImages as $img)
+                <div class="relative group rounded-3xl overflow-hidden bg-white shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <img src="{{ asset('storage/' . $img['path']) }}" alt="Detailansicht {{ $landingPage->product->name }}" loading="lazy" class="w-full aspect-[4/3] object-cover transform group-hover:scale-105 group-hover:rotate-1 transition-transform duration-700">
+                </div>
+            @endforeach
+        </div>
+    </div>
+</section>
+@endif
+
+{{--
+    SECTION 4: PREIS-KALKULATOR CTA
+    Dunkler Kontrastbereich als Abschluss des Info-Teils
+--}}
+<section class="py-24 bg-gray-900 relative overflow-hidden" aria-labelledby="cta-heading">
+    {{-- Background Pattern --}}
+    <div class="absolute inset-0 opacity-[0.03]" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');" aria-hidden="true"></div>
+
+    {{-- Schein --}}
+    <div class="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-primary/20 rounded-full blur-[120px]" aria-hidden="true"></div>
+
+    <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
+        <h2 id="cta-heading" class="text-3xl sm:text-5xl font-serif font-bold text-white mb-6">
+            Bereit für echte Wertschätzung?
+        </h2>
+        <p class="text-xl text-gray-400 mb-12 max-w-2xl mx-auto font-light">
+            Egal ob Einzelstück für einen besonderen Anlass oder 100 Stück für das ganze Event.
+            Nutzen Sie unseren Kalkulator für sofortige Staffelpreise.
+        </p>
+
+        <div class="flex flex-col sm:flex-row justify-center gap-5">
+            <a href="{{ route('product.show', $landingPage->product->slug) }}"
+               title="Jetzt Preis online konfigurieren"
+               class="inline-flex justify-center items-center px-10 py-5 border border-transparent text-lg font-bold rounded-xl text-black bg-primary hover:bg-white transition-all shadow-[0_0_30px_-5px_rgba(234,179,8,0.4)] hover:shadow-white/20 hover:-translate-y-1">
+                {{ $landingPage->cta_text }}
+            </a>
+            <a href="#contact"
+               title="Kontaktieren Sie uns für Fragen"
+               class="inline-flex justify-center items-center px-10 py-5 border border-white/20 text-lg font-bold rounded-xl text-white hover:bg-white/10 transition-colors backdrop-blur-sm">
+                Frage stellen
+            </a>
+        </div>
+
+        <p class="mt-10 text-sm text-gray-500 flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Keine versteckten Kosten. Angebot 100% transparent.
+        </p>
+    </div>
+</section>
+
+{{-- Contact Section (Livewire Component) --}}
+@livewire('frontend.contact-form')

@@ -17,7 +17,7 @@ class OrderQuoteAcceptance extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Bestellungen';
+    public string $themingDepartment = 'Bestellungen';
 
     public $token;
     public $quote;

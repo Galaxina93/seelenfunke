@@ -2,12 +2,18 @@
 
 namespace App\Livewire\Shop\Support;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use Livewire\Component;
 use App\Models\Support\SupportCustomerChat;
 use Livewire\WithPagination;
 
 class SupportChatAnalytics extends Component
 {
+    use WithDepartmentTheming;
+
+    public string $themingDepartment = 'Support';
+
     use WithPagination;
 
     public $search = '';

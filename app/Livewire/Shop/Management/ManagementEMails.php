@@ -21,7 +21,7 @@ class ManagementEMails extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Firmenleitung';
+    public string $themingDepartment = 'Leitung';
 
     public $selectedAccountId = null;
     public $selectedFolder = 'INBOX';

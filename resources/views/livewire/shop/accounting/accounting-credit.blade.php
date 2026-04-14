@@ -17,7 +17,7 @@
             <p class="text-xs sm:text-sm text-gray-400 mt-1 font-medium">Verwaltung von manuellen Gutschriften.</p>
         </div>
         <div class="flex flex-wrap gap-3 w-full md:w-auto">
-            <button wire:click="openCreateModal" class="flex-1 md:flex-none bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] px-5 py-2.5 rounded-xl hover:bg-[var(--theme-color)] hover:text-white transition-all shadow-[0_0_15px_rgba(197,160,89,0.15)] hover:shadow-[0_0_20px_rgba(197,160,89,0.4)] text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
+            <button wire:click="openCreateModal" class="flex-1 md:flex-none bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] px-5 py-2.5 rounded-xl hover:bg-[var(--theme-color)] hover:text-white transition-all shadow-[0_0_15px_var(--theme-color-15)] hover:shadow-[0_0_20px_var(--theme-color-40)] text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2">
                 <x-heroicon-o-plus class="w-5 h-5"/>
                 Neue Gutschrift
             </button>
@@ -266,7 +266,7 @@
             <svg viewBox="0 0 1000 200" class="w-full h-auto drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <marker id="arrowPrimary" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#C5A059" />
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--theme-color)" />
                     </marker>
                     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
                         <feGaussianBlur stdDeviation="5" result="blur" />
@@ -274,7 +274,7 @@
                     </filter>
                     <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stop-color="#4b5563" />
-                        <stop offset="50%" stop-color="#C5A059" />
+                        <stop offset="50%" stop-color="var(--theme-color)" />
                         <stop offset="100%" stop-color="#10b981" />
                     </linearGradient>
                 </defs>
@@ -302,9 +302,9 @@
 
                 <!-- Node 3: Gutschrift (Highlight) -->
                 <g transform="translate(625, 70)">
-                    <circle cx="0" cy="0" r="42" fill="rgba(197,160,89, 0.15)" stroke="#C5A059" stroke-width="3" filter="url(#glow)" />
-                    <text x="0" y="6" fill="#C5A059" font-size="24" font-weight="900" text-anchor="middle">3</text>
-                    <text x="0" y="70" fill="#C5A059" font-size="15" font-weight="bold" text-anchor="middle">Gutschrift stellen</text>
+                    <circle cx="0" cy="0" r="42" fill="var(--theme-color-15)" stroke="var(--theme-color)" stroke-width="3" filter="url(#glow)" />
+                    <text x="0" y="6" fill="var(--theme-color)" font-size="24" font-weight="900" text-anchor="middle">3</text>
+                    <text x="0" y="70" fill="var(--theme-color)" font-size="15" font-weight="bold" text-anchor="middle">Gutschrift stellen</text>
                     <text x="0" y="90" fill="#9ca3af" font-size="12" font-weight="bold" text-anchor="middle">Genau hier im System</text>
                     <text x="0" y="105" fill="#6b7280" font-size="11" text-anchor="middle">als buchhalterischen Beleg.</text>
                 </g>
@@ -460,7 +460,7 @@
 
             <div class="p-6 border-t border-gray-800 bg-gray-900/80 backdrop-blur-md shrink-0 flex justify-between items-center gap-4">
                 <button wire:click="closeCreateModal" class="px-6 py-3 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                <button wire:click="generateCreditNote" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-dark text-white shadow-[0_0_20px_rgba(197,160,89,0.2)] hover:shadow-[0_0_30px_rgba(197,160,89,0.4)] px-8 py-3 rounded-xl font-bold flex flex-row items-center justify-center whitespace-nowrap transition-all hover:-translate-y-0.5" wire:loading.attr="disabled">
+                <button wire:click="generateCreditNote" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-dark text-white shadow-[0_0_20px_var(--theme-color-20)] hover:shadow-[0_0_30px_var(--theme-color-40)] px-8 py-3 rounded-xl font-bold flex flex-row items-center justify-center whitespace-nowrap transition-all hover:-translate-y-0.5" wire:loading.attr="disabled">
                     <span wire:loading.remove wire:target="generateCreditNote" class="flex items-center gap-2">
                         <x-heroicon-o-check class="w-5 h-5 shrink-0" /> Gutschrift erzeugen
                     </span>

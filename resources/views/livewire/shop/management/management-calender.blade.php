@@ -71,7 +71,7 @@
                     </div>
 
                     {{-- Neu Button --}}
-                    <button wire:click="createEvent" class="h-12 px-6 bg-[var(--theme-color)] text-gray-900 rounded-2xl shadow-[0_0_20px_rgba(197,160,89,0.3)] flex items-center justify-center gap-2 hover:bg-white transition-all active:scale-95 group">
+                    <button wire:click="createEvent" class="h-12 px-6 bg-[var(--theme-color)] text-gray-900 rounded-2xl shadow-[0_0_20px_var(--theme-color-30)] flex items-center justify-center gap-2 hover:bg-white transition-all active:scale-95 group">
                         <x-heroicon-m-plus class="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                         <span class="hidden md:inline font-black uppercase tracking-[0.1em] text-[10px]">Neuer Eintrag</span>
                     </button>
@@ -289,7 +289,7 @@
                         @if(!$loop->last) <div class="absolute left-[9px] top-6 bottom-0 w-0.5 bg-gray-800"></div> @endif
 
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-6">
-                            <h4 @class(['text-xl font-black uppercase tracking-widest', 'text-[var(--theme-color)] drop-shadow-[0_0_10px_rgba(197,160,89,0.5)]' => $dayData['is_today'], 'text-gray-500' => !$dayData['is_today']])>
+                            <h4 @class(['text-xl font-black uppercase tracking-widest', 'text-[var(--theme-color)] drop-shadow-[0_0_10px_var(--theme-color-50)]' => $dayData['is_today'], 'text-gray-500' => !$dayData['is_today']])>
                                 {{ $dayData['date']->locale('de')->dayName }} <span class="text-white font-serif ml-2">{{ $dayData['date']->day }}.</span>
                             </h4>
                         </div>
@@ -465,7 +465,7 @@
                         <button wire:click="closeModal" class="w-full sm:w-auto h-12 md:h-14 px-8 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-900 border border-gray-800 hover:text-white transition-all shadow-inner justify-center items-center flex">
                             Abbrechen
                         </button>
-                        <button wire:click="saveEvent" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_rgba(197,160,89,0.4)] transition-all active:scale-95 flex items-center justify-center gap-3">
+                        <button wire:click="saveEvent" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_var(--theme-color-40)] transition-all active:scale-95 flex items-center justify-center gap-3">
                             <span wire:loading.remove wire:target="saveEvent">Speichern</span>
                             <span wire:loading wire:target="saveEvent" class="animate-pulse italic">Speichert...</span>
                             <x-heroicon-m-check class="w-5 h-5 stroke-2" />
@@ -499,7 +499,7 @@
         }
         .input-dark:focus {
             border-color: var(--theme-color);
-            box-shadow: 0 0 20px rgba(197, 160, 89, 0.1), inset 0 2px 4px rgba(0,0,0,0.5);
+            box-shadow: 0 0 20px var(--theme-color-10), inset 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .input-dark-sm {
@@ -519,7 +519,7 @@
             border-color: var(--theme-color);
         }
 
-        .shadow-glow { box-shadow: 0 0 15px rgba(197, 160, 89, 0.3); }
+        .shadow-glow { box-shadow: 0 0 15px var(--theme-color-30); }
 
         @media (max-width: 768px) {
             .animate-modal-up { animation: modal-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }

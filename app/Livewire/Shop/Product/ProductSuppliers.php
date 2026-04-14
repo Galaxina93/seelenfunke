@@ -13,7 +13,7 @@ class ProductSuppliers extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Produkte';
+    public string $themingDepartment = 'Produkte';
 
     public $suppliers;
 

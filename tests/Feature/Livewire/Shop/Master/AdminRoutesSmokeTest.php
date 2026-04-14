@@ -86,7 +86,6 @@ class AdminRoutesSmokeTest extends TestCase
             ['/admin/product-packaging'],
             ['/admin/product-fracture'],
             ['/admin/product-suppliers'],
-            ['/admin/products/nischen-scout'],
             ['/admin/product-templates'],
             ['/admin/reviews'],
             ['/admin/invoices'],

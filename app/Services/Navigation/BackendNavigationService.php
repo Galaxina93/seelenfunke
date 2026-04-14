@@ -70,7 +70,7 @@ class BackendNavigationService
                             ['id' => 'product-templates', 'title' => 'Vorlagen', 'route' => '/admin/product-templates', 'icon' => 'clipboard-document-list'],
                             ['id' => 'product-suppliers', 'title' => 'Lieferanten', 'route' => '/admin/product-suppliers', 'icon' => 'truck'],
                             ['id' => 'reviews', 'title' => 'Bewertungen', 'route' => '/admin/reviews', 'icon' => 'star'],
-                            ['id' => 'nischen-scout', 'title' => 'Nischen-Scout', 'route' => '/admin/products/nischen-scout', 'icon' => 'magnifying-glass'],
+                            ['id' => 'product-crawler', 'title' => 'Crawler', 'route' => '/admin/product-crawler', 'icon' => 'magnifying-glass'],
                             ['id' => 'product-packaging', 'title' => 'Verpackungsmaterial', 'route' => '/admin/product-packaging', 'icon' => 'archive-box'],
                         ]
                     ],
@@ -81,7 +81,11 @@ class BackendNavigationService
                         'icon' => 'at-symbol',
                         'ai_department_id' => '019d2222-2222-2222-2222-222222222222',
                         'children' => [
+                            ['id' => 'marketing-dashboard', 'title' => 'Dashboard', 'route' => '/admin/marketing/dashboard', 'icon' => 'squares-2x2'],
                             ['id' => 'marketing-analytics', 'title' => 'Analyse', 'route' => '/admin/marketing/analytics', 'icon' => 'chart-pie'],
+                            ['id' => 'marketing-landing-pages', 'title' => 'Landing Pages', 'route' => '/admin/marketing/landing-pages', 'icon' => 'document-text'],
+                            ['id' => 'marketing-instagram', 'title' => 'Instagram', 'route' => '/admin/marketing/instagram', 'icon' => 'camera'],
+                            ['id' => 'marketing-google-ads', 'title' => 'Google Ads', 'route' => '/admin/marketing/google-ads', 'icon' => 'currency-dollar'],
                             ['id' => 'newsletter', 'title' => 'Newsletter', 'route' => '/admin/newsletter', 'icon' => 'newspaper'],
                             ['id' => 'voucher', 'title' => 'Gutscheine', 'route' => '/admin/voucher', 'icon' => 'gift'],
                             ['id' => 'blog', 'title' => 'Blogeinträge', 'route' => '/admin/blog', 'icon' => 'document-text'],

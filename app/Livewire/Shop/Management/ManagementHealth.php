@@ -15,7 +15,7 @@ class ManagementHealth extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Firmenleitung';
+    public string $themingDepartment = 'Leitung';
 
     use WithFileUploads, WithPagination;
 

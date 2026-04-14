@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Ai;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Ai\AiDepartment;
 use App\Models\Ai\AiRole;
 use App\Models\Ai\AiAgent;
@@ -10,6 +12,8 @@ use Livewire\Component;
 
 class AiCompanyStructure extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     public $departments = [];
     public $staffAgents = [];
@@ -99,6 +103,11 @@ class AiCompanyStructure extends Component
         
         $this->editingId = $dept->id;
         
+        // Cache invalidation for UI Theming
+        \Illuminate\Support\Facades\Cache::forget(strtolower($dept->name) . '_dept_color');
+        \Illuminate\Support\Facades\Cache::forget(strtolower($dept->name) . '_dept_class');
+        \Illuminate\Support\Facades\Cache::forget(strtolower($dept->name) . '_nav_color');
+
         $this->dispatch('department-saved', id: $dept->id);
 
         if ($close) {

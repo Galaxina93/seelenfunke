@@ -211,14 +211,14 @@
             getEdgeColor(status) {
                 if (status === 'inactive') return '#ef4444';
                 if (status === 'planned')  return '#f59e0b';
-                return '#C5A059';
+                return 'var(--theme-color)';
             },
 
             getNodeClasses(node) {
                 if (!node) return '';
                 let classes = '';
                 if (node.type === 'core') {
-                    classes += 'bg-gray-950 text-primary border-primary ';
+                    classes += 'bg-gray-950 text-[var(--theme-color)] border-[var(--theme-color)] ';
                 } else {
                     classes += 'bg-gray-900 text-gray-400 border-gray-700 hover:text-white hover:border-gray-500 ';
                 }
@@ -231,7 +231,7 @@
                 if (node.status === 'active')   return 'box-shadow: 0 0 30px rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.5);';
                 if (node.status === 'planned')  return 'box-shadow: 0 0 30px rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.5);';
                 if (node.status === 'inactive') return 'box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8); border-color: rgba(239, 68, 68, 0.3);';
-                if (node.type === 'core') return 'box-shadow: 0 0 40px rgba(197, 160, 89, 0.2);';
+                if (node.type === 'core') return 'box-shadow: 0 0 40px var(--theme-color-20);';
                 return '';
             },
 

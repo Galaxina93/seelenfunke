@@ -3,7 +3,7 @@
         <!-- Header Section -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-gray-800 relative overflow-hidden mb-8">
             <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
-                <x-heroicon-o-users class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_rgba(197,160,89,1)]" />
+                <x-heroicon-o-users class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)]" />
             </div>
             <div class="relative z-10">
                 <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight flex items-center gap-4">
@@ -71,7 +71,7 @@
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
                     @forelse($profiles as $profile)
-                        <div wire:click="selectProfile('{{ $profile->id }}')" x-on:click="if(window.innerWidth < 1024) { setTimeout(() => { document.getElementById('kontakt-details').scrollIntoView({ behavior: 'smooth', block: 'start' }) }, 200); }" role="button" class="cursor-pointer w-full text-left p-4 rounded-2xl transition-all duration-200 border flex items-center gap-3 relative overflow-visible group/btn {{ $activeProfileId == $profile->id ? 'bg-gray-800/80 border-[var(--theme-color-30)] shadow-[inset_4px_0_0_rgba(197,160,89,1)]' : 'bg-transparent border-transparent hover:bg-gray-900/50 hover:border-gray-800' }}">
+                        <div wire:click="selectProfile('{{ $profile->id }}')" x-on:click="if(window.innerWidth < 1024) { setTimeout(() => { document.getElementById('kontakt-details').scrollIntoView({ behavior: 'smooth', block: 'start' }) }, 200); }" role="button" class="cursor-pointer w-full text-left p-4 rounded-2xl transition-all duration-200 border flex items-center gap-3 relative overflow-visible group/btn {{ $activeProfileId == $profile->id ? 'bg-gray-800/80 border-[var(--theme-color-30)] shadow-[inset_4px_0_0_var(--theme-color)]' : 'bg-transparent border-transparent hover:bg-gray-900/50 hover:border-gray-800' }}">
                             <div class="relative shrink-0">
                                 @if($profile->avatar_path)
                                     <img src="{{ Storage::url($profile->avatar_path) }}" class="w-10 h-10 rounded-full object-cover border border-[var(--theme-color-30)]">
@@ -276,7 +276,7 @@
                             </div>
 
                             <div class="flex gap-4 pt-6 border-t border-gray-800">
-                                <button wire:click="saveProfile" class="px-6 py-2.5 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold hover:bg-[var(--theme-color)]/90 hover:shadow-[0_0_15px_rgba(197,160,89,0.4)] transition-all flex items-center gap-2">
+                                <button wire:click="saveProfile" class="px-6 py-2.5 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold hover:bg-[var(--theme-color)]/90 hover:shadow-[0_0_15px_var(--theme-color-40)] transition-all flex items-center gap-2">
                                     <x-heroicon-o-check class="w-5 h-5"/> Speichern
                                 </button>
                                 <button wire:click="cancelEditing" class="px-6 py-2.5 bg-gray-800 text-white rounded-xl font-bold hover:bg-gray-700 transition-colors">Abbrechen</button>
@@ -298,7 +298,7 @@
                         <div class="flex items-center gap-6 mb-6" x-data="{ showImage: false }" wire:key="profile-image-{{ $activeProfile->id }}">
                             @if($activeProfile->avatar_path)
                                 <button @click="showImage = true" class="relative group outline-none shrink-0" title="Bild vergrößern">
-                                    <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="w-20 h-20 rounded-full object-cover border-2 border-[var(--theme-color-50)] shadow-[0_0_20px_rgba(197,160,89,0.2)] group-hover:scale-105 transition-transform duration-300">
+                                    <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="w-20 h-20 rounded-full object-cover border-2 border-[var(--theme-color-50)] shadow-[0_0_20px_var(--theme-color-20)] group-hover:scale-105 transition-transform duration-300">
                                     <div class="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                         <x-heroicon-o-magnifying-glass-plus class="w-6 h-6 text-white drop-shadow-md" />
                                     </div>

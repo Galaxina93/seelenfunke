@@ -3,12 +3,12 @@
         <h4 class="text-xl sm:text-2xl font-serif font-bold text-white mb-6 border-b border-gray-800 pb-4 tracking-tight">Neuen Knoten erstellen</h4>
         <div class="space-y-5">
             <div>
-                <label class="text-[9px] font-black text-primary uppercase tracking-widest block mb-2 ml-1">Name des Systems</label>
-                <input type="text" wire:model="newNode.label" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm font-bold py-3.5 px-4 outline-none shadow-inner transition-all">
+                <label class="text-[9px] font-black text-[var(--theme-color)] uppercase tracking-widest block mb-2 ml-1">Name des Systems</label>
+                <input type="text" wire:model="newNode.label" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-sm font-bold py-3.5 px-4 outline-none shadow-inner transition-all">
             </div>
             <div>
                 <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest block mb-2 ml-1">Beschreibung</label>
-                <input type="text" wire:model="newNode.description" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl focus:ring-2 focus:ring-primary/30 focus:border-primary text-sm py-3.5 px-4 outline-none shadow-inner transition-all">
+                <input type="text" wire:model="newNode.description" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-sm py-3.5 px-4 outline-none shadow-inner transition-all">
             </div>
             <div>
                 <label class="text-[9px] font-black text-blue-400 uppercase tracking-widest block mb-2 ml-1">URL / Link (Optional)</label>
@@ -67,7 +67,7 @@
             </div>
             <div class="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-800">
                 <button wire:click="$set('showNodeForm', false)" class="px-5 py-3 text-gray-400 font-bold text-[10px] uppercase tracking-widest hover:text-white bg-gray-950 hover:bg-gray-800 rounded-xl transition-all border border-gray-800">Abbrechen</button>
-                <button wire:click="createNode" class="px-6 py-3 bg-primary text-gray-900 font-black text-[10px] uppercase tracking-widest rounded-xl shadow-glow hover:bg-primary-dark transition-all active:scale-95">Erstellen</button>
+                <button wire:click="createNode" class="px-6 py-3 bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-widest rounded-xl shadow-glow hover:bg-[var(--theme-color)] brightness-90 transition-all active:scale-95">Erstellen</button>
             </div>
         </div>
     </div>

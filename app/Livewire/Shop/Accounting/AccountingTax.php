@@ -23,7 +23,7 @@ class AccountingTax extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Buchhaltung';
+    public string $themingDepartment = 'Buchhaltung';
 
     use WithFileUploads;
 

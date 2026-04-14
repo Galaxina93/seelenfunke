@@ -221,4 +221,14 @@ class Product extends Model
         // Nur freigegebene Bewertungen zählen!
         return $this->reviews()->where('status', 'approved')->count();
     }
+
+    public function landingPage()
+    {
+        return $this->hasOne(\App\Models\Marketing\MarketingLandingPage::class);
+    }
+
+    public function googleAdsCampaign()
+    {
+        return $this->hasOne(\App\Models\Marketing\MarketingGoogleAdsCampaign::class);
+    }
 }

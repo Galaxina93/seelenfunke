@@ -93,6 +93,14 @@ return new class extends Migration
                 
                 $table->text('message');
                 $table->text('admin_notes')->nullable();
+
+                // UTM Tracking
+                $table->string('utm_source_first')->nullable();
+                $table->string('utm_campaign_first')->nullable();
+                $table->string('utm_medium_first')->nullable();
+                $table->string('utm_source_last')->nullable();
+                $table->string('utm_campaign_last')->nullable();
+                $table->string('utm_medium_last')->nullable();
                 
                 $table->timestamps();
             });

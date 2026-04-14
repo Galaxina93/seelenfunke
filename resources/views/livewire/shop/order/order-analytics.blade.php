@@ -1,9 +1,10 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     {{-- Header --}}
     <div class="mb-6 md:flex md:items-center md:justify-between py-2">
         <div class="min-w-0 flex-1">
             <h2 class="text-2xl sm:text-3xl font-bold leading-7 text-white sm:truncate sm:tracking-tight font-serif drop-shadow-md flex items-center gap-3">
-                <x-heroicon-o-chart-bar class="w-8 h-8 text-primary" />
+                <x-heroicon-o-chart-bar class="w-8 h-8 text-[var(--theme-color)]" />
                 Detaillierte Finanz- & Absatzanalyse
             </h2>
             <p class="mt-1 text-sm text-gray-400">
@@ -12,7 +13,7 @@
         </div>
         
         <div class="mt-4 flex md:ml-4 md:mt-0 gap-3">
-            <select wire:model.live="dateRange" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-300 bg-gray-900 shadow-sm ring-1 ring-inset ring-gray-700 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6 transition-all duration-300">
+            <select wire:model.live="dateRange" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-300 bg-gray-900 shadow-sm ring-1 ring-inset ring-gray-700 focus:ring-2 focus:ring-inset focus:ring-[var(--theme-color)] sm:text-sm sm:leading-6 transition-all duration-300">
                 <option value="7">Letzte 7 Tage</option>
                 <option value="30">Letzte 30 Tage</option>
                 <option value="90">Letzte 90 Tage</option>
@@ -167,10 +168,10 @@
         <div class="grid grid-cols-1 gap-6">
             {{-- Weekday Distribution Bar Chart --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-calendar-days class="w-5 h-5 text-primary" />
+                        <x-heroicon-o-calendar-days class="w-5 h-5 text-[var(--theme-color)]" />
                         Absatzvolumen nach Wochentag
                     </h3>
                     <div class="relative h-72 w-full mt-4" wire:ignore>
@@ -178,7 +179,7 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50 md:flex items-center justify-between">
-                    <p class="text-xs text-gray-400"><strong class="text-primary uppercase text-[10px] tracking-widest block mb-1">Personal-Ressourcen Planung</strong>Aggregiert alle Bestellungen auf den jeweiligen Wochentag. Erlaubt uns, Packer genau an den strategischen Tagen vor Ort zu haben.</p>
+                    <p class="text-xs text-gray-400"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Personal-Ressourcen Planung</strong>Aggregiert alle Bestellungen auf den jeweiligen Wochentag. Erlaubt uns, Packer genau an den strategischen Tagen vor Ort zu haben.</p>
                 </div>
             </div>
         </div>
@@ -255,8 +256,8 @@
 
             initCharts() {
                 const colors = {
-                    primary: 'rgba(197, 160, 89, 1)',      // Gold
-                    primaryLight: 'rgba(197, 160, 89, 0.2)', // Gold Fade
+                    primary: 'var(--theme-color)',      // Gold
+                    primaryLight: 'var(--theme-color-20)', // Gold Fade
                     blue: 'rgba(59, 130, 246, 1)',         // Blue
                     blueLight: 'rgba(59, 130, 246, 0.2)',
                     purple: 'rgba(168, 85, 247, 1)',       // Purple
@@ -483,3 +484,5 @@
 });
 </script>
 @endpush
+
+</div>

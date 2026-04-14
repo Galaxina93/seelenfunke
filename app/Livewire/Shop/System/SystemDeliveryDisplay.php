@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\System;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use Livewire\Component;
 use App\Models\Delivery\DeliverySetting;
 use App\Models\Delivery\DeliveryTime;
@@ -9,6 +11,10 @@ use App\Models\Delivery\DeliveryFeedback;
 
 class SystemDeliveryDisplay extends Component
 {
+    use WithDepartmentTheming;
+    
+    public string $themingDepartment = 'System';
+
     public $product;
 
     // Status, ob der User bereits geklickt hat

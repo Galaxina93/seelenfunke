@@ -291,32 +291,41 @@
                             Wir arbeiten mit Hochleistungslasern der Klasse 4. Um höchste Qualität und Sicherheit zu gewährleisten,
                             haben wir uns intensiv fortgebildet und prüfen lassen.
                         </p>
-                        <div class="flex justify-center gap-4 flex-wrap">
+                        <div class="flex justify-center gap-4 flex-wrap mb-8">
                             <div class="px-5 py-3 bg-white/10 rounded-lg border border-white/20 text-white font-medium flex items-center">
                                 <span class="text-primary mr-2" aria-hidden="true">✓</span> Zertifizierte Laserschutzbeauftragte
                             </div>
                             <div class="px-5 py-3 bg-white/10 rounded-lg border border-white/20 text-white font-medium flex items-center">
-                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Fachkunde nach TROS
+                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Fachkunde nach TROS Laserstrahlung
+                            </div>
+                        </div>
+
+                        {{-- TROS Info als Accordion --}}
+                        <div x-data="{ open: false }" class="bg-black/30 border border-white/10 rounded-xl max-w-3xl mx-auto shadow-inner overflow-hidden">
+                            <button @click="open = !open" 
+                                    class="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:bg-white/5 hover:bg-white/5 transition-colors gap-4">
+                                <strong class="text-gray-200">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</strong>
+                                <svg class="w-5 h-5 text-gray-400 transform transition-transform duration-300 flex-shrink-0" 
+                                     :class="{'rotate-180': open}" 
+                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            
+                            <div x-show="open" 
+                                 x-collapse
+                                 x-cloak
+                                 class="px-6 pb-6 text-sm text-gray-400 text-left leading-relaxed">
+                                <div class="pt-2 border-t border-white/10 mt-2">
+                                    Die Qualifikation nach <strong class="text-white">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4. 
+                                    <br><br>
+                                    Diese staatlich anerkannte Fachkunde untermauert, dass wir unsere Produkte nicht einfach im Hobbykeller "bedrucken", sondern unter hochprofessionellen, sicheren Industriebedingungen veredeln. Für dich bedeutet das: Dein Unikat entsteht in einer rechtssicheren Manufaktur, bei der Arbeitsschutz, technische Präzision und tiefes Fachwissen die absolute Grundlage bilden.
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
-
-        {{--
-            SECTION 5: CTA
-        --}}
-        <section class="py-20 text-center" aria-labelledby="cta-heading">
-            <h2 id="cta-heading" class="text-3xl font-serif font-bold text-gray-900 mb-6">Überzeugen Sie sich selbst</h2>
-            <p class="text-gray-600 max-w-xl mx-auto mb-8">
-                Ein Bild sagt mehr als tausend Worte, aber unsere Arbeit in den Händen zu halten, überzeugt sofort.
-            </p>
-            <a href="{{ route('product.detail') }}"
-               title="Zum Seelen-Kristall Produkt"
-               class="inline-flex justify-center items-center px-8 py-4 border border-transparent text-lg font-bold rounded-lg text-white bg-primary hover:bg-primary-dark transition-all shadow-lg hover:-translate-y-1">
-                Zum Seelen-Kristall
-            </a>
         </section>
 
         {{--Contact Section--}}

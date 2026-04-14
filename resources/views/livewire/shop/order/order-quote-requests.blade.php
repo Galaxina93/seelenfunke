@@ -132,7 +132,7 @@
                                     <div
                                         class="flex justify-between items-end text-lg sm:text-xl font-serif font-black text-[var(--theme-color)] mt-4 pt-4 border-t border-gray-800">
                                         <span class="uppercase tracking-tight text-white">Gesamt</span>
-                                        <span class="drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]">{{ number_format($detailQuote->gross_total / 100, 2, ',', '.') }} €</span>
+                                        <span class="drop-shadow-[0_0_10px_var(--theme-color-30)]">{{ number_format($detailQuote->gross_total / 100, 2, ',', '.') }} €</span>
                                     </div>
                                 </div>
                             </div>
@@ -166,7 +166,7 @@
                                         {{-- OPTION 2: Online-Zahlung --}}
                                         <button wire:click="convertToOrder('{{ $detailQuote->id }}', 'stripe_link')"
                                                 wire:loading.attr="disabled"
-                                                class="flex-1 flex items-center justify-center gap-3 px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-900 bg-[var(--theme-color)] border border-[var(--theme-color-50)] rounded-2xl hover:bg-[var(--theme-color)]-dark transition-all shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:scale-[1.02]">
+                                                class="flex-1 flex items-center justify-center gap-3 px-6 py-4 text-xs font-black uppercase tracking-widest text-gray-900 bg-[var(--theme-color)] border border-[var(--theme-color-50)] rounded-2xl hover:bg-[var(--theme-color)]-dark transition-all shadow-[0_0_20px_var(--theme-color-30)] hover:scale-[1.02]">
                                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                                                       d="M13 10V3L4 14h7v7l9-11h-7z"/>

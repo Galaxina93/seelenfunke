@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div x-data="{ open: @entangle('isOpen') }"
      x-show="open"
      x-cloak
@@ -26,8 +27,8 @@
 
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex items-center justify-between z-10">
-            <h3 class="text-lg font-mono font-bold text-gray-200 flex items-center gap-3" id="modal-title">
-                <span class="text-emerald-400"><i class="bi bi-box"></i></span>
+            <h3 class="text-lg font-sans font-medium text-gray-200 flex items-center gap-3" id="modal-title">
+                <span class="text-[color:var(--theme-color)]"><i class="bi bi-box"></i></span>
                 @if($category === 'voucher')
                     Gutschein Daten
                 @elseif($category === 'customer')
@@ -59,15 +60,17 @@
                     <!-- Voucher List/Table -->
                     @include('livewire.shop.ai.blocks.voucher-table', ['vouchers' => $data])
                 @else
-                    <div class="text-center py-10 text-gray-500 italic font-serif">Keine Gutschein-Daten gefunden.</div>
+                    <div class="text-center py-10 text-gray-500 italic font-sans text-sm">Keine Gutschein-Daten gefunden.</div>
                 @endif
             @else
                 <!-- Fallback Raw JSON Display if no block exists yet -->
                 <div
-                    class="bg-gray-950 p-4 rounded-xl border border-gray-800 relative z-10 w-full overflow-x-auto text-xs font-mono text-emerald-400">
+                    class="bg-gray-950 p-4 rounded-xl border border-gray-800 relative z-10 w-full overflow-x-auto text-xs font-mono text-[color:var(--theme-color)]">
                     <pre>{{ json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                 </div>
             @endif
         </div>
     </div>
+</div>
+
 </div>

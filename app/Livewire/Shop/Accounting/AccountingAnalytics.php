@@ -22,7 +22,7 @@ class AccountingAnalytics extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Buchhaltung';
+    public string $themingDepartment = 'Buchhaltung';
 
     // State (URL synchronisiert)
     #[Url]

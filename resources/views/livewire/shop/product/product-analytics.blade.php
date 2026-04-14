@@ -14,8 +14,8 @@
                     Echte Netto-Margen inklusive Einkauf, Laser und Verpackung kombiniert mit der Verkaufsgeschwindigkeit und Logistik.
                 </p>
             </div>
-            <button wire:click.prevent="downloadFullReport" class="hidden sm:inline-flex items-center gap-2 bg-gray-900 border border-gray-700 hover:bg-white hover:text-black text-gray-300 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-xl group">
-                <i class="fa-solid fa-file-pdf text-red-500 group-hover:text-red-600 transition-colors"></i> Jahresabschlussbericht
+            <button wire:click.prevent="downloadFullReport" class="hidden sm:inline-flex items-center gap-2 bg-[var(--theme-color)] hover:bg-white text-gray-900 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] group">
+                <i class="fa-solid fa-file-pdf text-gray-800 transition-colors"></i> Jahresabschlussbericht
             </button>
         </div>
 
@@ -119,8 +119,8 @@
 
         <!-- Mobile Export Button below since it's hidden in the header -->
         <div class="mt-4 sm:hidden px-4">
-            <button wire:click.prevent="downloadFullReport" class="inline-flex w-full justify-center items-center gap-2 bg-gray-900 border border-gray-700 hover:bg-white hover:text-black text-gray-300 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all">
-                <i class="bi bi-download text-red-500"></i> Gesamten Report Exportieren
+            <button wire:click.prevent="downloadFullReport" class="inline-flex w-full justify-center items-center gap-2 bg-[var(--theme-color)] hover:bg-white text-gray-900 border-none px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shadow-xl">
+                <i class="bi bi-download text-gray-800"></i> Gesamten Report Exportieren
             </button>
         </div>
     </div>
@@ -321,15 +321,17 @@
                             const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
                             const gridOptionsX = { display: false, drawBorder: false };
 
+                            const toArr = (val) => Array.isArray(val) ? val : Object.values(val || {});
+
                             // 1. Loss Chart
                             const ctxLs = document.getElementById('lossChart').getContext('2d');
                             lossChartObj = new Chart(ctxLs, {
                                 type: 'bar',
                                 data: {
-                                    labels: data.loss.labels,
+                                    labels: toArr(data.loss.labels),
                                     datasets: [{
                                         label: 'Beschädigte Artikel (Menge)',
-                                        data: data.loss.data,
+                                        data: toArr(data.loss.data),
                                         backgroundColor: 'rgba(244, 63, 94, 0.8)',
                                         borderRadius: 4, barPercentage: 0.6
                                     }]
@@ -346,10 +348,10 @@
                             topLossChartObj = new Chart(ctxTop, {
                                 type: 'bar',
                                 data: {
-                                    labels: data.topLoss.labels,
+                                    labels: toArr(data.topLoss.labels),
                                     datasets: [{
                                         label: 'Finanzieller Schaden (€)',
-                                        data: data.topLoss.data,
+                                        data: toArr(data.topLoss.data),
                                         backgroundColor: 'rgba(239, 68, 68, 0.9)',
                                         borderRadius: 4, barPercentage: 0.6
                                     }]
@@ -367,16 +369,16 @@
                             reviewChartObj = new Chart(ctxRev, {
                                 type: 'doughnut',
                                 data: {
-                                    labels: data.review.labels,
+                                    labels: toArr(data.review.labels),
                                     datasets: [{
-                                        data: data.review.data,
+                                        data: toArr(data.review.data),
                                         backgroundColor: ['#10b981', '#34d399', '#fbbf24', '#f87171', '#ef4444'],
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },
                                 options: {
                                     responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                                    plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
                                     cutout: '60%'
                                 }
                             });
@@ -386,16 +388,16 @@
                             supplierChartObj = new Chart(ctxSup, {
                                 type: 'doughnut',
                                 data: {
-                                    labels: data.supplier.labels,
+                                    labels: toArr(data.supplier.labels),
                                     datasets: [{
-                                        data: data.supplier.data,
+                                        data: toArr(data.supplier.data),
                                         backgroundColor: ['#6366f1', '#06b6d4', '#ec4899', '#f59e0b', '#8b5cf6', '#14b8a6', '#64748b'],
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },
                                 options: {
                                     responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                                    plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
                                     cutout: '60%'
                                 }
                             });
@@ -403,6 +405,7 @@
 
                         updateCharts() {
                             const data = this.getPayload();
+                            const toArr = (val) => Array.isArray(val) ? val : Object.values(val || {});
 
                             const updateMap = [
                                 { obj: lossChartObj, src: data.loss },
@@ -413,8 +416,8 @@
 
                             updateMap.forEach(m => {
                                 if (m.obj && m.src) {
-                                    m.obj.data.labels = m.src.labels;
-                                    m.obj.data.datasets[0].data = m.src.data;
+                                    m.obj.data.labels = toArr(m.src.labels);
+                                    m.obj.data.datasets[0].data = toArr(m.src.data);
                                     m.obj.update();
                                 }
                             });

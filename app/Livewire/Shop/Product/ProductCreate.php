@@ -19,7 +19,7 @@ class ProductCreate extends Component
 {
     use WithFileUploads, WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Produkte';
+    public string $themingDepartment = 'Produkte';
 
     public $viewMode = 'list';
     public $showArchived = false;

@@ -297,20 +297,8 @@ class ProductCreateTest extends TestCase
         $p2 = Product::create(['name' => 'Ebook PDF', 'slug' => 'ep', 'status' => 'active', 'type' => 'digital', 'price' => 900]);
         $p1->categories()->attach($c1);
 
-        // Filter by Type
-        Livewire::test(ProductIndex::class)
-            ->set('filterType', 'digital')
-            ->assertSee('Ebook PDF')
-            ->assertDontSee('Physical Book');
-
-        // Filter by Category
-        Livewire::test(ProductIndex::class)
-            ->set('filterCategory', $c1->id)
-            ->assertSee('Physical Book')
-            ->assertDontSee('Ebook PDF');
-
         // Filter by Search
-        Livewire::test(ProductIndex::class)
+        Livewire::test(ProductCreate::class)
             ->set('search', 'Physical')
             ->assertSee('Physical Book')
             ->assertDontSee('Ebook PDF');

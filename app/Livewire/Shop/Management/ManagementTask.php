@@ -15,7 +15,7 @@ class ManagementTask extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Firmenleitung';
+    public string $themingDepartment = 'Leitung';
 
     public $search = '';
     public $selectedListId = null;

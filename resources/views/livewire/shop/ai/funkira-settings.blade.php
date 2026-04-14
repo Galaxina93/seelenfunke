@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 {{--
 <div class="max-w-7xl mx-auto py-10 sm:px-6 lg:px-8">
     <div class="mb-8">
@@ -18,7 +19,7 @@
             <h3 class="text-xl font-semibold text-white mb-2">A. Modus-Steuerung</h3>
             <div class="mb-6 flex flex-col gap-2 border-b border-gray-700 pb-4">
                 <p class="text-sm text-gray-400">Wähle die grundsätzliche Persona und das Verhalten von Funkira. Modustasten überschreiben nicht deinen API Schlüssel, aber das "Temperament" (Kreativität) und das System-Prompt.</p>
-                <div class="flex items-center gap-2 text-[10px] sm:text-xs text-primary/80 bg-primary/10 border border-primary/20 w-fit px-3 py-1.5 rounded-md">
+                <div class="flex items-center gap-2 text-[10px] sm:text-xs text-[var(--theme-color)]/80 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] w-fit px-3 py-1.5 rounded-md">
                     <i class="bi bi-robot"></i> <span>Funkira kann ihren eigenen Modus je nach Situation anpassen.</span>
                 </div>
             </div>
@@ -36,7 +37,7 @@
                 </button>
 
                 <!-- Gemischtes Verhalten -->
-                <button wire:click="setMode('default')" class="relative rounded-2xl p-6 text-left transition-all duration-300 border {{ $activeMode === 'default' ? 'bg-primary/20 border-primary shadow-[0_0_15px_rgba(197,160,89,0.2)]' : 'bg-gray-900/50 border-gray-800 hover:bg-gray-800 hover:border-gray-700' }}">
+                <button wire:click="setMode('default')" class="relative rounded-2xl p-6 text-left transition-all duration-300 border {{ $activeMode === 'default' ? 'bg-[var(--theme-color-20)] border-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-20)]' : 'bg-gray-900/50 border-gray-800 hover:bg-gray-800 hover:border-gray-700' }}">
                     <div class="text-3xl mb-3">⚖️</div>
                     <h4 class="text-lg font-bold text-white mb-1">Gemischtes Verhalten</h4>
                     <p class="text-xs text-gray-400 mb-2">Erfolg von Mein-Seelenfunke, lockere Handhabung.</p>
@@ -74,7 +75,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">API Provider</label>
-                        <select wire:model.defer="apiProvider" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-2.5">
+                        <select wire:model.defer="apiProvider" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-2.5">
                             <option value="mittwald">Mittwald (Default)</option>
                             <option value="gemini">Gemini</option>
                             <option value="lokal">Lokal</option>
@@ -82,14 +83,14 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">API-Schlüssel</label>
-                        <input type="password" wire:model.defer="apiKey" placeholder="Standard-Schlüssel aus .env verwenden" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-2.5">
+                        <input type="password" wire:model.defer="apiKey" placeholder="Standard-Schlüssel aus .env verwenden" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-2.5">
                         @if($apiKey)
                             <p class="mt-1 text-xs text-emerald-400">Überschriebener Schlüssel ist aktiv.</p>
                         @endif
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">KI-Modell</label>
-                        <input type="text" wire:model.defer="aiModel" placeholder="Standard: gpt-oss-120b" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-2.5">
+                        <input type="text" wire:model.defer="aiModel" placeholder="Standard: gpt-oss-120b" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-2.5">
                     </div>
                     <div>
                         <div class="flex items-center justify-between mb-1">
@@ -97,10 +98,10 @@
                             <label class="inline-flex items-center cursor-pointer relative">
                                 <span class="text-xs font-medium text-gray-400 mr-2">Unbegrenzt</span>
                                 <input type="checkbox" wire:model.live="unlimitedTokens" class="sr-only peer">
-                                <div class="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[15px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                                <div class="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[15px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[var(--theme-color)]"></div>
                             </label>
                         </div>
-                        <input type="number" wire:model.defer="tokenLimit" placeholder="Standard: 8000" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-2.5 disabled:opacity-50 disabled:cursor-not-allowed" @if($unlimitedTokens) disabled @endif>
+                        <input type="number" wire:model.defer="tokenLimit" placeholder="Standard: 8000" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-2.5 disabled:opacity-50 disabled:cursor-not-allowed" @if($unlimitedTokens) disabled @endif>
 
                         <!-- Token Usage Progress Bar -->
                         <div class="mt-3">
@@ -137,7 +138,7 @@
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" wire:model.defer="humanInTheLoop" class="sr-only peer">
-                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--theme-color)]"></div>
                         </label>
                     </div>
 
@@ -155,7 +156,7 @@
                     <div class="col-span-1 md:col-span-2">
                         <label class="block text-sm font-medium text-gray-300 mb-1">Maximales Ausführungs-Limit (Anti-Loop)</label>
                         <p class="text-xs text-gray-500 mb-2">Wie oft darf sie sich im "Plan-and-Execute"-Modus selbst anstupsen, um Endlosschleifen zu verhindern?</p>
-                        <input type="number" wire:model.defer="executionLimit" min="1" max="10" placeholder="Standard: 3" class="w-32 bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-2.5">
+                        <input type="number" wire:model.defer="executionLimit" min="1" max="10" placeholder="Standard: 3" class="w-32 bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-2.5">
                     </div>
                 </div>
             </section>
@@ -165,7 +166,7 @@
                 <h3 class="text-xl font-semibold text-white mb-2">D. Fähigkeiten-Management</h3>
                 <div class="mb-6 flex flex-col gap-2 border-b border-gray-800 pb-4">
                     <p class="text-sm text-gray-400">Groblagige Zugangsberechtigungen für Funkira. Schaltest du hier einen Bereich ab, werden ihr die entsprechenden Werkzeuge entzogen. Das verhindert Spionage oder ungewollte Aktionen in sensiblen Bereichen.</p>
-                    <div class="flex items-center gap-2 text-[10px] sm:text-xs text-primary/80 bg-primary/10 border border-primary/20 w-fit px-3 py-1.5 rounded-md">
+                    <div class="flex items-center gap-2 text-[10px] sm:text-xs text-[var(--theme-color)]/80 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] w-fit px-3 py-1.5 rounded-md">
                         <i class="bi bi-robot"></i> <span>Funkira kann ihre eigenen Fähigkeiten nach Bedarf anfordern oder abschalten.</span>
                     </div>
                 </div>
@@ -232,13 +233,13 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">Lokale TTS API-URL</label>
-                        <input type="url" wire:model.defer="localTtsUrl" placeholder="z. B. Cloudflare Tunnel URL" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-2.5">
+                        <input type="url" wire:model.defer="localTtsUrl" placeholder="z. B. Cloudflare Tunnel URL" class="w-full bg-gray-950 border border-gray-700 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-2.5">
                     </div>
                 </div>
             </section>
 
             <div class="flex justify-end pt-4">
-                <button type="submit" class="bg-primary hover:bg-primary/80 text-gray-900 font-bold py-3 px-8 rounded-full shadow-[0_0_15px_rgba(197,160,89,0.4)] transition-all">
+                <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3 px-8 rounded-full shadow-[0_0_15px_var(--theme-color-40)] transition-all">
                     Konfiguration Speichern
                 </button>
             </div>
@@ -246,3 +247,5 @@
     </div>
 </div>
 --}}
+
+</div>

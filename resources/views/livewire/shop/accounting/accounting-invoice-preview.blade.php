@@ -7,7 +7,7 @@
                     <div class="bg-white p-4 border-b flex justify-between items-center shrink-0">
                         <div>
                             <h3 class="font-bold text-gray-900 flex items-center gap-2">
-                                <span style="color: #C5A059">Belegvorschau:</span> {{ $invoice->invoice_number }}
+                                <span style="color: var(--theme-color)">Belegvorschau:</span> {{ $invoice->invoice_number }}
                                 @if($invoice->status === 'cancelled')
                                     <span class="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full uppercase font-bold">Storniert</span>
                                 @elseif($invoice->status === 'draft')
@@ -22,7 +22,7 @@
                             @if($invoice->type === 'invoice' && $invoice->status !== 'cancelled' && $invoice->status !== 'draft')
                                 <button wire:click="cancelInvoice" wire:confirm="Soll diese Rechnung wirklich storniert werden? Es wird eine Gegenbuchung erzeugt." class="hidden md:block bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100 text-xs font-bold border border-red-200 transition">Stornieren</button>
                             @endif
-                            <button wire:click="downloadPdf" class="text-white px-4 py-1.5 rounded-lg hover:opacity-90 text-xs font-bold transition shadow-sm flex items-center gap-2" style="background-color: #C5A059">
+                            <button wire:click="downloadPdf" class="text-white px-4 py-1.5 rounded-lg hover:opacity-90 text-xs font-bold transition shadow-sm flex items-center gap-2" style="background-color: var(--theme-color)">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                 PDF Download
                             </button>
@@ -71,10 +71,10 @@
                             <div class="relative z-10 flex flex-col flex-1">
 
                                 {{-- Header: Logo & Titel --}}
-                                <div class="flex justify-between items-end mb-8 pb-5" style="border-bottom: 2px solid #C5A059;">
+                                <div class="flex justify-between items-end mb-8 pb-5" style="border-bottom: 2px solid var(--theme-color);">
                                     <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" style="width: 220px;" alt="{{ $ownerName }}">
                                     <div class="text-right">
-                                        <div style="font-size: 22px; font-weight: bold; color: #C5A059; text-transform: uppercase; margin-bottom: 5px;">
+                                        <div style="font-size: 22px; font-weight: bold; color: var(--theme-color); text-transform: uppercase; margin-bottom: 5px;">
                                             @if($invoice->type === 'cancellation') STORNO-RECHNUNG @else RECHNUNG @endif
                                         </div>
                                         <div class="text-gray-500 text-[10px]">
@@ -256,7 +256,7 @@
                                                 </div>
                                             @endif
 
-                                            <div class="flex justify-between pt-3 border-t-2 border-gray-100" style="font-size: 16px; font-weight: bold; color: #C5A059;">
+                                            <div class="flex justify-between pt-3 border-t-2 border-gray-100" style="font-size: 16px; font-weight: bold; color: var(--theme-color);">
                                                 <span>Gesamtsumme:</span>
                                                 <span>{{ number_format($invoice->total / 100, 2, ',', '.') }} €</span>
                                             </div>
@@ -298,21 +298,21 @@
                                 <div class="mt-12 pt-8" style="border-top: 1px solid #eee; color: #777;">
                                     <div class="flex justify-between text-[9px] leading-relaxed">
                                         <div class="w-1/3 text-left">
-                                            <span style="color: #C5A059; font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Unternehmen</span>
+                                            <span style="color: var(--theme-color); font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Unternehmen</span>
                                             <strong>{{ $ownerName }}</strong><br>
                                             Inhaberin {{ $proprietor }}<br>
                                             {{ $ownerStreet }}<br>
                                             {{ $ownerCity }}
                                         </div>
                                         <div class="w-1/3 text-left pl-4">
-                                            <span style="color: #C5A059; font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Kontakt</span>
+                                            <span style="color: var(--theme-color); font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Kontakt</span>
                                             E-Mail: {{ $ownerEmail }}<br>
                                             Web: {{ str_replace(['http://', 'https://'], '', $ownerWeb) }}<br>
                                             USt-IdNr.: {{ $ustId ?? 'n.a.' }}<br>
                                             Steuernummer: {{ $taxId }}
                                         </div>
                                         <div class="w-1/3 text-left pl-4">
-                                            <span style="color: #C5A059; font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Bankverbindung</span>
+                                            <span style="color: var(--theme-color); font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Bankverbindung</span>
                                             IBAN: {{ $ownerIban }}<br>
                                             @if($ownerBic) BIC: {{ $ownerBic }}<br> @endif
                                             Gerichtsstand: {{ $court }}

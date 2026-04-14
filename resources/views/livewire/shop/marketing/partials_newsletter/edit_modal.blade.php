@@ -4,7 +4,7 @@
         <div class="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-zoom-in flex flex-col max-h-[90vh] border border-white/20">
             <div class="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                 <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+                    <div class="w-12 h-12 bg-[var(--theme-color)] rounded-2xl flex items-center justify-center text-white shadow-lg shadow-[0_0_15px_var(--theme-color-30)]">
                         <i class="bi bi-pencil-square fs-4"></i>
                     </div>
                     <div>
@@ -23,18 +23,18 @@
                     <div class="space-y-6">
                         <div class="group">
                             <label class="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2 ml-1">E-Mail Betreff</label>
-                            <input type="text" wire:model="edit_subject" class="w-full bg-gray-50 border-gray-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 font-bold text-gray-800 transition-all outline-none">
+                            <input type="text" wire:model="edit_subject" class="w-full bg-gray-50 border-gray-200 rounded-2xl px-5 py-4 focus:ring-4 focus:ring-[var(--theme-color-10)] focus:border-[var(--theme-color)] font-bold text-gray-800 transition-all outline-none">
                         </div>
 
-                        <div class="bg-orange-50/50 rounded-[2rem] p-6 border border-orange-100">
-                            <label class="block text-[10px] font-black text-orange-400 uppercase tracking-[0.2em] mb-4">Timing (Offset)</label>
+                        <div class="bg-[var(--theme-color-10)] rounded-[2rem] p-6 border border-[var(--theme-color-30)]">
+                            <label class="block text-[10px] font-black text-[var(--theme-color)] uppercase tracking-[0.2em] mb-4">Timing (Offset)</label>
                             <div class="flex items-center gap-4">
                                 <div class="relative">
-                                    <input type="number" wire:model="edit_offset" class="w-24 bg-white border-orange-200 rounded-xl px-4 py-3 text-center font-black text-orange-600 focus:ring-orange-500 outline-none">
-                                    <span class="absolute -top-2 left-3 bg-white px-2 text-[8px] font-black text-orange-400 rounded-full border border-orange-100">Tage</span>
+                                    <input type="number" wire:model="edit_offset" class="w-24 bg-white border-[var(--theme-color-50)] rounded-xl px-4 py-3 text-center font-black text-[var(--theme-color)] focus:ring-[var(--theme-color)] outline-none">
+                                    <span class="absolute -top-2 left-3 bg-white px-2 text-[8px] font-black text-[var(--theme-color)] rounded-full border border-[var(--theme-color-30)]">Tage</span>
                                 </div>
-                                <p class="text-xs text-orange-800/60 font-medium leading-relaxed">
-                                    Diese Mail wird automatisch <span class="font-black text-orange-600">{{ $edit_offset ?: 0 }} Tage</span> vor dem eigentlichen Event-Datum verschickt.
+                                <p class="text-xs text-[var(--theme-color)] font-medium leading-relaxed opacity-60">
+                                    Diese Mail wird automatisch <span class="font-black text-[var(--theme-color)]">{{ $edit_offset ?: 0 }} Tage</span> vor dem eigentlichen Event-Datum verschickt.
                                 </p>
                             </div>
                         </div>

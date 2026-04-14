@@ -10,7 +10,7 @@ class SystemLogs extends Component
 {
     use WithPagination, \App\Livewire\Traits\WithDepartmentTheming;
 
-    protected string $themingDepartment = 'System';
+    public string $themingDepartment = 'System';
 
     public $search = '';
     public $statusFilter = '';

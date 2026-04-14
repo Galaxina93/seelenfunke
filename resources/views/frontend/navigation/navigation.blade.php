@@ -30,14 +30,9 @@
                             Startseite
                         </a>
 
-                        <a href="{{ route('product.detail') }}"
-                           class="{{ Request::routeIs('product.detail') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
-                            Seelen-Kristall
-                        </a>
-
                         <a href="{{ route('manufacture') }}"
                            class="{{ Request::routeIs('manufacture') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
-                            Manufaktur
+                            Die Manufaktur
                         </a>
 
                         <a href="{{ route('shop') }}"
@@ -109,11 +104,6 @@
                 <a href="{{ route('home') }}"
                    class="block px-3 py-2 text-lg {{ Request::routeIs('home') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
                     Startseite
-                </a>
-
-                <a href="{{ route('product.detail') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('product.detail') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Der Seelen-Kristall
                 </a>
 
                 <a href="{{ route('manufacture') }}"

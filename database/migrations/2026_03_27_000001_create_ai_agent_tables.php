@@ -228,6 +228,18 @@ return new class extends Migration
                 // Verzicht auf strikte Constraints zu UUIDs bei Log-Tabellen für performantere Deletes
             });
         }
+        if (!Schema::hasTable('ai_workspace_tasks')) {
+            Schema::create('ai_workspace_tasks', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->text('prompt');
+                $table->string('status')->default('pending'); // pending, assigned, processing, completed, failed
+                $table->uuid('assigned_agent_id')->nullable()->constrained('ai_agents')->nullOnDelete();
+                $table->longText('response_content')->nullable();
+                $table->json('ui_metadata')->nullable(); // Stores x, y, expanded state
+                $table->timestamp('completed_at')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /**
@@ -235,6 +247,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('ai_workspace_tasks');
         Schema::dropIfExists('ai_health_medications');
         Schema::dropIfExists('ai_health_treatment_items');
         Schema::dropIfExists('ai_health_treatment_plans');

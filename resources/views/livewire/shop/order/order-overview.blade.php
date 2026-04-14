@@ -254,7 +254,7 @@
                         <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--theme-color)] shadow-[0_0_8px_currentColor]"></span>
                     </span>
                     <h2 class="text-xl font-serif font-bold text-white tracking-tight">Bestellübersicht</h2>
-                    <span class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-xs font-black px-2.5 py-0.5 rounded-md shadow-[0_0_10px_rgba(197,160,89,0.2)]">{{ $orders->total() }}</span>
+                    <span class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-xs font-black px-2.5 py-0.5 rounded-md shadow-[0_0_10px_var(--theme-color-20)]">{{ $orders->total() }}</span>
                 </div>
 
                 {{-- Include der ausgelagerten Tabelle (Ist bereits im Dark Mode optimiert) --}}

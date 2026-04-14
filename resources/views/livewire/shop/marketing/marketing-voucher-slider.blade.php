@@ -11,7 +11,7 @@
     <div class="px-6 py-4 overflow-y-auto custom-scrollbar space-y-6">
         @forelse($vouchers as $voucher)
             <div class="relative group animate-fade-in-up">
-                <div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_10px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_15px_30px_rgba(197,160,89,0.1)] transition-all duration-500 border-b-4 border-b-primary/20">
+                <div class="bg-white border border-gray-100 rounded-2xl p-5 shadow-[0_10px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_15px_30px_var(--theme-color-10)] transition-all duration-500 border-b-4 border-b-primary/20">
                     <div class="flex justify-between items-center mb-4">
                         <span class="text-[9px] font-black bg-gray-100 px-2 py-0.5 rounded text-gray-500 uppercase tracking-widest">{{ $voucher->title }}</span>
                     </div>

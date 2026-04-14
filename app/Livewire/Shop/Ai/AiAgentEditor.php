@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Shop\Ai;
 
+use App\Livewire\Traits\WithDepartmentTheming;
+
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiTool;
 use Livewire\Component;
@@ -10,6 +12,8 @@ use Illuminate\Support\Facades\Storage;
 
 class AiAgentEditor extends Component
 {
+    use WithDepartmentTheming;
+
     public string $themingDepartment = 'Agenten';
     use WithFileUploads;
 

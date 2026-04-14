@@ -40,7 +40,10 @@
                             $deptColorCss = '';
                             $deptColorName = null;
                             if (isset($item['ai_department_id'])) {
-                                $dept = \App\Models\Ai\AiDepartment::where('id', $item['ai_department_id'])->withCount('agents')->first();
+                                $dept = \App\Models\Ai\AiDepartment::where('id', $item['ai_department_id'])
+                                                                   ->orWhere('name', $item['title'])
+                                                                   ->orWhere('name', rtrim($item['title'], 'e'))
+                                                                   ->withCount('agents')->first();
                                 if ($dept) {
                                     $hasAgents = $dept->agents_count > 0;
                                     $deptColorName = $dept->color;
@@ -55,8 +58,13 @@
                                         'cyan-500' => 'text-cyan-500 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
                                         'indigo-500' => 'text-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]',
                                         'teal-500' => 'text-teal-500 drop-shadow-[0_0_8px_rgba(20,184,166,0.8)]',
+                                        'orange-500' => 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]',
+                                        'yellow-500' => 'text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]',
+                                        'green-500' => 'text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]',
+                                        'sky-500' => 'text-sky-500 drop-shadow-[0_0_8px_rgba(14,165,233,0.8)]',
+                                        'pink-500' => 'text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]',
                                         'primary' => 'text-primary drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]',
-                                        default => 'text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                                        default => 'text-gray-500' // Better default so we can see when it fails instead of forcing emerald
                                     };
                                 }
                             }

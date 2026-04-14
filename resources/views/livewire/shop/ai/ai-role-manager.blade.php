@@ -1,3 +1,4 @@
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
 
@@ -23,7 +24,7 @@
                     <div class="relative z-10 flex items-center justify-between border-b border-gray-800/80 pb-4 mb-8">
                         <div>
                             <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
-                                <div class="p-2 rounded-lg bg-primary/20 text-primary border border-primary/30 shadow-[0_0_10px_rgba(197,160,89,0.2)]">
+                                <div class="p-2 rounded-lg bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shadow-[0_0_10px_var(--theme-color-20)]">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" /></svg>
                                 </div>
                                 1. Basisinformationen
@@ -35,12 +36,12 @@
                     <div class="relative z-10 space-y-6">
                         <div>
                             <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Name der Rolle <span class="text-red-500">*</span></label>
-                            <input type="text" wire:model.defer="name" required placeholder="z.B. Marketing Experte" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-white sm:text-sm p-3 font-mono transition-all">
+                            <input type="text" wire:model.defer="name" required placeholder="z.B. Marketing Experte" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
                             @error('name') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Kurzbeschreibung</label>
-                            <textarea wire:model.defer="description" rows="4" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-primary focus:ring focus:ring-primary/20 text-emerald-400/90 p-4 font-mono text-sm leading-relaxed transition-all resize-y"></textarea>
+                            <textarea wire:model.defer="description" rows="4" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-emerald-400/90 p-4 font-mono text-sm leading-relaxed transition-all resize-y"></textarea>
                             @error('description') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -80,7 +81,7 @@
                             @if(count($data['tools']) > 0)
                                 <div>
                                     <h4 class="text-lg font-black text-white mb-6 flex items-center gap-3 border-b border-gray-800/80 pb-3 uppercase tracking-widest font-mono">
-                                        <span class="w-2 h-2 rounded-full bg-primary shadow-[0_0_10px_rgba(197,160,89,0.8)]"></span>
+                                        <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-80)]"></span>
                                         Abteilung: {{ $category }}
                                         <span class="text-xs text-gray-500 ml-auto font-normal tracking-normal">{{ $data['active_count'] }} <span class="text-gray-700">/</span> {{ $data['total_count'] }} AKTIV</span>
                                     </h4>
@@ -133,7 +134,7 @@
 
                 <div class="flex justify-between pt-6 border-t border-gray-800/80 items-center">
                     <button type="button" wire:click="cancel" class="text-gray-400 hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-900">Zurück</button>
-                    <button type="submit" class="bg-primary hover:bg-primary/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:shadow-[0_0_30px_rgba(197,160,89,0.5)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
+                    <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
                         <svg wire:loading.remove wire:target="save" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" /></svg>
                         <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Rolle Speichern
@@ -143,7 +144,7 @@
         @else
             <!-- Standard Listen-Ansicht -->
             <div class="mb-12 text-center mt-4 font-mono">
-                <h1 class="text-3xl sm:text-4xl font-black text-primary tracking-widest uppercase shadow-primary/20 drop-shadow-md">
+                <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-[0_0_15px_var(--theme-color)]/20 drop-shadow-md">
                     KI Rollen
                 </h1>
                 <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
@@ -156,7 +157,7 @@
                 @if(count($topTools) > 0)
                 <div class="bg-black/40 border border-gray-800/60 rounded-2xl p-4 shadow-[0_0_20px_rgba(0,0,0,0.3)] min-w-[300px]">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                        <i class="bi bi-cpu-fill text-primary"></i>
+                        <i class="bi bi-cpu-fill text-[var(--theme-color)]"></i>
                         Meistgenutzte Werkzeuge
                     </h3>
                     <div class="flex flex-wrap gap-2">
@@ -169,7 +170,7 @@
                 </div>
                 @endif
                 
-                <button wire:click="create" class="whitespace-nowrap bg-primary hover:bg-primary/80 text-gray-900 font-bold py-3 px-6 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.3)] transition-all font-mono uppercase tracking-widest flex items-center justify-center gap-2">
+                <button wire:click="create" class="whitespace-nowrap bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3 px-6 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] transition-all font-mono uppercase tracking-widest flex items-center justify-center gap-2">
                     <i class="bi bi-plus-lg"></i>
                     Rolle hinzufügen
                 </button>
@@ -215,4 +216,6 @@
             </div>
         @endif
     </div>
+</div>
+
 </div>

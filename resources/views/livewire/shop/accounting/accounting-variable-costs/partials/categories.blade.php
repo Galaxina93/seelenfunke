@@ -56,7 +56,7 @@
                         {{-- INLINE EDIT MODE --}}
                         <div class="space-y-4">
                             <div class="flex justify-between items-start border-b border-gray-100 pb-2 mb-2">
-                                <span class="text-xs font-bold text-orange-500 uppercase tracking-wider">Bearbeiten</span>
+                                <span class="text-xs font-bold text-[var(--theme-color)] uppercase tracking-wider">Bearbeiten</span>
                                 <button wire:click="cancelEditSpecial" class="text-gray-400 hover:text-gray-600">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
@@ -87,7 +87,7 @@
                             {{-- Extended Business & File Settings --}}
                             <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                 <div class="flex items-center gap-2 mb-3">
-                                    <input type="checkbox" wire:model.live="editSpecialIsBusiness" class="rounded text-orange-500 focus:ring-orange-400 border-gray-300 w-4 h-4">
+                                    <input type="checkbox" wire:model.live="editSpecialIsBusiness" class="rounded text-[var(--theme-color)] focus:ring-orange-400 border-gray-300 w-4 h-4">
                                     <span class="text-sm font-bold text-gray-700 select-none">Gewerblich</span>
                                 </div>
 
@@ -121,8 +121,8 @@
                                     @endif
 
                                     {{-- Upload New --}}
-                                    <input type="file" wire:model="newEditFiles" multiple class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-white file:text-orange-500 file:border-orange-100 file:border hover:file:bg-orange-50 transition cursor-pointer">
-                                    <div wire:loading wire:target="newEditFiles" class="text-[10px] text-orange-500 mt-1 pl-1">Lade hoch...</div>
+                                    <input type="file" wire:model="newEditFiles" multiple class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-white file:text-[var(--theme-color)] file:border-orange-100 file:border hover:file:bg-orange-50 transition cursor-pointer">
+                                    <div wire:loading wire:target="newEditFiles" class="text-[10px] text-[var(--theme-color)] mt-1 pl-1">Lade hoch...</div>
                                 </div>
                             </div>
 
@@ -157,7 +157,7 @@
                                                     </span>
                                     @endif
                                     @if(!empty($special->file_paths))
-                                        <span class="flex items-center gap-1 text-orange-500 font-bold bg-orange-50 px-1.5 py-0.5 rounded">
+                                        <span class="flex items-center gap-1 text-[var(--theme-color)] font-bold bg-orange-50 px-1.5 py-0.5 rounded">
                                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                                         {{ count($special->file_paths) }}
                                                     </span>
@@ -165,7 +165,7 @@
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="font-mono font-bold text-base {{ $special->amount > 0 ? 'text-emerald-600' : 'text-orange-500' }}">
+                                <div class="font-mono font-bold text-base {{ $special->amount > 0 ? 'text-emerald-600' : 'text-[var(--theme-color)]' }}">
                                     {{ number_format($special->amount, 2, ',', '.') }} €
                                 </div>
                                 <button wire:click.stop="deleteSpecial('{{ $special->id }}')" class="text-xs text-red-300 hover:text-red-600 mt-1 transition font-medium">Entfernen</button>

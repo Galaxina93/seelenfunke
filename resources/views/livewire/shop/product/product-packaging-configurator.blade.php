@@ -1,4 +1,4 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
     <!-- SCHRITT 1: Produktauswahl -->
     <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-10 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up w-full mb-8">
         <h2 class="text-xl sm:text-2xl font-serif font-bold text-white tracking-wide mb-4 flex items-center gap-4">
@@ -65,7 +65,7 @@
                     </div>
                     
                     <div class="w-full md:w-auto shrink-0 mt-2 md:mt-0">
-                        <button type="submit" class="w-full md:w-auto bg-emerald-500 text-gray-900 font-black text-xs md:text-sm uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-emerald-400 transition-colors flex items-center justify-center gap-3 shadow-glow">
+                        <button type="submit" class="w-full md:w-auto bg-[var(--theme-color)] text-gray-900 font-black text-xs md:text-sm uppercase tracking-widest px-8 py-4 rounded-xl hover:bg-white transition-all flex items-center justify-center gap-3 shadow-[0_0_15px_var(--theme-color-20)] hover:shadow-[0_0_25px_var(--theme-color-40)]">
                             <x-heroicon-o-plus class="w-5 h-5" /> Speichern
                         </button>
                     </div>

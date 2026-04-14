@@ -1,15 +1,13 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="space-y-6 pb-20 animate-fade-in-up font-sans antialiased text-gray-300">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-gray-800 relative overflow-hidden">
-        <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none">
-            <x-heroicon-o-document-duplicate class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_rgba(197,160,89,1)]" />
-        </div>
+            <x-heroicon-o-document-duplicate class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)]" />
         <div class="relative z-10">
             <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">Produktvorlagen</h1>
             <p class="text-gray-400 mt-2 text-sm font-medium">Erstellen und verwalten Sie vorkonfigurierte Design-Vorlagen für Ihre Kunden.</p>
         </div>
         <div class="relative z-10 flex gap-3">
             @if($viewMode === 'list')
-                <button wire:click="createNew" class="bg-[var(--theme-color)] text-gray-900 px-6 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:bg-white hover:scale-[1.02] transition-all flex items-center gap-2">
+                <button wire:click="createNew" class="bg-[var(--theme-color)] text-gray-900 px-6 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-[0_0_20px_var(--theme-color-30)] hover:bg-white hover:scale-[1.02] transition-all flex items-center gap-2">
                     <x-heroicon-o-plus-circle class="w-5 h-5" /> Neue Vorlage
                 </button>
             @else
@@ -62,7 +60,7 @@
             <p class="text-gray-400 text-sm mb-12">Wählen Sie das Basis-Produkt, für welches Sie eine neue Vorlage designen möchten.</p>
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
                 @foreach($products as $prod)
-                    <button wire:click="selectProduct('{{$prod->id}}')" class="p-5 bg-gray-950 border border-gray-800 rounded-3xl hover:border-[var(--theme-color-50)] hover:bg-gray-900 hover:shadow-[0_0_30px_rgba(197,160,89,0.15)] transition-all duration-300 flex flex-col items-center gap-4 text-center group">
+                    <button wire:click="selectProduct('{{$prod->id}}')" class="p-5 bg-gray-950 border border-gray-800 rounded-3xl hover:border-[var(--theme-color-50)] hover:bg-gray-900 hover:shadow-[0_0_30px_var(--theme-color-15)] transition-all duration-300 flex flex-col items-center gap-4 text-center group">
                         <div class="w-full aspect-square bg-gray-900 rounded-2xl flex items-center justify-center border border-gray-800 shadow-inner overflow-hidden relative">
                             @if($prod->preview_image_path)
                                 <img src="{{asset('storage/'.$prod->preview_image_path)}}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">

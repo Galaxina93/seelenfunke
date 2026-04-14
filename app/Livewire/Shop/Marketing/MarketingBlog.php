@@ -18,7 +18,7 @@ class MarketingBlog extends Component
 {
     use WithDepartmentTheming;
 
-    protected string $themingDepartment = 'Marketing';
+    public string $themingDepartment = 'Marketing';
 
     use WithPagination, WithFileUploads, WithDepartmentTheming;
 
