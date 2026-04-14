@@ -50,7 +50,7 @@ class MarketingGoogleAds extends Component
                     . "- Descriptions MAXIMAL 90 Zeichen inkl. Leerzeichen!\n"
                     . "- Wir brauchen ca. 10 exakte Target-Keywords, die Nutzer suchen würden (z.B. 'Glasfoto gravieren').\n"
                     . "- Wir brauchen mind. 15 Negative-Keywords, um Streuverlust zu meiden (z.B. 'kostenlos', 'selber machen', 'billig').\n\n"
-                    . "Gib exakt ein reines JSON-Objekt zurück, ohne Markdown-Wrapper (keine ```json), mit folgendem Aufbau:\n"
+                    . "Gib exakt ein JSON-Objekt zurück:\n"
                     . "{\n"
                     . "  \"campaign_name\": \"[Produktname] - Search - DE\",\n"
                     . "  \"ad_group_name\": \"Generisch - [Produktname]\",\n"
@@ -63,25 +63,54 @@ class MarketingGoogleAds extends Component
                     . "  \"description_2\": \"Max 90 Zeichen Call to Action Text\"\n"
                     . "}";
 
-            $responseString = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
+            // Bypass OpenAI Wrapper completely und nutze natives Gemini 2.5 Flash mit JSON-Mode,
+            // um die massiven 503 "High Demand" Timeouts und Markdown-Parsierungsfehler abzufangen!
+            $apiKey = config('services.gemini.key');
+            $googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $apiKey;
             
-            if (str_contains($responseString, 'API Fehler') || str_contains($responseString, 'cURL Error')) {
-                \Illuminate\Support\Facades\Log::error("Google Ads API Error: " . $responseString);
-                $this->actionError = 'Die Google KI-Server sind aktuell stark ausgelastet (Timeout) oder nicht erreichbar. Bitte versuche es in wenigen Minuten noch einmal!';
+            $systemInstruction = $agent ? ($agent->system_prompt ?? '') : 'Du bist ein Senior Performance Marketing Manager.';
+            
+            $flashPayload = [
+                'systemInstruction' => ['parts' => [['text' => $systemInstruction]]],
+                'contents' => [['parts' => [['text' => $prompt]]]],
+                'generationConfig' => [
+                    'temperature' => 0.4,
+                    'responseMimeType' => 'application/json', // Zwinge striktes JSON ohne Markdown!
+                ]
+            ];
+
+            $ch = curl_init($googleUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($flashPayload));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            $responseString = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError || $httpCode !== 200 || !$responseString) {
+                \Illuminate\Support\Facades\Log::error("Google Ads Native API Error: {$httpCode} | cURL: {$curlError} | Resp: {$responseString}");
+                $this->actionError = 'Die Google KI-Server sind aktuell stark ausgelastet (Timeout). Bitte versuche es später noch einmal!';
                 $this->loadingMessage = '';
                 return;
             }
 
-            // Cleanup potential markdown wrappers from AI response
-            preg_match('/\{[\s\S]*\}/', $responseString, $matches);
-            $text = $matches[0] ?? $responseString;
+            $responseArray = json_decode($responseString, true);
+            $text = $responseArray['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
-            $text = trim(str_replace(['```json', '```'], '', $text));
-            
+            if (!$text) {
+                $this->actionError = 'Unerwartetes API-Format von Google.';
+                $this->loadingMessage = '';
+                return;
+            }
+
             $data = json_decode($text, true);
             
             if (json_last_error() !== JSON_ERROR_NONE || !isset($data['headline_1'])) {
-                \Illuminate\Support\Facades\Log::error("JSON Parsing Error: " . json_last_error_msg());
+                \Illuminate\Support\Facades\Log::error("JSON Parsing Error nach nativem Aufruf: " . json_last_error_msg());
                 $this->actionError = 'Die KI hat ein fehlerhaftes (unlesbares) Format geliefert (kein JSON).';
                 $this->loadingMessage = '';
                 return;

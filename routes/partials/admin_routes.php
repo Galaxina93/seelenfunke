@@ -121,7 +121,6 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     // Marketing
     // -----------------------------------------------------------------------
-    Route::get('/admin/marketing/dashboard', \App\Livewire\Shop\Marketing\MarketingDashboard::class)->name('admin.marketing-dashboard');
     Route::get('/admin/marketing/analytics', \App\Livewire\Shop\Marketing\MarketingAnalytics::class)->name('admin.marketing-analytics');
     Route::get('/admin/marketing/landing-pages', \App\Livewire\Shop\Marketing\MarketingLandingPages::class)->name('admin.marketing-landing-pages');
     Route::get('/admin/marketing/instagram', \App\Livewire\Shop\Marketing\MarketingInstagram::class)->name('admin.marketing-instagram');

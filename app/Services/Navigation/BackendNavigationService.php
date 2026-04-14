@@ -81,7 +81,6 @@ class BackendNavigationService
                         'icon' => 'at-symbol',
                         'ai_department_id' => '019d2222-2222-2222-2222-222222222222',
                         'children' => [
-                            ['id' => 'marketing-dashboard', 'title' => 'Dashboard', 'route' => '/admin/marketing/dashboard', 'icon' => 'squares-2x2'],
                             ['id' => 'marketing-analytics', 'title' => 'Analyse', 'route' => '/admin/marketing/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'marketing-landing-pages', 'title' => 'Landing Pages', 'route' => '/admin/marketing/landing-pages', 'icon' => 'document-text'],
                             ['id' => 'marketing-instagram', 'title' => 'Instagram', 'route' => '/admin/marketing/instagram', 'icon' => 'camera'],
