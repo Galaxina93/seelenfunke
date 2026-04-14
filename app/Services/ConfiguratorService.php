@@ -39,28 +39,44 @@ class ConfiguratorService
     }
 
     /**
-     * Liest automatisch alle SVGs aus dem public-Ordner aus.
-     * Ersetzt die direkte Logik im Blade-Template (formular.blade.php).
+     * Liest automatisch alle SVGs aus dem public-Ordner aus und gruppiert sie nach Unterordnern.
      */
     public function getStandardVectors(): array
     {
-        $vectorPath = public_path('images/configurator/vectors');
+        $vectorPath = public_path('shop/product/configurator/vectors');
         $vectors = [];
 
         if (File::exists($vectorPath)) {
-            $files = File::files($vectorPath);
-            foreach ($files as $file) {
+            // Finde alle Dateien rekursiv
+            $allFiles = File::allFiles($vectorPath);
+            
+            foreach ($allFiles as $file) {
                 if (strtolower($file->getExtension()) === 'svg') {
-                    $filename = $file->getFilename();
-                    $name = str_replace('.svg', '', $filename);
-                    // Macht aus "mein-herz" -> "Mein Herz"
+                    $filename = $file->getRelativePathname(); // e.g. "Floral/flower.svg"
+                    $name = str_replace('.svg', '', $file->getFilename());
                     $name = ucwords(str_replace(['-', '_'], ' ', $name));
 
-                    $vectors[] = [
-                        'file' => $filename,
+                    // Kategorie aus dem relativen Pfad ermitteln
+                    $relativePath = $file->getRelativePath();
+                    $category = $relativePath ? ucwords(str_replace(['-', '_'], ' ', $relativePath)) : 'Allgemein';
+
+                    if (!isset($vectors[$category])) {
+                        $vectors[$category] = [];
+                    }
+
+                    $vectors[$category][] = [
+                        'file' => str_replace('\\', '/', $filename), // Windows fallback
                         'name' => $name
                     ];
                 }
+            }
+            
+            // Sortierung: Allgemein an den ANFANG, Rest alphabetisch
+            ksort($vectors);
+            if (isset($vectors['Allgemein'])) {
+                $allgemein = $vectors['Allgemein'];
+                unset($vectors['Allgemein']);
+                $vectors = array_merge(['Allgemein' => $allgemein], $vectors);
             }
         }
 

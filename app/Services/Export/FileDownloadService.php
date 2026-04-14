@@ -185,6 +185,12 @@ class FileDownloadService
                     } elseif (str_contains($urlPath, '/images/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
                         $localPath = public_path('images/' . ltrim($relativePath, '/'));
+                    } elseif (str_contains($urlPath, '/shop/')) {
+                        $relativePath = substr($urlPath, strpos($urlPath, '/shop/') + 6);
+                        $localPath = public_path('shop/' . ltrim($relativePath, '/'));
+                    } else {
+                        // Letzter Ausweg: Versuche, den Dateipfad relativ zum public-Ordner aufzulösen
+                        $localPath = public_path(ltrim($urlPath, '/'));
                     }
 
                     if ($localPath && file_exists($localPath)) {
@@ -211,7 +217,7 @@ class FileDownloadService
                                 $viewBoxH = floatval($mh[1]);
                             }
 
-                            // Nur den echten Vektor-Inhalt (die <path> Elemente) extrahieren
+                            // Nur den echten Vektor-Inhalt extrahieren
                             if (preg_match('/<svg[^>]*>(.*?)<\/svg>/is', $innerSvg, $m)) {
                                 $innerSvg = $m[1];
                             } else {
@@ -219,14 +225,29 @@ class FileDownloadService
                                 $innerSvg = str_replace('</svg>', '', $innerSvg);
                             }
 
-                            // XCS BUGFIX: XCS Laser-Software ignoriert weiße Füllungen (#FFFFFF oder white) für Gravuren komplett.
-                            // Wir müssen die Farben auf schwarz (#000000) für Gravur umschreiben.
-                            $innerSvg = preg_replace('/fill="#[fF]{3,6}"/i', 'fill="#000000"', $innerSvg);
-                            $innerSvg = preg_replace('/fill="white"/i', 'fill="#000000"', $innerSvg);
-                            $innerSvg = preg_replace('/fill="none"/i', 'fill="#000000"', $innerSvg); // Manchmal sind sie unsichtbar, erzwinge Füllung.
+                            // XCS KOMPATIBILITÄT: Alles aggressiv auf SCHWARZ mappen und störende Elemente entfernen!
+                            // Entferne <style>, <defs> und <title> Blöcke komplett, da XCS sie oft als Artefakte interpretiert
+                            $innerSvg = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $innerSvg);
+                            $innerSvg = preg_replace('/<defs[^>]*>.*?<\/defs>/is', '', $innerSvg);
+                            $innerSvg = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $innerSvg);
+                            
+                            // Entferne id, class, data-* Attribute die ggf. Styles laden
+                            $innerSvg = preg_replace('/\s(?:id|class|data-[a-zA-Z0-9\-]+)="[^"]*"/i', '', $innerSvg);
 
-                            // Failsafe: Falls in der Datei kein "fill=" deklariert ist, sicherheitshalber ins <g> Tag packen.
-                            $fillAttr = !str_contains($innerSvg, 'fill=') ? ' fill="#000000"' : '';
+                            // Entferne alte fill/stroke Attribute komplett, damit wir saubere Elemente haben
+                            $innerSvg = preg_replace('/\sfill="[^"]*"/i', '', $innerSvg);
+                            $innerSvg = preg_replace('/\sstroke="[^"]*"/i', '', $innerSvg);
+
+                            // XCS INHERITANCE BUG FIX: 
+                            // XCS liest fill="#000000" auf dem <g> Tag oft nicht richtig aus. 
+                            // Wir müssen JEDES einzelne grafische Element hartcodiert auf schwarz zwingen!
+                            $innerSvg = preg_replace(
+                                '/<(path|circle|rect|ellipse|polygon|polyline)([^>]*)>/i', 
+                                '<$1 fill="#000000"$2>', 
+                                $innerSvg
+                            );
+
+                            $fillAttr = ''; // Wird nicht mehr als Failsafe auf <g> benötigt
 
                             $scaleS = $logoWidth / max(1, $viewBoxW);
                             $cx = $vX + ($viewBoxW / 2);

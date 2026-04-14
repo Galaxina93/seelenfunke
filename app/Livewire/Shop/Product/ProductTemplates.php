@@ -138,7 +138,10 @@ class ProductTemplates extends Component
     public function render()
     {
         $templates = ProductTemplate::with('product')->orderBy('created_at', 'desc')->get();
-        $products = Product::where('status', 'active')->get();
+        $products = Product::where('status', 'active')
+            ->where('type', 'physical')
+            ->where('is_personalizable', true)
+            ->get();
 
         return view('livewire.shop.product.product-templates', [
             'templates' => $templates,

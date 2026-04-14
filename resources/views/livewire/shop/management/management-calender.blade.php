@@ -27,7 +27,7 @@
             'call'        => ['bg' => 'bg-fuchsia-500/20', 'text' => 'text-fuchsia-400', 'icon' => 'phone', 'label' => 'Anrufe'],
             'meeting'     => ['bg' => 'bg-indigo-500/20', 'text' => 'text-indigo-400', 'icon' => 'users', 'label' => 'Besprechung'],
             'birthday'    => ['bg' => 'bg-pink-500/20', 'text' => 'text-pink-400', 'icon' => 'cake', 'label' => 'Geburtstag'],
-            'vacation'    => ['bg' => 'bg-cyan-500/20', 'text' => 'text-cyan-400', 'icon' => 'sun', 'label' => 'Urlaub'],
+            'vacation'    => ['bg' => 'bg-cyan-500/20', 'text' => 'text-cyan-400', 'icon' => 'sun', 'label' => 'Feiertage'],
             'travel'      => ['bg' => 'bg-amber-500/20', 'text' => 'text-amber-400', 'icon' => 'globe-alt', 'label' => 'Reise'],
             'project'     => ['bg' => 'bg-[var(--theme-color-20)]', 'text' => 'text-[var(--theme-color)]', 'icon' => 'briefcase', 'label' => 'Projekte'],
             'customer'    => ['bg' => 'bg-emerald-500/10', 'text' => 'text-emerald-500', 'icon' => 'user', 'label' => 'Kunde'],
@@ -145,13 +145,13 @@
 
                             <div class="space-y-1.5 flex-1 overflow-y-auto no-scrollbar pr-1">
                                 @foreach($day['events'] as $event)
-                                    @php 
-                                        $s = $styles[$event->category] ?? $styles['general']; 
+                                    @php
+                                        $s = $styles[$event->category] ?? $styles['general'];
                                         $spanType = $event->span_type ?? 'single';
-                                        
+
                                         $roundedClass = 'rounded-lg';
                                         $borderClass = 'border-transparent hover:border-current/30';
-                                        
+
                                         if ($spanType === 'start') {
                                             $roundedClass = 'rounded-l-lg rounded-r-none';
                                             $borderClass = 'border-y border-l border-r-0 border-transparent hover:border-current/30';
@@ -172,8 +172,8 @@
                                                 <span class="opacity-0">{{ $event->title }}</span>
                                             @endif
                                         </span>
-                                        @if($event->reminder_minutes && ($spanType === 'start' || $spanType === 'single')) 
-                                            <x-heroicon-s-bell class="w-2.5 h-2.5 opacity-50 shrink-0" /> 
+                                        @if($event->reminder_minutes && ($spanType === 'start' || $spanType === 'single'))
+                                            <x-heroicon-s-bell class="w-2.5 h-2.5 opacity-50 shrink-0" />
                                         @endif
                                     </div>
                                 @endforeach
@@ -212,8 +212,8 @@
             {{-- TERMINÜBERSICHT (LISTE) --}}
         @elseif($view === 'list')
             <div class="max-w-3xl mx-auto py-10 px-4 space-y-10"
-                 x-init="$nextTick(() => { 
-                    const todayEl = document.getElementById('list-day-today'); 
+                 x-init="$nextTick(() => {
+                    const todayEl = document.getElementById('list-day-today');
                     if(todayEl) { todayEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
                  })">
                 @php
@@ -235,8 +235,8 @@
                             'border-gray-800 shadow-2xl' => !$dayDate->isToday()
                         ])>
                             @foreach($dayData['events'] as $event)
-                                @php 
-                                    $s = $styles[$event->category] ?? $styles['general']; 
+                                @php
+                                    $s = $styles[$event->category] ?? $styles['general'];
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
                                 <div class="flex items-center gap-4 p-4 hover:bg-gray-800 rounded-2xl cursor-pointer transition-all group border border-transparent hover:border-gray-700 shadow-sm" wire:click="editEvent('{{ $event->id }}')">
@@ -296,8 +296,8 @@
 
                         <div class="grid gap-3">
                             @forelse($dayData['events'] as $event)
-                                @php 
-                                    $s = $styles[$event->category] ?? $styles['general']; 
+                                @php
+                                    $s = $styles[$event->category] ?? $styles['general'];
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
                                 <div wire:click="editEvent('{{ $event->id }}')" class="bg-gray-900/60 border border-gray-800 rounded-[2rem] p-5 shadow-lg hover:shadow-2xl hover:border-[var(--theme-color-40)] transition-all cursor-pointer flex items-center justify-between group/card">

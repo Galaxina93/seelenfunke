@@ -12,13 +12,10 @@
 ])
 
 @php
-    // Farbschema basierend auf Typ (Glow & Akzente)
-    $themeColor = $type === 'voucher' ? 'purple' : 'blue';
-
     // Klassenlogik für das Dark Design
     $containerClasses = match($state) {
         'past'   => 'border-emerald-500/30 bg-emerald-500/5 opacity-80 shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]',
-        'next'   => "border-{$themeColor}-500 bg-gray-900 shadow-[0_0_30px_rgba(var(--color-{$themeColor}-500),0.2)] ring-1 ring-{$themeColor}-400/30 z-10 scale-[1.02]",
+        'next'   => "border-[color:var(--theme-color)] bg-gray-900 shadow-[0_0_30px_var(--theme-color-20)] ring-1 ring-[color:var(--theme-color-30)] z-10 scale-[1.02]",
         'future' => 'border-gray-800 bg-gray-950/40 opacity-60 grayscale-[0.3]',
         default  => 'border-gray-800 bg-gray-900'
     };
@@ -26,7 +23,7 @@
     // Textfarben für Datum & Highlights
     $textClasses = match($state) {
         'past'   => 'text-emerald-400',
-        'next'   => "text-{$themeColor}-400 drop-shadow-[0_0_8px_rgba(var(--color-{$themeColor}-400),0.5)]",
+        'next'   => "text-[color:var(--theme-color)] drop-shadow-[0_0_8px_var(--theme-color-50)]",
         'future' => 'text-gray-500',
     };
 
@@ -84,8 +81,8 @@
         @elseif($state === 'next')
             {{-- Aktiv: Pulsierender Ring --}}
             <div class="relative w-8 h-8 flex items-center justify-center">
-                <span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-{{ $themeColor }}-400 opacity-40"></span>
-                <div class="relative bg-gray-900 rounded-full w-8 h-8 border border-{{ $themeColor }}-500/50 text-{{ $themeColor }}-400 shadow-xl flex items-center justify-center">
+                <span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-[color:var(--theme-color)] opacity-40"></span>
+                <div class="relative bg-gray-900 rounded-full w-8 h-8 border border-[color:var(--theme-color-50)] text-[color:var(--theme-color)] shadow-xl flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 animate-spin">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
@@ -120,7 +117,7 @@
         @endif
 
         @if($subtitle)
-            <div class="text-[10px] font-mono text-{{ $themeColor }}-400/70 mt-2 truncate bg-{{ $themeColor }}-400/5 px-2 py-1 rounded border border-{{ $themeColor }}-400/10">
+            <div class="text-[10px] font-mono text-[color:var(--theme-color)] opacity-80 mt-2 truncate bg-[color:var(--theme-color-10)] px-2 py-1 rounded border border-[color:var(--theme-color-20)]">
                 {{ $subtitle }}
             </div>
         @endif
@@ -144,16 +141,7 @@
         @endif
     </div>
 
-    {{-- 3. ACTION BADGE (Nur bei 'next') --}}
-    @if($state === 'next')
-        <div class="mt-5 relative group/badge w-full">
-            <div class="absolute -inset-1 bg-{{ $themeColor }}-500/20 blur opacity-40 rounded-xl"></div>
-            <div class="relative flex items-center justify-center gap-2 w-full text-[10px] font-black text-white bg-{{ $themeColor }}-600 px-3 py-2.5 rounded-xl shadow-lg border border-{{ $themeColor }}-400/30 uppercase tracking-widest overflow-hidden font-sans">
-                <div class="absolute inset-0 bg-white/10 transform -skew-x-12 -translate-x-[150%] group-hover/badge:translate-x-[150%] transition-transform duration-700"></div>
-                <span class="relative z-10">{{ $badgeText }}</span>
-            </div>
-        </div>
-    @endif
+
 
     {{-- 4. ACTION BUTTONS (Archiv & Löschen direkt in der Kachel) --}}
     @if($templateId)

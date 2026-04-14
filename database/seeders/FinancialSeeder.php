@@ -34,7 +34,7 @@ class FinancialSeeder extends Seeder
             'Technik',
             'Auto',
             'Sonstiges',
-            'Urlaub',
+            'Feiertage',
             'Fitness',
             'Schmutzwasser',
             'Steuer',

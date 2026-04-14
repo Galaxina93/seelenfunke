@@ -16,7 +16,7 @@
         <span x-text="msg"></span>
     </div>
 
-    {{-- Spezialmodi Banner (Urlaub / Krankheit) mit Feedback-Button --}}
+    {{-- Spezialmodi Banner (Feiertage / Krankheit) mit Feedback-Button --}}
     @php
         $shopCapacityLevel = (int)\Illuminate\Support\Facades\Cache::get('shop_capacity_level', \App\Models\System\SystemSetting::where('key', 'shop_capacity_level')->value('value') ?? 0);
     @endphp

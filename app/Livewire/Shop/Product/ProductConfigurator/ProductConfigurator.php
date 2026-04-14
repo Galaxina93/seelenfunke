@@ -43,6 +43,7 @@ class ProductConfigurator extends Component
 
     public array $fonts = [];
     public array $vectors = [];
+    public string $selectedCategory = 'Allgemein';
     public $design = 'light';
 
     public $alignmentOptions = [
@@ -58,6 +59,10 @@ class ProductConfigurator extends Component
     {
         $this->fonts = $configService->getFonts();
         $this->vectors = $configService->getStandardVectors();
+        
+        if (!empty($this->vectors)) {
+            $this->selectedCategory = array_key_first($this->vectors);
+        }
 
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
         $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
