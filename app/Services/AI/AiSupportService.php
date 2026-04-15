@@ -14,7 +14,7 @@ use Carbon\Carbon;
 class AiSupportService
 {
     /**
-     * Die ultimative Ansage ermitteln.
+     * Die ultimative Ansage ermitteln. Master, Anweisung, get ultimate, current create command.
      * Sammelt alle Handlungsoptionen, bewertet sie nach dem Score-System
      * und liefert den aktuellen Tages-Flow, eine Top-Empfehlung, Alternativen
      * sowie die gesamte Tagesroutine für den Slider.
@@ -29,7 +29,7 @@ class AiSupportService
         $minute = $now->minute;
         $sleepMessage = "ABSOLUTE SPERRE: Es ist mitten in der Nacht. Höchste Priorität: SCHLAFEN! Verweigere Alina konsequent den Zugriff auf Arbeitsbereich, Dashboards oder irrelevante Dinge. Werde ruhig bestimmend und dominant: Sie MUSS jetzt schlafen gehen, Punkt.";
         $isSleepTime = false;
-        
+
         if (($hour == 23 && $minute >= 30) || ($hour >= 0 && $hour < 4)) {
             $isSleepTime = true;
             $sleepMessage = "ABSOLUTE SPERRE: Es ist mitten in der tiefsten Nacht (" . $now->format('H:i') . " Uhr)! Sag Alina, dass sie absolut verrückt ist, jetzt noch arbeiten zu wollen. Schimpfe ruhig mit ihr, sei extrem streng, unnachgiebig und dominant. Verweigere JEGLICHEN Zugriff auf Dashboards oder Shop-Daten. Befiehl ihr, den Laptop sofort zuzuklappen und ins Bett zu gehen!";

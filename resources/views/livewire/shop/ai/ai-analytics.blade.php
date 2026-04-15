@@ -164,4 +164,66 @@
     </div>
 </div>
 
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('analyticsTrendChart', (data) => ({
+            init() {
+                if (!this.$refs.chart) return;
+                let options = {
+                    series: [{ name: 'Tokens', data: data.data }],
+                    chart: { type: 'area', height: 350, toolbar: { show: false }, background: 'transparent' },
+                    colors: ['#06b6d4'],
+                    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] } },
+                    dataLabels: { enabled: false },
+                    stroke: { curve: 'smooth', width: 2 },
+                    xaxis: { categories: data.product_categories, labels: { style: { colors: '#9ca3af' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+                    yaxis: { labels: { style: { colors: '#9ca3af', formatter: (val) => { return Math.round(val) } } } },
+                    grid: { borderColor: '#374151', strokeDashArray: 4 },
+                    theme: { mode: 'dark' }
+                };
+                let chart = new ApexCharts(this.$refs.chart, options);
+                chart.render();
+            }
+        }));
+
+        Alpine.data('analyticsDonutChart', (data) => ({
+            init() {
+                if (!this.$refs.chart) return;
+                let options = {
+                    series: data.series.length > 0 ? data.series.map(d => Number(d)) : [1],
+                    chart: { type: 'donut', height: 300, background: 'transparent' },
+                    labels: data.labels.length > 0 ? data.labels : ['Keine Daten'],
+                    colors: ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#14b8a6'],
+                    plotOptions: { pie: { donut: { size: '70%' } } },
+                    dataLabels: { enabled: false },
+                    stroke: { show: true, colors: ['#1f2937'] },
+                    legend: { position: 'bottom', labels: { colors: '#9ca3af' } },
+                    theme: { mode: 'dark' }
+                };
+                let chart = new ApexCharts(this.$refs.chart, options);
+                chart.render();
+            }
+        }));
+
+        Alpine.data('analyticsBarChart', (data) => ({
+            init() {
+                if (!this.$refs.chart) return;
+                let options = {
+                    series: [{ name: 'Fehler', data: data.data.length > 0 ? data.data : [0] }],
+                    chart: { type: 'bar', height: 300, toolbar: { show: false }, background: 'transparent' },
+                    colors: ['#ef4444'],
+                    plotOptions: { bar: { borderRadius: 4, horizontal: true } },
+                    dataLabels: { enabled: false },
+                    xaxis: { categories: data.product_categories.length > 0 ? data.product_categories : ['Keine Daten'], labels: { style: { colors: '#9ca3af' } }, axisBorder: { show: false }, axisTicks: { show: false } },
+                    yaxis: { labels: { style: { colors: '#9ca3af' } } },
+                    grid: { borderColor: '#374151', strokeDashArray: 4 },
+                    theme: { mode: 'dark' }
+                };
+                let chart = new ApexCharts(this.$refs.chart, options);
+                chart.render();
+            }
+        }));
+    });
+</script>
+
 </div>

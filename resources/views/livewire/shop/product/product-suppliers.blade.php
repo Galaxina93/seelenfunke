@@ -29,7 +29,7 @@
                 <!-- Header -->
                 <div class="flex items-start gap-4 mb-5">
                     <div class="w-12 h-12 bg-gray-950 rounded-xl border border-gray-800 flex items-center justify-center shrink-0 shadow-inner">
-                        <x-heroicon-o-building-office-2 class="w-6 h-6 text-emerald-400 opacity-80" />
+                        <x-heroicon-o-building-office-2 class="w-6 h-6 text-[var(--theme-color)] opacity-80" />
                     </div>
                     <div>
                         <h3 class="text-lg font-bold text-white leading-tight break-all pr-12">{{ $supplier->name }}</h3>
@@ -53,13 +53,13 @@
                                 };
                             @endphp
                             @if($supplier->shipping_method === 'air')
-                                <x-heroicon-s-paper-airplane class="w-4 h-4 text-sky-400 -rotate-45" title="Luftfracht" />
+                                <x-heroicon-s-paper-airplane class="w-4 h-4 text-[var(--theme-color)] -rotate-45" title="Luftfracht" />
                             @elseif($supplier->shipping_method === 'sea')
-                                <x-heroicon-s-globe-europe-africa class="w-4 h-4 text-blue-500" title="Seefracht" />
+                                <x-heroicon-s-globe-europe-africa class="w-4 h-4 text-[var(--theme-color)]" title="Seefracht" />
                             @elseif($supplier->shipping_method === 'train')
-                                <x-heroicon-s-ticket class="w-4 h-4 text-orange-400" title="Zug / Bahn" />
+                                <x-heroicon-s-ticket class="w-4 h-4 text-[var(--theme-color)]" title="Zug / Bahn" />
                             @else
-                                <x-heroicon-s-truck class="w-4 h-4 text-emerald-400" title="Landweg" />
+                                <x-heroicon-s-truck class="w-4 h-4 text-[var(--theme-color)]" title="Landweg" />
                             @endif
                             {{ $activeDays ? $activeDays . ' Tage' : 'Unbekannt' }}
                         </div>
@@ -94,12 +94,12 @@
                     @if(is_array($supplier->dynamic_links) && count($supplier->dynamic_links) > 0)
                         @foreach($supplier->dynamic_links as $link)
                             @if(!empty($link['url']) && !empty($link['title']))
-                                <a href="{{ $link['url'] }}" target="_blank" class="flex items-center justify-between p-3 rounded-xl bg-gray-950 border border-gray-800 hover:border-emerald-500/50 group/link transition-colors">
-                                    <span class="flex items-center gap-3 text-sm font-bold text-gray-300 group-hover/link:text-emerald-400 transition-colors">
-                                        <x-heroicon-o-link class="w-5 h-5 text-gray-500 group-hover/link:text-emerald-400 transition-colors" />
+                                <a href="{{ $link['url'] }}" target="_blank" class="flex items-center justify-between p-3 rounded-xl bg-gray-950 border border-gray-800 hover:border-[var(--theme-color-50)] group/link transition-colors">
+                                    <span class="flex items-center gap-3 text-sm font-bold text-gray-300 group-hover/link:text-[var(--theme-color)] transition-colors">
+                                        <x-heroicon-o-link class="w-5 h-5 text-gray-500 group-hover/link:text-[var(--theme-color)] transition-colors" />
                                         {{ $link['title'] }}
                                     </span>
-                                    <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4 text-gray-600 group-hover/link:text-emerald-400 transition-colors" />
+                                    <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4 text-gray-600 group-hover/link:text-[var(--theme-color)] transition-colors" />
                                 </a>
                             @endif
                         @endforeach
@@ -126,7 +126,7 @@
     <!-- INLINE FORMULAR -->
     @if($showModal)
         <div class="bg-gray-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-gray-700 w-full transform transition-all p-6 sm:p-10 animate-fade-in-up">
-            
+
             <div class="flex items-center justify-between border-b border-gray-800 pb-6 mb-8">
                 <h3 class="text-2xl font-serif font-bold text-white tracking-wide">
                     {{ $isEditing ? 'Lieferant bearbeiten' : 'Neuen Lieferanten anlegen' }}
@@ -139,7 +139,7 @@
             <form wire:submit.prevent="save" class="space-y-10">
                 <!-- Sektion 1: Stammdaten -->
                 <div>
-                    <h4 class="text-xs font-black uppercase tracking-widest text-emerald-400 mb-6 px-2 flex items-center gap-2">
+                    <h4 class="text-xs font-black uppercase tracking-widest text-[var(--theme-color)] mb-6 px-2 flex items-center gap-2">
                         <x-heroicon-o-building-storefront class="w-4 h-4" /> Stammdaten
                     </h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
@@ -148,26 +148,26 @@
                             <input type="text" wire:model="name" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-base font-bold text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Alibaba Merchant XYZ">
                             @error('name') <span class="text-xs text-red-500 mt-1 block font-bold">{{ $message }}</span> @enderror
                         </div>
-                        
+
                         <div class="col-span-1 md:col-span-2 lg:col-span-2">
                             <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Ansprechpartner</label>
                             <input type="text" wire:model="contact_person" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Mr. Chen / Mia">
                         </div>
-                        
+
                         <!-- Shipping Methods und Lieferzeiten -->
                         <div class="col-span-1 md:col-span-2 lg:col-span-3 mt-4" x-data="{ method: @entangle('shipping_method') }">
                             <label class="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wide">Standard-Lieferweg & Laufzeiten</label>
-                            
+
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 <!-- Land -->
-                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'land' ? 'border-emerald-500 bg-emerald-500/5 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-gray-800 hover:border-gray-700'">
+                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'land' ? 'border-[var(--theme-color)] bg-emerald-500/5 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'border-gray-800 hover:border-gray-700'">
                                     <label class="cursor-pointer flex items-center gap-3 mb-4 group w-full">
                                         <input type="radio" wire:model="shipping_method" value="land" class="sr-only">
-                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'land' ? 'border-emerald-500' : 'border-gray-600 group-hover:border-gray-500'">
-                                        <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 transition-transform duration-200" :class="method === 'land' ? 'scale-100' : 'scale-0'"></div>
+                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'land' ? 'border-[var(--theme-color)]' : 'border-gray-600 group-hover:border-gray-500'">
+                                        <div class="w-2.5 h-2.5 rounded-full bg-[var(--theme-color)] transition-transform duration-200" :class="method === 'land' ? 'scale-100' : 'scale-0'"></div>
                                         </div>
-                                        <x-heroicon-o-truck class="w-5 h-5 transition-colors shrink-0" x-bind:class="method === 'land' ? 'text-emerald-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
-                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'land' ? 'text-emerald-400' : 'text-gray-400'">Landweg</span>
+                                        <x-heroicon-o-truck class="w-5 h-5 transition-colors shrink-0" x-bind:class="method === 'land' ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
+                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'land' ? 'text-[var(--theme-color)]' : 'text-gray-400'">Landweg</span>
                                     </label>
                                     <div class="relative mt-auto">
                                         <input type="number" wire:model="lead_time_land_days" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 text-sm font-bold text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-inner placeholder-gray-700 transition-colors pr-10" placeholder="Tage">
@@ -176,14 +176,14 @@
                                 </div>
 
                                 <!-- Air -->
-                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'air' ? 'border-sky-500 bg-sky-500/5 shadow-[0_0_20px_rgba(14,165,233,0.1)]' : 'border-gray-800 hover:border-gray-700'">
+                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'air' ? 'border-[var(--theme-color)] bg-[var(--theme-color)] shadow-[0_0_20px_rgba(14,165,233,0.1)]' : 'border-gray-800 hover:border-gray-700'">
                                     <label class="cursor-pointer flex items-center gap-3 mb-4 group w-full">
                                         <input type="radio" wire:model="shipping_method" value="air" class="sr-only">
-                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'air' ? 'border-sky-500' : 'border-gray-600 group-hover:border-gray-500'">
-                                            <div class="w-2.5 h-2.5 rounded-full bg-sky-500 transition-transform duration-200" :class="method === 'air' ? 'scale-100' : 'scale-0'"></div>
+                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'air' ? 'border-[var(--theme-color)]' : 'border-gray-600 group-hover:border-gray-500'">
+                                            <div class="w-2.5 h-2.5 rounded-full bg-[var(--theme-color)] transition-transform duration-200" :class="method === 'air' ? 'scale-100' : 'scale-0'"></div>
                                         </div>
-                                        <x-heroicon-o-paper-airplane class="w-5 h-5 -rotate-45 transition-colors shrink-0" x-bind:class="method === 'air' ? 'text-sky-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
-                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'air' ? 'text-sky-400' : 'text-gray-400'">Luftfracht</span>
+                                        <x-heroicon-o-paper-airplane class="w-5 h-5 -rotate-45 transition-colors shrink-0" x-bind:class="method === 'air' ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
+                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'air' ? 'text-[var(--theme-color)]' : 'text-gray-400'">Luftfracht</span>
                                     </label>
                                     <div class="relative mt-auto">
                                         <input type="number" wire:model="lead_time_air_days" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 text-sm font-bold text-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500 shadow-inner placeholder-gray-700 transition-colors pr-10" placeholder="Tage">
@@ -192,14 +192,14 @@
                                 </div>
 
                                 <!-- Train -->
-                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'train' ? 'border-orange-500 bg-orange-500/5 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : 'border-gray-800 hover:border-gray-700'">
+                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'train' ? 'border-[var(--theme-color)] bg-[var(--theme-color)] shadow-[0_0_20px_rgba(249,115,22,0.1)]' : 'border-gray-800 hover:border-gray-700'">
                                     <label class="cursor-pointer flex items-center gap-3 mb-4 group w-full">
                                         <input type="radio" wire:model="shipping_method" value="train" class="sr-only">
-                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'train' ? 'border-orange-500' : 'border-gray-600 group-hover:border-gray-500'">
-                                            <div class="w-2.5 h-2.5 rounded-full bg-orange-500 transition-transform duration-200" :class="method === 'train' ? 'scale-100' : 'scale-0'"></div>
+                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'train' ? 'border-[var(--theme-color)]' : 'border-gray-600 group-hover:border-gray-500'">
+                                            <div class="w-2.5 h-2.5 rounded-full bg-[var(--theme-color)] transition-transform duration-200" :class="method === 'train' ? 'scale-100' : 'scale-0'"></div>
                                         </div>
-                                        <x-heroicon-o-ticket class="w-5 h-5 transition-colors shrink-0" x-bind:class="method === 'train' ? 'text-orange-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
-                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'train' ? 'text-orange-400' : 'text-gray-400'">Zug / Bahn</span>
+                                        <x-heroicon-o-ticket class="w-5 h-5 transition-colors shrink-0" x-bind:class="method === 'train' ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
+                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'train' ? 'text-[var(--theme-color)]' : 'text-gray-400'">Zug / Bahn</span>
                                     </label>
                                     <div class="relative mt-auto">
                                         <input type="number" wire:model="lead_time_train_days" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 text-sm font-bold text-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 shadow-inner placeholder-gray-700 transition-colors pr-10" placeholder="Tage">
@@ -208,14 +208,14 @@
                                 </div>
 
                                 <!-- Sea -->
-                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'sea' ? 'border-blue-500 bg-blue-500/5 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-gray-800 hover:border-gray-700'">
+                                <div class="bg-gray-950/50 border-2 rounded-[1.25rem] p-4 transition-all duration-300" :class="method === 'sea' ? 'border-[var(--theme-color)] bg-[var(--theme-color)] shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-gray-800 hover:border-gray-700'">
                                     <label class="cursor-pointer flex items-center gap-3 mb-4 group w-full">
                                         <input type="radio" wire:model="shipping_method" value="sea" class="sr-only">
-                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'sea' ? 'border-blue-500' : 'border-gray-600 group-hover:border-gray-500'">
-                                            <div class="w-2.5 h-2.5 rounded-full bg-blue-500 transition-transform duration-200" :class="method === 'sea' ? 'scale-100' : 'scale-0'"></div>
+                                        <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0" :class="method === 'sea' ? 'border-[var(--theme-color)]' : 'border-gray-600 group-hover:border-gray-500'">
+                                            <div class="w-2.5 h-2.5 rounded-full bg-[var(--theme-color)] transition-transform duration-200" :class="method === 'sea' ? 'scale-100' : 'scale-0'"></div>
                                         </div>
-                                        <x-heroicon-o-globe-europe-africa class="w-5 h-5 transition-colors shrink-0" x-bind:class="method === 'sea' ? 'text-blue-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
-                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'sea' ? 'text-blue-400' : 'text-gray-400'">Seefracht</span>
+                                        <x-heroicon-o-globe-europe-africa class="w-5 h-5 transition-colors shrink-0" x-bind:class="method === 'sea' ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500 group-hover:text-gray-400'" />
+                                        <span class="text-xs font-black uppercase tracking-widest truncate" :class="method === 'sea' ? 'text-[var(--theme-color)]' : 'text-gray-400'">Seefracht</span>
                                     </label>
                                     <div class="relative mt-auto">
                                         <input type="number" wire:model="lead_time_sea_days" min="0" class="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 text-sm font-bold text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-inner placeholder-gray-700 transition-colors pr-10" placeholder="Tage">
@@ -229,7 +229,7 @@
 
                 <!-- Sektion 2: Kontakt & System -->
                 <div class="border-t border-gray-800/50 pt-8">
-                    <h4 class="text-xs font-black uppercase tracking-widest text-emerald-400 mb-6 px-2 flex items-center gap-2">
+                    <h4 class="text-xs font-black uppercase tracking-widest text-[var(--theme-color)] mb-6 px-2 flex items-center gap-2">
                         <x-heroicon-o-phone class="w-4 h-4" /> Direkter Kontakt
                     </h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
@@ -268,14 +268,14 @@
                 <div class="border-t border-gray-800/50 pt-8">
                     <div class="bg-gray-950/40 p-6 sm:p-8 rounded-3xl border border-gray-800">
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
-                            <h4 class="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                            <h4 class="text-xs font-black uppercase tracking-widest text-[var(--theme-color)] flex items-center gap-2">
                                 <x-heroicon-o-link class="w-4 h-4" /> Dynamische Links (Chats, Portale, Docs)
                             </h4>
-                            <button type="button" wire:click="addLink" class="text-xs font-bold bg-gray-800 hover:bg-emerald-500/20 text-white hover:text-emerald-400 border border-gray-700 hover:border-emerald-500/50 rounded-lg px-4 py-2 transition-colors flex items-center gap-2">
+                            <button type="button" wire:click="addLink" class="text-xs font-bold bg-gray-800 hover:bg-[var(--theme-color-20)] text-white hover:text-[var(--theme-color)] border border-gray-700 hover:border-[var(--theme-color-50)] rounded-lg px-4 py-2 transition-colors flex items-center gap-2">
                                 <x-heroicon-o-plus class="w-4 h-4" /> Link hinzufügen
                             </button>
                         </div>
-                        
+
                         <div class="space-y-4">
                             @foreach($dynamic_links as $index => $link)
                                 <div class="flex flex-col md:flex-row gap-4 items-start md:items-center p-4 bg-gray-900 border border-gray-700 rounded-2xl shadow-inner">
@@ -290,7 +290,7 @@
                                             <div class="flex items-center gap-2">
                                                 <input type="url" wire:model.live.debounce.500ms="dynamic_links.{{ $index }}.url" placeholder="https://..." class="w-full bg-black border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)]">
                                                 @if(!empty($link['url']))
-                                                    <a href="{{ $link['url'] }}" target="_blank" title="Link im neuen Tab öffnen" class="w-12 h-12 shrink-0 bg-gray-800 hover:bg-emerald-500/20 border border-gray-700 hover:border-emerald-500/50 text-gray-400 hover:text-emerald-400 rounded-xl flex items-center justify-center transition-all shadow-inner">
+                                                    <a href="{{ $link['url'] }}" target="_blank" title="Link im neuen Tab öffnen" class="w-12 h-12 shrink-0 bg-gray-800 hover:bg-[var(--theme-color-20)] border border-gray-700 hover:border-[var(--theme-color-50)] text-gray-400 hover:text-[var(--theme-color)] rounded-xl flex items-center justify-center transition-all shadow-inner">
                                                         <x-heroicon-o-arrow-top-right-on-square class="w-5 h-5" />
                                                     </a>
                                                 @endif
@@ -315,7 +315,7 @@
 
                 <!-- Notizen -->
                 <div class="border-t border-gray-800/50 pt-8">
-                    <h4 class="text-xs font-black uppercase tracking-widest text-emerald-400 mb-4 px-2 flex items-center gap-2">
+                    <h4 class="text-xs font-black uppercase tracking-widest text-[var(--theme-color)] mb-4 px-2 flex items-center gap-2">
                         <x-heroicon-o-document-text class="w-4 h-4" /> Zusätzliche Infos
                     </h4>
                     <div class="px-2">
@@ -329,7 +329,7 @@
                     <button type="button" wire:click="resetForm" class="w-full sm:w-auto text-gray-400 hover:text-white font-bold px-8 py-4 transition-colors">
                         Abbrechen
                     </button>
-                    <button type="submit" 
+                    <button type="submit"
                         x-data="{ hasError: false }"
                         @validation-failed.window="hasError = true; setTimeout(() => hasError = false, 3000)"
                         :class="hasError ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.2)] text-white' : 'bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-hover shadow-[0_0_20px_var(--theme-color-20)] hover:shadow-[0_0_25px_var(--theme-color-40)] text-gray-900'"

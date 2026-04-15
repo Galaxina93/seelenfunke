@@ -188,6 +188,120 @@ trait AiSystemFuncs
                     'required' => ['setting_key', 'setting_value'],
                 ],
                 'callable' => [self::class, 'executeAgentConfig']
+            ],
+            [
+                'name' => 'system_search_files',
+                'description' => 'Sucht nach Dateinamen im Projekt-Verzeichnis. Nutze dies, um herauszufinden, ob eine Datei existiert oder wo sie liegt. (Eingeschränkt auf app, config, resources, routes, database). Stichworte: Wo ist die blade datei, Suche nach Datei, Zeige alle X Dateien.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'filename_query' => [
+                            'type' => 'string',
+                            'description' => 'Suchbegriff für den Dateinamen (z.B. "AiChat", ".blade.php", "User").'
+                        ]
+                    ],
+                    'required' => ['filename_query']
+                ],
+                'callable' => [self::class, 'executeSearchFiles']
+            ],
+            [
+                'name' => 'system_search_code',
+                'description' => 'IDE-ähnliche Suche nach Quellcode (String/Regex/Wort) im Projekt. Sucht in allen erlaubten Verzeichnissen nach dem Vorkommen deines Suchbegriffs. Hilft dir extrem, wenn du wissen willst "WO" eine bestimmte Logik verbaut ist oder welche Laravel Komponente dafür zuständig ist.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'search_query' => [
+                            'type' => 'string',
+                            'description' => 'Der genaue Code-Schnipsel oder Suchbegriff (z.B. "class AiChat" oder "Mail::send").'
+                        ]
+                    ],
+                    'required' => ['search_query']
+                ],
+                'callable' => [self::class, 'executeSearchCode']
+            ],
+            [
+                'name' => 'system_read_code',
+                'description' => 'Liest den Quellcode einer bestimmten Datei ein. WICHTIG: Erlaubt nur Lesen (Read-Only). Benutze dieses Werkzeug zwingend, um den Code einer Datei zu überprüfen, um dem User danach detailliertes Analyse-Feedback (inkl formattierten Code-Blöcken im Markdown) geben zu können.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der relative Dateipfad vom Projekt-Root aus (z.B. "app/Livewire/Shop/Ai/AiChat.php"). Keine absoluten Pfade!'
+                        ],
+                        'start_line' => [
+                            'type' => 'integer',
+                            'description' => 'Optional: Ab welcher Zeile soll gelesen werden? Standardmäßig 1.'
+                        ],
+                        'end_line' => [
+                            'type' => 'integer',
+                            'description' => 'Optional: Bis zu welcher Zeile soll gelesen werden? Standardmäßig bis zum Ende (Vorsicht bei riesigen Dateien).'
+                        ]
+                    ],
+                    'required' => ['file_path']
+                ],
+                'callable' => [self::class, 'executeReadCode']
+            ],
+            [
+                'name' => 'system_edit_file',
+                'description' => 'Ersetzt einen exakten Quellcode-Block in einer Datei durch neuen Code. WICHTIGE REGEL: Im Autonomous / Execution Mode darfst und sollst du dieses Tool direkt ausführen, um Dateien selbstständig zu modifizieren und Bugs aktiv zu beheben. Erstelle bei größeren Änderungen erst ein "implementation_plan" Artefakt. Um Code zu bearbeiten MUSST du dieses Tool benutzen!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der relative Dateipfad vom Projekt-Root aus.'
+                        ],
+                        'search_content' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte alte Code-Block, der gesucht werden soll (inkl. Whitespaces/Einrückungen, wie er von system_read_code zurückkam!).'
+                        ],
+                        'replace_content' => [
+                            'type' => 'string',
+                            'description' => 'Der neue Code-Block, der eingesetzt werden soll.'
+                        ]
+                    ],
+                    'required' => ['file_path', 'search_content', 'replace_content']
+                ],
+                'callable' => [self::class, 'executeEditFile']
+            ],
+            [
+                'name' => 'system_write_to_file',
+                'description' => 'Überschreibt eine Datei GÄNZLICH mit neuem Code oder legt sie neu an. Gleiche Regel wie bei system_edit_file: Im Autonomous Mode hast du volle Berechtigung, die Datei direkt in das System zu schreiben.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der relative Dateipfad.'
+                        ],
+                        'new_content' => [
+                            'type' => 'string',
+                            'description' => 'Der gesamte, fertige Quellcode für die Datei.'
+                        ]
+                    ],
+                    'required' => ['file_path', 'new_content']
+                ],
+                'callable' => [self::class, 'executeWriteToFile']
+            ],
+            [
+                'name' => 'system_write_artifact',
+                'description' => 'Schreibt oder aktualisiert ein Artefakt (z.B. einen Implementierungsplan oder Workflow). Nützlich, um strukturierte, persistente Pläne zu dokumentieren, die der User im UI überprüfen kann. Muss bei Architekturänderungen immer ausgeführt werden!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'artifact_name' => [
+                            'type' => 'string',
+                            'description' => 'Name des Artefakts ohne Dateiendung (z.B. implementation_plan oder workflow).'
+                        ],
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'Der gesamte Inhalt im Markdown Format.'
+                        ]
+                    ],
+                    'required' => ['artifact_name', 'content']
+                ],
+                'callable' => [self::class, 'executeWriteArtifact']
             ]
         ];
     }
@@ -706,6 +820,247 @@ trait AiSystemFuncs
             'changed_key' => $key,
             'new_value' => $val,
             'ui_action' => 'reload_config'
+        ];
+    }
+
+    public static function executeSearchFiles(array $args)
+    {
+        $query = $args['filename_query'] ?? '';
+        if (strlen($query) < 2) return ['status' => 'error', 'message' => 'Suchbegriff zu kurz. Mindestens 2 Zeichen.'];
+
+        $basePath = base_path();
+        $allowedDirs = ['app', 'config', 'resources', 'routes', 'database'];
+        $results = [];
+
+        foreach ($allowedDirs as $dir) {
+            $path = $basePath . '/' . $dir;
+            if (!is_dir($path)) continue;
+
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
+            foreach ($iterator as $file) {
+                if ($file->isDir()) continue;
+                if (stripos($file->getFilename(), $query) !== false) {
+                    $results[] = str_replace($basePath . '/', '', $file->getPathname());
+                    if (count($results) >= 50) break 2; // Stop traversing after 50 hits
+                }
+            }
+        }
+
+        if (empty($results)) {
+            return ['status' => 'success', 'message' => 'Keine passenden Dateien gefunden.'];
+        }
+
+        return ['status' => 'success', 'files' => $results, 'message' => 'Maximal 50 Treffer angezeigt.'];
+    }
+
+    public static function executeSearchCode(array $args)
+    {
+        $query = $args['search_query'] ?? '';
+        if (strlen($query) < 3) return ['status' => 'error', 'message' => 'Suchbegriff zu kurz (min. 3 Zeichen).'];
+
+        $basePath = base_path();
+        $allowedDirs = ['app', 'config', 'resources', 'routes', 'database'];
+        
+        $searchDirs = collect($allowedDirs)->map(fn($d) => escapeshellarg($basePath . '/' . $d))->implode(' ');
+        $escapedQuery = escapeshellarg($query);
+        
+        // grep recursive, no-filename... wait we want filename, so default.
+        // -r recursive, -n line numbers, -I ignore binary, -i case insensitive
+        $cmd = "grep -rnIi $escapedQuery $searchDirs | head -n 50";
+        
+        exec($cmd, $output, $returnVar);
+
+        if (empty($output)) {
+             return ['status' => 'success', 'message' => 'Keine Treffer im Quellcode gefunden.'];
+        }
+
+        $formatted = [];
+        foreach ($output as $line) {
+            $cleanLine = str_replace($basePath . '/', '', $line);
+            $formatted[] = $cleanLine;
+        }
+
+        return ['status' => 'success', 'matches' => $formatted, 'message' => 'Zeigt maximal die ersten 50 Treffer an (Format: Pfad:Zeile:Inhalt). Lese die Datei mit system_read_code für mehr Kontext ein.'];
+    }
+
+    public static function executeReadCode(array $args)
+    {
+        $path = ltrim($args['file_path'] ?? '', '/');
+        if (empty($path)) return ['status' => 'error', 'message' => 'Kein Dateipfad angegeben.'];
+
+        $fullPath = base_path($path);
+        
+        if (!file_exists($fullPath) || !is_file($fullPath)) {
+            return ['status' => 'error', 'message' => "Datei '$path' existiert nicht. Bitte mit system_search_files überprüfen!"];
+        }
+        
+        if (!str_starts_with(realpath($fullPath), realpath(base_path()))) {
+             return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
+        }
+
+        if (str_contains(basename($fullPath), '.env')) {
+             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: .env Dateien dürfen nicht gelesen oder bearbeitet werden.'];
+        }
+
+        $lines = file($fullPath);
+        if ($lines === false) {
+             return ['status' => 'error', 'message' => 'Konnte Datei nicht lesen.'];
+        }
+
+        $startLine = isset($args['start_line']) ? max(1, (int)$args['start_line']) : 1;
+        $endLine = isset($args['end_line']) ? min(count($lines), (int)$args['end_line']) : count($lines);
+
+        if ($endLine - $startLine > 2000) {
+             $endLine = $startLine + 2000;
+             $warnings = " | WARNUNG: Ausgabe wurde zum Schutz deines Tokenspeichers auf 2000 Zeilen begrenzt. Benutze start_line und end_line für Paginierung.";
+        } else {
+             $warnings = "";
+        }
+
+        $slicedLines = array_slice($lines, $startLine - 1, $endLine - $startLine + 1);
+        
+        $contentLines = [];
+        $currentLine = $startLine;
+        foreach ($slicedLines as $l) {
+            $contentLines[] = str_pad($currentLine, 4, ' ', STR_PAD_LEFT) . " | " . rtrim($l, "\r\n");
+            $currentLine++;
+        }
+
+        $content = implode("\n", $contentLines);
+
+        return [
+            'status' => 'success', 
+            'file' => $path,
+            'info' => "Gelesene Zeilen $startLine bis $endLine von insgesamt " . count($lines) . " Zeilen." . $warnings,
+            'code' => $content
+        ];
+    }
+
+    public static function executeEditFile(array $args)
+    {
+        $path = ltrim($args['file_path'] ?? '', '/');
+        $search = $args['search_content'] ?? '';
+        $replace = $args['replace_content'] ?? '';
+
+        if (empty($path) || empty($search)) {
+            return ['status' => 'error', 'message' => 'file_path oder search_content fehlen.'];
+        }
+
+        $fullPath = base_path($path);
+
+        // Path Traversal Check
+        if (!file_exists($fullPath)) {
+            return ['status' => 'error', 'message' => "Datei '$path' existiert nicht."];
+        }
+
+        if (!str_starts_with(realpath($fullPath), realpath(base_path()))) {
+             return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
+        }
+
+        if (str_contains(basename($fullPath), '.env')) {
+             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: .env Dateien dürfen nicht bearbeitet werden.'];
+        }
+
+        $content = file_get_contents($fullPath);
+        
+        // Remove line numbers from search block if the AI accidentally copied them from read_tool (e.g. " 124 | class Foo {")
+        $cleanSearch = preg_replace('/^\s*\d+\s*\|\s/m', '', $search);
+
+        if (strpos($content, $cleanSearch) === false) {
+             return ['status' => 'error', 'message' => 'Der gesuchte search_content Block wurde nicht exakt in der Datei gefunden. Stelle sicher, dass Einrückungen, Leerzeichen und Absätze zu 100% stimmen!'];
+        }
+
+        $newContent = str_replace($cleanSearch, $replace, $content);
+        file_put_contents($fullPath, $newContent);
+
+        $deletedLines = substr_count($cleanSearch, "\n") + 1;
+        $addedLines = substr_count($replace, "\n") + 1;
+
+        return [
+            'status' => 'success',
+            'message' => "Die Datei '$path' wurde erfolgreich geändert!",
+            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-emerald-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-gray-300 truncate max-w-full font-bold">' . basename($path) . '</div>
+                               <div class="flex gap-2.5 mt-0.5">
+                                   <span class="text-emerald-400">+' . $addedLines . ' Zeilen</span>
+                                   <span class="text-red-400">-' . $deletedLines . ' Zeilen</span>
+                               </div>
+                           </div>'
+        ];
+    }
+
+    public static function executeWriteToFile(array $args)
+    {
+        $path = ltrim($args['file_path'] ?? '', '/');
+        $newContent = $args['new_content'] ?? '';
+
+        if (empty($path)) {
+            return ['status' => 'error', 'message' => 'file_path fehlt.'];
+        }
+
+        $fullPath = base_path($path);
+        $dir = dirname($fullPath);
+
+        if (!file_exists($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        // Path Traversal Check
+        if (!str_starts_with(realpath($dir), realpath(base_path()))) {
+             return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
+        }
+
+        if (str_contains(basename($fullPath), '.env')) {
+             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: .env Dateien dürfen nicht überschrieben werden.'];
+        }
+
+        file_put_contents($fullPath, $newContent);
+
+        $addedLines = substr_count($newContent, "\n") + 1;
+
+        return [
+            'status' => 'success',
+            'message' => "Die Datei '$path' wurde erfolgreich komplett überschrieben / angelegt!",
+            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-emerald-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-gray-300 truncate max-w-full font-bold">' . basename($path) . '</div>
+                               <div class="flex gap-2.5 mt-0.5">
+                                   <span class="text-emerald-400">+' . $addedLines . ' Zeilen</span>
+                                   <span class="text-gray-500 italic">überschrieben/neu angelegt</span>
+                               </div>
+                           </div>'
+        ];
+    }
+
+    public static function executeWriteArtifact(array $args)
+    {
+        $name = ltrim($args['artifact_name'] ?? '', '/');
+        $content = $args['content'] ?? '';
+
+        if (empty($name)) {
+            return ['status' => 'error', 'message' => 'artifact_name fehlt.'];
+        }
+
+        $sessionId = session()->getId();
+        if (!$sessionId) {
+            return ['status' => 'error', 'message' => 'Keine aktive Session für Artefakt-Speicherung gefunden.'];
+        }
+
+        $filename = str_replace(' ', '_', strtolower($name)) . '.md';
+        $path = 'ai-artifacts/' . $sessionId . '/' . $filename;
+        
+        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
+
+        $addedLines = substr_count($content, "\n") + 1;
+
+        return [
+            'status' => 'success',
+            'message' => "Artefakt '$filename' wurde erfolgreich gespeichert und ist im UI im Tab 'Pläne' abrufbar.",
+            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-indigo-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-indigo-300 truncate max-w-full font-bold"><x-heroicon-o-document-check class="w-3 h-3 inline-block -mt-0.5" /> ' . $filename . '</div>
+                               <div class="flex gap-2.5 mt-0.5">
+                                   <span class="text-indigo-400">Artefakt generiert (' . $addedLines . ' Zeilen)</span>
+                               </div>
+                           </div>'
         ];
     }
 }

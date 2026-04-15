@@ -33,9 +33,8 @@ class MittwaldAgent
 
     /**
      * Send a conversation history to Mittwald, hand over the tools, and handle the execution loop
-     * until the model gives a final text response.
      */
-    public function ask(array $incomingMessages): array
+    public function ask(array $incomingMessages, \Closure $streamCallback = null): array
     {
         $latestUserMessage = '';
         foreach (array_reverse($incomingMessages) as $msg) {
@@ -89,9 +88,10 @@ class MittwaldAgent
             'total_tokens' => 0,
         ];
         $eventsData = [];
+        $calledTools = [];
 
         $startTime = microtime(true);
-        $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData);
+        $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData, 0, $calledTools, $streamCallback);
         $totalTimeMs = (int) round((microtime(true) - $startTime) * 1000);
 
         // Even if textResponse is empty (Fast Track), we STILL return the new history
@@ -116,7 +116,7 @@ class MittwaldAgent
     /**
      * The recursive chat loop handling Tool Calling via OpenAI-compatible API.
      */
-    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = []): string
+    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = [], \Closure $streamCallback = null): string
     {
         if ($depth >= 5) {
             Log::warning("Mittwald API Tool Loop depth exceeded. Halting to prevent infinite loop.");
@@ -238,6 +238,14 @@ class MittwaldAgent
                         'pulse_color' => 'indigo'
                     ], 60);
 
+                    if ($streamCallback) {
+                        $streamCallback([
+                            'type' => 'tool_call',
+                            'tool' => $functionName,
+                            'depth' => $depth
+                        ]);
+                    }
+
                     // Track the usage for Analytics
                     $toolUsageRecord = null;
                     if (class_exists(AiToolUsage::class)) {
@@ -299,6 +307,14 @@ class MittwaldAgent
                         'data' => $result
                     ];
 
+                    if ($streamCallback && isset($result['_frontend_thought_stream'])) {
+                        $streamCallback([
+                            'type' => 'thought_html',
+                            'html' => $result['_frontend_thought_stream']
+                        ]);
+                        unset($result['_frontend_thought_stream']);
+                    }
+
                     // --- LLM HIDDEN EVENTS ---
                     if (isset($result['_event'])) {
                         $eventsData[] = $result['_event'];
@@ -348,7 +364,7 @@ class MittwaldAgent
                     'pulse_color' => 'indigo'
                 ], 60);
 
-                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools);
+                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
             }
 
             // Provide final answer

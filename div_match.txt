@@ -1,0 +1,57 @@
+0151 | +1 -0 | Depth: 1 | <div x-show="activeTab === 'chat'" class="flex-1 flex flex-col overflow-hidden">
+0152 | +1 -0 | Depth: 2 | <div id="chat-scroll-container"
+0171 | +1 -0 | Depth: 3 | <div class="flex flex-col {{ $msg['role'] === 'user' ? 'items-end' : 'items-start' }} animate-fade-in-up" wire:key="msg-key-{{ md5(substr($msg['content'], 0, 50) . $loop->index) }}">
+0172 | +1 -0 | Depth: 4 | <div class="flex items-center gap-3 mb-1.5 {{ $msg['role'] === 'user' ? 'flex-row-reverse' : '' }}">
+0173 | +1 -0 | Depth: 5 | <div class="w-12 h-12 rounded shrink-0 flex justify-center items-center {{ $msg['color'] ? 'bg-'.$msg['color'].'/10 border-'.$msg['color'].'/40 text-'.$msg['color'] : 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] text-[var(--theme-color)]' }} shadow-[0_0_10px_currentColor] overflow-hidden">
+0184 | +0 -1 | Depth: 4 | </div>
+0186 | +0 -1 | Depth: 3 | </div>
+0187 | +1 -0 | Depth: 4 | <div class="max-w-[85%] text-base leading-relaxed p-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-950 border border-gray-700 text-gray-300 rounded-tr-none shadow-md' : 'bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]' }}">
+0205 | +1 -1 | Depth: 4 | <div class="font-mono">{!! nl2br(e($msg['content'])) !!}</div>
+0208 | +1 -0 | Depth: 5 | <div class="mt-3 flex flex-wrap gap-2 pt-2 border-t border-gray-800 border-dashed">
+0212 | +1 -0 | Depth: 6 | <div class="flex items-center gap-1.5 border px-2 py-1 rounded {{ $props['class'] }} text-xs transition-colors hover:bg-opacity-50">
+0215 | +0 -1 | Depth: 5 | </div>
+0221 | +1 -0 | Depth: 6 | <div class="flex items-center gap-1.5 border px-2 py-1 rounded {{ $props['class'] }} text-xs opacity-90 transition-colors hover:bg-opacity-50">
+0224 | +0 -1 | Depth: 5 | </div>
+0227 | +0 -1 | Depth: 4 | </div>
+0230 | +1 -0 | Depth: 5 | <div wire:ignore class="ai-markdown-content w-full overflow-x-auto custom-scrollbar font-sans" x-data="{
+0235 | +0 -1 | Depth: 4 | "></div>
+0237 | +0 -1 | Depth: 3 | </div>
+0238 | +0 -1 | Depth: 2 | </div>
+0240 | +1 -0 | Depth: 3 | <div class="h-full flex flex-col items-center justify-center text-gray-400/40 font-mono tracking-widest gap-4">
+0243 | +0 -1 | Depth: 2 | </div>
+0250 | +1 -0 | Depth: 3 | <div class="flex flex-col items-start animate-fade-in-up" wire:key="typing-{{ $tId }}">
+0251 | +1 -0 | Depth: 4 | <div class="flex items-center gap-3 mb-1.5 ">
+0252 | +1 -0 | Depth: 5 | <div class="w-12 h-12 rounded shrink-0 flex justify-center items-center bg-{{ $tAgent->color }}/10 border border-{{ $tAgent->color }}/40 shadow-[0_0_10px_currentColor] text-{{ $tAgent->color }} overflow-hidden">
+0263 | +0 -1 | Depth: 4 | </div>
+0265 | +0 -1 | Depth: 3 | </div>
+0266 | +1 -0 | Depth: 4 | <div class="max-w-[85%] px-5 py-3 rounded-xl bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]">
+0267 | +1 -0 | Depth: 5 | <div class="font-mono text-sm leading-relaxed flex items-center gap-3">
+0274 | +0 -1 | Depth: 4 | </div>
+0275 | +1 -1 | Depth: 4 | <div wire:stream="thought_{{ $tId }}" class="mt-2 text-xs flex flex-col gap-1"></div>
+0276 | +0 -1 | Depth: 3 | </div>
+0277 | +0 -1 | Depth: 2 | </div>
+0280 | +0 -1 | Depth: 1 | </div>
+0283 | +1 -0 | Depth: 2 | <div class="p-4 bg-gray-950 border-t border-gray-800 z-20 shrink-0 relative"
+0290 | +1 -0 | Depth: 3 | <div x-show="isDropping" style="display: none;" class="absolute inset-0 bg-[var(--theme-color-10)] border-2 border-dashed border-[var(--theme-color)] z-50 flex items-center justify-center backdrop-blur-sm m-2 rounded-xl">
+0291 | +1 -0 | Depth: 4 | <div class="text-center">
+0294 | +0 -1 | Depth: 3 | </div>
+0295 | +0 -1 | Depth: 2 | </div>
+0297 | +1 -0 | Depth: 3 | <div class="max-w-5xl mx-auto relative" x-data="{
+0337 | +1 -0 | Depth: 4 | <div class="flex flex-wrap gap-2 mb-2">
+0340 | +1 -0 | Depth: 5 | <div wire:key="attachment-badge-{{ md5($att . $idx) }}" class="flex items-center gap-1.5 bg-gray-900 border border-gray-700 text-gray-300 text-xs font-bold px-2.5 py-1 rounded-md shadow-sm">
+0346 | +0 -1 | Depth: 4 | </div>
+0351 | +1 -0 | Depth: 5 | <div wire:key="upload-badge-{{ is_object($file) ? md5($file->getClientOriginalName() . $idx) : $idx }}" class="flex items-center gap-1.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] text-xs font-bold px-2.5 py-1 rounded-md shadow-sm">
+0357 | +0 -1 | Depth: 4 | </div>
+0359 | +0 -1 | Depth: 3 | </div>
+0364 | +1 -0 | Depth: 4 | <div class="absolute bottom-[calc(100%+0.5rem)] left-0 w-80 max-h-60 overflow-y-auto custom-scrollbar bg-gray-900 border border-[var(--theme-color-40)] rounded-xl shadow-2xl z-50">
+0365 | +1 -1 | Depth: 4 | <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest px-3 py-1.5 bg-gray-950 border-b border-gray-800">Projekt-Dateien anheften</div>
+0368 | +1 -0 | Depth: 5 | <div class="flex items-center gap-2 text-sm text-gray-300 font-mono group-hover:text-[var(--theme-color)]">
+0371 | +0 -1 | Depth: 4 | </div>
+0372 | +1 -1 | Depth: 4 | <div class="text-[10px] text-gray-500 truncate ml-6 mt-0.5">{{ dirname($result) }}</div>
+0375 | +0 -1 | Depth: 3 | </div>
+0379 | +1 -0 | Depth: 4 | <div class="w-full relative" x-data="{
+0390 | +1 -0 | Depth: 5 | <div class="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-10">
+0395 | +0 -1 | Depth: 4 | </div>
+0414 | +0 -1 | Depth: 3 | </div>
+0416 | +0 -1 | Depth: 2 | </div>
+0417 | +0 -1 | Depth: 1 | </div>

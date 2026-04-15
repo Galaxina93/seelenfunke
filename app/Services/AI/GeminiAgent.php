@@ -35,12 +35,23 @@ class GeminiAgent
      * Send a conversation history to Gemini, hand over the tools, and handle the execution loop
      * until the model gives a final text response.
      */
-    public function ask(array $incomingMessages): array
+    public function ask(array $incomingMessages, \Closure $streamCallback = null): array
     {
         $latestUserMessage = '';
         foreach (array_reverse($incomingMessages) as $msg) {
             if (($msg['role'] ?? '') === 'user') {
-                $latestUserMessage = mb_strtolower($msg['content'] ?? '');
+                $content = $msg['content'] ?? '';
+                if (is_array($content)) {
+                    $extractedText = '';
+                    foreach ($content as $part) {
+                        if (($part['type'] ?? '') === 'text') {
+                            $extractedText .= $part['text'] . ' ';
+                        }
+                    }
+                    $latestUserMessage = mb_strtolower(trim($extractedText));
+                } else {
+                    $latestUserMessage = mb_strtolower((string)$content);
+                }
                 break;
             }
         }
@@ -70,6 +81,17 @@ class GeminiAgent
                              'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
                              'Reasoning: high';
                              
+        $systemPromptText .= "\n\n<planning_mode>\n" .
+                             "You are an advanced agentic AI coding assistant built by Antigravity.\n" .
+                             "You are in Planning Mode. Exercise judgement on whether a user's request warrants a plan before taking action.\n\n" .
+                             "Wenn ein User tiefe Architekturänderungen, Log-Analysen oder Code-Anpassungen befiehlt, handle WIE EIN AUTONOMER AGENT:\n" .
+                             "Phase 1: Research. Nutze Tools wie system_read_code oder system_get_logs, um den Code zu analysieren.\n" .
+                             "Phase 2: Create Implementation Plan. Nutze system_write_artifact um ein 'implementation_plan' Artefakt zu generieren.\n" .
+                             "Phase 3: Execute & Track Task. Wenn der User sagt 'Mach es' oder 'Behebe den Fehler', dann NUTZT DU DEINE WERKZEUGE (system_edit_file) UM DEN CODE SELBSTSTÄNDIG ZU ÄNDERN! Erstelle ein 'task' Artefakt als Todo-Liste.\n" .
+                             "Phase 4: Verify. Lies die Logs mit system_get_logs, um zu testen ob dein Code funktioniert.\n" .
+                             "WICHTIG: Erkläre dem User nicht, was er tun soll. DU BIST DER PROGRAMMIERER. ÄNDERE DIE DATEIEN SELBST!\n" .
+                             "</planning_mode>";
+
         if ($this->dynamicSystemPrompt) {
             $systemPromptText .= "\n\n" . $this->dynamicSystemPrompt;
         }
@@ -89,9 +111,10 @@ class GeminiAgent
             'total_tokens' => 0,
         ];
         $eventsData = [];
+        $calledTools = [];
 
         $startTime = microtime(true);
-        $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData);
+        $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData, 0, $calledTools, $streamCallback);
         $totalTimeMs = (int) round((microtime(true) - $startTime) * 1000);
 
         // Even if textResponse is empty (Fast Track), we STILL return the new history
@@ -116,7 +139,7 @@ class GeminiAgent
     /**
      * The recursive chat loop handling Tool Calling via OpenAI-compatible API.
      */
-    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = []): string
+    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = [], \Closure $streamCallback = null): string
     {
         if ($depth >= 5) {
             Log::warning("Gemini API Tool Loop depth exceeded. Halting to prevent infinite loop.");
@@ -157,25 +180,89 @@ class GeminiAgent
             ], 60);
 
             $startTime = microtime(true);
-            $response = Http::withToken($this->apiKey)
-                ->withOptions([
-                    'verify' => false,
-                    'curl' => [
-                        CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                    ]
-                ])
-                ->connectTimeout(30) // Erhöhe den Verbindungs-Timeout (Standard oft 10s in cURL)
-                ->timeout(120) // Deep reasoning can take time
-                ->asJson()
-                ->post(rtrim($this->baseUrl, '/') . '/chat/completions', $payload);
-            $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
+            $maxRetries = 3;
+            $retryCount = 0;
+            $responseString = null;
+            $httpCode = 0;
+            $curlError = null;
 
-            if (!$response->successful()) {
-                Log::error("Gemini API Error", ['status' => $response->status(), 'response' => $response->body()]);
-                return "⚠️ **SYSTEM WARNUNG: API VERBINDUNGSABBRUCH** ⚠️\n\nDie Gemini Subraum-Verbindungen antworten nicht (Status: " . $response->status() . ").\n\n[GEGENMASSNAHME]\nBitte kopiere diesen Fehler und übergib ihn meinem Entwickler **Gemini**, damit er die API-Anbindung (Endpoint / Tokens) in der Architektur überprüfen kann, Alina.";
+            while ($retryCount <= $maxRetries) {
+                $url = rtrim($this->baseUrl, '/') . '/chat/completions';
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                
+                // WICHTIG: Kein Laravel Guzzle (Http::) nutzen, um cURL Timeout 28 bei großen Payloads (Code/Bilder) 
+                // durch ungewollte Expect: 100-continue MTU Drops in Docker Containern zu verhindern.
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $this->apiKey,
+                    'Expect:' 
+                ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                // Pro Retry den Timeout minimal anheben
+                curl_setopt($ch, CURLOPT_TIMEOUT, 300 + ($retryCount * 60)); 
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+                $responseString = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                curl_close($ch);
+
+                // Erfolgreicher Aufruf oder harter lokaler 4xx Client Fehler (Ausnahme 429 Rate Limit) -> Abbrechen, da Retry nutzlos.
+                if (!$curlError && $httpCode < 500 && $httpCode !== 429) {
+                    break;
+                }
+
+                $retryCount++;
+                if ($retryCount <= $maxRetries) {
+                    $sleepSeconds = pow(2, $retryCount); // Exponentieller Backoff: 2s, 4s, 8s Pause
+                    Log::warning("Gemini API Error - initiating Retry {$retryCount}/{$maxRetries}", ['curl_error' => $curlError, 'http_code' => $httpCode]);
+                    
+                    \Illuminate\Support\Facades\Cache::put('ai_live_state', [
+                        'active_node' => 'arrow-path',
+                        'action_text' => "API Error {$httpCode}. Retry {$retryCount} in {$sleepSeconds}s...",
+                        'pulse_color' => 'yellow'
+                    ], 60);
+
+                    // Blockiert absichtlich den Prozess, da die Retry-Warteschlange seriell erfolgen muss
+                    sleep($sleepSeconds);
+                }
             }
 
-            $responseData = $response->json();
+            $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
+
+            if ($curlError) {
+                Log::error("Gemini API Error (cURL)", ['error' => $curlError]);
+                return "⚠️ **SYSTEM WARNUNG: cURL TIMEOUT** ⚠️\n\nDie Verbindung ist fehlgeschlagen: " . $curlError;
+            }
+
+            if ($httpCode >= 400) {
+                Log::error("Gemini API HTTP Error", ['status' => $httpCode, 'response' => $responseString]);
+                
+                $errJson = json_decode($responseString, true);
+                $errMsg = $responseString;
+                if (is_array($errJson)) {
+                    if (isset($errJson[0]['error']['message'])) {
+                        $errMsg = $errJson[0]['error']['message'];
+                    } elseif (isset($errJson['error']['message'])) {
+                        $errMsg = $errJson['error']['message'];
+                    }
+                }
+                
+                $hint = "[GEGENMASSNAHME]\nDer KI-Provider (Google/Gemini) hat die Anfrage abgelehnt:\n> " . $errMsg;
+                
+                if ($httpCode === 503 || $httpCode === 429) {
+                    $hint = "⚠️ **SERVER ÜBERLASTET** ⚠️\nDie Google Gemini KI-Server melden aktuell extrem hohe Auslastung (Spikes in Demand).\nBitte warte einen kurzen Moment und sende die Nachricht erneut, oder wechsele das API-Modell (z.B. auf gemini-1.5-flash), da dieses aktuell blockiert ist.";
+                }
+
+                return "⚠️ **SYSTEM WARNUNG: API VERBINDUNGSABBRUCH** ⚠️\n\nStatus Code HTTP " . $httpCode . ".\n\n" . $hint;
+            }
+
+            $responseData = json_decode($responseString, true);
             $message = $responseData['choices'][0]['message'] ?? null;
 
             if (isset($responseData['usage'])) {
@@ -244,6 +331,14 @@ class GeminiAgent
                         'pulse_color' => 'indigo'
                     ], 60);
 
+                    if ($streamCallback) {
+                        $streamCallback([
+                            'type' => 'tool_call',
+                            'tool' => $functionName,
+                            'depth' => $depth
+                        ]);
+                    }
+
                     // Track the usage for Analytics
                     $toolUsageRecord = null;
                     if (class_exists(AiToolUsage::class)) {
@@ -305,6 +400,14 @@ class GeminiAgent
                         'data' => $result
                     ];
 
+                    if ($streamCallback && isset($result['_frontend_thought_stream'])) {
+                        $streamCallback([
+                            'type' => 'thought_html',
+                            'html' => $result['_frontend_thought_stream']
+                        ]);
+                        unset($result['_frontend_thought_stream']);
+                    }
+
                     // --- LLM HIDDEN EVENTS ---
                     if (isset($result['_event'])) {
                         $eventsData[] = $result['_event'];
@@ -354,7 +457,7 @@ class GeminiAgent
                     'pulse_color' => 'indigo'
                 ], 60);
 
-                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools);
+                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
             }
 
             // Provide final answer
