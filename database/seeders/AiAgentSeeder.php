@@ -48,7 +48,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.1,
                 'color' => 'sky-500',
                 'icon' => 'sparkles',
-                'tts_voice' => 'voice_funkira_core',
+                'tts_voice' => 'Aoede',
                 'role' => 'Teamleiter'
             ],
             [
@@ -61,7 +61,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.1,
                 'color' => 'amber-500',
                 'icon' => 'shopping-cart',
-                'tts_voice' => 'voice_taron_123',
+                'tts_voice' => 'Puck',
                 'role' => 'Sales'
             ],
             [
@@ -74,7 +74,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.4,
                 'color' => 'blue-500',
                 'icon' => 'shopping-bag',
-                'tts_voice' => 'voice_funki_123',
+                'tts_voice' => 'Aoede',
                 'role' => 'Analyst'
             ],
             [
@@ -87,7 +87,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.6,
                 'color' => 'purple-500',
                 'icon' => 'megaphone',
-                'tts_voice' => 'voice_rion_123',
+                'tts_voice' => 'Kore',
                 'role' => 'Marketing'
             ],
             [
@@ -100,7 +100,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.1,
                 'color' => 'emerald-500',
                 'icon' => 'currency-dollar',
-                'tts_voice' => 'voice_vira_123',
+                'tts_voice' => 'Kore',
                 'role' => 'Finanzmanager'
             ],
             [
@@ -113,7 +113,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.1,
                 'color' => 'red-500',
                 'icon' => 'server',
-                'tts_voice' => 'voice_zion_123',
+                'tts_voice' => 'Fenrir',
                 'role' => 'Systemadmin'
             ],
             [
@@ -126,7 +126,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.3,
                 'color' => 'indigo-500',
                 'icon' => 'cpu-chip',
-                'tts_voice' => 'voice_zion_123',
+                'tts_voice' => 'Charon',
                 'role' => 'Agentenmanager'
             ],
             [
@@ -139,7 +139,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.6,
                 'color' => 'cyan-500',
                 'icon' => 'lifebuoy',
-                'tts_voice' => 'voice_funki_123',
+                'tts_voice' => 'Aoede',
                 'role' => 'Supporter'
             ],
             [
@@ -152,7 +152,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.4,
                 'color' => 'teal-500',
                 'icon' => 'user-plus',
-                'tts_voice' => 'voice_funki_123',
+                'tts_voice' => 'Charon',
                 'role' => 'Hausarzt'
             ],
         ];
@@ -177,7 +177,7 @@ class AiAgentSeeder extends Seeder
                     'icon' => $aData['icon'],
                     'profile_picture' => file_exists($fullSourcePath) ? $sourceImagePath : null,
                     'tts_enabled' => true,
-                    'tts_provider' => 'browser_tts',
+                    'tts_provider' => 'gemini_native',
                     'tts_voice' => $aData['tts_voice'],
                 ]
             );

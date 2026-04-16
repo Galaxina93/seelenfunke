@@ -76,51 +76,7 @@
                 if (this.voiceAbortController) this.voiceAbortController.abort();
                 this.voiceAbortController = new AbortController();
 
-                fetch('/api/ai/voice', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'audio/mpeg',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                    },
-                    body: JSON.stringify({ text: cleanText }),
-                    signal: this.voiceAbortController.signal
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
-                    return response.blob();
-                })
-                .then(blob => {
-                    if (!this.isSpeaking) return; // aborted manually after fetch was complete
-
-                    const audioUrl = URL.createObjectURL(blob);
-                    window.funkiAudioPlayer = new Audio(audioUrl);
-                    window.funkiAudioPlayer.playsInline = true;
-                    window.funkiAudioPlayer.setAttribute('webkit-playsinline', 'true');
-                    window.funkiAudioPlayer.playbackRate = 1.0;
-
-                    window.funkiAudioPlayer.onended = () => {
-                        this.isSpeaking = false;
-                        if (this.continuousMode && !t3.isShuttingDown) {
-                            if (this.isMobile && this.listening) {
-                                if (this.recognition) {
-                                    this.recognition.onend = () => { 
-                                        if (this.continuousMode) this.restartRecognition(); 
-                                    };
-                                }
-                                this.restartRecognition();
-                            }
-                        }
-                        URL.revokeObjectURL(audioUrl);
-                    };
-                    window.funkiAudioPlayer.play().catch(e => {
-                        this.fallbackToBrowserTTS(cleanText);
-                    });
-                })
-                .catch(error => {
-                    if (error.name === 'AbortError') return;
-                    this.fallbackToBrowserTTS(cleanText);
-                });
+                this.fallbackToBrowserTTS(cleanText);
             },
 
             fallbackToBrowserTTS(cleanText) {
