@@ -1829,6 +1829,9 @@ video {
 .aspect-square {
   aspect-ratio: 1 / 1;
 }
+.h-0\.5 {
+  height: 0.125rem;
+}
 .h-1 {
   height: 0.25rem;
 }
@@ -3152,6 +3155,9 @@ video {
 .cursor-pointer {
   cursor: pointer;
 }
+.cursor-row-resize {
+  cursor: row-resize;
+}
 .cursor-se-resize {
   cursor: se-resize;
 }
@@ -4400,6 +4406,10 @@ video {
 .border-purple-500\/50 {
   border-color: rgb(168 85 247 / 0.5);
 }
+.border-purple-700 {
+  --tw-border-opacity: 1;
+  border-color: rgb(126 34 206 / var(--tw-border-opacity, 1));
+}
 .border-red-100 {
   --tw-border-opacity: 1;
   border-color: rgb(254 226 226 / var(--tw-border-opacity, 1));
@@ -5424,6 +5434,9 @@ video {
 }
 .bg-purple-900\/20 {
   background-color: rgb(88 28 135 / 0.2);
+}
+.bg-purple-900\/30 {
+  background-color: rgb(88 28 135 / 0.3);
 }
 .bg-purple-900\/80 {
   background-color: rgb(88 28 135 / 0.8);
@@ -11053,6 +11066,9 @@ video {
 .hover\:bg-\[var\(--theme-color-20\)\]:hover {
   background-color: var(--theme-color-20);
 }
+.hover\:bg-\[var\(--theme-color-30\)\]:hover {
+  background-color: var(--theme-color-30);
+}
 .hover\:bg-\[var\(--theme-color-40\)\]:hover {
   background-color: var(--theme-color-40);
 }
@@ -11291,6 +11307,10 @@ video {
 }
 .hover\:bg-purple-500\/30:hover {
   background-color: rgb(168 85 247 / 0.3);
+}
+.hover\:bg-purple-800:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(107 33 168 / var(--tw-bg-opacity, 1));
 }
 .hover\:bg-purple-900\/20:hover {
   background-color: rgb(88 28 135 / 0.2);
@@ -11717,6 +11737,11 @@ video {
 }
 .hover\:shadow-\[0_0_10px_rgba\(239\2c 68\2c 68\2c 0\.2\)\]:hover {
   --tw-shadow: 0 0 10px rgba(239,68,68,0.2);
+  --tw-shadow-colored: 0 0 10px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+.hover\:shadow-\[0_0_10px_var\(--theme-color-30\)\]:hover {
+  --tw-shadow: 0 0 10px var(--theme-color-30);
   --tw-shadow-colored: 0 0 10px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
@@ -13834,6 +13859,9 @@ video {
   }
   .sm\:w-\[150\%\] {
     width: 150%;
+  }
+  .sm\:w-\[280px\] {
+    width: 280px;
   }
   .sm\:w-\[320px\] {
     width: 320px;

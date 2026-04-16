@@ -170,9 +170,69 @@
                     </div>
 
                     <!-- Chat/Workspace View -->
-                    <div x-show="activeTab === 'chat'" class="flex-1 flex flex-col gap-4 overflow-hidden h-full w-full">
-                    <!-- TOP: Workspace Kanban Canvas (60%) -->
-                    <div class="flex-[3] min-h-[250px] rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] flex bg-[#050505]" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
+                    <div x-show="activeTab === 'chat'" 
+                         x-ref="workspaceContainer"
+                         class="flex-1 flex flex-col gap-2 overflow-hidden h-full w-full relative"
+                         x-data="{
+                             chatHeightPercent: @entangle('chatHeightPercent'),
+                             isDragging: false,
+                             startY: 0,
+                             startChatHeight: 0,
+                             containerH: 0,
+                             ticking: false,
+                             startDrag(e) {
+                                 this.isDragging = true;
+                                 this.startY = e.clientY !== undefined ? e.clientY : e.touches[0].clientY;
+                                 this.startChatHeight = this.chatHeightPercent;
+                                 this.containerH = this.$refs.workspaceContainer.clientHeight || 1;
+                                 document.body.style.userSelect = 'none';
+                                 
+                                 if(!document.getElementById('drag-overlay')) {
+                                     let overlay = document.createElement('div');
+                                     overlay.id = 'drag-overlay';
+                                     overlay.style.position = 'fixed';
+                                     overlay.style.inset = '0';
+                                     overlay.style.zIndex = '99999';
+                                     overlay.style.cursor = 'row-resize';
+                                     document.body.appendChild(overlay);
+                                 }
+                             },
+                             onDrag(e) {
+                                 if (!this.isDragging) return;
+                                 
+                                 const y = e.clientY !== undefined ? e.clientY : (e.touches && e.touches.length > 0 ? e.touches[0].clientY : null);
+                                 if (y === null) return;
+                                 
+                                 if (this.ticking) return;
+                                 this.ticking = true;
+                                 
+                                 requestAnimationFrame(() => {
+                                     const deltaY = y - this.startY;
+                                     const deltaPercent = (deltaY / this.containerH) * 100;
+                                     let newPercent = this.startChatHeight - deltaPercent;
+                                     newPercent = Math.max(15, Math.min(85, newPercent));
+                                     this.chatHeightPercent = newPercent;
+                                     this.ticking = false;
+                                 });
+                             },
+                             stopDrag() {
+                                 if (!this.isDragging) return;
+                                 this.isDragging = false;
+                                 this.ticking = false;
+                                 document.body.style.userSelect = '';
+                                 
+                                 const overlay = document.getElementById('drag-overlay');
+                                 if(overlay) overlay.remove();
+                                 
+                                 $wire.saveLayoutPercent(Math.round(this.chatHeightPercent));
+                             }
+                         }"
+                         @mousemove.window="onDrag($event)"
+                         @mouseup.window="stopDrag()"
+                         @touchmove.window="onDrag($event)"
+                         @touchend.window="stopDrag()">
+                    <!-- TOP: Workspace Kanban Canvas -->
+                    <div class="min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] flex bg-[#050505]" :style="'height: calc(' + (100 - chatHeightPercent) + '% - 0.75rem);'" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
                     <div class="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
                 
                 <!-- Heartbeat Monitor (Ultra-Realistic HTML5 Canvas) -->
@@ -546,8 +606,15 @@
                 </div>
             </div>
 
-            <!-- BOTTOM: AI Chat Console (40%) -->
-            <div class="flex-[2] rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-[300px]">
+            <!-- Drag Handle -->
+            <div class="h-2 cursor-row-resize rounded-full bg-gray-900/50 hover:bg-[var(--theme-color-30)] hover:shadow-[0_0_10px_var(--theme-color-30)] transition-all flex items-center justify-center mx-auto w-32 shrink-0 z-50 group"
+                 @mousedown.prevent="startDrag($event)"
+                 @touchstart.prevent="startDrag($event)">
+                <div class="w-12 h-0.5 rounded-full bg-gray-600 group-hover:bg-[var(--theme-color)] transition-colors"></div>
+            </div>
+
+            <!-- BOTTOM: AI Chat Console -->
+            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0" :style="'height: calc(' + chatHeightPercent + '% - 0.75rem);'">
                 
                 <!-- Chat Log Area -->
                 <div id="chat-scroll-container" class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 custom-scrollbar scroll-smooth"

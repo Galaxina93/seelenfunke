@@ -34,6 +34,7 @@ class AiWorkspace extends Component
     public $mentionQuery = '';
     public $mentionResults = [];
     public string $activeWorkspaceView = 'workspace';
+    public int $chatHeightPercent = 40;
 
     public function getListeners()
     {
@@ -58,6 +59,13 @@ class AiWorkspace extends Component
 
     public function mount()
     {
+        if (auth()->check()) {
+            $setting = \App\Models\Ai\AiUserWorkspaceSetting::where('user_id', auth()->id())->first();
+            if ($setting) {
+                $this->chatHeightPercent = $setting->chat_height_percent;
+            }
+        }
+
         // Lade Chat-Historie aus der Datenbank
         $history = AiChatMemory::where('session_id', session()->getId())
                                ->orderBy('created_at', 'asc')
@@ -808,5 +816,18 @@ class AiWorkspace extends Component
                         ->get(),
             'agents' => $this->agents
         ]);
+    }
+
+    public function saveLayoutPercent($percent)
+    {
+        if (!auth()->check()) return;
+        
+        $percent = max(10, min(90, (int) $percent));
+        $this->chatHeightPercent = $percent;
+        
+        \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
+            ['user_id' => auth()->id()],
+            ['chat_height_percent' => $percent]
+        );
     }
 }

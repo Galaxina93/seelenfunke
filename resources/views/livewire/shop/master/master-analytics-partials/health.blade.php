@@ -384,13 +384,35 @@
                                                  class="absolute bottom-[calc(100%+12px)] w-[280px] sm:w-[320px] p-4 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.8)] z-[100] pointer-events-none"
                                                  :class="alignRight ? 'right-0' : 'left-0'">
                                                 <div class="absolute -bottom-1.5 w-3 h-3 bg-gray-900 border-b border-r border-gray-700 transform rotate-45" :class="alignRight ? 'right-6' : 'left-6'"></div>
+                                                
+                                                @php
+                                                    $correctWsHost = app()->environment('local') ? '127.0.0.1' : 'ws.mein-seelenfunke.de';
+                                                    $correctWsPort = app()->environment('local') ? '6001' : '443';
+                                                @endphp
+
                                                 <div class="relative z-10 flex flex-col gap-2 text-[9px] font-mono text-gray-400">
-                                                    <div class="flex justify-between gap-4"><span class="font-bold text-gray-500">HOST:</span><span class="text-primary truncate" x-text="wsHost"></span></div>
-                                                    <div class="flex justify-between gap-4"><span class="font-bold text-gray-500">PORT:</span><span class="text-primary" x-text="wsPort"></span></div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-bold text-gray-500">IST-HOST:</span>
+                                                        <span class="truncate" :class="wsHost === '{{ $correctWsHost }}' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsHost"></span>
+                                                    </div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-bold text-gray-500">IST-PORT:</span>
+                                                        <span :class="wsPort == '{{ $correctWsPort }}' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsPort"></span>
+                                                    </div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-bold text-gray-500 opacity-60">SOLL-WERT:</span>
+                                                        <span class="text-gray-600">{{ $correctWsHost }} : {{ $correctWsPort }}</span>
+                                                    </div>
+
                                                     <div class="border-t border-gray-800 my-1"></div>
+                                                    
+                                                    <div x-show="wsHost !== '{{ $correctWsHost }}' || wsPort != '{{ $correctWsPort }}'" class="text-amber-500 font-sans font-bold leading-relaxed bg-amber-500/10 p-2 rounded border border-amber-500/20 mb-1">
+                                                        WARNUNG: Das Browser-JS funkt gerade an den falschen Host/Port! Du hast das JS vermutlich lokal mit den falschen .env-Daten gebaut.
+                                                    </div>
+
                                                     <div x-show="wsStatus === 'disconnected'" class="text-red-400 font-sans font-bold leading-relaxed">Fehler: Der WebSocket-Server antwortet nicht.</div>
                                                     <div x-show="wsStatus === 'unavailable'" class="text-red-400 font-sans font-bold leading-relaxed">Fehler: Laravel Echo konnte nicht initialisiert werden.</div>
-                                                    <div x-show="wsStatus === 'connected'" class="text-emerald-400 font-sans font-bold leading-relaxed">System läuft stabil. Echtzeit-Events empfangen.</div>
+                                                    <div x-show="wsStatus === 'connected'" class="text-emerald-400 font-sans font-bold leading-relaxed flex items-center gap-1.5"><i class="bi bi-shield-check"></i> System läuft zu 100% stabil.</div>
                                                 </div>
                                             </div>
                                         </div>

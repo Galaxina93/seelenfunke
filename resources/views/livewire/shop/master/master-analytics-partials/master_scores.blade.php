@@ -493,7 +493,15 @@
                             <div class="flex flex-col gap-4">
                                 @foreach($groupInfo['items'] as $sKey)
                                     @if($sKey === 'ws')
-                                        <div x-data="{ wsStatus: 'checking', tooltip: false, checkConnection() { if(window.Echo){ this.wsStatus = 'connected'; } else { this.wsStatus = 'unavailable'; } } }" x-init="checkConnection()" @mouseenter="tooltip = true" @mouseleave="tooltip = false" class="relative cursor-help">
+                                        <div x-data="{ 
+                                            wsStatus: 'checking', 
+                                            tooltip: false,
+                                            wsHost: '{{ env('VITE_REVERB_HOST', env('MIX_PUSHER_HOST', '127.0.0.1')) }}',
+                                            wsPort: '{{ env('VITE_REVERB_PORT', env('MIX_PUSHER_PORT', 6001)) }}',
+                                            checkConnection() { 
+                                                if(window.Echo){ this.wsStatus = 'connected'; } else { this.wsStatus = 'unavailable'; } 
+                                            } 
+                                        }" x-init="checkConnection()" @mouseenter="tooltip = true" @mouseleave="tooltip = false" class="relative cursor-help">
                                             <div class="flex items-center gap-3">
                                                 <span class="relative w-2 h-2 rounded-full shrink-0" :class="{'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]': wsStatus === 'connected', 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]': wsStatus === 'unavailable', 'bg-gray-500': wsStatus === 'checking'}">
                                                 </span>
@@ -504,9 +512,38 @@
                                             </div>
 
                                             <!-- Tooltip für WebSocket -->
-                                            <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
-                                                <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services['ws']['host'] }}:{{ $services['ws']['port'] }}</div>
-                                                <div class="text-[11px] text-gray-300 font-medium leading-relaxed">{{ $services['ws']['desc'] }}</div>
+                                            <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] sm:w-[280px] p-4 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
+                                                
+                                                @php
+                                                    $correctWsHost = app()->environment('local') ? '127.0.0.1' : 'ws.mein-seelenfunke.de';
+                                                    $correctWsPort = app()->environment('local') ? '6001' : '443';
+                                                @endphp
+
+                                                <div class="flex flex-col gap-2 text-[9px] text-left font-mono text-gray-400">
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-bold text-gray-500">IST-HOST:</span>
+                                                        <span class="truncate" :class="wsHost === '{{ $correctWsHost }}' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsHost"></span>
+                                                    </div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-bold text-gray-500">IST-PORT:</span>
+                                                        <span :class="wsPort == '{{ $correctWsPort }}' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsPort"></span>
+                                                    </div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-bold text-gray-500 opacity-60">SOLL-WERT:</span>
+                                                        <span class="text-gray-600">{{ $correctWsHost }} : {{ $correctWsPort }}</span>
+                                                    </div>
+
+                                                    <div class="border-t border-gray-800 my-1"></div>
+                                                    
+                                                    <div x-show="wsHost !== '{{ $correctWsHost }}' || wsPort != '{{ $correctWsPort }}'" class="text-amber-500 font-sans text-center font-bold leading-relaxed bg-amber-500/10 p-2 rounded border border-amber-500/20 mb-1">
+                                                        WARNUNG: Das Browser-JS funkt gerade an den falschen Host/Port! Du hast das JS vermutlich lokal mit den falschen .env-Daten gebaut.
+                                                    </div>
+
+                                                    <div x-show="wsStatus === 'disconnected'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Der WebSocket-Server antwortet nicht.</div>
+                                                    <div x-show="wsStatus === 'unavailable'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Laravel Echo konnte nicht initialisiert werden.</div>
+                                                    <div x-show="wsStatus === 'connected'" class="text-emerald-400 font-sans font-bold leading-relaxed flex items-center justify-center gap-1.5"><i class="bi bi-shield-check"></i> System läuft zu 100% stabil.</div>
+                                                </div>
+
                                                 <div class="absolute -bottom-1.5 right-4 w-3 h-3 bg-gray-950 border-b border-r border-[#C5A059]/40 rotate-45"></div>
                                             </div>
                                         </div>
@@ -533,6 +570,26 @@
                                             <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 right-0 w-[240px] p-3 bg-gray-950 border border-[#C5A059]/40 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-[100] text-center" style="display: none;">
                                                 <div class="text-[10px] text-[#C5A059] font-black uppercase tracking-widest mb-1">{{ $services[$sKey]['host'] }}:{{ $services[$sKey]['port'] }}</div>
                                                 <div class="text-[11px] text-gray-300 font-medium leading-relaxed">{{ $services[$sKey]['desc'] }}</div>
+                                                
+                                                @if($sKey === 'queue' && $health)
+                                                    <div class="flex justify-between gap-4 mt-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800 text-left">
+                                                        <span class="font-bold text-[9px] text-gray-500">WARTEND: <span class="text-white">{{ $health['pending'] ?? 0 }} Jobs</span></span>
+                                                        <span class="font-bold text-[9px] text-gray-500">FEHLER: <span class="{{ ($health['failed'] ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400' }}">{{ $health['failed'] ?? 0 }} Jobs</span></span>
+                                                    </div>
+                                                    @if(($health['failed'] ?? 0) > 0)
+                                                        <button type="button" wire:click="flushFailedJobs" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-red-700 bg-red-900/30 hover:bg-red-800 text-red-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer">
+                                                            Fehlgeschlagene Jobs final löschen
+                                                        </button>
+                                                    @endif
+                                                @endif
+
+                                                @if($sKey === 'backup')
+                                                    <button type="button" wire:click="fixSystem('backup')" wire:loading.attr="disabled" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-purple-700 bg-purple-900/30 hover:bg-purple-800 text-purple-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5">
+                                                        <span wire:loading.remove wire:target="fixSystem('backup')"><i class="bi bi-clock-history"></i> Backup manuell anstoßen</span>
+                                                        <span wire:loading wire:target="fixSystem('backup')" class="animate-pulse">Backup läuft...</span>
+                                                    </button>
+                                                @endif
+
                                                 @if(isset($health['error']) && $health['error'])
                                                     <div class="mt-1.5 pt-1.5 border-t border-red-500/20 text-red-500 text-[10px] font-bold">{{ $health['error'] }}</div>
                                                 @endif

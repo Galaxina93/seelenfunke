@@ -188,16 +188,7 @@ class MasterAnalytics extends Component
             $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Zugriff auf Dateisystem verweigert.'];
         }
 
-        // 3. Stripe API Check
-        try {
-            $start = microtime(true);
-            \Illuminate\Support\Facades\Http::timeout(3)->get('https://api.stripe.com/healthcheck');
-            $time = round((microtime(true) - $start) * 1000);
-            $health['stripe'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['stripe'] = ['status' => 'error', 'value' => 'Timeout', 'error' => 'Stripe API nicht erreichbar. Firewall prüfen!'];
-            $this->logSystemFailure('stripe', 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.');
-        }
+        // Externe HTTP Checks wurden in einen asynchronen Http::pool ausgelagert (siehe unten)
 
         // 4. SMTP Check
         try {
@@ -347,77 +338,55 @@ class MasterAnalytics extends Component
             $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim Lesen der Festplatte: ' . $e->getMessage(), 'path' => 'Unbekannt'];
         }
 
-        // 9. DHL API Check
-        try {
-            $start = microtime(true);
-            \Illuminate\Support\Facades\Http::timeout(2)->get('https://api.dhl.com');
-            $time = round((microtime(true) - $start) * 1000);
-            $health['dhl'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['dhl'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'DHL API nicht erreichbar.'];
-        }
+        // --- ASYNCHRONE EXTERNE API CHECKS ---
+        // Alle externen APIs werden parallel (gleichzeitig) angepingt, um kumulative Timeouts und Dashboard-Hänger zu verhindern!
+        $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
+        $mittwaldUrl = config('services.mittwald.url', 'https://llm.aihosting.mittwald.de');
+        $mittwaldHost = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
 
-        // 10. finAPI Check
-        try {
-            $start = microtime(true);
-            $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
-            \Illuminate\Support\Facades\Http::timeout(2)->get($finapiUrl);
-            $time = round((microtime(true) - $start) * 1000);
-            $health['finapi'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['finapi'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'finAPI nicht erreichbar.'];
-        }
+        $responses = \Illuminate\Support\Facades\Http::pool(fn (\Illuminate\Http\Client\Pool $pool) => [
+            $pool->as('stripe')->timeout(3)->get('https://api.stripe.com/healthcheck'),
+            $pool->as('dhl')->timeout(2)->get('https://api.dhl.com'),
+            $pool->as('finapi')->timeout(2)->get($finapiUrl),
+            $pool->as('mittwald')->timeout(2)->get("https://{$mittwaldHost}"),
+            $pool->as('gemini')->timeout(2)->get('https://generativelanguage.googleapis.com'),
+            $pool->as('google_places')->timeout(2)->get('https://maps.googleapis.com'),
+            $pool->as('elster')->timeout(2)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),
+            $pool->as('scraperapi')->timeout(2)->get('http://api.scraperapi.com'),
+        ]);
 
-        // 11. Mittwald AI Check
-        try {
-            $start = microtime(true);
-            $mittwaldUrl = config('services.mittwald.url', 'https://llm.aihosting.mittwald.de');
-            $host = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
-            \Illuminate\Support\Facades\Http::timeout(2)->get("https://{$host}");
-            $time = round((microtime(true) - $start) * 1000);
-            $health['mittwald'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['mittwald'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Mittwald AI nicht erreichbar.'];
-        }
+        $apiMapping = [
+            'stripe' => ['name' => 'Stripe API', 'log_msg' => 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.'],
+            'dhl' => ['name' => 'DHL API', 'log_msg' => null],
+            'finapi' => ['name' => 'finAPI', 'log_msg' => null],
+            'mittwald' => ['name' => 'Mittwald AI', 'log_msg' => null],
+            'gemini' => ['name' => 'Google Gemini', 'log_msg' => null],
+            'google_places' => ['name' => 'Google Maps', 'log_msg' => null],
+            'elster' => ['name' => 'Elster RSS', 'log_msg' => null],
+            'scraperapi' => ['name' => 'ScraperAPI', 'log_msg' => null],
+        ];
 
-        // 12. Google Gemini Check
-        try {
-            $start = microtime(true);
-            \Illuminate\Support\Facades\Http::timeout(2)->get('https://generativelanguage.googleapis.com');
-            $time = round((microtime(true) - $start) * 1000);
-            $health['gemini'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['gemini'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Google Gemini API nicht erreichbar.'];
-        }
-
-        // 13. Google Places Check
-        try {
-            $start = microtime(true);
-            \Illuminate\Support\Facades\Http::timeout(2)->get('https://maps.googleapis.com');
-            $time = round((microtime(true) - $start) * 1000);
-            $health['google_places'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['google_places'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Google Maps API nicht erreichbar.'];
-        }
-
-        // 14. Elster (ERiC) Check
-        try {
-            $start = microtime(true);
-            \Illuminate\Support\Facades\Http::timeout(2)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml');
-            $time = round((microtime(true) - $start) * 1000);
-            $health['elster'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['elster'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'Elster RSS nicht erreichbar.'];
-        }
-
-        // 15. ScraperAPI Check
-        try {
-            $start = microtime(true);
-            \Illuminate\Support\Facades\Http::timeout(2)->get('http://api.scraperapi.com');
-            $time = round((microtime(true) - $start) * 1000);
-            $health['scraperapi'] = ['status' => 'connected', 'value' => "Latenz: {$time}ms", 'error' => null];
-        } catch (\Exception $e) {
-            $health['scraperapi'] = ['status' => 'warning', 'value' => 'Timeout', 'error' => 'ScraperAPI nicht erreichbar.'];
+        foreach ($responses as $key => $response) {
+            // Eine Exception bedeutet: Curl Connection Error / Timeout!
+            // Da wir bei manchen APIs (wie Gemini Root) absichtlich nur einen Ping machen, 
+            // kann der Response auch 400 oder 404 sein - das heißt trotzdem, dass der Server online ist!
+            if ($response instanceof \Exception) {
+                $status = $key === 'stripe' ? 'error' : 'warning';
+                $health[$key] = ['status' => $status, 'value' => 'Timeout', 'error' => $apiMapping[$key]['name'] . ' nicht erreichbar.'];
+                
+                if ($apiMapping[$key]['log_msg']) {
+                    $this->logSystemFailure($key, $apiMapping[$key]['log_msg']);
+                }
+            } else {
+                $stats = $response->handlerStats();
+                $timeText = 'Aktiv';
+                if (is_array($stats) && isset($stats['total_time'])) {
+                    $timeMs = round($stats['total_time'] * 1000);
+                    $timeText = "Latenz: {$timeMs}ms";
+                }
+                
+                $health[$key] = ['status' => 'connected', 'value' => $timeText, 'error' => null];
+            }
         }
 
         $this->systemHealth = $health;
