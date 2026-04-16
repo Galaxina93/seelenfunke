@@ -15,6 +15,15 @@
 
     @livewireStyles
 
+    <script>
+        // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason && event.reason.isFromCancelledTransition === true) {
+                event.preventDefault(); // Fehler aus der Browser-Konsole filtern
+            }
+        });
+    </script>
+
 </head>
 <body class="min-h-screen bg-gray-950 font-sans text-gray-300 antialiased relative overflow-x-hidden" x-data="universeLayout()" x-init="init()">
 

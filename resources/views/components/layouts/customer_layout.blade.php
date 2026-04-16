@@ -11,6 +11,14 @@
 
     @livewireStyles
 
+    <script>
+        // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason && event.reason.isFromCancelledTransition === true) {
+                event.preventDefault();
+            }
+        });
+    </script>
 </head>
 
 @php
