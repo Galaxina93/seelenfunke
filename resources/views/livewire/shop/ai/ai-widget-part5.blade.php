@@ -161,8 +161,8 @@
                         }
 
                         float speedBoost = critical * 15.0 + isThinking * 25.0;
-                        float breathingPulse = 0.8 + 0.3 * sin(time * (2.5 + speedBoost));
-                        float quickPulse = 0.7 + 0.5 * sin(time * (7.0 + speedBoost));
+                        float breathingPulse = 0.8 + 0.3 * sin(time * (3.0 + speedBoost));
+                        float quickPulse = 0.7 + 0.5 * sin(time * (8.0 + speedBoost));
                         float combinedPulse = mix(breathingPulse, quickPulse, hoverState);
 
                         vec3 finalColor = accumulatedColor * combinedPulse * smoothstep(0.2, 1.0, initProgress);

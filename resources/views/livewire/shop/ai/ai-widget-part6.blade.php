@@ -170,7 +170,7 @@
                 }
 
                 if (t3.coreMesh) {
-                    const pulse = 0.75 + Math.sin(time * 2.0) * 0.015;
+                    const pulse = 0.75 + Math.sin(time * 3.0) * 0.015;
                     t3.coreMesh.scale.set(pulse, pulse, pulse);
                 }
 

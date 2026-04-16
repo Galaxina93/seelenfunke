@@ -7,8 +7,9 @@ use App\Models\Ai\AiToolUsage;
 use App\Models\System\SystemLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Services\AI\Contracts\AiProviderInterface;
 
-class GeminiAgent
+class GeminiAgent implements AiProviderInterface
 {
     protected string $baseUrl;
     protected string $apiKey;
@@ -80,7 +81,12 @@ class GeminiAgent
                              'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
                              'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
                              'Reasoning: high';
-                             
+
+        if (file_exists(base_path('ai_map.md'))) {
+            $systemPromptText .= "\n\n[ARCHITEKTUR-KARTE / INDEX]\n" .
+                                 "Es existiert eine Map-Datei unter `" . base_path('ai_map.md') . "`. LIES DIESE DATEI ZUERST (als Werkzeugaufruf), wenn du Code-Strukturen, Models oder Controller suchst. Das erspart dir mühsames Suchen im Dateisystem!";
+        }
+
         $systemPromptText .= "\n\n<planning_mode>\n" .
                              "You are an advanced agentic AI coding assistant built by Antigravity.\n" .
                              "You are in Planning Mode. Exercise judgement on whether a user's request warrants a plan before taking action.\n\n" .
@@ -151,21 +157,117 @@ class GeminiAgent
             return in_array($t['function']['name'] ?? '', $allowedIdentifiers);
         }));
 
+        // STRICT ROLE NORMALIZATION FOR GOOGLE OPENAI WRAPPER
+        // Google throws "400 Bad Request: Invalid argument" if it encounters multiple consecutive
+        // messages from the same role (e.g. user -> user).
+        $normalizedMessages = [];
+        foreach ($messages as $msg) {
+            $role = $msg['role'] ?? 'user';
+
+            // --- FIX FOR GEMINI 2.0 THOUGHT_SIGNATURE BUG ---
+            // The Google API strictly requires 'thought_signature' in functionCall parts if they exist in history.
+            // Since OpenAI schema doesn't reliably map this during multi-turn streaming, we safely flatten
+            // historical tool calls and their results into text so the AI retains full context without API errors.
+            if (isset($msg['tool_calls'])) {
+                $toolInfo = "\n\n[SYSTEM-LOG: Ich habe folgende Werkzeuge ausgeführt:]\n";
+                foreach ($msg['tool_calls'] as $tc) {
+                    $toolInfo .= "- " . ($tc['function']['name'] ?? 'Unbekannt') . " (Args: " . ($tc['function']['arguments'] ?? '{}') . ")\n";
+                }
+
+                $msg['content'] = ($msg['content'] ?? '') . $toolInfo;
+                unset($msg['tool_calls']);
+            }
+
+            if ($role === 'tool') {
+                $role = 'user';
+                $msg['role'] = 'user';
+                $msg['content'] = "[SYSTEM-LOG: Werkzeug-Ergebnis von meinem vorherigen Aufruf]\n" . ($msg['content'] ?? '');
+                unset($msg['tool_call_id']);
+                unset($msg['name']);
+            }
+            // ------------------------------------------------
+
+            if (empty($normalizedMessages)) {
+                $normalizedMessages[] = $msg;
+            } else {
+                $lastIdx = count($normalizedMessages) - 1;
+                $lastRole = $normalizedMessages[$lastIdx]['role'];
+
+                if ($lastRole === $role && $role !== 'tool') { // Merge text blocks if same role
+                    $lastContent = $normalizedMessages[$lastIdx]['content'];
+                    $currContent = $msg['content'] ?? '';
+
+                    if (is_array($lastContent) && is_array($currContent)) {
+                        $normalizedMessages[$lastIdx]['content'] = array_merge($lastContent, $currContent);
+                    } else if (is_string($lastContent) && is_string($currContent)) {
+                        $normalizedMessages[$lastIdx]['content'] = $lastContent . "\n\n" . $currContent;
+                    } else if (is_string($lastContent) && is_array($currContent)) {
+                        array_unshift($currContent, ['type' => 'text', 'text' => $lastContent . "\n\n"]);
+                        $normalizedMessages[$lastIdx]['content'] = $currContent;
+                    } else if (is_array($lastContent) && is_string($currContent)) {
+                        $lastContent[] = ['type' => 'text', 'text' => "\n\n" . $currContent];
+                        $normalizedMessages[$lastIdx]['content'] = $lastContent;
+                    }
+                } else {
+                    $normalizedMessages[] = $msg;
+                }
+            }
+        }
+
         $payload = [
             'model' => $this->agent->model ?? 'gpt-oss-120b',
-            'messages' => $messages,
+            'messages' => $normalizedMessages,
             'temperature' => (float)($this->agent->temperature ?? 0.6),
-            'top_p' => 1.0
+            'top_p' => 1.0,
+            'stream' => true // Enable Server-Sent Events Streaming
         ];
 
         // Ministral and Devstral models on the Gemini Proxy currently do not support Tool Calling
         // Passing the 'tools' array to them results in a 400 Bad Request error.
         $modelName = strtolower($this->agent->model ?? 'gpt-oss-120b');
+
+        // AUTOMATIC MODEL UPGRADE / DOWNGRADE:
+        // 1.x models are deprecated. 3.x models are too unstable and cause 150s timeouts.
+        // Force redirect to stable 2.5 architecture to ensure instant replies.
+        if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-3.')) {
+            $isPro = str_contains($modelName, 'pro');
+            $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+            $payload['model'] = $modelName;
+            \Illuminate\Support\Facades\Log::info("Auto-mapped unstable model to: " . $modelName);
+        }
+
         if (str_contains($modelName, 'stral')) {
             $filteredSchema = [];
         }
 
         if (!empty($filteredSchema)) {
+            // BUGFIX: Google's OpenAI API wrapper silently dies with HTTP 503 Service Unavailable
+            // when passing large JSON schemas (> ~80KB). We MUST compress the tools array to prevent timeouts.
+            foreach ($filteredSchema as &$tool) {
+                // Fix empty properties object parsing for PHP json_encode
+                if (isset($tool['function']['parameters']['properties']) && empty($tool['function']['parameters']['properties'])) {
+                    $tool['function']['parameters']['properties'] = new \stdClass();
+                }
+
+                // Truncate main description
+                if (isset($tool['function']['description'])) {
+                    $tool['function']['description'] = mb_substr($tool['function']['description'], 0, 250);
+                }
+
+                // Truncate parameter descriptions
+                if (isset($tool['function']['parameters']['properties']) && is_array($tool['function']['parameters']['properties'])) {
+                    foreach ($tool['function']['parameters']['properties'] as &$propDef) {
+                        if (isset($propDef['description'])) {
+                            $propDef['description'] = mb_substr($propDef['description'], 0, 60);
+                        }
+                    }
+                }
+            }
+
+            if (count($filteredSchema) > 120) {
+                \Illuminate\Support\Facades\Log::warning("Too many tools requested (" . count($filteredSchema) . "). Truncating to 120 to prevent Gemini API HTTP 503.");
+                $filteredSchema = array_slice($filteredSchema, 0, 120);
+            }
             $payload['tools'] = $filteredSchema;
             $payload['tool_choice'] = 'auto';
         }
@@ -173,11 +275,13 @@ class GeminiAgent
         try {
             // Log::info("Sending request to Gemini AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
 
-            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                'active_node' => 'cpu-chip',
-                'action_text' => 'LLM Inference (Tiefe: '.$depth.')...',
-                'pulse_color' => 'indigo'
-            ], 60);
+            try {
+                \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                    'active_node' => 'cpu-chip',
+                    'action_text' => 'LLM Inference (Tiefe: '.$depth.')...',
+                    'pulse_color' => 'indigo'
+                ], 60);
+            } catch (\Exception $e) {}
 
             $startTime = microtime(true);
             $maxRetries = 3;
@@ -185,32 +289,139 @@ class GeminiAgent
             $responseString = null;
             $httpCode = 0;
             $curlError = null;
+            $isAborted = false;
 
             while ($retryCount <= $maxRetries) {
                 $url = rtrim($this->baseUrl, '/') . '/chat/completions';
+
+               /* \Illuminate\Support\Facades\Log::info("DEBUG: GeminiAgent initiating cURL.", [
+                    'url' => $url,
+                    'model' => $payload['model'],
+                    'payload_size' => strlen(json_encode($payload)),
+                    'timeout_settings' => 120 + ($retryCount * 30),
+                    'tools_count' => isset($payload['tools']) ? count($payload['tools']) : 0,
+                    'stream' => $payload['stream'] ?? false
+                ]);*/
+
+                \Illuminate\Support\Facades\File::put(storage_path('logs/gemini_payload_dump.json'), json_encode($payload, JSON_PRETTY_PRINT));
+
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
-                
-                // WICHTIG: Kein Laravel Guzzle (Http::) nutzen, um cURL Timeout 28 bei großen Payloads (Code/Bilder) 
+
+                // WICHTIG: Kein Laravel Guzzle (Http::) nutzen, um cURL Timeout 28 bei großen Payloads (Code/Bilder)
                 // durch ungewollte Expect: 100-continue MTU Drops in Docker Containern zu verhindern.
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'Content-Type: application/json',
                     'Authorization: Bearer ' . $this->apiKey,
-                    'Expect:' 
+                    'Accept: text/event-stream'
                 ]);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-                // Pro Retry den Timeout minimal anheben
-                curl_setopt($ch, CURLOPT_TIMEOUT, 300 + ($retryCount * 60)); 
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+                // Wir gewähren der LLM volle 120 Sekunden, um die Werkzeuge (Tools) zu lesen und zu entscheiden
+                curl_setopt($ch, CURLOPT_TIMEOUT, 120 + ($retryCount * 30));
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
-                $responseString = curl_exec($ch);
+                $rawResponseString = '';
+                $streamedTextAccumulator = '';
+                $toolCallAccumulators = [];
+                $sseBuffer = '';
+                $abortKey = 'abort_ai_agent_' . $this->agent->id;
+
+                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted) {
+                    try {
+                        if (\Illuminate\Support\Facades\Cache::pull($abortKey)) {
+                            $isAborted = true;
+                            return 0; // Aborts cURL with CURLE_WRITE_ERROR
+                        }
+                    } catch (\Exception $e) {}
+                    $rawResponseString .= $data;
+                    $sseBuffer .= $data;
+
+                    // SSE Chunk Parsing - Safe Line Splitting
+                    $lines = explode("\n", $sseBuffer);
+                    $sseBuffer = array_pop($lines); // Keep the incomplete line in the buffer
+
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if (str_starts_with($line, 'data: ')) {
+                            $jsonStr = substr($line, 6);
+                            if ($jsonStr === '[DONE]') continue;
+
+                            $chunk = json_decode($jsonStr, true);
+                            if (isset($chunk['choices'][0]['delta'])) {
+                                $delta = $chunk['choices'][0]['delta'];
+
+                                // Text Streaming to User UI
+                                if (isset($delta['content'])) {
+                                    $content = $delta['content'];
+                                    $streamedTextAccumulator .= $content;
+                                    if ($streamCallback) {
+                                        $streamCallback(['type' => 'text_chunk', 'chunk' => $content]);
+                                        // Removed ob_flush(); flush(); to prevent PHP output buffer exception locks
+                                    }
+                                }
+
+                                // Tool Call Accumulation (Deltas over Stream)
+                                if (isset($delta['tool_calls'])) {
+                                    foreach ($delta['tool_calls'] as $tc) {
+                                        $idx = $tc['index'] ?? 0;
+                                        if (!isset($toolCallAccumulators[$idx])) {
+                                            $toolCallAccumulators[$idx] = [
+                                                'id' => uniqid('call_'),
+                                                'type' => 'function',
+                                                'function' => ['name' => '', 'arguments' => '']
+                                            ];
+                                        }
+
+                                        foreach ($tc as $k => $v) {
+                                            if ($k === 'function') {
+                                                if (!isset($toolCallAccumulators[$idx]['function'])) $toolCallAccumulators[$idx]['function'] = [];
+                                                foreach ($v as $fk => $fv) {
+                                                    if ($fk === 'arguments') {
+                                                        if (!isset($toolCallAccumulators[$idx]['function']['arguments'])) $toolCallAccumulators[$idx]['function']['arguments'] = '';
+                                                        $toolCallAccumulators[$idx]['function']['arguments'] .= $fv;
+                                                    } elseif ($fk === 'name' && !empty($fv)) {
+                                                        $toolCallAccumulators[$idx]['function']['name'] = $fv;
+                                                    } else {
+                                                        if (is_string($fv) && isset($toolCallAccumulators[$idx]['function'][$fk])) {
+                                                            $toolCallAccumulators[$idx]['function'][$fk] .= $fv;
+                                                        } else {
+                                                            $toolCallAccumulators[$idx]['function'][$fk] = $fv;
+                                                        }
+                                                    }
+                                                }
+                                            } elseif ($k !== 'index') {
+                                                if ($k === 'id' && !empty($v)) {
+                                                    $toolCallAccumulators[$idx]['id'] = $v;
+                                                } elseif (is_string($v) && isset($toolCallAccumulators[$idx][$k])) {
+                                                    $toolCallAccumulators[$idx][$k] .= $v;
+                                                } else {
+                                                    $toolCallAccumulators[$idx][$k] = $v;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return strlen($data);
+                });
+
+                curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 $curlError = curl_error($ch);
                 curl_close($ch);
+
+                if ($isAborted) {
+                    break;
+                }
+
+                // Re-assemble standard response string behavior for errors or successful parsed outputs
+                $responseString = $rawResponseString;
 
                 // Erfolgreicher Aufruf oder harter lokaler 4xx Client Fehler (Ausnahme 429 Rate Limit) -> Abbrechen, da Retry nutzlos.
                 if (!$curlError && $httpCode < 500 && $httpCode !== 429) {
@@ -219,21 +430,49 @@ class GeminiAgent
 
                 $retryCount++;
                 if ($retryCount <= $maxRetries) {
-                    $sleepSeconds = pow(2, $retryCount); // Exponentieller Backoff: 2s, 4s, 8s Pause
-                    Log::warning("Gemini API Error - initiating Retry {$retryCount}/{$maxRetries}", ['curl_error' => $curlError, 'http_code' => $httpCode]);
-                    
-                    \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                        'active_node' => 'arrow-path',
-                        'action_text' => "API Error {$httpCode}. Retry {$retryCount} in {$sleepSeconds}s...",
-                        'pulse_color' => 'yellow'
-                    ], 60);
+                    $sleepSeconds = pow(2, $retryCount); // Exponentieller Backoff: 2s, 4s Pause
+                    // Log::warning("Gemini API Error - initiating Retry {$retryCount}/{$maxRetries}", ['curl_error' => $curlError, 'http_code' => $httpCode]);
+                    try {
+                        \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                            'active_node' => 'arrow-path',
+                            'action_text' => "Verbindungsauslastung. Automatischer Neuversuch {$retryCount} in {$sleepSeconds}s...",
+                            'pulse_color' => 'yellow'
+                        ], 60);
+                    } catch (\Exception $e) {}
 
                     // Blockiert absichtlich den Prozess, da die Retry-Warteschlange seriell erfolgen muss
                     sleep($sleepSeconds);
+                } else if ($retryCount == $maxRetries + 1 && (in_array($httpCode, [0, 429, 503]) || $curlError)) {
+                    if (str_contains($payload['model'] ?? '', 'pro')) {
+                        // SILENT FALLBACK AUF FLASH WENN PRO DAUERHAFT ÜBERLASTET ODER GETIMEOUTED (HTTP 0) IST
+                        Log::warning("Gemini Pro API completely overloaded or timed out. Executing silent fallback to Gemini Flash.", ['payload_size' => strlen(json_encode($payload))]);
+                        $payload['model'] = 'gemini-2.5-flash'; // Safe static fallback guaranteed to exist
+                        $retryCount = 0;
+                        $maxRetries = 1; // Flash bekommt zügig noch maximal eine 2te Chance
+
+                        try {
+                            \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                                'active_node' => 'bolt',
+                                'action_text' => "Pro API antwortet nicht. Fallback auf schnelles Flash-Modell...",
+                                'pulse_color' => 'orange'
+                            ], 60);
+                        } catch (\Exception $e) {}
+                        // Kein Sleep, da sofortiger Modell-Wechsel oft das Problem löst
+                    } else if (($payload['model'] ?? '') === 'gemini-2.5-flash') {
+                        // TOTAL OUTAGE OF 2.5 INFRASTRUCTURE! Fallback to 1.5 Flash.
+                        Log::warning("Gemini 2.5 Flash API overloaded. Executing final fallback to legacy Gemini 1.5 Flash.", ['payload_size' => strlen(json_encode($payload))]);
+                        $payload['model'] = 'gemini-1.5-flash';
+                        $retryCount = 0;
+                        $maxRetries = 1;
+                    }
                 }
             }
 
             $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
+
+            if ($isAborted) {
+                return "[SKIP]";
+            }
 
             if ($curlError) {
                 Log::error("Gemini API Error (cURL)", ['error' => $curlError]);
@@ -242,7 +481,7 @@ class GeminiAgent
 
             if ($httpCode >= 400) {
                 Log::error("Gemini API HTTP Error", ['status' => $httpCode, 'response' => $responseString]);
-                
+
                 $errJson = json_decode($responseString, true);
                 $errMsg = $responseString;
                 if (is_array($errJson)) {
@@ -252,9 +491,9 @@ class GeminiAgent
                         $errMsg = $errJson['error']['message'];
                     }
                 }
-                
+
                 $hint = "[GEGENMASSNAHME]\nDer KI-Provider (Google/Gemini) hat die Anfrage abgelehnt:\n> " . $errMsg;
-                
+
                 if ($httpCode === 503 || $httpCode === 429) {
                     $hint = "⚠️ **SERVER ÜBERLASTET** ⚠️\nDie Google Gemini KI-Server melden aktuell extrem hohe Auslastung (Spikes in Demand).\nBitte warte einen kurzen Moment und sende die Nachricht erneut, oder wechsele das API-Modell (z.B. auf gemini-1.5-flash), da dieses aktuell blockiert ist.";
                 }
@@ -262,8 +501,20 @@ class GeminiAgent
                 return "⚠️ **SYSTEM WARNUNG: API VERBINDUNGSABBRUCH** ⚠️\n\nStatus Code HTTP " . $httpCode . ".\n\n" . $hint;
             }
 
-            $responseData = json_decode($responseString, true);
-            $message = $responseData['choices'][0]['message'] ?? null;
+            // Handle streamed response manually since standard OpenAI response schema is altered by SSE chunks
+            $responseData = json_decode($responseString, true) ?? [];
+            if (!empty($toolCallAccumulators)) {
+                $message = [
+                    'role' => 'assistant',
+                    'content' => $streamedTextAccumulator,
+                    'tool_calls' => array_values($toolCallAccumulators)
+                ];
+            } else {
+                $message = [
+                    'role' => 'assistant',
+                    'content' => $streamedTextAccumulator
+                ];
+            }
 
             if (isset($responseData['usage'])) {
                 $usageData['prompt_tokens'] += $responseData['usage']['prompt_tokens'] ?? 0;
@@ -325,11 +576,13 @@ class GeminiAgent
 
                     // Log removed per CEO request
 
-                    \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                        'active_node' => 'wrench-screwdriver',
-                        'action_text' => 'Tool Call: ' . $functionName,
-                        'pulse_color' => 'indigo'
-                    ], 60);
+                    try {
+                        \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                            'active_node' => 'wrench-screwdriver',
+                            'action_text' => 'Tool Call: ' . $functionName,
+                            'pulse_color' => 'indigo'
+                        ], 60);
+                    } catch (\Exception $e) {}
 
                     if ($streamCallback) {
                         $streamCallback([
@@ -388,11 +641,13 @@ class GeminiAgent
                         ]);
                     }
 
-                    \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                        'active_node' => 'circle-stack',
-                        'action_text' => 'DB/Action Resultat verarbeitet...',
-                        'pulse_color' => 'emerald'
-                    ], 60);
+                    try {
+                        \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                            'active_node' => 'circle-stack',
+                            'action_text' => 'DB/Action Resultat verarbeitet...',
+                            'pulse_color' => 'emerald'
+                        ], 60);
+                    } catch (\Exception $e) {}
 
                     // Collect the RAW result data before sanitization for the frontend!
                     $contextData[] = [
@@ -451,21 +706,25 @@ class GeminiAgent
 
                 // Since we added new tool results, loop back and ask the AI again
                 // so it can read the results and formulate a final answer.
-                \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                    'active_node' => 'sparkles',
-                    'action_text' => 'Re-Evaluierung des Kontexts...',
-                    'pulse_color' => 'indigo'
-                ], 60);
+                try {
+                    \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                        'active_node' => 'sparkles',
+                        'action_text' => 'Re-Evaluierung des Kontexts...',
+                        'pulse_color' => 'indigo'
+                    ], 60);
+                } catch (\Exception $e) {}
 
                 return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
             }
 
             // Provide final answer
-            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                'active_node' => 'bolt',
-                'action_text' => 'Finales Prompt beendet.',
-                'pulse_color' => 'emerald'
-            ], 60);
+            try {
+                \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
+                    'active_node' => 'bolt',
+                    'action_text' => 'Finales Prompt beendet.',
+                    'pulse_color' => 'emerald'
+                ], 60);
+            } catch (\Exception $e) {}
 
             return $message['content'] ?? "Ich habe meine Aufgabe ausgeführt.";
 
@@ -488,9 +747,16 @@ class GeminiAgent
 
         try {
             $startTime = microtime(true);
-            
+
             $url = rtrim($baseUrl, '/') . '/chat/completions';
-            
+
+            $modelName = strtolower($payload['model'] ?? 'gemini-1.5-flash');
+            if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-3.')) {
+                $isPro = str_contains($modelName, 'pro');
+                $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
+                $payload['model'] = $modelName;
+            }
+
             $requestPayload = [
                 'model' => $payload['model'],
                 'temperature' => $payload['temperature'],
@@ -500,51 +766,71 @@ class GeminiAgent
                 ],
             ];
 
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $apiKey,
-                'Expect:' // Prevent Expect: 100-continue which causes Docker MTU timeouts
-            ]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
-            curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            $maxRetries = 1;
+            $latencyMs = 0;
 
-            $responseString = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
+            for ($retryCount = 0; $retryCount <= $maxRetries; $retryCount++) {
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Authorization: Bearer ' . $apiKey,
+                    'Expect:' // Prevent Expect: 100-continue which causes Docker MTU timeouts
+                ]);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
-            $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
+                $responseString = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                curl_close($ch);
 
-            if ($curlError) {
-                return "API Fehler: cURL Error - " . $curlError;
-            }
+                $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
-            if ($httpCode === 200 && $responseString) {
-                $data = json_decode($responseString, true);
-                
-                if (isset($data['usage']) && class_exists(\App\Models\Ai\AiMetric::class)) {
-                    try {
-                        \App\Models\Ai\AiMetric::create([
-                            'ai_agent_id' => $agent->id,
-                            'type' => 'inference',
-                            'total_time_ms' => $latencyMs,
-                            'input_tokens' => $data['usage']['prompt_tokens'] ?? 0,
-                            'output_tokens' => $data['usage']['completion_tokens'] ?? 0,
-                            'is_success' => true
-                        ]);
-                    } catch (\Exception $e) { }
+                if ($curlError) {
+                    return "API Fehler: cURL Error - " . $curlError;
                 }
 
-                return $data['choices'][0]['message']['content'] ?? 'Das LLM hat keinen Text zurückgegeben.';
+                if ($httpCode === 200 && $responseString) {
+                    $data = json_decode($responseString, true);
+
+                    if (isset($data['usage']) && class_exists(\App\Models\Ai\AiMetric::class)) {
+                        try {
+                            \App\Models\Ai\AiMetric::create([
+                                'ai_agent_id' => $agent->id,
+                                'type' => 'inference',
+                                'total_time_ms' => $latencyMs,
+                                'input_tokens' => $data['usage']['prompt_tokens'] ?? 0,
+                                'output_tokens' => $data['usage']['completion_tokens'] ?? 0,
+                                'is_success' => true
+                            ]);
+                        } catch (\Exception $e) { }
+                    }
+
+                    return $data['choices'][0]['message']['content'] ?? 'Das LLM hat keinen Text zurückgegeben.';
+                }
+
+                if (in_array($httpCode, [0, 429, 503]) && $retryCount === 0) {
+                    if (str_contains($payload['model'] ?? '', 'pro')) {
+                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: API Overloaded ($httpCode). Falling back to 2.5 flash.");
+                        $requestPayload['model'] = 'gemini-2.5-flash';
+                        $payload['model'] = 'gemini-2.5-flash';
+                        continue;
+                    } else if (($payload['model'] ?? '') === 'gemini-2.5-flash') {
+                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: 2.5 flash Overloaded ($httpCode). Falling back to 1.5 flash.");
+                        $requestPayload['model'] = 'gemini-1.5-flash';
+                        $payload['model'] = 'gemini-1.5-flash';
+                        continue;
+                    }
+                }
+
+                return "API Fehler: " . $httpCode . " - " . $responseString;
             }
 
-            return "API Fehler: " . $httpCode . " - " . $responseString;
         } catch (\Exception $e) {
             return "Fehler bei der KI-Analyse: " . $e->getMessage();
         }
@@ -564,11 +850,11 @@ class GeminiAgent
 
         try {
             $startTime = microtime(true);
-            
+
             // Nutze explizit gemini-2.5-flash-image, da dieses spezialisierte Modell nativ Base64 unterstützt
             // und nicht von den generellen 503 "High Demand" Ausfällen der Standardmodelle betroffen ist.
             $googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' . $apiKey;
-            
+
             // Entferne evtl. vorhandene data:image/jpeg;base64,... Header, falls Base64 nicht raw ist
             if (str_contains($base64Image, ',')) {
                 $base64Image = explode(',', $base64Image)[1];
@@ -595,7 +881,7 @@ class GeminiAgent
                 ]
             ];
 
-            // WICHTIG: Ersetze Guzzle durch puren curl_init, da Guzzle / Http::post in Docker hier wegen 
+            // WICHTIG: Ersetze Guzzle durch puren curl_init, da Guzzle / Http::post in Docker hier wegen
             // Expect: 100-continue und TCP MTU-Fragmentierung bei der Base64 payload in Timeout 28 rennt.
             $ch = curl_init($googleUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -609,7 +895,7 @@ class GeminiAgent
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError = curl_error($ch);
             curl_close($ch);
-            
+
             $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
             if ($curlError) {
@@ -621,10 +907,10 @@ class GeminiAgent
             }
 
             $data = json_decode($responseString, true);
-            
+
             if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
                 $text = $data['candidates'][0]['content']['parts'][0]['text'];
-                
+
                 // Track Usage if metric exists
                 if (class_exists(\App\Models\Ai\AiMetric::class)) {
                     try {
@@ -636,12 +922,12 @@ class GeminiAgent
                         ]);
                     } catch (\Exception $e) { }
                 }
-                
+
                 return $text;
             }
 
             return "Vision API Fehler: Unerwartete Antwortstruktur von Google.";
-            
+
         } catch (\Exception $e) {
             return "Fehler bei der KI-Bildanalyse: " . $e->getMessage();
         }

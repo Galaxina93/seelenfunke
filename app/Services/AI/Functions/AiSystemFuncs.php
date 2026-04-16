@@ -21,11 +21,11 @@ trait AiSystemFuncs
                     'properties' => [
                         'category' => [
                             'type' => 'string',
-                            'description' => 'Grobe Kategorie der Daten in Kleinschreibung (z.B. "voucher", "customer", "task", "finance", "system_health").'
+                            'description' => 'Grobe Kategorie der Daten in Kleinschreibung (z.B. "voucher", "customer", "task", "code", "finance", "system_health").'
                         ],
                         'data' => [
                             'type' => 'array',
-                            'description' => 'Die nativen rohen JSON-Daten als Array. Das Backend kümmert sich um das Design.',
+                            'description' => 'Die nativen rohen JSON-Daten als Array. Das Backend kümmert sich um das Design. WENN du Quellcode/Code (Kategorie "code") visualisierst, packe ein Objekt mit "language" (z.B. php, js), "file_name" (falls bekannt) und "code_string" in das Array, oder lege einfach die reinen Informationen in ein formatierbares Objekt.',
                             'items' => [
                                 'type' => 'object',
                                 'additionalProperties' => true
@@ -509,7 +509,7 @@ trait AiSystemFuncs
     public static function executeGetSystemHealth(array $args)
     {
         try {
-            $analytics = new \App\Livewire\Global\Widgets\Analytics();
+            $analytics = new \App\Livewire\Shop\Master\MasterAnalytics();
             $analytics->checkSystemHealth();
             $isHealthy = $analytics->isSystemHealthy();
 
@@ -963,14 +963,49 @@ trait AiSystemFuncs
 
         $content = file_get_contents($fullPath);
         
-        // Remove line numbers from search block if the AI accidentally copied them from read_tool (e.g. " 124 | class Foo {")
+        // Remove line numbers from search block if the AI accidentally copied them from read_tool
         $cleanSearch = preg_replace('/^\s*\d+\s*\|\s/m', '', $search);
+        $cleanReplace = preg_replace('/^\s*\d+\s*\|\s/m', '', $replace);
 
-        if (strpos($content, $cleanSearch) === false) {
-             return ['status' => 'error', 'message' => 'Der gesuchte search_content Block wurde nicht exakt in der Datei gefunden. Stelle sicher, dass Einrückungen, Leerzeichen und Absätze zu 100% stimmen!'];
+        if (strpos($content, $cleanSearch) !== false) {
+            $newContent = str_replace($cleanSearch, $cleanReplace, $content);
+        } else {
+            // Fallback: Whitespace-tolerant regex search
+            $regexSafeSearch = preg_quote(trim($cleanSearch), '/');
+            // Allow any combination of spaces, tabs, and newlines between words to match
+            $regexSafeSearch = preg_replace('/[ \t\r\n]+/', '\s+', $regexSafeSearch);
+            
+            // Prepend a capture group for any leading spaces/tabs on the line where the match starts
+            $regex = '/([ \t]*)' . $regexSafeSearch . '/s';
+
+            if (preg_match($regex, $content, $matches)) {
+                $matchedOriginal = $matches[0];
+                $indentation = $matches[1] ?? '';
+                
+                // Calculate minimal indentation of the replacement block to make it relative
+                $replaceLines = explode("\n", trim($cleanReplace, "\r\n"));
+                $minReplaceIndent = null;
+                foreach ($replaceLines as $line) {
+                    if (trim($line) === '') continue;
+                    preg_match('/^[ \t]*/', $line, $ind);
+                    $len = strlen($ind[0]);
+                    if ($minReplaceIndent === null || $len < $minReplaceIndent) {
+                        $minReplaceIndent = $len;
+                    }
+                }
+                
+                // Remove relative indentation and add the target indentation
+                $indentedReplace = implode("\n", array_map(function($line) use ($indentation, $minReplaceIndent) {
+                    if (trim($line) === '') return '';
+                    return $indentation . substr($line, $minReplaceIndent);
+                }, $replaceLines));
+
+                // We replace the matched block (which now includes the leading indentation)
+                $newContent = str_replace($matchedOriginal, $indentedReplace, $content);
+            } else {
+                return ['status' => 'error', 'message' => 'Der gesuchte search_content Block wurde nicht in der Datei gefunden. Weder exakt noch tolerant. Bitte überprüfe die Datei mit system_read_code!'];
+            }
         }
-
-        $newContent = str_replace($cleanSearch, $replace, $content);
         file_put_contents($fullPath, $newContent);
 
         $deletedLines = substr_count($cleanSearch, "\n") + 1;

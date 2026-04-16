@@ -28,13 +28,25 @@
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex items-center justify-between z-10">
             <h3 class="text-lg font-sans font-medium text-gray-200 flex items-center gap-3" id="modal-title">
-                <span class="text-[color:var(--theme-color)]"><i class="bi bi-box"></i></span>
+                <span class="text-[color:var(--theme-color)]">
+                    @if($category === 'code')
+                        <i class="bi bi-code-square"></i>
+                    @elseif($category === 'customer' || $category === 'person')
+                        <i class="bi bi-person-badge"></i>
+                    @elseif($category === 'task')
+                        <i class="bi bi-list-check"></i>
+                    @else
+                        <i class="bi bi-box"></i>
+                    @endif
+                </span>
                 @if($category === 'voucher')
                     Gutschein Daten
-                @elseif($category === 'customer')
-                    Kundenakte
+                @elseif($category === 'customer' || $category === 'person')
+                    Kundenakte & Profil
                 @elseif($category === 'task')
-                    Aufgaben Liste
+                    Aufgaben & Tasks
+                @elseif($category === 'code')
+                    Code Viewer
                 @else
                     System Analyse
                 @endif
@@ -62,6 +74,12 @@
                 @else
                     <div class="text-center py-10 text-gray-500 italic font-sans text-sm">Keine Gutschein-Daten gefunden.</div>
                 @endif
+            @elseif($category === 'customer' || $category === 'person')
+                @include('livewire.shop.ai.blocks.customer-profile', ['customer' => $data[0] ?? []])
+            @elseif($category === 'task')
+                @include('livewire.shop.ai.blocks.task-list', ['tasks' => $data])
+            @elseif($category === 'code')
+                @include('livewire.shop.ai.blocks.code-viewer', ['codeData' => $data[0] ?? $data])
             @else
                 <!-- Fallback Raw JSON Display if no block exists yet -->
                 <div

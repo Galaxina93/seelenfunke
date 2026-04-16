@@ -132,14 +132,9 @@ class BackendNavigationService
                         'icon' => 'cpu-chip',
                         'ai_department_id' => '019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                         'children' => [
-                            ['id' => 'ai-chat', 'title' => 'Chat', 'route' => '/admin/ai/chat', 'icon' => 'chat-bubble-left-ellipsis'],
-                            ['id' => 'ai-roles', 'title' => 'Rollen', 'route' => '/admin/ai/roles', 'icon' => 'briefcase'],
-                            ['id' => 'ai-gen-ui', 'title' => 'Gen-UI', 'route' => '/admin/ai/gen-ui', 'icon' => 'window'],
-                            ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai/analytics', 'icon' => 'chart-pie'],
-                            ['id' => 'ai-agents', 'title' => 'Agenten', 'route' => '/admin/ai/agents', 'icon' => 'cpu-chip'],
-                            ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2'],
                             ['id' => 'war-room', 'title' => 'Schaltzentrale', 'route' => '/admin/ai/workspace', 'icon' => 'rectangle-group'],
-                            ['id' => 'ai-wiki', 'title' => 'Wissensdatenbank', 'route' => '/admin/ai/wiki', 'icon' => 'book-open'],
+                            ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2'],
+                            ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai/analytics', 'icon' => 'chart-pie']
                         ]
                     ],
                     [

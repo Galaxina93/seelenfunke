@@ -7,7 +7,6 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 
-#[Layout('components.layouts.backend_layout')]
 class AiVisualizationRegistry extends Component
 {
     use WithDepartmentTheming;
@@ -31,23 +30,31 @@ class AiVisualizationRegistry extends Component
             'name' => 'Kundenakten',
             'description' => 'Zeigt Userprofile und Bestellhistorien.',
             'views' => [
-                'Tabellen-Ansicht' => 'Fehlt noch (Fallback JSON)'
+                'Profil-Karte' => 'livewire.shop.ai.blocks.customer-profile'
             ],
-            'status' => 'pending'
+            'status' => 'active'
         ],
         'task' => [
             'name' => 'Aufgaben & Tasks',
             'description' => 'Zeigt die persönliche Aufgabenliste.',
             'views' => [
-                'Listen-Ansicht' => 'Fehlt noch (Fallback JSON)'
+                'Listen-Ansicht' => 'livewire.shop.ai.blocks.task-list'
             ],
-            'status' => 'pending'
+            'status' => 'active'
         ],
         'person' => [
             'name' => 'Personenprofile',
             'description' => 'Zeigt strukturierte Kontaktkarten und Personendaten mit interaktiven Links.',
             'views' => [
-                'Profil-Karte' => 'livewire.global.ai.blocks.person-profile'
+                'Profil-Karte' => 'livewire.shop.ai.blocks.person-profile'
+            ],
+            'status' => 'active'
+        ],
+        'code' => [
+            'name' => 'Code Snippets',
+            'description' => 'Erlaubt dem System, Quellcode visuell in einem modernen IDE-mäßigen Editor-Fenster anzuzeigen.',
+            'views' => [
+                'Code Viewer' => 'livewire.shop.ai.blocks.code-viewer'
             ],
             'status' => 'active'
         ]

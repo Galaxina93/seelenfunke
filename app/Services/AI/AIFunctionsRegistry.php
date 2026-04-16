@@ -33,6 +33,21 @@ class AIFunctionsRegistry
     use Functions\AiAgentsFuncs;
     use Functions\AiMasterFuncs;
 
+    use Functions\AiSwarmFuncs;
+
+    use Functions\AiSwarmFuncs;
+
+    /**
+     * Optional static context merged into all executed function arguments.
+     * Useful for standalone scripts that use AiAgentFactory but need hidden system parameters.
+     */
+    protected static array $globalContext = [];
+
+    public static function setGlobalContext(array $context): void
+    {
+        self::$globalContext = $context;
+    }
+
     /**
      * Define all available functions the AI can call.
      * This acts as the "Remote Control" schema.
@@ -65,7 +80,8 @@ class AIFunctionsRegistry
             self::getAiProductNicheScannerFuncsSchema(),
             self::getAiProductPackagingConfiguratorFuncsSchema(),
             self::getAiAgentsFuncsSchema(),
-            self::getAiMasterFuncsSchema()
+            self::getAiMasterFuncsSchema(),
+            self::getAiSwarmFuncsSchema() // Added Swarm tools
         );
     }
 
@@ -126,8 +142,9 @@ class AIFunctionsRegistry
         }
 
         try {
-            return call_user_func($callable, $args);
-        } catch (\Exception $e) {
+            $mergedArgs = array_merge($args, self::$globalContext); // Inject invisible backend parameters 
+            return call_user_func($callable, $mergedArgs);
+        } catch (\Throwable $e) {
             Log::error("AI Function Execution Error: " . $e->getMessage());
             return [
                 'error' => true,

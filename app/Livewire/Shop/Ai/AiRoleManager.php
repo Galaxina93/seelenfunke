@@ -36,6 +36,16 @@ class AiRoleManager extends Component
         $this->loadTopTools();
     }
 
+    #[\Livewire\Attributes\On('edit-role')]
+    public function openEditFromWorkspace($roleId = null)
+    {
+        if ($roleId) {
+            $this->edit($roleId);
+        } else {
+            $this->resetInputFields();
+        }
+    }
+
     public function loadTopTools()
     {
         $this->topTools = \App\Models\Ai\AiToolUsage::select('tool_name', \Illuminate\Support\Facades\DB::raw('COUNT(*) as usage_count'))

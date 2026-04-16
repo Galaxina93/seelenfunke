@@ -52,11 +52,6 @@ Route::middleware(['auth:admin'])->group(function () {
     // AI Agent Universe
     // -----------------------------------------------------------------------
     Route::get('/admin/ai/analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai.analytics');
-    Route::get('/admin/ai/roles', \App\Livewire\Shop\Ai\AiRoleManager::class)->name('admin.ai.roles');
-    Route::get('/admin/ai/agents', \App\Livewire\Shop\Ai\AiAgentManager::class)->name('admin.ai.agents');
-    Route::get('/admin/ai/chat', \App\Livewire\Shop\Ai\AiChat::class)->name('admin.ai.chat');
-    Route::get('/admin/ai/wiki', \App\Livewire\Shop\Ai\AiKnowledgeBase::class)->name('admin.ai.wiki');
-    Route::get('/admin/ai/gen-ui', \App\Livewire\Shop\Ai\AiVisualizationRegistry::class)->name('admin.ai.gen-ui');
     Route::get('/admin/ai/workspace', \App\Livewire\Shop\Ai\AiWorkspace::class)->name('admin.ai.workspace');
     
     // Organigramm bleibt separat

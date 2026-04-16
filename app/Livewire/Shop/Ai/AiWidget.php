@@ -9,6 +9,13 @@ use App\Models\System\SystemLog;
 class AiWidget extends Component
 {
     public string $themingDepartment = 'Agenten';
+    public $agentId = null;
+    
+    public function mount($agentId = null)
+    {
+        $this->agentId = $agentId;
+    }
+
     #[On('log-widget-error')]
     public function logWidgetError($message)
     {

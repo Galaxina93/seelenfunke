@@ -60,12 +60,20 @@ class AiAgentEditor extends Component
 
     public $ttsProviders = [
         'toni_xttsv2' => 'Toni - Coqui XTTSv2',
+        'gemini_native' => 'Google Gemini (Native TTS)',
         'browser_tts' => 'Standard Speech (Browser)',
         'none' => 'Deaktiviert (Nur Text)'
     ];
 
     public $ttsVoices = [
-        'toni_xttsv2' => [] // Dynamische Keys
+        'toni_xttsv2' => [], // Dynamische Keys
+        'gemini_native' => [
+            'Puck' => 'Puck (Neutral)',
+            'Charon' => 'Charon (Tief)',
+            'Kore' => 'Kore (Sanft)',
+            'Fenrir' => 'Fenrir (Energetisch)',
+            'Aoede' => 'Aoede (Ruhig)',
+        ]
     ];
 
     public $modelDetails = [
@@ -140,7 +148,15 @@ class AiAgentEditor extends Component
         'sun', 'trophy', 'user', 'video-camera', 'wrench-screwdriver'
     ];
 
-    public function mount($id)
+    public $contextLoad = ['tokens' => 0, 'max' => 32000, 'percent' => 0];
+
+    #[\Livewire\Attributes\On('edit-agent')]
+    public function openEditFromWorkspace($id = 'new')
+    {
+        $this->mount($id ?: 'new');
+    }
+
+    public function mount($id = 'new')
     {
         $this->agentId = $id;
 
@@ -193,6 +209,8 @@ class AiAgentEditor extends Component
         } else {
             $this->applyPreset('colleague');
         }
+
+        $this->updateContextLoad();
     }
 
     public function updatedAiRoleId($value)
@@ -219,6 +237,61 @@ class AiAgentEditor extends Component
             $this->temperature = 0.9;
             $this->system_prompt = "Du bist ein entspannter, empathischer Begleiter für den Feierabend. Du nutzt eine warme, umgängliche Sprache, interessierst dich für das Wohlbefinden des Nutzers und bist ideal für kreatives Brainstorming, lockere Gespräche oder philosophische Denkansätze. Kein Stress, kein Druck.";
         }
+        $this->updateContextLoad();
+    }
+
+    public function updated($propertyName)
+    {
+        if (in_array($propertyName, ['model', 'system_prompt', 'ai_role_id'])) {
+            $this->updateContextLoad();
+        }
+    }
+
+    public function updateContextLoad()
+    {
+        if ($this->agentId === 'new' && empty($this->system_prompt)) {
+            $this->contextLoad = ['tokens' => 0, 'max' => 32000, 'percent' => 0];
+            return;
+        }
+
+        $maxTokens = 32000;
+        $modelStr = strtolower($this->model ?? '');
+        
+        if (str_contains($modelStr, 'gemini-3') || str_contains($modelStr, 'gemini-1.5-pro')) {
+            $maxTokens = 2000000;
+        } elseif (str_contains($modelStr, 'gemini')) {
+            $maxTokens = 1000000;
+        } elseif (str_contains($modelStr, '120b') || str_contains($modelStr, 'gpt-4')) {
+            $maxTokens = 120000;
+        } elseif (str_contains($modelStr, 'ministral') || str_contains($modelStr, 'devstral')) {
+            $maxTokens = 32000;
+        }
+
+        $text = $this->system_prompt ?? '';
+        if ($this->ai_role_id) {
+            $role = \App\Models\Ai\AiRole::find($this->ai_role_id);
+            if ($role) {
+                $text .= $role->name . ' ' . $role->description;
+            }
+        }
+
+        if ($this->agentId !== 'new') {
+            $agent = AiAgent::find($this->agentId);
+            if ($agent && $agent->tools && $agent->tools->count() > 0) {
+                $text .= str_repeat("TOOLSCHEMA ", $agent->tools->count() * 10); // Approximation
+            }
+        }
+
+        $estimatedTokens = (int) ceil(mb_strlen($text) / 4);
+        $estimatedTokens += 1500; // Basic overhead
+
+        $percentage = $maxTokens > 0 ? min(100, round(($estimatedTokens / $maxTokens) * 100)) : 0;
+
+        $this->contextLoad = [
+            'tokens' => $estimatedTokens,
+            'max' => $maxTokens,
+            'percent' => $percentage
+        ];
     }
 
     public function save()
@@ -276,7 +349,8 @@ class AiAgentEditor extends Component
 
         session()->flash('message', 'Agent Profil erfolgreich gespeichert.');
 
-        return redirect()->route('admin.ai.agents');
+        $this->dispatch('close-agent-manager');
+        $this->dispatch('$refresh');
     }
 
     public function deleteProfilePicture()
@@ -295,13 +369,13 @@ class AiAgentEditor extends Component
 
     public function cancel()
     {
-        return redirect()->route('admin.ai.agents');
+        $this->dispatch('close-agent-manager');
     }
 
     public function render()
     {
         return view('livewire.shop.ai.ai-agent-editor', [
             'aiRoles' => \App\Models\Ai\AiRole::orderBy('name')->get()
-        ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
+        ]);
     }
 }

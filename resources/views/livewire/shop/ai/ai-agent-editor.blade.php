@@ -20,6 +20,58 @@
             </div>
         @endif
 
+        <!-- Quick Status & Metriken -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative z-10">
+                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-cpu-chip class="w-4 h-4 text-indigo-400" /> Kognitiver Speicher</div>
+                    <div class="flex items-end gap-2">
+                        <span class="text-xl font-black text-white font-mono">{{ number_format($contextLoad['tokens'], 0, ',', '.') }}</span>
+                        <span class="text-[10px] text-gray-500 font-mono mb-1">/ {{ $contextLoad['max'] >= 1000000 ? round($contextLoad['max']/1000000, 1).'M' : number_format($contextLoad['max'], 0, ',', '.') }}</span>
+                    </div>
+                    <div class="w-full bg-gray-900 rounded-full h-1.5 mt-3 overflow-hidden border border-gray-800/50">
+                        <div class="h-1.5 rounded-full transition-all duration-500 {{ $contextLoad['percent'] > 80 ? 'bg-red-500' : ($contextLoad['percent'] > 50 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ $contextLoad['percent'] }}%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-cyan-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative z-10">
+                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-wrench-screwdriver class="w-4 h-4 text-cyan-400" /> Aktive Skills</div>
+                    <div class="flex items-end gap-2 mt-1">
+                        <span class="text-xl font-black text-white font-mono">
+                            {{ $agentId !== 'new' && \App\Models\Ai\AiAgent::find($agentId) ? \App\Models\Ai\AiAgent::find($agentId)->tools->count() : 0 }}
+                        </span>
+                        <span class="text-[10px] text-gray-500 font-mono mb-1">Werkzeuge</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative z-10">
+                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-sparkles class="w-4 h-4 text-purple-400" /> Primäres Modell</div>
+                    <div class="mt-1 text-sm font-bold text-white truncate" title="{{ $availableModels[$model] ?? $model }}">
+                        {{ current(explode(' ', $availableModels[$model] ?? $model)) }}
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-1 truncate">{{ $modelDetails[$model]['type'] ?? 'LLM' }}</div>
+                </div>
+            </div>
+
+            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
+                <div class="absolute inset-0 bg-gradient-to-br from-rose-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="relative z-10">
+                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-speaker-wave class="w-4 h-4 text-rose-400" /> Sprachausgabe (TTS)</div>
+                    <div class="mt-1 text-sm font-bold {{ $tts_enabled ? 'text-white' : 'text-gray-600' }} truncate">
+                        {{ $tts_enabled ? ($ttsProviders[$tts_provider] ?? 'Aktiv') : 'Deaktiviert' }}
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">{{ $tts_enabled ? 'Speed: '.number_format((float)$tts_speed, 1).'x' : '-' }}</div>
+                </div>
+            </div>
+        </div>
+
         <form wire:submit.prevent="save" class="space-y-10">
 
             <!-- Identität -->
@@ -268,10 +320,7 @@
                         <div x-show="details[selectedModel]" x-transition class="mt-4 p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.05)] text-xs font-mono" style="display: none;">
                             <div class="grid grid-cols-1 gap-3">
                                 <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-1">Typische Anwendungsbeispiele</span> 
-                                    <ul class="text-indigo-200 list-disc list-inside space-y-1">
-                                        <template x-for="(usecase, index) in details[selectedModel]?.use_cases" :key="index">
-                                            <li x-text="usecase"></li>
-                                        </template>
+                                    <ul class="text-indigo-200 list-disc list-inside space-y-1" x-html="(details[selectedModel]?.use_cases || []).map(u => `<li>${u}</li>`).join('')">
                                     </ul>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 border-t border-indigo-500/20 pt-3 mt-1">
@@ -317,17 +366,11 @@
                             </div>
 
                             <!-- Voice (Select for predefined, Text for Toni) -->
-                            <div class="relative" x-show="provider !== 'none'">
-                                <template x-if="provider !== 'toni_xttsv2'">
-                                    <select x-model="voice" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
-                                        <option value="" disabled>-- Stimme wählen --</option>
-                                        <template x-if="voicesMap[provider]">
-                                            <template x-for="(vLabel, vKey) in voicesMap[provider]" :key="vKey">
-                                                <option :value="vKey" x-text="vLabel" class="bg-gray-900 text-gray-300"></option>
-                                            </template>
-                                        </template>
+                            <div wire:ignore class="relative" x-show="provider !== 'none'">
+                                    <select x-show="provider !== 'toni_xttsv2'" x-model="voice" 
+                                            x-html="`<option value='' disabled>-- Stimme wählen --</option>` + Object.entries(voicesMap[provider] || {}).map(([k, v]) => `<option value='${k}' class='bg-gray-900 text-gray-300'>${v}</option>`).join('')"
+                                            class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
                                     </select>
-                                </template>
                                 
                                 <template x-if="provider === 'toni_xttsv2'">
                                     <input type="text" x-model="voice" placeholder="Voice Key (z.B. voice_bab36a97)" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all">

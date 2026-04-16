@@ -42,6 +42,7 @@ case "$1" in
         echo -e "  \033[1;32m🗂️ storage\033[0m       Repariert und erneuert den öffentlichen Storage-Link restlos."
         echo -e "  \033[1;32m📦 export\033[0m        Exportiert Projektdateien (z.B. 'funki export ticket, mail' oder 'funki export \"langer string\"')."
         echo -e "  \033[1;32m🎨 templates\033[0m     Sichert UI-Vorlagen automatisch als persistente Seeder-Dateien."
+        echo -e "  \033[1;32m🗺️ aimap\033[0m         Generiert eine Architektur-Map (ai_map.md) für KI-Agenten."
         echo -e "  \033[1;32m⚙️ uploadlimit\033[0m   Setzt das PHP Upload-Limit im Container (z.B. 'funki uploadlimit 150M')."
         echo -e "  \033[1;32m👷 worker\033[0m        Startet den Queue-Worker (für Mails, PDFs und Hintergrund-Jobs)."
         echo -e "  \033[1;32m⏱️ clock\033[0m         Startet den internen System-Takt (führt z.B. automatische minütliche Abrufe aus)."
@@ -138,9 +139,13 @@ case "$1" in
         echo "🎨 Exportiere UI Produkt-Vorlagen sicher in den Code..."
         $PREFIX_DEFAULT php artisan shop:export-templates
         ;;
+    aimap)
+        echo "🗺️ Generiere System-Architektur Map für KI Agenten..."
+        $PREFIX_DEFAULT php artisan ai:generate-map
+        ;;
     worker)
         echo "👷 Starte Funki Queue-Worker (lauscht auf Hintergrund-Jobs)..."
-        $PREFIX_DEFAULT php artisan queue:listen
+        $PREFIX_DEFAULT php artisan queue:listen --timeout=900
         ;;
     clock)
         echo "⏱️ Starte Funki Scheduler (führt zeitgesteuerte Cron-Jobs in Echtzeit aus)..."

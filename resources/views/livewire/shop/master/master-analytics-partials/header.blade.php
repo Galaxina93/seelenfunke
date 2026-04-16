@@ -16,7 +16,7 @@
     <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-                <i class="solar-pulse-bold-duotone text-primary"></i> Datenanalysezentrum
+                <i class="solar-pulse-bold-duotone text-primary"></i>Datenanalysezentrum
             </h1>
             <p class="text-gray-400 mt-2 text-sm">Echtzeitanalyse von Systemstatus, Finanzen und Performance.</p>
         </div>

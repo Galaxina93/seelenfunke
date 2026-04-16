@@ -8,11 +8,10 @@ use Livewire\Component;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-#[Layout('components.layouts.backend_layout')]
 class ExternalAgentEditor extends Component
 {
     public string $themingDepartment = 'Agenten';
-    public $agentId;
+    public $agentId = 'toni';
     public $system_prompt = '';
     public $voice_preset = '';
     public $llm_hoster = '';
@@ -27,12 +26,20 @@ class ExternalAgentEditor extends Component
 
     public $toniUrl;
 
-    public function mount($agentId)
+    #[\Livewire\Attributes\On('edit-external-agent')]
+    public function openEditor($agentId = 'toni')
     {
         $this->toniUrl = env('TONI_AI_URL', 'http://192.168.188.32:8000');
         $this->agentId = $agentId;
         $this->fetchConfig();
         $this->fetchVoices();
+    }
+
+    public function mount($agentId = 'toni')
+    {
+        $this->toniUrl = env('TONI_AI_URL', 'http://192.168.188.32:8000');
+        $this->agentId = $agentId;
+        // Don't fetch automatically on mount because it happens blindly when workspace loads
     }
 
     public function fetchConfig()

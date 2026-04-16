@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class GenerateAiMap extends Command
 {
@@ -12,88 +13,76 @@ class GenerateAiMap extends Command
      *
      * @var string
      */
-    protected $signature = 'make:ai-map';
+    protected $signature = 'ai:generate-map';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Generiert die GenerateAiMap.md für den KI-Agenten (Antigravity)';
+    protected $description = 'Generates an ai_map.md file containing an overview of Models, Controllers, Livewire Components, and Routes for the AI.';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        $this->info('Generiere AI Context Map...');
+        $this->info('Generating AI Map...');
 
-        $mapContent = "# Mein Seelenfunke - AI Context Map\n\n";
-        $mapContent .= "Diese Datei dient als Orientierung für den KI-Agenten. Sie enthält die aktuelle Dateistruktur und unumstößliche Projektregeln.\n\n";
+        $markdown = "# Seelenfunke System-Architektur & AI Map\n\n";
+        $markdown .= "> Automatisch generiert am " . now()->format('Y-m-d H:i:s') . "\n\n";
+        $markdown .= "Diese Datei dient als Index für die Seelenfunke-Codebase, um KI-Agenten die Orientierung zu erleichtern.\n\n";
 
-        $mapContent .= "## 1. Projekt-DNA\n";
-        $mapContent .= "- Laravel 11, Livewire 3, Tailwind CSS\n";
-        $mapContent .= "- Kein klassischer Controller-Ansatz für das Frontend, stattdessen reine Livewire-Komponenten.\n\n";
+        // 1. Models
+        $markdown .= "## 1. Datenbank-Modelle (app/Models)\n\n";
+        $markdown .= $this->scanDirectory(app_path('Models'), 'App\\Models');
 
-        $mapContent .= "## 2. Verzeichnis-Struktur\n\n";
+        // 2. Livewire Components
+        $markdown .= "## 2. Livewire Komponenten (app/Livewire)\n\n";
+        $markdown .= $this->scanDirectory(app_path('Livewire'), 'App\\Livewire');
 
-        // Hier definieren wir, welche Ordner für die KI relevant sind
-        $directoriesToScan = [
-            'app/Livewire' => 'Livewire Komponenten',
-            'resources/views/livewire' => 'Livewire Blade Views',
-            'app/Models' => 'Datenbank Models',
-            'app/Mail' => 'Mails',
-            'resources/views/global/mails' => 'Globale Mail Views'
-        ];
+        // 3. Controllers
+        $markdown .= "## 3. HTTP Controller (app/Http/Controllers)\n\n";
+        $markdown .= $this->scanDirectory(app_path('Http/Controllers'), 'App\\Http\\Controllers');
 
-        foreach ($directoriesToScan as $path => $label) {
-            $mapContent .= "### {$label} (`{$path}/`)\n";
-            $mapContent .= $this->scanDirectory(base_path($path));
-            $mapContent .= "\n";
-        }
+        // 4. Services
+        $markdown .= "## 4. Services & Geschäftslogik (app/Services)\n\n";
+        $markdown .= $this->scanDirectory(app_path('Services'), 'App\\Services');
 
-        $mapContent .= "## 3. Globale Projekt-Regeln (Zwingend beachten!)\n\n";
+        // Save file
+        $outputPath = base_path('ai_map.md');
+        File::put($outputPath, $markdown);
 
-        // --- Deine gesammelten Architektur-Gesetze ---
-        $mapContent .= "- **Sprache:** Antworte und kommentiere Code immer auf Deutsch.\n";
-        $mapContent .= "- **Ticketsystem:** Der Schlüssel für Tickets lautet im gesamten Code zwingend `funki_ticket_id` (nicht `ticket_id`). Die zugehörige View liegt unter `backend.admin.livewire.funki-ticket-system-component`.\n";
-        $mapContent .= "- **Mail-Klassen:** Updates an Kunden werden über die Klasse `TicketUpdateMailToCustomer` gesendet (liegt direkt unter `app/Mail`). Für Newsletter-Tests ist zwingend die View `global.mails.newsletter.new_newsletter_test_mail_to_admin` zu nutzen.\n";
-        $mapContent .= "- **Auth-Flow:** Die Registrierungs-View liegt unter `livewire.auth.register`. Der Namespace für die Livewire-Komponente ist `App\Livewire\Auth`. Nach erfolgreicher Registrierung muss der User zwingend zur Login-Seite weitergeleitet werden.\n";
-        $mapContent .= "- **Gamification:** Der korrekte Namespace für neue Komponenten in diesem Bereich ist `App\Livewire\Global\Gamification`.\n";
-        $mapContent .= "- **Shop-Parameter:** In der Produkt-Template View (`livewire.shop.product.product-templates`) werden die Variablen strikt als `['templates' => \$templates, 'products' => \$products]` übergeben.\n";
-
-        // Speichern im Hauptverzeichnis
-        File::put(base_path('GenerateAiMap.md'), $mapContent);
-
-        $this->info('Erfolg! Die Datei GenerateAiMap.md wurde im Hauptverzeichnis aktualisiert.');
+        $this->info("AI Map successfully written to: {$outputPath}");
     }
 
     /**
-     * Rekursive Funktion zum Auslesen der Verzeichnisse.
+     * Scans a directory and returns a markdown bulleted list of classes.
      */
-    private function scanDirectory($dir, $level = 0)
+    protected function scanDirectory($path, $namespacePrefix)
     {
-        if (!File::isDirectory($dir)) {
-            return "- *(Verzeichnis noch nicht erstellt)*\n";
+        if (!File::exists($path)) {
+            return "- *Verzeichnis existiert nicht*\n\n";
         }
 
+        $files = File::allFiles($path);
         $output = "";
-        $files = File::files($dir);
-        $directories = File::directories($dir);
-
-        $indent = str_repeat("  ", $level);
-
-        foreach ($directories as $directory) {
-            $folderName = basename($directory);
-            $output .= "{$indent}- **{$folderName}/**\n";
-            $output .= $this->scanDirectory($directory, $level + 1);
-        }
 
         foreach ($files as $file) {
-            $fileName = $file->getFilename();
-            $output .= "{$indent}- {$fileName}\n";
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $relativePath = $file->getRelativePathname();
+            $className = str_replace(['/', '.php'], ['\\', ''], $relativePath);
+            $fullClass = $namespacePrefix . '\\' . $className;
+            
+            // Extract the class path for display
+            $displayPath = Str::after($file->getPathname(), base_path() . '/');
+
+            $output .= "- **`{$className}`** (`{$displayPath}`)\n";
         }
 
-        return $output;
+        return rtrim($output) . "\n\n";
     }
 }

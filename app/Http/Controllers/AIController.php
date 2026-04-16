@@ -95,7 +95,13 @@ class AIController extends Controller
         $dynamicSystemPrompt = "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste. Erfinde und rate NIEMALS fremde URLs! Nutze ausschließlich diese:\n" . $navMap . "\n" .
                          "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!";
 
-        $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+        $agentId = $request->input('agent_id');
+        if ($agentId) {
+            $aiAgent = \App\Models\Ai\AiAgent::find($agentId);
+        } else {
+            $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() 
+                ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+        }
         
         if (!$aiAgent) {
             return response()->json(['status' => 'error', 'message' => 'No AI Agent found in database.'], 500);
@@ -187,6 +193,70 @@ class AIController extends Controller
                 }
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error("Toni TTS Fetch failed: " . $e->getMessage());
+            }
+        } elseif ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
+            try {
+                $cleanText = $result['response'];
+                $voiceName = $aiAgent->tts_voice ?: 'Puck';
+                $apiKey = env('GEMINI_API_KEY');
+                
+                // Wir nutzen gemini-3.1-flash-tts-preview, was Audio Modalitäten nativ unterstützt.
+                $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=' . $apiKey;
+                
+                $data = [
+                    "contents" => [
+                        ["role" => "user", "parts" => [["text" => "Lies folgenden Text exakt so vor: " . $cleanText]]]
+                    ],
+                    "generationConfig" => [
+                        "responseModalities" => ["AUDIO"],
+                        "speechConfig" => [
+                            "voiceConfig" => [
+                                "prebuiltVoiceConfig" => [
+                                    "voiceName" => $voiceName
+                                ]
+                            ]
+                        ]
+                    ]
+                ];
+                
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                
+                $response = curl_exec($ch);
+                curl_close($ch);
+                
+                $json = json_decode($response, true);
+                if (isset($json['candidates'][0]['content']['parts'][0]['inlineData']['data'])) {
+                    // Gemini returned base64 string directly; it is raw PCM (24kHz, mono, 16-bit little-endian)
+                    $rawBase64 = $json['candidates'][0]['content']['parts'][0]['inlineData']['data'];
+                    $pcmData = base64_decode($rawBase64);
+                    
+                    // Wrap the RAW PCM into a compliant WAV container
+                    $numChannels = 1;
+                    $sampleRate = 24000;
+                    $bitsPerSample = 16;
+                    $byteRate = $sampleRate * $numChannels * ($bitsPerSample / 8);
+                    $blockAlign = $numChannels * ($bitsPerSample / 8);
+                    $subchunk2Size = strlen($pcmData);
+                    $chunkSize = 36 + $subchunk2Size;
+                    
+                    $wavHeader = pack('A4VA4A4VvvVVvvA4V',
+                        'RIFF', $chunkSize, 'WAVE',
+                        'fmt ', 16, 1, $numChannels, $sampleRate, $byteRate, $blockAlign, $bitsPerSample,
+                        'data', $subchunk2Size
+                    );
+                    
+                    $fullWavData = $wavHeader . $pcmData;
+                    $base64Audio = base64_encode($fullWavData);
+                } else {
+                    \Illuminate\Support\Facades\Log::warning("Gemini Native TTS Soft-Error in AIController: " . print_r($json, true));
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("Gemini Native TTS Fetch failed: " . $e->getMessage());
             }
         }
 

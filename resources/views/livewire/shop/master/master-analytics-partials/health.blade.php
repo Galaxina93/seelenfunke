@@ -471,6 +471,11 @@
                                                         <span class="font-bold text-gray-500">WARTEND: <span class="text-white">{{ $health['pending'] ?? 0 }} Jobs</span></span>
                                                         <span class="font-bold text-gray-500">FEHLER: <span class="{{ ($health['failed'] ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400' }}">{{ $health['failed'] ?? 0 }} Jobs</span></span>
                                                     </div>
+                                                    @if(($health['failed'] ?? 0) > 0)
+                                                        <button type="button" wire:click="flushFailedJobs" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-red-700 bg-red-900/30 hover:bg-red-800 text-red-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner">
+                                                            Fehlgeschlagene Jobs final löschen
+                                                        </button>
+                                                    @endif
                                                 @endif
 
                                                 @if($sKey === 'backup' && isset($health['path']))

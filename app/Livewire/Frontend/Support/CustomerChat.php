@@ -271,175 +271,44 @@ class CustomerChat extends Component
             ['role' => 'system', 'content' => $sysPrompt]
         ];
 
-        // API-Optimierung: Nur die letzten 15 Nachrichten für Kontext anhängen (Token-Sparsamkeit, schnelle RT)
-        $recentMessages = $chat->messages->slice(-15);
+        // API-Optimierung: Nur die letzten 5 Nachrichten für Kontext anhängen (Token-Sparsamkeit, schnelle RT)
+        $recentMessages = $chat->messages->slice(-5);
         foreach ($recentMessages as $msg) {
             $role = ($msg->sender === 'ai') ? 'assistant' : 'user';
             $payloadMessages[] = ['role' => $role, 'content' => $msg->message];
         }
 
-        // Funki's / Agent's Werkzeuge einbinden (Support Schema)
-        $aiToolsConfig = AIFunctionsRegistry::getAiSupportFuncsSchema();
-
-        $payload = [
-            'model' => $supportAgent->model ?? 'meta-llama/Meta-Llama-3-70B-Instruct',
-            'temperature' => 0.5,
-            'messages' => $payloadMessages,
-        ];
-
-        if (!empty($aiToolsConfig)) {
-            $payload['tools'] = array_map(function($schema) {
-                return [
-                    'type' => 'function',
-                    'function' => [
-                        'name' => $schema['name'],
-                        'description' => $schema['description'],
-                        'parameters' => $schema['parameters'],
-                    ]
-                ];
-            }, $aiToolsConfig);
-            $payload['tool_choice'] = 'auto';
-        }
-
-        $agentModelName = strtolower($supportAgent->model ?? '');
-        $apiUrl = config('services.mittwald.url');
-        $apiKey = config('services.mittwald.key');
-        if (str_starts_with($agentModelName, 'gemini')) {
-            $apiUrl = config('services.gemini.url');
-            $apiKey = config('services.gemini.key');
-        }
-
         try {
-            $toolConfidence = 90;
-            $startTime = microtime(true);
-            $response = Http::withToken($apiKey)
-                ->connectTimeout(30)
-                ->timeout(120)
-                ->asJson()
-                ->post(rtrim($apiUrl, '/') . '/chat/completions', $payload);
-            $responseTimeMs = (int) ((microtime(true) - $startTime) * 1000);
+            $apiService = \App\Services\AI\AiAgentFactory::make($supportAgent);
+            
+            \App\Services\AI\AIFunctionsRegistry::setGlobalContext([
+                '__chat_id' => $this->chatId,
+                '__agent_id' => $supportAgent ? $supportAgent->id : null
+            ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $messageData = $data['choices'][0]['message'] ?? [];
-
-                if (isset($data['usage']) && $supportAgent) {
-                    \Illuminate\Support\Facades\DB::table('ai_metrics')->insert([
-                        'id' => \Illuminate\Support\Str::uuid()->toString(),
-                        'ai_agent_id' => $supportAgent->id,
-                        'type' => 'inference',
-                        'input_tokens' => $data['usage']['prompt_tokens'] ?? 0,
-                        'output_tokens' => $data['usage']['completion_tokens'] ?? 0,
-                        'total_time_ms' => $responseTimeMs,
-                        'is_success' => true,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+            $response = $apiService->ask($payloadMessages, function($event) {
+                if (($event['type'] ?? '') === 'tool_call') {
+                    $toolName = $event['tool'] ?? 'System';
+                    $html = '<div class="text-[10px] text-cyan-600 font-mono opacity-80 mt-1 flex items-center gap-1.5 animate-pulse"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Fühlt in die Datenbank: ' . htmlspecialchars($toolName) . '</div>';
+                    $this->stream('thought_customer', $html, false);
+                } elseif (($event['type'] ?? '') === 'thought_html') {
+                    $this->stream('thought_customer', $event['html'], false);
+                } elseif (($event['type'] ?? '') === 'text_chunk') {
+                    $this->stream('answer_customer', $event['chunk'], false);
                 }
+            });
 
-                // Funktion aufrufen?
-                if (isset($messageData['tool_calls'])) {
-                    $toolCalls = $messageData['tool_calls'];
-                    $toolResults = [];
-                    // Führe alle Tools aus (wir hängen 'chat_id' an die Args, falls Funktionen das brauchen)
-                    foreach ($toolCalls as $toolCall) {
-                        $funcName = $toolCall['function']['name'];
-                        $argsString = $toolCall['function']['arguments'];
-                        $args = json_decode($argsString, true) ?? [];
-                        $args['__chat_id'] = $this->chatId; // Versteckte Injection für Status Updates
+            $content = $response['response'] ?? 'Entschuldige, ich konnte keine Antwort generieren.';
 
-                        if ($funcName === 'support_resolve_chat') $toolConfidence = 100;
-                        if ($funcName === 'support_mark_needs_employee') $toolConfidence = 40;
+            // Nachricht speichern
+            SupportCustomerChatMessage::create([
+                'support_customer_chat_id' => $this->chatId,
+                'sender' => 'ai',
+                'message' => $content
+            ]);
 
-                        try {
-                            if ($supportAgent) {
-                                \App\Models\Ai\AiToolUsage::create([
-                                    'ai_agent_id' => $supportAgent->id,
-                                    'tool_name' => $funcName,
-                                    'used_at' => now(),
-                                    'context' => $args,
-                                    'is_error' => false,
-                                    'error_message' => null,
-                                ]);
-                            }
-                        } catch (\Exception $ex) {
-                            Log::error("Telemetry Insert Failed: " . $ex->getMessage());
-                        }
-
-                        try {
-                            $res = AIFunctionsRegistry::execute($funcName, $args);
-                            if (is_array($res) && isset($res['message'])) {
-                                $toolResults[] = $res['message'];
-                            } elseif (is_string($res)) {
-                                $toolResults[] = $res;
-                            }
-                        } catch (\Exception $e) {
-                            Log::error("Funki Tool Call failed: " . $e->getMessage());
-                            $toolResults[] = "Interner Fehler beim Ausführen des Werkzeugs: " . $e->getMessage();
-                        }
-                    }
-
-                    unset($payload['tools']); // Keine Endlos-Loops
-                    unset($payload['tool_choice']); // OpenAI 400 Prevent: tool_choice is invalid without tools
-                    
-                    $sysText = "System-Meldung: Du hast soeben ein oder mehrere Werkzeuge ausgeführt. ";
-                    if (!empty($toolResults)) {
-                        $sysText .= "Hier ist die strikte und echte System-Antwort der durchgeführten Tools (Datenbank):\n\n" . implode("\n\n", $toolResults) . "\n\n";
-                        $sysText .= "Regel: Benutze EXAKT die Ticketnummern (z.B. TCK-XXX) oder Status-Meldungen aus diesem Tool-Ergebnis. Erfinde auf keinen Fall eigene Nummern oder Namen von Mitarbeitern, wenn sie oben nicht stehen!";
-                    } else {
-                        $sysText .= "Antworte dem Kunden nun darauf aufbauend kurz, menschlich und abschließend. Falls ein Mitarbeiter verständigt wurde, verabschiede dich höflich.";
-                    }
-
-                    $payload['messages'][] = [
-                        'role' => 'user',
-                        'content' => $sysText
-                    ];
-                    
-                    $startT2 = microtime(true);
-                    $secondCall = Http::withToken($apiKey)
-                        ->connectTimeout(30)
-                        ->timeout(120)
-                        ->asJson()
-                        ->post(rtrim($apiUrl, '/') . '/chat/completions', $payload);
-                    $responseTimeMs += (int) ((microtime(true) - $startT2) * 1000);
-                        
-                    if ($secondCall->successful()) {
-                        $data2 = $secondCall->json();
-                        $content = $data2['choices'][0]['message']['content'] ?? 'Ich habe mich darum gekümmert!';
-                        
-                        if (isset($data2['usage']) && $supportAgent) {
-                            \Illuminate\Support\Facades\DB::table('ai_metrics')->insert([
-                                'id' => \Illuminate\Support\Str::uuid()->toString(),
-                                'ai_agent_id' => $supportAgent->id,
-                                'type' => 'inference',
-                                'input_tokens' => $data2['usage']['prompt_tokens'] ?? 0,
-                                'output_tokens' => $data2['usage']['completion_tokens'] ?? 0,
-                                'total_time_ms' => (int) ((microtime(true) - $startT2) * 1000),
-                                'is_success' => true,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                        }
-                    } else {
-                        Log::error("Funki 2nd Pass API Error: " . $secondCall->body());
-                        $content = "Entschuldige, beim Ausführen meines Werkzeugs trat ein kurzer Hänger auf.";
-                    }
-                } else {
-                    $content = $messageData['content'] ?? 'Ich habe dich verstanden!';
-                }
-
-                // Nachricht speichern
-                SupportCustomerChatMessage::create([
-                    'support_customer_chat_id' => $this->chatId,
-                    'sender' => 'ai',
-                    'message' => $content
-                ]);
-
-                $this->messages[] = ['sender' => 'ai', 'text' => $content];
-            } else {
-                Log::error('Mittwald API Rejection: ' . $response->body());
-                $this->messages[] = ['sender' => 'ai', 'text' => 'Ups, meine Server-Brain-Verbindung wackelt gerade etwas. Bitte versuche es in ein paar Minuten nochmal!'];
-            }
+            $this->messages[] = ['sender' => 'ai', 'text' => $content];
+            
         } catch (\Exception $e) {
             $this->messages[] = ['sender' => 'ai', 'text' => 'Ich bin aktuell leider offline.'];
             Log::error('Support Chat Error: ' . $e->getMessage());
@@ -451,8 +320,7 @@ class CustomerChat extends Component
         }
         
         $chat->update([
-            'avg_response_time_ms' => $responseTimeMs ?? null,
-            'ai_confidence_score' => $toolConfidence ?? 90,
+            'ai_confidence_score' => 90 // Default static assignment, handled centrally via telemetry now if needed
         ]);
 
         $this->isTyping = false;

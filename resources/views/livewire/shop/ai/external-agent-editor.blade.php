@@ -3,11 +3,11 @@
         <!-- Header / Back Button -->
         <div class="mb-8 flex items-center justify-between">
             <div class="flex items-center gap-4">
-                <a href="{{ route('admin.ai.agents') }}" class="h-10 w-10 bg-gray-900 border border-gray-700/50 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all shadow-sm group">
+                <button type="button" @click="$dispatch('close-external-agent-manager')" class="h-10 w-10 bg-gray-900 border border-gray-700/50 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition-all shadow-sm group cursor-pointer inline-flex">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:-translate-x-1 transition-transform">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                </a>
+                </button>
                 <div>
                     <h2 class="text-3xl font-black text-white uppercase tracking-wider font-mono flex items-center gap-3">
                         Toni Editor
@@ -78,6 +78,7 @@
                                     @endif
                                 </div>
                                 <div class="font-mono text-[10px] text-white uppercase tracking-wider">{{ $voice['name'] ?? $voice['id'] }}</div>
+                                <div class="font-mono text-[8px] text-gray-500 mt-1 opacity-80 border-t border-gray-700/50 pt-1" title="System Voice ID">{{ $voice['id'] }}</div>
                             </div>
                         @empty
                             <div class="col-span-2 py-4 text-center text-gray-500 font-mono text-xs border border-dashed border-gray-700 rounded-xl">

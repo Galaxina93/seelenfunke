@@ -44,7 +44,7 @@
             thinking: false,
             continuousMode: localStorage.getItem('funki_continuousMode') === 'true',
             requireWakeWord: localStorage.getItem('funki_requireWakeWord') === 'true', // Default: Reacts to everything
-            agentWakeWord: '{{ \App\Models\Ai\AiAgent::where("name", "Funkira")->first()?->wake_word ?? "Funkira" }}'.toLowerCase(),
+            agentWakeWord: '{{ addslashes($agentWakeWord ?? "funkira") }}'.toLowerCase(),
             allowSpontaneous: true, // Default: On (Spontaneous Self-Analysis)
             recognition: null,
             synthesis: window.speechSynthesis,
@@ -78,7 +78,7 @@
 
                     this.listening = true;
                     this.updateCoreColor();
-                    this.startSafeRecognition(200);
+                    this.startSafeRecognition(0);
                 } else {
                     this.listening = false;
                     this.updateCoreColor();
@@ -179,7 +179,10 @@
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                         },
-                        body: JSON.stringify({ history: this.chatHistory }),
+                        body: JSON.stringify({ 
+                            history: this.chatHistory,
+                            agent_id: {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!}
+                        }),
                         signal: this.chatAbortController.signal
                     });
 

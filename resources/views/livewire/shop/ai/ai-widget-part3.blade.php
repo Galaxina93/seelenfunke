@@ -245,6 +245,15 @@
             },
 
             startSafeRecognition(delay = 1000) {
+                if (delay === 0) {
+                    if (this.recognition && !t3.isShuttingDown) {
+                        if (this.isRecognizing) return;
+                        try { 
+                            this.recognition.start(); 
+                        } catch(e) {}
+                    }
+                    return;
+                }
                 setTimeout(() => {
                     if (this.recognition && !t3.isShuttingDown) {
                         if (this.isRecognizing) return; // Prevent InvalidStateError entirely

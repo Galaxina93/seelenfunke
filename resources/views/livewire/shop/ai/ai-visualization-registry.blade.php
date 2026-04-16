@@ -1,22 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
     <div class="animate-fade-in-up font-sans antialiased text-[color:var(--theme-color)] pb-12 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div class="mb-12 text-center mt-4">
-            <h1 class="text-3xl sm:text-4xl font-bold text-gray-200">
-                Generative UI
-            </h1>
-            <p class="text-gray-400 mt-2 text-sm">
-                Intelligentes Livewire Routing für AI-Datenvisualisierung (Headless)
-            </p>
-        </div>
-        <div class="flex justify-end mb-8 relative z-10 font-sans">
-            <div class="bg-gray-950 p-2 rounded-xl border border-gray-800 shadow-inner flex items-center gap-3">
-                <div class="flex items-center gap-2 px-3 py-1.5 bg-[color:var(--theme-color-10)] text-[color:var(--theme-color)] border border-[color:var(--theme-color-20)] rounded-lg text-xs font-medium">
-                    <span class="w-2 h-2 rounded-full bg-[color:var(--theme-color)] animate-pulse"></span>
-                    GenUI Aktiv
-                </div>
-            </div>
-        </div>
-
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div class="md:col-span-full bg-gray-950 backdrop-blur-xl border border-gray-800 rounded-3xl p-6 shadow-xl">
                 <p class="text-gray-400 leading-relaxed mb-4 text-sm max-w-4xl">

@@ -1,22 +1,6 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
     <div class="animate-fade-in-up font-sans antialiased text-gray-400 pb-12 w-full">
-        <div class="mb-12 text-center mt-4 font-mono">
-            <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-[0_0_15px_var(--theme-color-20)] drop-shadow-md">
-                Wissensdatenbank & KI-Core
-            </h1>
-            <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">
-                Das Gehirn von Mein Seelenfunke. Dokumentation, Fachbegriffe und Trainingsdaten.
-            </p>
-        </div>
-        <div class="flex justify-end mb-8 relative z-10">
-            <div class="bg-gray-950 p-2 rounded-xl border border-gray-800 shadow-inner flex items-center gap-3">
-                <div class="flex items-center gap-2 px-3 py-1.5 bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] rounded-lg text-[10px] font-black uppercase tracking-widest shadow-xl shadow-[var(--theme-color-10)]">
-                    <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] animate-pulse shadow-[0_0_8px_currentColor]"></span>
-                    KI-Sync Bereit
-                </div>
-            </div>
-        </div>
 
         <div class="flex flex-col lg:flex-row h-[calc(100vh-18rem)] min-h-[600px] bg-gray-900/80 backdrop-blur-xl backdrop-blur-xl rounded-2xl shadow-xl shadow-[var(--theme-color-10)] border border-gray-800 overflow-hidden">
 
@@ -77,7 +61,7 @@
                                  <input type="text" wire:model="editForm.title" placeholder="Eindeutiger Titel..." class="w-full bg-gray-950 border border-gray-800 rounded-lg text-[var(--theme-color)] font-bold px-4 py-3 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none shadow-[inset_0_0_10px_var(--theme-color-5)] transition-all">
                                  @error('editForm.title') <span class="text-red-500 text-[10px] uppercase tracking-widest mt-2 block">{{ $message }}</span> @enderror
                              </div>
-                             
+
                              <div class="flex flex-col gap-6 w-full">
                                  <div class="flex-1 w-full min-w-0">
                                      <livewire:shop.ai.ai-knowledge-base-categories :selectedCategoryId="$editForm['ai_knowledge_base_category_id']" wire:key="kb-categories-{{ $editForm['id'] ?? 'new' }}" />
@@ -105,7 +89,7 @@
                          </div>
                     </div>
                 @elseif($activeArticle)
-                    <div class="p-8 lg:p-12 pb-6 border-b border-gray-800 bg-gray-900/60 backdrop-blur-xl shrink-0 relative">
+                    <div class="p-8 lg:p-12 pb-6 mt-6 border-b border-gray-800 bg-gray-900/60 backdrop-blur-xl shrink-0 relative">
                         <div class="absolute top-8 right-8 flex gap-2">
                              <button wire:click="editArticle('{{ $activeArticle->id }}')" class="p-2.5 bg-gray-950 border border-gray-800 hover:bg-[var(--theme-color-10)] hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
                                  <x-heroicon-o-pencil class="w-5 h-5" />
@@ -275,7 +259,7 @@
 
                     <!-- ARROWS UP TO FILTER -->
                     <line x1="150" y1="200" x2="150" y2="155" stroke="var(--theme-color-30)" stroke-width="2" marker-end="url(#arrowUpGrayM)"/>
-                    
+
                     <!-- TAGS / CATEGORIES (MIDDLE) -->
                     <rect x="70" y="125" width="160" height="30" rx="4" fill="var(--theme-color-5)" stroke="var(--theme-color-50)" stroke-width="1.5" stroke-dasharray="4"/>
                     <text x="150" y="143" fill="var(--theme-color-80)" font-size="7.5" font-weight="900" text-anchor="middle" letter-spacing="2">Kategorien & Tags</text>
@@ -338,7 +322,7 @@
             .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
             .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--theme-color-40); border-radius: 4px; }
             .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--theme-color-80); }
-            
+
             ::selection { background: var(--theme-color-30); color: #6ee7b7; }
         </style>
     </div>

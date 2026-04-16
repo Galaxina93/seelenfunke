@@ -334,7 +334,7 @@
                                         </div>
                                         <div class="p-2 border-t border-gray-800">
                                             <button wire:click.stop="moveAgent('{{ $freeAgent->id ?? null }}', 'unassigned')" class="hidden"></button> {{-- For Drop Handler --}}
-                                            <a href="{{ route('admin.ai.agents') }}" class="block w-full text-center p-2 text-[9px] font-bold uppercase tracking-widest text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-500 rounded transition-colors">Im Manager Erschaffen</a>
+                                            <a href="{{ route('admin.ai.workspace') }}" class="block w-full text-center p-2 text-[9px] font-bold uppercase tracking-widest text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-500 rounded transition-colors">Im Manager Erschaffen</a>
                                         </div>
                                     </div>
                                 </div>

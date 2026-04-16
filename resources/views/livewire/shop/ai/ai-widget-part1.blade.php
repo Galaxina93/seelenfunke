@@ -45,9 +45,8 @@
             </div>
             
             <div class="flex flex-col gap-4 items-start border-b border-emerald-900/30 pb-4 mb-1">
-                @php $funkiraActive = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->exists(); @endphp
-                @if($funkiraActive)
-                <button @click="$dispatch('open-funkira'); dockOpen = false" class="w-full text-emerald-500 hover:text-emerald-400 flex items-center justify-center gap-2 bg-emerald-900/30 px-3 py-2.5 rounded-xl border border-emerald-500/30 transition-all hover:scale-[1.02] shadow-[0_0_15px_rgba(16,185,129,0.1)]" title="Zentrum Öffnen">
+                @if($agentIsActive)
+                <button @click="$dispatch('open-funkira'); dockOpen = false" class="w-full text-[var(--theme-color)] hover:opacity-80 flex items-center justify-center gap-2 bg-[var(--theme-color-10)] px-3 py-2.5 rounded-xl border border-[var(--theme-color-30)] transition-all hover:scale-[1.02] shadow-[0_0_15px_var(--theme-color-10)]" style="--theme-color: #10b981; --theme-color-10: rgba(16,185,129,0.1); --theme-color-30: rgba(16,185,129,0.3);" title="Zentrum Öffnen">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
                         <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
                         <circle cx="10" cy="10" r="3"/>

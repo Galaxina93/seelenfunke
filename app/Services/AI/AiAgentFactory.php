@@ -8,25 +8,31 @@ use Exception;
 class AiAgentFactory
 {
     /**
-     * Resolves the correct API Agent Service instance based on the AI Agent's model name.
+     * Resolves the correct API Agent Service instance based on the AI Agent's provider.
      *
      * @param AiAgent $agent
-     * @return MittwaldAgent|GeminiAgent
+     * @return \App\Services\AI\Contracts\AiProviderInterface
      */
     public static function make(AiAgent $agent)
     {
-        $model = strtolower($agent->model ?? '');
+        $provider = strtolower($agent->provider ?? 'google');
 
-        if (str_starts_with($model, 'gemini')) {
-            return new GeminiAgent($agent);
+        if ($provider === 'openai') {
+             // Will return an instance of ChatGPTAgent and if it errors, fallback to another provider later
+             return class_exists(ChatGPTAgent::class) ? new ChatGPTAgent($agent) : new GeminiAgent($agent);
         }
 
-        // Default or Fallback: Mittwald Proxy API
-        return new MittwaldAgent($agent);
+        if ($provider === 'anthropic') {
+             return class_exists(ClaudeAgent::class) ? new ClaudeAgent($agent) : new GeminiAgent($agent);
+        }
+
+        // Default: Google Gemini API (Proxy or direct)
+        return new GeminiAgent($agent);
     }
 
     /**
      * Routes the direct prompt to the correct Agent Service logic.
+     * Has auto-fallback logic if the primary provider yields an API error (503/429).
      *
      * @param AiAgent $agent
      * @param string $prompt
@@ -34,13 +40,33 @@ class AiAgentFactory
      */
     public static function processDirectPrompt(AiAgent $agent, string $prompt): string
     {
-        $model = strtolower($agent->model ?? '');
+        $provider = strtolower($agent->provider ?? 'google');
 
-        if (str_starts_with($model, 'gemini')) {
-            return GeminiAgent::processDirectPrompt($agent, $prompt);
+        try {
+            if ($provider === 'openai' && class_exists(ChatGPTAgent::class)) {
+                $response = ChatGPTAgent::processDirectPrompt($agent, $prompt);
+            } elseif ($provider === 'anthropic' && class_exists(ClaudeAgent::class)) {
+                $response = ClaudeAgent::processDirectPrompt($agent, $prompt);
+            } else {
+                $response = GeminiAgent::processDirectPrompt($agent, $prompt);
+            }
+            
+            // Check if response starts with API Error for Swarm Routing Fallback
+            if (str_starts_with($response, 'API Fehler:') && !empty($agent->fallback_provider)) {
+                \Illuminate\Support\Facades\Log::warning("Swarm Router Fallback triggered. Provider {$provider} failed. Switching to {$agent->fallback_provider}.");
+                $agent->provider = $agent->fallback_provider;
+                return self::processDirectPrompt($agent, $prompt); // recursive fallback
+            }
+
+            return $response;
+
+        } catch (\Exception $e) {
+            if (!empty($agent->fallback_provider) && $agent->provider !== $agent->fallback_provider) {
+                \Illuminate\Support\Facades\Log::warning("Swarm Runtime Exception triggered fallback. Switch to {$agent->fallback_provider}.", ['exception' => $e->getMessage()]);
+                $agent->provider = $agent->fallback_provider;
+                return self::processDirectPrompt($agent, $prompt);
+            }
+            return "Kritischer Fehler der Provider-Infrastruktur: " . $e->getMessage();
         }
-
-        // Default or Fallback
-        return MittwaldAgent::processDirectPrompt($agent, $prompt);
     }
 }

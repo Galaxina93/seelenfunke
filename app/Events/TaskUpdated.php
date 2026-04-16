@@ -31,4 +31,17 @@ class TaskUpdated implements ShouldBroadcast
             new Channel('workspace'),
         ];
     }
+
+    /**
+     * Get the data to broadcast.
+     *
+     * @return array<string, mixed>
+     */
+    public function broadcastWith(): array
+    {
+        return [
+            'task_id' => $this->task->id,
+            'status' => $this->task->status,
+        ];
+    }
 }

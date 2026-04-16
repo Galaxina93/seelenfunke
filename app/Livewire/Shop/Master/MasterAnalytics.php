@@ -633,6 +633,24 @@ class MasterAnalytics extends Component
         return $logs->sortByDesc('timestamp')->values()->take(30);
     }
 
+    public function flushFailedJobs()
+    {
+        $this->repairLogs = [];
+        $this->addRepairLog("--- WIPE FEHLGESCHLAGENER JOBS ---", 'info');
+        
+        try {
+            \Illuminate\Support\Facades\Artisan::call('queue:flush');
+            $this->addRepairLog("Räume fehlerhafte Queue-Jobs auf...");
+            $this->addRepairLog("✓ Alle fehlgeschlagenen Jobs wurden endgültig gelöscht.", 'success');
+        } catch (\Exception $e) {
+            $this->addRepairLog("Fehler beim Löschen: " . $e->getMessage(), 'error');
+        }
+
+        sleep(1);
+        $this->checkSystemHealth();
+        $this->js('setTimeout(() => window.location.reload(), 2500)');
+    }
+
     public function fixSystem($service = null)
     {
         // Start des Repair-Logs
