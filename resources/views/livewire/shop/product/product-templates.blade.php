@@ -43,6 +43,16 @@
                             {{$template->is_active ? 'Aktiv' : 'Inaktiv'}}
                         </button>
                     </div>
+                    @if($template->preview_image)
+                        <div class="text-[9px] text-gray-500 font-mono truncate mt-3 border-t border-gray-800/50 pt-3" title="{{ str_starts_with($template->preview_image, 'shop/') || str_starts_with($template->preview_image, 'images/') ? 'public/' : 'storage/app/public/' }}{{$template->preview_image}}">
+                            <span class="text-[var(--theme-color)] font-bold">Pfad:</span> 
+                            @if(str_starts_with($template->preview_image, 'http'))
+                                <a href="{{ $template->preview_image }}" target="_blank" class="text-blue-400 hover:underline">{{ $template->preview_image }}</a>
+                            @else
+                                {{ str_starts_with($template->preview_image, 'shop/') || str_starts_with($template->preview_image, 'images/') ? 'public/' : 'storage/app/public/' }}{{$template->preview_image}}
+                            @endif
+                        </div>
+                    @endif
                 </div>
             @empty
                 <div class="col-span-full text-center py-24 bg-gray-900/50 rounded-[3rem] border border-gray-800 border-dashed shadow-inner">
@@ -103,9 +113,39 @@
 
                 <div class="w-full xl:w-96 shrink-0">
                     <label class="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Eigenes Vorschaubild (Optional)</label>
-                    <input type="file" wire:model="templateImage" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-2xl px-4 py-3 text-xs text-gray-400 file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-white hover:file:bg-gray-700 cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all">
-                    @error('templateImage') <span class="text-red-400 text-[10px] font-bold mt-2 block ml-1 uppercase tracking-widest">{{$message}}</span> @enderror
-                    <div wire:loading wire:target="templateImage" class="text-[10px] text-[var(--theme-color)] mt-2 ml-1 font-bold animate-pulse uppercase tracking-widest">Bild wird hochgeladen...</div>
+                    
+                    @if($existingTemplateImagePath)
+                        <div class="bg-gray-950 p-3 rounded-2xl border border-gray-800 shadow-inner flex flex-col gap-3">
+                            <div class="flex items-start gap-3">
+                                <x-heroicon-m-check-badge class="w-5 h-5 text-[var(--theme-color)] shrink-0 mt-0.5" />
+                                <div class="text-[9px] font-mono text-gray-400 break-all leading-relaxed flex-1 space-y-2">
+                                    <div>
+                                        <span class="font-bold text-gray-300 uppercase tracking-widest block mb-0.5 font-sans">Bild hinterlegt:</span> 
+                                        @if(str_starts_with($existingTemplateImagePath, 'http'))
+                                            <a href="{{ $existingTemplateImagePath }}" target="_blank" class="text-blue-400 hover:underline">{{ $existingTemplateImagePath }}</a>
+                                        @else
+                                            <div class="text-gray-500">Physischer Server-Pfad:</div>
+                                            <div class="text-amber-500/80 bg-amber-500/10 px-1 py-0.5 rounded">
+                                                {{ str_starts_with($existingTemplateImagePath, 'shop/') || str_starts_with($existingTemplateImagePath, 'images/') ? 'public/' : 'storage/app/public/' }}{{ $existingTemplateImagePath }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" wire:click="removeExistingImage" class="flex-1 bg-gray-900 hover:bg-[var(--theme-color)] hover:text-gray-900 text-[10px] text-gray-400 font-black uppercase tracking-widest py-2.5 px-3 rounded-xl border border-gray-800 hover:border-transparent transition-all shadow-lg active:scale-95">
+                                    Vorschau ersetzen
+                                </button>
+                                <button type="button" wire:click="removeExistingImage" class="w-10 shrink-0 flex flex-col items-center justify-center bg-gray-900 border border-gray-800 hover:border-red-500/50 hover:bg-red-500/10 text-gray-500 hover:text-red-400 rounded-xl transition-all shadow-lg active:scale-95" title="Bild komplett entfernen">
+                                    <x-heroicon-o-x-mark class="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    @else
+                        <input type="file" wire:model="templateImage" accept="image/*" class="w-full bg-gray-950 border border-gray-800 rounded-2xl px-4 py-3 text-xs text-gray-400 file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-white hover:file:bg-gray-700 cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all">
+                        @error('templateImage') <span class="text-red-400 text-[10px] font-bold mt-2 block ml-1 uppercase tracking-widest">{{$message}}</span> @enderror
+                        <div wire:loading wire:target="templateImage" class="text-[10px] text-[var(--theme-color)] mt-2 ml-1 font-bold animate-pulse uppercase tracking-widest">Bild wird hochgeladen...</div>
+                    @endif
                 </div>
 
                 <div class="flex items-center gap-4 xl:mt-6 bg-gray-950 p-4 rounded-2xl border border-gray-800 shadow-inner w-full xl:w-auto shrink-0 cursor-pointer group" x-on:click="$wire.set('templateIsActive', !@js($templateIsActive))">

@@ -163,7 +163,7 @@ class ProductConfigurator extends Component
         }
 
         foreach ($this->logos as &$logo) {
-            if (!isset($logo['url']) && isset($logo['value'])) {
+            if (isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
                     $logo['url'] = asset('shop/product/configurator/' . $logo['value']);
                 } else {
@@ -173,7 +173,7 @@ class ProductConfigurator extends Component
         }
 
         foreach ($this->logos_back as &$logo) {
-            if (!isset($logo['url']) && isset($logo['value'])) {
+            if (isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
                     $logo['url'] = asset('shop/product/configurator/' . $logo['value']);
                 } else {

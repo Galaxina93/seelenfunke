@@ -31,6 +31,8 @@ class ProductTemplates extends Component
     public $templateConfig = [];
     public $editingTemplateId = null;
     public $templateImage;
+    public $existingTemplateImagePath = null;
+    public $removeExistingImage = false;
 
     public function cancel()
     {
@@ -61,6 +63,8 @@ class ProductTemplates extends Component
         $this->templateHoliday = $template->holiday ?? '';
         $this->templateConfig = $template->configuration ?? [];
         $this->templateImage = null;
+        $this->existingTemplateImagePath = $template->preview_image;
+        $this->removeExistingImage = false;
 
         $this->viewMode = 'configure';
     }
@@ -84,6 +88,12 @@ class ProductTemplates extends Component
         $template->update([
             'is_active' => !$template->is_active
         ]);
+    }
+
+    public function removeExistingImage()
+    {
+        $this->removeExistingImage = true;
+        $this->existingTemplateImagePath = null;
     }
 
     #[On('save-template-data')]
@@ -114,6 +124,11 @@ class ProductTemplates extends Component
                 Storage::disk('public')->delete($template->preview_image);
             }
             $template->preview_image = $this->templateImage->store('product-templates', 'public');
+        } elseif ($this->removeExistingImage) {
+            if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'product-templates/')) {
+                Storage::disk('public')->delete($template->preview_image);
+            }
+            $template->preview_image = null;
         } elseif ($previewImagePath && !$template->exists) {
             $template->preview_image = $previewImagePath;
         }
@@ -132,6 +147,8 @@ class ProductTemplates extends Component
         $this->templateConfig = [];
         $this->editingTemplateId = null;
         $this->templateImage = null;
+        $this->existingTemplateImagePath = null;
+        $this->removeExistingImage = false;
         $this->resetErrorBag();
     }
 

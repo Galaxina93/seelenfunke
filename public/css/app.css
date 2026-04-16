@@ -11032,6 +11032,9 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(250 204 21 / var(--tw-border-opacity, 1));
 }
+.hover\:border-transparent:hover {
+  border-color: transparent;
+}
 .hover\:bg-\[\#2A2A2A\]:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(42 42 42 / var(--tw-bg-opacity, 1));
