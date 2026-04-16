@@ -134,11 +134,22 @@ class AiWorkspace extends Component
     #[Computed]
     public function getIsWorkerRunningProperty()
     {
-        if (function_exists('shell_exec')) {
-            $output = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
+        if (config('queue.default') === 'sync') {
+            return true;
+        }
+
+        if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
+            // Methode 1: pgrep (Standard Linux)
+            $output = shell_exec('pgrep -f "artisan queue" 2>/dev/null');
+            
+            if (empty(trim($output))) {
+                // Methode 2: ps (Standard Shared Hosting / Alpine Container wie Mittwald)
+                // Busybox kompatibel: Simples Piping anstelle von Regex
+                $output = shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
+            }
             return !empty(trim($output));
         }
-        return true;
+        return true; // Fallback wenn shell_exec() systemseitig verboten ist
     }
 
     public function toggleAgent($agentId)
