@@ -57,6 +57,8 @@
 
                     window.Echo.private('customer.{{ $customerId }}')
                         .listen('.TicketMessageSent', (e) => {
+                            window.dispatchEvent(new CustomEvent('customer-ticket-message-received', { detail: e }));
+                            
                             if (e.message && e.message.sender_type === 'admin') {
                                 // 1. Roten Punkt sofort anschalten
                                 this.hasUnreadSupport = true;

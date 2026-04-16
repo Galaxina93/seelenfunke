@@ -1,12 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }};" class="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-100px)] text-gray-300 font-sans relative"
-     x-init="
-        if (typeof window.Echo !== 'undefined') {
-            window.Echo.private('admin.tickets')
-                .listen('.TicketMessageSent', (e) => {
-                    $wire.receiveMessage(e);
-                });
-        }
-     "
+     @admin-ticket-message-received.window="$wire.receiveMessage($event.detail)"
 >
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
 

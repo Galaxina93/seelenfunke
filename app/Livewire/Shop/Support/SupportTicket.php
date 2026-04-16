@@ -28,12 +28,13 @@ class SupportTicket extends Component
     public $replyMessage = '';
     public $replyAttachments = [];
 
-    #[On('echo-private:admin.tickets,.TicketMessageSent')]
     public function receiveMessage($event)
     {
+        \Illuminate\Support\Facades\Log::info('WS Triggered: Admin receiveMessage', ['payload' => $event, 'activeTicketId' => $this->activeTicketId]);
+
         if (isset($event['message']['support_ticket_id'])) {
             $ticketId = $event['message']['support_ticket_id'];
-            if ($this->activeTicketId === $ticketId) {
+            if ((string) $this->activeTicketId === (string) $ticketId) {
                 $this->filterStatus = 'open';
                 $this->markAsReadAdmin($ticketId);
                 $this->dispatch('ticket-message-received');

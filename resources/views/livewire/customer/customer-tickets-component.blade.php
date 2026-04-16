@@ -1,12 +1,5 @@
 <div class="p-4 sm:p-6 lg:p-10 min-h-[85vh] flex flex-col relative z-10 font-sans antialiased text-gray-300"
-     x-init="
-        if (typeof window.Echo !== 'undefined') {
-            window.Echo.private('customer.{{ auth()->guard('customer')->id() }}')
-                .listen('.TicketMessageSent', (e) => {
-                    $wire.receiveMessage(e);
-                });
-        }
-     "
+     @customer-ticket-message-received.window="$wire.receiveMessage($event.detail)"
 >
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
 

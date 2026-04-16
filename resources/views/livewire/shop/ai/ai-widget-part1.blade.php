@@ -6,7 +6,7 @@
      @funki-force-stop.window="stopSpeech()"
      @keyup.escape.window="closeFunkiView()">
 
-<div x-data="{ dockOpen: false }" 
+<div x-data="{ dockOpen: false }"
      class="fixed right-0 top-1/2 -translate-y-1/2 z-[99999] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none"
      :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'">
 
@@ -30,7 +30,7 @@
     </div>
 
     <!-- DAS HAUPT-DOCK -->
-    <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-64 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
+    <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-24 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
         <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex justify-between items-center">
@@ -43,7 +43,7 @@
                     </button>
                 </div>
             </div>
-            
+
             <div class="flex flex-col gap-4 items-start border-b border-emerald-900/30 pb-4 mb-1">
                 @if($agentIsActive)
                 <button @click="$dispatch('open-funkira'); dockOpen = false" class="w-full text-[var(--theme-color)] hover:opacity-80 flex items-center justify-center gap-2 bg-[var(--theme-color-10)] px-3 py-2.5 rounded-xl border border-[var(--theme-color-30)] transition-all hover:scale-[1.02] shadow-[0_0_15px_var(--theme-color-10)]" style="--theme-color: #10b981; --theme-color-10: rgba(16,185,129,0.1); --theme-color-30: rgba(16,185,129,0.3);" title="Zentrum Öffnen">
@@ -51,7 +51,7 @@
                         <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z"/>
                         <circle cx="10" cy="10" r="3"/>
                     </svg>
-                    <span class="font-bold tracking-widest text-[10px] uppercase">3D-Zentrum öffnen</span>
+                    <span class="font-bold tracking-widest text-[10px] uppercase">3D</span>
                 </button>
                 @endif
 
@@ -61,19 +61,17 @@
                         <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="continuousMode ? 'translate-x-4' : 'translate-x-0'"></div>
                     </div>
                     <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" /><path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z" /></svg>
-                        <span>Immer hören</span>
+                        <x-heroicon-o-microphone class="w-4 h-4" />
                     </div>
                 </label>
-                
+
                 <label class="flex items-center gap-2 cursor-pointer group" title="Aktivierungswort (Wake-Word) nutzen">
                     <div class="relative w-8 h-4 transition-colors rounded-full" :class="requireWakeWord ? 'bg-emerald-500' : 'bg-gray-700'">
                         <input type="checkbox" x-model="requireWakeWord" class="sr-only">
                         <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="requireWakeWord ? 'translate-x-4' : 'translate-x-0'"></div>
                     </div>
                     <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" /></svg>
-                        <span>Aktivierungswort</span>
+                        <x-heroicon-o-at-symbol class="w-4 h-4" />
                     </div>
                 </label>
             </div>

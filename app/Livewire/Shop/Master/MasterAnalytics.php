@@ -351,22 +351,6 @@ class MasterAnalytics extends Component
         }
 
         // --- ASYNCHRONE EXTERNE API CHECKS ---
-        // Alle externen APIs werden parallel (gleichzeitig) angepingt, um kumulative Timeouts und Dashboard-Hänger zu verhindern!
-        $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
-        $mittwaldUrl = config('services.mittwald.url', 'https://llm.aihosting.mittwald.de');
-        $mittwaldHost = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
-
-        $responses = \Illuminate\Support\Facades\Http::pool(fn (\Illuminate\Http\Client\Pool $pool) => [
-            $pool->as('stripe')->timeout(3)->get('https://api.stripe.com/healthcheck'),
-            $pool->as('dhl')->timeout(2)->get('https://api.dhl.com'),
-            $pool->as('finapi')->timeout(2)->get($finapiUrl),
-            $pool->as('mittwald')->timeout(2)->get("https://{$mittwaldHost}"),
-            $pool->as('gemini')->timeout(2)->get('https://generativelanguage.googleapis.com'),
-            $pool->as('google_places')->timeout(2)->get('https://maps.googleapis.com'),
-            $pool->as('elster')->timeout(2)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),
-            $pool->as('scraperapi')->timeout(2)->get('http://api.scraperapi.com'),
-        ]);
-
         $apiMapping = [
             'stripe' => ['name' => 'Stripe API', 'log_msg' => 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.'],
             'dhl' => ['name' => 'DHL API', 'log_msg' => null],
@@ -378,27 +362,60 @@ class MasterAnalytics extends Component
             'scraperapi' => ['name' => 'ScraperAPI', 'log_msg' => null],
         ];
 
-        foreach ($responses as $key => $response) {
-            // Eine Exception bedeutet: Curl Connection Error / Timeout!
-            // Da wir bei manchen APIs (wie Gemini Root) absichtlich nur einen Ping machen, 
-            // kann der Response auch 400 oder 404 sein - das heißt trotzdem, dass der Server online ist!
-            if ($response instanceof \Exception) {
-                $status = $key === 'stripe' ? 'error' : 'warning';
-                $health[$key] = ['status' => $status, 'value' => 'Timeout', 'error' => $apiMapping[$key]['name'] . ' nicht erreichbar.'];
-                
-                if ($apiMapping[$key]['log_msg']) {
-                    $this->logSystemFailure($key, $apiMapping[$key]['log_msg']);
+        // Standard-Werte setzen, falls der Http::pool komplett abstürzt ("Fail-Safe")
+        foreach ($apiMapping as $key => $data) {
+            $health[$key] = ['status' => 'checking', 'value' => '...', 'error' => null];
+        }
+
+        try {
+            // Alle externen APIs werden parallel (gleichzeitig) angepingt, um kumulative Timeouts und Dashboard-Hänger zu verhindern!
+            $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
+            $mittwaldUrl = config('services.mittwald.url', 'https://llm.aihosting.mittwald.de');
+            $mittwaldHost = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
+
+            $responses = \Illuminate\Support\Facades\Http::pool(fn (\Illuminate\Http\Client\Pool $pool) => [
+                $pool->as('stripe')->timeout(3)->get('https://api.stripe.com/healthcheck'),
+                $pool->as('dhl')->timeout(2)->get('https://api.dhl.com'),
+                $pool->as('finapi')->timeout(2)->get($finapiUrl),
+                $pool->as('mittwald')->timeout(2)->get("https://{$mittwaldHost}"),
+                $pool->as('gemini')->timeout(2)->get('https://generativelanguage.googleapis.com'),
+                $pool->as('google_places')->timeout(2)->get('https://maps.googleapis.com'),
+                $pool->as('elster')->timeout(2)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),
+                $pool->as('scraperapi')->timeout(2)->get('http://api.scraperapi.com'),
+            ]);
+
+            foreach ($responses as $key => $response) {
+                // Eine Exception bedeutet: Curl Connection Error / DNS Error / harter Timeout!
+                if ($response instanceof \Exception) {
+                    $status = $key === 'stripe' ? 'error' : 'warning';
+                    $health[$key] = ['status' => $status, 'value' => 'Timeout', 'error' => $apiMapping[$key]['name'] . ' nicht erreichbar.'];
+                    
+                    if ($apiMapping[$key]['log_msg']) {
+                        $this->logSystemFailure($key, $apiMapping[$key]['log_msg'], ['error' => $response->getMessage()]);
+                    }
+                } else {
+                    $stats = $response->handlerStats();
+                    $timeText = 'Aktiv';
+                    if (is_array($stats) && isset($stats['total_time'])) {
+                        $timeMs = round($stats['total_time'] * 1000);
+                        $timeText = "Latenz: {$timeMs}ms";
+                    }
+                    
+                    // Wir erlauben 4xx HTTP-Antworten (da wir pingen ohne validen Token), aber 5xx deutet auf Serverausfall hin!
+                    if ($response->serverError()) {
+                        $health[$key] = ['status' => 'warning', 'value' => '5xx Error', 'error' => $apiMapping[$key]['name'] . ' meldet Serverfehler!'];
+                    } else {
+                        $health[$key] = ['status' => 'connected', 'value' => $timeText, 'error' => null];
+                    }
                 }
-            } else {
-                $stats = $response->handlerStats();
-                $timeText = 'Aktiv';
-                if (is_array($stats) && isset($stats['total_time'])) {
-                    $timeMs = round($stats['total_time'] * 1000);
-                    $timeText = "Latenz: {$timeMs}ms";
-                }
-                
-                $health[$key] = ['status' => 'connected', 'value' => $timeText, 'error' => null];
             }
+        } catch (\Exception $e) {
+            // Wenn der asynchrone Http-Pool komplett platzt (z.B. kritischer Netzwerkausfall des Servers)
+            foreach ($apiMapping as $key => $data) {
+                $status = $key === 'stripe' ? 'error' : 'warning';
+                $health[$key] = ['status' => $status, 'value' => 'Failed', 'error' => 'Sub-Check abgebrochen.'];
+            }
+            $this->logSystemFailure('api_pool', 'Der asynchrone API-HTTP-Pool ist komplett abgestürzt: ' . $e->getMessage());
         }
 
         $this->systemHealth = $health;

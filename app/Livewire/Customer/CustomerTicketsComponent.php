@@ -54,10 +54,11 @@ class CustomerTicketsComponent extends Component
     }
 
     // DIE MAGISCHE ECHTZEIT-FUNKTION!
-    #[On('echo-private:customer.{customerId},.TicketMessageSent')]
     public function receiveMessage($event)
     {
-        if (isset($event['message']['support_ticket_id']) && $this->activeTicketId === $event['message']['support_ticket_id']) {
+        \Illuminate\Support\Facades\Log::info('WS Triggered: Customer receiveMessage', ['payload' => $event, 'activeTicketId' => $this->activeTicketId]);
+
+        if (isset($event['message']['support_ticket_id']) && (string) $this->activeTicketId === (string) $event['message']['support_ticket_id']) {
             $this->markAsRead($this->activeTicketId);
             $this->dispatch('ticket-message-received');
 

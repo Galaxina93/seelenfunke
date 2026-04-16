@@ -89,6 +89,8 @@
 
                             // Lauschen auf dem Admin-Channel
                             window.Echo.private('admin.{{$adminId}}').listen('.TicketMessageSent', (e) => {
+                                window.dispatchEvent(new CustomEvent('admin-ticket-message-received', { detail: e }));
+                                
                                 if(e.message && e.message.sender_type === 'customer'){
                                     this.hasUnreadSupport = true;
                                     window.dispatchEvent(new CustomEvent('admin-ticket-badge-update')); // NEU: Event feuern
@@ -105,6 +107,8 @@
 
                             // Fallback-Channel:
                             window.Echo.private('admin.tickets').listen('.TicketMessageSent', (e) => {
+                                window.dispatchEvent(new CustomEvent('admin-ticket-message-received', { detail: e }));
+                                
                                 if(e.message && e.message.sender_type === 'customer'){
                                     this.hasUnreadSupport = true;
                                     window.dispatchEvent(new CustomEvent('admin-ticket-badge-update')); // NEU: Event feuern
