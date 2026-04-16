@@ -70,12 +70,24 @@ class MasterAnalytics extends Component
         // wobei der Leitungsagent (ohne zugewiesenes Department = Stabsstelle) ganz oben steht.
         $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)
             ->with('role')
-            ->orderByRaw("ai_department_id IS NULL DESC") // Leitungsagent immer ganz oben
-            ->orderBy('name')
             ->get()
+            ->sortBy(function($agent) {
+                $roleName = $agent->role->name ?? '';
+                if (stripos($roleName, 'Teamleiter') !== false || stripos($roleName, 'CEO') !== false) return 0;
+                if (is_null($agent->ai_department_id)) return 1;
+                return 2;
+            })
+            ->values()
             ->toArray();
 
-        if (count($this->availableAgents) > 0) {
+        $ceoAgent = collect($this->availableAgents)->first(function($a) {
+             $roleName = $a['role']['name'] ?? '';
+             return stripos($roleName, 'Teamleiter') !== false || stripos($roleName, 'CEO') !== false;
+        });
+
+        if ($ceoAgent) {
+            $this->selectedAgentId = $ceoAgent['id'];
+        } elseif (count($this->availableAgents) > 0) {
             $this->selectedAgentId = $this->availableAgents[0]['id'];
         }
 
@@ -691,8 +703,30 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'ws':
-                            $this->addRepairLog("WebSocket Daemon muss serverseitig neugestartet werden.", 'error');
-                            $this->addRepairLog("Hinweis: Logge dich via SSH ein und führe 'php artisan reverb:start' oder 'pm2 restart reverb' aus.", 'warning');
+                            $this->addRepairLog("Führe Config Cache Reset für WebSockets aus...");
+                            \Illuminate\Support\Facades\Artisan::call('config:clear');
+                            $this->addRepairLog("✓ Config/ENV Variablen neu geladen.", 'success');
+                            
+                            $this->addRepairLog("Stosse JavaScript Kompilierung an (npm run prod)...", 'warning');
+                            $this->addRepairLog("Dies kann bis zu 60 Sekunden dauern...", 'info');
+                            
+                            try {
+                                $process = \Symfony\Component\Process\Process::fromShellCommandline('export PATH=$PATH:/usr/local/bin:/usr/bin:/bin; npm run prod', base_path());
+                                $process->setTimeout(120);
+                                $process->run();
+
+                                if ($process->isSuccessful()) {
+                                    $this->addRepairLog("✓ Frontend JS erfolgreich neu gebaut!", 'success');
+                                } else {
+                                    $this->addRepairLog("Kompilierung fehlgeschlagen. Wahrscheinlich fehlt 'npm' im PHP-User Pfad oder Fehler in Assets.", 'error');
+                                    $this->addRepairLog("Fehlerausgabe: " . substr($process->getErrorOutput(), 0, 150) . "...", 'warning');
+                                    $this->addRepairLog("Tipp: Bitte logge dich via SSH ein und führe 'npm run prod' manuell aus.", 'warning');
+                                }
+                            } catch (\Exception $e) {
+                                $this->addRepairLog("Kritischer Fehler beim Ausführen von npm: " . $e->getMessage(), 'error');
+                            }
+                            
+                            $this->addRepairLog("Reverb WebSocket Daemon muss serverseitig nach wie vor laufen.", 'info');
                             break;
 
                         default:

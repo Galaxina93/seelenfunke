@@ -28,7 +28,7 @@
                     </div>
                     <div class="w-full h-48 bg-gray-950 rounded-2xl mb-5 flex items-center justify-center border border-gray-800 shadow-inner overflow-hidden relative">
                         @if($template->preview_image)
-                            <img src="{{asset('storage/'.$template->preview_image)}}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
+                            <img src="{{ $template->preview_image_url }}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
                         @else
                             <x-heroicon-o-photo class="w-12 h-12 text-gray-700" />
                         @endif

@@ -43,6 +43,29 @@ class ProductTemplate extends Model
     ];
 
     /**
+     * Holt die korrekte öffentliche URL für das Vorschaubild.
+     */
+    public function getPreviewImageUrlAttribute(): ?string
+    {
+        if (empty($this->preview_image)) {
+            return null;
+        }
+
+        // Falls es bereits eine vollständige URL ist (z.B. von S3 oder extern)
+        if (\Illuminate\Support\Str::startsWith($this->preview_image, ['http://', 'https://'])) {
+            return $this->preview_image;
+        }
+
+        // Falls das Bild hart in public/shop/... oder public/images/... liegt
+        if (\Illuminate\Support\Str::startsWith($this->preview_image, ['shop/', 'images/'])) {
+            return asset($this->preview_image);
+        }
+
+        // Ansonsten gehen wir davon aus, dass es im Storage liegt
+        return \Illuminate\Support\Facades\Storage::url($this->preview_image);
+    }
+
+    /**
      * Holt das Produkt, zu dem diese Vorlage gehört.
      */
     public function product(): BelongsTo

@@ -11299,6 +11299,9 @@ video {
 .hover\:bg-primary\/20:hover {
   background-color: rgb(201 166 107 / 0.2);
 }
+.hover\:bg-primary\/30:hover {
+  background-color: rgb(201 166 107 / 0.3);
+}
 .hover\:bg-primary\/5:hover {
   background-color: rgb(201 166 107 / 0.05);
 }
@@ -15561,13 +15564,12 @@ video {
   .lg\:text-\[10px\] {
     font-size: 10px;
   }
+  .lg\:text-\[15px\] {
+    font-size: 15px;
+  }
   .lg\:text-base {
     font-size: 1rem;
     line-height: 1.5rem;
-  }
-  .lg\:text-lg {
-    font-size: 1.125rem;
-    line-height: 1.75rem;
   }
   .lg\:text-sm {
     font-size: 0.875rem;

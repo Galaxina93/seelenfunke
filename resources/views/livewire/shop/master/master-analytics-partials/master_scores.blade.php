@@ -535,13 +535,34 @@
 
                                                     <div class="border-t border-gray-800 my-1"></div>
                                                     
+                                                    <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                                                        <span class="text-[9px] font-bold text-[#C5A059] uppercase tracking-widest mb-1"><i class="bi bi-file-earmark-code"></i> Server .env Werte:</span>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">MIX_PUSHER_HOST:</span>
+                                                            <span class="text-gray-300">{{ env('MIX_PUSHER_HOST', 'Nicht gesetzt') }}</span>
+                                                        </div>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">VITE_REVERB_HOST:</span>
+                                                            <span class="text-gray-300">{{ env('VITE_REVERB_HOST', 'Nicht gesetzt') }}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="border-t border-gray-800 my-1"></div>
+                                                    
                                                     <div x-show="wsHost !== '{{ $correctWsHost }}' || wsPort != '{{ $correctWsPort }}'" class="text-amber-500 font-sans text-center font-bold leading-relaxed bg-amber-500/10 p-2 rounded border border-amber-500/20 mb-1">
                                                         WARNUNG: Das Browser-JS funkt gerade an den falschen Host/Port! Du hast das JS vermutlich lokal mit den falschen .env-Daten gebaut.
                                                     </div>
 
                                                     <div x-show="wsStatus === 'disconnected'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Der WebSocket-Server antwortet nicht.</div>
-                                                    <div x-show="wsStatus === 'unavailable'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Laravel Echo konnte nicht initialisiert werden.</div>
+                                                    <div x-show="wsStatus === 'unavailable'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Laravel Echo konnte (im Browser) nicht initialisiert werden.</div>
                                                     <div x-show="wsStatus === 'connected'" class="text-emerald-400 font-sans font-bold leading-relaxed flex items-center justify-center gap-1.5"><i class="bi bi-shield-check"></i> System läuft zu 100% stabil.</div>
+                                                </div>
+
+                                                <div class="mt-3">
+                                                    <button type="button" wire:click="fixSystem('ws')" wire:loading.attr="disabled" class="w-full px-2 py-1.5 rounded-lg border border-primary/50 bg-primary/10 hover:bg-primary/30 text-primary hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5">
+                                                        <span wire:loading.remove wire:target="fixSystem('ws')"><i class="bi bi-braces-asterisk"></i> JS Frontend neu bauen</span>
+                                                        <span wire:loading wire:target="fixSystem('ws')" class="animate-pulse">Baut JS... (kann dauern)</span>
+                                                    </button>
                                                 </div>
 
                                                 <div class="absolute -bottom-1.5 right-4 w-3 h-3 bg-gray-950 border-b border-r border-[#C5A059]/40 rotate-45"></div>

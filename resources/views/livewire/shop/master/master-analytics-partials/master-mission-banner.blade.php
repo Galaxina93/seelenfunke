@@ -51,9 +51,7 @@
                             Generiert am {{ $currentMission->created_at->format('d.m.Y H:i') }}
                         </span>
                     </div>
-                    <p class="text-sm md:text-base lg:text-lg text-white font-serif italic leading-relaxed whitespace-pre-wrap">
-                        "{{ $currentMission->mission_text }}"
-                    </p>
+                    <p class="text-sm md:text-base lg:text-[15px] text-gray-300 font-serif italic leading-relaxed whitespace-pre-wrap text-left pb-2">"{{ trim($currentMission->mission_text) }}"</p>
                 </div>
             </div>
         </div>

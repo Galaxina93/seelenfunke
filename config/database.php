@@ -64,6 +64,7 @@ return [
 
             // DYNAMISCHER DUMP BLOCK
             'dump' => array_filter([
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
                 'add_extra_option' => env('DB_DUMP_EXTRA_OPTION') ?: null,
             ]),
         ],
