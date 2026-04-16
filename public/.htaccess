@@ -11,10 +11,10 @@
     # -----------------------------------------------------
     RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
     RewriteCond %{HTTP:Upgrade} websocket [NC]
-    RewriteRule ^(.*)$ ws://127.0.0.1:6002/$1 [P,L]
+    RewriteRule ^(.*)$ ws://a-c45drm.internal:6002/$1 [P,L]
 
     RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
-    RewriteRule ^(.*)$ http://127.0.0.1:6002/$1 [P,L]
+    RewriteRule ^(.*)$ http://a-c45drm.internal:6002/$1 [P,L]
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .

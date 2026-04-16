@@ -3,4 +3,4 @@
 chdir(__DIR__);
 
 // Führe den Artisan-Befehl über die System-Shell aus, sodass die Log-Umleitung funktioniert!
-passthru("php artisan reverb:start --host=0.0.0.0 --port=8080 >> storage/logs/worker-reverb.log 2>&1");
+passthru("php artisan reverb:start --host=0.0.0.0 --port=6002 >> storage/logs/worker-reverb.log 2>&1");
