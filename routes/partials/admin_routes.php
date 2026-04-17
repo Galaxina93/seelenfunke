@@ -78,6 +78,7 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/orders/analytics', \App\Livewire\Shop\Order\OrderAnalytics::class)->name('admin.orders.analytics');
     Route::get('/admin/orders', \App\Livewire\Shop\Order\OrderOverview::class)->name('admin.orders');
+    Route::get('/admin/shopping-carts', \App\Livewire\Shop\Order\OrderShoppingCarts::class)->name('admin.shopping-carts');
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
     Route::get('/admin/widerruf/file/{revocation}/{fileName}', function (\App\Models\Order\OrderRevocation $revocation, $fileName) {

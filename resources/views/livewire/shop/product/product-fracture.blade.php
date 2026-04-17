@@ -316,7 +316,7 @@
 
         @if($losses->hasPages())
             <div class="mt-6">
-                {{ $losses->links('pagination.backend') }}
+                {{ $losses->links('pagination::tailwind') }}
             </div>
         @endif
     </div>

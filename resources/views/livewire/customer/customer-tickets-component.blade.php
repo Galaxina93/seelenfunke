@@ -1,4 +1,6 @@
 <div class="p-4 sm:p-6 lg:p-10 min-h-[85vh] flex flex-col relative z-10 font-sans antialiased text-gray-300"
+     x-data="{ showCloseModal: false }"
+     @close-ticket-modal-hide.window="showCloseModal = false"
      @customer-ticket-message-received.window="$wire.receiveMessage($event.detail)"
 >
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
@@ -149,17 +151,25 @@
         <div class="max-w-5xl mx-auto w-full bg-gray-900 border border-gray-800 rounded-[2rem] shadow-2xl flex flex-col h-[75vh] animate-fade-in relative overflow-hidden">
 
             <div class="bg-gray-950 border-b border-gray-800 p-5 sm:p-6 flex justify-between z-10 shadow-md gap-4">
-                <div>
-                    <div class="flex items-center gap-3 mb-1">
-                        <button wire:click="setMode('list')" class="text-gray-500 hover:text-primary transition-colors p-1 bg-gray-900 rounded-lg shrink-0">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
-                        </button>
-                        <div class="inline-flex items-center gap-2 bg-gray-900 border border-primary/50 px-3 py-1 rounded-lg shadow-inner">
-                            <span class="text-xs text-primary font-mono font-black">{{ $activeTicket->ticket_number }}</span>
+                <div class="flex items-center gap-4">
+                    <div>
+                        <div class="flex items-center gap-3 mb-1">
+                            <button wire:click="setMode('list')" class="text-gray-500 hover:text-primary transition-colors p-1 bg-gray-900 rounded-lg shrink-0">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+                            </button>
+                            <div class="inline-flex items-center gap-2 bg-gray-900 border border-primary/50 px-3 py-1 rounded-lg shadow-inner">
+                                <span class="text-xs text-primary font-mono font-black">{{ $activeTicket->ticket_number }}</span>
+                            </div>
                         </div>
+                        <h2 class="text-lg sm:text-xl font-bold text-white pl-10 break-all whitespace-pre-wrap">{{ $activeTicket->subject }}</h2>
                     </div>
-                    <h2 class="text-lg sm:text-xl font-bold text-white pl-10 break-all whitespace-pre-wrap">{{ $activeTicket->subject }}</h2>
                 </div>
+                
+                @if($activeTicket->status !== 'closed')
+                <div class="shrink-0 flex items-center">
+                    <button @click="showCloseModal = true" class="px-3 py-2 bg-gray-900 border border-red-500/50 hover:bg-red-500 hover:text-white text-red-400 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Ticket schließen</button>
+                </div>
+                @endif
             </div>
 
             {{-- AUTO-SCROLL FIX: Startet unten, und scrollt beim Update! --}}
@@ -220,7 +230,40 @@
 
             <div class="bg-gray-950 border-t border-gray-800 p-4 sm:p-5 z-20 relative">
                 @if($activeTicket->status === 'closed')
-                    <div class="text-center py-3 bg-gray-900 rounded-xl border border-gray-800"><p class="text-gray-500 text-xs font-bold uppercase tracking-widest">SupportTicket ist geschlossen.</p></div>
+                    @if(!$ratingSubmitted)
+                        <div class="text-center w-full px-2 animate-[fade-in_0.5s_ease-out]" x-data="{ hoverRating: 0, selectedRating: @entangle('rating') }">
+                            <p class="text-[13px] font-bold text-gray-300 mb-3">Wie hat dir der Seelenfunke Support geholfen?</p>
+                            <div class="flex justify-center items-center space-x-2.5 mb-4" @mouseleave="hoverRating = 0">
+                                @for($i = 1; $i <= 5; $i++)
+                                    <button type="button"
+                                            @click="$wire.setRating({{ $i }})"
+                                            @mouseenter="hoverRating = {{ $i }}"
+                                            class="focus:outline-none transition-transform hover:scale-125 duration-200">
+                                        <svg class="h-8 w-8 transition-colors duration-200"
+                                             :class="(hoverRating >= {{ $i }} || (hoverRating === 0 && selectedRating >= {{ $i }})) ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' : 'text-gray-700'"
+                                             viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                @endfor
+                            </div>
+                            
+                            <div x-show="selectedRating > 0" style="display:none;" x-transition.opacity class="mt-2 text-left bg-gray-900 border border-gray-800 p-3 rounded-2xl shadow-inner">
+                                <textarea wire:model="feedbackText" rows="2" class="w-full bg-gray-950 text-white text-[13px] rounded-xl border border-gray-800 focus:ring-amber-500 focus:border-amber-500 mb-3 resize-none shadow-sm py-2 px-3 placeholder-gray-600" placeholder="Wie war deine Erfahrung? (optional)"></textarea>
+                                <button type="button" wire:click="submitRating" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 font-bold text-white text-xs py-2.5 px-4 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.2)] transition-all uppercase tracking-wider">
+                                    Bewertung absenden
+                                </button>
+                            </div>
+                        </div>
+                    @else
+                        <div class="text-center p-4 bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl border border-gray-700 shadow-sm mx-1 my-2 animate-[fade-in_0.5s_ease-out]">
+                            <svg class="h-8 w-8 mx-auto text-amber-500 mb-2 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                            </svg>
+                            <p class="text-sm font-bold text-gray-300 mb-2">Vielen Dank für dein Feedback!</p>
+                            <p class="text-[10px] text-gray-500 uppercase tracking-widest">SupportTicket ist geschlossen.</p>
+                        </div>
+                    @endif
                 @else
                     <form wire:submit.prevent="sendReply" class="w-full relative">
 
@@ -287,4 +330,31 @@
             </div>
         </div>
     @endif
+    
+    {{-- TICKET SCHLIESSEN MODAL --}}
+    <div x-show="showCloseModal" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center">
+        <div x-show="showCloseModal" x-transition.opacity @click="showCloseModal = false" class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+        <div x-show="showCloseModal" x-transition.scale.origin.bottom class="relative bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 overflow-hidden">
+            <div class="absolute top-0 inset-x-0 h-1 bg-red-500"></div>
+            
+            <h3 class="text-xl font-black text-white mb-2 flex items-center gap-3">
+                <span class="text-red-500 text-2xl">⚠️</span> Ticket wirklich schließen?
+            </h3>
+            
+            <p class="text-sm text-gray-400 mb-6">Damit wir unseren Service verbessern können, teile uns bitte kurz mit, warum du dieses Ticket schließt.</p>
+            
+            <form wire:submit.prevent="closeTicket">
+                <div class="mb-6">
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Schließgrund / Feedback *</label>
+                    <textarea wire:model="closeReason" rows="3" placeholder="Hat sich das Problem von selbst gelöst? Fehlen Informationen?..." class="w-full bg-gray-950 text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-500 outline-none transition-colors @error('closeReason') border-2 border-red-500 @else border border-gray-800 @enderror"></textarea>
+                    @error('closeReason') <span class="text-red-500 text-xs mt-1 block font-bold">{{ $message }}</span> @enderror
+                </div>
+                
+                <div class="flex gap-3">
+                    <button type="button" @click="showCloseModal = false" class="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-colors">Abbrechen</button>
+                    <button type="submit" class="flex-1 px-4 py-3 bg-red-500 hover:bg-red-400 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all">Schließen</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>

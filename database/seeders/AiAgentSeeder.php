@@ -197,7 +197,29 @@ class AiAgentSeeder extends Seeder
                 $toolIds[] = $tool->id;
             }
             if (!empty($toolIds) && isset($rolesMap['Teamleiter'])) {
-                $rolesMap['Teamleiter']->tools()->sync($toolIds);
+                // Teamleiter soll nur folgende Abteilungen haben: System, Buchhaltung, Bestellungen, Support, Leitung
+                $teamleiterAllowedTools = array_merge(
+                    // System
+                    array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+                    // Buchhaltung
+                    array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+                    // Bestellungen
+                    array_column(AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+                    // Support
+                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                    // Leitung
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiBrainFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name')
+                );
+                
+                $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
+                $rolesMap['Teamleiter']->tools()->sync($teamleiterToolIds);
             }
 
             $domainAssignments = [

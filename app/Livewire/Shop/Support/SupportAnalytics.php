@@ -32,6 +32,13 @@ class SupportAnalytics extends Component
     public array $ticketStatusData = [];
     public array $chatStatusData = [];
     public array $chatRatingData = [];
+    public array $ticketRatingData = [];
+
+    // Global KPIs
+    public $kpiAvgTicketRating = 0;
+    public $kpiTicketsClosed = 0;
+    public $kpiTicketsOpen = 0;
+    public $kpiAvgResolutionHrs = 0;
 
     public function mount()
     {
@@ -143,6 +150,33 @@ class SupportAnalytics extends Component
         } else {
             $this->chatRatingData = ['labels' => ['Keine Bewertungen'], 'data' => [1]];
         }
+
+        // 6. Ticket Rating (Doughnut)
+        $ratedTickets = $tickets->whereNotNull('rating');
+        if ($ratedTickets->count() > 0) {
+            $rStatusGrouped = $ratedTickets->groupBy('rating');
+            $rLabels = [];
+            $rData = [];
+            for ($i = 5; $i >= 1; $i--) {
+                $rLabels[] = $i . ' Sterne';
+                $rData[] = $rStatusGrouped->has($i) ? $rStatusGrouped->get($i)->count() : 0;
+            }
+            $this->ticketRatingData = ['labels' => $rLabels, 'data' => $rData];
+        } else {
+            $this->ticketRatingData = ['labels' => ['Keine Bewertungen'], 'data' => [1]];
+        }
+
+        // Calculate KPIs
+        $this->kpiTicketsOpen = $tickets->where('status', 'open')->count();
+        $closedTickets = $tickets->where('status', 'closed');
+        $this->kpiTicketsClosed = $closedTickets->count();
+        $this->kpiAvgTicketRating = $ratedTickets->count() > 0 ? round($ratedTickets->avg('rating'), 1) : 0;
+
+        $totalHours = 0;
+        foreach($closedTickets as $ticket) {
+            $totalHours += $ticket->created_at->diffInHours($ticket->updated_at);
+        }
+        $this->kpiAvgResolutionHrs = $this->kpiTicketsClosed > 0 ? round($totalHours / $this->kpiTicketsClosed, 1) : 0;
     }
 
     public function render()

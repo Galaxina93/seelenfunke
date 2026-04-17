@@ -208,7 +208,7 @@
             {{-- Filter & Search --}}
             <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 shadow-2xl items-center animate-fade-in-up">
                 <div class="md:col-span-3 relative group">
-                    <input wire:model.live.debounce.300ms="search" type="text" placeholder="Name, Firma, E-Mail oder Stadt suchen..."
+                    <input wire:model.live.debounce.300ms="search" type="text" placeholder="Kundennummer, Name, Firma, E-Mail oder Stadt suchen..."
                            class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner transition-all text-white placeholder-gray-600 outline-none text-sm">
                     <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                         <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-600 group-focus-within:text-[var(--theme-color)] transition-colors" />
@@ -250,6 +250,12 @@
                                         <div class="min-w-0">
                                             <div class="font-bold text-white text-sm tracking-wide truncate">{{ $user['first_name'] }} {{ $user['last_name'] }}</div>
                                             <div class="text-[11px] text-gray-500 font-medium tracking-wide mt-0.5 group-hover:text-[var(--theme-color)] transition-colors truncate">{{ $user['email'] }}</div>
+                                            @if($user['user_type'] === 'customer')
+                                                <div class="mt-1 flex items-center gap-1.5">
+                                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded border border-gray-800 shadow-inner">KDN:</span>
+                                                    <span class="text-[10px] text-[var(--theme-color)] font-mono font-black tracking-widest">{{ strtoupper(explode('-', $user['id'])[0]) }}</span>
+                                                </div>
+                                            @endif
                                             @if(($profile['is_business'] ?? false) && !empty($profile['company_name']))
                                                 <div class="mt-1 flex flex-col gap-0.5">
                                                     <div class="flex items-center gap-1 text-[10px] text-amber-400 font-bold uppercase tracking-wider truncate">

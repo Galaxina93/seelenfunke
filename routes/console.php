@@ -76,3 +76,6 @@ Schedule::command('shop:capacity-engine')->everyFiveMinutes();
 
 // Schließt inaktive KI Support-Chats nach 12 Stunden automatisch
 Schedule::command('support:auto-resolve-chats')->hourly();
+
+// Sendet automatische E-Mail Erinnerungen für stehengelassene Warenkörbe
+Schedule::command('shop:send-abandoned-cart-reminders')->everyFiveMinutes();

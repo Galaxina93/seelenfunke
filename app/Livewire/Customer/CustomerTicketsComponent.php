@@ -38,6 +38,14 @@ class CustomerTicketsComponent extends Component
     public $chatAttachments = [];
     public $chatNewAttachments = [];
 
+    // Rating State
+    public $rating = 0;
+    public $feedbackText = '';
+    public $ratingSubmitted = false;
+
+    // Feature: Customer closing ticket
+    public $closeReason = '';
+
     public function mount()
     {
         if (!Auth::guard('customer')->check()) {
@@ -53,10 +61,28 @@ class CustomerTicketsComponent extends Component
         }
     }
 
+    public function setRating($stars) {
+        $this->rating = $stars;
+    }
+
+    public function submitRating() {
+        if ($this->rating < 1 || !$this->activeTicketId) return;
+
+        $ticket = SupportTicket::where('id', $this->activeTicketId)->where('customer_id', $this->customerId)->first();
+        if ($ticket && $ticket->status === 'closed') {
+            $ticket->update([
+                'rating' => $this->rating,
+                'feedback_text' => $this->feedbackText
+            ]);
+            $this->ratingSubmitted = true;
+            session()->flash('rating_success', 'Vielen Dank für deine fantastische Bewertung!');
+        }
+    }
+
     // DIE MAGISCHE ECHTZEIT-FUNKTION!
     public function receiveMessage($event)
     {
-        \Illuminate\Support\Facades\Log::info('WS Triggered: Customer receiveMessage', ['payload' => $event, 'activeTicketId' => $this->activeTicketId]);
+        # \Illuminate\Support\Facades\Log::info('WS Triggered: Customer receiveMessage', ['payload' => $event, 'activeTicketId' => $this->activeTicketId]);
 
         if (isset($event['message']['support_ticket_id']) && (string) $this->activeTicketId === (string) $event['message']['support_ticket_id']) {
             $this->markAsRead($this->activeTicketId);
@@ -103,6 +129,9 @@ class CustomerTicketsComponent extends Component
         $this->viewMode = $mode;
         $this->activeTicketId = $ticketId;
         $this->reset(['attachments', 'newAttachments', 'chatAttachments', 'chatNewAttachments', 'chatMessage', 'uploadError']);
+        $this->rating = 0;
+        $this->feedbackText = '';
+        $this->ratingSubmitted = false;
 
         if ($mode === 'chat' && $ticketId) {
             $this->markAsRead($ticketId);
@@ -110,6 +139,14 @@ class CustomerTicketsComponent extends Component
 
             // NEU: Punkt ausschalten
             $this->dispatch('clear-ticket-badge');
+
+            // Lade Rating falls das Ticket geschlossen ist
+            $ticket = SupportTicket::find($ticketId);
+            if ($ticket && $ticket->rating !== null) {
+                $this->rating = $ticket->rating;
+                $this->feedbackText = $ticket->feedback_text;
+                $this->ratingSubmitted = true;
+            }
         }
     }
 
@@ -149,7 +186,31 @@ class CustomerTicketsComponent extends Component
             'is_read_by_customer' => true,
         ]);
 
-        broadcast(new TicketMessageSent($message, $ticket->id, $this->customerId));
+        // Hole den Nutzer, um E-Mail und Namen zu nutzen
+        $customerUser = Auth::guard('customer')->user();
+        $firstName = $customerUser ? $customerUser->first_name : 'liebe Seele';
+
+        $welcomeMessage = SupportTicketMessage::create([
+            'support_ticket_id' => $ticket->id,
+            'sender_type' => 'admin',
+            'message' => "Hallo {$firstName},\n\nvielen Dank für deine Nachricht. Dein Ticket mit der Nummer {$ticket->ticket_number} ist sicher bei uns eingegangen.\n\nEiner unserer Support-Magier wird sich in Kürze deines Anliegens annehmen und dir so schnell wie möglich antworten. Du erhältst eine Benachrichtigung, sobald es Neuigkeiten gibt.\n\nEine magische Zeit wünscht dir\nDein Seelenfunke Team",
+            'is_read_by_customer' => false,
+        ]);
+
+        try {
+            \Illuminate\Support\Facades\Mail::to($customerUser->email)
+                ->queue(new \App\Mail\SupportTicketCreatedMailToCustomer($customerUser, $ticket));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Mail Error: ' . $e->getMessage());
+        }
+
+        try {
+            broadcast(new TicketMessageSent($message, $ticket->id, $this->customerId));
+            // Optional: Broadcast welcome message to self just so the chat updates instantly on the client side
+            broadcast(new TicketMessageSent($welcomeMessage, $ticket->id, $this->customerId));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Websocket Offline: ' . $e->getMessage());
+        }
 
         if ($this->newCategory === 'bug') {
             $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
@@ -188,7 +249,11 @@ class CustomerTicketsComponent extends Component
 
         $ticket->update(['status' => 'open']);
 
-        broadcast(new TicketMessageSent($message, $ticket->id, $this->customerId));
+        try {
+            broadcast(new TicketMessageSent($message, $ticket->id, $this->customerId));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Websocket Offline: ' . $e->getMessage());
+        }
 
         $this->reset(['chatMessage', 'chatAttachments', 'chatNewAttachments', 'uploadError']);
         $this->dispatch('ticket-message-received');
@@ -196,9 +261,24 @@ class CustomerTicketsComponent extends Component
 
     public function closeTicket()
     {
+        $this->validate([
+            'closeReason' => 'required|min:5'
+        ], [
+            'closeReason.required' => 'Gibt bitte einen Grund für die Schließung an.',
+            'closeReason.min' => 'Der Grund sollte mindestens 5 Zeichen enthalten.'
+        ]);
+
         $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
-        $ticket->update(['status' => 'closed']);
-        $this->dispatch('notify', ['type' => 'success', 'message' => 'Das SupportTicket wurde geschlossen.']);
+        $ticket->update([
+            'status' => 'closed',
+            'close_reason' => $this->closeReason
+        ]);
+
+        // Dispatch event to close Alpine modal
+        $this->dispatch('close-ticket-modal-hide');
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Dein Ticket wurde erfolgreich geschlossen.']);
+
+        $this->closeReason = '';
     }
 
     private function markAsRead($ticketId)

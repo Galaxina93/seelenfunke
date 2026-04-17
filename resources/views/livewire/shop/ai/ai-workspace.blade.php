@@ -1,6 +1,8 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div class="h-auto min-h-[calc(100dvh-4rem)] lg:h-[calc(100vh-6rem)] w-full font-mono text-[var(--theme-color)] flex flex-col pt-4 overflow-hidden relative"
      x-data="{
+        showWorkspaceMobile: false,
+        isChatFullScreen: false,
         init() {
             this.scrollToBottom();
             $wire.$watch('messages', () => { setTimeout(() => this.scrollToBottom(), 50) });
@@ -19,8 +21,12 @@
     
     <!-- Neon Header -->
     <div class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
-        <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">Schaltzentrale</h1>
+        <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">Philip</h1>
         <p class="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
+        
+        <button @click="showWorkspaceMobile = !showWorkspaceMobile" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
+            <span x-text="showWorkspaceMobile ? 'Arbeitsbereich ausblenden' : 'Arbeitsbereich anzeigen'"></span>
+        </button>
     </div>
 
     <!-- Main Workspace Container -->
@@ -142,18 +148,18 @@
         <!-- The Main Split Area (Right) -->
         <div class="flex-1 flex flex-col gap-4 overflow-hidden h-full">
             @if($activeWorkspaceView === 'knowledge-base')
-                <div wire:key="kb-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl">
-                    <div class="absolute top-4 right-4 z-50">
-                        <button wire:click="$set('activeWorkspaceView', 'workspace')" class="bg-gray-950 border border-gray-800 text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:text-white hover:border-gray-600 transition-all shadow-xl flex items-center gap-2 backdrop-blur-xl">
+                <div wire:key="kb-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl flex flex-col">
+                    <div class="fixed bottom-4 left-4 right-4 lg:absolute lg:bottom-auto lg:left-auto lg:right-4 top-auto lg:top-4 z-50 mb-4 lg:mb-0 shrink-0 shadow-2xl lg:shadow-none">
+                        <button wire:click="$set('activeWorkspaceView', 'workspace')" class="w-full lg:w-auto justify-center bg-[var(--theme-color-10)] lg:bg-gray-950 border border-[var(--theme-color-50)] lg:border-gray-800 text-[var(--theme-color)] lg:text-gray-400 px-4 py-3.5 lg:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:text-white hover:border-gray-600 transition-all shadow-[inset_0_0_15px_var(--theme-color-10)] lg:shadow-xl flex items-center gap-2 backdrop-blur-3xl lg:backdrop-blur-xl shrink-0 z-50">
                             <x-heroicon-o-arrow-left class="w-4 h-4"/> Zurück zur Schaltzentrale
                         </button>
                     </div>
                     <livewire:shop.ai.ai-knowledge-base />
                 </div>
             @elseif($activeWorkspaceView === 'gen-ui')
-                <div wire:key="gen-ui-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl">
-                    <div class="absolute top-4 right-4 z-50">
-                        <button wire:click="$set('activeWorkspaceView', 'workspace')" class="bg-gray-950 border border-gray-800 text-gray-400 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:text-white hover:border-gray-600 transition-all shadow-xl flex items-center gap-2 backdrop-blur-xl">
+                <div wire:key="gen-ui-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl flex flex-col">
+                    <div class="fixed bottom-4 left-4 right-4 lg:absolute lg:bottom-auto lg:left-auto lg:right-4 top-auto lg:top-4 z-50 mb-4 lg:mb-0 shrink-0 shadow-2xl lg:shadow-none">
+                        <button wire:click="$set('activeWorkspaceView', 'workspace')" class="w-full lg:w-auto justify-center bg-[var(--theme-color-10)] lg:bg-gray-950 border border-[var(--theme-color-50)] lg:border-gray-800 text-[var(--theme-color)] lg:text-gray-400 px-4 py-3.5 lg:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:text-white hover:border-gray-600 transition-all shadow-[inset_0_0_15px_var(--theme-color-10)] lg:shadow-xl flex items-center gap-2 backdrop-blur-3xl lg:backdrop-blur-xl shrink-0 z-50">
                             <x-heroicon-o-arrow-left class="w-4 h-4"/> Zurück zur Schaltzentrale
                         </button>
                     </div>
@@ -232,7 +238,7 @@
                          @touchmove.window="onDrag($event)"
                          @touchend.window="stopDrag()">
                     <!-- TOP: Workspace Kanban Canvas -->
-                    <div class="min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] flex bg-[#050505]" :style="'height: calc(' + (100 - chatHeightPercent) + '% - 0.75rem);'" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
+                    <div class="min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-[#050505]" :class="showWorkspaceMobile ? 'flex' : 'hidden lg:flex'" :style="'height: calc(' + (100 - chatHeightPercent) + '% - 0.75rem);'" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
                     <div class="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
                 
                 <!-- Heartbeat Monitor (Ultra-Realistic HTML5 Canvas) -->
@@ -291,9 +297,8 @@
                                         isAgentActive = !!(activeTask || typingAgent) && isWorkerRunning;
                                         
                                         // Bonus: If the worker is DEAD, turn the line into a flatline RED immediately
-                                        if (!isWorkerRunning && !!(activeTask || typingAgent)) {
+                                        if (!isWorkerRunning) {
                                             isAgentActive = false;
-                                            ctx.strokeStyle = `rgba(239, 68, 68, 0.4)`; // Red flatline
                                         }
                                     }
 
@@ -364,18 +369,27 @@
                                     ctx.beginPath();
                                     ctx.arc(currentX, y, 4, 0, Math.PI * 2);
                                     const gradient = ctx.createRadialGradient(currentX, y, 0, currentX, y, 8);
-                                    if (isAgentActive) {
+                                    
+                                    if (!isWorkerRunning) {
+                                        gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)'); 
+                                        gradient.addColorStop(1, 'rgba(220, 38, 38, 0)');
+                                    } else if (isAgentActive) {
                                         gradient.addColorStop(0, 'rgba(52, 211, 153, 0.9)'); 
+                                        gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
                                     } else {
                                         gradient.addColorStop(0, 'rgba(52, 211, 153, 0.3)'); 
+                                        gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
                                     }
-                                    gradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
                                     ctx.fillStyle = gradient;
                                     ctx.fill();
                                     
                                     ctx.beginPath();
                                     ctx.arc(currentX, y, 1.5, 0, Math.PI * 2);
-                                    ctx.fillStyle = isAgentActive ? '#a7f3d0' : '#4ade80';
+                                    if (!isWorkerRunning) {
+                                        ctx.fillStyle = '#fca5a5';
+                                    } else {
+                                        ctx.fillStyle = isAgentActive ? '#a7f3d0' : '#4ade80';
+                                    }
                                     ctx.fill();
                                 };
                                 
@@ -607,14 +621,25 @@
             </div>
 
             <!-- Drag Handle -->
-            <div class="h-2 cursor-row-resize rounded-full bg-gray-900/50 hover:bg-[var(--theme-color-30)] hover:shadow-[0_0_10px_var(--theme-color-30)] transition-all flex items-center justify-center mx-auto w-32 shrink-0 z-50 group"
+            <div class="h-2 cursor-row-resize rounded-full bg-gray-900/50 hover:bg-[var(--theme-color-30)] hover:shadow-[0_0_10px_var(--theme-color-30)] transition-all items-center justify-center mx-auto w-32 shrink-0 z-50 group"
+                 :class="showWorkspaceMobile ? 'flex' : 'hidden lg:flex'"
                  @mousedown.prevent="startDrag($event)"
                  @touchstart.prevent="startDrag($event)">
                 <div class="w-12 h-0.5 rounded-full bg-gray-600 group-hover:bg-[var(--theme-color)] transition-colors"></div>
             </div>
 
             <!-- BOTTOM: AI Chat Console -->
-            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0" :style="'height: calc(' + chatHeightPercent + '% - 0.75rem);'">
+            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0 lg:flex-none" :style="(window.innerWidth < 1024 && !showWorkspaceMobile) ? 'height: 100%; min-height: 400px;' : 'height: calc(' + chatHeightPercent + '% - 0.75rem);'" :class="{'!fixed !inset-0 !z-[9999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen, 'flex-1': (window.innerWidth < 1024 && !showWorkspaceMobile)}">
+                
+                <!-- Fullscreen Toggle Button (Mobile) -->
+                <button @click="isChatFullScreen = !isChatFullScreen" class="lg:hidden absolute top-4 right-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chat maximieren">
+                    <svg x-show="!isChatFullScreen" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                    </svg>
+                    <svg style="display: none;" x-show="isChatFullScreen" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                    </svg>
+                </button>
                 
                 <!-- Chat Log Area -->
                 <div id="chat-scroll-container" class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 custom-scrollbar scroll-smooth"
@@ -643,7 +668,7 @@
                                         @endphp
                                         <img src="{{ $src }}" class="w-full h-full object-cover" alt="Profile">
                                     @else
-                                        <x-dynamic-component :component="'heroicon-o-' . ($msg['icon'] ?: 'cpu-chip')" class="w-6 h-6" />
+                                        <x-dynamic-component :component="'heroicon-o-' . str_replace(['bi-stars', 'bi-'], ['sparkles', ''], ($msg['icon'] ?: 'cpu-chip'))" class="w-6 h-6" />
                                     @endif
                                 </div>
                                 <span class="text-xs font-bold {{ $msg['color'] ? 'text-'.$msg['color'] : 'text-[var(--theme-color)]' }} tracking-widest uppercase truncate max-w-[200px]">{{ $msg['name'] }}</span>
@@ -696,7 +721,7 @@
                                      @if($tAgent->profile_picture)
                                          <img src="{{ \Illuminate\Support\Str::startsWith($tAgent->profile_picture, 'shop/') || \Illuminate\Support\Str::startsWith($tAgent->profile_picture, 'images/') || \Illuminate\Support\Str::startsWith($tAgent->profile_picture, '/') ? asset($tAgent->profile_picture) : Storage::url($tAgent->profile_picture) }}" class="w-full h-full object-cover">
                                      @else
-                                         <x-dynamic-component :component="'heroicon-o-' . ($tAgent->icon ?: 'cpu-chip')" class="w-6 h-6" />
+                                         <x-dynamic-component :component="'heroicon-o-' . str_replace(['bi-stars', 'bi-'], ['sparkles', ''], ($tAgent->icon ?: 'cpu-chip'))" class="w-6 h-6" />
                                      @endif
                                 </div>
                                 <span class="text-xs font-bold text-{{ $tAgent->color }} tracking-widest uppercase">{{ $tAgent->name }}</span>

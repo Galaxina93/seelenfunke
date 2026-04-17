@@ -3,13 +3,36 @@
 >
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
 
-    {{-- LINKE SEITE: TICKET LISTE --}}
-    <div class="w-full lg:w-1/3 bg-gray-900 rounded-[2rem] shadow-2xl border border-gray-800 flex flex-col overflow-hidden h-[60vh] lg:h-full shrink-0">
+    {{-- LINKE SEITE: TICKET LISTE / TABELLE --}}
+    <div class="w-full {{ $viewMode === 'split' ? 'lg:w-1/3' : 'lg:w-full' }} bg-gray-900 rounded-[2rem] shadow-2xl border border-gray-800 flex flex-col overflow-hidden h-[60vh] lg:h-full shrink-0 transition-all duration-300">
         <div class="p-4 sm:p-6 border-b border-gray-800 shrink-0 bg-gray-950/50">
-            <h2 class="text-xl sm:text-2xl font-serif font-black text-white mb-4 sm:mb-6 flex items-center gap-3">
-                <span class="text-[var(--theme-color)] drop-shadow-[0_0_15px_var(--theme-color)0.5)]">🛡️</span> Support Desk
+            <h2 class="text-xl sm:text-2xl font-serif font-black text-white mb-4 flex items-center justify-between gap-3">
+                <span class="flex items-center gap-3">
+                    <span class="text-[var(--theme-color)] drop-shadow-[0_0_15px_var(--theme-color)0.5)]">🛡️</span> Support Desk
+                </span>
+                <div class="flex bg-gray-950 p-1 rounded-lg border border-gray-800 shrink-0">
+                    <button wire:click="$set('viewMode', 'split')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {{ $viewMode === 'split' ? 'bg-[var(--theme-color)] text-gray-900 shadow' : 'text-gray-500 hover:text-gray-300' }}">Split</button>
+                    <button wire:click="$set('viewMode', 'table')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all {{ $viewMode === 'table' ? 'bg-[var(--theme-color)] text-gray-900 shadow' : 'text-gray-500 hover:text-gray-300' }}">Tabelle</button>
+                </div>
             </h2>
+
+            {{-- KPIs --}}
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Offen</div>
+                    <div class="text-lg font-black text-cyan-400">{{ $kpiOpenCount }}</div>
+                </div>
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Ø Rating</div>
+                    <div class="text-lg font-black text-amber-500">{{ number_format($kpiAvgRating, 1, ',', '.') }} ★</div>
+                </div>
+                <div class="bg-gray-800 border border-gray-700 rounded-xl p-2 text-center">
+                    <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Ø Zeit</div>
+                    <div class="text-lg font-black text-emerald-400">{{ $kpiAvgResolutionHrs }}h</div>
+                </div>
+            </div>
             <div class="flex flex-wrap sm:flex-nowrap gap-2 mb-4 sm:mb-6 bg-gray-950 p-1.5 rounded-xl border border-gray-800 shadow-inner">
+                <button wire:click="$set('filterStatus', 'all')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'all' ? 'bg-purple-900/30 border border-purple-500/50 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Alle</button>
                 <button wire:click="$set('filterStatus', 'open')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'open' ? 'bg-blue-900/30 border border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Offen</button>
                 <button wire:click="$set('filterStatus', 'answered')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'answered' ? 'bg-emerald-900/30 border border-emerald-500/50 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Antwort</button>
                 <button wire:click="$set('filterStatus', 'closed')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'closed' ? 'bg-gray-800 border border-gray-600 text-white shadow-md' : 'text-gray-500 hover:text-white border border-transparent' }}">Zu</button>
@@ -19,32 +42,110 @@
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar bg-gray-900" x-data>
-            @forelse($tickets as $t)
-                @php $unread = $t->messages->where('sender_type', 'customer')->where('is_read_by_admin', false)->count(); @endphp
-                <div wire:click="selectTicket('{{ $t->id }}')" @click="if(window.innerWidth < 1024) { setTimeout(() => document.getElementById('ticket-chat-area').scrollIntoView({behavior: 'smooth'}), 100); }" class="p-4 sm:p-5 border-b border-gray-800/50 cursor-pointer transition-all {{ $activeTicketId === $t->id ? 'bg-[var(--theme-color)]/10 border-l-4 border-l-[var(--theme-color)] shadow-inner' : 'hover:bg-gray-800/50 border-l-4 border-l-transparent' }}">
-                    <div class="flex justify-between items-start mb-2 gap-2">
-                        <div class="flex items-center gap-2">
-                            @if($unread > 0) <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0"></span> @endif
-                            <div x-data="{ copied: false }" class="inline-flex items-center gap-1.5 bg-gray-950 border border-[var(--theme-color)]/30 px-2 py-0.5 rounded shadow-inner group/copy">
-                                <span class="text-[10px] sm:text-xs font-mono font-black text-[var(--theme-color)]">{{ $t->ticket_number }}</span>
+        @if($viewMode === 'split')
+            <div class="flex-1 overflow-y-auto custom-scrollbar bg-gray-900" x-data>
+                @forelse($tickets as $t)
+                    @php $unread = $t->messages->where('sender_type', 'customer')->where('is_read_by_admin', false)->count(); @endphp
+                    <div wire:click="selectTicket('{{ $t->id }}')" @click="if(window.innerWidth < 1024) { setTimeout(() => document.getElementById('ticket-chat-area').scrollIntoView({behavior: 'smooth'}), 100); }" class="p-4 sm:p-5 border-b border-gray-800/50 cursor-pointer transition-all {{ $activeTicketId === $t->id ? 'bg-[var(--theme-color)]/10 border-l-4 border-l-[var(--theme-color)] shadow-inner' : 'hover:bg-gray-800/50 border-l-4 border-l-transparent' }}">
+                        <div class="flex justify-between items-start mb-2 gap-2">
+                            <div class="flex items-center gap-2">
+                                @if($unread > 0) <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0"></span> @endif
+                                <div x-data="{ copied: false }" class="inline-flex items-center gap-1.5 bg-gray-950 border border-[var(--theme-color)]/30 px-2 py-0.5 rounded shadow-inner group/copy">
+                                    <span class="text-[10px] sm:text-xs font-mono font-black text-[var(--theme-color)]">{{ $t->ticket_number }}</span>
+                                </div>
                             </div>
+                            <span class="text-[9px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0 text-right">{{ $t->updated_at->diffForHumans() }}</span>
                         </div>
-                        <span class="text-[9px] sm:text-[10px] font-bold text-gray-500 uppercase tracking-wider shrink-0 text-right">{{ $t->updated_at->diffForHumans() }}</span>
+                        <h3 class="text-xs sm:text-sm font-bold text-white truncate mb-1">{{ $t->subject }}</h3>
+                        <p class="text-[10px] sm:text-xs text-gray-400 truncate flex items-center gap-1.5">
+                            {{ $t->customer->first_name }} {{ $t->customer->last_name }}
+                        </p>
                     </div>
-                    <h3 class="text-xs sm:text-sm font-bold text-white truncate mb-1">{{ $t->subject }}</h3>
-                    <p class="text-[10px] sm:text-xs text-gray-400 truncate flex items-center gap-1.5">
-                        {{ $t->customer->first_name }} {{ $t->customer->last_name }}
-                    </p>
-                </div>
-            @empty
-                <div class="p-8 sm:p-12 text-center text-gray-500 text-xs sm:text-sm font-bold">Keine Tickets gefunden.</div>
-            @endforelse
-        </div>
+                @empty
+                    <div class="p-8 sm:p-12 text-center text-gray-500 text-xs sm:text-sm font-bold">Keine Tickets gefunden.</div>
+                @endforelse
+                
+                @if($tickets->hasPages())
+                    <div class="p-4 border-t border-gray-800">
+                        {{ $tickets->links('pagination::tailwind') }}
+                    </div>
+                @endif
+            </div>
+        @else
+            <div class="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar bg-gray-900">
+                <table class="w-full text-left text-xs sm:text-sm text-gray-300">
+                    <thead class="text-[10px] sm:text-xs text-gray-400 uppercase bg-gray-950/50 sticky top-0 z-10 w-full">
+                        <tr>
+                            <th class="px-4 xl:px-6 py-4 whitespace-nowrap">ID / Status</th>
+                            <th class="px-4 xl:px-6 py-4">Kunde</th>
+                            <th class="px-4 xl:px-6 py-4">Betreff</th>
+                            <th class="px-4 xl:px-6 py-4 text-center">Bewertung</th>
+                            <th class="px-4 xl:px-6 py-4 whitespace-nowrap">Letztes Update</th>
+                            <th class="px-4 xl:px-6 py-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800/50">
+                        @forelse($tickets as $t)
+                        <tr class="hover:bg-gray-800/50 transition-colors {{ $activeTicketId === $t->id ? 'bg-[var(--theme-color)]/10' : '' }}">
+                            <td class="px-4 xl:px-6 py-3 whitespace-nowrap">
+                                <div class="font-mono font-black text-[var(--theme-color)] text-xs mb-1">{{ $t->ticket_number }}</div>
+                                <span class="px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-widest {{ $t->status === 'open' ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' : ($t->status === 'answered' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-400 border border-gray-600') }}">
+                                    {{ $t->status }}
+                                </span>
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 min-w-[200px]">
+                                <div class="font-bold text-white text-sm">{{ $t->customer->first_name }} {{ $t->customer->last_name }}</div>
+                                <div class="text-[10px] text-gray-500">{{ $t->customer->email }}</div>
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 min-w-[250px]">
+                                <div class="font-bold text-gray-200 line-clamp-2 text-sm">{{ $t->subject }}</div>
+                                @if($t->close_reason)
+                                    <div class="mt-1.5 text-[10px] text-gray-400 border-l-2 border-red-500/50 pl-2">
+                                        <span class="font-bold text-gray-500 block uppercase tracking-widest text-[9px] mb-0.5">Schließgrund</span> 
+                                        {{ $t->close_reason }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 text-center min-w-[200px]">
+                                @if($t->status === 'closed' && $t->rating)
+                                    <div class="flex flex-col items-center">
+                                        <div class="text-amber-500 text-sm font-bold mb-1" title="{{ $t->rating }} Sterne">
+                                            {{ str_repeat('★', $t->rating) }}{{ str_repeat('☆', 5 - $t->rating) }}
+                                        </div>
+                                        @if($t->feedback_text)
+                                            <p class="text-[10px] text-gray-400 italic bg-gray-950 p-1.5 rounded border border-gray-800 line-clamp-2 w-48 text-left" title="{{ $t->feedback_text }}">"{{ $t->feedback_text }}"</p>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="text-gray-600 text-xs">-</span>
+                                @endif
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 text-[10px] text-gray-500 font-bold whitespace-nowrap">
+                                {{ $t->updated_at->diffForHumans() }}
+                            </td>
+                            <td class="px-4 xl:px-6 py-3 text-right">
+                                 <button wire:click="selectTicket('{{ $t->id }}'); $set('viewMode', 'split')" class="px-4 py-2 bg-[var(--theme-color)] text-gray-900 font-black rounded-xl tracking-widest uppercase text-[10px] hover:scale-105 transition-transform shadow-[0_0_10px_var(--theme-color)0.3)]">Öffnen</button>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="6" class="p-8 text-center text-gray-500 font-bold text-sm">Keine Tickets gefunden.</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+                @if($tickets->hasPages())
+                    <div class="p-4 border-t border-gray-800 sticky left-0">
+                        {{ $tickets->links('pagination::tailwind') }}
+                    </div>
+                @endif
+            </div>
+        @endif
     </div>
 
-    {{-- RECHTE SEITE: CHAT / DETAIL ANSICHT --}}
-    <div id="ticket-chat-area" class="w-full lg:flex-1 bg-gray-900 rounded-[2rem] shadow-2xl border border-gray-800 flex flex-col overflow-hidden relative min-h-[70vh] lg:h-full lg:min-h-0">
+    @if($viewMode === 'split')
+        {{-- RECHTE SEITE: CHAT / DETAIL ANSICHT --}}
+        <div id="ticket-chat-area" class="w-full lg:flex-1 bg-gray-900 rounded-[2rem] shadow-2xl border border-gray-800 flex flex-col overflow-hidden relative min-h-[70vh] lg:h-full lg:min-h-0 transition-opacity duration-300">
 
         @if($activeTicket)
             <div class="p-4 sm:p-6 border-b border-gray-800 shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-950/50 relative z-10 gap-4">
@@ -130,6 +231,17 @@
                         </div>
                     @endif
                 @endforeach
+                
+                @if($activeTicket->status === 'closed' && $activeTicket->close_reason)
+                    <div class="flex justify-center w-full mt-4">
+                        <div class="max-w-[90%] sm:max-w-[70%] text-center">
+                            <div class="bg-red-950/40 border border-red-900 rounded-xl p-3 shadow-inner inline-block">
+                                <p class="text-[9px] font-black uppercase tracking-widest text-red-500/80 mb-1">Angegebener Schließgrund</p>
+                                <p class="text-xs sm:text-sm text-red-200 italic font-medium">"{{ $activeTicket->close_reason }}"</p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             {{-- INPUT BEREICH --}}
@@ -204,6 +316,7 @@
                     </form>
                 @endif
             </div>
+        @endif
     </div>
     @endif
 </div>

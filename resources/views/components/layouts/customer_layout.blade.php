@@ -65,9 +65,10 @@
 
                                 // 2. Popup zeigen (wenn wir NICHT im Support-Chat sind)
                                 if (!window.location.pathname.includes('/support')) {
-                                    this.toastMessage = 'Der Support hat auf dein SupportTicket geantwortet.';
+                                    let tNumber = (e.message && e.message.ticket) ? e.message.ticket.ticket_number : 'dein Ticket';
+                                    this.toastMessage = 'Der Support hat auf ' + tNumber + ' geantwortet.';
                                     this.showToast = true;
-                                    setTimeout(() => { this.showToast = false; }, 5000);
+                                    setTimeout(() => { this.showToast = false; }, 12000); // 12 Sekunden statt 5
                                 }
                             }
                         });
@@ -221,15 +222,16 @@
          x-transition:leave="transition-all duration-500 ease-out"
          x-transition:leave-start="translate-y-0 opacity-100"
          x-transition:leave-end="translate-y-10 opacity-0 pointer-events-none">
-        <div class="bg-gray-900/95 backdrop-blur-md border border-gray-700 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm">
-            <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30">
+        <a href="{{ route('customer.support') }}" class="bg-gray-900/95 backdrop-blur-md border border-gray-700 hover:border-primary/50 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer transition-all group block">
+            <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 group-hover:scale-110 transition-transform">
                 <span class="text-primary text-xl">💌</span>
             </div>
             <div>
-                <h4 class="text-white text-sm font-bold tracking-wide">Support Desk</h4>
+                <h4 class="text-white text-sm font-bold tracking-wide group-hover:text-primary transition-colors">Support Desk</h4>
                 <p class="text-gray-400 text-xs mt-0.5" x-text="toastMessage"></p>
+                <div class="text-[10px] text-primary mt-1.5 font-bold uppercase tracking-widest opacity-80 group-hover:opacity-100 transition-opacity">Zum Ticket springen &rarr;</div>
             </div>
-        </div>
+        </a>
     </div>
 @endif
 

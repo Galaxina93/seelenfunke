@@ -291,26 +291,29 @@
                     <x-heroicon-o-command-line class="w-6 h-6 text-[var(--theme-color)]" />
                     RAG Architektur
                 </h5>
-                <div class="space-y-5 font-mono">
+                <div class="space-y-5 font-mono mt-4">
+                    <p class="text-sm text-gray-400 font-sans mb-6">
+                        Die <strong>Retrieval-Augmented Generation (RAG)</strong> ermöglicht es der Künstlichen Intelligenz, auf firmeninterne Dokumente zurückzugreifen, ohne diese jemals zuvor „gelernt“ (trainiert) haben zu müssen. Halluzinationen werden somit drastisch reduziert, da sich die KI strikt an unsere Dokumente hält.
+                    </p>
                     <div class="flex items-start gap-4">
-                        <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">1</span>
+                        <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">R</span>
                         <div>
-                            <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Single Source of Truth</strong>
-                            <p class="text-xs text-gray-400 leading-relaxed">Alle Informationen (Text & Datei-Uploads) liegen zentral in einer einzigen Datenbank. Es gibt keine redundanten Speichertabellen für verschiedene Agenten. Globale Sync-Integrety ist gewährleistet.</p>
+                            <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Retrieval <span class="text-gray-500">(Wissensabruf)</span></strong>
+                            <p class="text-xs text-gray-400 leading-relaxed">Alle deine Texte und Dateiuploads werden beim Speichern in mathematische Vektoren zerlegt. Stellt ein Kunde im Chat eine Frage (z.B. zu den Versandkosten), „scannt“ die RAG Datenbank in Millisekunden alle Einträge nach Bedeutung und ruft nur die fachlich passenden Artikel ab.</p>
                         </div>
                     </div>
                     <div class="flex items-start gap-4">
-                        <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">2</span>
+                        <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">A</span>
                         <div>
-                            <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Dynamisches Routing</strong>
-                            <p class="text-xs text-gray-400 leading-relaxed">Agenten rufen das Wissen über die vergebenen Kategorien & Tags per Eloquent Pivot ab. Wenn ein Kunde im Chat nach Versandkosten fragt, lockt sich der Support-Agent automatisch nur auf Artikel mit passenden Vektor-IDs ein.</p>
+                            <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Augmentation <span class="text-gray-500">(Zusammenführung)</span></strong>
+                            <p class="text-xs text-gray-400 leading-relaxed">Das soeben abgerufene, hochgradig relevante Detailwissen aus deiner Datenbank wird nun im Hintergrund unsichtbar zur Kundenfrage hinzugefügt. Der KI-Agent erhält also zum Zeitpunkt der Frage sofort den exakten Kontext (z.B. deine Retouren-Richtlinien-PDF).</p>
                         </div>
                     </div>
                     <div class="flex items-start gap-4">
-                        <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">3</span>
+                        <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">G</span>
                          <div>
-                            <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Endlose Skalierbarkeit</strong>
-                            <p class="text-xs text-gray-400 leading-relaxed">Egal ob 1 oder 256 Agenten: Jeder liest aus demselben Core, aber isoliert im Rahmen seiner Firewall-Policies und Kategorie-Zuweisung. Vector Embedding Engine bleibt pfeilschnell.</p>
+                            <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Generation <span class="text-gray-500">(Generierung)</span></strong>
+                            <p class="text-xs text-gray-400 leading-relaxed">Zuletzt liest das Sprachmodell (LLM wie GPT-4 oder Claude) den zusammengeführten Kontext und formuliert auf Basis deiner Dokumente eine pointierte, höfliche und menschenähnliche Antwort an den Nutzer. Die Single Source of Truth bleibt intakt.</p>
                         </div>
                     </div>
                 </div>

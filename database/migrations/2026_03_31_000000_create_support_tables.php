@@ -58,6 +58,9 @@ return new class extends Migration
                 $table->string('category');
                 $table->string('status')->default('open');
                 $table->string('priority')->default('normal');
+                $table->unsignedTinyInteger('rating')->nullable()->comment('1-5 Sterne Bewertung nach Abschluss');
+                $table->text('feedback_text')->nullable()->comment('Kundenfeedback');
+                $table->text('close_reason')->nullable()->comment('Grund für das Schließen, vom Kunden oder Admin angegeben');
                 $table->boolean('reward_claimed')->default(false);
                 $table->timestamps();
             });

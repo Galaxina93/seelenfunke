@@ -47,6 +47,21 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeCloseUi']
             ],
             [
+                'name' => 'system_assign_tool_to_role',
+                'description' => 'Gibt deinem Agenten (oder genauer gesagt deiner Rolle) dynamisch eine neue Fähigkeit (Werkzeug), die dir momentan fehlt. Nutze dies IMMER, wenn der Nutzer verlangt: "Gib dir mal die Fähigkeit X" oder "Aktiviere das Tool Y für dich".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'tool_identifier' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte system-interne Bezeichner der Fähigkeit (z.B. "system_read_code", "support_create_ticket").'
+                        ]
+                    ],
+                    'required' => ['tool_identifier']
+                ],
+                'callable' => [self::class, 'executeAssignToolToRole']
+            ],
+            [
                 'name' => 'system_open_nav_item',
                 'description' => 'Navigiert das Dashboard auf eine bestimmte Unterseite. WICHTIG: Erkenne den natürlichsprachlichen Wunsch (z.B. "wo ich Gutschriften hinterlegen kann" -> /admin/credit-management, "Belege hinterlegen" -> /admin/financial-variable-costs) und wähle die EXAKTE URL aus folgenden Optionen:' . "\n" . \App\Services\Navigation\BackendNavigationService::getAiNavigationPrompt(),
                 'parameters' => [
@@ -129,13 +144,13 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_read_wiki',
-                'description' => 'Liest direkt und asynchron den gesamten Text der großen Wiki-Dokumente und Wissens-Dateien aus (kein DB-Memory!). Stichworte: Suche in den Dokumenten, Lies im internen Firmen-Wiki, Welche PDF Regeln gibt es, Lese das Handbuch.',
+                'description' => 'System-Werkzeug für Wissensdatenbank & RAG (Retrieval-Augmented Generation): Liest direkt und asynchron den gesamten Text der großen Wiki-Dokumente und Wissens-Dateien aus (kein DB-Memory!). Stichworte: Wissensdatenbank, Suche in der DB, RAG Dokumente, Lies im internen Firmen-Wiki, Welche PDF Regeln gibt es, Lese das Handbuch.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'filename_query' => [
                             'type' => 'string',
-                            'description' => 'EXAKTER Dateiname. ACHTUNG: Nutze dies NUR, wenn du eine ganz bestimmte Datei meinst (z.B. "Richtlinien.pdf") und deren Name exakt kennst. Wenn du eine Information / ein Thema suchst, lass diesen Parameter ZWINGEND LEER!'
+                            'description' => 'EXAKTER Dateiname. ACHTUNG: Nutze dies NUR, wenn du eine ganz bestimmte Datei meinst (z.B. "Richtlinien.pdf") und deren Name exakt kennst. Wenn du eine Information / ein Thema suchst, lass diesen Parameter ZWINGEND LEER, um ALLE Dokumente nach der Antwort zu durchstöbern!'
                         ]
                     ],
                 ],
@@ -422,6 +437,19 @@ trait AiSystemFuncs
             }
 
             $url = $bestMatchUrl ?: $url;
+
+            if ($url === 'switch_workspace_view:knowledge-base' || str_contains(strtolower($url), 'wissen') || str_contains(strtolower($url), 'rag')) {
+                return [
+                    'status' => 'success',
+                    'message' => 'Die Wissensdatenbank wird nun clientseitig im Arbeitsbereich geöffnet.',
+                    '_event' => [
+                        'type' => 'dispatch',
+                        'name' => 'open-ai-workspace-view',
+                        'detail' => ['view' => 'knowledge-base']
+                    ],
+                    '_fast_track' => true
+                ];
+            }
 
             return [
                 'status' => 'success',
@@ -1097,5 +1125,35 @@ trait AiSystemFuncs
                                </div>
                            </div>'
         ];
+    }
+
+    public static function executeAssignToolToRole(array $args, $agent = null)
+    {
+        $toolId = $args['tool_identifier'] ?? '';
+        if (empty($toolId) || !$agent || !$agent->ai_role_id) {
+            return "Fehler: Tool-Indentifier fehlt oder dir fehlt die feste Rolle im System.";
+        }
+
+        $tool = \App\Models\Ai\AiTool::where('identifier', $toolId)->first();
+        if (!$tool) {
+            return "Fehler: Das Werkzeug '{$toolId}' existiert nicht in der Datenbank.";
+        }
+
+        $role = \App\Models\Ai\AiRole::find($agent->ai_role_id);
+        if ($role) {
+            $role->tools()->syncWithoutDetaching([$tool->id]);
+            return [
+                'status' => 'success',
+                'message' => "WICHTIG: Das Werkzeug '{$toolId}' wurde dir soeben in deiner Rolle '{$role->name}' aktiv freigeschaltet. Bitte bestätige dem User umgehend, dass du diese Fähigkeit ab sofort besitzt und anwenden kannst.",
+                '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-purple-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-purple-300 truncate max-w-full font-bold"><i class="bi bi-puzzle-fill"></i> Fähigkeit angeeignet</div>
+                               <div class="flex gap-2.5 mt-0.5 text-xs">
+                                   <span class="text-purple-400 font-black">' . $toolId . '</span>
+                               </div>
+                           </div>'
+            ];
+        }
+
+        return "Fehler: System-Rolle nicht gefunden.";
     }
 }

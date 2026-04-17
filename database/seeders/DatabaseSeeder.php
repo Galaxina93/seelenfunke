@@ -40,6 +40,9 @@ class DatabaseSeeder extends Seeder
             NewsletterKampagnenSeeder::class,
             MonthlyVoucherSeeder::class,
 
+            // Order
+            OrderShoppingCartSeeder::class,
+
             // Logistic
             LogisticsShippingSeeder::class,
 
@@ -58,6 +61,7 @@ class DatabaseSeeder extends Seeder
             /*GamificationTestSeeder::class,*/
             /*FinancialDataSeeder::class,*/
             /*BankTransactionTestSeeder::class,*/
+            /*OrderShoppingCartSeeder::class,*/
         ]);
 
     }

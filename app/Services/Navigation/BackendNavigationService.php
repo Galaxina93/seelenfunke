@@ -99,6 +99,7 @@ class BackendNavigationService
                         'children' => [
                             ['id' => 'order-analytics', 'title' => 'Analyse', 'route' => '/admin/orders/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'orders', 'title' => 'Bestellungen', 'route' => '/admin/orders', 'icon' => 'shopping-cart'],
+                            ['id' => 'shopping-carts', 'title' => 'Warenkörbe', 'route' => '/admin/shopping-carts', 'icon' => 'shopping-bag'],
                             ['id' => 'quote-requests', 'title' => 'Angebote', 'route' => '/admin/quote-requests', 'icon' => 'clipboard-document-list'],
                             ['id' => 'widerruf', 'title' => 'Widerrufe', 'route' => '/admin/widerruf', 'icon' => 'archive-box-x-mark'],
                         ]
@@ -273,6 +274,9 @@ class BackendNavigationService
                 }
             }
         }
+
+        $prompt .= "[Arbeitsbereich]\n";
+        $prompt .= "- \"switch_workspace_view:knowledge-base\": Wissensdatenbank (RAG / Firmen-Wiki)\n";
 
         return $prompt;
     }

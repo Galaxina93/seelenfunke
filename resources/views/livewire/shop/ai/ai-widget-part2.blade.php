@@ -67,7 +67,9 @@
 
             // --- AI VOICE CHAT LOGIC ---
             toggleMobileContinuous() {
-                if (!this.recognition) return;
+                if (!this.recognition) this.initSpeech();
+                if (!this.recognition) return; // Browser doesn't support SpeechRecognition
+
 
                 if (this.continuousMode) {
                     this.isAudioMuted = true; // Auto-mute background logic

@@ -233,7 +233,7 @@ class GeminiAgent implements AiProviderInterface
             $isPro = str_contains($modelName, 'pro');
             $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
             $payload['model'] = $modelName;
-            \Illuminate\Support\Facades\Log::info("Auto-mapped unstable model to: " . $modelName);
+            #\Illuminate\Support\Facades\Log::info("Auto-mapped unstable model to: " . $modelName);
         }
 
         if (str_contains($modelName, 'stral')) {
@@ -265,7 +265,7 @@ class GeminiAgent implements AiProviderInterface
             }
 
             if (count($filteredSchema) > 120) {
-                \Illuminate\Support\Facades\Log::warning("Too many tools requested (" . count($filteredSchema) . "). Truncating to 120 to prevent Gemini API HTTP 503.");
+                #\Illuminate\Support\Facades\Log::warning("Too many tools requested (" . count($filteredSchema) . "). Truncating to 120 to prevent Gemini API HTTP 503.");
                 $filteredSchema = array_slice($filteredSchema, 0, 120);
             }
             $payload['tools'] = $filteredSchema;

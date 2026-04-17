@@ -33,10 +33,10 @@
     <div class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-24 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
         <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
-                <div class="flex justify-between items-center">
-                    <span>KI Schnell-Steuerung</span>
-                    <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center gap-1 bg-rose-900/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-colors" title="Alles stoppen & Mikrofon aus">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                <div class="flex flex-col gap-3">
+                    <span class="leading-tight break-words break-all hyphens-auto">KI Schnell-Steuerung</span>
+                    <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
                             <rect x="5" y="5" width="10" height="10" rx="1" />
                         </svg>
                         <span>Stop</span>

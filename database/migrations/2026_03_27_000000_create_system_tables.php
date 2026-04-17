@@ -263,6 +263,7 @@ return new class extends Migration
                 $table->date('date_start');
                 $table->date('date_end');
                 $table->string('range_mode')->default('year');
+                $table->json('widgets')->nullable();
                 $table->timestamps();
             });
         }

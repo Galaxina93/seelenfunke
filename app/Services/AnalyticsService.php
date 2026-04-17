@@ -41,7 +41,33 @@ class AnalyticsService
             'open_contact_requests' => $this->checkContactRequests(),
             'open_mails' => $this->checkMails(),
             'storage' => $this->checkStorage(),
+            'open_abandoned_carts' => $this->checkAbandonedCarts(),
         ]);
+    }
+
+    private function checkAbandonedCarts(): ?array
+    {
+        if (!class_exists(\App\Models\Cart\Cart::class)) return null;
+        $totalCarts = \App\Models\Cart\Cart::count();
+        $redLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
+
+        $abandonedCarts = \App\Models\Cart\Cart::where('updated_at', '<', now()->subHours($redLimit))
+            ->whereNotNull('customer_id')
+            ->whereHas('items')
+            ->count();
+
+        $status = $abandonedCarts > 0 ? 'error' : 'success';
+        $msg = $abandonedCarts > 0 ? $abandonedCarts . ' Körbe unberührt' : 'Alles aktuell';
+        if ($totalCarts === 0) { $msg = 'Keine aktiven Körbe'; $status = 'success'; }
+
+        return [
+            'status' => $status, 
+            'icon' => 'shopping-cart', 
+            'title' => 'Warenkörbe', 
+            'message' => $msg, 
+            'count' => $abandonedCarts, 
+            'data' => []
+        ];
     }
 
     private function checkInventory(): array
@@ -658,7 +684,63 @@ class AnalyticsService
 
         $healthScore = max(0, min(100, $healthScore));
 
+        // ==========================================
+        // ABANDONED CARTS
+        // ==========================================
+        $abandonedCartsQuery = \App\Models\Cart\Cart::where('updated_at', '<', now()->subHours(1))
+            ->whereBetween('updated_at', [$start, $end])
+            ->with(['customer', 'items']);
+        $abandonedCartsData = $abandonedCartsQuery->get();
+
+        $compiledCartsList = [];
+        $potentialCartRev = 0;
+
+        foreach ($abandonedCartsData as $cart) {
+            $sum = 0;
+            $itemsCount = 0;
+            foreach ($cart->items as $item) {
+                $sum += ($item->unit_price * $item->quantity);
+                $itemsCount += $item->quantity;
+            }
+
+            if ($sum > 0) {
+                $potentialCartRev += ($sum / 100);
+
+                $hours = $cart->updated_at->diffInHours(now());
+                if ($hours < 3) {
+                    $status = 'green';
+                    $ageFormat = '< 3h';
+                } elseif ($hours < 24) {
+                    $status = 'yellow';
+                    $ageFormat = '< 24h';
+                } else {
+                    $status = 'red';
+                    $ageFormat = '> ' . floor($hours / 24) . 'd';
+                }
+
+                $compiledCartsList[] = [
+                    'id' => $cart->id,
+                    'customer' => $cart->customer ? $cart->customer->first_name . ' ' . $cart->customer->last_name : null,
+                    'email' => $cart->customer ? $cart->customer->email : null,
+                    'total' => $sum / 100,
+                    'items_count' => $itemsCount,
+                    'status' => $status,
+                    'age' => $ageFormat,
+                    'updated_at' => $cart->updated_at
+                ];
+            }
+        }
+
+        usort($compiledCartsList, function($a, $b) {
+            return $b['updated_at'] <=> $a['updated_at'];
+        });
+
         return [
+            'abandoned_carts' => [
+                'count' => count($compiledCartsList),
+                'potential_revenue' => round($potentialCartRev, 2),
+                'details' => $compiledCartsList
+            ],
             'total_users' => Admin::count() + Customer::count() + Employee::count(),
             'active_users_today' => collect($lastLogins)->whereBetween('last_seen', [Carbon::today(), Carbon::now()])->count(),
             'new_registrations_week' => Customer::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Admin::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count() + Employee::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),

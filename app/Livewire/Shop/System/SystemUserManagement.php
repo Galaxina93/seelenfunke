@@ -351,10 +351,12 @@ class SystemUserManagement extends Component
 
         if ($this->search) {
             $s = '%' . $this->search . '%';
-            $filter = function($q) use ($s) {
+            $sId = $this->search . '%'; // Searching by start of UUID for customer number
+            $filter = function($q) use ($s, $sId) {
                 $q->where('first_name', 'like', $s)
                     ->orWhere('last_name', 'like', $s)
                     ->orWhere('email', 'like', $s)
+                    ->orWhere('id', 'like', $sId)
                     ->orWhereHas('profile', function($pq) use ($s) {
                         $pq->where('city', 'like', $s)->orWhere('company_name', 'like', $s);
                     });

@@ -11,6 +11,11 @@ class SystemCheckConfig extends Model
         'filter_type',
         'date_start',
         'date_end',
-        'range_mode'
+        'range_mode',
+        'widgets'
+    ];
+
+    protected $casts = [
+        'widgets' => 'array'
     ];
 }

@@ -17,11 +17,13 @@ class Cart extends Model
         'session_id',
         'customer_id',
         'coupon_code',
-        'is_express'
+        'is_express',
+        'reminder_email_sent_at'
     ];
 
     protected $casts = [
-        'is_express' => 'boolean'
+        'is_express' => 'boolean',
+        'reminder_email_sent_at' => 'datetime',
     ];
 
     public function items(): HasMany

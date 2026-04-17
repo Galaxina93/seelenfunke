@@ -22,15 +22,43 @@ class SupportTicket extends Component
 
     public string $themingDepartment = 'Support';
 
+    public $viewMode = 'split'; // 'split' or 'table'
     public $filterStatus = 'open';
     public $search = '';
     public $activeTicketId = null;
     public $replyMessage = '';
     public $replyAttachments = [];
 
+    // KPIs
+    public $kpiAvgRating = 0;
+    public $kpiOpenCount = 0;
+    public $kpiAvgResolutionHrs = 0;
+
+    public function mount()
+    {
+        $this->calculateKPIs();
+    }
+
+    public function calculateKPIs()
+    {
+        $this->kpiOpenCount = SupportTicketModel::where('status', 'open')->count();
+        $this->kpiAvgRating = round((float) SupportTicketModel::whereNotNull('rating')->avg('rating'), 1);
+
+        $closedTickets = SupportTicketModel::where('status', 'closed')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->get();
+
+        $totalHours = 0;
+        foreach($closedTickets as $ticket) {
+            $totalHours += $ticket->created_at->diffInHours($ticket->updated_at);
+        }
+
+        $this->kpiAvgResolutionHrs = $closedTickets->count() > 0 ? round($totalHours / $closedTickets->count(), 1) : 0;
+    }
+    #[On('echo-private:admin.tickets,.TicketMessageSent')]
     public function receiveMessage($event)
     {
-        \Illuminate\Support\Facades\Log::info('WS Triggered: Admin receiveMessage', ['payload' => $event, 'activeTicketId' => $this->activeTicketId]);
+        # \Illuminate\Support\Facades\Log::info('WS Triggered: Admin receiveMessage', ['payload' => $event, 'activeTicketId' => $this->activeTicketId]);
 
         if (isset($event['message']['support_ticket_id'])) {
             $ticketId = $event['message']['support_ticket_id'];
@@ -83,33 +111,21 @@ class SupportTicket extends Component
         $ticket->update(['status' => 'answered']);
         $this->filterStatus = 'answered';
 
-        broadcast(new TicketMessageSent($message, $ticket->id, $ticket->customer_id));
-
-        $isOnline = false;
-        $lastCustomerMsg = SupportTicketMessage::where('support_ticket_id', $ticket->id)
-            ->where('sender_type', 'customer')
-            ->latest('id')
-            ->first();
-
-        if ($lastCustomerMsg && (time() - strtotime($lastCustomerMsg->created_at)) < 600) {
-            $isOnline = true;
+        try {
+            // Versuchen das Event über Websockets zu schießen
+            broadcast(new TicketMessageSent($message, $ticket->id, $ticket->customer_id));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Websocket Server Error (Reverb/Pusher offline?): ' . $e->getMessage());
         }
 
-        if (!$isOnline) {
-            $profile = \App\Models\Customer\CustomerProfile::where('customer_id', $ticket->customer_id)->first();
-            if ($profile && $profile->last_seen && (time() - strtotime($profile->last_seen)) < 300) {
-                $isOnline = true;
-            }
-        }
-
-        if (!$isOnline && Cache::has('customer-online-' . $ticket->customer_id)) {
-            $isOnline = true;
-        }
+        // Präzise Prüfung: Ist der Nutzer aktuell wirklich online? (1-Minuten-Zeitfenster durch UserLastActivity Middleware)
+        $isOnline = \Illuminate\Support\Facades\Cache::has('is_online' . $ticket->customer_id);
 
         if (!$isOnline && $ticket->customer) {
-            $gamification = CustomerGamification::where('customer_id', $ticket->customer_id)->first();
+            $gamification = \App\Models\Customer\CustomerGamification::where('customer_id', $ticket->customer_id)->first();
             if (!$gamification || $gamification->ticket_emails_enabled) {
-                Mail::to($ticket->customer->email)->send(new \App\Mail\SupportTicketUpdateMailToCustomer($ticket->customer, $ticket));
+                // Sende die E-Mail als Hintergrund-Job, das blockiert den Admin nicht
+                \Illuminate\Support\Facades\Mail::to($ticket->customer->email)->queue(new \App\Mail\SupportTicketUpdateMailToCustomer($ticket->customer, $ticket));
             }
         }
 
@@ -132,8 +148,11 @@ class SupportTicket extends Component
 
     public function render()
     {
-        $query = SupportTicketModel::with('customer', 'messages', 'order')
-            ->where('status', $this->filterStatus);
+        $query = SupportTicketModel::with('customer', 'messages', 'order');
+
+        if ($this->filterStatus !== 'all') {
+            $query->where('status', $this->filterStatus);
+        }
 
         if (!empty($this->search)) {
             $query->where(function ($q) {

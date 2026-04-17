@@ -59,18 +59,6 @@
                 </div>
             </div>
 
-            <div class="bg-amber-500/5 rounded-xl p-4 border border-amber-500/20 flex items-center justify-between mt-2">
-                <div>
-                    <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-1">
-                        <x-heroicon-o-shopping-cart class="w-4 h-4 text-amber-500" /> Verlassene Körbe
-                    </h3>
-                    <div class="text-xl font-black text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]">{{ $stats['abandoned_carts']['count'] ?? 0 }}</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Potenzieller Umsatz</div>
-                    <div class="text-lg font-bold text-gray-300">{{ number_format($stats['abandoned_carts']['potential_revenue'] ?? 0, 2, ',', '.') }} €</div>
-                </div>
-            </div>
         </div>
 
         {{-- BEREICH 2: KUNDEN --}}

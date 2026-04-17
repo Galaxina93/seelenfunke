@@ -148,7 +148,7 @@ class AiWorkspace extends Component
 
         if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
             // Methode 1: pgrep (Standard Linux)
-            $output = shell_exec('pgrep -f "artisan queue" 2>/dev/null');
+            $output = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
             
             if (empty(trim($output))) {
                 // Methode 2: ps (Standard Shared Hosting / Alpine Container wie Mittwald)

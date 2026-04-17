@@ -326,7 +326,7 @@
 
         @if($revocations->hasPages())
             <div class="mt-6">
-                {{ $revocations->links('pagination.backend') }}
+                {{ $revocations->links('pagination::tailwind') }}
             </div>
         @endif
     </div>

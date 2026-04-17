@@ -154,8 +154,8 @@ class SupportTicketTest extends TestCase
     {
         Mail::fake();
 
-        // Simulate customer being online
-        Cache::put('customer-online-' . $this->customer->id, true, now()->addMinutes(5));
+        // Simulate customer being online using the UserLastActivity middleware key
+        Cache::put('is_online' . $this->customer->id, true, now()->addMinutes(5));
 
         Livewire::test(SupportTicket::class)
             ->call('selectTicket', $this->ticket->id)
