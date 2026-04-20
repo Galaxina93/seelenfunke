@@ -531,11 +531,16 @@
                                         <span class="px-2 py-0.5 rounded text-[9px] font-bold {{ $task->status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-400 border-gray-700' }} border uppercase tracking-widest">
                                             {{ $task->status === 'failed' ? 'Fehlgeschlagen' : 'Wartet' }}
                                         </span>
-                                        @if($task->status === 'failed')
+                                        @if($task->status === 'failed' || $task->status === 'completed')
                                             <button wire:click="restartTask('{{ $task->id }}')" 
                                                     class="text-gray-500 hover:text-emerald-400 p-1 rounded-md hover:bg-emerald-500/10 transition-colors"
                                                     title="Aufgabe komplett neu starten">
                                                 <x-heroicon-o-arrow-path class="w-4 h-4" />
+                                            </button>
+                                            <button x-data @click="let a = prompt('Gibt es Ergänzungen? Aufgabe wird danach neu gestartet.'); if(a) { $wire.appendAndRestartTask('{{ $task->id }}', a) }"
+                                                    class="text-gray-500 hover:text-emerald-400 p-1 rounded-md hover:bg-emerald-500/10 transition-colors"
+                                                    title="Aufgabe ergänzen & neu starten">
+                                                <x-heroicon-o-pencil-square class="w-4 h-4" />
                                             </button>
                                         @endif
                                         <button wire:click="deleteTask('{{ $task->id }}')" 
@@ -913,6 +918,9 @@
                                                         @if($task->status === 'completed' || $task->status === 'failed')
                                                             <button wire:click="restartTask('{{ $task->id }}')" class="text-gray-500 hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Neu starten">
                                                                 <x-heroicon-o-arrow-path class="w-4 h-4" />
+                                                            </button>
+                                                            <button x-data @click="let a = prompt('Was möchtest du als Ergänzung/Fehlermeldung hinzufügen?'); if(a) { $wire.appendAndRestartTask('{{ $task->id }}', a) }" class="text-gray-500 hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Ergänzen & Neu starten">
+                                                                <x-heroicon-o-pencil-square class="w-4 h-4" />
                                                             </button>
                                                         @endif
                                                         @if($task->status === 'completed')

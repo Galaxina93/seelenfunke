@@ -9,51 +9,8 @@
 
     @include('livewire.shop.master.master-analytics-partials.master_scores')
 
-    {{-- WIDGETS CONFIG MODAL --}}
-    @if($showWidgetModal)
-        <div class="fixed inset-0 bg-black/80 backdrop-blur-sm shadow-2xl z-50 flex items-start pt-20 justify-center border border-gray-800 p-4" x-data @keydown.escape.window="$wire.set('showWidgetModal', false)">
-            <div class="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md overflow-hidden relative shadow-2xl">
-                <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
-                    <h3 class="text-white font-bold tracking-widest uppercase text-sm flex items-center gap-2">
-                        <x-heroicon-o-adjustments-horizontal class="w-5 h-5 text-[var(--theme-color)]" />
-                        Widgets verwalten
-                    </h3>
-                    <button wire:click="$set('showWidgetModal', false)" class="text-gray-500 hover:text-white transition-colors">
-                        <x-heroicon-o-x-mark class="w-6 h-6" />
-                    </button>
-                </div>
-                <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                    {{-- Capacity --}}
-                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-800 bg-gray-950/50 hover:bg-gray-800/50 cursor-pointer transition-colors">
-                        <span class="text-sm font-bold text-gray-300">Speicher & Produktions-Last</span>
-                        <input type="checkbox" wire:model.live="widgetConfig.capacities" class="form-checkbox bg-gray-900 border-gray-700 text-[var(--theme-color)] focus:ring-[var(--theme-color)] rounded">
-                    </label>
-                    {{-- Profit --}}
-                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-800 bg-gray-950/50 hover:bg-gray-800/50 cursor-pointer transition-colors">
-                        <span class="text-sm font-bold text-gray-300">Gewinn-Entwicklung</span>
-                        <input type="checkbox" wire:model.live="widgetConfig.profit" class="form-checkbox bg-gray-900 border-gray-700 text-[var(--theme-color)] focus:ring-[var(--theme-color)] rounded">
-                    </label>
-                    {{-- eCommerce --}}
-                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-800 bg-gray-950/50 hover:bg-gray-800/50 cursor-pointer transition-colors">
-                        <span class="text-sm font-bold text-gray-300">E-Commerce Einblicke</span>
-                        <input type="checkbox" wire:model.live="widgetConfig.ecommerce" class="form-checkbox bg-gray-900 border-gray-700 text-[var(--theme-color)] focus:ring-[var(--theme-color)] rounded">
-                    </label>
-                    {{-- Traffic --}}
-                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-800 bg-gray-950/50 hover:bg-gray-800/50 cursor-pointer transition-colors">
-                        <span class="text-sm font-bold text-gray-300">Besucher & Analysen</span>
-                        <input type="checkbox" wire:model.live="widgetConfig.traffic" class="form-checkbox bg-gray-900 border-gray-700 text-[var(--theme-color)] focus:ring-[var(--theme-color)] rounded">
-                    </label>
-                    {{-- Customers --}}
-                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-800 bg-gray-950/50 hover:bg-gray-800/50 cursor-pointer transition-colors">
-                        <span class="text-sm font-bold text-gray-300">Kundengewinnung & Wachstum</span>
-                        <input type="checkbox" wire:model.live="widgetConfig.visitors" class="form-checkbox bg-gray-900 border-gray-700 text-[var(--theme-color)] focus:ring-[var(--theme-color)] rounded">
-                    </label>
-                </div>
-            </div>
-        </div>
-    @endif
-
     {{-- ABANDONED CARTS MODAL --}}
+
     @if($showAbandonedCarts)
         <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flexitems-center justify-center p-4 xl:p-10 flex items-center" x-data @keydown.escape.window="$wire.set('showAbandonedCarts', false)">
             <div class="bg-gray-900 border border-gray-700 rounded-3xl w-full max-w-5xl max-h-full overflow-hidden relative shadow-[0_0_50px_rgba(245,158,11,0.1)] flex flex-col">

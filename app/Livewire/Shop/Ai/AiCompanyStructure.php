@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Ai;
 
 use App\Livewire\Traits\WithDepartmentTheming;
+use Livewire\Attributes\Layout;
 
 use App\Models\Ai\AiDepartment;
 use App\Models\Ai\AiRole;
@@ -10,6 +11,7 @@ use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiTool;
 use Livewire\Component;
 
+#[Layout('components.layouts.backend_layout')]
 class AiCompanyStructure extends Component
 {
     use WithDepartmentTheming;
@@ -179,6 +181,6 @@ class AiCompanyStructure extends Component
 
         return view('livewire.shop.ai.ai-company-structure', [
             'freeAgents' => $freeAgents
-        ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
+        ]);
     }
 }

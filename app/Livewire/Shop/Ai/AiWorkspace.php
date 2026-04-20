@@ -283,6 +283,15 @@ class AiWorkspace extends Component
                 }
             }
         }
+        
+        // Also suggest AI Artifacts / Plans
+        $artifacts = $this->artifacts;
+        foreach ($artifacts as $art) {
+            if (str_starts_with(strtolower($query), 'plan') || stripos($art['filename'], $query) !== false) {
+                // Prepend so plans show up first if matching!
+                array_unshift($results, 'storage/app/ai-artifacts/' . session()->getId() . '/' . $art['filename']);
+            }
+        }
 
         $this->mentionResults = $results;
     }
@@ -761,6 +770,35 @@ class AiWorkspace extends Component
         }
     }
 
+    public function appendAndRestartTask($taskId, $addition)
+    {
+        if (empty(trim($addition))) return;
+        
+        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
+        if ($task && ($task->status === 'completed' || $task->status === 'archived' || $task->status === 'failed')) {
+            $agentId = $task->assigned_agent_id;
+            
+            $newPrompt = $task->prompt . "\n\n--- Ergänzung / Retry ---\n" . trim($addition);
+            
+            $task->update([
+                'prompt' => $newPrompt,
+                'status' => $agentId ? 'processing' : 'pending',
+                'response_content' => null,
+                'completed_at' => null,
+            ]);
+            
+            $meta = $task->ui_metadata ?? [];
+            if (isset($meta['execution_plan'])) {
+                unset($meta['execution_plan']);
+                $task->update(['ui_metadata' => $meta]);
+            }
+            
+            if ($agentId) {
+                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
+            }
+        }
+    }
+
     public function undoTask($taskId)
     {
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
@@ -807,6 +845,9 @@ class AiWorkspace extends Component
             }
             $meta['local_uploads'] = $localUploads;
         }
+
+        // Add session ID so the background task queue knows where to save generated JSON/Markdown artifacts
+        $meta['session_id'] = session()->getId();
 
         \App\Models\Ai\AiWorkspaceTask::create([
             'prompt' => trim($this->input),

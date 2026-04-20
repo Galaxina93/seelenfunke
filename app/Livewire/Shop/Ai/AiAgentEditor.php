@@ -9,7 +9,9 @@ use App\Models\Ai\AiTool;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Layout;
 
+#[Layout('components.layouts.backend_layout')]
 class AiAgentEditor extends Component
 {
     use WithDepartmentTheming;

@@ -41,10 +41,7 @@
                 @endif
             </div>
 
-            <button wire:click="$toggle('showWidgetModal')" class="h-10 px-4 rounded-xl bg-gray-950 border border-gray-800 hover:border-gray-600 text-xs font-bold text-gray-300 transition-all flex items-center justify-center gap-2 whitespace-nowrap shadow-inner group/settings hover:text-white" title="Widgets verwalten">
-                <x-heroicon-o-adjustments-horizontal class="w-4 h-4 text-gray-500 group-hover/settings:text-white" />
-                <span class="hidden md:inline">Widgets verwalten</span>
-            </button>
+
             @include('livewire.shop.ai.ask-ai-dropdown', [
                 'themeColor' => 'primary',
                 'actionMethod' => 'downloadAiReport',

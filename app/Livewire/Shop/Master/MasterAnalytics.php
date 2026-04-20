@@ -47,15 +47,6 @@ class MasterAnalytics extends Component
     public $currentMission = null;
     public $showMission = false;
     public $showAbandonedCarts = false;
-    public $showWidgetModal = false;
-
-    public $widgetConfig = [
-        'traffic' => true,
-        'visitors' => true,
-        'ecommerce' => true,
-        'profit' => true,
-        'capacities' => true
-    ];
 
     // AI Agent Properties
     public $availableAgents = [];
@@ -441,9 +432,6 @@ class MasterAnalytics extends Component
             $this->dateStart = $config->date_start;
             $this->dateEnd = $config->date_end;
             $this->rangeMode = $config->range_mode ?? 'custom';
-            if (!empty($config->widgets)) {
-                $this->widgetConfig = array_merge($this->widgetConfig, $config->widgets);
-            }
         } else {
             $this->setWholeYear(false);
         }
@@ -458,8 +446,7 @@ class MasterAnalytics extends Component
                 'filter_type' => $this->filterType,
                 'date_start' => $this->dateStart,
                 'date_end' => $this->dateEnd,
-                'range_mode' => $rangeMode,
-                'widgets' => $this->widgetConfig
+                'range_mode' => $rangeMode
             ]
         );
     }
@@ -482,11 +469,6 @@ class MasterAnalytics extends Component
             $this->saveSettings('year');
             $this->loadStats(app(AnalyticsService::class));
         }
-    }
-
-    public function updatedWidgetConfig()
-    {
-        $this->saveSettings($this->rangeMode);
     }
 
     public function toggleMission()

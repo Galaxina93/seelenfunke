@@ -1,6 +1,6 @@
-<div x-data="{ expanded: false }" x-init="$wire.loadStorageDetails()" class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative shadow-[0_0_20px_rgba(0,0,0,0.3)] mb-8">
+<div x-data="{ expanded: false }" class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative shadow-[0_0_20px_rgba(0,0,0,0.3)] mb-8">
 
-    <div class="relative z-10 flex flex-col gap-6">
+    <div wire:init="loadStorageDetails" class="relative z-10 flex flex-col gap-6">
 
         <!-- COMPACT HEADER VIEW -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">

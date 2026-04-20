@@ -102,6 +102,30 @@ class GeminiAgent implements AiProviderInterface
                              "WICHTIG: Erkläre dem User nicht, was er tun soll. DU BIST DER PROGRAMMIERER. ÄNDERE DIE DATEIEN SELBST!\n" .
                              "</planning_mode>";
 
+        // === ARTIFACT INJECTION (ANTIGRAVITY ARCHITECTURE) ===
+        $sessionId = config('ai.current_session_id') ?: session()->getId();
+        if (!empty($sessionId)) {
+            $artifactPath = 'ai-artifacts/' . $sessionId;
+            $artifactsPrompt = "";
+            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath)) {
+                $files = ['implementation_plan.md', 'task.md', 'walkthrough.md'];
+                foreach ($files as $file) {
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath . '/' . $file)) {
+                        $content = \Illuminate\Support\Facades\Storage::disk('local')->get($artifactPath . '/' . $file);
+                        $artifactsPrompt .= "\n[ARTIFACT: " . str_replace('.md', '', $file) . "]\nPath: " . storage_path('app/' . $artifactPath . '/' . $file) . "\n" . trim($content) . "\n\n";
+                    }
+                }
+            }
+            if (!empty($artifactsPrompt)) {
+                $systemPromptText .= "\n\n<artifacts>\n" .
+                                     "Artifacts are special markdown documents that you created to present structured information to the user.\n" .
+                                     "The following artifacts currently exist for your session:\n" .
+                                     $artifactsPrompt .
+                                     "</artifacts>";
+            }
+        }
+
+
         if ($this->dynamicSystemPrompt) {
             $systemPromptText .= "\n\n" . $this->dynamicSystemPrompt;
         }
@@ -110,6 +134,15 @@ class GeminiAgent implements AiProviderInterface
             'role' => 'system',
             'content' => $systemPromptText
         ];
+
+        // === EPHEMERAL CHECKPOINTING (ANTIGRAVITY ARCHITECTURE) ===
+        // Inject a subtle reminder of the objective so the agent doesn't lose context after many messages
+        if (count($incomingMessages) > 8) {
+            $incomingMessages[] = [
+                'role' => 'system',
+                'content' => "<EPHEMERAL_MESSAGE>\nDie Konversation ist bereits relativ lang. Vergiss nicht deinen ursprünglichen Auftrag. Solltest du ein `implementation_plan` Artefakt haben, orientiere dich exakt daran und repariere auftretende Fehler in den in `<artifacts>` gelisteten Aufgaben.\n</EPHEMERAL_MESSAGE>"
+            ];
+        }
 
         // Combine history with system prompt
         $messages = array_merge([$systemPrompt], $incomingMessages);

@@ -8,6 +8,7 @@ use Livewire\Component;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+#[Layout('components.layouts.backend_layout')]
 class ExternalAgentEditor extends Component
 {
     public string $themingDepartment = 'Agenten';

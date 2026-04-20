@@ -325,6 +325,40 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeWriteArtifact']
             ],
             [
+                'name' => 'system_write_knowledge',
+                'description' => 'Speichert wichtige Architektur-Entscheidungen, Regeln oder Masterpläne GLOBAL ab. Im Gegensatz zu Artefakten bleiben diese Dokumente über den aktuellen Chat hinaus für immer bestehen und können später wieder abgerufen werden.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'topic' => [
+                            'type' => 'string',
+                            'description' => 'Kurzer, prägnanter Name des Themas ohne Leerzeichen (z.B. laravel_api_rules, warenkorb_architektur).'
+                        ],
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'Der gesamte Inhalt im Markdown Format.'
+                        ]
+                    ],
+                    'required' => ['topic', 'content']
+                ],
+                'callable' => [self::class, 'executeWriteKnowledge']
+            ],
+            [
+                'name' => 'system_read_knowledge',
+                'description' => 'Liest ein persistentes globales Wissens-Dokument (Knowledge Item). Nützlich, wenn du in einem neuen Chat einen alten Plan oder alte Architektur-Regeln abrufen möchtest.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'topic' => [
+                            'type' => 'string',
+                            'description' => 'Der genaue Name des Themas (z.B. laravel_api_rules).'
+                        ]
+                    ],
+                    'required' => ['topic']
+                ],
+                'callable' => [self::class, 'executeReadKnowledge']
+            ],
+            [
                 'name' => 'system_run_command',
                 'description' => 'Führt asynchron einen sicheren Bash-/Artisan-/NPM-Befehl im Hintergrund aus. Diese Aktion ist destruktiv und unterliegt dem Guardrail-Schutz. Gibt eine Job-ID zurück.',
                 'parameters' => [
@@ -1164,7 +1198,7 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'artifact_name fehlt.'];
         }
 
-        $sessionId = session()->getId();
+        $sessionId = config('ai.current_session_id') ?: session()->getId();
         if (!$sessionId) {
             return ['status' => 'error', 'message' => 'Keine aktive Session für Artefakt-Speicherung gefunden.'];
         }
@@ -1173,6 +1207,11 @@ trait AiSystemFuncs
         $path = 'ai-artifacts/' . $sessionId . '/' . $filename;
         
         \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
+        
+        // Ensure that the file and directory are readable by www-data
+        @chmod(storage_path('app/ai-artifacts'), 0777);
+        @chmod(storage_path('app/ai-artifacts/' . $sessionId), 0777);
+        @chmod(storage_path('app/' . $path), 0666);
 
         if (str_contains(strtolower($name), 'implementation_plan') || str_contains(strtolower($name), 'plan')) {
             session()->put('has_ai_implementation_plan', true);
@@ -1188,6 +1227,63 @@ trait AiSystemFuncs
                                <div class="text-indigo-300 truncate max-w-full font-bold"><x-heroicon-o-document-check class="w-3 h-3 inline-block -mt-0.5" /> ' . $filename . '</div>
                                <div class="flex gap-2.5 mt-0.5">
                                    <span class="text-indigo-400">Artefakt generiert (' . $addedLines . ' Zeilen)</span>
+                               </div>
+                           </div>'
+        ];
+    }
+
+    public static function executeWriteKnowledge(array $args)
+    {
+        $topic = ltrim($args['topic'] ?? '', '/');
+        $content = $args['content'] ?? '';
+
+        if (empty($topic)) {
+            return ['status' => 'error', 'message' => 'topic fehlt.'];
+        }
+
+        $filename = str_replace(' ', '_', strtolower($topic)) . '.md';
+        $path = 'ai/knowledge/' . $filename;
+        
+        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
+
+        $addedLines = substr_count($content, "\n") + 1;
+
+        return [
+            'status' => 'success',
+            'message' => "Knowledge Item '$filename' wurde global dauerhaft gespeichert.",
+            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-yellow-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . $filename . '</div>
+                               <div class="flex gap-2.5 mt-0.5">
+                                   <span class="text-yellow-400">Wissen gesichert (' . $addedLines . ' Zeilen)</span>
+                               </div>
+                           </div>'
+        ];
+    }
+
+    public static function executeReadKnowledge(array $args)
+    {
+        $topic = ltrim($args['topic'] ?? '', '/');
+
+        if (empty($topic)) {
+            return ['status' => 'error', 'message' => 'topic fehlt.'];
+        }
+
+        $filename = str_replace(' ', '_', strtolower($topic)) . '.md';
+        $path = 'ai/knowledge/' . $filename;
+        
+        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+             return ['status' => 'empty', 'message' => "Das Knowledge Item '$filename' existiert nicht."];
+        }
+
+        $content = \Illuminate\Support\Facades\Storage::disk('local')->get($path);
+
+        return [
+            'status' => 'success',
+            'content' => $content,
+            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-yellow-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . $filename . '</div>
+                               <div class="flex gap-2.5 mt-0.5">
+                                   <span class="text-yellow-400">Wissen in Prompt geladen</span>
                                </div>
                            </div>'
         ];

@@ -66,16 +66,33 @@ Beispiel falsch: Hier sind die Agenten: [...]";
             if (!$apiKey) {
                 return $currentlyActiveIds; // Fallback if no config
             }
+            
+            $maxAttempts = 3;
+            $response = null;
 
-            $response = Http::timeout(8)
-                ->withToken($apiKey)
-                ->post($endpoint, [
-                    'model' => $modelName,
-                    'messages' => [
-                        ['role' => 'user', 'content' => $sysPrompt]
-                    ], 
-                    'temperature' => 0.0,
-                ]);
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                $response = Http::timeout(8)
+                    ->withToken($apiKey)
+                    ->post($endpoint, [
+                        'model' => $modelName,
+                        'messages' => [
+                            ['role' => 'user', 'content' => $sysPrompt]
+                        ], 
+                        'temperature' => 0.0,
+                    ]);
+
+                if ($response->successful()) {
+                    break;
+                }
+
+                if ($response->status() === 503 && $attempt < $maxAttempts) {
+                    sleep(1); // Wait 1 second before retry
+                    continue;
+                }
+
+                // If it's a non-503 error, or we reached max attempts, just break and handle below
+                break;
+            }
 
             if ($response->successful()) {
                 $content = $response->json('choices.0.message.content') ?? '[]';
