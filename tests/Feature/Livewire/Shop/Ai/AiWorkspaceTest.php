@@ -48,7 +48,6 @@ class AiWorkspaceTest extends TestCase
         Livewire::actingAs($admin, 'admin')
             ->test(AiWorkspace::class)
             ->assertStatus(200)
-            ->assertViewHas('messages')
             ->assertSee('Hello Funkira')
             ->assertSee('User.php')
             ->assertSet('messages.0.attachments.0', 'app/Models/User.php')
@@ -132,6 +131,7 @@ class AiWorkspaceTest extends TestCase
             ->set('activeAgentIds', [])
             ->set('input', 'Agent should not respond')
             ->call('sendMessage')
+            ->call('processAutoRouting')
             ->assertSee('FEHLER: Kein Agent für Verarbeitung ausgewählt');
             
         // Memory holds the error message

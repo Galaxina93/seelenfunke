@@ -258,8 +258,8 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeReadCode']
             ],
             [
-                'name' => 'system_edit_file',
-                'description' => 'Ersetzt einen exakten Quellcode-Block in einer Datei durch neuen Code. WICHTIGE REGEL: Im Autonomous / Execution Mode darfst und sollst du dieses Tool direkt ausführen, um Dateien selbstständig zu modifizieren und Bugs aktiv zu beheben. Erstelle bei größeren Änderungen erst ein "implementation_plan" Artefakt. Um Code zu bearbeiten MUSST du dieses Tool benutzen!',
+                'name' => 'system_multi_replace_file',
+                'description' => 'Ersetzt mehrere nicht zusammenhängende (oder zusammenhängende) Code-Blöcke in einer Datei präzise. WICHTIGE REGEL: Im Autonomous / Execution Mode darfst und sollst du dieses Tool direkt ausführen, um Dateien selbstständig zu modifizieren und Bugs aktiv zu beheben. Erstelle bei größeren Änderungen erst ein "implementation_plan" Artefakt. Um Code zu bearbeiten MUSST du dieses Tool benutzen! Nutze start_line und end_line zur Orientierung auf Basis von system_read_code.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -267,18 +267,24 @@ trait AiSystemFuncs
                             'type' => 'string',
                             'description' => 'Der relative Dateipfad vom Projekt-Root aus.'
                         ],
-                        'search_content' => [
-                            'type' => 'string',
-                            'description' => 'Der exakte alte Code-Block, der gesucht werden soll (inkl. Whitespaces/Einrückungen, wie er von system_read_code zurückkam!).'
-                        ],
-                        'replace_content' => [
-                            'type' => 'string',
-                            'description' => 'Der neue Code-Block, der eingesetzt werden soll.'
+                        'chunks' => [
+                            'type' => 'array',
+                            'description' => 'Eine Liste der Code-Schnipsel, die ersetzt werden sollen. Mehrere Änderungen können im gleichen Vorgang übergeben werden.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'start_line' => ['type' => 'integer', 'description' => 'Ungefähre Startzeile der originalen Suche aus system_read_code.'],
+                                    'end_line' => ['type' => 'integer', 'description' => 'Ungefähre Endzeile der Suche.'],
+                                    'search_content' => ['type' => 'string', 'description' => 'Exakter Inhalt, der ausgetauscht wird, OHNE Zeilennummern.'],
+                                    'replace_content' => ['type' => 'string', 'description' => 'Neuer Code, der ausgetauscht wird.']
+                                ],
+                                'required' => ['start_line', 'end_line', 'search_content', 'replace_content']
+                            ]
                         ]
                     ],
-                    'required' => ['file_path', 'search_content', 'replace_content']
+                    'required' => ['file_path', 'chunks']
                 ],
-                'callable' => [self::class, 'executeEditFile']
+                'callable' => [self::class, 'executeMultiReplaceFile']
             ],
             [
                 'name' => 'system_write_to_file',
@@ -317,6 +323,36 @@ trait AiSystemFuncs
                     'required' => ['artifact_name', 'content']
                 ],
                 'callable' => [self::class, 'executeWriteArtifact']
+            ],
+            [
+                'name' => 'system_run_command',
+                'description' => 'Führt asynchron einen sicheren Bash-/Artisan-/NPM-Befehl im Hintergrund aus. Diese Aktion ist destruktiv und unterliegt dem Guardrail-Schutz. Gibt eine Job-ID zurück.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'command' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Bash-Befehl (z.B. "php artisan test", "npm run build").'
+                        ]
+                    ],
+                    'required' => ['command']
+                ],
+                'callable' => [self::class, 'executeRunCommand']
+            ],
+            [
+                'name' => 'system_command_status',
+                'description' => 'Liest den Status und Output eines asynchron im Hintergrund ausgeführten Befehls aus (Polling).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'job_id' => [
+                            'type' => 'string',
+                            'description' => 'Die Job-ID, die von system_run_command zurückgegeben wurde.'
+                        ]
+                    ],
+                    'required' => ['job_id']
+                ],
+                'callable' => [self::class, 'executeCommandStatus']
             ]
         ];
     }
@@ -959,14 +995,17 @@ trait AiSystemFuncs
         ];
     }
 
-    public static function executeEditFile(array $args)
+    public static function executeMultiReplaceFile(array $args)
     {
         $path = ltrim($args['file_path'] ?? '', '/');
-        $search = $args['search_content'] ?? '';
-        $replace = $args['replace_content'] ?? '';
+        $chunks = $args['chunks'] ?? [];
 
-        if (empty($path) || empty($search)) {
-            return ['status' => 'error', 'message' => 'file_path oder search_content fehlen.'];
+        if (empty($path)) {
+            return ['status' => 'error', 'message' => 'file_path fehlt.'];
+        }
+
+        if (empty($chunks) || !is_array($chunks)) {
+            return ['status' => 'error', 'message' => 'chunks array fehlt oder ist leer.'];
         }
 
         $fullPath = base_path($path);
@@ -977,7 +1016,7 @@ trait AiSystemFuncs
         }
 
         if (!str_starts_with(realpath($fullPath), realpath(base_path()))) {
-             return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
+             return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des Projektverzeichnisses.'];
         }
 
         if (str_contains(basename($fullPath), '.env')) {
@@ -985,71 +1024,92 @@ trait AiSystemFuncs
         }
 
         $content = file_get_contents($fullPath);
-        
-        // Remove line numbers from search block if the AI accidentally copied them from read_tool
-        $cleanSearch = preg_replace('/^\s*\d+\s*\|\s/m', '', $search);
-        $cleanReplace = preg_replace('/^\s*\d+\s*\|\s/m', '', $replace);
+        $totalChunksProcessed = 0;
+        $failedChunks = [];
+        $totalAddedLines = 0;
+        $totalDeletedLines = 0;
 
-        if (strpos($content, $cleanSearch) !== false) {
-            $newContent = str_replace($cleanSearch, $cleanReplace, $content);
-        } else {
-            // Fallback: Whitespace-tolerant regex search
-            $regexSafeSearch = preg_quote(trim($cleanSearch), '/');
-            // Allow any combination of spaces, tabs, and newlines between words to match
-            $regexSafeSearch = preg_replace('/[ \t\r\n]+/', '\s+', $regexSafeSearch);
-            
-            // Prepend a capture group for any leading spaces/tabs on the line where the match starts
-            $regex = '/([ \t]*)' . $regexSafeSearch . '/s';
+        foreach ($chunks as $index => $chunk) {
+            $search = $chunk['search_content'] ?? '';
+            $replace = $chunk['replace_content'] ?? '';
 
-            if (preg_match($regex, $content, $matches)) {
-                $matchedOriginal = $matches[0];
-                $indentation = $matches[1] ?? '';
-                
-                // Calculate minimal indentation of the replacement block to make it relative
-                $replaceLines = explode("\n", trim($cleanReplace, "\r\n"));
-                $minReplaceIndent = null;
-                foreach ($replaceLines as $line) {
-                    if (trim($line) === '') continue;
-                    preg_match('/^[ \t]*/', $line, $ind);
-                    $len = strlen($ind[0]);
-                    if ($minReplaceIndent === null || $len < $minReplaceIndent) {
-                        $minReplaceIndent = $len;
-                    }
+            if (empty($search)) {
+                $failedChunks[] = "Chunk $index: search_content leer.";
+                continue;
+            }
+
+            // Clean up left-over AI prepended line numbers (like " 12 | ") if they accidentally copy-pasted read_code output
+            $cleanSearch = preg_replace('/^\s*\d+\s*\|\s/m', '', $search);
+            $cleanReplace = preg_replace('/^\s*\d+\s*\|\s/m', '', $replace);
+
+            $totalDeletedLines += substr_count($cleanSearch, "\n") + 1;
+            $totalAddedLines += substr_count($cleanReplace, "\n") + 1;
+
+            if (strpos($content, $cleanSearch) !== false) {
+                // Determine if it occurs exactly ONCE
+                $count = substr_count($content, $cleanSearch);
+                if ($count > 1) {
+                    $failedChunks[] = "Chunk $index: Target-Content mehrfach ($count) gefunden! Bitte den Search-Block vergrößern, um ihn einzigartig zu machen.";
+                    continue;
                 }
                 
-                // Remove relative indentation and add the target indentation
-                $indentedReplace = implode("\n", array_map(function($line) use ($indentation, $minReplaceIndent) {
-                    if (trim($line) === '') return '';
-                    return $indentation . substr($line, $minReplaceIndent);
-                }, $replaceLines));
-
-                // We replace the matched block (which now includes the leading indentation)
-                $newContent = str_replace($matchedOriginal, $indentedReplace, $content);
+                $content = str_replace($cleanSearch, $cleanReplace, $content);
+                $totalChunksProcessed++;
             } else {
-                return ['status' => 'error', 'message' => 'KRITISCHER FEHLER: Der gesuchte search_content Block wurde nicht in der Datei gefunden. Weder exakt noch tolerant. Bitte überprüfe die Zieldatei mit system_read_code und stelle sicher, dass du den alten Code EXAKT so kopierst, wie er dort steht!'];
+                // Fallback Regex ignore whitespace
+                $regexSafeSearch = preg_quote(trim($cleanSearch), '/');
+                $regexSafeSearch = preg_replace('/[ \t\r\n]+/', '\s+', $regexSafeSearch);
+                
+                if (preg_match("/$regexSafeSearch/", $content, $matches) && count($matches) === 1) {
+                    $content = preg_replace("/$regexSafeSearch/", ltrim($cleanReplace), $content, 1);
+                    $totalChunksProcessed++;
+                } else if (preg_match_all("/$regexSafeSearch/", $content) > 1) {
+                    $failedChunks[] = "Chunk $index: Gefunden, aber nicht einzigartig. Bitte Search-Block vergrößern.";
+                } else {
+                    $failedChunks[] = "Chunk $index: Search-Block gar nicht gefunden. (Wahrscheinlich Einrückungen oder falscher Text).";
+                }
             }
         }
-        
-        // Dynamische Laufzeitprüfung, ob das Replace wirklich funktioniert hat
-        if ($content === $newContent) {
-             return ['status' => 'error', 'message' => 'KRITISCHER FEHLER: Der search_content wurde zwar gefunden, aber der replace_content ist zu 100% identisch oder das Überlagern schlug fehl! Es gab null physische Änderungen am Dokument. Prüfe was du tust!'];
+
+        if ($totalChunksProcessed === 0 && !empty($failedChunks)) {
+            return [
+                'status' => 'error',
+                'message' => "Fehler bei ALLEN Chunks. Nichts wurde gespeichert. Gründe:\n" . implode("\n", $failedChunks)
+            ];
         }
-        
-        file_put_contents($fullPath, $newContent);
 
-        $deletedLines = substr_count($cleanSearch, "\n") + 1;
-        $addedLines = substr_count($replace, "\n") + 1;
+        if (file_put_contents($fullPath, $content) === false) {
+            return ['status' => 'error', 'message' => "Fehler beim Speichern der Datei '$path'. Prüfe Dateirechte."];
+        }
 
-        return [
-            'status' => 'success',
-            'message' => "Die Datei '$path' wurde erfolgreich geändert!",
-            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-emerald-500/50 p-1.5 rounded bg-black/20">
+        $frontendStreamHtml = '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-emerald-500/50 p-1.5 rounded bg-black/20">
                                <div class="text-gray-300 truncate max-w-full font-bold">' . basename($path) . '</div>
                                <div class="flex gap-2.5 mt-0.5">
-                                   <span class="text-emerald-400">+' . $addedLines . ' Zeilen</span>
-                                   <span class="text-red-400">-' . $deletedLines . ' Zeilen</span>
+                                   <span class="text-emerald-400">+' . $totalAddedLines . ' Zeilen</span>
+                                   <span class="text-red-400">-' . $totalDeletedLines . ' Zeilen</span>
                                </div>
-                           </div>'
+                           </div>';
+
+        if (!empty($failedChunks)) {
+            return [
+                'status' => 'warning',
+                'message' => "Datei '$path' gespeichert ($totalChunksProcessed geändert), ABER folgende Chunks schlugen fehl:\n" . implode("\n", $failedChunks),
+                '_frontend_event' => [
+                    'name' => 'toast',
+                    'detail' => ['title' => 'Partial File Edit', 'text' => "Datei '$path' mit Warnungen gespeichert.", 'type' => 'warning']
+                ],
+                '_frontend_thought_stream' => $frontendStreamHtml
+            ];
+        }
+
+        return [
+            'status' => 'success', 
+            'message' => "Erfolgreich $totalChunksProcessed Code-Blöcke in '$path' ausgetauscht.",
+            '_frontend_event' => [
+                'name' => 'toast',
+                'detail' => ['title' => 'File Edit', 'text' => "Datei '$path' erfolgreich gepatched.", 'type' => 'success']
+            ],
+            '_frontend_thought_stream' => $frontendStreamHtml
         ];
     }
 
@@ -1114,6 +1174,11 @@ trait AiSystemFuncs
         
         \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
 
+        if (str_contains(strtolower($name), 'implementation_plan') || str_contains(strtolower($name), 'plan')) {
+            session()->put('has_ai_implementation_plan', true);
+            // We use put() here, which makes it persistent for the session until cleared or expired.
+        }
+
         $addedLines = substr_count($content, "\n") + 1;
 
         return [
@@ -1125,6 +1190,74 @@ trait AiSystemFuncs
                                    <span class="text-indigo-400">Artefakt generiert (' . $addedLines . ' Zeilen)</span>
                                </div>
                            </div>'
+        ];
+    }
+
+    public static function executeRunCommand(array $args)
+    {
+        $cmd = $args['command'] ?? '';
+        if (empty($cmd)) {
+            return ['status' => 'error', 'message' => 'command fehlt.'];
+        }
+
+        $jobId = uniqid('cmd_');
+        $logFile = storage_path('logs/' . $jobId . '.log');
+        
+        $basePath = base_path();
+        
+        // Anti-destroy safety net
+        $disallowed = ['rm -rf /', 'mkfs', 'dd '];
+        foreach ($disallowed as $d) {
+            if (str_contains($cmd, $d)) {
+                return ['status' => 'error', 'message' => 'Command blocked globally for safety.'];
+            }
+        }
+
+        $safeCmd = escapeshellcmd($cmd);
+        $fullCmd = "cd " . escapeshellarg($basePath) . " && (" . $cmd . ") > " . escapeshellarg($logFile) . " 2>&1 & echo $!";
+        
+        $pid = exec($fullCmd);
+        
+        \Illuminate\Support\Facades\Cache::put('ai_cmd_pid_' . $jobId, $pid, 3600);
+
+        return [
+            'status' => 'success',
+            'job_id' => $jobId,
+            'message' => "Der Befehl '$cmd' wurde asynchron im Hintergrund gestartet (PID: $pid). Benutze system_command_status mit der job_id '$jobId' um in deinem nächsten Zug nach dem Log-Resultat zu sehen."
+        ];
+    }
+
+    public static function executeCommandStatus(array $args)
+    {
+        $jobId = $args['job_id'] ?? '';
+        if (empty($jobId)) {
+            return ['status' => 'error', 'message' => 'job_id fehlt.'];
+        }
+
+        $pid = \Illuminate\Support\Facades\Cache::get('ai_cmd_pid_' . $jobId);
+        $logFile = storage_path('logs/' . $jobId . '.log');
+
+        if (!file_exists($logFile)) {
+            return ['status' => 'error', 'message' => 'Job log nicht gefunden. Entweder fehlerhafter Job oder noch nicht gestartet.'];
+        }
+
+        $output = file_get_contents($logFile);
+        $output = \Illuminate\Support\Str::limit($output, 5000, "... (gekürzt, Output zu lang)");
+
+        $isRunning = false;
+        if ($pid) {
+            $isRunning = posix_getsid((int)$pid) !== false;
+        }
+
+        if (!$isRunning) {
+            \Illuminate\Support\Facades\Cache::forget('ai_cmd_pid_' . $jobId);
+        }
+
+        return [
+            'status' => 'success',
+            'is_running' => $isRunning,
+            'output' => $output,
+            'message' => $isRunning ? 'Der Befehl läuft noch...' : 'Der Befehl wurde beendet.'
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerProfile;
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
+use App\Models\Product\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -35,30 +36,51 @@ class MasterAnalyticsHealthFilterTest extends TestCase
 
         // 2. Setup B2B und B2C Kunden
         $b2bCustomer = Customer::factory()->create();
-        CustomerProfile::factory()->create(['customer_id' => $b2bCustomer->id, 'is_business' => true]);
+        CustomerProfile::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'customer_id' => $b2bCustomer->id, 'is_business' => true]);
 
         $b2cCustomer = Customer::factory()->create();
-        CustomerProfile::factory()->create(['customer_id' => $b2cCustomer->id, 'is_business' => false]);
+        CustomerProfile::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'customer_id' => $b2cCustomer->id, 'is_business' => false]);
 
         // 3. Generiere operative Daten: Bestellungen (Pending)
-        OrderOrder::factory()->create([
+        OrderOrder::forceCreate([
+            'id' => \Illuminate\Support\Str::uuid(),
+            'order_number' => 'ORD-' . uniqid(),
             'customer_id' => $b2bCustomer->id,
+            'email' => 'test@example.com',
+            'billing_address' => [],
+            'shipping_address' => [],
+            'subtotal_price' => 1000,
+            'tax_amount' => 190,
+            'shipping_price' => 500,
+            'total_price' => 1690,
             'status' => 'pending',
             'created_at' => now(),
         ]);
 
-        OrderOrder::factory()->create([
+        OrderOrder::forceCreate([
+            'id' => \Illuminate\Support\Str::uuid(),
+            'order_number' => 'ORD-' . uniqid(),
             'customer_id' => $b2cCustomer->id,
+            'email' => 'test@example.com',
+            'billing_address' => [],
+            'shipping_address' => [],
+            'subtotal_price' => 1000,
+            'tax_amount' => 190,
+            'shipping_price' => 500,
+            'total_price' => 1690,
             'status' => 'pending',
             'created_at' => now(),
         ]);
 
         // 4. Generiere operative Daten: Abandoned Carts (Rot / Über 24h)
-        $b2bCart = Cart::create(['session_id' => '123', 'customer_id' => $b2bCustomer->id, 'updated_at' => Carbon::now()->subHours(25)]);
-        CartItem::create(['cart_id' => $b2bCart->id, 'quantity' => 1, 'unit_price' => 1000]);
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        $b2bCart = Cart::create(['session_id' => '123', 'customer_id' => $b2bCustomer->id]);
+        CartItem::create(['cart_id' => $b2bCart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000]);
+        \Illuminate\Support\Facades\DB::table('carts')->where('id', $b2bCart->id)->update(['updated_at' => Carbon::now()->subHours(25)]);
 
-        $b2cCart = Cart::create(['session_id' => '456', 'customer_id' => $b2cCustomer->id, 'updated_at' => Carbon::now()->subHours(25)]);
-        CartItem::create(['cart_id' => $b2cCart->id, 'quantity' => 1, 'unit_price' => 1000]);
+        $b2cCart = Cart::create(['session_id' => '456', 'customer_id' => $b2cCustomer->id]);
+        CartItem::create(['cart_id' => $b2cCart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1000]);
+        \Illuminate\Support\Facades\DB::table('carts')->where('id', $b2cCart->id)->update(['updated_at' => Carbon::now()->subHours(25)]);
 
         // 5. Testlauf Component Loading
         $component = Livewire::actingAs($admin, 'admin')

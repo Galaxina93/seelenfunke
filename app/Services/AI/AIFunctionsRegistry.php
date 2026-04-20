@@ -141,6 +141,24 @@ class AIFunctionsRegistry
             throw new \RuntimeException("Callable for function '{$name}' is invalid.");
         }
 
+        // --- ANTIGRAVITY GUARDRAIL ENFORCER ---
+        $destructiveTools = [
+            'system_multi_replace_file', 
+            'system_edit_file', 
+            'system_write_to_file',
+            'system_run_command'
+        ];
+
+        if (in_array($name, $destructiveTools)) {
+            $hasPlan = session()->get('has_ai_implementation_plan', false);
+            if (!$hasPlan) {
+                return [
+                    'status' => 'error',
+                    'message' => "SYSTEM GUARDRAIL BLOCK: You are attempting to run a destructive/modifying tool ('{$name}') without having written an implementation plan first! RULE: You MUST execute 'system_write_artifact' with 'artifact_name' = 'implementation_plan' to outline your changes before you are allowed to mutate state!"
+                ];
+            }
+        }
+
         try {
             $mergedArgs = array_merge($args, self::$globalContext); // Inject invisible backend parameters 
             return call_user_func($callable, $mergedArgs);
