@@ -292,16 +292,32 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
         $this->typing = false;
     }
 
+    public $relativePaths = [];
+
     public function updatedHealthFiles()
     {
         $this->validate([
             'healthFiles.*' => 'max:10240', // 10MB Max per file
         ]);
 
-        foreach ($this->healthFiles as $file) {
+        foreach ($this->healthFiles as $index => $file) {
             $filename = $file->getClientOriginalName();
-            $file->storeAs($this->currentPath, $filename, 'public');
+            $relativePath = $this->relativePaths[$index] ?? $filename;
+            
+            // Generate full relative path logic, ensuring directories are created
+            $destPath = $this->currentPath . '/' . dirname($relativePath);
+            $destPath = str_replace('\\', '/', $destPath);
+            $destPath = rtrim($destPath, '/.');
+            
+            if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($destPath)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($destPath);
+            }
+            
+            $file->storeAs($destPath, basename($relativePath), 'public');
         }
+
+        $this->healthFiles = [];
+        $this->relativePaths = [];
 
         $this->healthFiles = [];
         $this->loadUploadedFiles();
@@ -487,10 +503,17 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
         $protocols = \App\Models\Ai\AiHealthProtocol::with('treatmentPlan')->orderBy('created_at', 'desc')->paginate(5, ['*'], 'protocolsPage');
         $medications = \App\Models\Ai\AiHealthMedication::orderBy('name', 'asc')->get();
 
+        $doctors = \App\Models\Management\ManagementContact::where('relation_type', 'like', '%arzt%')
+            ->orWhere('relation_type', 'like', '%Praxis%')
+            ->orderBy('is_favorite', 'desc')
+            ->orderBy('last_name', 'asc')
+            ->get();
+
         return view('livewire.shop.management.management-health', [
             'plans' => $plans,
             'protocols' => $protocols,
             'medications' => $medications,
+            'doctors' => $doctors,
         ])->layout('components.layouts.backend_layout');
     }
 }

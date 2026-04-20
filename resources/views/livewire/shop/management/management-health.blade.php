@@ -66,6 +66,11 @@
                 <x-heroicon-o-beaker class="w-4 h-4" />
                 Aktive Medikamente
             </button>
+            <button wire:click="selectTab('doctors')"
+                    class="py-2 px-3 sm:px-4 font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shrink-0 border-b-2 transition-colors {{ $activeTab === 'doctors' ? 'border-[var(--theme-color)] text-[var(--theme-color)]' : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600' }}">
+                <x-heroicon-o-building-office-2 class="w-4 h-4" />
+                Ärzte & Praxen
+            </button>
         </div>
     </div>
 
@@ -403,7 +408,7 @@
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-6">
                         <h2 class="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2">
                             <x-heroicon-o-folder-open class="w-5 h-5 sm:w-6 sm:h-6 text-[var(--theme-color)]" />
-                            Secure File Management
+                            Gesundheitsdaten
                         </h2>
                         <div class="text-xs text-slate-400 font-mono bg-slate-800/50 px-3 py-1.5 rounded border border-slate-700 flex items-center gap-2">
                             <x-heroicon-o-server class="w-4 h-4 text-slate-500" />
@@ -413,7 +418,7 @@
 
                     <!-- Actions & Upload -->
                     <div class="flex flex-wrap gap-3 sm:gap-4 mb-6" x-data="{ folderName: '' }">
-                        @if($currentPath !== 'wiki/health')
+                        @if($currentPath !== 'Shop/Management/Health')
                             <button wire:click="goUp" class="btn bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-4 py-2 rounded-lg text-sm transition-colors flex items-center">
                                 <x-heroicon-o-arrow-left class="w-4 h-4 mr-2" />
                                 Zurück zur Übersicht
@@ -429,10 +434,131 @@
                     </div>
 
                     <!-- Drag & Drop Zone -->
-                    <div x-data="{ isDropping: false }"
+                    <div x-data="{
+                             isDropping: false,
+                             isScanning: false,
+                             isUploading: false,
+                             uploadProgress: 0,
+                             totalBytes: 0,
+                             uploadedBytes: 0,
+                             async handleDrop(e) {
+                                 this.isDropping = false;
+                                 this.isScanning = true;
+                                 let rawFiles = [];
+                                 let rawPaths = [];
+                                 
+                                 async function traverseFileTree(item, path) {
+                                     path = path || '';
+                                     if (item.isFile) {
+                                         let file = await new Promise(resolve => item.file(resolve));
+                                         rawFiles.push(file);
+                                         rawPaths.push(path + file.name);
+                                     } else if (item.isDirectory) {
+                                         let dirReader = item.createReader();
+                                         let entries = await new Promise(resolve => {
+                                             dirReader.readEntries(resolve);
+                                         });
+                                         for (let i = 0; i < entries.length; i++) {
+                                             await traverseFileTree(entries[i], path + item.name + '/');
+                                         }
+                                     }
+                                 }
+
+                                 if (e.dataTransfer && e.dataTransfer.items) {
+                                     for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                                         let item = e.dataTransfer.items[i].webkitGetAsEntry();
+                                         if (item) {
+                                             await traverseFileTree(item);
+                                         }
+                                     }
+                                 } else if (e.target && e.target.files) {
+                                     for (let i=0; i < e.target.files.length; i++) {
+                                         let f = e.target.files[i];
+                                         rawFiles.push(f);
+                                         rawPaths.push(f.webkitRelativePath || f.name);
+                                     }
+                                 }
+
+                                 // Filter files by size and extension
+                                 let validFiles = [];
+                                 let validPaths = [];
+                                 let skippedCount = 0;
+                                 let allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
+
+                                 for(let i=0; i < rawFiles.length; i++) {
+                                     let f = rawFiles[i];
+                                     let ext = f.name.split('.').pop().toLowerCase();
+                                     
+                                     // Skip hidden files or files with wrong extensions
+                                     if (f.name.startsWith('.') || !allowedExtensions.includes(ext)) {
+                                         skippedCount++;
+                                         continue;
+                                     }
+                                     
+                                     // PHP upload_max_filesize is 2MB on this server. Prevent 422 errors:
+                                     if (f.size > 2 * 1024 * 1024) {
+                                         skippedCount++;
+                                         continue;
+                                     }
+                                     
+                                     validFiles.push(f);
+                                     validPaths.push(rawPaths[i]);
+                                 }
+
+                                 if (skippedCount > 0) {
+                                     alert(skippedCount + ' Dateien wurden übersprungen, da sie zu groß sind (> 2MB) oder das Dateiformat nicht passt.');
+                                 }
+
+                                 if (validFiles.length > 0) {
+                                     this.isScanning = false;
+                                     this.isUploading = true;
+                                     this.totalBytes = validFiles.reduce((sum, f) => sum + f.size, 0);
+                                     this.uploadedBytes = 0;
+                                     this.uploadProgress = 0;
+                                     
+                                     let chunkSize = 5;
+                                     let currentIndex = 0;
+                                     
+                                     let uploadNextChunk = async () => {
+                                         if (currentIndex >= validFiles.length) {
+                                             setTimeout(() => { this.isUploading = false; }, 500);
+                                             return;
+                                         }
+                                         
+                                         let chunkFiles = validFiles.slice(currentIndex, currentIndex + chunkSize);
+                                         let chunkPaths = validPaths.slice(currentIndex, currentIndex + chunkSize);
+                                         let chunkBytes = chunkFiles.reduce((sum, f) => sum + f.size, 0);
+                                         currentIndex += chunkSize;
+                                         
+                                         await this.$wire.set('relativePaths', chunkPaths);
+                                         this.$wire.uploadMultiple('healthFiles', chunkFiles, () => {
+                                             // Chunk Success
+                                             this.uploadedBytes += chunkBytes;
+                                             this.uploadProgress = Math.min(100, Math.round((this.uploadedBytes / this.totalBytes) * 100));
+                                             uploadNextChunk();
+                                         }, () => {
+                                             // Chunk Error
+                                             this.isUploading = false;
+                                             alert('Upload-Fehler bei einem Dateiblock!');
+                                         }, (event) => {
+                                             // Progress Callback
+                                             let currentUploaded = this.uploadedBytes + (chunkBytes * (event.detail.progress / 100));
+                                             this.uploadProgress = Math.min(100, Math.max(1, Math.round((currentUploaded / this.totalBytes) * 100)));
+                                         });
+                                     };
+                                     
+                                     uploadNextChunk();
+                                 } else {
+                                     this.isScanning = false;
+                                     this.isUploading = false;
+                                     // Reset input element if clicked
+                                     if(e.target) e.target.value = '';
+                                 }
+                             }
+                         }"
                          x-on:dragover.prevent="isDropping = true"
                          x-on:dragleave.prevent="isDropping = false"
-                         x-on:drop.prevent="isDropping = false; $wire.uploadMultiple('healthFiles', $event.dataTransfer.files)"
+                         x-on:drop.prevent="handleDrop($event)"
                          class="w-full relative mb-6">
                         <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 bg-slate-900/60 shadow-inner"
                                x-bind:class="isDropping ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] scale-[1.01]' : 'border-slate-700 hover:border-[var(--theme-color-50)]'">
@@ -440,18 +566,37 @@
                                 <span x-bind:class="isDropping ? 'text-[var(--theme-color)] animate-bounce' : 'text-slate-500'" class="mb-2">
                                     <x-heroicon-o-cloud-arrow-up class="w-8 h-8" />
                                 </span>
-                                <p class="text-sm text-slate-400 font-semibold mb-1">Dateien in <span class="text-[var(--theme-color)]">/{{ basename($currentPath) }}</span> ablegen oder klicken</p>
-                                <p class="text-[10px] uppercase tracking-widest text-slate-500 font-mono">PDF, PNG, JPG (MAX. 10MB)</p>
+                                <p class="text-sm text-slate-400 font-semibold mb-1">Dateien oder Ordner in <span class="text-[var(--theme-color)]">/{{ basename($currentPath) }}</span> ablegen</p>
+                                <p class="text-[10px] uppercase tracking-widest text-slate-500 font-mono">PDF, PNG, JPG (Einzeldatei MAX. 2MB)</p>
                             </div>
-                            <input type="file" wire:model="healthFiles" multiple class="hidden" accept=".pdf,.png,.jpg,.jpeg">
+                            <input type="file" @change="handleDrop($event)" multiple class="hidden">
                         </label>
-                        <div wire:loading wire:target="healthFiles" class="absolute inset-0 bg-slate-900/90 backdrop-blur-md rounded-xl flex items-center justify-center z-10 border border-[var(--theme-color-50)]">
-                            <div class="flex flex-col items-center gap-2">
-                                <svg class="animate-spin h-8 w-8 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span class="text-xs text-[var(--theme-color)] font-mono tracking-widest uppercase">Uploading securely...</span>
+                        <!-- Scan Overlay -->
+                        <div x-cloak x-show="isScanning" class="absolute inset-0 bg-slate-900/90 backdrop-blur-md rounded-xl flex flex-col items-center justify-center z-20 border border-[var(--theme-color-50)]">
+                            <svg class="animate-spin h-8 w-8 text-[var(--theme-color)] mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="text-xs text-[var(--theme-color)] font-mono tracking-widest uppercase">Verzeichnis wird strukturiert...</span>
+                        </div>
+                        
+                        <!-- Upload Progress Overlay -->
+                        <div x-cloak x-show="isUploading" class="absolute inset-0 bg-slate-900/95 backdrop-blur-xl rounded-xl flex items-center justify-center z-30 border border-[var(--theme-color)] shadow-[0_0_20px_var(--theme-color-20)]">
+                            <div class="w-2/3 flex flex-col items-center gap-4">
+                                <div class="text-[var(--theme-color)] font-bold tracking-widest mb-2 flex items-center gap-2">
+                                    <x-heroicon-o-arrow-up-tray class="w-5 h-5 animate-pulse" />
+                                    <span>Lade Array hoch...</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-3 border border-slate-700 overflow-hidden relative shadow-inner">
+                                    <div class="h-full bg-gradient-to-r from-[var(--theme-color)] brightness-75 to-[var(--theme-color)] transition-all duration-300 relative overflow-hidden" :style="'width: ' + uploadProgress + '%'">
+                                        <!-- Animated Light Ray inside the bar -->
+                                        <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]"></div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between w-full text-xs font-mono text-slate-400">
+                                    <span><span x-text="Math.round(uploadedBytes / 1024 / 1024 * 100) / 100"></span> MB / <span x-text="Math.round(totalBytes / 1024 / 1024 * 100) / 100"></span> MB</span>
+                                    <span class="text-[var(--theme-color)] font-bold" x-text="uploadProgress + '%'"></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -466,7 +611,19 @@
                         </div>
 
                         <!-- Items -->
-                        <div>
+                            @if($currentPath !== 'Shop/Management/Health')
+                                <div class="flex items-center p-3 border-b border-slate-800 hover:bg-slate-800/60 transition-colors group cursor-pointer" wire:click="goUp">
+                                    <div class="flex-1 flex items-center gap-3 overflow-hidden pr-4">
+                                        <div class="w-10 h-10 rounded-lg bg-slate-800/50 flex items-center justify-center shrink-0 border border-slate-700 text-slate-400">
+                                            <x-heroicon-m-arrow-uturn-left class="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                                        </div>
+                                        <span class="font-bold text-slate-300 group-hover:text-white text-sm transition-colors">.. (Ebene höher)</span>
+                                    </div>
+                                    <div class="w-32 text-right text-xs text-slate-500 font-mono hidden sm:block"></div>
+                                    <div class="w-16 flex justify-center"></div>
+                                </div>
+                            @endif
+                            
                             @forelse($uploadedHealthFiles as $item)
                                 <div class="flex items-center p-3 border-b border-slate-800 hover:bg-slate-800/60 transition-colors group">
                                     <div class="flex-1 flex items-center gap-3 overflow-hidden pr-4">
@@ -666,6 +823,76 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    @endif
+            @elseif($activeTab === 'doctors')
+                <!-- Doctors View -->
+                <div class="h-full flex flex-col p-4 sm:p-6 overflow-y-auto custom-scrollbar">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-xl sm:text-2xl font-bold text-slate-100 flex items-center gap-3">
+                                <x-heroicon-o-building-office-2 class="w-6 h-6 sm:w-8 sm:h-8 text-[var(--theme-color)]" />
+                                Ärzte & Praxen
+                            </h2>
+                            <p class="text-xs sm:text-sm text-slate-400 mt-1">Verwaltung deiner medizinischen Anlaufstellen, Haus- und Fachärzte.</p>
+                        </div>
+                    </div>
+
+                    @if($doctors->isEmpty())
+                        <div class="flex-1 flex flex-col items-center justify-center text-slate-500 py-12">
+                            <div class="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                                <x-heroicon-o-building-storefront class="w-10 h-10 text-[var(--theme-color-50)]" />
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-300 mb-2">Keine Ärzte hinterlegt</h3>
+                            <p class="text-sm text-center max-w-md">Es wurden noch keine Ärzte oder Praxen in der Kontaktverwaltung angelegt (oder mit den passenden Kategorien versehen). Bitte weise dem Agenten an, einen neuen Arzt aufzunehmen.</p>
+                        </div>
+                    @else
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            @foreach($doctors as $doctor)
+                                <div class="bg-black/40 border border-slate-700/60 rounded-xl p-4 flex flex-col sm:flex-row gap-4 hover:border-[var(--theme-color-50)] hover:bg-slate-800/40 transition-colors shadow-sm">
+                                    <div class="shrink-0">
+                                        @if($doctor->avatar_path)
+                                            <img src="{{ Storage::url($doctor->avatar_path) }}" class="w-12 h-12 rounded-full object-cover border border-slate-600">
+                                        @else
+                                            <div class="w-12 h-12 rounded-full bg-slate-800 flex justify-center items-center text-slate-400 border border-slate-700">
+                                                <x-heroicon-o-user class="w-6 h-6" />
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <h3 class="font-bold text-slate-100 truncate text-base">{{ $doctor->first_name }} {{ $doctor->last_name }}</h3>
+                                            @if($doctor->is_favorite)
+                                                <x-heroicon-s-star class="w-4 h-4 text-amber-400 shrink-0" />
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-[var(--theme-color)] font-bold uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                                            <x-heroicon-o-tag class="w-3.5 h-3.5" />
+                                            {{ $doctor->relation_type }}
+                                        </div>
+                                        <div class="text-sm text-slate-300 space-y-1">
+                                            @if($doctor->phone)
+                                                <div class="flex items-start gap-2">
+                                                    <x-heroicon-o-phone class="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                                                    <span>{{ $doctor->phone }}</span>
+                                                </div>
+                                            @endif
+                                            @if($doctor->email)
+                                                <div class="flex items-start gap-2">
+                                                    <x-heroicon-o-envelope class="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                                                    <a href="mailto:{{ $doctor->email }}" class="hover:text-[var(--theme-color)] transition-colors">{{ $doctor->email }}</a>
+                                                </div>
+                                            @endif
+                                            @if($doctor->street || $doctor->city)
+                                                <div class="flex items-start gap-2">
+                                                    <x-heroicon-o-map-pin class="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                                                    <span>{{ $doctor->street }}<br>{{ $doctor->postal_code }} {{ $doctor->city }}</span>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
                     @endif
                 </div>

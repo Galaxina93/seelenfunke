@@ -326,6 +326,36 @@ class ManagementContactSeeder extends Seeder
                 'phone' => '+49 157 71889191',
                 'system_instructions' => 'WICHTIGE FAKTEN: Elektrotechniker bei "Timo Schleicher und Kevin Riese GbR".',
             ],
+            [
+                'first_name' => 'Christian',
+                'last_name' => 'Schmidt',
+                'nickname' => 'Dr. Schmidt (Hausarzt)',
+                'relation_type' => 'Hausarzt',
+                'avatar_path' => null,
+                'birthday' => null,
+                'email' => 'rezeptbestellung.leiferde@gmx.de',
+                'phone' => '05373 1814',
+                'street' => 'Wilhelm-Busch-Straße 2',
+                'postal_code' => '38542',
+                'city' => 'Leiferde',
+                'country' => 'Deutschland',
+                'system_instructions' => 'WICHTIGE FAKTEN: Primärer Hausarzt von Alina. Nimmt auch Rezeptbestellungen per Mail entgegen.',
+            ],
+            [
+                'first_name' => 'Gemeinschaftspraxis',
+                'last_name' => 'Staudt',
+                'nickname' => 'Praxis Staudt (Hautarzt)',
+                'relation_type' => 'Hautarzt',
+                'avatar_path' => null,
+                'birthday' => null,
+                'email' => 'praxis-gs@t-online.de',
+                'phone' => '05371-14 170 / Fax: 05371-93 80 80',
+                'street' => 'Steinweg 84',
+                'postal_code' => '38518',
+                'city' => 'Gifhorn',
+                'country' => 'Deutschland',
+                'system_instructions' => 'WICHTIGE FAKTEN: Gemeinschaftspraxis Staudt in Gifhorn, Spezialisierung auf Hautheilkunde.',
+            ]
         ];
 
         foreach ($profiles as $profileData) {

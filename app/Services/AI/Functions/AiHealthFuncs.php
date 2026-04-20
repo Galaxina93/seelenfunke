@@ -68,6 +68,56 @@ trait AiHealthFuncs
                 'callable' => [self::class, 'executeCreateTreatmentPlan']
             ],
             [
+                'name' => 'health_update_treatment_plan',
+                'description' => 'Bearbeitet einen bestehenden Behandlungsplan. Erlaubt das Ändern von Text/Daten, das Hinzufügen neuer Positionen (Medikamente/Aufgaben) und das Löschen von Positionen über ihre ID.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'plan_id' => [
+                            'type' => 'string',
+                            'description' => 'Die ID des zu bearbeitenden Behandlungsplans.'
+                        ],
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Neuer Titel (falls Änderung gewünscht, sonst weglassen).'
+                        ],
+                        'diagnosis_summary' => [
+                            'type' => 'string',
+                            'description' => 'Neue/erweiterte Zusammenfassung der Diagnose.'
+                        ],
+                        'start_date' => [
+                            'type' => 'string',
+                            'description' => 'Neues Startdatum im Format YYYY-MM-DD.'
+                        ],
+                        'end_date' => [
+                            'type' => 'string',
+                            'description' => 'Neues Enddatum (YYYY-MM-DD).'
+                        ],
+                        'items_to_add' => [
+                            'type' => 'array',
+                            'description' => 'Liste NEUER Aufgaben oder Medikamente, die hinzugefügt werden sollen.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'name' => ['type' => 'string'],
+                                    'dosage' => ['type' => 'string'],
+                                    'duration_days' => ['type' => 'integer'],
+                                    'notes' => ['type' => 'string']
+                                ],
+                                'required' => ['name', 'dosage']
+                            ]
+                        ],
+                        'items_to_remove' => [
+                            'type' => 'array',
+                            'description' => 'Array von ITEM-IDs, die aus dem Plan gelöscht werden sollen.',
+                            'items' => ['type' => 'integer']
+                        ]
+                    ],
+                    'required' => ['plan_id']
+                ],
+                'callable' => [self::class, 'executeUpdateTreatmentPlan']
+            ],
+            [
                 'name' => 'health_complete_treatment_plan',
                 'description' => 'Markiert einen bestehenden Behandlungsplan als Durchgeführt und hinterlegt das Abschlussergebnis / Fazit.',
                 'parameters' => [
@@ -170,6 +220,70 @@ trait AiHealthFuncs
                     'required' => ['title']
                 ],
                 'callable' => [self::class, 'executeCreateHealthTodo']
+            ],
+            [
+                'name' => 'health_get_doctors',
+                'description' => 'Liest alle Ärzte und Arztpraxen (Kontakte) aus dem Adressbuch aus.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetDoctors']
+            ],
+            [
+                'name' => 'health_create_doctor',
+                'description' => 'Legt einen neuen Arzt oder eine neue medizinische Anlaufstelle (Praxis) im Adressbuch an.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'first_name' => ['type' => 'string', 'description' => 'Vorname (oder Angabe wie "Gemeinschaftspraxis").'],
+                        'last_name' => ['type' => 'string', 'description' => 'Nachname des Arztes.'],
+                        'nickname' => ['type' => 'string', 'description' => 'Spitzname oder Anzeigename (z.B. "Hausarzt Dr. Müller").'],
+                        'relation_type' => ['type' => 'string', 'description' => 'Art des Arztes (z.B. "Hausarzt", "Hautarzt").'],
+                        'email' => ['type' => 'string'],
+                        'phone' => ['type' => 'string', 'description' => 'Telefon und ggf. Faxnummer.'],
+                        'street' => ['type' => 'string'],
+                        'postal_code' => ['type' => 'string'],
+                        'city' => ['type' => 'string'],
+                        'system_instructions' => ['type' => 'string', 'description' => 'Zusätzliche Notizen zum Arzt, Sprechzeiten oder Spezialisierungen.']
+                    ],
+                    'required' => ['first_name', 'last_name', 'relation_type']
+                ],
+                'callable' => [self::class, 'executeCreateDoctor']
+            ],
+            [
+                'name' => 'health_update_doctor',
+                'description' => 'Aktualisiert (Schreiben/Archivieren) die Daten eines bestehenden Arztes im Adressbuch über seine ID.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'contact_id' => ['type' => 'integer', 'description' => 'Die Kontakt-ID des Arztes.'],
+                        'first_name' => ['type' => 'string'],
+                        'last_name' => ['type' => 'string'],
+                        'nickname' => ['type' => 'string'],
+                        'relation_type' => ['type' => 'string'],
+                        'email' => ['type' => 'string'],
+                        'phone' => ['type' => 'string'],
+                        'street' => ['type' => 'string'],
+                        'postal_code' => ['type' => 'string'],
+                        'city' => ['type' => 'string'],
+                        'system_instructions' => ['type' => 'string', 'description' => 'Notizen zum Arzt. Schreibe "[ARCHIVIERT]" hier hinein, um den Arzt zu archivieren.']
+                    ],
+                    'required' => ['contact_id']
+                ],
+                'callable' => [self::class, 'executeUpdateDoctor']
+            ],
+            [
+                'name' => 'health_delete_doctor',
+                'description' => 'Löscht einen Arzt vollständig aus dem Adressbuch.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'contact_id' => ['type' => 'integer', 'description' => 'Die Kontakt-ID des Arztes.'],
+                    ],
+                    'required' => ['contact_id']
+                ],
+                'callable' => [self::class, 'executeDeleteDoctor']
             ]
         ];
     }
@@ -241,6 +355,45 @@ trait AiHealthFuncs
         }
     }
 
+    public static function executeUpdateTreatmentPlan(array $args)
+    {
+        try {
+            $plan = AiHealthTreatmentPlan::findOrFail($args['plan_id']);
+            
+            $updateData = [];
+            if (isset($args['title'])) $updateData['title'] = $args['title'];
+            if (isset($args['diagnosis_summary'])) $updateData['diagnosis_summary'] = $args['diagnosis_summary'];
+            if (isset($args['start_date'])) $updateData['start_date'] = $args['start_date'];
+            if (isset($args['end_date'])) $updateData['end_date'] = $args['end_date'];
+            
+            if (!empty($updateData)) {
+                $plan->update($updateData);
+            }
+            
+            if (!empty($args['items_to_remove'])) {
+                $plan->items()->whereIn('id', $args['items_to_remove'])->delete();
+            }
+
+            if (!empty($args['items_to_add'])) {
+                foreach ($args['items_to_add'] as $item) {
+                    $plan->items()->create([
+                        'name' => $item['name'] ?? 'Unbekannt',
+                        'dosage' => $item['dosage'] ?? '0',
+                        'duration_days' => $item['duration_days'] ?? null,
+                        'notes' => $item['notes'] ?? null,
+                    ]);
+                }
+            }
+
+            return [
+                'success' => true,
+                'message' => "Behandlungsplan erfolgreich aktualisiert."
+            ];
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => 'Plan nicht gefunden oder fehlerhafte Bearbeitung: ' . $e->getMessage()];
+        }
+    }
+
     public static function executeCompleteTreatmentPlan(array $args)
     {
         try {
@@ -253,6 +406,84 @@ trait AiHealthFuncs
             return ['success' => true, 'message' => "Plan als durchgeführt markiert."];
         } catch (Exception $e) {
             return ['error' => true, 'message' => 'Plan nicht gefunden oder Fehler bei Speicherung.'];
+        }
+    }
+
+    public static function executeGetDoctors(array $args)
+    {
+        try {
+            $doctors = \App\Models\Management\ManagementContact::where('relation_type', 'like', '%arzt%')
+                ->orWhere('relation_type', 'like', '%Praxis%')
+                ->orderBy('last_name', 'asc')
+                ->get();
+            return [
+                'success' => true,
+                'doctors' => $doctors->toArray()
+            ];
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => $e->getMessage()];
+        }
+    }
+
+    public static function executeCreateDoctor(array $args)
+    {
+        try {
+            $doctor = \App\Models\Management\ManagementContact::create([
+                'first_name' => $args['first_name'],
+                'last_name' => $args['last_name'],
+                'nickname' => $args['nickname'] ?? '',
+                'relation_type' => $args['relation_type'],
+                'email' => $args['email'] ?? '',
+                'phone' => $args['phone'] ?? '',
+                'street' => $args['street'] ?? '',
+                'postal_code' => $args['postal_code'] ?? '',
+                'city' => $args['city'] ?? '',
+                'system_instructions' => $args['system_instructions'] ?? '',
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Medizinischer Kontakt (Arzt/Praxis) erfolgreich angelegt.',
+                'contact_id' => $doctor->id
+            ];
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => $e->getMessage()];
+        }
+    }
+
+    public static function executeUpdateDoctor(array $args)
+    {
+        try {
+            $doctor = \App\Models\Management\ManagementContact::findOrFail($args['contact_id']);
+            
+            $updateData = [];
+            foreach (['first_name', 'last_name', 'nickname', 'relation_type', 'email', 'phone', 'street', 'postal_code', 'city', 'system_instructions'] as $field) {
+                if (isset($args[$field])) {
+                    $updateData[$field] = $args[$field];
+                }
+            }
+
+            if (!empty($updateData)) {
+                $doctor->update($updateData);
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Medizinischer Kontakt (Arzt/Praxis) erfolgreich aktualisiert.'
+            ];
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => 'Arzt nicht gefunden oder Fehler beim Update: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeDeleteDoctor(array $args)
+    {
+        try {
+            $doctor = \App\Models\Management\ManagementContact::findOrFail($args['contact_id']);
+            $doctor->delete();
+            return ['success' => true, 'message' => 'Arzt erfolgreich aus dem System gelöscht.'];
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => 'Löschen fehlgeschlagen: ' . $e->getMessage()];
         }
     }
 
