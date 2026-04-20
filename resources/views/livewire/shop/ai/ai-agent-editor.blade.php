@@ -180,7 +180,7 @@
                                         Erlaubte Chat IDs (Whitelist)
                                     </label>
                                     <input type="text" wire:model.defer="telegram_allowed_chat_ids" placeholder="123456789, 987654321..." class="w-full bg-black/40 border border-sky-700/30 rounded-xl shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-300 sm:text-sm p-3 font-mono transition-all">
-                                    <p class="text-[10px] text-gray-500 mt-1 font-mono">Kommagetrennte Liste von Telegram-IDs. Lässt du es leer, darf jeder mit der KI schreiben.</p>
+                                    <p class="text-[10px] text-gray-500 mt-1 font-mono">Kommagetrennte Liste von Telegram-IDs. Standardmäßig ist der Bot <b>blockiert</b>. Trage ein <code>*</code> ein, wenn jeder schreiben darf.</p>
                                     @error('telegram_allowed_chat_ids') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                     
                                     <div x-data="{ open: false }" class="mt-4">
@@ -195,7 +195,7 @@
                                                     <li>Schreibe in Telegram dem offiziellen <b>@BotFather</b> den Befehl <code>/newbot</code>.</li>
                                                     <li>Gib ihm einen Namen & Username (muss auf 'bot' enden).</li>
                                                     <li>Kopiere den blauen HTTP-API-Token und füge ihn hier ein.</li>
-                                                    <li class="pt-1 mt-1 border-t border-sky-500/20 text-sky-300"><b>Für die Sicherheit:</b> Schreibe deinem Bot ein kurzes "Hallo" in Telegram. Er wird dich blockieren und dir deine <b>Telegram-ID</b> verraten. Trage diese ID oben in das "Whitelist"-Feld ein!</li>
+                                                    <li class="pt-1 mt-1 border-t border-sky-500/20 text-sky-300"><b>Für die Sicherheit:</b> Der Bot hat ab jetzt eine <b>"Zero-Trust"-Sperre</b>. Solange das Feld leer ist, wird jeder ignoriert. Schreibe ein kurzes "Hallo" im Chat. Der Bot blockiert dich loggt dir aber deine <b>Telegram-ID</b> in den Chat. Trage diese ID oben ein! (Willst du den Bot für wirklich alle öffnen, trage ein einzelnes <code>*</code> Sternchen ein).</li>
                                                 </ol>
                                                 <div class="pt-3 border-t border-sky-500/20 mt-3">
                                                     <p class="text-sky-300 font-bold mb-1 flex items-center gap-1">

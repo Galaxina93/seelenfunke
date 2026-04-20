@@ -99,11 +99,13 @@ Die Nachricht wandert nun folgenden Pfad:
 Um komplett zu verhindern, dass Fremde über Telegram mit deinem Agenten agieren, gibt es eine eingebaute Firewall.
 Im Agenten-Editor findest du direkt unter dem Bot-Token das Feld **"Erlaubte Chat IDs (Whitelist)"**.
 
-1. **Leeres Feld:** Trägst du hier nichts ein, ist der Bot öffentlich (für alle testbar).
-2. **Der Test:** Wenn du dich "wegsperren" willst, schreibe dem Bot bei Telegram einfach "Hallo". 
-3. **Der Rauswurf:** Das System wird dich blockieren und mit einem Fehlertext antworten: *"Du bist nicht berechtigt... Deine Telegram-ID lautet: 123456789"*.
-4. **Schranke öffnen:** Kopiere exakt diese genannte Ziffer ("123456789"), füge sie ins Whitelist-Feld des Agenten-Editors ein und speichere ab. Ab jetzt antwortet dir die KI normal.
+1. **Zero-Trust-Sperre:** Standardmäßig ist dein Agent für die Außenwelt aus Sicherheitsgründen vollkommen **gesperrt**. Solange das Feld leer ist, wird jede Anfrage (auch von dir) blockiert.
+2. **Deine ID herausfinden:** Schreibe dem Bot bei Telegram einfach "Hallo". 
+3. **Der Rauswurf:** Das System blockiert dich sofort und antwortet: *"Du bist nicht berechtigt... Deine Telegram-ID lautet: 123456789"*.
+4. **Schranke öffnen:** Kopiere exakt diese genannte Ziffer ("123456789"), füge sie ins Whitelist-Feld des Agenten-Editors ein und speichere ab. Ab jetzt antwortet dir die KI vollumfänglich!
 *(Mehrere Accounts/Mitarbeiter kannst du einfach mit einem Komma trennen: `123456, 987654`)*
+
+>**Tipp:** Wenn du den Agenten zu reinen Testzwecken für wirklich **jeden** öffentlich zugänglich machen willst, trage als Whitelist einfach nur das Symbol `*` (Sternchen) ein.
 
 ---
 

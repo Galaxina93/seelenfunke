@@ -42,9 +42,11 @@ class TelegramAgentController extends Controller
             $text = "Hallo! Wer bist du und was kannst du?";
         }
 
-        // 2.5 Security: Check Whitelist
+        // 2.5 Security: Check Whitelist (Zero Trust by Default)
         $allowedIds = $agent->telegram_allowed_chat_ids ?? [];
-        if (!empty($allowedIds) && !in_array((string)$chatId, $allowedIds, true)) {
+        $isPublic = in_array('*', $allowedIds, true);
+        
+        if (!$isPublic && !in_array((string)$chatId, $allowedIds, true)) {
             Log::warning("Unauthorized Telegram Access Attempt", ['chat_id' => $chatId, 'agent' => $agent->name]);
             $rejectMessage = "⛔️ *Sicherheitsbereich*\n\nDu bist nicht berechtigt, mit diesem Agenten zu kommunizieren.\n\n_System-Log:_ Deine Telegram-ID lautet `" . $chatId . "`.\nBitte informiere den System-Administrator, damit er diese ID in die Agenten-Whitelist aufnehmen kann.";
             $this->sendTelegramMessage($token, $chatId, $rejectMessage);
