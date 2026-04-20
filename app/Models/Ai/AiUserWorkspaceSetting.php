@@ -12,5 +12,6 @@ class AiUserWorkspaceSetting extends Model
     protected $fillable = [
         'user_id',
         'chat_height_percent',
+        'auto_approve_execution_plan',
     ];
 }

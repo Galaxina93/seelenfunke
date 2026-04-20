@@ -253,6 +253,7 @@ return new class extends Migration
                 $table->uuid('id')->primary();
                 $table->uuid('user_id')->index();
                 $table->integer('chat_height_percent')->default(40);
+                $table->boolean('auto_approve_execution_plan')->default(false);
                 $table->timestamps();
             });
         }

@@ -21,7 +21,7 @@
     
     <!-- Neon Header -->
     <div class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
-        <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">Schaltzentrale</h1>
+        <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">KI-Zentrale</h1>
         <p class="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
         
         <button @click="showWorkspaceMobile = !showWorkspaceMobile" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
@@ -133,6 +133,9 @@
             </div>
             
             <div class="mt-4 pt-4 border-t border-gray-800 flex flex-col gap-3">
+                <button wire:click="$set('activeWorkspaceView', 'settings')" class="w-full py-2 bg-gray-900 border border-gray-800 text-gray-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-white hover:bg-gray-800 hover:border-gray-700 transition-colors shadow-inner flex justify-center items-center gap-2">
+                    <x-heroicon-o-cog-6-tooth class="w-4 h-4"/> Einstellungen
+                </button>
                 <button wire:click="$set('activeWorkspaceView', 'gen-ui')" class="w-full py-2 bg-gray-900 border border-gray-800 text-gray-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-white hover:bg-gray-800 hover:border-gray-700 transition-colors shadow-inner flex justify-center items-center gap-2">
                     <x-heroicon-o-window class="w-4 h-4"/> Generative UI
                 </button>
@@ -147,7 +150,48 @@
 
         <!-- The Main Split Area (Right) -->
         <div class="flex-1 flex flex-col gap-4 overflow-hidden h-full">
-            @if($activeWorkspaceView === 'knowledge-base')
+            @if($activeWorkspaceView === 'settings')
+                <div wire:key="settings-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl flex flex-col bg-gray-950/80 border border-gray-800 p-6 lg:p-10 shadow-2xl backdrop-blur-md custom-scrollbar">
+                    <div class="fixed bottom-4 left-4 right-4 lg:absolute lg:bottom-auto lg:left-auto lg:right-4 top-auto lg:top-4 z-50 mb-4 lg:mb-0 shrink-0 shadow-2xl lg:shadow-none">
+                        <button wire:click="$set('activeWorkspaceView', 'workspace')" class="w-full lg:w-auto justify-center bg-[var(--theme-color-10)] lg:bg-gray-950 border border-[var(--theme-color-50)] lg:border-gray-800 text-[var(--theme-color)] lg:text-gray-400 px-4 py-3.5 lg:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:text-white hover:border-gray-600 transition-all shadow-[inset_0_0_15px_var(--theme-color-10)] lg:shadow-xl flex items-center gap-2 backdrop-blur-3xl lg:backdrop-blur-xl shrink-0 z-50">
+                            <x-heroicon-o-arrow-left class="w-4 h-4"/> Zurück zur Schaltzentrale
+                        </button>
+                    </div>
+                    
+                    <div class="max-w-3xl w-full mx-auto relative z-10 pt-8 lg:pt-0">
+                        <div class="mb-10 text-center">
+                            <h2 class="text-3xl font-black text-white tracking-widest uppercase inline-flex items-center gap-3">
+                                <x-heroicon-o-cog-6-tooth class="w-8 h-8 text-[var(--theme-color)]" /> Einstellungen
+                            </h2>
+                            <p class="text-sm font-mono text-gray-400 tracking-wider mt-2">Zentrale Verwaltung für deinen Workspace</p>
+                        </div>
+
+                        <div class="space-y-6">
+                            <!-- KI Ausführungspläne Panel -->
+                            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-inner relative overflow-hidden group">
+                                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                                
+                                <div class="flex items-start justify-between gap-6 relative z-10">
+                                    <div class="flex-1">
+                                        <h3 class="text-lg font-bold text-gray-200 mb-1 flex items-center gap-2">
+                                            <x-heroicon-o-clipboard-document-check class="w-5 h-5 text-[var(--theme-color)]" /> Generierte Ausführungspläne immer durchführen
+                                        </h3>
+                                        <p class="text-sm font-mono text-gray-400 leading-relaxed max-w-2xl">
+                                            Wenn diese Option deaktiviert ist (Sicherheitsmodus), hält die Künstliche Intelligenz nach dem Erstellen des Schlachtplans ("Todo-Liste") an und fragt dich erst um Erlaubnis. Wenn diese Option aktiviert wird, führt die KI die geplanten Schritte sofort automatisiert der Reihe nach aus.
+                                        </p>
+                                    </div>
+                                    <div class="shrink-0 mt-1">
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" wire:model.live="autoApprovePlan" class="sr-only peer">
+                                            <div class="w-14 h-7 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @elseif($activeWorkspaceView === 'knowledge-base')
                 <div wire:key="kb-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl flex flex-col">
                     <div class="fixed bottom-4 left-4 right-4 lg:absolute lg:bottom-auto lg:left-auto lg:right-4 top-auto lg:top-4 z-50 mb-4 lg:mb-0 shrink-0 shadow-2xl lg:shadow-none">
                         <button wire:click="$set('activeWorkspaceView', 'workspace')" class="w-full lg:w-auto justify-center bg-[var(--theme-color-10)] lg:bg-gray-950 border border-[var(--theme-color-50)] lg:border-gray-800 text-[var(--theme-color)] lg:text-gray-400 px-4 py-3.5 lg:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:text-white hover:border-gray-600 transition-all shadow-[inset_0_0_15px_var(--theme-color-10)] lg:shadow-xl flex items-center gap-2 backdrop-blur-3xl lg:backdrop-blur-xl shrink-0 z-50">
@@ -596,9 +640,28 @@
                             <!-- EXECUTION PLAN (Todo List) -->
                             @if(isset($task->ui_metadata['execution_plan']) && count($task->ui_metadata['execution_plan']) > 0)
                                 <div class="mt-4 mb-2 space-y-2 relative z-10 w-full bg-gray-900/40 p-3 rounded-lg border border-gray-800/80">
-                                    <h4 class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2 flex items-center gap-2">
-                                        <x-heroicon-o-clipboard-document-list class="w-3.5 h-3.5"/> KI Ausführungsplan
-                                    </h4>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <h4 class="text-[10px] uppercase tracking-widest text-gray-500 font-bold flex items-center gap-2">
+                                            <x-heroicon-o-clipboard-document-list class="w-3.5 h-3.5"/> KI Ausführungsplan
+                                        </h4>
+                                        @if($task->status === 'awaiting_approval')
+                                            <div class="flex items-center" x-data="{ dropOpen: false }">
+                                                <button wire:click="approvePlan('{{ $task->id }}')" class="flex items-center gap-1.5 px-3 py-1 bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] border border-[var(--theme-color-50)] text-[var(--theme-color)] rounded-l-md text-[9px] font-bold uppercase tracking-widest transition-colors">
+                                                    <x-heroicon-o-check-circle class="w-3.5 h-3.5" /> Erlauben
+                                                </button>
+                                                <div class="relative">
+                                                    <button @click="dropOpen = !dropOpen" @click.away="dropOpen = false" class="flex items-center justify-center px-1.5 py-1 bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] border-y border-r border-[var(--theme-color-50)] text-[var(--theme-color)] rounded-r-md transition-colors">
+                                                        <x-heroicon-o-chevron-down class="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <div x-show="dropOpen" style="display:none;" class="absolute right-0 top-full mt-1 w-40 bg-gray-900 border border-[var(--theme-color-50)] rounded-md shadow-xl overflow-hidden z-30">
+                                                        <button wire:click="approvePlanAlways('{{ $task->id }}')" class="w-full text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-300 hover:text-white hover:bg-[var(--theme-color-20)] transition-colors">
+                                                            Immer erlauben
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
                                     @foreach($task->ui_metadata['execution_plan'] as $step)
                                         <div class="flex items-start gap-2 text-xs font-sans">
                                             <div class="shrink-0 mt-0.5">
@@ -702,9 +765,28 @@
                                                 <!-- EXECUTION PLAN (Todo List) -->
                                                 @if(isset($task->ui_metadata['execution_plan']) && count($task->ui_metadata['execution_plan']) > 0)
                                                     <div class="mb-3 space-y-2 relative z-10 w-full bg-gray-900/40 p-3 rounded-lg border border-gray-800/80">
-                                                        <h4 class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2 flex items-center gap-2">
-                                                            <x-heroicon-o-clipboard-document-list class="w-3.5 h-3.5"/> KI Ausführungsplan
-                                                        </h4>
+                                                        <div class="flex items-center justify-between mb-2">
+                                                            <h4 class="text-[10px] uppercase tracking-widest text-gray-500 font-bold flex items-center gap-2">
+                                                                <x-heroicon-o-clipboard-document-list class="w-3.5 h-3.5"/> KI Ausführungsplan
+                                                            </h4>
+                                                            @if($task->status === 'awaiting_approval')
+                                                                <div class="flex items-center" x-data="{ dropOpen: false }">
+                                                                    <button wire:click="approvePlan('{{ $task->id }}')" class="flex items-center gap-1.5 px-3 py-1 bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] border border-[var(--theme-color-50)] text-[var(--theme-color)] rounded-l-md text-[9px] font-bold uppercase tracking-widest transition-colors">
+                                                                        <x-heroicon-o-check-circle class="w-3.5 h-3.5" /> Erlauben
+                                                                    </button>
+                                                                    <div class="relative">
+                                                                        <button @click="dropOpen = !dropOpen" @click.away="dropOpen = false" class="flex items-center justify-center px-1.5 py-1 bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] border-y border-r border-[var(--theme-color-50)] text-[var(--theme-color)] rounded-r-md transition-colors">
+                                                                            <x-heroicon-o-chevron-down class="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <div x-show="dropOpen" style="display:none;" class="absolute right-0 top-full mt-1 w-40 bg-gray-900 border border-[var(--theme-color-50)] rounded-md shadow-xl overflow-hidden z-30">
+                                                                            <button wire:click="approvePlanAlways('{{ $task->id }}')" class="w-full text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-300 hover:text-white hover:bg-[var(--theme-color-20)] transition-colors">
+                                                                                Immer erlauben
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                        </div>
                                                         @foreach($task->ui_metadata['execution_plan'] as $step)
                                                             <div class="flex items-start gap-2 text-xs font-sans">
                                                                 <div class="shrink-0 mt-0.5">
@@ -782,6 +864,10 @@
                                             <td class="px-6 py-5 align-top">
                                                 @if($task->status === 'completed')
                                                     <span class="px-2.5 py-1 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest shadow-sm">Fertig</span>
+                                        @elseif($task->status === 'awaiting_approval')
+                                            <span class="px-2.5 py-1 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/30 uppercase tracking-widest shadow-sm flex items-center w-max gap-1">
+                                                <x-heroicon-o-hand-raised class="w-3 h-3" /> Warten auf Freigabe
+                                            </span>
                                                 @elseif($task->status === 'processing')
                                                     <div class="flex flex-col gap-2.5">
                                                         <span class="inline-flex w-fit px-2.5 py-1 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase tracking-widest items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.1)]">

@@ -125,6 +125,14 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $metadata['llm_history'] = $history;
                 $this->task->update(['ui_metadata' => $metadata]);
                 \App\Events\TaskUpdated::dispatch($this->task);
+
+                $settings = \App\Models\Ai\AiUserWorkspaceSetting::first();
+                $autoApprove = $settings->auto_approve_execution_plan ?? false;
+                if (!$autoApprove) {
+                    $this->task->update(['status' => 'awaiting_approval']);
+                    \App\Events\TaskUpdated::dispatch($this->task);
+                    return; // Pause the queue job
+                }
             }
 
             // -------------------------------------------------------------

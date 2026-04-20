@@ -10744,6 +10744,10 @@ video {
   content: var(--tw-content);
   height: 1.25rem;
 }
+.after\:h-6::after {
+  content: var(--tw-content);
+  height: 1.5rem;
+}
 .after\:w-3::after {
   content: var(--tw-content);
   width: 0.75rem;
@@ -10755,6 +10759,10 @@ video {
 .after\:w-5::after {
   content: var(--tw-content);
   width: 1.25rem;
+}
+.after\:w-6::after {
+  content: var(--tw-content);
+  width: 1.5rem;
 }
 .after\:rounded-full::after {
   content: var(--tw-content);

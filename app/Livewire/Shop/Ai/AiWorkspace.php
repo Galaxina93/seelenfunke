@@ -34,6 +34,7 @@ class AiWorkspace extends Component
     public $mentionResults = [];
     public string $activeWorkspaceView = 'workspace';
     public int $chatHeightPercent = 40;
+    public bool $autoApprovePlan = false;
 
     public function getListeners()
     {
@@ -54,6 +55,38 @@ class AiWorkspace extends Component
             \App\Events\TaskUpdated::dispatch($task);
             ProcessAiWorkspaceTask::dispatch($task);
         }
+    }
+
+    public function updatedAutoApprovePlan($value)
+    {
+        if (auth()->check()) {
+            \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
+                ['user_id' => auth()->id()],
+                ['auto_approve_execution_plan' => $value]
+            );
+        }
+    }
+
+    public function approvePlan($taskId)
+    {
+        $task = AiWorkspaceTask::find($taskId);
+        if ($task && $task->status === 'awaiting_approval') {
+            $task->update(['status' => 'pending']); // or 'processing' if we want immediate spin
+            \App\Events\TaskUpdated::dispatch($task);
+            \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
+        }
+    }
+
+    public function approvePlanAlways($taskId)
+    {
+        $this->autoApprovePlan = true;
+        if (auth()->check()) {
+            \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
+                ['user_id' => auth()->id()],
+                ['auto_approve_execution_plan' => true]
+            );
+        }
+        $this->approvePlan($taskId);
     }
 
     #[Computed]
@@ -90,6 +123,7 @@ class AiWorkspace extends Component
             $setting = \App\Models\Ai\AiUserWorkspaceSetting::where('user_id', auth()->id())->first();
             if ($setting) {
                 $this->chatHeightPercent = $setting->chat_height_percent;
+                $this->autoApprovePlan = (bool) $setting->auto_approve_execution_plan;
             }
         }
 
