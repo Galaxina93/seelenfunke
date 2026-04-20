@@ -28,14 +28,47 @@ class TelegramAgentController extends Controller
         // 2. Parse Telegram Payload
         $update = $request->all();
         
-        // Telegram can send various updates (edited_message, inline_query, etc). We only care about standard text messages.
-        if (!isset($update['message']['text']) || !isset($update['message']['chat']['id'])) {
-            return response()->json(['status' => 'ignored', 'message' => 'Not a text message.']);
+        $message = $update['message'] ?? null;
+        if (!$message || !isset($message['chat']['id'])) {
+            return response()->json(['status' => 'ignored', 'message' => 'No chat info.']);
+        }
+        
+        $chatId = $message['chat']['id'];
+        $firstName = $message['from']['first_name'] ?? 'User';
+        $text = $message['text'] ?? '';
+        
+        $localUploads = [];
+        $userSentVoice = false;
+
+        // Process attachments (Photo, Document, Voice)
+        try {
+            if (isset($message['photo'])) {
+                // Get highest resolution photo (last in array)
+                $photo = end($message['photo']);
+                $localUploads[] = $this->processTelegramFile($token, $photo['file_id'], 'image/jpeg');
+            } elseif (isset($message['document'])) {
+                $localUploads[] = $this->processTelegramFile($token, $message['document']['file_id'], $message['document']['mime_type'] ?? 'application/octet-stream');
+            } elseif (isset($message['voice']) || isset($message['audio'])) {
+                $userSentVoice = true;
+                $audioObj = $message['voice'] ?? $message['audio'];
+                $audioFile = $this->processTelegramFile($token, $audioObj['file_id'], $audioObj['mime_type'] ?? 'audio/ogg');
+                $localUploads[] = $audioFile;
+                
+                // STT: Transcribe Audio using Gemini API natively if no text is provided
+                if (empty($text)) {
+                    $text = $this->transcribeAudioGemini($audioFile['path'], $audioFile['mime']);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to process Telegram attachment", ['error' => $e->getMessage()]);
+            $this->sendTelegramMessage($token, $chatId, "⚠️ *Fehler beim Laden der Datei:* " . $e->getMessage());
+            return response()->json(['status' => 'error', 'message' => 'Attachment failed']);
         }
 
-        $chatId = $update['message']['chat']['id'];
-        $text = $update['message']['text'];
-        $firstName = $update['message']['from']['first_name'] ?? 'User';
+        // If after trying to extract text and files we have neither...
+        if (empty(trim($text)) && empty($localUploads)) {
+            return response()->json(['status' => 'ignored', 'message' => 'No valid text or supported attachment.']);
+        }
 
         // Support /start command simply as a greeting
         if ($text === '/start') {
@@ -63,11 +96,22 @@ class TelegramAgentController extends Controller
         // A cleaner way is just to manually create the memory record and load history.
         
         try {
+            $userCtx = [
+                'name' => 'Telegram User',
+                'color' => 'gray-400',
+                'icon' => 'user'
+            ];
+            
+            if (!empty($localUploads)) {
+                $userCtx['local_uploads'] = $localUploads;
+            }
+
             // Save User Message to Memory
             AiChatMemory::create([
                 'session_id' => $sessionId,
                 'role' => 'user',
                 'content' => $text,
+                'context_data' => $userCtx,
             ]);
 
             // Load History for this specific Telegram Chat
@@ -114,7 +158,26 @@ class TelegramAgentController extends Controller
             ]);
 
             // 6. Send Response back via Telegram HTTP API
-            $this->sendTelegramMessage($token, $chatId, $textResponse);
+            
+            $ttsGenerated = false;
+            // Falls der User eine Voice-Nachricht geschickt hat und der Agent TTS aktiviert hat -> Antworte per Voice
+            if ($userSentVoice && $agent->tts_enabled && $agent->tts_provider && $agent->tts_provider !== 'none') {
+                try {
+                    $audioPath = $this->generateTtsAudio($agent, $textResponse);
+                    if ($audioPath) {
+                        $this->sendTelegramVoice($token, $chatId, $audioPath);
+                        $ttsGenerated = true;
+                    }
+                } catch (\Exception $e) {
+                    Log::error("TTS Response for Telegram failed", ['error' => $e->getMessage()]);
+                    // Fallback to text
+                }
+            }
+
+            // Fallback: If TTS wasn't generated/failed, just send text
+            if (!$ttsGenerated) {
+                $this->sendTelegramMessage($token, $chatId, $textResponse);
+            }
 
             return response()->json(['status' => 'success']);
 
@@ -142,5 +205,130 @@ class TelegramAgentController extends Controller
                 'parse_mode' => 'Markdown', // Allow basic bold/italics
             ]);
         }
+    }
+
+    /**
+     * Sends an audio file back to Telegram as an authentic Voice Message
+     */
+    private function sendTelegramVoice($token, $chatId, $audioPath)
+    {
+        $url = "https://api.telegram.org/bot{$token}/sendVoice";
+        
+        $response = Http::attach(
+            'voice', file_get_contents($audioPath), basename($audioPath)
+        )->post($url, [
+            'chat_id' => $chatId,
+        ]);
+        
+        if (!$response->successful()) {
+            throw new \Exception("Telegram sendVoice failed: " . $response->body());
+        }
+        
+        // Clean up tmp file
+        @unlink($audioPath);
+    }
+
+    /**
+     * Downloads a file from Telegram and saves it to local temporary uploads.
+     */
+    private function processTelegramFile($token, $fileId, $mimeType)
+    {
+        // 1. Get File Path
+        $url = "https://api.telegram.org/bot{$token}/getFile?file_id={$fileId}";
+        $response = Http::get($url);
+        if (!$response->successful() || !$response->json('ok')) {
+             throw new \Exception("Could not get file info from Telegram API.");
+        }
+        
+        $filePath = $response->json('result.file_path');
+        
+        // 2. Download File
+        $downloadUrl = "https://api.telegram.org/file/bot{$token}/{$filePath}";
+        $fileContent = Http::get($downloadUrl)->body();
+        
+        // 3. Save to Public Storage mimicking Standard UI Uploads
+        // Extract extension from file_path
+        $ext = pathinfo($filePath, PATHINFO_EXTENSION);
+        $filename = 'telegram_' . uniqid() . '.' . ($ext ?: 'bin');
+        $savePath = 'telegram_uploads/' . $filename;
+        
+        \Illuminate\Support\Facades\Storage::disk('public')->put($savePath, $fileContent);
+        
+        return [
+            'path' => $savePath,
+            'name' => basename($filePath),
+            'mime' => $mimeType
+        ];
+    }
+
+    /**
+     * Uses Gemini to perform Native STT on voice messages.
+     */
+    private function transcribeAudioGemini($relativePath, $mimeType)
+    {
+        $fullPath = storage_path('app/public/' . $relativePath);
+        if (!file_exists($fullPath)) return "";
+        
+        $base64 = base64_encode(file_get_contents($fullPath));
+        
+        $baseUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
+        $apiKey = config('services.gemini.key');
+        
+        // Use the native Gemini endpoint since OpenAI wrapper doesn't support ogg audio inline yet
+        // Extract base URI
+        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
+        
+        $payload = [
+            "contents" => [
+                [
+                    "parts" => [
+                        ["text" => "Transkribiere bitte diese Sprachnachricht. Antworte AUSSCHLIESSLICH mit dem exakten, abgetippten Text des Nutzers, ohne Kommentare oder Zusätze."],
+                        ["inlineData" => [
+                            "mimeType" => $mimeType,
+                            "data" => $base64
+                        ]]
+                    ]
+                ]
+            ]
+        ];
+        
+        $response = Http::timeout(30)->post($nativeUrl, $payload);
+        if ($response->successful()) {
+            $data = $response->json();
+            return $data['candidates'][0]['content']['parts'][0]['text'] ?? "";
+        }
+        
+        Log::warning("Gemini STT Failed: " . $response->body());
+        return "";
+    }
+
+    /**
+     * Generates a TTS Audio File locally or via external provider
+     */
+    private function generateTtsAudio($agent, $text)
+    {
+        if ($agent->tts_provider === 'toni_xttsv2') {
+            $ttsUrl = $agent->tts_api_url ?: 'http://127.0.0.1:8020';
+            $voice = $agent->tts_voice ?: 'tania';
+            
+            // Assuming Toni provides a /tts or /api/tts endpoint generating a Wave file
+            $endpoint = rtrim($ttsUrl, '/') . '/api/tts';
+            
+            $response = Http::timeout(60)->get($endpoint, [
+                'text' => strip_tags($text),
+                'language' => 'de',
+                'speaker' => $voice
+            ]);
+            
+            if ($response->successful()) {
+                $tmpPath = sys_get_temp_dir() . '/tts_' . uniqid() . '.wav';
+                file_put_contents($tmpPath, $response->body());
+                return $tmpPath;
+            }
+        }
+        
+        // Native Gemini TTS Fallback (if applicable via their new endpoints, though Gemini text-to-speech is still experimental/undocumented in many Wrappers)
+        // For now, if no Toni, we throw
+        throw new \Exception("Unsupported or failing TTS Provider.");
     }
 }

@@ -50,7 +50,7 @@ class AiAgentSeeder extends Seeder
                 'icon' => 'sparkles',
                 'tts_voice' => 'Aoede',
                 'role' => 'Teamleiter',
-                'telegram_bot_token' => '8513655343:AAFamSutlT2H-8MhFBoKer0JGPMG6Um9MEQ' // Hier Token eintragen
+                'telegram_bot_token' => '' // Hier Token eintragen
             ],
             [
                 'name' => 'Bestelli',

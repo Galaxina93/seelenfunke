@@ -122,5 +122,10 @@ class AppServiceProvider extends ServiceProvider
                 ]
             );
         });
+
+        // 6. Zuverlässiger Queue Worker Heartbeat (schreibt alle paar Sekunden in den Cache)
+        \Illuminate\Support\Facades\Queue::looping(function () {
+            Cache::put('ai-worker-heartbeat', now()->timestamp, 15);
+        });
     }
 }

@@ -140,6 +140,12 @@ class AiWorkspace extends Component
             return true;
         }
 
+        // Neue extrem zuverlässige Methode (funktioniert über Container-Grenzen hinweg)
+        if (\Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat')) {
+            return true;
+        }
+
+        // Alter Fallback auf Linux/Shell Ebene falls Cache fehlt
         if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
             // Methode 1: pgrep (Standard Linux)
             $output = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
