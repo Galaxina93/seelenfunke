@@ -400,21 +400,24 @@
                 </script>
 
                 <!-- Background Processing Info Icon -->
-                <div class="absolute top-3 right-4 z-20 group">
-                    <div class="w-6 h-6 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-emerald-400 hover:border-emerald-500/50 cursor-help transition-all shadow-xl shadow-black">
+                <div class="absolute top-3 right-4 z-20" x-data="{ showInfo: false }" @click.away="showInfo = false">
+                    <button type="button" @click.prevent="showInfo = !showInfo" class="w-6 h-6 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-emerald-400 hover:border-emerald-500/50 cursor-pointer transition-all shadow-xl shadow-black relative z-30">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    </div>
+                    </button>
                     <!-- Tooltip -->
-                    <div class="absolute top-full right-0 mt-2 w-64 bg-gray-950 border border-emerald-500/30 text-gray-300 text-[10px] p-3 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all shadow-2xl shadow-emerald-500/10 font-sans leading-relaxed pointer-events-none">
-                        <strong class="{{ $this->isWorkerRunning ? 'text-emerald-400' : 'text-red-500' }} block mb-1 uppercase tracking-widest text-[9px] cursor-help pointer-events-auto" title="{{ $this->workerDiagnostic }}">
+                    <div x-show="showInfo" x-transition style="display: none;" class="absolute top-full right-0 mt-2 w-72 bg-gray-950 border border-emerald-500/30 text-gray-300 text-[10px] p-4 rounded-xl shadow-2xl shadow-emerald-500/10 font-sans leading-relaxed pointer-events-auto z-40">
+                        <strong class="{{ $this->isWorkerRunning ? 'text-emerald-400' : 'text-red-500' }} block mb-1 uppercase tracking-widest text-[9px] cursor-help pointer-events-auto">
                             {{ $this->isWorkerRunning ? 'Hintergrund-Herzschlag' : 'WARNUNG: WORKER OFFLINE' }}
                         </strong>
                         Sobald ein Agent einer Aufgabe zugewiesen ist, arbeitet er komplett autark im Hintergrundfenster.<br><br>
                         Der EKG Monitor zieht eine flache Linie, bis Hintergrundaktiviät (Tasks oder Chat) wahrgenommen wird.<br><br>
-                        <span class="cursor-help pointer-events-auto border-b border-gray-700 border-dashed" title="{{ $this->workerDiagnostic }}">Das System schlägt nur aus, wenn der Worker reell läuft.</span>
+                        Das System schlägt nur aus, wenn der Worker reell läuft.
                         Damit dies lokal aktiv ist, muss der Queue Worker laufen:<br>
                         <code class="block bg-gray-900 text-emerald-300 p-1.5 mt-1.5 rounded border border-gray-800 font-mono text-[9px] break-all">php artisan queue:work</code>
-                        <div class="mt-2 text-gray-500 text-[8px] italic">Hover über den Titel für detaillierte Diagnose-Pings.</div>
+                        <div class="mt-3 bg-gray-900 p-2 rounded text-gray-400 text-[8px] font-mono border border-gray-800 shadow-inner">
+                            <span class="text-cyan-500 font-bold">Diagnose-Pings:</span><br>
+                            {{ $this->workerDiagnostic }}
+                        </div>
                     </div>
                 </div>
 

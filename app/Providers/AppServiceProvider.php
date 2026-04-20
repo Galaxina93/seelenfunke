@@ -124,8 +124,17 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // 6. Zuverlässiger Queue Worker Heartbeat (schreibt alle paar Sekunden in den Cache)
-        \Illuminate\Support\Facades\Queue::looping(function () {
-            Cache::put('ai-worker-heartbeat', now()->timestamp, 15);
-        });
+        $heartbeatCallback = function () {
+            try {
+                // Heartbeat TTL in Sekunden hochsetzen (30s) weil AI Jobs ggf. länger dauern
+                \Illuminate\Support\Facades\Cache::put('ai-worker-heartbeat', now()->timestamp, 45);
+            } catch (\Exception $e) {
+                // Berechtigungsfehler bei file-cache ignorieren
+            }
+        };
+
+        \Illuminate\Support\Facades\Queue::looping($heartbeatCallback);
+        \Illuminate\Support\Facades\Queue::before($heartbeatCallback);
+        \Illuminate\Support\Facades\Queue::after($heartbeatCallback);
     }
 }
