@@ -141,7 +141,15 @@ class AiWorkspace extends Component
         }
 
         // Neue extrem zuverlässige Methode (funktioniert über Container-Grenzen hinweg)
-        if (\Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat')) {
+        $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
+        if (!$cacheHit && \Illuminate\Support\Facades\Storage::disk('local')->exists('ai_worker_heartbeat.txt')) {
+            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('ai_worker_heartbeat.txt');
+            if (now()->timestamp - $lastPing <= 45) {
+                $cacheHit = true;
+            }
+        }
+        
+        if ($cacheHit) {
             return true;
         }
 
@@ -167,7 +175,16 @@ class AiWorkspace extends Component
         $info[] = "Treiber: " . config('queue.default');
         
         $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
+        $storageHit = false;
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists('ai_worker_heartbeat.txt')) {
+            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('ai_worker_heartbeat.txt');
+            if (now()->timestamp - $lastPing <= 45) {
+                $storageHit = true;
+            }
+        }
+        
         $info[] = "Cache-Signal: " . ($cacheHit ? 'OK' : 'Fehlt');
+        $info[] = "NFS-Signal: " . ($storageHit ? 'OK' : 'Fehlt');
         
         if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
             $out1 = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');

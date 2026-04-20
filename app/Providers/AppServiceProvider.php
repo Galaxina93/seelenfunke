@@ -128,6 +128,9 @@ class AppServiceProvider extends ServiceProvider
             try {
                 // Heartbeat TTL in Sekunden hochsetzen (30s) weil AI Jobs ggf. länger dauern
                 \Illuminate\Support\Facades\Cache::put('ai-worker-heartbeat', now()->timestamp, 45);
+                
+                // Fallback für geclusterte Systeme (NFS Storage synchronisiert sich über alle Knoten)
+                \Illuminate\Support\Facades\Storage::disk('local')->put('ai_worker_heartbeat.txt', now()->timestamp);
             } catch (\Exception $e) {
                 // Berechtigungsfehler bei file-cache ignorieren
             }

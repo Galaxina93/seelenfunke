@@ -599,7 +599,7 @@
                                          :class="expanded ? 'max-h-none' : 'max-h-[80px] overflow-hidden'">
                                         
                                         <!-- Render the full Markdown safely via wire:ignore so Alpine/Marked can pick it up if needed, or just plain text -->
-                                        @if(strlen($task->response_content) > 150)
+                                        @if(strlen($task->response_content) > 80)
                                             <div wire:ignore class="ai-markdown-content" x-init="
                                                  if (window.renderAiMarkdown) { $el.innerHTML = window.renderAiMarkdown(@js($task->response_content)); } 
                                                  else { $el.innerText = @js($task->response_content); }">
@@ -612,7 +612,7 @@
                                         @endif
                                     </div>
                                     
-                                    @if(strlen($task->response_content) > 150)
+                                    @if(strlen($task->response_content) > 80)
                                         <button @click="expanded = !expanded" class="w-full text-center text-[10px] uppercase tracking-widest font-bold text-[var(--theme-color)] hover:text-white mt-1 p-1 flex justify-center items-center gap-1">
                                             <span x-text="expanded ? 'Einklappen' : 'Vollständige Antwort lesen'"></span>
                                             <svg x-show="!expanded" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
@@ -675,14 +675,14 @@
                                                     <div class="mt-3 relative z-10" x-data="{ expanded: false }">
                                                          <div class="text-[12px] text-gray-300 bg-[var(--theme-color-10)] rounded-lg p-3 font-sans break-words bg-opacity-40 relative border border-[var(--theme-color-20)]"
                                                               :class="expanded ? 'max-h-none pb-8' : 'max-h-[70px] overflow-hidden'">
-                                                             @if(strlen($task->response_content) > 150)
+                                                             @if(strlen($task->response_content) > 80)
                                                                  <div wire:ignore class="ai-markdown-content" x-init="if (window.renderAiMarkdown) { $el.innerHTML = window.renderAiMarkdown(@js($task->response_content)); } else { $el.innerText = @js($task->response_content); }"></div>
                                                                  <div x-show="!expanded" class="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[var(--theme-color-10)] to-transparent pointer-events-none rounded-b-lg"></div>
                                                              @else
                                                                  <div class="font-sans whitespace-pre-wrap">{{ $task->response_content }}</div>
                                                              @endif
                                                          </div>
-                                                         @if(strlen($task->response_content) > 150)
+                                                         @if(strlen($task->response_content) > 80)
                                                              <button @click="expanded = !expanded" class="w-full text-center text-[10px] uppercase tracking-widest font-bold text-[var(--theme-color)] hover:text-white mt-1 p-1.5 flex justify-center items-center gap-1 transition-colors">
                                                                  <span x-text="expanded ? 'Einklappen' : 'Vollständige Antwort lesen'"></span>
                                                                  <svg x-show="!expanded" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
