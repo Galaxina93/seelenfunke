@@ -49,7 +49,8 @@ class AiAgentSeeder extends Seeder
                 'color' => 'sky-500',
                 'icon' => 'sparkles',
                 'tts_voice' => 'Aoede',
-                'role' => 'Teamleiter'
+                'role' => 'Teamleiter',
+                'telegram_bot_token' => '8513655343:AAFamSutlT2H-8MhFBoKer0JGPMG6Um9MEQ' // Hier Token eintragen
             ],
             [
                 'name' => 'Bestelli',
@@ -160,7 +161,7 @@ class AiAgentSeeder extends Seeder
         foreach ($agentsData as $aData) {
             $sourceImagePath = 'shop/ai/images/' . $aData['sourceImage'];
             $fullSourcePath = public_path($sourceImagePath);
-            
+
             $assignedRoleId = isset($rolesMap[$aData['role']]) ? $rolesMap[$aData['role']]->id : null;
 
             AiAgent::updateOrCreate(
@@ -173,12 +174,14 @@ class AiAgentSeeder extends Seeder
                     'model' => $aData['model'],
                     'temperature' => $aData['temperature'],
                     'is_active' => true,
+                    'is_in_chat' => ($aData['role'] === 'Teamleiter') ? true : false,
                     'color' => $aData['color'],
                     'icon' => $aData['icon'],
                     'profile_picture' => file_exists($fullSourcePath) ? $sourceImagePath : null,
                     'tts_enabled' => true,
                     'tts_provider' => 'gemini_native',
                     'tts_voice' => $aData['tts_voice'],
+                    'telegram_bot_token' => $aData['telegram_bot_token'] ?? null,
                 ]
             );
         }
@@ -217,7 +220,7 @@ class AiAgentSeeder extends Seeder
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name')
                 );
-                
+
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
                 $rolesMap['Teamleiter']->tools()->sync($teamleiterToolIds);
             }
@@ -232,7 +235,7 @@ class AiAgentSeeder extends Seeder
                 'Finanzmanager' => array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
                 'Supporter' => array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
                 'Hausarzt' => array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
-                'Systemadmin' => [], 
+                'Systemadmin' => [],
                 'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
             ];
 

@@ -101,6 +101,8 @@ class MasterShopCapacity extends Component
             $this->level = 4;
         }
 
+        Cache::put('shop_capacity_percentage', $this->percentage);
+
         $this->generateActionLog();
     }
 

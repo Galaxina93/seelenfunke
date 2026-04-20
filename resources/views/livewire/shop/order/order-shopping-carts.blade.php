@@ -11,6 +11,26 @@
             <p class="text-gray-400 text-sm sm:text-base font-medium leading-relaxed max-w-2xl mx-auto">
                 Behalte die Übersicht über abgebrochene oder pausierte Einkaufsprozesse. Sende Zahlungserinnerungen, passe Mengen an oder lösche blockierte Körbe.
             </p>
+            
+            {{-- LEGENDE --}}
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-gray-300 font-medium">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-gray-500 shadow-[0_0_8px_rgba(107,114,128,0.6)]"></div>
+                    <span>Aktiv / Neu</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]"></div>
+                    <span>Warnung (Verlassen)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                    <span>Abgebrochen (Mail anstehend)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
+                    <span>Erinnerung gesendet</span>
+                </div>
+            </div>
         </div>
 
         @if(session()->has('success'))
@@ -102,9 +122,13 @@
                                     
                                     // Traffic light color based on age
                                     $hours = $cart->updated_at->diffInHours(now());
-                                    $statusColor = 'bg-red-500'; // Default red
-                                    if ($hours < $this->cartYellowLimit) $statusColor = 'bg-emerald-500';
-                                    elseif ($hours < $this->cartRedLimit) $statusColor = 'bg-yellow-500';
+                                    $statusColor = 'bg-gray-500'; // Default gray (active/new)
+                                    if ($cart->reminder_email_sent_at) {
+                                        $statusColor = 'bg-emerald-500';
+                                    } else {
+                                        if ($hours >= $this->cartRedLimit) $statusColor = 'bg-red-500';
+                                        elseif ($hours >= $this->cartYellowLimit) $statusColor = 'bg-yellow-500';
+                                    }
                                 @endphp
                                 <tr wire:click="viewDetails('{{ $cart->id }}')" class="hover:bg-gray-800/50 cursor-pointer group transition-colors">
                                     <td class="px-6 py-4 text-center">

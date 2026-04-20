@@ -343,7 +343,6 @@ trait AiSystemFuncs
                     'data' => $data
                 ]
             ],
-            '_fast_track' => true
         ];
     }
 
@@ -447,7 +446,6 @@ trait AiSystemFuncs
                         'name' => 'open-ai-workspace-view',
                         'detail' => ['view' => 'knowledge-base']
                     ],
-                    '_fast_track' => true
                 ];
             }
 
@@ -458,7 +456,6 @@ trait AiSystemFuncs
                     'type' => 'navigate',
                     'url' => $url
                 ],
-                '_fast_track' => true
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei der Navigation: ' . $e->getMessage()];
@@ -473,7 +470,6 @@ trait AiSystemFuncs
                 'type' => 'dispatch',
                 'name' => 'open-funkira'
             ],
-            '_fast_track' => true
         ];
     }
 
@@ -486,7 +482,6 @@ trait AiSystemFuncs
                 'type' => 'dispatch',
                 'name' => 'close-funkira'
             ],
-            '_fast_track' => true
         ];
     }
 
@@ -1031,9 +1026,15 @@ trait AiSystemFuncs
                 // We replace the matched block (which now includes the leading indentation)
                 $newContent = str_replace($matchedOriginal, $indentedReplace, $content);
             } else {
-                return ['status' => 'error', 'message' => 'Der gesuchte search_content Block wurde nicht in der Datei gefunden. Weder exakt noch tolerant. Bitte überprüfe die Datei mit system_read_code!'];
+                return ['status' => 'error', 'message' => 'KRITISCHER FEHLER: Der gesuchte search_content Block wurde nicht in der Datei gefunden. Weder exakt noch tolerant. Bitte überprüfe die Zieldatei mit system_read_code und stelle sicher, dass du den alten Code EXAKT so kopierst, wie er dort steht!'];
             }
         }
+        
+        // Dynamische Laufzeitprüfung, ob das Replace wirklich funktioniert hat
+        if ($content === $newContent) {
+             return ['status' => 'error', 'message' => 'KRITISCHER FEHLER: Der search_content wurde zwar gefunden, aber der replace_content ist zu 100% identisch oder das Überlagern schlug fehl! Es gab null physische Änderungen am Dokument. Prüfe was du tust!'];
+        }
+        
         file_put_contents($fullPath, $newContent);
 
         $deletedLines = substr_count($cleanSearch, "\n") + 1;

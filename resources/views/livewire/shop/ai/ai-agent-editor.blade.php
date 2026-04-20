@@ -146,6 +146,7 @@
                                     @error('wake_word') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                             </div>
+
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aufgaben-Rolle</label>
@@ -164,7 +165,70 @@
                                 </div>
                                 <div>
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Rollen-Kurzbeschreibung (für UI)</label>
-                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all mb-4">
+                                    
+                                    <label class="block text-xs font-bold text-sky-400 uppercase tracking-widest mb-1.5 flex items-center gap-2 mt-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
+                                        Telegram Bot Token
+                                    </label>
+                                    <input type="text" wire:model.defer="telegram_bot_token" placeholder="123456789:ABCdefGHIjkl..." class="w-full bg-black/40 border border-sky-700/50 rounded-xl shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-300 sm:text-sm p-3 font-mono transition-all">
+                                    <p class="text-[10px] text-gray-500 mt-1 font-mono">Optional. Macht Funkira zum Telegram-Bot!</p>
+                                    @error('telegram_bot_token') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                    
+                                    <label class="block text-xs font-bold text-sky-400/80 uppercase tracking-widest mb-1.5 flex items-center gap-2 mt-4">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                                        Erlaubte Chat IDs (Whitelist)
+                                    </label>
+                                    <input type="text" wire:model.defer="telegram_allowed_chat_ids" placeholder="123456789, 987654321..." class="w-full bg-black/40 border border-sky-700/30 rounded-xl shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-300 sm:text-sm p-3 font-mono transition-all">
+                                    <p class="text-[10px] text-gray-500 mt-1 font-mono">Kommagetrennte Liste von Telegram-IDs. Lässt du es leer, darf jeder mit der KI schreiben.</p>
+                                    @error('telegram_allowed_chat_ids') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                                    
+                                    <div x-data="{ open: false }" class="mt-4">
+                                        <button @click="open = !open" type="button" class="text-xs flex items-center gap-1 text-sky-400 hover:text-sky-300 font-bold transition-colors">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 transition-transform duration-200" :class="{'rotate-90': open}"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+                                            Wie richte ich den Bot ein?
+                                        </button>
+                                        <div x-show="open" x-collapse x-cloak>
+                                            <div class="p-4 mt-2 bg-sky-900/10 border border-sky-500/20 rounded-xl shadow-inner text-xs font-mono space-y-2">
+                                                <p class="text-sky-300 font-bold">In 3 Schritten zu Telegram:</p>
+                                                <ol class="list-decimal pl-4 space-y-1 text-sky-100/70">
+                                                    <li>Schreibe in Telegram dem offiziellen <b>@BotFather</b> den Befehl <code>/newbot</code>.</li>
+                                                    <li>Gib ihm einen Namen & Username (muss auf 'bot' enden).</li>
+                                                    <li>Kopiere den blauen HTTP-API-Token und füge ihn hier ein.</li>
+                                                    <li class="pt-1 mt-1 border-t border-sky-500/20 text-sky-300"><b>Für die Sicherheit:</b> Schreibe deinem Bot ein kurzes "Hallo" in Telegram. Er wird dich blockieren und dir deine <b>Telegram-ID</b> verraten. Trage diese ID oben in das "Whitelist"-Feld ein!</li>
+                                                </ol>
+                                                <div class="pt-3 border-t border-sky-500/20 mt-3">
+                                                    <p class="text-sky-300 font-bold mb-1 flex items-center gap-1">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-amber-500"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>
+                                                        Wichtig: Server-Kopplung
+                                                    </p>
+                                                    <p class="text-sky-100/70 mb-2 leading-relaxed">Nach dem Speichern weiß Telegram noch nicht, wo dein Server erreichbar ist. Du musst Telegram die URL zwingend mitteilen. Führe dazu bitte <b>einen</b> der folgenden Befehle aus:</p>
+                                                    
+                                                    <div class="space-y-4">
+                                                        <!-- Stage Server -->
+                                                        <div class="bg-indigo-900/20 p-2 rounded border border-indigo-700/50">
+                                                            <div class="flex items-center justify-between mb-1">
+                                                                <span class="text-[10px] font-bold text-indigo-400">1. Stage Server (Testumgebung)</span>
+                                                                <span class="text-[8px] bg-indigo-900 text-indigo-300 px-1 rounded">SSH Terminal</span>
+                                                            </div>
+                                                            <p class="text-[9px] text-indigo-300/70 mb-1 leading-tight">Verbinde dich via SSH mit dem Stage-Server und führe im Verzeichnis aus:</p>
+                                                            <code class="block bg-black/60 p-1.5 rounded text-sky-400 font-mono text-[9px] break-all border border-indigo-900/50">php artisan telegram:register-webhooks --domain="https://stage.mein-seelenfunke.de"</code>
+                                                        </div>
+
+                                                        <!-- Live Server -->
+                                                        <div class="bg-emerald-900/20 p-2 rounded border border-emerald-700/50">
+                                                            <div class="flex items-center justify-between mb-1">
+                                                                <span class="text-[10px] font-bold text-emerald-400">2. Live Server (Bald)</span>
+                                                                <span class="text-[8px] bg-emerald-900 text-emerald-300 px-1 rounded">SSH Terminal</span>
+                                                            </div>
+                                                            <p class="text-[9px] text-emerald-300/70 mb-1 leading-tight">Verbinde dich via SSH mit dem echten Live-Server und führe im Verzeichnis aus:</p>
+                                                            <code class="block bg-black/60 p-1.5 rounded text-sky-400 font-mono text-[9px] break-all border border-emerald-900/50">php artisan telegram:register-webhooks --domain="https://mein-seelenfunke.de"</code>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <!-- Personality Presets -->

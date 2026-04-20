@@ -147,8 +147,7 @@ trait AiMarketingFuncs
                     'category' => 'voucher',
                     'data' => [$voucher->toArray()] // Wrap in array to ensure consistency for UI Router
                 ]
-            ],
-            '_fast_track' => true
+            ]
         ];
     }
 
@@ -188,13 +187,15 @@ trait AiMarketingFuncs
 
     public static function executeGetCoupons(array $args): array
     {
-        $vouchers = MarketingVoucher::where('mode', 'manual')->orderByDesc('created_at')->limit(50)->get();
+        $vouchers = MarketingVoucher::orderByDesc('created_at')->limit(50)->get();
         
         $mapped = $vouchers->map(function($v) {
             return [
                 'id' => $v->id,
                 'code' => $v->code,
                 'type' => $v->type,
+                'mode' => $v->mode === 'auto' ? 'Saisonal / Auto' : 'Manuell',
+                'title' => $v->title,
                 'value' => $v->type === 'fixed' ? number_format($v->value / 100, 2) . '€' : $v->value . '%',
                 'is_active' => $v->is_active,
                 'used_count' => $v->used_count,
@@ -207,15 +208,14 @@ trait AiMarketingFuncs
         return [
             'status' => 'success',
             'coupons' => $mapped->toArray(),
-            'message' => 'Gutscheine geladen. Achte darauf, dass hier 50 manuelle Gutscheine gefunden wurden. Analysiere diese Daten leise.',
+            'message' => 'Gutscheine wurden in der UI visualisiert. Fasse in einem einzigen kurzen Satz zusammen, dass du die Gutschein-Ansicht für den Nutzer geöffnet hast. Lies KEINE einzelnen Gutscheine vor, da der Nutzer sie bereits am Bildschirm sieht!',
             '_frontend_event' => [
                 'name' => 'open-ai-visualization',
                 'detail' => [
                     'category' => 'voucher',
                     'data' => $mapped->toArray()
                 ]
-            ],
-            '_fast_track' => true
+            ]
         ];
     }
 

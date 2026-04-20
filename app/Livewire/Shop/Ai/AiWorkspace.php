@@ -26,7 +26,6 @@ class AiWorkspace extends Component
 
     public string $themingDepartment = 'Agenten';
     public $input = '';
-    public $messages = [];
     public $activeAgentIds = [];
     public $typingAgents = []; // Array of agent IDs currently typing
     public $attachments = []; // Files attached via @ mentions
@@ -57,6 +56,34 @@ class AiWorkspace extends Component
         }
     }
 
+    #[Computed]
+    public function messages()
+    {
+        $messages = [];
+        $history = AiChatMemory::where('session_id', session()->getId())
+                               ->orderBy('created_at', 'asc')
+                               ->get();
+
+        if ($history->isNotEmpty()) {
+            foreach ($history as $mem) {
+                if ($mem->role === 'tool') continue;
+
+                $ctx = $mem->context_data ?? [];
+                $messages[] = [
+                    'role' => $mem->role,
+                    'name' => $ctx['name'] ?? ucfirst($mem->role),
+                    'content' => $mem->content,
+                    'color' => $ctx['color'] ?? ($mem->role === 'user' ? 'gray-400' : 'emerald-500'),
+                    'icon' => $ctx['icon'] ?? ($mem->role === 'user' ? 'user' : 'sparkles'),
+                    'profile_picture' => $ctx['profile_picture'] ?? null,
+                    'attachments' => $ctx['attachments'] ?? [],
+                    'local_uploads' => $ctx['local_uploads'] ?? [],
+                ];
+            }
+        }
+        return $messages;
+    }
+
     public function mount()
     {
         if (auth()->check()) {
@@ -66,45 +93,29 @@ class AiWorkspace extends Component
             }
         }
 
-        // Lade Chat-Historie aus der Datenbank
-        $history = AiChatMemory::where('session_id', session()->getId())
-                               ->orderBy('created_at', 'asc')
-                               ->get();
 
-        if ($history->isNotEmpty()) {
-            foreach ($history as $mem) {
-                // Ignore internal 'tool' role messages in UI rendering
-                if ($mem->role === 'tool') continue;
+        $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
+        $this->forcedAgentIds = $this->activeAgentIds; // By default, all DB-selected agents are manually forced in the session
 
-                $ctx = $mem->context_data ?? [];
-                $this->messages[] = [
-                    'role' => $mem->role,
-                    'name' => $ctx['name'] ?? ucfirst($mem->role),
-                    'content' => $mem->content,
-                    'color' => $ctx['color'] ?? ($mem->role === 'user' ? 'gray-400' : 'emerald-500'),
-                    'icon' => $ctx['icon'] ?? ($mem->role === 'user' ? 'user' : 'sparkles'),
-                    'profile_picture' => $ctx['profile_picture'] ?? null,
-                    'attachments' => $ctx['attachments'] ?? [],
-                    'local_uploads' => $ctx['local_uploads'] ?? [],
-                ];
-            }
-            // Aktive Agenten aus dem Verlauf rekonstruieren? (Optional, aktuell überspringen)
+        $teamLeader = AiAgent::where('is_active', true)->whereHas('role', function($q) {
+            $q->where('name', 'like', '%Teamleiter%');
+        })->first();
+        
+        $fallbackAgent = $teamLeader ?? AiAgent::where('is_active', true)->first();
 
-            // Wähle standardmäßig den ersten verfügbaren aktiven Agenten aus
-            $firstAgent = AiAgent::where('is_active', true)->first();
-            if ($firstAgent && !in_array($firstAgent->id, $this->activeAgentIds)) {
-                $this->activeAgentIds[] = $firstAgent->id;
-            }
-        } else {
-            // Hole zum Start den ersten Agenten oder falle auf System zurück
-            $firstAgent = AiAgent::where('is_active', true)->first();
-            if ($firstAgent) {
-                $this->activeAgentIds[] = $firstAgent->id;
+        // Safety fallback just in case no agent is in chat
+        if (empty($this->activeAgentIds) && $fallbackAgent) {
+            $fallbackAgent->update(['is_in_chat' => true]);
+            $this->activeAgentIds[] = $fallbackAgent->id;
+            $this->forcedAgentIds[] = $fallbackAgent->id;
+        }
+        if (AiChatMemory::where('session_id', session()->getId())->doesntExist()) {
+            if ($fallbackAgent) {
                 $this->saveMessageToDb('assistant', '> Gesicherter Chat aktiviert... Wie kann ich helfen?', [
-                    'name' => $firstAgent->name,
-                    'color' => $firstAgent->color,
-                    'icon' => $firstAgent->icon,
-                    'profile_picture' => $firstAgent->profile_picture,
+                    'name' => $fallbackAgent->name,
+                    'color' => $fallbackAgent->color,
+                    'icon' => $fallbackAgent->icon,
+                    'profile_picture' => $fallbackAgent->profile_picture,
                 ]);
             } else {
                 $this->saveMessageToDb('assistant', '> Gesicherter Chat aktiviert... Bitte Agenten aktivieren.', [
@@ -113,23 +124,6 @@ class AiWorkspace extends Component
                     'icon' => 'sparkles',
                     'profile_picture' => null,
                 ]);
-            }
-
-            // Lade die nun initial gespeicherten Nachrichten in die UI
-            $this->messages = [];
-            foreach (AiChatMemory::where('session_id', session()->getId())->get() as $mem) {
-                if ($mem->role === 'tool') continue;
-                $ctx = $mem->context_data ?? [];
-                $this->messages[] = [
-                    'role' => $mem->role,
-                    'name' => $ctx['name'] ?? ucfirst($mem->role),
-                    'content' => $mem->content,
-                    'color' => $ctx['color'] ?? ($mem->role === 'user' ? 'gray-400' : 'emerald-500'),
-                    'icon' => $ctx['icon'] ?? ($mem->role === 'user' ? 'user' : 'sparkles'),
-                    'profile_picture' => $ctx['profile_picture'] ?? null,
-                    'attachments' => $ctx['attachments'] ?? [],
-                    'local_uploads' => $ctx['local_uploads'] ?? [],
-                ];
             }
         }
     }
@@ -160,13 +154,19 @@ class AiWorkspace extends Component
         return true; // Fallback wenn shell_exec() systemseitig verboten ist
     }
 
+    public $forcedAgentIds = [];
+    public $pendingRouterMessage = null;
+
     public function toggleAgent($agentId)
     {
-        if (in_array($agentId, $this->activeAgentIds)) {
-            $this->activeAgentIds = array_values(array_diff($this->activeAgentIds, [$agentId]));
-        } else {
-            $this->activeAgentIds[] = $agentId;
+        $agent = AiAgent::find($agentId);
+        if ($agent) {
+            $agent->is_in_chat = !$agent->is_in_chat;
+            $agent->save();
         }
+
+        $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
+        $this->forcedAgentIds = $this->activeAgentIds;
     }
 
     private function saveMessageToDb($role, $content, $contextData)
@@ -252,24 +252,41 @@ class AiWorkspace extends Component
             $userCtx['local_uploads'] = $localUploads;
         }
 
-        // UI Update
-        $this->messages[] = [
-            'role' => 'user',
-            'name' => $userCtx['name'],
-            'content' => $this->input,
-            'color' => $userCtx['color'],
-            'icon' => $userCtx['icon'],
-            'profile_picture' => $userCtx['profile_picture'],
-            'attachments' => $this->attachments,
-            'local_uploads' => $localUploads,
-        ];
-
         // DB Save
+        // Die Nachricht wird nun über das Computed-Property 'messages' direkt beim Rerender aus der DB in die UI gestreamt.
         $this->saveMessageToDb('user', $this->input, $userCtx);
+
+        // Keep ref for async router
+        $this->pendingRouterMessage = $this->input;
 
         $this->input = '';
         $this->attachments = [];
         $this->uploadedFiles = [];
+
+        // Ping Frontend to dispatch parallel routing processing
+        $this->typingAgents = array_merge($this->typingAgents, $this->activeAgentIds);
+        $this->dispatch('start-auto-routing');
+    }
+
+    #[On('start-auto-routing')]
+    public function processAutoRouting()
+    {
+        $rawUserInput = $this->pendingRouterMessage;
+        $this->pendingRouterMessage = null;
+
+        if (!$rawUserInput) return;
+
+        // AUTO-ROUTER: Hand over the conversation to the most capable subset of agents.
+        $routedIds = \App\Services\AI\AiAgentRouter::determineRequiredAgents($rawUserInput, $this->activeAgentIds);
+        
+        // Ensure explicitly activated agents are NEVER dropped
+        $finalIds = array_values(array_unique(array_merge($routedIds, $this->forcedAgentIds)));
+
+        if (!empty($finalIds)) {
+            $this->activeAgentIds = $finalIds;
+            // Update the database to reflect that these agents have joined the chat dynamically
+            AiAgent::whereIn('id', $this->activeAgentIds)->update(['is_in_chat' => true]);
+        }
 
         if (empty($this->activeAgentIds)) {
             $errCtx = [
@@ -278,16 +295,18 @@ class AiWorkspace extends Component
                 'icon' => 'exclamation-triangle',
                 'profile_picture' => null,
             ];
-            $errStr = 'FEHLER: Kein Agent für Verarbeitung ausgewählt. Bitte wähle mindestens einen Agenten im oberen Panel aus.';
-            $this->messages[] = array_merge(['role' => 'assistant', 'content' => $errStr], $errCtx);
+            $errStr = 'FEHLER: Kein Agent für Verarbeitung ausgewählt und Auto-Routing schlug fehl. Bitte wähle mindestens einen Agenten im oberen Panel manuell aus.';
             $this->saveMessageToDb('assistant', $errStr, $errCtx);
             return;
         }
 
-        // Aktiviere paralleles Tipping für alle gewählten Agenten
-        $this->typingAgents = array_merge($this->typingAgents, $this->activeAgentIds);
+        // Aktiviere / Korrigiere paralleles Tipping für alle *final* gewählten Agenten
+        // Behalte bestehende, falls noch andere getippt haben (z.B. Hintergrundtasks), aber füge die neuen der Liste hinzu.
+        // Falls wir jemanden weggeswitched haben, entziehen wir ihm den Typing Status:
+        $this->typingAgents = array_intersect($this->typingAgents, $this->activeAgentIds);
+        $this->typingAgents = array_unique(array_merge($this->typingAgents, $this->activeAgentIds));
 
-        // Ping Frontend to dispatch parallel background processing
+        // Notify client to actually trigger inference sequence
         $this->dispatch('start-ai-inference', agentIds: $this->activeAgentIds);
     }
 
@@ -410,24 +429,8 @@ class AiWorkspace extends Component
             }
         }
 
-        // --- MULTI-AGENT ROUTING INJECTION ---
-        $multiAgentRule = '';
-        if (count($this->activeAgentIds) > 1) {
-            $roleName = $agent->role ? $agent->role->name : 'Spezialist';
-            $multiAgentRule = "[MULTI-AGENT KOORDINATIONS-PROTOKOLL]\n" .
-                "Dein Name ist {$agent->name}. Deine Rolle: {$roleName}. " .
-                "Du befindest dich in einem Multi-Agent Chat. Weitere Kollegen hören zu. ".
-                "WICHTIGE REGEL: Wenn die Anfrage des Users NICHT fachlich exakt in deinen Aufgabenbereich ({$roleName}) / zu deinen Werkzeugen passt, antworte ZWINGEND und NUR mit exakt '[SKIP]'. " .
-                "Mache keine Ausnahmen! Du bearbeitest NUR Anfragen, für die du der Spezialist bist. ".
-                "Wenn ein Kollege fachlich besser passt oder du die Antwort aus dem Chatverlauf ablesen müsstest beziehungsweise keine eigenen Werkzeuge hast, bist du nicht gemeint! Antworte dann still mit '[SKIP]'!";
-        }
-
         try {
             $apiService = \App\Services\AI\AiAgentFactory::make($agent);
-            if ($multiAgentRule) {
-                $apiService->setDynamicSystemPrompt($multiAgentRule);
-            }
-
 
             $response = $apiService->ask($apiHistory, function($event) use ($agentId) {
                 if (($event['type'] ?? '') === 'tool_call') {
@@ -450,14 +453,16 @@ class AiWorkspace extends Component
                         // Da wire:navigate läuft, machen wir serverseitigen Redirect
                         $this->redirect($eventMsg['url'], navigate: true);
                         return; // Chat muss nicht weiter rendern, da wir die Seite verlassen
-                    } elseif ($evtType === 'dispatch' && !empty($eventMsg['name'])) {
-                        $this->dispatch($eventMsg['name']);
+                    } elseif ($evtType === 'dispatch' || !empty($eventMsg['name'])) {
+                        $name = $eventMsg['name'] ?? 'ai-global-event';
+                        $detail = $eventMsg['detail'] ?? [];
+                        $this->dispatch($name, payload: $detail);
                     }
                 }
             }
 
-            // Überprüfe auf Skipped Routing oder gänzlich leere Responses (Fast-Track UI Events)
-            if (str_contains(strtoupper($replyText), '[SKIP]') || trim($replyText) === '') {
+            // Überprüfe auf gänzlich leere Responses (Fast-Track UI Events, bei denen der Agent nur Tools ausführt)
+            if (trim($replyText) === '') {
                 // Agent ignoriert die Nachricht still (kein DB Eintrag, keine leere Sprechblase)
                 $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
                 return;
@@ -474,8 +479,6 @@ class AiWorkspace extends Component
 
             $this->saveMessageToDb('assistant', $replyText, $ctx);
 
-            $this->messages[] = array_merge(['role' => 'assistant', 'content' => $replyText], $ctx);
-
         } catch (\Exception $e) {
             $errCtx = [
                 'name' => 'System',
@@ -484,7 +487,6 @@ class AiWorkspace extends Component
                 'profile_picture' => null,
             ];
             $errStr = 'API Fehler [' . $agent->name . ']: ' . $e->getMessage();
-            $this->messages[] = array_merge(['role' => 'assistant', 'content' => $errStr], $errCtx);
             $this->saveMessageToDb('assistant', $errStr, $errCtx);
         }
 
@@ -499,9 +501,9 @@ class AiWorkspace extends Component
         if (Storage::disk('local')->exists('ai-artifacts/' . session()->getId())) {
             Storage::disk('local')->deleteDirectory('ai-artifacts/' . session()->getId());
         }
-        $this->messages = [];
-        $this->activeAgentIds = [];
+
         $this->typingAgents = [];
+        
         $this->mount();
     }
 
@@ -665,7 +667,7 @@ class AiWorkspace extends Component
     public function restartTask($taskId)
     {
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
-        if ($task && ($task->status === 'completed' || $task->status === 'archived')) {
+        if ($task && ($task->status === 'completed' || $task->status === 'archived' || $task->status === 'failed')) {
             $agentId = $task->assigned_agent_id;
             $task->update([
                 'status' => $agentId ? 'processing' : 'pending',
@@ -675,7 +677,31 @@ class AiWorkspace extends Component
             
             if ($agentId) {
                 // Restart immediately if agent was previously assigned
-                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($taskId));
+                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
+            }
+        }
+    }
+
+    public function undoTask($taskId)
+    {
+        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
+        if ($task && $task->status === 'completed') {
+            $undoPrompt = "Mache folgende Aufgabe rückgängig:\n\n" . $task->prompt;
+            
+            $newTask = \App\Models\Ai\AiWorkspaceTask::create([
+                'prompt' => $undoPrompt,
+                'status' => 'pending',
+                'parent_task_id' => $task->id,
+                'ui_metadata' => $task->ui_metadata,
+            ]);
+            
+            if ($task->assigned_agent_id) {
+                $newTask->update([
+                    'assigned_agent_id' => $task->assigned_agent_id,
+                    'status' => 'assigned'
+                ]);
+                \App\Events\TaskUpdated::dispatch($newTask);
+                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($newTask));
             }
         }
     }

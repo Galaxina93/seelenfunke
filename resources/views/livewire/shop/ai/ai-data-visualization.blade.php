@@ -7,13 +7,14 @@
 
     <!-- Backdrop Blur -->
     <div x-show="open"
+         @click="open = false; $wire.close()"
          x-transition:enter="ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          x-transition:leave="ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 bg-gray-950/80 backdrop-blur-xl transition-opacity"></div>
+         class="fixed inset-0 bg-gray-950/80 backdrop-blur-xl transition-opacity cursor-pointer"></div>
 
     <!-- Modal Panel -->
     <div x-show="open"

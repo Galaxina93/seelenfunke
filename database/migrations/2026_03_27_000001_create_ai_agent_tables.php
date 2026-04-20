@@ -52,6 +52,9 @@ return new class extends Migration
                 $table->decimal('tts_speed', 3, 2)->default(1.0);
                 $table->float('temperature')->nullable()->default(0.4);
                 $table->boolean('is_active')->default(true);
+                $table->boolean('is_in_chat')->default(false);
+                $table->string('telegram_bot_token')->nullable()->unique();
+                $table->json('telegram_allowed_chat_ids')->nullable();
                 $table->string('color')->default('cyan-500');
                 $table->string('icon')->default('bi-stars');
                 $table->string('profile_picture')->nullable();

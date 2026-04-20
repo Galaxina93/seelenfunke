@@ -140,10 +140,10 @@ class MasterAnalytics extends Component
     {
         try {
             // Falls Sessions in der DB liegen
-            return DB::table('sessions')->where('last_activity', '>=', now()->subMinutes(15)->timestamp)->count() + 20;
+            return DB::table('sessions')->where('last_activity', '>=', now()->subMinutes(15)->timestamp)->count();
         } catch (\Exception $e) {
-            // Fallback: Fake-Partikel für die Optik, falls Redis/File Cache etc.
-            return rand(20, 50);
+            // Fallback, wenn Sessions nicht in der DB gespeichert werden (z.B. Redis oder File)
+            return 0;
         }
     }
 

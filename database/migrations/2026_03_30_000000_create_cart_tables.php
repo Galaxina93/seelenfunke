@@ -18,6 +18,7 @@ return new class extends Migration
                 $table->foreignUuid('customer_id')->nullable()->constrained('customers')->nullOnDelete();
                 $table->string('coupon_code')->nullable();
                 $table->boolean('is_express')->default(false);
+                $table->timestamp('reminder_email_sent_at')->nullable();
 
                 $table->timestamps();
             });

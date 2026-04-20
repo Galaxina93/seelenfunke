@@ -316,7 +316,6 @@ trait AiContactFuncs
                     'phone' => $p->phone
                 ]
             ],
-            '_fast_track' => true
         ];
     }
 

@@ -103,7 +103,7 @@
     @endphp
 
     <!-- TOP ROW: THE 3 SCORES -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
         <!-- 1. SHOP HEALTH SCORE -->
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
@@ -202,6 +202,234 @@
                 <button @click="activeTab = activeTab === 'system' ? null : 'system'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
                     <span x-text="activeTab === 'system' ? 'Details ausblenden' : 'Details anzeigen'"></span>
                     <i :class="activeTab === 'system' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2nd ROW: THE 5 BENTO WIDGETS -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6">
+        <!-- 4. SPEICHER & PRODUKTIONS-LAST -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
+             :class="activeTab === 'capacities' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+             
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Kapazitäten</h3>
+
+            <div class="flex items-center justify-center gap-4 mb-4">
+                <!-- Speicher -->
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-full border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-o-server-stack class="w-4 h-4 text-blue-500 mb-0.5" />
+                        <span class="text-[10px] font-black text-blue-400 tracking-tighter">
+                            {{ isset($storageData['percent_free']) ? $storageData['percent_free'] . '%' : 'N/A' }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Produktionslast -->
+                @php $shopLoad = \Illuminate\Support\Facades\Cache::get('shop_capacity_percentage', 0); @endphp
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-full border-gray-800 {{ $shopLoad > 90 ? 'border-red-500/50 bg-red-950/20' : ($shopLoad > 70 ? 'border-orange-500/50 bg-orange-950/20' : 'border') }}">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-o-cog class="w-4 h-4 {{ $shopLoad > 90 ? 'text-red-500 animate-spin-slow' : ($shopLoad > 70 ? 'text-orange-500' : 'text-emerald-500') }} mb-0.5" />
+                        <span class="text-[10px] font-black {{ $shopLoad > 90 ? 'text-red-400' : ($shopLoad > 70 ? 'text-orange-400' : 'text-emerald-400') }} tracking-tighter">
+                            {{ $shopLoad }}%
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4 flex gap-2 w-full justify-between items-start px-2">
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Speicher</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-blue-500">Frei</p>
+                </div>
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Produktion</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 {{ $shopLoad > 90 ? 'text-red-500' : ($shopLoad > 70 ? 'text-orange-500' : 'text-emerald-500') }}">
+                        Auslastung
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col justify-end w-full">
+                <button @click="activeTab = activeTab === 'capacities' ? null : 'capacities'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
+                    <span x-text="activeTab === 'capacities' ? 'Details ausblenden' : 'Details anzeigen'"></span>
+                    <i :class="activeTab === 'capacities' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 5. GEWINN-ENTWICKLUNG -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
+             :class="activeTab === 'profit' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+             
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Gewinn</h3>
+
+            <div class="flex items-center justify-center gap-4 mb-4">
+                <!-- Gewinn Gesamt -->
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-[1.2rem] border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-[12px] font-black text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] tracking-tighter">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }}</span>
+                        <span class="text-[9px] font-bold text-gray-500">€</span>
+                    </div>
+                </div>
+
+                <!-- Break-Even Status -->
+                @php
+                    $bEven = $stats['break_even_period'] ?? 0;
+                    $currentRev = $stats['total_revenue'] ?? 0;
+                    $missing = max(0, $bEven - $currentRev);
+                    $beColor = $missing > 0 ? 'red' : 'emerald';
+                @endphp
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-[1.2rem] border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        @if($missing > 0)
+                            <x-heroicon-o-chart-bar class="w-4 h-4 text-red-500 mb-0.5" />
+                            <span class="text-[8px] font-black text-red-400 leading-tight px-1">-{{ number_format($missing, 0, ',', '.') }}€</span>
+                        @else
+                            <x-heroicon-o-check-circle class="w-4 h-4 text-emerald-500 mb-0.5" />
+                            <span class="text-[8px] font-black text-emerald-400">Erreicht!</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4 flex gap-2 w-full justify-between items-start px-2">
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Netto</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-emerald-500">Gewinn</p>
+                </div>
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Break</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-{{ $beColor }}-500">Even</p>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col justify-end w-full">
+                <button @click="activeTab = activeTab === 'profit' ? null : 'profit'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
+                    <span x-text="activeTab === 'profit' ? 'Details ausblenden' : 'Details anzeigen'"></span>
+                    <i :class="activeTab === 'profit' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 6. E-COMMERCE EINBLICKE -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
+             :class="activeTab === 'ecommerce' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+             
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">E-Commerce</h3>
+
+            <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4 bg-gray-950 rounded-2xl border border-gray-800">
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <x-heroicon-s-shopping-bag class="w-8 h-8 text-[#C5A059] mb-1 opacity-80" />
+                    <span class="text-lg font-black text-white tracking-tighter">{{ number_format($stats['orders_total'] ?? 0, 0, ',', '.') }}</span>
+                    <span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Insg. Orders</span>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-400">Verkäufe Detail</p>
+                <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-[#C5A059]">Umsatz & Artikel</p>
+            </div>
+
+            <div class="flex-1 flex flex-col justify-end w-full">
+                <button @click="activeTab = activeTab === 'ecommerce' ? null : 'ecommerce'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
+                    <span x-text="activeTab === 'ecommerce' ? 'Details ausblenden' : 'Details anzeigen'"></span>
+                    <i :class="activeTab === 'ecommerce' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 7. BESUCHER & ANALYSEN -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
+             :class="activeTab === 'traffic' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+             
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Traffic</h3>
+
+            <div class="flex items-center justify-center gap-4 mb-4">
+                <!-- Besucher (Unique) -->
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-full border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-[12px] font-black text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)] tracking-tighter">{{ number_format($stats['frontend_unique_total'] ?? 0, 0, ',', '.') }}</span>
+                        <span class="text-[8px] font-bold text-gray-500">Eindeutig</span>
+                    </div>
+                </div>
+
+                <!-- Seitenaufrufe -->
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-full border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-[12px] font-black text-white tracking-tighter">{{ number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.') }}</span>
+                        <span class="text-[8px] font-bold text-gray-500">Aufrufe</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4 flex gap-2 w-full justify-between items-start px-2">
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Nutzer</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-blue-500">Besucher</p>
+                </div>
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Traffic</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-gray-300">Seiten</p>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col justify-end w-full">
+                <button @click="activeTab = activeTab === 'traffic' ? null : 'traffic'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
+                    <span x-text="activeTab === 'traffic' ? 'Details ausblenden' : 'Details anzeigen'"></span>
+                    <i :class="activeTab === 'traffic' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 8. KUNDENGEWINNUNG & WACHSTUM -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
+             :class="activeTab === 'customers' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+             
+            <div class="absolute top-4 right-4 text-[9px] font-bold uppercase tracking-wider text-purple-400 bg-purple-900/30 px-2.5 py-1 rounded-full border border-purple-500/30">Wachstum</div>
+
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Kunden</h3>
+
+            <div class="flex items-center justify-center gap-4 mb-4">
+                <!-- Registrierungen -->
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-[1.2rem] border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <x-heroicon-s-user-group class="w-4 h-4 text-purple-500 mb-0.5 opacity-80" />
+                        <span class="text-[12px] font-black text-white tracking-tighter">{{ number_format($stats['registered_users'] ?? 0, 0, ',', '.') }}</span>
+                    </div>
+                </div>
+
+                <!-- Online User -->
+                @php $onlineCount = collect($systemHealth)->count() > 0 ? $this->getActiveSessionsCount() : 0; @endphp
+                <div class="relative w-16 h-16 flex items-center justify-center shrink-0 bg-gray-950 rounded-[1.2rem] border border-gray-800">
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <div class="w-4 h-4 flex items-center justify-center mb-0.5">
+                             <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                        </div>
+                        <span class="text-[12px] font-black text-emerald-400 tracking-tighter">{{ $onlineCount }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4 flex gap-2 w-full justify-between items-start px-2">
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Gefunden</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-purple-500">Total</p>
+                </div>
+                <div class="text-center w-1/2">
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-500">Portal</p>
+                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-emerald-500">Online</p>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col justify-end w-full">
+                <button @click="activeTab = activeTab === 'customers' ? null : 'customers'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
+                    <span x-text="activeTab === 'customers' ? 'Details ausblenden' : 'Details anzeigen'"></span>
+                    <i :class="activeTab === 'customers' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
                 </button>
             </div>
         </div>
@@ -661,6 +889,71 @@
                         </div>
                     </div>
                 @endif
+            </div>
+
+            <!-- 4. CAPACITIES (SPEICHER & PRODUKTION) -->
+            <div x-show="activeTab === 'capacities'" x-transition.opacity.duration.300ms>
+                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Kapazitäten</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Speicherauslastung und produzierende Shop-Gewerke.</p>
+                    </div>
+                </div>
+                <!-- Capacities Content -->
+                <div class="space-y-8">
+                    <livewire:shop.master.master-shop-capacity />
+                    <livewire:shop.master.master-storage-capacity />
+                </div>
+            </div>
+
+            <!-- 5. PROFIT -->
+            <div x-show="activeTab === 'profit'" x-transition.opacity.duration.300ms>
+                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Gewinn-Entwicklung</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Darstellung der realen Shop-Umsätze gegenüber den Ausgaben, zur Kalkulation des Break-Even.</p>
+                    </div>
+                </div>
+                <!-- Profit Content -->
+                @include('livewire.shop.master.master-analytics-partials.profit')
+            </div>
+
+            <!-- 6. E-COMMERCE -->
+            <div x-show="activeTab === 'ecommerce'" x-transition.opacity.duration.300ms>
+                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">E-Commerce Einblicke</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Detaillierte Analyse zu Warenkörben, verlassenen Checkouts und Artikel-Statistiken.</p>
+                    </div>
+                </div>
+                <!-- E-Commerce Content -->
+                @include('livewire.shop.master.master-analytics-partials.charts')
+            </div>
+
+            <!-- 7. TRAFFIC -->
+            <div x-show="activeTab === 'traffic'" x-transition.opacity.duration.300ms>
+                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Besucher & Analysen</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Web-Traffic, Quellen und Geräte-Statistiken für optimale Performance.</p>
+                    </div>
+                </div>
+                <!-- Traffic Content -->
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    @include('livewire.shop.master.master-analytics-partials.traffic')
+                </div>
+            </div>
+
+            <!-- 8. CUSTOMERS -->
+            <div x-show="activeTab === 'customers'" x-transition.opacity.duration.300ms>
+                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Kundengewinnung & Wachstum</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Statistiken über Benutzer-Registrierungen und Kundenverhalten.</p>
+                    </div>
+                </div>
+                <!-- Customers Content -->
+                @include('livewire.shop.master.master-analytics-partials.customers')
             </div>
 
         </div>

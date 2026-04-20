@@ -9,33 +9,6 @@
 
     @include('livewire.shop.master.master-analytics-partials.master_scores')
 
-    @if($widgetConfig['capacities'] ?? true)
-        <livewire:shop.master.master-shop-capacity />
-        <livewire:shop.master.master-storage-capacity />
-    @endif
-
-    @if($widgetConfig['profit'] ?? true)
-        @include('livewire.shop.master.master-analytics-partials.profit')
-    @endif
-
-    @if($widgetConfig['ecommerce'] ?? true)
-        @include('livewire.shop.master.master-analytics-partials.charts')
-    @endif
-
-    @if($widgetConfig['traffic'] ?? true)
-        <div class="border-t border-gray-800 pt-8 mt-8">
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                @include('livewire.shop.master.master-analytics-partials.traffic')
-            </div>
-        </div>
-    @endif
-
-    @if($widgetConfig['visitors'] ?? true)
-        <div class="border-t border-gray-800 pt-8 mt-8">
-            @include('livewire.shop.master.master-analytics-partials.customers')
-        </div>
-    @endif
-
     {{-- WIDGETS CONFIG MODAL --}}
     @if($showWidgetModal)
         <div class="fixed inset-0 bg-black/80 backdrop-blur-sm shadow-2xl z-50 flex items-start pt-20 justify-center border border-gray-800 p-4" x-data @keydown.escape.window="$wire.set('showWidgetModal', false)">

@@ -21,7 +21,7 @@
     
     <!-- Neon Header -->
     <div class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
-        <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">Philip</h1>
+        <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">Schaltzentrale</h1>
         <p class="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
         
         <button @click="showWorkspaceMobile = !showWorkspaceMobile" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
@@ -415,10 +415,15 @@
                     </div>
                 </div>
 
-                <div class="w-full h-full pt-20 pb-4 px-4 lg:pt-24 lg:pb-8 lg:px-8 overflow-auto flex flex-wrap gap-4 lg:gap-6 items-start content-start" id="war-room-canvas" wire:poll.2s>
+                <div class="w-full h-full pt-20 pb-4 px-4 lg:pt-24 lg:pb-8 lg:px-8 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col" id="war-room-canvas" wire:poll.2s>
                     <!-- Hidden attribute exposing worker state to JS (Must be inside polled DOM) -->
                     <div id="worker-status-node" class="hidden" data-running="{{ $this->isWorkerRunning ? 'true' : 'false' }}"></div>
-                    @foreach($tasks as $task)
+
+                    <!-- ============================== -->
+                    <!-- MOBILE: KACHEL-ANSICHT         -->
+                    <!-- ============================== -->
+                    <div class="flex lg:hidden w-full flex-wrap gap-4 items-start content-start">
+@foreach($tasks as $task)
                         <div class="task-node relative w-full lg:w-80 {{ $task->parent_task_id ? 'ml-0 lg:ml-8 border-l-4 border-l-[var(--theme-color-50)]' : '' }} bg-gray-950/90 backdrop-blur-md border {{ $task->status === 'completed' ? 'border-[var(--theme-color-50)] shadow-xl shadow-[var(--theme-color-10)]' : ($task->status === 'processing' ? 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)] animate-pulse-slow' : 'border-gray-800') }} rounded-2xl p-5 flex flex-col transition-all shrink-0"
                              @if($task->status === 'pending')
                                  x-on:dragover.prevent="dragOver($event)"
@@ -438,6 +443,11 @@
                                 <div class="flex items-center gap-2">
                                     @if($task->status === 'completed')
                                         <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest">Fertig</span>
+                                        <button wire:click="undoTask('{{ $task->id }}')" 
+                                                class="text-gray-500 hover:text-cyan-400 p-1 rounded-md hover:bg-cyan-500/10 transition-colors"
+                                                title="Aufgabe rückgängig machen (Umkehren)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+                                        </button>
                                         <button wire:click="restartTask('{{ $task->id }}')" 
                                                 class="text-gray-500 hover:text-emerald-400 p-1 rounded-md hover:bg-emerald-500/10 transition-colors"
                                                 title="Aufgabe komplett neu starten">
@@ -607,9 +617,177 @@
                             @endif
                         </div>
                     @endforeach
-                    
+                    </div>
+
+                    <!-- ============================== -->
+                    <!-- DESKTOP: TABELLEN-ANSICHT      -->
+                    <!-- ============================== -->
+                    <div class="hidden lg:flex lg:flex-col lg:flex-1 min-h-0 w-full text-white">
+                        @if($tasks->isNotEmpty())
+                            <div class="overflow-x-auto overflow-y-auto flex-1 rounded-xl border border-gray-800 bg-gray-950/50 backdrop-blur-md shadow-2xl custom-scrollbar">
+                                <table class="w-full text-left border-collapse relative">
+                                    <thead class="sticky top-0 z-20 bg-gray-900 shadow-sm border-b border-gray-800">
+                                        <tr class="text-[10px] uppercase tracking-widest text-gray-500 font-bold">
+                                            <th class="px-6 py-4">ID & Aufgabe</th>
+                                            <th class="px-6 py-4 w-48">Agent</th>
+                                            <th class="px-6 py-4 w-56">Status</th>
+                                            <th class="px-6 py-4 w-32 text-right">Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-800/60">
+                                        @foreach($tasks as $task)
+                                        <tr class="transition-colors hover:bg-gray-900/40 {{ $task->parent_task_id ? 'bg-gray-900/20' : '' }}"
+                                            @if($task->status === 'pending')
+                                                x-on:dragover.prevent="dragOver($event)"
+                                                x-on:dragleave.prevent="dragLeave($event)"
+                                                x-on:drop.prevent="dropTask($event, '{{ $task->id }}')"
+                                            @endif
+                                            id="task-desktop-{{ $task->id }}">
+                                            
+                                            <!-- ID & Aufgabe (+ Anhänge) -->
+                                            <td class="px-6 py-5 align-top w-1/2">
+                                                <div class="flex items-center gap-2 mb-2">
+                                                    @if($task->parent_task_id)
+                                                        <svg class="w-4 h-4 text-[var(--theme-color-50)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                                                    @endif
+                                                    <span class="text-[10px] font-mono text-[var(--theme-color-50)] uppercase tracking-widest">#{{ substr($task->id, 0, 8) }}</span>
+                                                    @if(!empty($task->ui_metadata['attachments']) || !empty($task->ui_metadata['local_uploads']))
+                                                        <div class="flex flex-wrap gap-1.5 ml-2">
+                                                        @foreach($task->ui_metadata['attachments'] ?? [] as $att)
+                                                            <span class="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded text-[9px] font-mono items-center inline-flex gap-1 shadow-sm"><x-heroicon-o-document-text class="w-3 h-3" /> {{ basename($att) }}</span>
+                                                        @endforeach
+                                                        @foreach($task->ui_metadata['local_uploads'] ?? [] as $upl)
+                                                            <span class="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded text-[9px] font-mono items-center inline-flex gap-1 shadow-sm"><x-heroicon-o-paper-clip class="w-3 h-3" /> {{ $upl['name'] ?? 'Upload' }}</span>
+                                                        @endforeach
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                                <p class="text-sm text-gray-200 leading-relaxed font-sans mb-3">{{ $task->prompt }}</p>
+
+                                                <!-- RESPONSE (Collapsible) -->
+                                                @if($task->status === 'completed' && $task->response_content)
+                                                    <div class="mt-3 relative z-10" x-data="{ expanded: false }">
+                                                         <div class="text-[12px] text-gray-300 bg-[var(--theme-color-10)] rounded-lg p-3 font-sans break-words bg-opacity-40 relative border border-[var(--theme-color-20)]"
+                                                              :class="expanded ? 'max-h-none pb-8' : 'max-h-[70px] overflow-hidden'">
+                                                             @if(strlen($task->response_content) > 150)
+                                                                 <div wire:ignore class="ai-markdown-content" x-init="if (window.renderAiMarkdown) { $el.innerHTML = window.renderAiMarkdown(@js($task->response_content)); } else { $el.innerText = @js($task->response_content); }"></div>
+                                                                 <div x-show="!expanded" class="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[var(--theme-color-10)] to-transparent pointer-events-none rounded-b-lg"></div>
+                                                             @else
+                                                                 <div class="font-sans whitespace-pre-wrap">{{ $task->response_content }}</div>
+                                                             @endif
+                                                         </div>
+                                                         @if(strlen($task->response_content) > 150)
+                                                             <button @click="expanded = !expanded" class="w-full text-center text-[10px] uppercase tracking-widest font-bold text-[var(--theme-color)] hover:text-white mt-1 p-1.5 flex justify-center items-center gap-1 transition-colors">
+                                                                 <span x-text="expanded ? 'Einklappen' : 'Vollständige Antwort lesen'"></span>
+                                                                 <svg x-show="!expanded" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                                                 <svg x-show="expanded" style="display: none;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>
+                                                             </button>
+                                                         @endif
+                                                    </div>
+                                                @endif
+                                            </td>
+
+                                            <!-- Agent -->
+                                            <td class="px-6 py-5 align-top">
+                                                @if($task->assigned_agent_id && $task->agent)
+                                                    <div class="flex items-center gap-3">
+                                                        <div class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 overflow-hidden shrink-0 shadow-md">
+                                                            @if($task->agent->profile_picture)
+                                                                <img src="{{ \Illuminate\Support\Str::startsWith($task->agent->profile_picture, 'shop/') ? asset($task->agent->profile_picture) : Storage::url($task->agent->profile_picture) }}" class="w-full h-full object-cover">
+                                                            @endif
+                                                        </div>
+                                                        <div class="flex flex-col gap-0.5">
+                                                             <span class="block text-xs text-gray-300 font-bold truncate">{{ $task->agent->name }}</span>
+                                                             @if($task->agent->provider === 'openai')
+                                                                 <span class="text-[9px] uppercase tracking-wider text-green-400 font-bold w-max">GPT</span>
+                                                             @elseif($task->agent->provider === 'anthropic')
+                                                                 <span class="text-[9px] uppercase tracking-wider text-orange-400 font-bold w-max">CLAUDE</span>
+                                                             @else
+                                                                 <span class="text-[9px] uppercase tracking-wider text-blue-400 font-bold w-max">GEMINI</span>
+                                                             @endif
+                                                        </div>
+                                                    </div>
+                                                @elseif($task->status === 'pending')
+                                                    <div class="h-10 px-3 border border-dashed border-gray-700 rounded-lg items-center justify-center text-xs text-gray-500 bg-gray-950/20 task-dropzone transition-colors drop-target-highlight pointer-events-none flex">
+                                                        Agent ablegen
+                                                    </div>
+                                                @endif
+                                            </td>
+
+                                            <!-- Status -->
+                                            <td class="px-6 py-5 align-top">
+                                                @if($task->status === 'completed')
+                                                    <span class="px-2.5 py-1 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest shadow-sm">Fertig</span>
+                                                @elseif($task->status === 'processing')
+                                                    <div class="flex flex-col gap-2.5">
+                                                        <span class="inline-flex w-fit px-2.5 py-1 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase tracking-widest items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.1)]">
+                                                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse-slow"></span> Läuft
+                                                        </span>
+                                                        
+                                                        @if($task->assigned_agent_id)
+                                                            @php
+                                                                $agentState = \Illuminate\Support\Facades\Cache::get('ai_live_state_' . $task->assigned_agent_id);
+                                                                $colorMap = [
+                                                                      'indigo' => ['bg' => 'rgba(99, 102, 241, 0.1)', 'border' => 'rgba(99, 102, 241, 0.3)', 'text' => '#818cf8'],
+                                                                      'yellow' => ['bg' => 'rgba(234, 179, 8, 0.1)', 'border' => 'rgba(234, 179, 8, 0.3)', 'text' => '#facc15'],
+                                                                      'orange' => ['bg' => 'rgba(249, 115, 22, 0.1)', 'border' => 'rgba(249, 115, 22, 0.3)', 'text' => '#fb923c'],
+                                                                      'emerald' => ['bg' => 'rgba(16, 185, 129, 0.1)', 'border' => 'rgba(16, 185, 129, 0.3)', 'text' => '#34d399'],
+                                                                      'cyan' => ['bg' => 'rgba(6, 182, 212, 0.1)', 'border' => 'rgba(6, 182, 212, 0.3)', 'text' => '#22d3ee'],
+                                                                      'green' => ['bg' => 'rgba(34, 197, 94, 0.1)', 'border' => 'rgba(34, 197, 94, 0.3)', 'text' => '#4ade80'],
+                                                                ];
+                                                            @endphp
+                                                            @if($agentState)
+                                                                @php $pcs = $colorMap[$agentState['pulse_color']] ?? $colorMap['indigo']; @endphp
+                                                                <div class="p-2 rounded-lg flex items-center gap-2 border bg-opacity-50" style="background-color: {{ $pcs['bg'] }}; border-color: {{ $pcs['border'] }};">
+                                                                     <x-dynamic-component :component="'heroicon-o-' . $agentState['active_node']" class="w-3.5 h-3.5 shrink-0 animate-pulse-slow" style="color: {{ $pcs['text'] }};" />
+                                                                     <span class="text-[10px] font-mono truncate max-w-[160px]" style="color: {{ $pcs['text'] }};" title="{{ $agentState['action_text'] }}">{{ $agentState['action_text'] }}</span>
+                                                                </div>
+                                                            @endif
+                                                        @endif
+                                                    </div>
+                                                @else
+                                                    <span class="px-2.5 py-1 inline-flex w-fit rounded text-[10px] font-bold border uppercase tracking-widest shadow-sm {{ $task->status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-400 border-gray-700' }}">
+                                                        {{ $task->status === 'failed' ? 'Fehlgeschlagen' : 'Wartet' }}
+                                                    </span>
+                                                @endif
+                                            </td>
+
+                                            <!-- Aktionen -->
+                                            <td class="px-6 py-5 align-top text-right">
+                                                <div class="flex justify-end items-center gap-2">
+                                                    @if($task->status === 'processing')
+                                                        <button type="button" wire:click="cancelTask('{{ $task->id }}')" class="text-gray-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors shadow-sm" title="Task stoppen">
+                                                            <x-heroicon-s-x-mark class="w-4 h-4" />
+                                                        </button>
+                                                    @else
+                                                        @if($task->status === 'completed' || $task->status === 'failed')
+                                                            <button wire:click="restartTask('{{ $task->id }}')" class="text-gray-500 hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Neu starten">
+                                                                <x-heroicon-o-arrow-path class="w-4 h-4" />
+                                                            </button>
+                                                        @endif
+                                                        @if($task->status === 'completed')
+                                                            <button wire:click="undoTask('{{ $task->id }}')" class="text-gray-500 hover:text-cyan-400 p-2 rounded-lg hover:bg-cyan-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Aufgabe rückgängig machen (Umkehren)">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+                                                            </button>
+                                                            <button wire:click="archiveTask('{{ $task->id }}')" class="text-gray-500 hover:text-orange-400 p-2 rounded-lg hover:bg-orange-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Archivieren & Ausblenden">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v2.25c0 1.08-.896 1.95-2 1.95H5.75c-1.104 0-2-.87-2-1.95v-2.25M12 21.75V11.25m-3 3.75 3-3.75 3 3.75M9 7.5h6" /></svg>
+                                                            </button>
+                                                        @endif
+                                                        <button wire:click="deleteTask('{{ $task->id }}')" class="text-gray-500 hover:text-red-500 p-2 rounded-lg hover:bg-red-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" wire:confirm="Aufgabe unwiderruflich löschen?" title="Aufgabe löschen">
+                                                            <x-heroicon-o-trash class="w-4 h-4" />
+                                                        </button>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                        </tr>                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+
                     @if($tasks->isEmpty())
-                        <div class="w-full h-full flex flex-col items-center justify-center text-gray-600 opacity-50">
+                        <div class="w-full h-[60vh] flex flex-col items-center justify-center text-gray-600 opacity-50">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mb-4">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 003.75 6v2.25A2.25 2.25 0 006 10.5zm0 9.75h2.25A2.25 2.25 0 0010.5 18v-2.25a2.25 2.25 0 00-2.25-2.25H6a2.25 2.25 0 00-2.25 2.25V18A2.25 2.25 0 006 20.25zm9.75-9.75H18a2.25 2.25 0 002.25-2.25V6A2.25 2.25 0 0018 3.75h-2.25A2.25 2.25 0 0013.5 6v2.25a2.25 2.25 0 002.25 2.25z" />
                             </svg>
@@ -656,7 +834,7 @@
                      }"
                      x-init="setTimeout(() => { scrollToBottom(); observeScroll(); }, 50);">
                      
-                    @forelse($messages as $msg)
+                    @forelse($this->messages as $msg)
                         <div class="flex flex-col {{ $msg['role'] === 'user' ? 'items-end' : 'items-start' }} animate-fade-in-up" wire:key="msg-key-{{ md5(substr($msg['content'], 0, 50) . $loop->index) }}">
                             <div class="flex items-center gap-3 mb-1.5 {{ $msg['role'] === 'user' ? 'flex-row-reverse' : '' }}">
                                 <div class="w-10 h-10 rounded shrink-0 flex justify-center items-center {{ $msg['color'] ? 'bg-'.$msg['color'].'/10 border-'.$msg['color'].'/40 text-'.$msg['color'] : 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] text-[var(--theme-color)]' }} shadow-[0_0_10px_currentColor] overflow-hidden">

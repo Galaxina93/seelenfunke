@@ -18,6 +18,9 @@ require __DIR__ . '/api/auth.php';
 // --- Lokale KI API ---
 require __DIR__ . '/api/ai.php';
 
+// --- Telegram Webhooks ---
+Route::post('/telegram/webhook/{telegram_token}', [\App\Http\Controllers\Api\TelegramAgentController::class, 'handleWebhook'])
+    ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {

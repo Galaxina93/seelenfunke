@@ -80,7 +80,10 @@ class GeminiAgent implements AiProviderInterface
                              'TOP-PRIORITÄT: ' . ($aiCommand['recommendation']['title'] ?? 'Keine') . "\n" .
                              'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
                              'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
-                             'Reasoning: high';
+                             "Reasoning: high\n\n" .
+                             "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
+                             "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
+                             "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
 
         if (file_exists(base_path('ai_map.md'))) {
             $systemPromptText .= "\n\n[ARCHITEKTUR-KARTE / INDEX]\n" .
@@ -572,7 +575,16 @@ class GeminiAgent implements AiProviderInterface
                     }
                     $calledTools[] = $callSignature;
 
-                    $executeArgs = json_decode($functionArgsString, true) ?? [];
+                    $executeArgs = json_decode($functionArgsString, true);
+                    if ($executeArgs === null && json_last_error() !== JSON_ERROR_NONE) {
+                        Log::warning("AI generated invalid JSON for tool call: {$functionName}", ['args' => $functionArgsString, 'error' => json_last_error_msg()]);
+                        $messages[] = [
+                            'role' => 'tool',
+                            'tool_call_id' => $toolCallId,
+                            'content' => json_encode(['status' => 'error', 'message' => "SYSTEM EXCEPTION: Dein JSON-Format für die Argumente ist ungültig (Parse Error: " . json_last_error_msg() . "). Meistens passiert das, wenn du rohen HTML-Code übergibst und die Anführungszeichen bei class=\"...\" intern NICHT escaped hast! Du musst class=\\\"klassenname\\\" benutzen. BITTE KORRIGIERE DAS UND RUFE DAS TOOL ERNEUT AUF!"], JSON_UNESCAPED_UNICODE)
+                        ];
+                        continue;
+                    }
 
                     // Log removed per CEO request
 
@@ -673,11 +685,6 @@ class GeminiAgent implements AiProviderInterface
                         unset($result['_frontend_event']); // Hide from LLM context to save tokens
                     }
 
-                    // --- FAST TRACK INTERCEPT FOR INSTANT UI ACTIONS ---
-                    if (isset($result['_fast_track']) && $result['_fast_track'] === true) {
-                        $shouldFastTrack = true;
-                        unset($result['_fast_track']);
-                    }
 
                     // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
                     $llmResult = $result;
@@ -700,9 +707,7 @@ class GeminiAgent implements AiProviderInterface
                     ];
                 }
 
-                if (isset($shouldFastTrack) && $shouldFastTrack === true) {
-                    return ""; // Return empty string so FunkiraChat doesn't synthesize empty audio
-                }
+
 
                 // Since we added new tool results, loop back and ask the AI again
                 // so it can read the results and formulate a final answer.

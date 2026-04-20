@@ -30,13 +30,13 @@ class SendAbandonedCartReminders extends Command
      */
     public function handle()
     {
-        // Get yellow limit from settings, default to 3 hours
-        $setting = SystemSetting::where('key', 'cart_abandoned_yellow_hours')->first();
-        $yellowLimit = $setting ? (int)$setting->value : 3;
+        // Get red limit from settings, default to 24 hours
+        $setting = SystemSetting::where('key', 'cart_abandoned_red_hours')->first();
+        $redLimit = $setting ? (int)$setting->value : 24;
 
-        // Fetch carts that are older than yellow limit but haven't received an email
+        // Fetch carts that are older than red limit but haven't received an email
         $carts = Cart::with('customer')
-            ->where('updated_at', '<=', now()->subHours($yellowLimit))
+            ->where('updated_at', '<=', now()->subHours($redLimit))
             ->whereNull('reminder_email_sent_at')
             ->whereNotNull('customer_id') // we need a known customer to send emails
             ->has('items') // don't send emails for empty carts

@@ -19,6 +19,7 @@ class AiAgent extends Model
         'model',
         'temperature',
         'is_active',
+        'is_in_chat',
         'color',
         'icon',
         'profile_picture',
@@ -27,10 +28,14 @@ class AiAgent extends Model
         'tts_voice',
         'tts_api_url',
         'tts_speed',
+        'telegram_bot_token',
+        'telegram_allowed_chat_ids',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_in_chat' => 'boolean',
+        'telegram_allowed_chat_ids' => 'array',
     ];
 
     public function department()

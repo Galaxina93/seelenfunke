@@ -83,6 +83,7 @@ class ShopCapacityEngine extends Command
 
         // Speichere das Level für den globalen Zugriff cache/DB:
         Cache::put('shop_capacity_level', $level);
+        Cache::put('shop_capacity_percentage', $percentage);
         SystemSetting::updateOrCreate(
             ['key' => 'shop_capacity_level'],
             ['value' => $level]

@@ -35,6 +35,9 @@ class AiAgentEditor extends Component
     public $tts_api_url = '';
     public $tts_speed = 1.0;
     
+    public $telegram_bot_token = '';
+    public $telegram_allowed_chat_ids = '';
+
     public $existing_profile_picture = null;
     public $profile_picture;
     public $inheritedDept = null;
@@ -196,6 +199,11 @@ class AiAgentEditor extends Component
             $this->tts_api_url = $agent->tts_api_url ?? '';
             $this->tts_speed = $agent->tts_speed ?? 1.0;
             
+            $this->telegram_bot_token = $agent->telegram_bot_token ?? '';
+            $this->telegram_allowed_chat_ids = is_array($agent->telegram_allowed_chat_ids) 
+                                                ? implode(', ', $agent->telegram_allowed_chat_ids) 
+                                                : ($agent->telegram_allowed_chat_ids ?? '');
+            
             $this->existing_profile_picture = $agent->profile_picture;
 
             // Versuche das Preset anhand der Temperatur zu erkennen
@@ -310,6 +318,8 @@ class AiAgentEditor extends Component
             'tts_enabled' => 'boolean',
             'tts_api_url' => 'nullable|string|url|max:255',
             'tts_speed' => 'nullable|numeric|min:0.1|max:3.0',
+            'telegram_bot_token' => 'nullable|string|max:255',
+            'telegram_allowed_chat_ids' => 'nullable|string|max:1000',
             'profile_picture' => 'nullable|image|max:2048', // 2MB Max
         ]);
 
@@ -334,6 +344,13 @@ class AiAgentEditor extends Component
         $agent->tts_voice = $this->tts_voice;
         $agent->tts_api_url = $this->tts_api_url;
         $agent->tts_speed = $this->tts_speed;
+        $agent->telegram_bot_token = $this->telegram_bot_token;
+        
+        if (!empty(trim($this->telegram_allowed_chat_ids))) {
+            $agent->telegram_allowed_chat_ids = array_map('trim', explode(',', $this->telegram_allowed_chat_ids));
+        } else {
+            $agent->telegram_allowed_chat_ids = [];
+        }
 
         if ($this->profile_picture) {
             // Delete old picture if exists

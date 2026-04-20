@@ -39,7 +39,22 @@ class CartService
             return $cart;
         }
 
-        return Cart::firstOrCreate(['session_id' => Session::getId()]);
+        $carts = Cart::where('session_id', Session::getId())->get();
+        if ($carts->count() > 0) {
+            $mainCart = $carts->first();
+            
+            // Lösche eventuelle leere Duplikate, die durch asynchrone Race Conditions parallel entstanden sind
+            if ($carts->count() > 1) {
+                foreach ($carts->skip(1) as $duplicate) {
+                    if ($duplicate->items()->count() === 0) {
+                        $duplicate->delete();
+                    }
+                }
+            }
+            return $mainCart;
+        }
+
+        return Cart::create(['session_id' => Session::getId()]);
     }
 
     /**

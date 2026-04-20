@@ -67,7 +67,10 @@ class MittwaldAgent
                              'TOP-PRIORITÄT: ' . ($aiCommand['recommendation']['title'] ?? 'Keine') . "\n" .
                              'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
                              'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
-                             'Reasoning: high';
+                             "Reasoning: high\n\n" .
+                             "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
+                             "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
+                             "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
                              
         if ($this->dynamicSystemPrompt) {
             $systemPromptText .= "\n\n" . $this->dynamicSystemPrompt;
@@ -325,24 +328,9 @@ class MittwaldAgent
                         unset($result['_frontend_event']); // Hide from LLM context to save tokens
                     }
 
-                    // --- FAST TRACK INTERCEPT FOR INSTANT UI ACTIONS ---
-                    if (isset($result['_fast_track']) && $result['_fast_track'] === true) {
-                        $shouldFastTrack = true;
-                        unset($result['_fast_track']);
-                    }
 
-                    // --- SANITIZE FOR LLM TO PREVENT READING OUT LOUD ---
+
                     $llmResult = $result;
-                    if ($functionName === 'get_tasks' && isset($llmResult['tasks'])) {
-                        $llmResult['tasks'] = '[Details der Taks. Bitte fasse sie grob zusammen oder frage Alina ob sie zur Task-Liste navigieren möchte.]';
-                    }
-                    if ($functionName === 'get_shop_stats' && isset($llmResult['scaling_metrics'])) {
-                        $llmResult['scaling_metrics'] = '[Kennzahlen abgerufen. Fasse sie in 1-2 kurzen Sätzen zusammen, lies nicht jede Metrik einzeln vor. Wenn Alina Details will, navigiere sie zur Finanz-Seite.]';
-                    }
-                    if ($functionName === 'get_finances' && isset($llmResult['financial_data_net'])) {
-                        $llmResult['financial_data_net'] = '[Finanzdaten abgerufen. Fasse das Netto-Wachstum kurz zusammen. Für volle Details navigiere Alina in den Analyse-Bereich.]';
-                        unset($llmResult['financial_data_gross']);
-                    }
 
                     // Add the tool execution result back to the message history
                     $messages[] = [
@@ -350,10 +338,6 @@ class MittwaldAgent
                         'tool_call_id' => $toolCallId,
                         'content' => json_encode($llmResult, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_IGNORE) ?: '{"status":"error","message":"JSON Encoding Failed for tool result"}'
                     ];
-                }
-
-                if (isset($shouldFastTrack) && $shouldFastTrack === true) {
-                    return ""; // Return empty string so FunkiraChat doesn't synthesize empty audio
                 }
 
                 // Since we added new tool results, loop back and ask the AI again
