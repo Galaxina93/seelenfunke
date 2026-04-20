@@ -133,7 +133,7 @@ class BackendNavigationService
                         'icon' => 'cpu-chip',
                         'ai_department_id' => '019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                         'children' => [
-                            ['id' => 'war-room', 'title' => 'Schaltzentrale', 'route' => '/admin/ai/workspace', 'icon' => 'rectangle-group'],
+                            ['id' => 'war-room', 'title' => 'Zentrale', 'route' => '/admin/ai/workspace', 'icon' => 'rectangle-group'],
                             ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2'],
                             ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai/analytics', 'icon' => 'chart-pie']
                         ]
