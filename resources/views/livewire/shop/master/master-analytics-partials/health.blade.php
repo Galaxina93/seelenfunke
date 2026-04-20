@@ -493,8 +493,13 @@
                                                         <span class="font-bold text-gray-500">WARTEND: <span class="text-white">{{ $health['pending'] ?? 0 }} Jobs</span></span>
                                                         <span class="font-bold text-gray-500">FEHLER: <span class="{{ ($health['failed'] ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400' }}">{{ $health['failed'] ?? 0 }} Jobs</span></span>
                                                     </div>
+                                                    
+                                                    <button type="button" wire:click="fixSystem('queue')" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-amber-700/50 bg-amber-900/20 hover:bg-amber-800/40 text-amber-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner pointer-events-auto">
+                                                        <i class="bi bi-arrow-clockwise mr-1"></i> Worker Neustarten (Kill)
+                                                    </button>
+                                                    
                                                     @if(($health['failed'] ?? 0) > 0)
-                                                        <button type="button" wire:click="flushFailedJobs" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-red-700 bg-red-900/30 hover:bg-red-800 text-red-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner">
+                                                        <button type="button" wire:click="flushFailedJobs" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-red-700 bg-red-900/30 hover:bg-red-800 text-red-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner pointer-events-auto">
                                                             Fehlgeschlagene Jobs final löschen
                                                         </button>
                                                     @endif
