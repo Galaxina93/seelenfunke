@@ -406,12 +406,15 @@
                     </div>
                     <!-- Tooltip -->
                     <div class="absolute top-full right-0 mt-2 w-64 bg-gray-950 border border-emerald-500/30 text-gray-300 text-[10px] p-3 rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all shadow-2xl shadow-emerald-500/10 font-sans leading-relaxed pointer-events-none">
-                        <strong class="{{ $this->isWorkerRunning ? 'text-emerald-400' : 'text-red-500' }} block mb-1 uppercase tracking-widest text-[9px]">{{ $this->isWorkerRunning ? 'Hintergrund-Herzschlag' : 'WARNUNG: WORKER OFFLINE' }}</strong>
+                        <strong class="{{ $this->isWorkerRunning ? 'text-emerald-400' : 'text-red-500' }} block mb-1 uppercase tracking-widest text-[9px] cursor-help pointer-events-auto" title="{{ $this->workerDiagnostic }}">
+                            {{ $this->isWorkerRunning ? 'Hintergrund-Herzschlag' : 'WARNUNG: WORKER OFFLINE' }}
+                        </strong>
                         Sobald ein Agent einer Aufgabe zugewiesen ist, arbeitet er komplett autark im Hintergrundfenster.<br><br>
                         Der EKG Monitor zieht eine flache Linie, bis Hintergrundaktiviät (Tasks oder Chat) wahrgenommen wird.<br><br>
-                        Das System schlägt nur aus, wenn der Worker reell läuft.
+                        <span class="cursor-help pointer-events-auto border-b border-gray-700 border-dashed" title="{{ $this->workerDiagnostic }}">Das System schlägt nur aus, wenn der Worker reell läuft.</span>
                         Damit dies lokal aktiv ist, muss der Queue Worker laufen:<br>
                         <code class="block bg-gray-900 text-emerald-300 p-1.5 mt-1.5 rounded border border-gray-800 font-mono text-[9px] break-all">php artisan queue:work</code>
+                        <div class="mt-2 text-gray-500 text-[8px] italic">Hover über den Titel für detaillierte Diagnose-Pings.</div>
                     </div>
                 </div>
 

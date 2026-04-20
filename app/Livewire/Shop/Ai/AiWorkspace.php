@@ -160,6 +160,28 @@ class AiWorkspace extends Component
         return true; // Fallback wenn shell_exec() systemseitig verboten ist
     }
 
+    #[Computed]
+    public function getWorkerDiagnosticProperty()
+    {
+        $info = [];
+        $info[] = "Treiber: " . config('queue.default');
+        
+        $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
+        $info[] = "Cache-Signal: " . ($cacheHit ? 'OK' : 'Fehlt');
+        
+        if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
+            $out1 = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
+            $info[] = "pgrep: " . (!empty(trim($out1)) ? 'Treffer' : 'Leer');
+            
+            $out2 = shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
+            $info[] = "ps: " . (!empty(trim($out2)) ? 'Treffer' : 'Leer');
+        } else {
+             $info[] = "Shell: Verboten";
+        }
+        
+        return implode(" | ", $info);
+    }
+
     public $forcedAgentIds = [];
     public $pendingRouterMessage = null;
 
