@@ -34,7 +34,7 @@
         <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex flex-col gap-3">
-                    <span class="leading-tight break-words break-all hyphens-auto">Schnell-Steuerung</span>
+                    <span class="leading-tight break-words break-all hyphens-auto">Agent</span>
                     <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
                             <rect x="5" y="5" width="10" height="10" rx="1" />

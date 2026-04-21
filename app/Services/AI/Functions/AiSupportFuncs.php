@@ -343,6 +343,11 @@ trait AiSupportFuncs
                 return ['status' => 'not_found', 'data' => null];
             }
             
+            $currentCustomerId = auth()->guard('customer')->id();
+            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich in das korrekte Konto einzuloggen.'];
+            }
+            
             return ['status' => 'success', 'data' => [
                 'order_number' => $order->order_number,
                 'created_at' => $order->created_at->format('Y-m-d H:i:s'),
@@ -520,6 +525,11 @@ trait AiSupportFuncs
             $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items')->first();
             if (!$order) return ['status' => 'not_found', 'data' => null];
 
+            $currentCustomerId = auth()->guard('customer')->id();
+            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich einzuloggen.'];
+            }
+
             $itemsData = [];
             foreach ($order->items as $item) {
                 $configStr = "Keine Personalisierung";
@@ -570,6 +580,11 @@ trait AiSupportFuncs
 
             $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->first();
             if (!$order) return ['status' => 'not_found', 'data' => null];
+
+            $currentCustomerId = auth()->guard('customer')->id();
+            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Auskunft verweigert.'];
+            }
 
             $tracking = $order->tracking_number;
             if (!$tracking) {
@@ -754,6 +769,11 @@ trait AiSupportFuncs
                 return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung mit dieser Nummer absolut nicht gefunden.'];
             }
 
+            $currentCustomerId = auth()->guard('customer')->id();
+            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Auskunft verweigert.'];
+            }
+
             $now = now();
             $orderDate = $order->created_at;
             $daysPassed = $orderDate->diffInDays($now);
@@ -929,6 +949,11 @@ trait AiSupportFuncs
             $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('invoices')->first();
             if (!$order) {
                 return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
+            }
+
+            $currentCustomerId = auth()->guard('customer')->id();
+            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte um Loginstruct.'];
             }
 
             $invoices = $order->invoices;

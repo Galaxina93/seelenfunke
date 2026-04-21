@@ -4,8 +4,14 @@
     <div class="bg-gray-950/50 border-b border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md">
         <div class="max-w-7xl mx-auto px-6 py-5">
             <div class="flex flex-col md:flex-row justify-between items-center gap-6 mb-6">
-                <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
-                       class="w-full pl-11 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
+                <div class="flex items-center gap-4 w-full">
+                    <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
+                           class="w-full pl-6 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
+                           
+                    <button wire:click="toggleArchiveMode" class="flex-shrink-0 px-5 py-3 rounded-2xl border-2 {{ $showArchive ? 'border-amber-500 text-amber-500 bg-amber-500/10' : 'border-gray-800 text-gray-500 hover:text-white hover:border-[var(--theme-color-40)]' }} transition-all flex items-center gap-3 font-black uppercase text-[10px] tracking-widest shadow-inner">
+                        <x-heroicon-m-archive-box class="w-5 h-5" /> {{ $showArchive ? 'Archiv schließen' : 'Archiv öffnen' }}
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -13,48 +19,101 @@
     <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
 
         {{-- SIDEBAR: LISTEN --}}
-        <div class="w-full lg:w-72 bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-row lg:flex-col overflow-x-auto lg:overflow-y-auto custom-scrollbar p-4 gap-3 shrink-0">
-            <div class="hidden lg:block text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1">Kategorien</div>
+        <div class="w-full lg:w-72 bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col overflow-y-auto custom-scrollbar p-4 gap-3 shrink-0"
+             id="category-sortable-list"
+             x-data="{
+                initListSortable() {
+                    if (typeof Sortable === 'undefined') {
+                        let script = document.createElement('script');
+                        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js';
+                        script.onload = () => this.bindSortables();
+                        document.head.appendChild(script);
+                    } else {
+                        this.bindSortables();
+                    }
+                },
+                bindSortables() {
+                    Sortable.create(document.getElementById('category-sortable-list'), {
+                        animation: 150,
+                        handle: '.category-drag-handle',
+                        ghostClass: 'opacity-40',
+                        draggable: '.category-item',
+                        onEnd: (evt) => {
+                            let ids = Array.from(document.getElementById('category-sortable-list').querySelectorAll('.category-item'))
+                                .map(child => child.getAttribute('data-list-id'))
+                                .filter(Boolean);
+                            $wire.updateListOrder(ids);
+                        }
+                    });
+                }
+             }"
+             x-init="initListSortable()">
+            <div class="text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1">Kategorien</div>
 
             @foreach($lists as $list)
-                <div class="relative group/list-item w-full min-w-[180px] lg:min-w-0">
-                    <button wire:click="$set('selectedListId', '{{ $list->id }}')"
-                        @class([
-                            'flex items-center gap-3 p-3.5 rounded-2xl transition-all duration-300 text-left group w-full border',
+                <div class="category-item relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false }">
+                    <div @contextmenu.prevent="showListMenu = true"
+                         @class([
+                            'flex items-center gap-2 p-3.5 rounded-2xl transition-all duration-300 w-full border',
                             'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_15px_var(--theme-color-10)]' => $selectedListId === $list->id,
                             'bg-gray-900/50 border-transparent hover:bg-gray-800 hover:border-gray-700 text-gray-500' => $selectedListId !== $list->id
                         ])>
-
-                        <div @class([
-                            'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-500',
-                            'bg-[var(--theme-color)] text-gray-900 shadow-glow' => $selectedListId === $list->id,
-                            'bg-gray-950 border border-gray-800 text-gray-600 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-50)]' => $selectedListId !== $list->id
-                        ])>
-                            <x-dynamic-component :component="'heroicon-o-' . $list->icon" class="w-4.5 h-4.5" />
+                        
+                        <div class="category-drag-handle cursor-grab active:cursor-grabbing opacity-0 group-hover/list-item:opacity-40 hover:!opacity-100 p-1 -ml-2 text-gray-500 transition-opacity">
+                            <x-heroicon-m-bars-3 class="w-4 h-4" />
                         </div>
 
-                        <div class="flex-1 min-w-0 pr-6"> {{-- Padding rechts für den Trash-Button --}}
-                            <div class="text-xs font-black truncate {{ $selectedListId === $list->id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200' }} uppercase tracking-wider">
-                                {{ $list->name }}
+                        <div class="flex flex-1 items-center gap-3 text-left w-full pl-2">
+                            <div @class([
+                                'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all duration-500',
+                                'bg-[var(--theme-color)] text-gray-900 shadow-glow' => $selectedListId === $list->id,
+                                'bg-gray-950 border border-gray-800 text-gray-600 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-50)]' => $selectedListId !== $list->id
+                            ])>
+                                <x-dynamic-component :component="'heroicon-o-' . $list->icon" class="w-4.5 h-4.5" />
                             </div>
-                            @if($list->open_count > 0)
-                                <div class="text-[9px] font-bold {{ $selectedListId === $list->id ? 'text-[var(--theme-color)]/80' : 'text-gray-600' }}">
-                                    {{ $list->open_count }} OFFEN
-                                </div>
-                            @endif
-                        </div>
-                    </button>
 
-                    {{-- LÖSCHEN BUTTON (Nur bei Hover sichtbar) --}}
-                    <button wire:click="deleteList('{{ $list->id }}')"
-                            wire:confirm="Möchtest du die Liste '{{ $list->name }}' und alle darin enthaltenen Aufgaben wirklich löschen?"
-                            class="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover/list-item:opacity-100 p-2 text-gray-500 hover:text-red-500 transition-all duration-200 z-20">
-                        <x-heroicon-s-trash class="w-4 h-4" />
-                    </button>
+                            <button wire:click="$set('selectedListId', '{{ $list->id }}')" class="flex-1 min-w-0 text-left">
+                                <div class="text-xs font-black truncate {{ $list->is_archived ? 'text-amber-500/70 italic' : ($selectedListId === $list->id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200') }} uppercase tracking-wider">
+                                    {{ $list->name }}
+                                </div>
+                                @if($list->open_count > 0)
+                                    <div class="text-[9px] font-bold {{ $selectedListId === $list->id ? 'text-[var(--theme-color)]/80' : 'text-gray-600' }}">
+                                        {{ $list->open_count }} OFFEN
+                                    </div>
+                                @endif
+                                
+                                @if($list->is_archived)
+                                    <div class="text-[9px] font-bold text-amber-500 uppercase">Archiviert</div>
+                                @endif
+                            </button>
+
+                            <button @click.stop="showListMenu = true" class="md:hidden p-1.5 text-gray-600 hover:text-white transition-opacity shrink-0">
+                                <x-heroicon-m-ellipsis-vertical class="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {{-- CONTEXT MENU / RECHTSKLICK MENU --}}
+                    <div x-show="showListMenu" @click.away="showListMenu = false" x-cloak
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 -translate-y-2 scale-95"
+                         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                         class="absolute left-0 lg:left-12 top-full lg:top-3/4 mt-2 w-full lg:w-48 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-[60] overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
+                         
+                        <div class="px-4 py-2 border-b border-gray-800 mb-1">
+                            <p class="text-[9px] font-black uppercase tracking-widest text-gray-500 truncate">{{ $list->name }}</p>
+                        </div>
+                        <button wire:click="toggleArchiveList('{{ $list->id }}')" @click="showListMenu = false" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 hover:bg-gray-800 flex items-center gap-3 transition-colors">
+                            <x-heroicon-s-archive-box class="w-4 h-4 text-amber-500" /> {{ $list->is_archived ? 'Wiederherstellen' : 'Archivieren' }}
+                        </button>
+                        <button wire:click="deleteList('{{ $list->id }}')" wire:confirm="Möchtest du die Liste '{{ $list->name }}' und alle Aufgaben wirklich löschen?" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 flex items-center gap-3 transition-colors">
+                            <x-heroicon-s-trash class="w-4 h-4 text-red-500" /> Löschen
+                        </button>
+                    </div>
                 </div>
             @endforeach
 
-            <div class="p-1 min-w-[200px] lg:min-w-0 mt-2">
+            <div class="p-1 w-full mt-2">
                 @if(!$isAddingList)
                     <button wire:click="$set('isAddingList', true)"
                             class="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed border-gray-800 text-gray-600 hover:border-[var(--theme-color-50)] hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-5)] transition-all group">
@@ -120,19 +179,49 @@
                         <p class="text-xs text-gray-600 mt-2 uppercase tracking-widest font-black">Warte auf deine Anweisungen</p>
                     </div>
                 @else
-                    <div class="max-w-4xl mx-auto space-y-3">
+                    <div class="max-w-4xl mx-auto space-y-3" id="task-sortable-list"
+                         x-data="{
+                            initSortable() {
+                                if (typeof Sortable === 'undefined') {
+                                    let script = document.createElement('script');
+                                    script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js';
+                                    script.onload = () => this.bindSortables();
+                                    document.head.appendChild(script);
+                                } else {
+                                    this.bindSortables();
+                                }
+                            },
+                            bindSortables() {
+                                Sortable.create(document.getElementById('task-sortable-list'), {
+                                    animation: 150,
+                                    handle: '.drag-handle',
+                                    ghostClass: 'opacity-40',
+                                    onEnd: (evt) => {
+                                        let ids = Array.from(document.getElementById('task-sortable-list').children)
+                                            .map(child => child.getAttribute('data-task-id'))
+                                            .filter(Boolean);
+                                        $wire.updateTaskOrder(ids);
+                                    }
+                                });
+                            }
+                         }"
+                         x-init="initSortable()">
                         @forelse($tasks as $task)
-                            <div class="group/task" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }">
+                            <div class="group/task" data-task-id="{{ $task->id }}" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }" wire:key="task-{{ $task->id }}">
 
                                 <div @class([
-                                    'relative flex items-start gap-5 p-5 rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
+                                    'relative flex items-center justify-between p-4 md:p-5 rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
                                     'bg-gray-950/40 border-gray-900 opacity-40 grayscale' => $task->is_completed,
                                     'shadow-lg hover:border-[var(--theme-color-40)]' => !$task->is_completed,
-                                    'bg-gray-900 border-gray-800' => !$task->is_completed && ($task->priority ?? 'niedrig') === 'niedrig',
-                                    'bg-orange-950/20 border-orange-900/50' => !$task->is_completed && ($task->priority ?? 'niedrig') === 'mittel',
-                                    'bg-red-950/20 border-red-900/50' => !$task->is_completed && ($task->priority ?? 'niedrig') === 'hoch',
+                                    'bg-gray-900 border-gray-800' => !$task->is_completed,
                                 ])>
-                                    <button wire:click="toggleComplete('{{ $task->id }}')"
+
+                                    <div class="flex items-center gap-3 w-full">
+                                        <div class="cursor-grab active:cursor-grabbing drag-handle opacity-0 group-hover/task:opacity-40 hover:!opacity-100 p-2 -ml-3 text-gray-500 transition-opacity">
+                                            <x-heroicon-m-bars-3 class="w-5 h-5" />
+                                        </div>
+
+                                        <button wire:click="toggleComplete('{{ $task->id }}')"
                                             class="mt-1 flex-shrink-0 w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all duration-500 {{ $task->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-950 shadow-[0_0_15px_#10b981]' : 'border-gray-800 text-transparent hover:border-[var(--theme-color)] hover:bg-[var(--theme-color-5)] bg-gray-950 shadow-inner' }}">
                                         <x-heroicon-m-check class="w-4 h-4 stroke-[3]" />
                                     </button>
@@ -151,12 +240,15 @@
                                         <input x-ref="editInput" x-show="isEditing" x-model="updatedTitle"
                                                @blur="isEditing = false; $wire.updateTaskTitle('{{ $task->id }}', updatedTitle)"
                                                @keydown.enter="$el.blur()"
-                                               class="w-full text-sm font-bold bg-gray-950 border border-[var(--theme-color-30)] rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] -ml-2 -mt-1 text-white shadow-inner"
-                                               x-cloak
-                                        >
+                                                class="w-full text-sm font-bold bg-gray-950 border border-[var(--theme-color-30)] rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] -ml-2 -mt-1 text-white shadow-inner"
+                                                x-cloak>
+                                              
+                                        <div x-show="!isEditing" class="text-[9px] text-[var(--theme-color-50)] font-black uppercase tracking-widest mt-1">
+                                            Offen seit: {{ str_replace([' Sekunden', ' Minuten', ' Stunden', ' Tagen'], [' Sek.', ' Min.', ' Std.', ' T.'], $task->created_at->diffForHumans(now(), \Carbon\CarbonInterface::DIFF_ABSOLUTE)) }}
+                                        </div>
                                     </div>
 
-                                    <div class="relative flex items-center gap-3">
+                                    <div class="relative flex items-center gap-2 shrink-0">
                                         @if(!$task->is_completed)
                                             <div class="hidden sm:flex items-center">
                                                 <select wire:change="updateTaskPriority('{{ $task->id }}', $event.target.value)"
@@ -168,6 +260,16 @@
                                                 </select>
                                             </div>
                                         @endif
+                                        
+                                        {{-- ARCHIVE & DELETE INLINE HOVER --}}
+                                        <div class="flex items-center opacity-0 group-hover/task:opacity-100 transition-opacity">
+                                            <button wire:click="toggleArchiveTask('{{ $task->id }}')" class="p-2 text-gray-500 hover:text-amber-500 rounded-xl transition-all">
+                                                <x-heroicon-m-archive-box class="w-5 h-5" />
+                                            </button>
+                                            <button wire:click="deleteTask('{{ $task->id }}')" class="p-2 text-gray-500 hover:text-red-500 rounded-xl transition-all">
+                                                <x-heroicon-m-trash class="w-5 h-5" />
+                                            </button>
+                                        </div>
 
                                         <button @click="showMenu = !showMenu" class="p-2 text-gray-600 hover:text-white hover:bg-gray-800 rounded-xl transition-all">
                                             <x-heroicon-m-ellipsis-vertical class="w-5 h-5" />
@@ -177,22 +279,19 @@
                                              x-transition:enter="transition ease-out duration-200"
                                              x-transition:enter-start="opacity-0 translate-y-2 scale-95"
                                              x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                                             class="absolute right-0 top-12 w-56 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-50 overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
-                                            <button @click="isAddingSub = true; showMenu = false" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
+                                             class="absolute right-0 top-12 w-56 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-[60] overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
+                                            <button @click="isAddingSub = true; showMenu = false; $nextTick(() => $refs.addSubInput.focus())" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
                                                 <x-heroicon-o-list-bullet class="w-4 h-4 text-[var(--theme-color)]" /> Schritt dazu
-                                            </button>
-                                            <div class="h-px bg-gray-800 mx-2 my-1.5"></div>
-                                            <button wire:click="deleteTask('{{ $task->id }}')" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 flex items-center gap-3 transition-colors">
-                                                <x-heroicon-o-trash class="w-4 h-4" /> Löschen
                                             </button>
                                         </div>
                                     </div>
                                 </div>
+                                </div>
 
                                 {{-- SUBTASKS --}}
-                                <div class="ml-8 pl-6 border-l-2 border-gray-800/50 space-y-1.5 mt-2">
+                                <div class="space-y-1.5 mt-2 ml-4 md:ml-12 border-l border-gray-800/50 pl-3 w-full pr-4 md:pr-12 relative">
                                     @foreach($task->subtasks as $sub)
-                                        <div class="group/sub flex items-center gap-4 p-2.5 rounded-2xl hover:bg-gray-900/50 transition-all relative">
+                                        <div class="group/sub flex items-center gap-4 p-3 rounded-2xl bg-gray-950/40 border border-gray-800/50 hover:bg-gray-900 transition-all relative w-full" wire:key="sub-{{ $sub->id }}">
                                             <button wire:click="toggleComplete('{{ $sub->id }}')"
                                                     class="w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all duration-300 {{ $sub->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-950 shadow-[0_0_10px_#10b981]' : 'border-gray-800 text-transparent hover:border-[var(--theme-color)] bg-gray-950 shadow-inner' }}">
                                                 <x-heroicon-m-check class="w-3.5 h-3.5 stroke-[3]" />
@@ -219,11 +318,10 @@
 
                                     <div x-show="isAddingSub" x-cloak class="pt-2 animate-fade-in">
                                         <div class="flex gap-3 items-center bg-gray-950 border border-[var(--theme-color-30)] rounded-2xl p-1.5 shadow-2xl ring-4 ring-[var(--theme-color)]/5">
-                                            <input type="text" x-model="subTitle"
+                                            <input type="text" x-model="subTitle" x-ref="addSubInput"
                                                    @keydown.enter="$wire.addSubTask('{{ $task->id }}', subTitle); subTitle = ''; isAddingSub = false"
                                                    placeholder="Nächster Teilschritt..."
-                                                   class="flex-1 bg-transparent border-none px-4 py-2 text-xs font-bold text-white focus:ring-0 placeholder:text-gray-700 shadow-none outline-none"
-                                                   autofocus>
+                                                   class="flex-1 bg-transparent border-none px-4 py-2 text-xs font-bold text-white focus:ring-0 placeholder:text-gray-700 shadow-none outline-none">
                                             <button @click="isAddingSub = false" class="text-gray-600 hover:text-red-500 p-2 rounded-xl hover:bg-red-500/10 transition-colors">
                                                 <x-heroicon-m-x-mark class="w-4 h-4 stroke-2"/>
                                             </button>

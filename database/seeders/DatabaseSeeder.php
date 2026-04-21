@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             ManagementDayRoutineSeeder::class,
             ManagementContactSeeder::class,
             ManagementCalenderSeeder::class,
+            ManagementTaskSeeder::class,
 
             //Product
             ProductSeeder::class,
@@ -56,7 +57,6 @@ class DatabaseSeeder extends Seeder
 
             // DEAKTIVIEREN BEI LIVEGANG
             /*OrdersTableSeeder::class,*/
-            /*TaskSeeder::class,*/
             /*ProductReviewSeeder::class,*/
             /*GamificationTestSeeder::class,*/
             /*FinancialDataSeeder::class,*/

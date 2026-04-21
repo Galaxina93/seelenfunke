@@ -229,15 +229,7 @@ class FinancialSeeder extends Seeder
                 'description' => "Gläubiger-Identifikationsnummer: DE63ZZZ0000001057...",
                 'tags'        => ['Versicherung', 'Immobilie', 'Absicherung', 'Wichtig'],
             ],
-            [
-                'group'       => 'Versicherungen',
-                'name'        => 'Berufsunfähigkeit',
-                'amount'      => -425.24,
-                'interval'    => 12,
-                'start_date'  => '2021-09-14',
-                'description' => "Diese Versicherung kann erstmal so bleiben. Die is...",
-                'tags'        => ['Versicherung', 'Vorsorge', 'Gesundheit', 'Wichtig'],
-            ],
+
             [
                 'group'       => 'Versicherungen',
                 'name'        => 'Betriebshaftpflicht',
@@ -287,15 +279,7 @@ class FinancialSeeder extends Seeder
             ],
 
             // Vertrag & Lizenz (Ausgaben = Negativ)
-            [
-                'group'       => 'Vertrag & Lizenz',
-                'name'        => 'All Ink. Server',
-                'amount'      => -9.95,
-                'interval'    => 1,
-                'start_date'  => '2021-09-14',
-                'description' => null,
-                'tags'        => ['Vertrag', 'Lizenz', 'IT', 'Hosting', 'Web'],
-            ],
+
             [
                 'group'       => 'Vertrag & Lizenz',
                 'name'        => 'Glasfaser',
@@ -354,13 +338,13 @@ class FinancialSeeder extends Seeder
             ],
             [
                 'group'       => 'Vertrag & Lizenz',
-                'name'        => 'Ai Hosting',
-                'amount'      => -39.00,
-                'interval'    => 1, // monthly
-                'start_date'  => '2026-03-11',
+                'name'        => 'Gemini Ultra',
+                'amount'      => -139.99,
+                'interval'    => 1,
+                'start_date'  => '2026-04-01',
                 'is_business' => 1,
-                'description' => "Mittwald Ai Hosting - Agenten Modelle",
-                'tags'        => ['Vertrag', 'IT', 'Gewerbe', 'Hosting'],
+                'description' => "Google AI Cloud - Agenten Workspace & API",
+                'tags'        => ['Vertrag', 'IT', 'Gewerbe', 'KI'],
             ],
 
             // Auto (Ausgaben = Negativ)
@@ -428,13 +412,7 @@ class FinancialSeeder extends Seeder
                 'date'     => '2026-02-27',
                 'category' => 'Arbeitsmaterial',
             ],
-            [
-                'title'    => 'Gemini Ultra',
-                'location' => 'Online',
-                'amount'   => -139.99,
-                'date'     => '2026-02-25',
-                'category' => 'Arbeitsmaterial',
-            ],
+
             [
                 'title'    => 'Laserschutzbrille',
                 'location' => 'Amazon',

@@ -18,7 +18,9 @@ class ManagementTask extends Model
         'title',
         'is_completed',
         'position',
-        'priority'
+        'priority',
+        'ai_plan',
+        'is_archived'
     ];
 
     protected $casts = [

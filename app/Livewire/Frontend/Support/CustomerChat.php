@@ -313,7 +313,7 @@ class CustomerChat extends Component
         }
 
         $chat->refresh();
-        if ($chat->status === 'resolved' || $chat->status === 'needs_employee') {
+        if (in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto', 'needs_employee'])) {
             $this->isResolved = true;
         }
         

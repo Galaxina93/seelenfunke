@@ -15,7 +15,9 @@ class ManagementTaskList extends Model
     protected $fillable = [
         'name',
         'icon',
-        'color'
+        'color',
+        'position',
+        'is_archived'
     ];
 
     /**

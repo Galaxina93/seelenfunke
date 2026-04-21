@@ -229,6 +229,65 @@
     </div>
 </section>
 
+@php
+    $gallery = is_array($landingPage->product->media_gallery) ? collect($landingPage->product->media_gallery) : collect();
+    $videoMedia = $gallery->firstWhere('type', 'video');
+    $images = $gallery->filter(fn($m) => !isset($m['type']) || $m['type'] === 'image')->values();
+    // Index 0 and 1 represent Hero and Detail images, so we skip them for the gallery
+    $extraImages = $images->skip(2);
+@endphp
+
+@if($videoMedia)
+{{--
+    SECTION: VIDEO HERO
+    Cinematic dark section to showcase the product video
+--}}
+<section class="bg-gray-950 py-24 relative overflow-hidden" aria-labelledby="video-heading">
+    <div class="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/30 via-gray-900 to-gray-950"></div>
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="text-center mb-16">
+            <h2 id="video-heading" class="text-3xl sm:text-4xl font-serif font-bold text-white mb-4">Live in Action</h2>
+            <p class="text-gray-400 text-lg font-light">Erleben Sie die Faszination von {{ $landingPage->product->name }} aus jeder Perspektive.</p>
+        </div>
+        <div class="relative w-full aspect-video rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.6)] border border-gray-800">
+            <video 
+                src="{{ asset('storage/' . $videoMedia['path']) }}" 
+                class="w-full h-full object-cover"
+                controls 
+                muted
+                autoplay
+                loop
+                playsinline
+            >
+                Ihr Browser unterstützt leider kein HTML5 Video.
+            </video>
+        </div>
+    </div>
+</section>
+@endif
+
+@if($extraImages->count() > 0)
+{{--
+    SECTION: EXTRA IMAGES GALLERY
+--}}
+<section class="py-24 bg-gray-50 border-y border-gray-100" aria-labelledby="gallery-heading">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16">
+            <h2 id="gallery-heading" class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4">Weitere faszinierende Einblicke</h2>
+            <p class="text-gray-500 font-light">Entdecken Sie alle Facetten dieses Meisterwerks im Detail.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            @foreach($extraImages as $img)
+                <div class="relative group rounded-3xl overflow-hidden bg-white shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <img src="{{ asset('storage/' . $img['path']) }}" alt="Detailansicht {{ $landingPage->product->name }}" loading="lazy" class="w-full aspect-[4/3] object-cover transform group-hover:scale-105 group-hover:rotate-1 transition-transform duration-700">
+                </div>
+            @endforeach
+        </div>
+    </div>
+</section>
+@endif
+
 {{--
     SECTION 4: PREIS-KALKULATOR CTA
     Dunkler Kontrastbereich als Abschluss des Info-Teils

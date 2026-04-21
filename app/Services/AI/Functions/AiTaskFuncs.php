@@ -116,6 +116,7 @@ trait AiTaskFuncs
     {
         try {
             $tasks = ManagementTask::where('is_completed', false)
+                ->where('is_archived', false)
                 ->whereNull('parent_id')
                 ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
@@ -135,7 +136,7 @@ trait AiTaskFuncs
     public static function executeGetTaskLists(array $args)
     {
         try {
-            $lists = ManagementTaskList::all(['id', 'name', 'color', 'icon']);
+            $lists = ManagementTaskList::where('is_archived', false)->get(['id', 'name', 'color', 'icon']);
             return [
                 'status' => 'success',
                 'lists_count' => $lists->count(),
@@ -155,6 +156,7 @@ trait AiTaskFuncs
 
             $shortTitle = substr($args['title'], 0, 20);
             $existing = ManagementTask::where('is_completed', false)
+                ->where('is_archived', false)
                 ->where('title', 'LIKE', '%' . $shortTitle . '%')
                 ->first();
 
@@ -277,6 +279,7 @@ trait AiTaskFuncs
             $term = $args['task_title'];
 
             $task = ManagementTask::where('is_completed', false)
+                ->where('is_archived', false)
                 ->where('title', 'LIKE', '%' . $term . '%')
                 ->first();
 
@@ -284,6 +287,7 @@ trait AiTaskFuncs
                 $firstWord = explode(' ', $term)[0];
                 if(strlen($firstWord) > 3) {
                     $task = ManagementTask::where('is_completed', false)
+                        ->where('is_archived', false)
                         ->where('title', 'LIKE', '%' . $firstWord . '%')
                         ->first();
                 }

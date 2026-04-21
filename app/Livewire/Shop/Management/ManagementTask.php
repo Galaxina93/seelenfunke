@@ -19,6 +19,7 @@ class ManagementTask extends Component
 
     public $search = '';
     public $selectedListId = null;
+    public $showArchive = false;
 
     // Inline Creation State
     public $isAddingList = false;
@@ -147,6 +148,35 @@ class ManagementTask extends Component
         TaskModel::destroy($id);
     }
 
+    public function updateTaskOrder($orderedIds)
+    {
+        foreach ($orderedIds as $index => $id) {
+            TaskModel::where('id', $id)->update(['position' => $index]);
+        }
+    }
+
+    public function toggleArchiveMode()
+    {
+        $this->showArchive = !$this->showArchive;
+        // Optionally reset selected list if needed, or keep it.
+    }
+
+    public function toggleArchiveTask($id)
+    {
+        $task = TaskModel::find($id);
+        if ($task) {
+            $task->update(['is_archived' => !$task->is_archived]);
+        }
+    }
+
+    public function toggleArchiveList($id)
+    {
+        $list = ManagementTaskList::find($id);
+        if ($list) {
+            $list->update(['is_archived' => !$list->is_archived]);
+        }
+    }
+
     public function deleteList($id)
     {
         $list = ManagementTaskList::find($id);
@@ -157,28 +187,52 @@ class ManagementTask extends Component
         }
     }
 
+    public function updateListOrder($orderedIds)
+    {
+        foreach ($orderedIds as $index => $id) {
+            ManagementTaskList::where('id', $id)->update(['position' => $index]);
+        }
+    }
+
     public function render()
     {
-        $lists = ManagementTaskList::withCount(['tasks as open_count' => function($q) {
-            $q->where('is_completed', false)->whereNull('parent_id');
-        }])->orderBy('created_at', 'asc')->get();
+        $listsFiltered = ManagementTaskList::withCount(['tasks as open_count' => function($q) {
+            $q->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
+        }])
+        ->where(function ($q) {
+            if ($this->showArchive) {
+                // In Archive view, show lists that are archived OR contain archived tasks
+                $q->where('is_archived', true)
+                  ->orWhereHas('tasks', function($t) {
+                      $t->where('is_archived', true);
+                  });
+            } else {
+                // Standard view: Show unarchived lists
+                $q->where('is_archived', false);
+            }
+        })
+        ->orderBy('position', 'asc')
+        ->orderBy('created_at', 'asc')
+        ->get();
 
         $tasks = collect();
         if ($this->selectedListId) {
             $tasks = TaskModel::where('task_list_id', $this->selectedListId)
                 ->whereNull('parent_id')
+                ->where('is_archived', $this->showArchive)
                 ->with(['subtasks' => function($q) {
-                    $q->orderBy('is_completed', 'asc')->orderBy('created_at', 'asc');
+                    $q->orderBy('is_completed', 'asc')
+                      ->orderBy('created_at', 'asc');
                 }])
                 ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
                 ->orderBy('is_completed', 'asc')
-                ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+                ->orderBy('position', 'asc')
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
 
         return view('livewire.shop.management.management-task', [
-            'lists' => $lists,
+            'lists' => $listsFiltered,
             'tasks' => $tasks
         ]);
     }

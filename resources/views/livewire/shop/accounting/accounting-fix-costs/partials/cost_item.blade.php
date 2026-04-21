@@ -1,4 +1,4 @@
-<div x-data="{ expanded: false }" class="w-full">
+<div x-data="{ expanded: false, copied: false, copyName() { navigator.clipboard.writeText('{{ addslashes($item->name) }}'); this.copied = true; setTimeout(() => this.copied = false, 2000); } }" class="w-full">
 <div class="flex flex-col sm:flex-row justify-between items-start group relative z-10">
     <div class="flex-1 min-w-0 pr-4">
         <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
@@ -7,7 +7,11 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 </div>
             @endif
-            <div class="font-bold text-white text-base tracking-wide truncate">{{ $item->name }}</div>
+            <div class="flex items-center gap-1.5 cursor-pointer group/copy" @click.stop="copyName()" title="Namen kopieren">
+                <div class="font-bold text-white text-base tracking-wide truncate group-hover/copy:text-[var(--theme-color)] transition-colors">{{ $item->name }}</div>
+                <svg x-show="!copied" class="w-4 h-4 text-gray-500 group-hover/copy:text-[var(--theme-color)] transition-colors opacity-0 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <svg x-cloak x-show="copied" style="display: none;" class="w-4 h-4 text-emerald-400 drop-shadow-[0_0_5px_currentColor]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            </div>
             @if($item->is_business)
                 <span class="bg-blue-500/10 text-blue-400 text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest border border-blue-500/20 shadow-inner">Gewerbe</span>
             @else

@@ -815,8 +815,8 @@ class MasterAnalytics extends Component
         $prompt .= "TEIL 1 - DIE MASTER-ANSAGE (mission_get_current):\n";
         $prompt .= "Beginne deinen Text exakt mit der Markdown-Überschrift '# Aktuelle Mission'. Darunter schreibst du exakt ZWEI BIS DREI SÄTZE, keinen mehr! Du wertest zwingend den MANAGEMENT KONTEXT (Roadblocks, Tasks, Kalender) zusammen mit den Shop-Daten als Triage-Advisor aus.\n";
         $prompt .= "Wenn ein kritischer Kalender-Roadblock (z.B. Krankheit/Ausfall) aktiv ist, MUSS die Mission lauten, kürzer zu treten und Prioritäten liegen zu lassen. Ansonsten leite ab, welcher nächste Task den größten Beitrag liefert, um den KPI-Milestone zu erreichen.\n\n";
-        $prompt .= "TEIL 2 - DIE UMSETZUNG UND TIPPS (Restliche Seite 1):\n";
-        $prompt .= "Liefere unter der Überschrift '## Action-Plan' direkt darunter eine extrem klare, kurze und strukturierte Schritt-für-Schritt-Anleitung (Todos) zur Erfüllung der Aktuellen Mission.\n\n";
+        $prompt .= "TEIL 2 - MANAGEMENT & ACTION-PLAN (Restliche Seite 1):\n";
+        $prompt .= "Liefere unter der Markdown-Überschrift '## Management Action-Plan' eine Auswertung der übergebenen offenen operativen Aufgaben. Erkläre kurz, welche Aufgaben höchste Priorität haben und wie sie abgearbeitet werden sollten, um die Roadblocks aufzulösen und die Mission zu erfüllen.\n\n";
         $prompt .= "TEIL 3 - DIE ANALYSE (Folgeseiten):\n";
         $prompt .= "Analysiere tiefgreifend die Performance-Daten. Erstelle saubere Markdown-Charts, Tabellen und gebe wertvolle Tipps/Tricks für die 100K Skalierung.\n\n";
         $prompt .= "STRENGE REGELN:\n";
@@ -881,12 +881,18 @@ class MasterAnalytics extends Component
             $prompt .= "- [ROADBLOCK] " . $roadblock->title . "\n";
         }
         if ($activeHighPriorityEvents->isEmpty()) $prompt .= "- Keine aktiven Kalender-Blockaden.\n";
+        $prompt .= "\nOffene operative Aufgaben:\n";
+        foreach ($openTasks as $task) {
+            $prompt .= "- [Prio: " . $task->priority . "] " . $task->title . "\n";
+        }
+        if ($openTasks->isEmpty()) $prompt .= "- Keine offene operative Aufgabe.\n";
         $prompt .= "--------------------------------------------------------\n\n";
 
         $prompt .= "DEINE AUFGABE:\n";
         $prompt .= "Du wertest zwingend den MANAGEMENT KONTEXT (Roadblocks, Tasks, Kalender) zusammen mit den Shop-Daten aus.\n";
         $prompt .= "Liefere mir ALS REINEN TEXT exakt ZWEI BIS DREI SÄTZE, was JETZT für den Erfolg am wichtigsten ist.\n";
-        $prompt .= "KEINE Markdown-Formatierung, KEINE Überschriften, KEINE Listen, KEINE Begrüßung. Nur die 2-3 Sätze Direktive.\n";
+        $prompt .= "Zusätzlich nennst du am Ende der Mission noch genau EINE wichtigste operative Aufgabe (aus der Liste der offenen Aufgaben), die heute die höchste Prio hat. Der gesamte Text darf maximal 4 Sätze lang sein.\n";
+        $prompt .= "KEINE Markdown-Formatierung, KEINE Überschriften, KEINE Begrüßung. Nur die Direktive.\n";
         $prompt .= "Wenn ein Roadblock aktiv ist (z.B. Krankheit/Ausfall), formuliere die Mission so, dass Prioritäten reduziert werden.\n";
 
         try {

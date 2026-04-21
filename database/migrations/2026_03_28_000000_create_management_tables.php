@@ -34,6 +34,8 @@ return new class extends Migration {
             $table->string('name');
             $table->string('icon')->default('list-bullet');
             $table->string('color')->default('#C5A059');
+            $table->integer('position')->default(0);
+            $table->boolean('is_archived')->default(false);
             $table->timestamps();
         });
 
@@ -46,6 +48,8 @@ return new class extends Migration {
             $table->boolean('is_completed')->default(false);
             $table->integer('position')->default(0);
             $table->string('priority')->default('low');
+            $table->longText('ai_plan')->nullable();
+            $table->boolean('is_archived')->default(false);
             $table->timestamps();
         });
 

@@ -33,10 +33,6 @@ class AIFunctionsRegistry
     use Functions\AiAgentsFuncs;
     use Functions\AiMasterFuncs;
 
-    use Functions\AiSwarmFuncs;
-
-    use Functions\AiSwarmFuncs;
-
     /**
      * Optional static context merged into all executed function arguments.
      * Useful for standalone scripts that use AiAgentFactory but need hidden system parameters.
@@ -80,8 +76,7 @@ class AIFunctionsRegistry
             self::getAiProductNicheScannerFuncsSchema(),
             self::getAiProductPackagingConfiguratorFuncsSchema(),
             self::getAiAgentsFuncsSchema(),
-            self::getAiMasterFuncsSchema(),
-            self::getAiSwarmFuncsSchema() // Added Swarm tools
+            self::getAiMasterFuncsSchema()
         );
     }
 
