@@ -387,6 +387,60 @@ trait AiSystemFuncs
                     'required' => ['job_id']
                 ],
                 'callable' => [self::class, 'executeCommandStatus']
+            ],
+            [
+                'name' => 'system_request_user_approval',
+                'description' => 'Pausiert die Ausführung und fragt den User nach einer expliziten Erlaubnis/Freigabe für einen generierten Plan. Nutze dies IMMER, nachdem du ein "implementation_plan" Artefakt erstellt hast. Du darfst nicht weiterarbeiten, bevor der User zustimmt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeRequestUserApproval']
+            ],
+            [
+                'name' => 'system_list_directory',
+                'description' => 'Liest alle Dateien und Ordner innerhalb eines angegebenen relativen Verzeichnisses aus. Nutze dies, um Ordnerstrukturen zu navigieren und Dateien zu finden.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'directory_path' => [
+                            'type' => 'string',
+                            'description' => 'Der relative Pfad zum Ordner (z.B. "app/Models" oder "resources/views").'
+                        ]
+                    ],
+                    'required' => ['directory_path']
+                ],
+                'callable' => [self::class, 'executeListDirectory']
+            ],
+            [
+                'name' => 'system_read_web_url',
+                'description' => 'Liest den rohen Text-Inhalt einer beliebigen öffentlichen URL aus (z.B. für Dokumentationen). Ohne JavaScript-Ausführung.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'url' => [
+                            'type' => 'string',
+                            'description' => 'Die vollständige URL, die abgerufen werden soll (https://...).'
+                        ]
+                    ],
+                    'required' => ['url']
+                ],
+                'callable' => [self::class, 'executeReadWebUrl']
+            ],
+            [
+                'name' => 'system_search_web',
+                'description' => 'Führt eine Internet-Suche aus, um externe Informationen, Dokumentationen oder Fehlermeldungen im Web zu recherchieren.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'query' => [
+                            'type' => 'string',
+                            'description' => 'Der Suchbegriff.'
+                        ]
+                    ],
+                    'required' => ['query']
+                ],
+                'callable' => [self::class, 'executeSearchWeb']
             ]
         ];
     }
@@ -1385,5 +1439,102 @@ trait AiSystemFuncs
         }
 
         return "Fehler: System-Rolle nicht gefunden.";
+    }
+
+    public static function executeRequestUserApproval(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => 'SYSTEM: Du hast die Erlaubnis angefragt. BEENDE nun sofort deine Antwort mit einem klaren Hinweis an den User, dass du auf seine Freigabe für deinen eingereichten Plan wartest. Führe VOR der Bestätigung keine weiteren Änderungen durch!',
+            '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-orange-500/50 p-1.5 rounded bg-black/20">
+                               <div class="text-orange-300 truncate max-w-full font-bold"><x-heroicon-o-hand-raised class="w-3 h-3 inline-block -mt-0.5" /> Warte auf Freigabe</div>
+                               <div class="flex gap-2.5 mt-0.5 text-xs">
+                                   <span class="text-orange-400">User Approval Required</span>
+                               </div>
+                           </div>'
+        ];
+    }
+
+    public static function executeListDirectory(array $args)
+    {
+        $dirPath = base_path(ltrim($args['directory_path'] ?? '', '/'));
+        
+        if (!is_dir($dirPath)) {
+            return ['status' => 'error', 'message' => "Das Verzeichnis existiert nicht: {$args['directory_path']}"];
+        }
+
+        $files = \Illuminate\Support\Facades\File::files($dirPath);
+        $directories = \Illuminate\Support\Facades\File::directories($dirPath);
+
+        $out = "VERZEICHNIS-INHALT VON: " . $args['directory_path'] . "\n\n";
+        $out .= "[ORDNER]\n";
+        foreach ($directories as $d) {
+            $out .= "- " . basename($d) . "/\n";
+        }
+        $out .= "\n[DATEIEN]\n";
+        foreach ($files as $f) {
+            $out .= "- " . $f->getFilename() . " (" . round($f->getSize() / 1024, 2) . " KB)\n";
+        }
+
+        return [
+            'status' => 'success',
+            'content' => $out
+        ];
+    }
+
+    public static function executeReadWebUrl(array $args)
+    {
+        $url = $args['url'] ?? '';
+        if (empty($url)) return ['status' => 'error', 'message' => 'URL fehlt.'];
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(10)->get($url);
+            if ($response->failed()) {
+                return ['status' => 'error', 'message' => 'HTTP Fehler: ' . $response->status()];
+            }
+            $html = $response->body();
+            // Sehr grober Text-Extractor für APIs (Markdown Filter)
+            $text = strip_tags(preg_replace('/<(script|style)[^>]*?>.*?<\/\\1>/si', '', $html));
+            $text = preg_replace('/[ \t]+/', ' ', $text);
+            $text = preg_replace('/[\r\n]+/', "\n", $text);
+            
+            return [
+                'status' => 'success',
+                'content' => \Illuminate\Support\Str::limit($text, 15000, '... (abgeschnitten)')
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Abruf: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeSearchWeb(array $args)
+    {
+        $query = $args['query'] ?? '';
+        if (empty($query)) return ['status' => 'error', 'message' => 'Query fehlt.'];
+
+        try {
+            // Wikipedia Fallback API as simple free search
+            $url = "https://de.wikipedia.org/w/api.php?action=query&list=search&srsearch=" . urlencode($query) . "&utf8=&format=json";
+            $response = \Illuminate\Support\Facades\Http::timeout(10)->get($url);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                $results = $data['query']['search'] ?? [];
+                
+                $out = "WIKIPEDIA SUCH-ERGEBNISSE FÜR: {$query}\n\n";
+                foreach (array_slice($results, 0, 5) as $result) {
+                    $out .= "TITEL: " . $result['title'] . "\n";
+                    $out .= "AUSZUG: " . strip_tags($result['snippet']) . "\n\n";
+                }
+                
+                return [
+                    'status' => 'success',
+                    'content' => empty($results) ? 'Keine Ergebnisse auf Wikipedia gefunden.' : $out
+                ];
+            }
+            return ['status' => 'error', 'message' => 'Such-Dienst nicht erreichbar.'];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler bei Dateisuche: ' . $e->getMessage()];
+        }
     }
 }
