@@ -99,7 +99,7 @@ class MasterAnalytics extends Component
         $this->loadStats($service);
         $this->systemHealth = [
             'database' => ['status' => 'checking', 'value' => '...', 'error' => null],
-            'storage' => ['status' => 'checking', 'value' => '...', 'error' => null],
+
             'stripe' => ['status' => 'checking', 'value' => '...', 'error' => null],
             'smtp' => ['status' => 'checking', 'value' => '...', 'error' => null],
             'redis' => ['status' => 'checking', 'value' => '...', 'error' => null],
@@ -177,30 +177,6 @@ class MasterAnalytics extends Component
             $this->logSystemFailure('database', 'Die primäre Datenbank ist nicht erreichbar!', ['exception' => $e->getMessage()]);
         }
 
-        // 2. Speicherplatz (Storage) Check
-        try {
-            $freeSpace = disk_free_space(base_path());
-            $totalSpace = disk_total_space(base_path());
-            if ($totalSpace > 0) {
-                $percentFree = round(($freeSpace / $totalSpace) * 100);
-                $freeGb = round($freeSpace / 1024 / 1024 / 1024, 1);
-                $status = $percentFree < 10 ? 'warning' : 'connected';
-                $health['storage'] = [
-                    'status' => $status,
-                    'value' => "{$percentFree}% frei ({$freeGb} GB)",
-                    'error' => $status === 'warning' ? 'Wenig Speicherplatz!' : null,
-                    'percent_free' => $percentFree,
-                    'percent_used' => (100 - $percentFree),
-                    'total_gb' => round($totalSpace / 1024 / 1024 / 1024, 1),
-                    'free_gb' => $freeGb
-                ];
-                if ($status === 'warning') $this->logSystemFailure('storage', "Kritisch: Nur noch {$percentFree}% ({$freeGb} GB) Speicherplatz auf der Server-Festplatte verfügbar!");
-            } else {
-                $health['storage'] = ['status' => 'error', 'value' => 'Unbekannt', 'error' => 'Konnte Speicher nicht auslesen.'];
-            }
-        } catch (\Exception $e) {
-            $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Zugriff auf Dateisystem verweigert.'];
-        }
 
         // Externe HTTP Checks wurden in einen asynchronen Http::pool ausgelagert (siehe unten)
 
@@ -686,14 +662,7 @@ class MasterAnalytics extends Component
 
                 try {
                     switch ($target) {
-                        case 'storage':
-                            $this->addRepairLog("Räume Log-Files & Framework Caches auf...");
-                            // Wir leeren die Standard-Cache Ordner, nicht die Nutzerdaten!
-                            \Illuminate\Support\Facades\Artisan::call('view:clear');
-                            $this->addRepairLog("✓ Blade Views geleert.", 'success');
-                            \Illuminate\Support\Facades\Artisan::call('cache:clear');
-                            $this->addRepairLog("✓ Application Cache geleert.", 'success');
-                            break;
+
 
                         case 'redis':
                         case 'database':
@@ -807,27 +776,26 @@ class MasterAnalytics extends Component
         $prompt .= "WICHTIGSTE MISSION: Unser Ziel ist es, die Firma auf 100.000 Euro Umsatz pro Monat zu skalieren!\n\n";
         $prompt .= "Hier sind die aktuellen Live-Kennzahlen des Shops (Server-Umgebung: $env):\n$statsJson\n\n";
         
-        // Fetch contextual macro/micro data
-        $activeTimelines = \App\Models\Management\ManagementTimelineEvent::where(function($query) {
-             $query->where('start_date', '<=', now())
-                   ->where(function($q) {
-                       $q->whereNull('end_date')->orWhere('end_date', '>=', now()->startOfDay());
-                   });
-        })->get();
-        $upcomingTimelines = \App\Models\Management\ManagementTimelineEvent::where('start_date', '>', now())->orderBy('start_date', 'asc')->take(3)->get();
-        
+        // Fetch contextual macro/micro data        
         $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->orderBy('priority', 'desc')->get();
         $upcomingCalendar = \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
              ->orderBy('start_date', 'asc')
              ->take(5)
              ->get();
+        // Check for active high priority calendar events (acting as roadblocks)
+        $activeHighPriorityEvents = \App\Models\Management\ManagementCalendarEvent::where('priority', 'high')
+             ->where('start_date', '<=', now())
+             ->where(function($q) {
+                 $q->whereNull('end_date')->orWhere('end_date', '>=', now());
+             })->get();
 
         $prompt .= "--- MANAGEMENT KONTEXT (Extrem Wichtig für Triage) ---\n";
-        $prompt .= "Aktive Timeline Events (Roadblocks, Meilensteine, OPs):\n";
-        foreach ($activeTimelines as $tl) {
-            $prompt .= "- [" . strtoupper($tl->type) . " | Impact: " . strtoupper($tl->impact_level) . "] " . $tl->title . " (Start: " . $tl->start_date->format('d.m.Y') . ", Ende: " . ($tl->end_date ? $tl->end_date->format('d.m.Y') : 'Offen') . ")\n  Info: " . $tl->description . "\n";
+
+        $prompt .= "\nKritische aktive Kalender Blockaden:\n";
+        foreach ($activeHighPriorityEvents as $roadblock) {
+            $prompt .= "- [ROADBLOCK] " . $roadblock->title . "\nInfo: " . $roadblock->description . "\n";
         }
-        if ($activeTimelines->isEmpty()) $prompt .= "- Keine aktiven Timeline Events.\n";
+        if ($activeHighPriorityEvents->isEmpty()) $prompt .= "- Keine aktiven Blockaden.\n";
 
         $prompt .= "\nOffene operative Aufgaben:\n";
         foreach ($openTasks as $task) {
@@ -838,15 +806,15 @@ class MasterAnalytics extends Component
 
         $prompt .= "\nKommende Kalendertermine (Nächste 5):\n";
         foreach ($upcomingCalendar as $cal) {
-            $prompt .= "- " . $cal->start_date->format('d.m.Y H:i') . " : " . $cal->title . " (" . $cal->category . ")\n";
+            $prompt .= "- [" . strtoupper($cal->priority) . "] " . $cal->start_date->format('d.m.Y H:i') . " : " . $cal->title . " (" . $cal->category . ")\n";
         }
         $prompt .= "--------------------------------------------------------\n\n";
 
         $prompt .= "DEINE AUFGABE FÜR DEN PDF-REPORT:\n";
         $prompt .= "Der PDF Report MUSS zwingend so aufgebaut sein:\n\n";
         $prompt .= "TEIL 1 - DIE MASTER-ANSAGE (mission_get_current):\n";
-        $prompt .= "Beginne deinen Text exakt mit der Markdown-Überschrift '# Aktuelle Mission'. Darunter schreibst du exakt ZWEI BIS DREI SÄTZE, keinen mehr! Du wertest zwingend den MANAGEMENT KONTEXT (Timeline, Tasks, Kalender) zusammen mit den Shop-Daten als Triage-Advisor aus.\n";
-        $prompt .= "Wenn ein Timeline-Roadblock aktiv ist (z.B. Krankheit/Ausfall), MUSS die Mission lauten, kürzer zu treten und Prioritäten liegen zu lassen. Ansonsten leite ab, welcher nächste Task den größten Beitrag liefert, um den nächsten KPI-Milestone oder Timeline-Milestone zu erreichen.\n\n";
+        $prompt .= "Beginne deinen Text exakt mit der Markdown-Überschrift '# Aktuelle Mission'. Darunter schreibst du exakt ZWEI BIS DREI SÄTZE, keinen mehr! Du wertest zwingend den MANAGEMENT KONTEXT (Roadblocks, Tasks, Kalender) zusammen mit den Shop-Daten als Triage-Advisor aus.\n";
+        $prompt .= "Wenn ein kritischer Kalender-Roadblock (z.B. Krankheit/Ausfall) aktiv ist, MUSS die Mission lauten, kürzer zu treten und Prioritäten liegen zu lassen. Ansonsten leite ab, welcher nächste Task den größten Beitrag liefert, um den KPI-Milestone zu erreichen.\n\n";
         $prompt .= "TEIL 2 - DIE UMSETZUNG UND TIPPS (Restliche Seite 1):\n";
         $prompt .= "Liefere unter der Überschrift '## Action-Plan' direkt darunter eine extrem klare, kurze und strukturierte Schritt-für-Schritt-Anleitung (Todos) zur Erfüllung der Aktuellen Mission.\n\n";
         $prompt .= "TEIL 3 - DIE ANALYSE (Folgeseiten):\n";
@@ -898,28 +866,28 @@ class MasterAnalytics extends Component
         $prompt .= "WICHTIGSTE MISSION: Unser Ziel ist es, die Firma auf 100.000 Euro Umsatz pro Monat zu skalieren!\n\n";
         $prompt .= "Hier sind die aktuellen Live-Kennzahlen des Shops (Server-Umgebung: $env):\n$statsJson\n\n";
         
-        $activeTimelines = \App\Models\Management\ManagementTimelineEvent::where(function($query) {
-             $query->where('start_date', '<=', now())
-                   ->where(function($q) {
-                       $q->whereNull('end_date')->orWhere('end_date', '>=', now()->startOfDay());
-                   });
-        })->get();
+        $activeHighPriorityEvents = \App\Models\Management\ManagementCalendarEvent::where('priority', 'high')
+             ->where('start_date', '<=', now())
+             ->where(function($q) {
+                 $q->whereNull('end_date')->orWhere('end_date', '>=', now());
+             })->get();
+
         $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->orderBy('priority', 'desc')->get();
         $upcomingCalendar = \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
              ->orderBy('start_date', 'asc')->take(5)->get();
 
         $prompt .= "--- MANAGEMENT KONTEXT (Extrem Wichtig für Triage) ---\n";
-        foreach ($activeTimelines as $tl) {
-            $prompt .= "- [" . strtoupper($tl->type) . " | Impact: " . strtoupper($tl->impact_level) . "] " . $tl->title . "\n";
+        foreach ($activeHighPriorityEvents as $roadblock) {
+            $prompt .= "- [ROADBLOCK] " . $roadblock->title . "\n";
         }
-        if ($activeTimelines->isEmpty()) $prompt .= "- Keine aktiven Timeline Events.\n";
+        if ($activeHighPriorityEvents->isEmpty()) $prompt .= "- Keine aktiven Kalender-Blockaden.\n";
         $prompt .= "--------------------------------------------------------\n\n";
 
         $prompt .= "DEINE AUFGABE:\n";
-        $prompt .= "Du wertest zwingend den MANAGEMENT KONTEXT (Timeline, Tasks, Kalender) zusammen mit den Shop-Daten aus.\n";
+        $prompt .= "Du wertest zwingend den MANAGEMENT KONTEXT (Roadblocks, Tasks, Kalender) zusammen mit den Shop-Daten aus.\n";
         $prompt .= "Liefere mir ALS REINEN TEXT exakt ZWEI BIS DREI SÄTZE, was JETZT für den Erfolg am wichtigsten ist.\n";
         $prompt .= "KEINE Markdown-Formatierung, KEINE Überschriften, KEINE Listen, KEINE Begrüßung. Nur die 2-3 Sätze Direktive.\n";
-        $prompt .= "Wenn ein Timeline-Roadblock aktiv ist (z.B. Krankheit/Ausfall), formuliere die Mission so, dass Prioritäten reduziert werden.\n";
+        $prompt .= "Wenn ein Roadblock aktiv ist (z.B. Krankheit/Ausfall), formuliere die Mission so, dass Prioritäten reduziert werden.\n";
 
         try {
             $response = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);

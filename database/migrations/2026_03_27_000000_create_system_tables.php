@@ -382,6 +382,8 @@ return new class extends Migration
                 $table->string('name');
                 $table->unsignedBigInteger('token_limit')->nullable(); // null for unlimited
                 $table->decimal('price_monthly', 8, 2)->default(0.00);
+                $table->text('description')->nullable();
+                $table->json('features')->nullable();
                 $table->boolean('is_active')->default(false);
                 $table->timestamps();
             });

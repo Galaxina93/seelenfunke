@@ -23,7 +23,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
 
     public function handle(): void
     {
-        Log::info("Processing AI Workspace Task: {$this->task->id}");
+        #Log::info("Processing AI Workspace Task: {$this->task->id}");
 
         $this->task->update(['status' => 'processing']);
         \App\Events\TaskUpdated::dispatch($this->task);
@@ -40,7 +40,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
             $metadata = $this->task->ui_metadata ?? [];
             $plan = $metadata['execution_plan'] ?? [];
             $history = $metadata['llm_history'] ?? [];
-            
+
             $apiService = \App\Services\AI\AiAgentFactory::make($agent);
 
             // Inject the user's web session ID into the job process context
@@ -104,7 +104,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $jsonStr = preg_replace('/```json/i', '', $response);
                 $jsonStr = preg_replace('/```/i', '', $jsonStr);
                 $jsonStr = trim($jsonStr);
-                
+
                 $parsedPlan = json_decode($jsonStr, true);
                 if (is_array($parsedPlan)) {
                     foreach ($parsedPlan as $idx => $step) {
@@ -126,7 +126,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 }
 
                 $history = $responseArray['history'] ?? $messages; // start history trace
-                
+
                 $metadata['execution_plan'] = $plan;
                 $metadata['llm_history'] = $history;
                 $this->task->update(['ui_metadata' => $metadata]);
@@ -162,25 +162,25 @@ class ProcessAiWorkspaceTask implements ShouldQueue
 
                 // Ask AI to execute this step exclusively
                 $history[] = [
-                    'role' => 'user', 
+                    'role' => 'user',
                     'content' => "Führe nun folgenden Schritt aus (und nutze falls nötig deine Werkzeuge dafür): \nSchritt " . $step['id'] . ": " . $step['description'] . "\nGib eine kurze Bestätigung oder das Ergebnis des Schritts zurück, wenn du fertig bist."
                 ];
 
                 $stepResponseArray = $apiService->ask($history);
                 $stepResult = $stepResponseArray['response'] ?? 'Keine Antwort.';
-                
+
                 if (str_contains(strtoupper($stepResult), '[SKIP]')) {
                     $this->task->update(['status' => 'pending', 'assigned_agent_id' => null]);
                     return;
                 }
 
                 $history = $stepResponseArray['history'] ?? $history;
-                
+
                 $step['status'] = 'completed';
                 $step['result'] = $stepResult;
                 $metadata['execution_plan'] = $plan;
                 $metadata['llm_history'] = $history;
-                
+
                 $this->task->update(['ui_metadata' => $metadata]);
                 \App\Events\TaskUpdated::dispatch($this->task);
             }

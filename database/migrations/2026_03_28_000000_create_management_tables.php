@@ -99,19 +99,12 @@ return new class extends Migration {
             // UID aus ICS (für Updates wichtig, um Duplikate zu vermeiden)
             $table->string('ics_uid')->nullable()->index();
 
+            // Priority for color coding (low=gray, medium=yellow, high=red)
+            $table->string('priority')->default('low');
+
             $table->timestamps();
         });
-        // Timeline Events
-        Schema::create('management_timeline_events', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->date('start_date');
-            $table->date('end_date')->nullable();
-            $table->string('type')->default('event'); // milestone, roadblock, event, launch
-            $table->string('impact_level')->default('medium'); // high, medium, low
-            $table->timestamps();
-        });
+
 
         // Missions
         Schema::create('management_missions', function (Blueprint $table) {
@@ -208,7 +201,7 @@ return new class extends Migration {
         Schema::dropIfExists('mail_messages');
         Schema::dropIfExists('mail_accounts');
         Schema::dropIfExists('management_missions');
-        Schema::dropIfExists('management_timeline_events');
+
         Schema::dropIfExists('management_calendar_events');
         Schema::dropIfExists('management_day_routine_steps');
         Schema::dropIfExists('management_day_routines');

@@ -49,7 +49,7 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_create_claim_ticket',
-                'description' => 'Eröffnet automatisch ein Reklamationsticket mit höchster Priorität falls ein Paket/Artikel defekt angekommen ist.',
+                'description' => 'WICHTIGE REGEL: Darf NIEMALS sofort ausgeführt werden! 1. Zeige dem Kunden erst die Zusammenfassung seiner Reklamation (Grund & Artikel). 2. Frage ihn explizit: "Darf ich das Ticket so für dich einreichen?". 3. Erst wenn er mit "Ja" antwortet, darfst du dieses Tool ausführen, um das Ticket anzulegen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -137,7 +137,7 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_get_product_info',
-                'description' => 'Findet Preise und Basis-Informationen zu Produkten.',
+                'description' => 'Findet Preise und Basis-Informationen zu Produkten. Das Tool gibt dir JSON zurück. Formatiere die Ausgabe zwingend als schöne Markdown-Tabelle oder Bullet-Points für den Kunden!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => ['search_term' => ['type' => 'string']],
@@ -147,8 +147,15 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_mark_needs_employee',
-                'description' => 'Eskaliert die Situation an einen menschlichen Mitarbeiter.',
-                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'description' => 'Achtung: Darf niemals sofort ausgelöst werden! Zeige dem Kunden erst eine Zusammenfassung: Warum braucht er einen Mitarbeiter? Frage ihn: "Soll ich das als Ticket für dich an unser Team einreichen?". Sobald er mit Ja antwortet, rufe das Tool mit confirmed_by_customer=true auf.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'escalation_reason' => ['type' => 'string'],
+                        'confirmed_by_customer' => ['type' => 'boolean']
+                    ],
+                    'required' => ['escalation_reason', 'confirmed_by_customer']
+                ],
                 'callable' => [self::class, 'executeNeedsEmployee']
             ],
             [
@@ -192,29 +199,113 @@ trait AiSupportFuncs
                 'description' => 'Liefert die aktuellen Zwischensummen des Warenkorbs.',
                 'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
                 'callable' => [self::class, 'executeGetCartTotal']
+            ],
+            [
+                'name' => 'support_penalize_offtopic',
+                'description' => 'Verwende dieses Tool IMMER SOFORT, wenn der Kunde Smalltalk beginnt, extrem vom Thema e-commerce abweicht oder Dinge fragt/sagt, die nichts mit Support/Produkten zu tun haben (z.B. "Erzähl einen Witz"). Gib eine Gewichtung (severity) von 1 bis 10 an. 1 = leichtes Abweichen vom Thema, 3 = "Hallo was geht?", 8 = Witz eingefordert, 10 = extreme Provokation. Bei 10 sammelten Punkten schließt das System den Chat.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'severity' => ['type' => 'integer', 'description' => 'Gewichtung des Vergehens (1-10).'],
+                        'tag' => ['type' => 'string', 'enum' => ['SMALLTALK', 'JOKE', 'INSULT', 'PROVOCATION', 'OTHER'], 'description' => 'Fachliche Kategorisierung des Vergehens.']
+                    ],
+                    'required' => ['severity', 'tag']
+                ],
+                'callable' => [self::class, 'executePenalizeOfftopic']
             ]
         ];
+    }
+
+    private static function fetchChatHistory($chatId)
+    {
+        $chatHistoryStr = "";
+        try {
+            $messages = \App\Models\Support\SupportCustomerChatMessage::where('support_customer_chat_id', $chatId)
+                ->orderBy('created_at', 'asc')->get();
+            if ($messages->count() > 0) {
+                $chatHistoryStr .= "\n\n--- CHAT VERLAUF ---\n";
+                foreach ($messages as $msg) {
+                    $sender = $msg->sender === 'ai' ? 'Funki (KI)' : 'Kunde';
+                    $chatHistoryStr .= "{$sender}: {$msg->message}\n";
+                }
+                $chatHistoryStr .= "--------------------\n";
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Konnte Chat History nicht laden: ' . $e->getMessage());
+        }
+        return $chatHistoryStr;
+    }
+
+    public static function executePenalizeOfftopic(array $args)
+    {
+        try {
+            $chatId = $args['__chat_id'] ?? null;
+            if (!$chatId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Chat-ID fehlt.'];
+
+            $severity = (int)($args['severity'] ?? 3);
+            if ($severity < 1) $severity = 1;
+            if ($severity > 10) $severity = 10;
+            
+            $tag = $args['tag'] ?? 'OTHER';
+
+            // Sichere die Severity & Tag direkt auf der ZULETZT verfassten Kunden-Nachricht
+            $lastCustomerMessage = \App\Models\Support\SupportCustomerChatMessage::where('support_customer_chat_id', $chatId)
+                ->where('sender', 'customer')
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if ($lastCustomerMessage) {
+                $lastCustomerMessage->update([
+                    'severity' => $severity,
+                    'tag' => $tag
+                ]);
+            }
+
+            $cacheKey = "chat_severity_{$chatId}";
+            $currentScore = \Illuminate\Support\Facades\Cache::get($cacheKey, 0);
+            $newScore = $currentScore + $severity;
+            
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $newScore, now()->addHour());
+
+            if ($newScore >= 10) {
+                // Den Chat komplett auflösen und schließen
+                \App\Models\Support\SupportCustomerChat::where('id', $chatId)->update(['status' => 'resolved_auto']);
+                return [
+                    'status' => 'success',
+                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Aufgrund wiederholt unpassender oder offtopic Nachrichten habe ich diesen Support-Chat nun endgültig geschlossen. Ich bitte um Verständnis, dass ich ausschließlich für Produkt- und Bestellsupport zur Verfügung stehe."'
+                ];
+            } else {
+                $missing = 10 - $newScore;
+                return [
+                    'status' => 'success',
+                    'message' => "HINTERGRUND-INFO FÜR KI: Das Vergehen wurde mit einer Schwere von {$severity}/10 gewertet. Bisher angesammelter Score: {$newScore}/10. Es fehlen noch {$missing} Punkte bis der Chat automatisch beendet wird. Sage dem Kunden nun extrem formell und höflich, dass du ausschließlich für Bestell- oder Produktfragen verfügbar bist, aber formuliere es diplomatisch."
+                ];
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler (Penalize): ' . $e->getMessage());
+            return ['status' => 'error', 'message' => "Systemfehler bei Penalize: " . $e->getMessage()];
+        }
     }
 
     public static function executeGetMyTickets(array $args)
     {
         try {
             $customerId = auth()->guard('customer')->id();
-            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Kunde ist nicht eingeloggt. Bitte den Kunden höflich darum, sich einzuloggen.'];
+            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Der Kunde ist nicht eingeloggt.'];
 
             $tickets = SupportTicket::where('customer_id', $customerId)->where('status', '!=', 'closed')->orderBy('created_at', 'desc')->take(3)->get();
             if ($tickets->isEmpty()) {
-                return ['status' => 'success', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Für dich sind aktuell keine offenen Support-Tickets im System hinterlegt."'];
+                return ['status' => 'success', 'data' => []];
             }
 
-            $tLines = [];
+            $tData = [];
             foreach ($tickets as $t) {
-                $tLines[] = "- Ticket {$t->ticket_number} (Status: {$t->status}) vom {$t->created_at->format('d.m.Y H:i')}";
+                $tData[] = ['ticket_number' => $t->ticket_number, 'status' => $t->status, 'date' => $t->created_at->format('d.m.Y H:i')];
             }
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Ich habe offene Tickets in deinem Profil gefunden:\n" . implode("\n", $tLines) . "\""];
+            return ['status' => 'success', 'data' => $tData];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
-            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Datenbankfehler beim Laden der Tickets ('{$e->getMessage()}'). Entschuldige dich charmant beim Kunden und versprich, dass es später wieder geht."];
+            return ['status' => 'error', 'message' => "Datenbankfehler: " . $e->getMessage()];
         }
     }
 
@@ -222,16 +313,20 @@ trait AiSupportFuncs
     {
         try {
             $ticketNumber = trim($args['ticket_number'] ?? '');
-            if (empty($ticketNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keine Ticketnummer übergeben. Bitte den Kunden nach der TCK-XXXX Nummer.'];
+            if (empty($ticketNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Ticketnummer fehlt.'];
 
             $ticket = SupportTicket::where('ticket_number', 'ILIKE', "%{$ticketNumber}%")->first();
             if (!$ticket) {
-                return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Sogar nach intensiver Systemsuche konnte ich absolut kein Ticket mit dieser Nummer finden. Bitte überprüfe die Ticketnummer noch einmal."'];
+                return ['status' => 'not_found', 'data' => null];
             }
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Ticket {$ticket->ticket_number} ('{$ticket->subject}') hat aktuell den Status: {$ticket->status}. Das Support-Team wird sich bald dazu melden!\""];
+            return ['status' => 'success', 'data' => [
+                'ticket_number' => $ticket->ticket_number,
+                'subject' => $ticket->subject,
+                'status' => $ticket->status
+            ]];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
-            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Systemfehler beim Abrufen des Ticketstatus ('{$e->getMessage()}')."];
+            return ['status' => 'error', 'message' => "Systemfehler: " . $e->getMessage()];
         }
     }
 
@@ -239,19 +334,24 @@ trait AiSupportFuncs
     {
         try {
             $identifier = trim($args['identifier'] ?? '');
-            if (empty($identifier)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keinen Suchbegriff übergeben. Frage den Kunden nach der Bestellnummer oder Email.'];
+            if (empty($identifier)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Suchbegriff fehlt.'];
 
             $order = OrderOrder::where('order_number', 'LIKE', "%{$identifier}%")
                         ->orWhere('customer_email', 'LIKE', "%{$identifier}%")->latest()->first();
 
             if (!$order) {
-                return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Unter dieser Nummer oder Email konnte ich leider keine Bestellung in unserer Manufaktur finden."'];
+                return ['status' => 'not_found', 'data' => null];
             }
-            $total = $order->total_price ? number_format($order->total_price / 100, 2, ',', '.') . ' €' : '0,00 €';
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Deine Bestellung {$order->order_number} vom {$order->created_at->format('d.m.Y')} ist aktuell im Status: {$order->status}. Der Bestellwert beträgt {$total}.\""];
+            
+            return ['status' => 'success', 'data' => [
+                'order_number' => $order->order_number,
+                'created_at' => $order->created_at->format('Y-m-d H:i:s'),
+                'status' => $order->status,
+                'total_price' => $order->total_price ? $order->total_price / 100 : 0
+            ]];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
-            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Ein temporärer Fehler verhindert den Abruf ('{$e->getMessage()}')."];
+            return ['status' => 'error', 'message' => "Temporärer Fehler: " . $e->getMessage()];
         }
     }
 
@@ -259,22 +359,25 @@ trait AiSupportFuncs
     {
         try {
             $customerId = auth()->guard('customer')->id();
-            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Kunde ist nicht eingeloggt. Bitte logge den Kunden verbal ein.'];
+            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
 
             $orders = OrderOrder::where('customer_id', $customerId)->latest()->take(5)->get();
             if ($orders->isEmpty()) {
-                return ['status' => 'success', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Du hast aktuell noch keine Bestellungen in deinem Profil hinterlegt."'];
+                return ['status' => 'success', 'data' => []];
             }
 
-            $oLines = [];
+            $oData = [];
             foreach ($orders as $o) {
-                $total = $o->total_price ? number_format($o->total_price / 100, 2, ',', '.') . ' €' : '0,00 €';
-                $oLines[] = "- {$o->order_number} ({$total}) - Status: {$o->status}";
+                $oData[] = [
+                    'order_number' => $o->order_number,
+                    'total_price' => $o->total_price ? $o->total_price / 100 : 0,
+                    'status' => $o->status
+                ];
             }
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Deine letzten Bestellungen in der Übersicht:\n" . implode("\n", $oLines) . "\""];
+            return ['status' => 'success', 'data' => $oData];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
-            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Datenbankfehler beim Aufrufen der vergangenen Bestellungen ('{$e->getMessage()}')."];
+            return ['status' => 'error', 'message' => "Datenbankfehler: " . $e->getMessage()];
         }
     }
 
@@ -284,24 +387,29 @@ trait AiSupportFuncs
             $term = trim($args['search_term'] ?? '');
             if (empty($term)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keinen Suchbegriff übergeben.'];
 
-            $products = Product::where('status', 'active')->where(function($q) use ($term) {
+            $products = \App\Models\Product\Product::where('status', 'active')->where(function($q) use ($term) {
                             $q->where('name', 'LIKE', "%{$term}%")->orWhere('sku', 'LIKE', "%{$term}%");
                         })->take(3)->get();
 
             if ($products->isEmpty()) {
-                return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Ich konnte kein Produkt zu diesem Suchbegriff in unserer Manufaktur finden."'];
+                return ['status' => 'success', 'data' => []];
             }
-            $pLines = [];
+            $pData = [];
             foreach ($products as $p) {
                 try {
                     $url = route('product.show', $p->slug);
                 } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
+                    \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
                     $url = url('/produkt/' . $p->slug);
                 }
-                $pLines[] = "- {$p->name} für {$p->formatted_price} (Link: {$url}): " . mb_substr(strip_tags($p->description), 0, 80) . "...";
+                $pData[] = [
+                    'name' => $p->name,
+                    'price' => $p->formatted_price,
+                    'url' => $url,
+                    'short_description' => mb_substr(strip_tags($p->description), 0, 80) . "..."
+                ];
             }
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Folgende Produkte habe ich dazu gefunden:\n" . implode("\n", $pLines) . "\""];
+            return ['status' => 'success', 'data' => $pData];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Systemfehler bei der Produktsuche ('{$e->getMessage()}')."];
@@ -312,13 +420,26 @@ trait AiSupportFuncs
     {
         try {
             $chatId = $args['__chat_id'] ?? null;
+            $confirmed = filter_var($args['confirmed_by_customer'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $reason = trim($args['escalation_reason'] ?? 'Generelle Eskalation');
+
             if ($chatId) {
                 $chat = SupportCustomerChat::find($chatId);
                 if (!$chat) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Fehler - Konnte Chat ID nicht zuordnen.'];
 
                 $customerId = auth()->guard('customer')->id();
                 if (!$customerId && !auth()->check()) {
-                    return ['status' => 'error', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Da du aktuell als Gast im Chat bist, müsstest du dich kurz einloggen oder registrieren, damit ich dies offiziell an einen Mitarbeiter weiterleiten kann."'];
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Da du aktuell als Gast im Chat bist, müsstest du dich kurz einloggen oder registrieren, damit ich dies offiziell an einen Mitarbeiter weiterleiten kann.'];
+                }
+
+                if (!$confirmed) {
+                    return [
+                        'status' => 'draft_pending',
+                        'data' => [
+                            'draft_reason' => $reason,
+                            'instruction_for_ai' => 'Zeige dem Kunden den Entwurf und frage ihn, ob du das Ticket jetzt SO für ihn beim Team hinterlegen sollst.'
+                        ]
+                    ];
                 }
 
                 $chat->update(['status' => 'needs_employee']);
@@ -326,7 +447,7 @@ trait AiSupportFuncs
                     $ticket = SupportTicket::create([
                         'ticket_number' => 'TCK-' . strtoupper(\Illuminate\Support\Str::random(8)),
                         'customer_id'   => $customerId,
-                        'subject'       => 'Automatisches KI-Eskalationsticket',
+                        'subject'       => 'Automatisches KI-Eskalationsticket: ' . $reason,
                         'category'      => 'allgemein',
                         'status'        => 'open',
                         'priority'      => 'normal',
@@ -334,12 +455,15 @@ trait AiSupportFuncs
                     \App\Models\Support\SupportTicketMessage::create([
                         'support_ticket_id' => $ticket->id,
                         'sender_type'       => 'customer',
-                        'message'           => "Kunde hat im Funki-Chat nach einem Mitarbeiter verlangt. Bitte Chat-Verlauf prüfen."
+                        'message'           => "Kunde hat im Funki-Chat nach einem Mitarbeiter verlangt. KI-Zusammenfassung: {$reason}. Bitte Chat-Verlauf prüfen.\n" . self::fetchChatHistory($chatId)
                     ]);
                     $chat->update(['support_ticket_id' => $ticket->id]);
                     return [
                         'status' => 'success',
-                        'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Ein offizielles Support-Ticket wurde angelegt. Ich stoße hier als System an meine Grenzen und habe das Thema an einen internen Mitarbeiter von Mein-Seelenfunke weitergeleitet. Deine Ticketnummer lautet: ' . $ticket->ticket_number . ' - Das Team meldet sich!"'
+                        'data' => [
+                            'ticket_number' => $ticket->ticket_number,
+                            'info' => 'Ticket wurde erfolgreich angelegt. Sag dem Kunden Bescheid.'
+                        ]
                     ];
                 }
             }
@@ -391,12 +515,12 @@ trait AiSupportFuncs
     {
         try {
             $orderNumber = trim($args['order_number'] ?? '');
-            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Es wurde keine Bestellnummer übergeben. Frage den Kunden danach.'];
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
             $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items')->first();
-            if (!$order) return ['status' => 'not_found', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Leider konnte ich keine Bestellung mit dieser Nummer in unserem System finden."'];
+            if (!$order) return ['status' => 'not_found', 'data' => null];
 
-            $items = [];
+            $itemsData = [];
             foreach ($order->items as $item) {
                 $configStr = "Keine Personalisierung";
                 if (is_array($item->configuration) && !empty($item->configuration)) {
@@ -418,11 +542,19 @@ trait AiSupportFuncs
                     }
                     $configStr = empty($details) ? "Personalisierung hinterlegt (ohne lesbaren Text)" : implode(' | ', $details);
                 }
-                $items[] = "- {$item->quantity}x {$item->product_name} (Gravur/Details: {$configStr})";
+                $itemsData[] = [
+                    'quantity' => $item->quantity,
+                    'product_name' => $item->product_name,
+                    'configuration' => $configStr
+                ];
             }
             return [
                 'status' => 'success',
-                'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus:\n\"Hier sind die exakten Details zu der Bestellung {$order->order_number} (Status: {$order->status}):\n" . implode("\n", $items) . "\""
+                'data' => [
+                    'order_number' => $order->order_number,
+                    'status' => $order->status,
+                    'items' => $itemsData
+                ]
             ];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
@@ -434,18 +566,28 @@ trait AiSupportFuncs
     {
         try {
             $orderNumber = trim($args['order_number'] ?? '');
-            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast die Bestellnummer vergessen abzufragen.'];
+            if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
             $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->first();
-            if (!$order) return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO FÜR KI: Keine Bestellung gefunden. Entschuldige dich.'];
+            if (!$order) return ['status' => 'not_found', 'data' => null];
 
             $tracking = $order->tracking_number;
             if (!$tracking) {
-                return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Paket hat aktuell noch keine Sendungsnummer (Status: {$order->status}). Vermutlich ist es noch in der Produktion!\""];
+                return ['status' => 'success', 'data' => [
+                    'order_number' => $order->order_number,
+                    'status' => $order->status,
+                    'tracking_number' => null,
+                    'tracking_link' => null
+                ]];
             }
             return [
                 'status' => 'success',
-                'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: \"Dein Paket ist unterwegs! Hier ist dein offizieller DHL-Trackinglink: https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={$tracking} \""
+                'data' => [
+                    'order_number' => $order->order_number,
+                    'status' => $order->status,
+                    'tracking_number' => $tracking,
+                    'tracking_link' => "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={$tracking}"
+                ]
             ];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
@@ -457,18 +599,22 @@ trait AiSupportFuncs
     {
         try {
             $customerId = auth()->guard('customer')->id();
-            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Kunde ist nicht eingeloggt.'];
+            if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde ist nicht eingeloggt.'];
 
             $stats = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
             if (!$stats || !$stats->is_active) {
-                return ['status' => 'success', 'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text logisch so ähnlich aus: "Ich sehe, du hast das Seelenfunken-Programm in deiner Zentrale noch gar nicht aktiviert! Dort entgehen dir tolle Belohnungen."'];
+                return ['status' => 'success', 'data' => null];
             }
             
-            // Berechne fehlende Punkte (sehr simpel)
             $nextLevelThreshold = ($stats->level * 1000); 
             $missing = max(0, $nextLevelThreshold - $stats->funken_balance);
 
-            return ['status' => 'success', 'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text logisch so ähnlich aus: \"Du bist aktuell Level {$stats->level} und hast stolze {$stats->funken_balance} Seelenfunken gesammelt! (Noch {$missing} Funken bis zum nächsten Level). Dein Funkenflug Highscore ist: {$stats->funkenflug_highscore}.\""];
+            return ['status' => 'success', 'data' => [
+                'level' => $stats->level,
+                'funken_balance' => $stats->funken_balance,
+                'funken_missing_for_next_level' => $missing,
+                'funkenflug_highscore' => $stats->funkenflug_highscore
+            ]];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Stats konnten nicht geladen werden ('{$e->getMessage()}')."];
@@ -480,7 +626,7 @@ trait AiSupportFuncs
         try {
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) {
-                return ['status' => 'error', 'message' => 'FALSCH. SYSTEM-DIREKTIVE: Sage dem Kunden neutral, dass er sich einloggen muss.'];
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
             }
 
             $customer = \App\Models\Customer\Customer::with(['profile'])->find($customerId);
@@ -493,7 +639,14 @@ trait AiSupportFuncs
 
             return [
                 'status' => 'success',
-                'message' => "SYSTEM-DIREKTIVE: Gib folgenden Text als Zusammenfassung logisch so ähnlich aus: \"Hallo {$customer->first_name}, ich habe dein Profil geladen! Du bist seit dem {$customer->created_at->format('d.m.Y')} bei uns registriert. Aktuell hast du {$openOrders} offene und {$closedOrders} abgeschlossene Bestellungen. In unserem Funken-Programm bist du auf Level " . ($gamification ? $gamification->level : 1) . ". Du hast {$activeTickets} aktive Support-Tickets. Was darf ich mir davon näher für dich ansehen?\""
+                'data' => [
+                    'first_name' => $customer->first_name,
+                    'registered_since' => $customer->created_at->format('Y-m-d'),
+                    'open_orders_count' => $openOrders,
+                    'closed_orders_count' => $closedOrders,
+                    'gamification_level' => $gamification ? $gamification->level : 1,
+                    'active_support_tickets' => $activeTickets
+                ]
             ];
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
@@ -650,9 +803,10 @@ trait AiSupportFuncs
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Diese Bestellung gehört nicht zum eingeloggten Kunden oder existiert nicht.'];
             }
 
-            $agentId = null;
+            $chatHistoryStr = "";
             if (isset($args['__chat_id'])) {
                 $agentId = $args['__agent_id'] ?? null;
+                $chatHistoryStr = self::fetchChatHistory($args['__chat_id']);
             }
 
             $log = \App\Models\System\SystemLog::start(
@@ -675,7 +829,7 @@ trait AiSupportFuncs
             \App\Models\Support\SupportTicketMessage::create([
                 'support_ticket_id' => $ticket->id,
                 'sender_type'       => 'customer',
-                'message'           => "KI-Zusammenfassung der Reklamation: \n" . $reason
+                'message'           => "KI-Zusammenfassung der Reklamation: \n" . $reason . "\n" . $chatHistoryStr
             ]);
 
             $log->finish('success', 'Ticket TCK-'.$ticket->ticket_number.' erstellt.', [

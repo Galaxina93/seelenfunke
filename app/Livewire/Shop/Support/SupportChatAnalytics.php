@@ -62,6 +62,23 @@ class SupportChatAnalytics extends Component
         $avgResponseTime = (int) SupportCustomerChat::avg('avg_response_time_ms');
         $avgConfidence = (int) SupportCustomerChat::avg('ai_confidence_score');
 
+        // Text & Content Metrics
+        $totalChatsAll = SupportCustomerChat::count();
+        $trollRate = $totalChatsAll > 0 ? round(($resolvedAutoCount / $totalChatsAll) * 100) : 0;
+        $escalationRate = $totalChatsAll > 0 ? round(($needsEmployeeCount / $totalChatsAll) * 100) : 0;
+
+        $avgMessagesPerChat = SupportCustomerChat::withCount('messages')->get()->avg('messages_count');
+        $avgMessagesPerChat = $avgMessagesPerChat ? round($avgMessagesPerChat, 1) : 0;
+
+        $avgCustomerLength = (int) \App\Models\Support\SupportCustomerChatMessage::where('sender', 'customer')
+            ->selectRaw('AVG(LENGTH(message)) as avg_len')->value('avg_len');
+
+        // Recent AI Summaries
+        $recentSummaries = SupportCustomerChat::whereNotNull('ai_summary')
+            ->orderBy('updated_at', 'desc')
+            ->limit(5)
+            ->get(['top_topic', 'ai_summary', 'updated_at']);
+
         // Top 5 Themen / Produkte
         $topTopics = SupportCustomerChat::whereNotNull('top_topic')
             ->select('top_topic', \Illuminate\Support\Facades\DB::raw('count(*) as count'))
@@ -117,7 +134,12 @@ class SupportChatAnalytics extends Component
             'agentImage' => $agentImage,
             'avgRating' => $avgRating,
             'totalRatings' => $totalRatings,
-            'ratingBreakdown' => $ratingBreakdown
+            'ratingBreakdown' => $ratingBreakdown,
+            'trollRate' => $trollRate,
+            'escalationRate' => $escalationRate,
+            'avgMessagesPerChat' => $avgMessagesPerChat,
+            'avgCustomerLength' => $avgCustomerLength,
+            'recentSummaries' => $recentSummaries
         ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

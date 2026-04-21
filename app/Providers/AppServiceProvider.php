@@ -53,7 +53,7 @@ class AppServiceProvider extends ServiceProvider
             'supplier' => 'App\Models\Product\ProductSupplier',
             'product_supplier' => 'App\Models\Product\ProductSupplier',
             'ai-department' => 'App\Models\Ai\AiDepartment',
-            'timeline_event' => 'App\Models\Management\ManagementTimelineEvent',
+
             'management_mission' => 'App\Models\Management\ManagementMission',
 
 

@@ -17,7 +17,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
     Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
     Route::get('/admin/ceo/gesundheit', \App\Livewire\Shop\Management\ManagementHealth::class)->name('ceo.gesundheit');
-    Route::get('/admin/timeline', \App\Livewire\Shop\Management\ManagementTimeline::class)->name('admin.timeline');
+
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
     Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
@@ -36,7 +36,6 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/company-map', \App\Livewire\Shop\System\SystemCompanyMap::class)->name('admin.company-map');
     Route::get('/admin/global-logs', \App\Livewire\Shop\System\SystemLogs::class)->name('admin.global-logs');
-    Route::get('/admin/system-info', \App\Livewire\Shop\System\SystemInfo::class)->name('admin.system-info');
     Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
     Route::get('/admin/configuration', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.configuration');
 

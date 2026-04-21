@@ -147,6 +147,13 @@
                                 @foreach($day['events'] as $event)
                                     @php
                                         $s = $styles[$event->category] ?? $styles['general'];
+                                        if ($event->priority === 'high') {
+                                            $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
+                                        } elseif ($event->priority === 'medium') {
+                                            $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-400';
+                                        } else {
+                                            $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
+                                        }
                                         $spanType = $event->span_type ?? 'single';
 
                                         $roundedClass = 'rounded-lg';
@@ -237,6 +244,13 @@
                             @foreach($dayData['events'] as $event)
                                 @php
                                     $s = $styles[$event->category] ?? $styles['general'];
+                                    if ($event->priority === 'high') {
+                                        $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
+                                    } elseif ($event->priority === 'medium') {
+                                        $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-400';
+                                    } else {
+                                        $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
+                                    }
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
                                 <div class="flex items-center gap-4 p-4 hover:bg-gray-800 rounded-2xl cursor-pointer transition-all group border border-transparent hover:border-gray-700 shadow-sm" wire:click="editEvent('{{ $event->id }}')">
@@ -298,6 +312,13 @@
                             @forelse($dayData['events'] as $event)
                                 @php
                                     $s = $styles[$event->category] ?? $styles['general'];
+                                    if ($event->priority === 'high') {
+                                        $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
+                                    } elseif ($event->priority === 'medium') {
+                                        $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-400';
+                                    } else {
+                                        $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
+                                    }
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
                                 <div wire:click="editEvent('{{ $event->id }}')" class="bg-gray-900/60 border border-gray-800 rounded-[2rem] p-5 shadow-lg hover:shadow-2xl hover:border-[var(--theme-color-40)] transition-all cursor-pointer flex items-center justify-between group/card">
@@ -362,7 +383,7 @@
                         @error('editTitle') <span class="text-red-400 text-[9px] font-black uppercase ml-1">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                         {{-- Kategorie --}}
                         <div>
                             <label class="label-xs">Kategorie</label>
@@ -385,6 +406,18 @@
                                     <option value="15" class="bg-gray-900">15 Min. vorher</option>
                                     <option value="60" class="bg-gray-900">1 Std. vorher</option>
                                     <option value="1440" class="bg-gray-900">1 Tag vorher</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                            </div>
+                        </div>
+                        {{-- Priorität --}}
+                        <div>
+                            <label class="label-xs">Priorität</label>
+                            <div class="relative group">
+                                <select wire:model="editPriority" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
+                                    <option value="low" class="bg-gray-900">Niedrig (Grau)</option>
+                                    <option value="medium" class="bg-gray-900">Mittel (Gelb)</option>
+                                    <option value="high" class="bg-gray-900">Wichtig (Rot)</option>
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                             </div>

@@ -19,13 +19,13 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             SystemSettingSeeder::class,
             SystemMapSeeder::class,
-            SystemInfoSeeder::class,
+            AiTarifeSeeder::class,
             SystemApiNodeSeeder::class,
 
             // Management
             ManagementDayRoutineSeeder::class,
             ManagementContactSeeder::class,
-            ManagementTimelineSeeder::class,
+            ManagementCalenderSeeder::class,
 
             //Product
             ProductSeeder::class,

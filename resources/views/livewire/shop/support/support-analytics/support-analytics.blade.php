@@ -26,19 +26,19 @@
     {{-- KPIs Row --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-4 shadow-xl">
-            <h4 class="text-[10px] uppercase font-black tracking-widest text-cyan-500 mb-1">Offene Tickets</h4>
+            <h4 class="text-[10px] uppercase font-black tracking-widest text-[var(--theme-color)] mb-1">Offene Tickets</h4>
             <p class="text-2xl font-serif text-white">{{ $kpiTicketsOpen }}</p>
         </div>
         <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-4 shadow-xl">
-            <h4 class="text-[10px] uppercase font-black tracking-widest text-emerald-500 mb-1">Gelöste Tickets</h4>
+            <h4 class="text-[10px] uppercase font-black tracking-widest text-[var(--theme-color)] mb-1">Gelöste Tickets</h4>
             <p class="text-2xl font-serif text-white">{{ $kpiTicketsClosed }}</p>
         </div>
         <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-4 shadow-xl">
-            <h4 class="text-[10px] uppercase font-black tracking-widest text-amber-500 mb-1">Ø Ticket Bewertung</h4>
-            <p class="text-2xl font-serif text-white">{{ number_format($kpiAvgTicketRating, 1, ',', '.') }}<span class="text-amber-500 text-sm ml-1">★</span></p>
+            <h4 class="text-[10px] uppercase font-black tracking-widest text-[var(--theme-color)] mb-1">Ø Ticket Bewertung</h4>
+            <p class="text-2xl font-serif text-white">{{ number_format($kpiAvgTicketRating, 1, ',', '.') }}<span class="text-[var(--theme-color)] text-sm ml-1">★</span></p>
         </div>
         <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-4 shadow-xl">
-            <h4 class="text-[10px] uppercase font-black tracking-widest text-purple-500 mb-1">Ø Lösungszeit</h4>
+            <h4 class="text-[10px] uppercase font-black tracking-widest text-[var(--theme-color)] mb-1">Ø Lösungszeit</h4>
             <p class="text-2xl font-serif text-white">{{ $kpiAvgResolutionHrs }}h</p>
         </div>
     </div>
@@ -61,10 +61,10 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {{-- Volume Chart --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-chat-bubble-left-right class="w-5 h-5 text-cyan-500" />
+                        <x-heroicon-o-chat-bubble-left-right class="w-5 h-5 text-[var(--theme-color)]" />
                         Support Aufkommen (Gesamt)
                     </h3>
                     <div class="relative h-64 w-full mt-4" wire:ignore>
@@ -72,16 +72,16 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-cyan-400 uppercase text-[10px] tracking-widest block mb-1">Ticket Volumen</strong>Zeigt an, wie viele neue Tickets, Chats und Kontaktanfragen erstellt wurden.</p>
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Ticket Volumen</strong>Zeigt an, wie viele neue Tickets, Chats und Kontaktanfragen erstellt wurden.</p>
                 </div>
             </div>
 
             {{-- Source Distribution --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-globe-alt class="w-5 h-5 text-purple-500" />
+                        <x-heroicon-o-globe-alt class="w-5 h-5 text-[var(--theme-color)]" />
                         Herkunft & Kanal
                     </h3>
                     <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
@@ -89,7 +89,7 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-purple-400 uppercase text-[10px] tracking-widest block mb-1">Kanal Verteilung</strong>Prozentuale Aufschlüsselung der eingehenden Support-Kanäle.</p>
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Kanal Verteilung</strong>Prozentuale Aufschlüsselung der eingehenden Support-Kanäle.</p>
                 </div>
             </div>
         </div>
@@ -97,10 +97,10 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {{-- Ticket Status --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-ticket class="w-5 h-5 text-emerald-500" />
+                        <x-heroicon-o-ticket class="w-5 h-5 text-[var(--theme-color)]" />
                         Ticket Status
                     </h3>
                     <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
@@ -108,16 +108,16 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-emerald-400 uppercase text-[10px] tracking-widest block mb-1">Abwicklung</strong>Verteilung der Tickets nach ihrem aktuellen Bearbeitungsstatus.</p>
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Abwicklung</strong>Verteilung der Tickets nach ihrem aktuellen Bearbeitungsstatus.</p>
                 </div>
             </div>
 
             {{-- Chat Status --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-chat-bubble-oval-left-ellipsis class="w-5 h-5 text-rose-500" />
+                        <x-heroicon-o-chat-bubble-oval-left-ellipsis class="w-5 h-5 text-[var(--theme-color)]" />
                         Chat Status
                     </h3>
                     <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
@@ -125,7 +125,7 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-rose-400 uppercase text-[10px] tracking-widest block mb-1">Live Interaktion</strong>Prüft, ob Chat-Gespräche gelöst sind oder noch eingreifen erfordern.</p>
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Live Interaktion</strong>Prüft, ob Chat-Gespräche gelöst sind oder noch eingreifen erfordern.</p>
                 </div>
             </div>
         </div>
@@ -133,10 +133,10 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {{-- Chat Rating --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-star class="w-5 h-5 text-amber-500" />
+                        <x-heroicon-o-star class="w-5 h-5 text-[var(--theme-color)]" />
                         Chat Bewertungen
                     </h3>
                     <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
@@ -144,16 +144,16 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-amber-400 uppercase text-[10px] tracking-widest block mb-1">KI Zufriedenheit</strong>Zeigt an, wie Kunden den Chat mit dem Support bewertet haben (Sterne).</p>
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">KI Zufriedenheit</strong>Zeigt an, wie Kunden den Chat mit dem Support bewertet haben (Sterne).</p>
                 </div>
             </div>
 
             {{-- Ticket Rating --}}
             <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
                     <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
-                        <x-heroicon-o-star class="w-5 h-5 text-amber-500" />
+                        <x-heroicon-o-star class="w-5 h-5 text-[var(--theme-color)]" />
                         Ticket Bewertungen
                     </h3>
                     <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
@@ -161,7 +161,7 @@
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-amber-400 uppercase text-[10px] tracking-widest block mb-1">Support Zufriedenheit</strong>Zeigt an, wie Kunden klassische Support-Tickets bewertet haben.</p>
+                    <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Support Zufriedenheit</strong>Zeigt an, wie Kunden klassische Support-Tickets bewertet haben.</p>
                 </div>
             </div>
         </div>
@@ -194,6 +194,10 @@
                             const data = this.getPayload();
                             const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
                             const gridOptionsX = { display: false, drawBorder: false };
+                            const tc = '{{ $this->themeColorHex }}';
+                            
+                            // Generate monochromatic gradient palette
+                            const monoPalette = [tc, tc+'e6', tc+'cc', tc+'b3', tc+'99', tc+'80', tc+'66', tc+'4d', tc+'33', tc+'1a'];
 
                             // 1. Volume Growth
                             const ctxVol = document.getElementById('volumeChart').getContext('2d');
@@ -204,10 +208,10 @@
                                     datasets: [{
                                         label: 'Support Volumen',
                                         data: data.volume.data,
-                                        borderColor: 'rgba(6, 182, 212, 1)',
-                                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                                        borderColor: tc,
+                                        backgroundColor: tc + '1a',
                                         borderWidth: 2, tension: 0.4, fill: true,
-                                        pointBackgroundColor: 'rgba(6, 182, 212, 1)', pointBorderColor: '#fff',
+                                        pointBackgroundColor: tc, pointBorderColor: '#fff',
                                     }]
                                 },
                                 options: {
@@ -225,7 +229,7 @@
                                     labels: data.source.labels,
                                     datasets: [{
                                         data: data.source.data,
-                                        backgroundColor: ['#10b981', '#f59e0b', '#8b5cf6'],
+                                        backgroundColor: monoPalette,
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },
@@ -244,7 +248,7 @@
                                     labels: data.ticketStatus.labels,
                                     datasets: [{
                                         data: data.ticketStatus.data,
-                                        backgroundColor: ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'],
+                                        backgroundColor: monoPalette,
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },
@@ -263,7 +267,7 @@
                                     labels: data.chatStatus.labels,
                                     datasets: [{
                                         data: data.chatStatus.data,
-                                        backgroundColor: ['#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#6366f1'],
+                                        backgroundColor: monoPalette,
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },
@@ -282,7 +286,7 @@
                                     labels: data.chatRating.labels,
                                     datasets: [{
                                         data: data.chatRating.data,
-                                        backgroundColor: ['#eab308', '#f59e0b', '#fbbf24', '#fcd34d', '#fef3c7'],
+                                        backgroundColor: monoPalette,
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },
@@ -301,7 +305,7 @@
                                     labels: data.ticketRating.labels,
                                     datasets: [{
                                         data: data.ticketRating.data,
-                                        backgroundColor: ['#eab308', '#f59e0b', '#fbbf24', '#fcd34d', '#fef3c7'],
+                                        backgroundColor: monoPalette,
                                         borderWidth: 2, borderColor: '#1f2937'
                                     }]
                                 },

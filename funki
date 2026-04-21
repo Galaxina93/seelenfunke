@@ -201,6 +201,12 @@ case "$1" in
             exit 0
         fi
 
+        if [ "$1" == "test-support-agent" ]; then
+            echo "🤖 Starte exklusiven KI-Stresstest (40 Fragen)..."
+            $PREFIX_DEFAULT php artisan app:test-support-agent
+            exit 0
+        fi
+
         echo "🔐 Führe Berechtigungs-Fix aus..."
         $0 rights
 

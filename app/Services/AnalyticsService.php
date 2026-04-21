@@ -770,6 +770,7 @@ class AnalyticsService
             'chart_data' => $chartData,
             'total_revenue' => $totalRevenuePeriod,
             'total_profit' => $totalRevenuePeriod - $totalExpensesPeriod,
+            'avg_revenue_monthly' => $totalRevenuePeriod / max(1, ($durationInDays / 30.42)),
             'revenue_growth' => round($revenueGrowth, 1),
             'avg_profit' => $avgProfit,
             'projected_year' => $projectedProfit,

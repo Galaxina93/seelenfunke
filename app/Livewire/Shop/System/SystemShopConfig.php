@@ -7,14 +7,22 @@ use Livewire\Attributes\Layout;
 use App\Models\System\SystemSetting;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
+use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\Storage;
 
 #[Layout('components.layouts.backend_layout')]
 class SystemShopConfig extends Component
 {
     use \App\Livewire\Traits\WithDepartmentTheming;
+    use WithFileUploads;
 
     public string $themingDepartment = 'System';
     public $settings = [];
+    
+    // Updates/Reports System-Info
+    public $uploads = [];
+    public $selectedReports = [];
+    public $reportFiles = [];
 
     protected $configKeys = [
         'is_small_business',
@@ -135,6 +143,8 @@ class SystemShopConfig extends Component
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
+
+        $this->loadReports();
     }
 
     private function getFallback($key)
@@ -212,5 +222,72 @@ class SystemShopConfig extends Component
 
     public function resetSaved() { $this->saved = false; }
 
-    public function render() { return view('livewire.shop.system.system-shop-config'); }
+    // --- SYSTEM INFO METHODS (MIGRATED) ---
+    public function loadReports()
+    {
+        try {
+            Storage::makeDirectory('reports/laravel-updates');
+            $files = Storage::files('reports/laravel-updates');
+            rsort($files);
+            $this->reportFiles = $files;
+        } catch (\Exception $e) {
+            $this->reportFiles = [];
+        }
+    }
+
+    public function toggleReport($filename)
+    {
+        if (in_array($filename, $this->selectedReports)) {
+            $this->selectedReports = array_diff($this->selectedReports, [$filename]);
+        } else {
+            $this->selectedReports[] = $filename;
+        }
+    }
+
+    public function saveUploads()
+    {
+        $this->validate([
+            'uploads.*' => 'file|max:10240', // 10MB max per file
+        ]);
+
+        foreach ($this->uploads as $file) {
+            $filename = $file->getClientOriginalName();
+            // Store directly in our updates folder
+            $file->storeAs('reports/laravel-updates', $filename);
+        }
+
+        $this->uploads = [];
+        $this->loadReports();
+        
+        session()->flash('message', 'Dateien erfolgreich hochgeladen.');
+    }
+
+    public function deleteReport($filename)
+    {
+        if (Storage::exists($filename)) {
+            Storage::delete($filename);
+            $this->selectedReports = array_diff($this->selectedReports, [$filename]);
+            $this->loadReports();
+            session()->flash('message', 'Bericht gelöscht.');
+        }
+    }
+
+    public function getReportContent($filename)
+    {
+        if (Storage::exists($filename)) {
+            return Storage::get($filename);
+        }
+        return 'Fehler: Bericht nicht gefunden.';
+    }
+
+    public function render() 
+    { 
+        $laravelVersion = app()->version();
+        $phpVersion = PHP_VERSION;
+        
+        return view('livewire.shop.system.system-shop-config', [
+            'laravelVersion' => $laravelVersion,
+            'phpVersion' => $phpVersion,
+        ]);
+    }
 }

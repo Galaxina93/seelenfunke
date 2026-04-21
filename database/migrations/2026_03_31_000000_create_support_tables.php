@@ -41,6 +41,9 @@ return new class extends Migration
             $table->string('sender')->default('customer');
 
             $table->text('message');
+            $table->tinyInteger('severity')->default(0)->comment('0=Normal, 1-10=Penalty severity');
+            $table->string('tag')->nullable()->comment('E.g. SMALLTALK, JOKE, INSULT');
+            
             $table->timestamps();
 
             // We use UUID string mapping so we don't strictly bind the foreign key constraint

@@ -36,6 +36,14 @@ class AiWorkspace extends Component
     public int $chatHeightPercent = 40;
     public bool $autoApprovePlan = false;
 
+    // AI Hosting Tariffs Management
+    public $newPlanName = '';
+    public ?int $newPlanTokens = null;
+    public string $newPlanPrice = '0.00';
+    public $newPlanDescription = '';
+    public $newPlanFeatures = [['title' => '', 'description' => '']];
+    public ?int $editingPlanId = null;
+
     public function getListeners()
     {
         return [
@@ -795,6 +803,125 @@ class AiWorkspace extends Component
             
             if ($agentId) {
                 \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
+            }
+        }
+    }
+
+    // --- AI HOSTING TARIFFS MANAGEMENT ---
+    
+    #[Computed]
+    public function aiPlans()
+    {
+        return class_exists(\App\Models\System\SystemAiHostingPlan::class) 
+            ? \App\Models\System\SystemAiHostingPlan::all() 
+            : collect();
+    }
+
+    public function addFeatureRow()
+    {
+        $this->newPlanFeatures[] = ['title' => '', 'description' => ''];
+    }
+
+    public function removeFeatureRow($index)
+    {
+        if (isset($this->newPlanFeatures[$index])) {
+            unset($this->newPlanFeatures[$index]);
+            $this->newPlanFeatures = array_values($this->newPlanFeatures);
+        }
+    }
+
+    public function setActivePlan($id)
+    {
+        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
+            \App\Models\System\SystemAiHostingPlan::where('is_active', true)->update(['is_active' => false]);
+            \App\Models\System\SystemAiHostingPlan::where('id', $id)->update(['is_active' => true]);
+            session()->flash('message', 'KI Hosting Paket gewechselt!');
+        }
+    }
+
+    public function editPlan($id)
+    {
+        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
+            $plan = \App\Models\System\SystemAiHostingPlan::find($id);
+            if ($plan) {
+                $this->editingPlanId = $plan->id;
+                $this->newPlanName = $plan->name;
+                $this->newPlanTokens = $plan->token_limit;
+                $this->newPlanPrice = rtrim(rtrim(sprintf('%.2f', $plan->price_monthly), '0'), '.'); // clean format
+                if (empty($this->newPlanPrice)) $this->newPlanPrice = '0';
+                $this->newPlanDescription = $plan->description ?? '';
+                $this->newPlanFeatures = is_array($plan->features) && count($plan->features) > 0 ? $plan->features : [['title' => '', 'description' => '']];
+            }
+        }
+    }
+
+    public function cancelEdit()
+    {
+        $this->editingPlanId = null;
+        $this->resetPlanForm();
+    }
+
+    private function resetPlanForm()
+    {
+        $this->newPlanName = '';
+        $this->newPlanTokens = null;
+        $this->newPlanPrice = '0.00';
+        $this->newPlanDescription = '';
+        $this->newPlanFeatures = [['title' => '', 'description' => '']];
+    }
+
+    public function saveNewPlan()
+    {
+        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
+            $this->validate([
+                'newPlanName' => 'required|string|max:200',
+                'newPlanTokens' => 'nullable|integer|min:0',
+                'newPlanPrice' => 'required|numeric|min:0',
+                'newPlanFeatures.*.title' => 'nullable|string',
+                'newPlanFeatures.*.description' => 'nullable|string',
+            ]);
+
+            // Filter empty features
+            $filteredFeatures = array_filter($this->newPlanFeatures, function($feature) {
+                return !empty(trim($feature['title']));
+            });
+
+            if ($this->editingPlanId) {
+                $plan = \App\Models\System\SystemAiHostingPlan::find($this->editingPlanId);
+                if ($plan) {
+                    $plan->update([
+                        'name' => $this->newPlanName,
+                        'token_limit' => $this->newPlanTokens ?: null,
+                        'price_monthly' => $this->newPlanPrice,
+                        'description' => $this->newPlanDescription,
+                        'features' => array_values($filteredFeatures)
+                    ]);
+                    session()->flash('message', 'Tarif aktualisiert.');
+                }
+                $this->editingPlanId = null;
+            } else {
+                \App\Models\System\SystemAiHostingPlan::create([
+                    'name' => $this->newPlanName,
+                    'token_limit' => $this->newPlanTokens ?: null,
+                    'price_monthly' => $this->newPlanPrice,
+                    'description' => $this->newPlanDescription,
+                    'features' => array_values($filteredFeatures),
+                    'is_active' => false,
+                ]);
+                session()->flash('message', 'Individueller Tarif angelegt.');
+            }
+
+            $this->resetPlanForm();
+        }
+    }
+
+    public function deletePlan($id)
+    {
+        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
+            $plan = \App\Models\System\SystemAiHostingPlan::find($id);
+            if ($plan && !$plan->is_active) {
+                $plan->delete();
+                session()->flash('message', 'Tarif gelöscht.');
             }
         }
     }

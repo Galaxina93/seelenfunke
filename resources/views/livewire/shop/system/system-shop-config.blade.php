@@ -46,6 +46,7 @@
             <button @click="activeTab = 'products'" :class="activeTab === 'products' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Produkt & Marketing</button>
             <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Versand & Lieferzeit</button>
             <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Stammdaten (Impressum)</button>
+            <button @click="activeTab = 'system'" :class="activeTab === 'system' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">System-Info</button>
         </div>
 
         @php
@@ -68,6 +69,9 @@
 
             {{-- TAB: STAMMDATEN --}}
             @include('livewire.shop.system.system-config-partials.ower_tab')
+            
+            {{-- TAB: SYSTEM INFO --}}
+            @include('livewire.shop.system.system-config-partials.system_tab')
 
         </div>
     </div>

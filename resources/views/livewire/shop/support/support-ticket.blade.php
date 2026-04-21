@@ -20,21 +20,21 @@
             <div class="grid grid-cols-3 gap-2 mb-4">
                 <div class="bg-gray-800 border border-gray-700 rounded-xl p-2 text-center">
                     <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Offen</div>
-                    <div class="text-lg font-black text-cyan-400">{{ $kpiOpenCount }}</div>
+                    <div class="text-lg font-black text-[var(--theme-color)]">{{ $kpiOpenCount }}</div>
                 </div>
                 <div class="bg-gray-800 border border-gray-700 rounded-xl p-2 text-center">
                     <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Ø Rating</div>
-                    <div class="text-lg font-black text-amber-500">{{ number_format($kpiAvgRating, 1, ',', '.') }} ★</div>
+                    <div class="text-lg font-black text-[var(--theme-color)]">{{ number_format($kpiAvgRating, 1, ',', '.') }} ★</div>
                 </div>
                 <div class="bg-gray-800 border border-gray-700 rounded-xl p-2 text-center">
                     <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Ø Zeit</div>
-                    <div class="text-lg font-black text-emerald-400">{{ $kpiAvgResolutionHrs }}h</div>
+                    <div class="text-lg font-black text-[var(--theme-color)]">{{ $kpiAvgResolutionHrs }}h</div>
                 </div>
             </div>
             <div class="flex flex-wrap sm:flex-nowrap gap-2 mb-4 sm:mb-6 bg-gray-950 p-1.5 rounded-xl border border-gray-800 shadow-inner">
-                <button wire:click="$set('filterStatus', 'all')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'all' ? 'bg-purple-900/30 border border-purple-500/50 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Alle</button>
-                <button wire:click="$set('filterStatus', 'open')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'open' ? 'bg-blue-900/30 border border-blue-500/50 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Offen</button>
-                <button wire:click="$set('filterStatus', 'answered')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'answered' ? 'bg-emerald-900/30 border border-emerald-500/50 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Antwort</button>
+                <button wire:click="$set('filterStatus', 'all')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'all' ? 'bg-[var(--theme-color-20)] border border-[var(--theme-color)]/50 text-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-20)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Alle</button>
+                <button wire:click="$set('filterStatus', 'open')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'open' ? 'bg-[var(--theme-color-20)] border border-[var(--theme-color)]/50 text-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-20)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Offen</button>
+                <button wire:click="$set('filterStatus', 'answered')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'answered' ? 'bg-[var(--theme-color-20)] border border-[var(--theme-color)]/50 text-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-20)]' : 'text-gray-500 hover:text-white border border-transparent' }}">Antwort</button>
                 <button wire:click="$set('filterStatus', 'closed')" class="flex-1 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all {{ $filterStatus === 'closed' ? 'bg-gray-800 border border-gray-600 text-white shadow-md' : 'text-gray-500 hover:text-white border border-transparent' }}">Zu</button>
             </div>
             <div class="relative">

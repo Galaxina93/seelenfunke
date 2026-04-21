@@ -35,7 +35,6 @@ class BackendNavigationService
                             ['id' => 'routine', 'title' => 'Routine', 'route' => '/admin/routine', 'icon' => 'arrow-path'],
                             ['id' => 'tasks', 'title' => 'Aufgaben', 'route' => '/admin/tasks', 'icon' => 'check-circle'],
                             ['id' => 'calender', 'title' => 'Kalender', 'route' => '/admin/calender', 'icon' => 'calendar-days'],
-                            ['id' => 'timeline', 'title' => 'Zeitachse', 'route' => '/admin/timeline', 'icon' => 'clock'],
                             ['id' => 'gesundheit', 'title' => 'Gesundheit', 'route' => '/admin/ceo/gesundheit', 'icon' => 'heart'],
                         ]
                     ]
@@ -133,9 +132,9 @@ class BackendNavigationService
                         'icon' => 'cpu-chip',
                         'ai_department_id' => '019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                         'children' => [
+                            ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'war-room', 'title' => 'Zentrale', 'route' => '/admin/ai/workspace', 'icon' => 'rectangle-group'],
-                            ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2'],
-                            ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai/analytics', 'icon' => 'chart-pie']
+                            ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2']
                         ]
                     ],
                     [
@@ -148,7 +147,6 @@ class BackendNavigationService
                             ['id' => 'global-logs', 'title' => 'Log', 'route' => '/admin/global-logs', 'icon' => 'server-stack'],
                             ['id' => 'user-management', 'title' => 'Benutzer', 'route' => '/admin/user-management', 'icon' => 'users'],
                             ['id' => 'company-map', 'title' => 'Architektur-Map', 'route' => '/admin/company-map', 'icon' => 'map'],
-                            ['id' => 'system-info', 'title' => 'System-Info', 'route' => '/admin/system-info', 'icon' => 'server'],
                             ['id' => 'configuration', 'title' => 'Einstellungen', 'route' => '/admin/configuration', 'icon' => 'cog-8-tooth'],
                         ]
                     ]

@@ -36,6 +36,7 @@ class ManagementCalender extends Component
     public $editIsAllDay = false;
     public $editCategory;
     public $editDescription;
+    public $editPriority = 'low';
 
     // Wiederholung & Erinnerung
     public $editRecurrence = null;
@@ -125,6 +126,7 @@ class ManagementCalender extends Component
         $this->editIsAllDay = $event->is_all_day;
         $this->editCategory = $event->category;
         $this->editDescription = $event->description;
+        $this->editPriority = $event->priority ?? 'low';
 
         $this->editRecurrence = $event->recurrence;
         $this->editRecurrenceEnd = $event->recurrence_end_date ? $event->recurrence_end_date->format('Y-m-d') : '';
@@ -161,6 +163,7 @@ class ManagementCalender extends Component
             'is_all_day' => $this->editIsAllDay,
             'category' => $this->editCategory,
             'description' => $this->editDescription,
+            'priority' => $this->editPriority,
             'recurrence' => $this->editRecurrence === '' ? null : $this->editRecurrence,
             'recurrence_end_date' => $this->editRecurrenceEnd ? Carbon::parse($this->editRecurrenceEnd) : null,
             'reminder_minutes' => $this->editReminderMinutes === '' ? null : $this->editReminderMinutes,
@@ -196,9 +199,10 @@ class ManagementCalender extends Component
         $this->reset([
             'editingEventId', 'editTitle', 'editStartDate', 'editStartTime',
             'editEndDate', 'editEndTime', 'editIsAllDay', 'editCategory',
-            'editDescription', 'editRecurrence', 'editRecurrenceEnd', 'editReminderMinutes'
+            'editDescription', 'editPriority', 'editRecurrence', 'editRecurrenceEnd', 'editReminderMinutes'
         ]);
         $this->editCategory = 'general';
+        $this->editPriority = 'low';
         $this->editIsAllDay = false;
     }
 
@@ -291,7 +295,8 @@ class ManagementCalender extends Component
                         'is_all_day' => $isAllDay,
                         'category' => $category,
                         'reminder_minutes' => $reminderMinutes,
-                        'description' => 'Importiert aus ICS'
+                        'description' => 'Importiert aus ICS',
+                        'priority' => 'low'
                     ]
                 );
                 $count++;

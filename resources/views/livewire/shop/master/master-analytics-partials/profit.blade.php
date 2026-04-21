@@ -4,17 +4,17 @@
             <div>
                 <h3 class="text-xs sm:text-sm font-black text-gray-400 uppercase tracking-widest">Gewinn-Entwicklung</h3>
                 @php
-                    $bEven = $stats['break_even_period'] ?? 0;
-                    $currentRev = $stats['total_revenue'] ?? 0;
+                    $bEven = $stats['break_even_monthly'] ?? 0;
+                    $currentRev = $stats['avg_revenue_monthly'] ?? 0;
                     $missing = max(0, $bEven - $currentRev);
                 @endphp
                 <div class="mt-1 flex items-center gap-2">
                     @if($missing > 0)
-                        <span class="text-[10px] font-bold text-red-400">Noch {{ number_format($missing, 2, ',', '.') }} € benötigt</span>
+                        <span class="text-[10px] font-bold text-red-400">Noch {{ number_format($missing, 2, ',', '.') }} € pro Monat benötigt</span>
                     @else
-                        <span class="text-[10px] font-bold text-emerald-400">Break-Even erreicht!</span>
+                        <span class="text-[10px] font-bold text-emerald-400">Break-Even (mtl.) erreicht!</span>
                     @endif
-                    <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black">({{ number_format($currentRev, 2, ',', '.') }} € / {{ number_format($bEven, 2, ',', '.') }} €)</span>
+                    <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black">({{ number_format($currentRev, 2, ',', '.') }} € / {{ number_format($bEven, 2, ',', '.') }} € pro Monat)</span>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">

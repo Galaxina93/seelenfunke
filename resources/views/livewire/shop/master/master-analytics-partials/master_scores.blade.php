@@ -276,8 +276,8 @@
 
                 <!-- Break-Even Status -->
                 @php
-                    $bEven = $stats['break_even_period'] ?? 0;
-                    $currentRev = $stats['total_revenue'] ?? 0;
+                    $bEven = $stats['break_even_monthly'] ?? 0;
+                    $currentRev = $stats['avg_revenue_monthly'] ?? 0;
                     $missing = max(0, $bEven - $currentRev);
                     $beColor = $missing > 0 ? 'red' : 'emerald';
                 @endphp
@@ -857,23 +857,7 @@
                     @endforeach
                 </div>
 
-                {{-- STORAGE --}}
-                @if($storageData && isset($storageData['percent_used']))
-                    <div class="mt-8 bg-gray-950/40 rounded-[2rem] border border-gray-800 p-6 shadow-inner">
-                        <div class="flex justify-between items-end mb-3">
-                            <div>
-                                <h5 class="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">Server Speicherkapazität</h5>
-                                <div class="text-[10px] font-bold text-gray-400 tracking-wide">{{ $storageData['percent_free'] }}% frei ({{ $storageData['free_gb'] }} GB von {{ $storageData['total_gb'] }} GB)</div>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-lg font-black {{ $storageData['percent_free'] < 10 ? 'text-red-400' : 'text-white' }} leading-none block">{{ $storageData['percent_used'] }}%</span>
-                            </div>
-                        </div>
-                        <div class="w-full h-3 bg-gray-900 rounded-full overflow-hidden border border-gray-800 flex items-center justify-start">
-                             <div class="h-full rounded-full transition-all duration-1000 bg-primary" style="width: {{ $storageData['percent_used'] }}%"></div>
-                        </div>
-                    </div>
-                @endif
+
 
                 {{-- REPAIR LOG --}}
                 @if(count($repairLogs) > 0)
