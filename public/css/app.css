@@ -1344,6 +1344,9 @@ video {
 .top-full {
   top: 100%;
 }
+.right-2\.5 {
+  right: 0.625rem;
+}
 .\!z-\[9999\] {
   z-index: 9999 !important;
 }
@@ -2108,6 +2111,12 @@ video {
 }
 .max-h-none {
   max-height: none;
+}
+.max-h-20 {
+  max-height: 5rem;
+}
+.max-h-\[180px\] {
+  max-height: 180px;
 }
 .min-h-0 {
   min-height: 0px;
@@ -10353,6 +10362,10 @@ video {
 }
 .drop-shadow-xl {
   --tw-drop-shadow: drop-shadow(0 20px 13px rgb(0 0 0 / 0.03)) drop-shadow(0 8px 5px rgb(0 0 0 / 0.08));
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+.drop-shadow-\[0_0_8px_rgba\(168\2c 85\2c 247\2c 0\.5\)\] {
+  --tw-drop-shadow: drop-shadow(0 0 8px rgba(168,85,247,0.5));
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 .grayscale {

@@ -9,6 +9,91 @@
 
     @include('livewire.shop.master.master-analytics-partials.master_scores')
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- AKTIV ROUTINE -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border border-gray-800 flex flex-col relative overflow-hidden group">
+            <div class="absolute top-0 right-0 p-4 opacity-10">
+                <x-heroicon-s-arrow-path class="w-24 h-24 text-white" />
+            </div>
+            <div class="flex items-center justify-between mb-6 relative z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border border-primary/50">
+                        <x-heroicon-s-clock class="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Live Routine</h3>
+                        <p class="text-sm font-bold text-white tracking-widest">Tagesablauf</p>
+                    </div>
+                </div>
+                <a href="{{ route('admin.routine') }}" class="text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1">Alle ansehen <x-heroicon-s-chevron-right class="w-3 h-3" /></a>
+            </div>
+
+            @if($currentActiveRoutine)
+               @php
+                   $startT = \Carbon\Carbon::parse($currentActiveRoutine->start_time)->format('H:i');
+                   $endT = \Carbon\Carbon::parse($currentActiveRoutine->start_time)->addMinutes($currentActiveRoutine->duration_minutes)->format('H:i');
+               @endphp
+               <div class="flex-1 flex flex-col justify-center">
+                   <div class="flex items-center justify-between mb-2">
+                       <h4 class="text-xl font-black text-white truncate pr-2">{{ $currentActiveRoutine->title }}</h4>
+                       <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-3 py-1 rounded-full text-xs font-bold shadow-[0_0_8px_rgba(16,185,129,0.5)]">Aktiv</span>
+                   </div>
+                   <div class="text-sm font-bold text-primary mb-4">{{ $startT }} - {{ $endT }} Uhr ({{ $currentActiveRoutine->duration_minutes }} Min)</div>
+                   <p class="text-sm text-gray-400 leading-relaxed max-h-20 overflow-y-auto custom-scrollbar">{{ $currentActiveRoutine->message ?: 'Keine weiteren Details hinterlegt.' }}</p>
+               </div>
+            @else
+               <div class="flex-1 flex flex-col items-center justify-center text-center py-4">
+                   <x-heroicon-o-moon class="w-12 h-12 text-gray-700 mb-3" />
+                   <h4 class="text-lg font-bold text-gray-500">Keine aktive Routine</h4>
+                   <p class="text-xs text-gray-600 mt-1">Aktuell läuft kein geplanter Block.</p>
+               </div>
+            @endif
+        </div>
+
+        <!-- ANSTEHENDE TERMINE -->
+        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border border-gray-800 flex flex-col relative overflow-hidden group">
+            <div class="flex items-center justify-between mb-6 relative z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/50">
+                        <x-heroicon-s-calendar class="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Kalender</h3>
+                        <p class="text-sm font-bold text-white tracking-widest">Nächste Termine</p>
+                    </div>
+                </div>
+                <a href="{{ route('admin.calender') }}" class="text-xs font-bold text-gray-400 hover:text-white transition-colors flex items-center gap-1">Alle ansehen <x-heroicon-s-chevron-right class="w-3 h-3" /></a>
+            </div>
+
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3 max-h-[180px]">
+                @forelse($upcomingEvents as $event)
+                    @php
+                        $isToday = $event->start_date->isToday();
+                        $isTomorrow = $event->start_date->isTomorrow();
+                        $dateLabel = $isToday ? 'Heute' : ($isTomorrow ? 'Morgen' : $event->start_date->format('d.m.'));
+                        $timeStr = $event->is_all_day ? 'Ganztägig' : $event->start_date->format('H:i');
+                        $colorClass = $event->priority === 'high' ? 'text-red-400 bg-red-500/10 border-red-500/20' : ($event->priority === 'medium' ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-blue-400 bg-blue-500/10 border-blue-500/20');
+                    @endphp
+                    <div class="bg-gray-950 rounded-xl p-3 border border-gray-800 flex items-start gap-4 hover:border-gray-700 transition-colors">
+                        <div class="flex flex-col items-center justify-center shrink-0 w-14 h-14 rounded-lg border {{ $colorClass }}">
+                            <span class="text-[10px] font-bold uppercase">{{ $dateLabel }}</span>
+                            <span class="text-[13px] font-black">{{ $timeStr }}</span>
+                        </div>
+                        <div class="flex-1 min-w-0 py-0.5">
+                            <h4 class="text-sm font-bold text-gray-200 truncate">{{ $event->title }}</h4>
+                            <p class="text-xs text-gray-500 truncate mt-1">{{ $event->description ?: 'Keine Beschreibung' }}</p>
+                        </div>
+                    </div>
+                @empty
+                    <div class="flex flex-col items-center justify-center h-full text-center py-6">
+                        <x-heroicon-o-calendar-days class="w-10 h-10 text-gray-700 mb-2" />
+                        <p class="text-sm font-bold text-gray-500">Keine anstehenden Termine</p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
     {{-- ABANDONED CARTS MODAL --}}
 
     @if($showAbandonedCarts)

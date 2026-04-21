@@ -920,11 +920,44 @@ class MasterAnalytics extends Component
         ];
     }
 
+    public function getUpcomingEventsProperty()
+    {
+        return \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
+             ->orderBy('start_date', 'asc')
+             ->take(3)
+             ->get();
+    }
+
+    public function getCurrentActiveRoutineProperty()
+    {
+        $now = now();
+        $currentTimeMin = $now->hour * 60 + $now->minute;
+
+        $routines = \App\Models\Management\ManagementDayRoutine::where('is_active', true)->get();
+        foreach ($routines as $r) {
+            if (!$r->start_time || !$r->duration_minutes) continue;
+            
+            $startTimeStr = $r->start_time instanceof \Carbon\Carbon ? $r->start_time->format('H:i') : $r->start_time;
+            $timeParts = explode(':', $startTimeStr);
+            if(count($timeParts) < 2) continue;
+            
+            $startMins = (int)$timeParts[0] * 60 + (int)$timeParts[1];
+            $endMins = $startMins + $r->duration_minutes;
+            
+            if ($currentTimeMin >= $startMins && $currentTimeMin < $endMins) {
+                return $r;
+            }
+        }
+        return null;
+    }
+
     public function render()
     {
         return view('livewire.shop.master.master-analytics', [
             'activeLogins' => $this->activeLogins,
             'systemLogs' => $this->systemLogs,
+            'upcomingEvents' => $this->upcomingEvents,
+            'currentActiveRoutine' => $this->currentActiveRoutine,
         ]);
     }
 }
