@@ -1364,7 +1364,8 @@
                                    @keydown.enter="handleEnter($event)"
                                    @keyup="checkMention" @click="checkMention"
                                    rows="1"
-                                   class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-[88px] pr-12 py-3 text-[var(--theme-color)] focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
+                                   style="padding-left: 90px;"
+                                   class="w-full bg-gray-900 border border-gray-800 rounded-lg pr-12 py-3 text-[var(--theme-color)] focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
                                    placeholder="Nachricht eingeben..." autofocus></textarea>
                                    
                             <button type="button" wire:click="createTaskFromChat" title="Als neue Aufgabe auf dem Board ablegen" class="absolute left-10 top-1/2 -translate-y-1/2 h-8 w-10 z-10 bg-emerald-500/10 border border-emerald-500/30 rounded-md hover:bg-emerald-500/20 text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
