@@ -19,7 +19,7 @@
     <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
 
         {{-- SIDEBAR: LISTEN --}}
-        <div class="w-full lg:w-72 bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col overflow-y-auto custom-scrollbar p-4 gap-3 shrink-0"
+        <div class="w-full lg:w-72 max-h-[30vh] lg:max-h-none bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col overflow-y-auto custom-scrollbar p-4 gap-3 shrink-0"
              id="category-sortable-list"
              x-data="{
                 initListSortable() {
@@ -48,10 +48,10 @@
                 }
              }"
              x-init="initListSortable()">
-            <div class="text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1">Kategorien</div>
+            <div class="text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1 shrink-0">Kategorien</div>
 
             @foreach($lists as $list)
-                <div class="category-item relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false }">
+                <div class="category-item shrink-0 relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false }">
                     <div @contextmenu.prevent="showListMenu = true"
                          @class([
                             'flex items-center gap-2 p-3.5 rounded-2xl transition-all duration-300 w-full border',
@@ -113,7 +113,7 @@
                 </div>
             @endforeach
 
-            <div class="p-1 w-full mt-2">
+            <div class="p-1 w-full mt-2 shrink-0">
                 @if(!$isAddingList)
                     <button wire:click="$set('isAddingList', true)"
                             class="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed border-gray-800 text-gray-600 hover:border-[var(--theme-color-50)] hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-5)] transition-all group">
@@ -153,7 +153,7 @@
         {{-- MAIN CONTENT: TASKS --}}
         <div class="flex-1 flex flex-col bg-gray-950/20 min-w-0 min-h-0 relative">
 
-            <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm relative">
+            <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm relative shrink-0">
                 <form wire:submit.prevent="createTask" class="relative group max-w-4xl mx-auto">
                     <div class="absolute inset-0 bg-[var(--theme-color-10)] rounded-2xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                     <input wire:model="newTask_title" type="text"
@@ -169,7 +169,7 @@
                 </form>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
                 @if(!$selectedListId)
                     <div class="flex flex-col items-center justify-center h-full text-center p-10 opacity-30">
                         <div class="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mb-6 border border-gray-800 shadow-inner">
@@ -217,7 +217,7 @@
                                 ])>
 
                                     <div class="flex items-center gap-3 w-full">
-                                        <div class="cursor-grab active:cursor-grabbing drag-handle opacity-0 group-hover/task:opacity-40 hover:!opacity-100 p-2 -ml-3 text-gray-500 transition-opacity">
+                                        <div class="cursor-grab active:cursor-grabbing drag-handle opacity-0 group-hover/task:opacity-40 hover:!opacity-100 p-2 -ml-3 text-gray-500 transition-opacity hidden md:block">
                                             <x-heroicon-m-bars-3 class="w-5 h-5" />
                                         </div>
 
@@ -229,7 +229,7 @@
                                     <div class="flex-1 min-w-0 pt-0.5" x-data="{ isEditing: false, updatedTitle: '{{ $task->title }}' }">
                                         <div x-show="!isEditing"
                                              @click.self="isEditing = true; $nextTick(() => $refs.editInput.focus())"
-                                            @class(['text-sm font-bold leading-relaxed break-words cursor-text hover:text-[var(--theme-color)] transition-colors pr-4', 'line-through text-gray-600 italic' => $task->is_completed, 'text-gray-200' => !$task->is_completed])>
+                                            @class(['text-sm font-bold leading-relaxed break-words cursor-text hover:text-[var(--theme-color)] transition-colors pr-2 md:pr-4', 'line-through text-gray-600 italic' => $task->is_completed, 'text-gray-200' => !$task->is_completed])>
                                             {!! preg_replace(
                                                   '/((?:https?|ftp|file):\/\/|www\.)[a-z0-9+&@#\/%?=~_|!:,.;\*\-]*[a-z0-9+&@#\/%=~_|]/i',
                                                   '<a href="$0" target="_blank" class="text-[var(--theme-color)] underline hover:text-white transition-colors" @click.stop>$0</a>',
@@ -262,7 +262,7 @@
                                         @endif
                                         
                                         {{-- ARCHIVE & DELETE INLINE HOVER --}}
-                                        <div class="flex items-center opacity-0 group-hover/task:opacity-100 transition-opacity">
+                                        <div class="hidden md:flex items-center opacity-0 group-hover/task:opacity-100 transition-opacity">
                                             <button wire:click="toggleArchiveTask('{{ $task->id }}')" class="p-2 text-gray-500 hover:text-amber-500 rounded-xl transition-all">
                                                 <x-heroicon-m-archive-box class="w-5 h-5" />
                                             </button>
@@ -282,6 +282,16 @@
                                              class="absolute right-0 top-12 w-56 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-[60] overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
                                             <button @click="isAddingSub = true; showMenu = false; $nextTick(() => $refs.addSubInput.focus())" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
                                                 <x-heroicon-o-list-bullet class="w-4 h-4 text-[var(--theme-color)]" /> Schritt dazu
+                                            </button>
+                                            
+                                            <div class="border-t border-gray-800 my-1 md:hidden"></div>
+                                            
+                                            <button wire:click="toggleArchiveTask('{{ $task->id }}')" class="md:hidden w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 hover:bg-gray-800 hover:text-amber-400 flex items-center gap-3 transition-colors">
+                                                <x-heroicon-o-archive-box class="w-4 h-4 text-amber-500" /> {{ $task->is_archived ? 'Wiederherstellen' : 'Archivieren' }}
+                                            </button>
+                                            
+                                            <button wire:click="deleteTask('{{ $task->id }}')" wire:confirm="Aufgabe wirklich löschen?" class="md:hidden w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 hover:text-red-400 flex items-center gap-3 transition-colors">
+                                                <x-heroicon-o-trash class="w-4 h-4 text-red-500" /> Löschen
                                             </button>
                                         </div>
                                     </div>

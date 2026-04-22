@@ -192,6 +192,48 @@
                     </a>
                 </div>
 
+                {{-- ERKLÄRUNG GAMIFICATION --}}
+                <div class="w-full max-w-4xl mx-auto mt-16 sm:mt-24 text-left animate-fade-in-up">
+                    <div class="bg-gray-900/80 backdrop-blur-xl border border-primary/30 rounded-3xl p-6 sm:p-10 shadow-[0_0_30px_rgba(197,160,89,0.1)] relative overflow-hidden">
+                        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent pointer-events-none"></div>
+                        <div class="relative z-10">
+                            <h3 class="text-2xl sm:text-3xl font-serif font-bold text-white mb-4 flex items-center gap-3">
+                                <span class="text-primary text-3xl">✨</span> Was passiert hier eigentlich?
+                            </h3>
+                            <div class="space-y-4 text-gray-400 text-sm sm:text-base leading-relaxed">
+                                <p>
+                                    Schön, dass du dabei bist! Dieser Bereich ist weit mehr als nur eine Kundenübersicht – es ist dein 
+                                    <strong class="text-white">persönliches Abenteuer</strong> in unserer Manufaktur der Magie. Wir glauben, dass Treue 
+                                    belohnt werden sollte, und zwar auf eine Art, die Spaß macht.
+                                </p>
+                                <p>
+                                    Dein kleiner 3D-Gefährte (wir nennen ihn liebevoll "Funki") begleitet dich auf deiner Reise. 
+                                    Mit jeder Bestellung, jeder Interaktion und jedem gelösten Rätsel sammelst du <strong class="text-primary">Funken</strong>. 
+                                    Diese Funken lassen deinen Funki wachsen, neue Level erreichen und sich visuell weiterentwickeln!
+                                </p>
+                                <ul class="list-none space-y-3 mt-6 mb-6">
+                                    <li class="flex items-start gap-3">
+                                        <svg class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <span><strong class="text-white">Level-Ups & Belohnungen:</strong> Erreichst du bestimmte Meilensteine, schaltest du exklusive Gutscheine, echte Rabatte und Überraschungen frei.</span>
+                                    </li>
+                                    <li class="flex items-start gap-3">
+                                        <svg class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
+                                        <span><strong class="text-white">Titel & Ränge:</strong> Verdiene prestigeträchtige Titel und präsentiere sie in der globalen Rangliste. Zeig allen, dass du ein Meister der Manufaktur bist!</span>
+                                    </li>
+                                    <li class="flex items-start gap-3">
+                                        <svg class="w-5 h-5 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <span><strong class="text-white">Minispiele:</strong> Nutze deine gesammelte Energie, um in kleinen Spielen weitere Funken zu gewinnen oder einfach die Seele baumeln zu lassen.</span>
+                                    </li>
+                                </ul>
+                                <p>
+                                    Kurz gesagt: Jeder Einkauf bringt dich weiter. Schau regelmäßig vorbei, beobachte die Evolution deines Funkis und 
+                                    sichere dir die Schätze, die auf deinem Weg liegen. Viel Spaß beim Entdecken!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="w-full max-w-4xl mx-auto mt-16 sm:mt-24 text-left animate-fade-in-up">
                     <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-6 border-b border-gray-800 pb-4 gap-2">
                         <h3 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3">

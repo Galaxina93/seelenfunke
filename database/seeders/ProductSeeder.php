@@ -332,7 +332,7 @@ class ProductSeeder extends Seeder
         $catIds5 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
         $p3->categories()->attach($catIds5);
 
-        // --- PRODUKT 4: Das Seelenbuch (Digital) ---
+/*        // --- PRODUKT 4: Das Seelenbuch (Digital) ---
         $p4 = Product::create([
             'name' => 'Das Seelenbuch',
             'slug' => 'seelenbuch',
@@ -453,6 +453,6 @@ class ProductSeeder extends Seeder
         ]);
 
         $catIds6 = ProductCategory::whereIn('name', ['Bestseller'])->pluck('id');
-        $p6->categories()->attach($catIds6);
+        $p6->categories()->attach($catIds6);*/
     }
 }

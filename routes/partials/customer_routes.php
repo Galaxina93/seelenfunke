@@ -13,8 +13,11 @@ Route::middleware(['auth:customer'])->group(function () {
         return view('backend.customer.pages.profile');
     })->name('customer.profile');
 
-    // 1. Übersicht & Opt-In (Hier landet man nach dem Login)
-    Route::get('/dashboard', \App\Livewire\Customer\CustomerDashboardComponent::class)->name('customer.dashboard');
+    // 1. Dashboard Redirect auf Bestellungen
+    Route::redirect('/dashboard', '/orders', 301)->name('customer.dashboard');
+
+    // 1b. Spielen (Ehemalige Zentrale)
+    Route::get('/play', \App\Livewire\Customer\CustomerDashboardComponent::class)->name('customer.play');
 
     // 2. Bestellungen
     Route::get('/orders', \App\Livewire\Customer\CustomerOrdersComponent::class)->name('customer.orders');
