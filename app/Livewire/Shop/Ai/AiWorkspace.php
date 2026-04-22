@@ -500,8 +500,26 @@ class AiWorkspace extends Component
                                     ]
                                 ];
                             } else {
-                                $lines = array_slice(file($fullPath), 0, 2000);
-                                $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n```\n" . rtrim(implode("", $lines)) . "\n```\n";
+                                if (in_array($mime, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/x-zip-compressed'])) {
+                                    if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
+                                        try {
+                                            $parser = new \Smalot\PdfParser\Parser();
+                                            $pdf = $parser->parseFile($fullPath);
+                                            $pdfText = $pdf->getText();
+                                            // Limit text to 40k characters to save token limits (~10k tokens)
+                                            $safePdfText = mb_convert_encoding(mb_substr($pdfText, 0, 40000, 'UTF-8'), 'UTF-8', 'UTF-8');
+                                            $contentToAPI .= "\n--- DATEI: {$up['name']} (PDF TEXT-EXTRAKT) ---\n```\n" . $safePdfText . "\n```\n";
+                                        } catch (\Exception $e) {
+                                            $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine PDF-Datei, aber das automatische Einlesen des Textes schlug fehl: " . $e->getMessage() . "]\n";
+                                        }
+                                    } else {
+                                        $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine {$mime} Datei. Binäre Dokumente (außer Standard-PDFs) können nicht direkt als Text gelesen werden. Der Dateiinhalt ist für dich verborgen. Teile dem Nutzer mit, dass du das Dokument nicht lesen kannst, es sei denn, er kopiert den Text direkt hinein.]\n";
+                                    }
+                                } else {
+                                    $lines = array_slice(file($fullPath), 0, 2000);
+                                    $safeText = mb_convert_encoding(rtrim(implode("", $lines)), 'UTF-8', 'UTF-8');
+                                    $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n```\n" . $safeText . "\n```\n";
+                                }
                             }
                         }
                     }

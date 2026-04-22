@@ -353,7 +353,7 @@ class GeminiAgent implements AiProviderInterface
                     'Authorization: Bearer ' . $this->apiKey,
                     'Accept: text/event-stream'
                 ]);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE));
                 // Wir gewähren der LLM volle 120 Sekunden, um die Werkzeuge (Tools) zu lesen und zu entscheiden
                 curl_setopt($ch, CURLOPT_TIMEOUT, 120 + ($retryCount * 30));
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);

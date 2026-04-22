@@ -13431,6 +13431,10 @@ video {
   --tw-translate-x: 1rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
+.peer:checked ~ .peer-checked\:translate-x-7 {
+  --tw-translate-x: 1.75rem;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
 .peer:checked ~ .peer-checked\:border-\[var\(--theme-color\)\] {
   border-color: var(--theme-color);
 }
@@ -13469,6 +13473,10 @@ video {
 .peer:checked ~ .peer-checked\:border-red-500 {
   --tw-border-opacity: 1;
   border-color: rgb(239 68 68 / var(--tw-border-opacity, 1));
+}
+.peer:checked ~ .peer-checked\:border-white {
+  --tw-border-opacity: 1;
+  border-color: rgb(255 255 255 / var(--tw-border-opacity, 1));
 }
 .peer:checked ~ .peer-checked\:bg-\[var\(--theme-color\)\] {
   background-color: var(--theme-color);

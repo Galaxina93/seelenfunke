@@ -284,6 +284,21 @@ trait AiHealthFuncs
                     'required' => ['contact_id']
                 ],
                 'callable' => [self::class, 'executeDeleteDoctor']
+            ],
+            [
+                'name' => 'health_read_document',
+                'description' => 'Liest den Inhalt (Volltext) eines hochgeladenen medizinischen Dokuments (PDF, TXT) aus der Patientenakte.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'filename' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Dateiname des Dokuments (z.B. "laborwerte_2025.pdf" oder "Rechnung.pdf").'
+                        ]
+                    ],
+                    'required' => ['filename']
+                ],
+                'callable' => [self::class, 'executeReadDocument']
             ]
         ];
     }
@@ -641,6 +656,59 @@ trait AiHealthFuncs
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Erstellen der Aufgabe: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeReadDocument(array $args)
+    {
+        try {
+            $filename = trim($args['filename'] ?? '');
+            if (empty($filename)) {
+                return ['error' => true, 'message' => 'Es wurde kein Dateiname übergeben.'];
+            }
+
+            $allFiles = \Illuminate\Support\Facades\Storage::disk('public')->allFiles('Shop/Management/Health');
+            $foundPath = null;
+
+            foreach ($allFiles as $file) {
+                if (strtolower(basename($file)) === strtolower($filename)) {
+                    $foundPath = $file;
+                    break;
+                }
+            }
+
+            if (!$foundPath) {
+                return ['error' => true, 'message' => "Die Datei '{$filename}' wurde in der Patientenakte nicht gefunden."];
+            }
+
+            $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($foundPath);
+            $mime = mime_content_type($fullPath);
+
+            if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
+                $parser = new \Smalot\PdfParser\Parser();
+                $pdf = $parser->parseFile($fullPath);
+                $text = $pdf->getText();
+                $safeText = mb_convert_encoding(mb_substr($text, 0, 40000, 'UTF-8'), 'UTF-8', 'UTF-8');
+                return [
+                    'success' => true,
+                    'file' => basename($foundPath),
+                    'content' => $safeText,
+                    'note' => 'Nutze diesen extrahierten Text aus dem PDF für deine medizinische Analyse.'
+                ];
+            } else if (str_starts_with($mime, 'text/') || in_array($mime, ['application/json', 'application/xml', 'application/javascript', 'application/csv'])) {
+                $lines = array_slice(file($fullPath), 0, 2000);
+                $safeText = mb_convert_encoding(rtrim(implode("", $lines)), 'UTF-8', 'UTF-8');
+                return [
+                    'success' => true,
+                    'file' => basename($foundPath),
+                    'content' => $safeText
+                ];
+            }
+
+            return ['error' => true, 'message' => "Das Format dieser Datei ({$mime}) kann aktuell nicht als Text ausgelesen werden. Bitte den Nutzer, den relevanten Text zu kopieren."];
+
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => 'Fehler beim Einlesen des Dokuments: ' . $e->getMessage()];
         }
     }
 }
