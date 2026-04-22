@@ -72,11 +72,11 @@ class ProductSeeder extends Seeder
             'height' => 200,
             'length' => 40,
             'shipping_class' => 'paket_s',
-            'preview_image_path' => 'system/testdata/seelenkristall/overlay.png',
-            'three_d_model_path' => 'system/testdata/seelenkristall/t_seelenk.glb',
-            'three_d_background_path' => 'system/testdata/seelenkristall/header_bg.png',
+            'preview_image_path' => 'produkte/products/seelen-kristall/overlay.png',
+            'three_d_model_path' => 'produkte/products/seelen-kristall/t_seelenk.glb',
+            'three_d_background_path' => 'produkte/products/seelen-kristall/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'system/testdata/seelenkristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -158,11 +158,11 @@ class ProductSeeder extends Seeder
             'length' => 2.3,
             'shipping_class' => 'paket_s',
 
-            'preview_image_path' => 'system/testdata/seelenanhaenger/overlay.png',
-            'three_d_model_path' => 'system/testdata/seelenanhaenger/seelenanhaenger_3d_.glb',
-            'three_d_background_path' => 'system/testdata/seelenanhaenger/header_bg.png',
+            'preview_image_path' => 'produkte/products/seelen-anhaenger/overlay.png',
+            'three_d_model_path' => 'produkte/products/seelen-anhaenger/seelenanhaenger_3d_.glb',
+            'three_d_background_path' => 'produkte/products/seelen-anhaenger/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'system/testdata/seelenanhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -272,13 +272,13 @@ class ProductSeeder extends Seeder
             'shipping_class' => 'paket_m',
 
             // Dateipfade
-            'preview_image_path' => 'system/testdata/weizenspaß/overlay.png',
-            'three_d_model_path' => 'system/testdata/weizenspaß/beer_glas_3d.glb',
+            'preview_image_path' => 'produkte/products/weizenglas-personalisiert/overlay.png',
+            'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
             'three_d_background_path' => null,
 
             // Einzelbild
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'system/testdata/weizenspaß/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Weizenglas Frontansicht']
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Weizenglas Frontansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
