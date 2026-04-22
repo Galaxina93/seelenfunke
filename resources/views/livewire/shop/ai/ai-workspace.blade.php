@@ -20,7 +20,7 @@
      ">
     
     <!-- Neon Header -->
-    <div class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
+    <div x-show="!isChatFullScreen" class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
         <h1 class="text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">KI-Zentrale</h1>
         <p class="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
         
@@ -34,7 +34,7 @@
          x-data="workspaceCanvas()">
          
         <!-- Left Sidebar: Tools & Agents -->
-        <div class="w-full lg:w-72 bg-gray-950 border border-gray-800 rounded-2xl p-4 flex flex-col shrink-0 z-10 shadow-xl shadow-[var(--theme-color-10)]">
+        <div x-show="!isChatFullScreen" class="w-full lg:w-72 bg-gray-950 border border-gray-800 rounded-2xl p-4 flex flex-col shrink-0 z-10 shadow-xl shadow-[var(--theme-color-10)]">
             <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-2 lg:mb-4 border-b border-gray-800 pb-2 gap-2">
                 <h3 class="text-xs uppercase tracking-widest text-gray-400">Bereite Agenten <span class="hidden lg:inline">(Ziehbar)</span></h3>
                 <button wire:click="syncAll" wire:loading.attr="disabled" class="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex items-center gap-1 group">
@@ -373,7 +373,7 @@
             @else
                 <div wire:key="workspace-main-view" class="flex-1 flex flex-col gap-4 overflow-hidden h-full w-full" x-data="{ activeTab: 'chat' }">
                     <!-- Navigation Tabs -->
-                    <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-800 rounded-xl px-6 flex justify-center gap-8 text-sm tracking-wider font-mono shrink-0 shadow-lg relative overflow-hidden">
+                    <div x-show="!isChatFullScreen" class="bg-gray-900/80 backdrop-blur-xl border border-gray-800 rounded-xl px-6 flex justify-center gap-8 text-sm tracking-wider font-mono shrink-0 shadow-lg relative overflow-hidden">
                         <div class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-color-50)] to-transparent"></div>
                         <button @click="activeTab = 'chat'" class="py-3 px-2 relative transition-colors border-b-2" :class="activeTab === 'chat' ? 'text-[var(--theme-color)] border-[var(--theme-color)] shadow-[0_4px_15px_-3px_var(--theme-color-30)] font-bold' : 'text-gray-400 border-transparent hover:text-gray-200'"><x-heroicon-o-chat-bubble-left-right class="w-4 h-4 inline-block -mt-0.5 mr-1"/> Workspace & Chat</button>
                         <button @click="activeTab = 'plans'" class="py-3 px-2 relative transition-colors border-b-2" :class="activeTab === 'plans' ? 'text-[var(--theme-color)] border-[var(--theme-color)] shadow-[0_4px_15px_-3px_var(--theme-color-30)] font-bold' : 'text-gray-400 border-transparent hover:text-gray-200'"><x-heroicon-o-document-text class="w-4 h-4 inline-block -mt-0.5 mr-1"/> Pläne @if(count($this->artifacts) > 0)<span class="ml-1 bg-[var(--theme-color)] text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-lg">{{ count($this->artifacts) }}</span>@endif</button>
@@ -443,7 +443,7 @@
                          @touchmove.window="onDrag($event)"
                          @touchend.window="stopDrag()">
                     <!-- TOP: Workspace Kanban Canvas -->
-                    <div class="min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-[#050505]" :class="showWorkspaceMobile ? 'flex' : 'hidden lg:flex'" :style="'height: calc(' + (100 - chatHeightPercent) + '% - 0.75rem);'" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
+                    <div x-show="!isChatFullScreen" class="min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-[#050505]" :class="showWorkspaceMobile ? 'flex' : 'hidden lg:flex'" :style="'height: calc(' + (100 - chatHeightPercent) + '% - 0.75rem);'" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
                     <div class="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
                 
                 <!-- Heartbeat Monitor (Ultra-Realistic HTML5 Canvas) -->
@@ -1118,7 +1118,7 @@
             </div>
 
             <!-- Drag Handle -->
-            <div class="h-2 cursor-row-resize rounded-full bg-gray-900/50 hover:bg-[var(--theme-color-30)] hover:shadow-[0_0_10px_var(--theme-color-30)] transition-all items-center justify-center mx-auto w-32 shrink-0 z-50 group"
+            <div x-show="!isChatFullScreen" class="h-2 cursor-row-resize rounded-full bg-gray-900/50 hover:bg-[var(--theme-color-30)] hover:shadow-[0_0_10px_var(--theme-color-30)] transition-all items-center justify-center mx-auto w-32 shrink-0 z-50 group"
                  :class="showWorkspaceMobile ? 'flex' : 'hidden lg:flex'"
                  @mousedown.prevent="startDrag($event)"
                  @touchstart.prevent="startDrag($event)">
@@ -1126,7 +1126,7 @@
             </div>
 
             <!-- BOTTOM: AI Chat Console -->
-            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0 lg:flex-none" :style="isChatFullScreen ? '' : ((window.innerWidth < 1024 && !showWorkspaceMobile) ? 'height: 100%; min-height: 400px;' : 'height: calc(' + chatHeightPercent + '% - 0.75rem);')" :class="{'!fixed !inset-0 !m-0 !p-0 !z-[9999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen, 'flex-1': (window.innerWidth < 1024 && !showWorkspaceMobile)}">
+            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0 lg:flex-none" :style="isChatFullScreen ? '' : ((window.innerWidth < 1024 && !showWorkspaceMobile) ? 'height: 100%; min-height: 400px;' : 'height: calc(' + chatHeightPercent + '% - 0.75rem);')" :class="{'flex-1': isChatFullScreen || (window.innerWidth < 1024 && !showWorkspaceMobile)}">
                 
                 <!-- Fullscreen Toggle Button (Mobile) -->
                 <button @click="isChatFullScreen = !isChatFullScreen" class="lg:hidden absolute top-4 right-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chat maximieren">
@@ -1364,10 +1364,10 @@
                                    @keydown.enter="handleEnter($event)"
                                    @keyup="checkMention" @click="checkMention"
                                    rows="1"
-                                   class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-10 pr-20 py-3 text-[var(--theme-color)] focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
+                                   class="w-full bg-gray-900 border border-gray-800 rounded-lg pl-[88px] pr-12 py-3 text-[var(--theme-color)] focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
                                    placeholder="Nachricht eingeben..." autofocus></textarea>
                                    
-                            <button type="button" wire:click="createTaskFromChat" title="Als neue Aufgabe auf dem Board ablegen" class="absolute right-12 top-1/2 -translate-y-1/2 h-8 w-10 z-10 bg-emerald-500/10 border border-emerald-500/30 rounded-md hover:bg-emerald-500/20 text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
+                            <button type="button" wire:click="createTaskFromChat" title="Als neue Aufgabe auf dem Board ablegen" class="absolute left-10 top-1/2 -translate-y-1/2 h-8 w-10 z-10 bg-emerald-500/10 border border-emerald-500/30 rounded-md hover:bg-emerald-500/20 text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
                                 <x-heroicon-o-queue-list class="w-5 h-5" />
                             </button>
                                    
