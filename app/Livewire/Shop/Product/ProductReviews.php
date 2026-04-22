@@ -240,14 +240,14 @@ class ProductReviews extends Component
 
             if (str_contains($mime, 'image')) {
                 $filename = \Illuminate\Support\Str::random(40) . '.jpg';
-                $path = 'reviews/' . $filename;
+                $path = 'produkte/reviews/' . $filename;
 
                 $image = Image::make($file->getRealPath())->orientate()->encode('jpg', 80);
                 Storage::disk('public')->put($path, (string) $image);
 
                 $mediaPaths[] = $path;
             } else {
-                $mediaPaths[] = $file->store('reviews', 'public');
+                $mediaPaths[] = $file->store('produkte/reviews', 'public');
             }
         }
 

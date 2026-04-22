@@ -475,9 +475,9 @@ class FinancialService
         }
 
         $zipFileName = "Finanzbericht_{$year}_{$month}.zip";
-        $zipPath = storage_path("app/public/exports/{$zipFileName}");
+        $zipPath = storage_path("app/public/systemsteuerung/exports/{$zipFileName}");
 
-        if(!is_dir(storage_path("app/public/exports"))) mkdir(storage_path("app/public/exports"), 0755, true);
+        if(!is_dir(storage_path("app/public/systemsteuerung/exports"))) mkdir(storage_path("app/public/systemsteuerung/exports"), 0755, true);
 
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {

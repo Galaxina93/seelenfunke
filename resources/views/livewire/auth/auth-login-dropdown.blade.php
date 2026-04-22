@@ -7,13 +7,13 @@
                     @if(!empty($user->profile_photo_path))
                         @php 
                             $pp = $user->profile_photo_path; 
-                            $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp)); 
+                            $src = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp)); 
                         @endphp
                         <img src="{{ $src }}" class="h-full w-full object-cover" alt="{{ $user->firstname }}">
                     @elseif(isset($user->profile) && !empty($user->profile->photo_path))
                         @php 
                             $pp2 = $user->profile->photo_path; 
-                            $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, 'shop/') || str_starts_with($pp2, '/')) ? asset($pp2) : Storage::url($pp2); 
+                            $src2 = (str_starts_with($pp2, 'shopverwaltung/images/') || str_starts_with($pp2, 'shop/') || str_starts_with($pp2, '/')) ? asset($pp2) : Storage::url($pp2); 
                         @endphp
                         <img src="{{ $src2 }}" class="h-full w-full object-cover" alt="">
                     @else
@@ -51,13 +51,13 @@
                     @if(!empty($user->profile_photo_path))
                         @php 
                             $pp = $user->profile_photo_path; 
-                            $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp)); 
+                            $src = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp)); 
                         @endphp
                         <img src="{{ $src }}" class="h-full w-full object-cover" alt="{{ $user->firstname }}">
                     @elseif(isset($user->profile) && !empty($user->profile->photo_path))
                         @php 
                             $pp2 = $user->profile->photo_path; 
-                            $src2 = (str_starts_with($pp2, 'images/') || str_starts_with($pp2, 'shop/') || str_starts_with($pp2, '/')) ? asset($pp2) : Storage::url($pp2); 
+                            $src2 = (str_starts_with($pp2, 'shopverwaltung/images/') || str_starts_with($pp2, 'shop/') || str_starts_with($pp2, '/')) ? asset($pp2) : Storage::url($pp2); 
                         @endphp
                         <img src="{{ $src2 }}" class="h-full w-full object-cover" alt="">
                     @else

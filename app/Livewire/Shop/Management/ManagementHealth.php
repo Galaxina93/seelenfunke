@@ -27,8 +27,7 @@ class ManagementHealth extends Component
 
     public $activeTab = 'chat'; // 'chat', 'plans', 'protocols', 'files', 'medications'
 
-    // Uploads
-    public $currentPath = 'Shop/Management/Health';
+    public $currentPath = 'leitung/gesundheit';
     public $healthFiles = [];
     public $uploadedHealthFiles = [];
     public $aiLiveState = [];
@@ -230,7 +229,7 @@ class ManagementHealth extends Component
         $userName = auth()->check() ? trim(auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'Patient';
 
         // Füge System Kontext für hochgeladene Dokumente hinzu (Rekursiv alle Ordner)
-        $allSystemFiles = Storage::disk('public')->allFiles('Shop/Management/Health');
+        $allSystemFiles = Storage::disk('public')->allFiles('leitung/gesundheit');
         if (!empty($allSystemFiles)) {
             $docList = collect($allSystemFiles)->map(fn($path) => basename($path))->implode(', ');
             $apiHistory[] = [
@@ -357,7 +356,7 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function goUp()
     {
-        if ($this->currentPath !== 'Shop/Management/Health') {
+        if ($this->currentPath !== 'leitung/gesundheit') {
             $this->currentPath = dirname($this->currentPath);
             $this->loadUploadedFiles();
         }
@@ -365,8 +364,8 @@ FÜGE AM ENDE JEDER GRÖSSEREN DIAGNOSE/ZUSAMMENFASSUNG EINFACH EIN 'GLOSSAR' HI
 
     public function loadUploadedFiles()
     {
-        if (!Storage::disk('public')->exists('Shop/Management/Health')) {
-            Storage::disk('public')->makeDirectory('Shop/Management/Health');
+        if (!Storage::disk('public')->exists('leitung/gesundheit')) {
+            Storage::disk('public')->makeDirectory('leitung/gesundheit');
         }
 
         $files = Storage::disk('public')->files($this->currentPath);

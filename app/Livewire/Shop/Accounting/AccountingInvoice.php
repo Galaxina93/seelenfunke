@@ -253,8 +253,8 @@ class AccountingInvoice extends Component
         $invoice = InvoiceModel::findOrFail($id);
 
         // Prüfung ob archiviertes PDF existiert (GoBD Konformität)
-        if (Storage::disk('local')->exists("invoices/{$invoice->invoice_number}.pdf")) {
-            return Storage::disk('local')->download("invoices/{$invoice->invoice_number}.pdf");
+        if (Storage::disk('local')->exists("buchhaltung/invoices/{$invoice->invoice_number}.pdf")) {
+            return Storage::disk('local')->download("buchhaltung/invoices/{$invoice->invoice_number}.pdf");
         }
 
         $pdf = Pdf::loadView('global.mails.invoice_pdf_template', [
@@ -511,7 +511,7 @@ class AccountingInvoice extends Component
     public function downloadXml($id)
     {
         $invoice = InvoiceModel::findOrFail($id);
-        $path = 'invoices/xml/' . $invoice->invoice_number . '.xml';
+        $path = 'buchhaltung/invoices/xml/' . $invoice->invoice_number . '.xml';
 
         // ... Logik wie gehabt, aber im Catch-Block ggf. auch den neuen Service nutzen:
         if (!Storage::disk('local')->exists($path)) {
@@ -616,8 +616,8 @@ class AccountingInvoice extends Component
 
     public function downloadPdfByFilename($filename)
     {
-        if (Storage::disk('local')->exists("invoices/{$filename}")) {
-            return Storage::disk('local')->download("invoices/{$filename}");
+        if (Storage::disk('local')->exists("buchhaltung/invoices/{$filename}")) {
+            return Storage::disk('local')->download("buchhaltung/invoices/{$filename}");
         }
     }
 
@@ -678,7 +678,7 @@ class AccountingInvoice extends Component
         $archivedFiles = [];
 
         if ($this->activeTab === 'archive') {
-            $files = Storage::disk('local')->files('invoices');
+            $files = Storage::disk('local')->files('buchhaltung/invoices');
 
             foreach ($files as $file) {
                 // Wir holen den Timestamp einmalig in eine Variable

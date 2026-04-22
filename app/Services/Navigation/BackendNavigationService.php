@@ -74,7 +74,7 @@ class BackendNavigationService
                         ]
                     ],
                     [
-                        'id' => 'marketing',
+                        'id' => 'marketing/marketing/marketing',
                         'type' => 'group',
                         'title' => 'Marketing',
                         'icon' => 'at-symbol',

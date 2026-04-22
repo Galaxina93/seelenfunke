@@ -234,7 +234,7 @@ class DhlService
 
             // Save PDF to storage
             $safeOrderNo = Str::slug($order->order_number);
-            $fileName = "dhl_labels/label_{$safeOrderNo}_{$trackingNumber}.pdf";
+            $fileName = "bestellungen/dhl_labels/label_{$safeOrderNo}_{$trackingNumber}.pdf";
             Storage::disk('public')->put($fileName, base64_decode($labelBase64));
 
             // Create Shipments Record

@@ -516,7 +516,7 @@
                                             <p class="text-[10px] {{ $check['passed'] ? 'text-gray-600' : 'text-gray-400' }} mt-1 leading-relaxed">{{ $check['description'] }}</p>
 
                                             {{-- Spezifische Handlungsaufforderung, falls nicht erfüllt --}}
-                                            @if(!$check['passed'] && $key === 'receipts')
+                                            @if(!$check['passed'] && $key === 'buchhaltung/receipts')
                                                <div class="mt-4 space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
                                                     @if(session()->has('success_receipt'))
                                                         <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] p-2.5 rounded-xl text-center animate-fade-in font-bold uppercase tracking-widest shadow-inner mb-2">

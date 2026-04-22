@@ -81,12 +81,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
     Route::get('/admin/widerruf/file/{revocation}/{fileName}', function (\App\Models\Order\OrderRevocation $revocation, $fileName) {
-        $path = "revocations/{$revocation->id}/{$fileName}";
-        // Check if file exists on 'private' disk (default securely stored location)
-        if (\Illuminate\Support\Facades\Storage::disk('private')->exists($path)) {
-            return response()->file(\Illuminate\Support\Facades\Storage::disk('private')->path($path));
-        }
-        // Fallback to local if 'private' disk isn't strictly distinct
+        $path = "bestellungen/private/revocations/{$revocation->id}/{$fileName}";
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
             return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
         }
@@ -121,7 +116,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/marketing/instagram', \App\Livewire\Shop\Marketing\MarketingInstagram::class)->name('admin.marketing-instagram');
     Route::get('/admin/marketing/google-ads', \App\Livewire\Shop\Marketing\MarketingGoogleAds::class)->name('admin.marketing-google-ads');
     Route::get('/admin/marketing/instagram/file/{id}', function ($id) {
-        $path = "marketing/instagram/posts/{$id}/image.jpg";
+        $path = "marketing/marketing/instagram/posts/{$id}/image.jpg";
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
             return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
                 'Content-Type' => 'image/jpeg',

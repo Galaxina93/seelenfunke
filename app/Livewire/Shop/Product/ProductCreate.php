@@ -320,7 +320,7 @@ class ProductCreate extends Component
 
         // WICHTIG: Speichern im 'local' Disk (nicht public!), damit es geschützt ist
         // Ordnerstruktur: products-secure/{slug}/
-        $folder = 'products-secure/' . ($this->product->slug ?? 'draft');
+        $folder = 'produkte/products-secure/' . ($this->product->slug ?? 'draft');
 
         // Original-Dateiname speichern
         $originalName = $this->new_digital_file->getClientOriginalName();
@@ -557,7 +557,7 @@ class ProductCreate extends Component
             if ($file->getSize() > 3 * 1024 * 1024) { $this->addError('new_media', 'Datei zu groß.'); return; }
         }
 
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
+        $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/medien';
         $gallery = $this->product->media_gallery ?? [];
 
         foreach ($this->new_media as $file) {
@@ -576,7 +576,7 @@ class ProductCreate extends Component
     public function updatedNewVideo()
     {
         $this->validate(['new_video' => 'file|mimes:mp4,mov,qt|max:51200']);
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/medien';
+        $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/medien';
         $path = $this->new_video->store($folder, 'public');
         $gallery = $this->product->media_gallery ?? [];
         $gallery[] = ['type' => 'video', 'path' => $path];
@@ -636,7 +636,7 @@ class ProductCreate extends Component
     public function updatedNewPreviewImage()
     {
         $this->validate(['new_preview_image' => 'image|max:10240']);
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
+        $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
         if ($this->product->preview_image_path) {
             Storage::disk('public')->delete($this->product->preview_image_path);
@@ -674,7 +674,7 @@ class ProductCreate extends Component
         // Max 100MB
         $this->validate(['new_3d_model' => 'file|max:102400']);
 
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
+        $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
         // Lösche altes Modell, falls vorhanden
         if ($this->product->three_d_model_path) {
@@ -713,7 +713,7 @@ class ProductCreate extends Component
     public function updatedNew3dBackground()
     {
         $this->validate(['new_3d_background' => 'image|max:10240']);
-        $folder = 'products/' . ($this->product->slug ?? 'draft') . '/configurator';
+        $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
         if ($this->product->three_d_background_path) {
             Storage::disk('public')->delete($this->product->three_d_background_path);

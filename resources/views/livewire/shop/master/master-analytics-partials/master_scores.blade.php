@@ -503,7 +503,7 @@
                     $descriptions = [
                         'inventory' => 'Prüft, ob physische Artikel den Mindestbestand unterschritten haben und nachbestellt werden müssen.',
                         'special_issues' => 'Zeigt Sonderausgaben, für die noch kein Beleg oder keine Rechnung hochgeladen wurde.',
-                        'contracts' => 'Listet Fixkosten-Positionen auf, für die noch kein Vertragsdokument hinterlegt ist.',
+                        'leitung/contracts' => 'Listet Fixkosten-Positionen auf, für die noch kein Vertragsdokument hinterlegt ist.',
                         'open_orders' => 'Bestellungen, die bezahlt, aber noch nicht komplett versendet / abgeschlossen sind.',
                         'open_tickets' => 'Kunden-Tickets aus dem Support, die noch nicht auf "erledigt" gesetzt wurden.',
                         'open_chats' => 'Live-Chat Anfragen von Kunden, die auf eine Antwort vom System warten.',
@@ -546,7 +546,7 @@
                                 $actionUrl = match($key) {
                                     'inventory' => '/admin/products',
                                     'special_issues' => '/admin/financial-variable-costs',
-                                    'contracts' => '/admin/financial-fix-costs',
+                                    'leitung/contracts' => '/admin/financial-fix-costs',
                                     'open_orders' => '/admin/orders',
                                     'open_tickets' => '/admin/support-tickets',
                                     'open_chats' => '/admin/support-chats',

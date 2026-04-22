@@ -53,7 +53,7 @@ class RevocationMailToCustomer extends Mailable implements ShouldQueue
         $attachments = [];
         if (!empty($this->revocationData['attachments'])) {
             foreach ($this->revocationData['attachments'] as $path) {
-                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('private', $path);
+                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('local', $path);
             }
         }
         return $attachments;

@@ -166,7 +166,7 @@ class AiKnowledgeBase extends Component
 
         foreach ($this->wikiFiles as $file) {
             $filename = $file->getClientOriginalName();
-            $file->storeAs('public/wiki', $filename);
+            $file->storeAs('support/wiki', $filename, 'public');
         }
 
         $this->wikiFiles = []; // Clear current selection
@@ -177,8 +177,8 @@ class AiKnowledgeBase extends Component
 
     public function deleteWikiFile($filename)
     {
-        if (Storage::disk('public')->exists('wiki/' . $filename)) {
-            Storage::disk('public')->delete('wiki/' . $filename);
+        if (Storage::disk('public')->exists('support/wiki/' . $filename)) {
+            Storage::disk('public')->delete('support/wiki/' . $filename);
             $this->loadUploadedFiles();
             session()->flash('message', 'Datei erfolgreich gelöscht.');
         }
@@ -186,11 +186,11 @@ class AiKnowledgeBase extends Component
 
     public function loadUploadedFiles()
     {
-        if (!Storage::disk('public')->exists('wiki')) {
-            Storage::disk('public')->makeDirectory('wiki');
+        if (!Storage::disk('public')->exists('support/wiki')) {
+            Storage::disk('public')->makeDirectory('support/wiki');
         }
 
-        $files = Storage::disk('public')->files('wiki');
+        $files = Storage::disk('public')->files('support/wiki');
         $this->uploadedWikiFiles = array_map(function($path) {
             return [
                 'name' => basename($path),

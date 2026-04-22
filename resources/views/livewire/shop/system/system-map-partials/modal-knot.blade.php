@@ -26,7 +26,7 @@
                 <div class="relative">
                     <select wire:model="editNode.component_key" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl text-sm py-3.5 px-4 cursor-pointer font-bold focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none shadow-inner appearance-none transition-all">
                         <option value="">— Kein Panel —</option>
-                        <option value="products">📦 Produkte</option>
+                        <option value="produkte/products">📦 Produkte</option>
                         <option value="orders">🛒 Bestellungen</option>
                         <option value="customers">👤 Kunden</option>
                         <option value="finances">💶 Finanzen</option>

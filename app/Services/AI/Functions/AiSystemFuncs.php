@@ -750,7 +750,7 @@ trait AiSystemFuncs
     {
         try {
             $query = $args['filename_query'] ?? null;
-            $files = Storage::disk('public')->files('Shop/Ai/KnowledgeBase');
+            $files = Storage::disk('public')->files('agenten/ai/KnowledgeBase');
 
             if (empty($files)) {
                 return ['status' => 'error', 'message' => "Es befinden sich aktuell keine Dateien im Wiki-Ordner. Der Benutzer muss erst Dateien hochladen."];
@@ -1258,13 +1258,13 @@ trait AiSystemFuncs
         }
 
         $filename = str_replace(' ', '_', strtolower($name)) . '.md';
-        $path = 'ai-artifacts/' . $sessionId . '/' . $filename;
+        $path = 'agenten/ai-artifacts/' . $sessionId . '/' . $filename;
         
         \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
         
         // Ensure that the file and directory are readable by www-data
-        @chmod(storage_path('app/ai-artifacts'), 0777);
-        @chmod(storage_path('app/ai-artifacts/' . $sessionId), 0777);
+        @chmod(storage_path('app/agenten/ai-artifacts'), 0777);
+        @chmod(storage_path('app/agenten/ai-artifacts/' . $sessionId), 0777);
         @chmod(storage_path('app/' . $path), 0666);
 
         if (str_contains(strtolower($name), 'implementation_plan') || str_contains(strtolower($name), 'plan')) {
@@ -1296,7 +1296,7 @@ trait AiSystemFuncs
         }
 
         $filename = str_replace(' ', '_', strtolower($topic)) . '.md';
-        $path = 'ai/knowledge/' . $filename;
+        $path = 'agenten/ai/knowledge/' . $filename;
         
         \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
 
@@ -1323,7 +1323,7 @@ trait AiSystemFuncs
         }
 
         $filename = str_replace(' ', '_', strtolower($topic)) . '.md';
-        $path = 'ai/knowledge/' . $filename;
+        $path = 'agenten/ai/knowledge/' . $filename;
         
         if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
              return ['status' => 'empty', 'message' => "Das Knowledge Item '$filename' existiert nicht."];

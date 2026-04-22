@@ -184,12 +184,12 @@ class MarketingBlog extends Component
         ];
 
         if ($this->image) {
-            $path = $this->image->store('blog', 'public');
+            $path = $this->image->store('marketing/blog', 'public');
             $data['featured_image'] = $path;
         }
 
         if ($this->headerImage) {
-            $headerPath = $this->headerImage->store('blog/headers', 'public');
+            $headerPath = $this->headerImage->store('marketing/blog/headers', 'public');
             $data['header_image'] = $headerPath;
         }
 

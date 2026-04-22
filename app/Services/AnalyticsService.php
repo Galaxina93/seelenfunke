@@ -27,7 +27,7 @@ class AnalyticsService
         return array_filter([
             'inventory' => $this->checkInventory(),
             'special_issues' => $this->checkSpecialIssues(),
-            'contracts' => $this->checkContracts(),
+            'leitung/contracts' => $this->checkContracts(),
             'open_tickets' => $this->checkTickets(),
             'product_reviews' => $this->checkReviews(),
             'open_orders' => $this->checkOrders(),

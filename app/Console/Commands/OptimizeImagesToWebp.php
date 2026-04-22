@@ -27,7 +27,7 @@ class OptimizeImagesToWebp extends Command
     public function handle()
     {
         $directories = [
-            public_path('images'),
+            public_path('shopverwaltung/images'),
             public_path('media'),
         ];
 

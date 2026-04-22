@@ -167,7 +167,7 @@ class AccountingInvoice extends Model
      */
     public function getPdfStoragePathAttribute()
     {
-        return 'invoices/' . $this->invoice_number . '.pdf';
+        return 'buchhaltung/invoices/' . $this->invoice_number . '.pdf';
     }
 
     /**

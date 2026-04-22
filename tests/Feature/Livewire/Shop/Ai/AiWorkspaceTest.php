@@ -148,7 +148,7 @@ class AiWorkspaceTest extends TestCase
         Storage::fake('local');
         
         $sessionId = session()->getId();
-        Storage::disk('local')->put("ai-artifacts/{$sessionId}/implementation_plan.md", "# Test Plan");
+        Storage::disk('local')->put("agenten/ai-artifacts/{$sessionId}/implementation_plan.md", "# Test Plan");
         
         Livewire::actingAs($admin, 'admin')
             ->test(AiWorkspace::class)

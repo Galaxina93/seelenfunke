@@ -29,7 +29,7 @@
                     Entdecke unseren Seelenfunke Blog! Lass dich von unseren neuesten Geschichten, Tipps und spirituellen Impulsen inspirieren.
                 </p>
                 
-                <a href="{{ route('blog') }}" class="inline-flex items-center gap-2 px-6 py-3 bg-[#C5A059] text-white font-black uppercase tracking-widest text-[11px] rounded-xl hover:bg-[#b08d4b] hover:scale-105 transition-all shadow-[0_0_20px_rgba(197,160,89,0.4)]">
+                <a href="{{ route('marketing/marketing/blog') }}" class="inline-flex items-center gap-2 px-6 py-3 bg-[#C5A059] text-white font-black uppercase tracking-widest text-[11px] rounded-xl hover:bg-[#b08d4b] hover:scale-105 transition-all shadow-[0_0_20px_rgba(197,160,89,0.4)]">
                     Zum Blog
                     <x-heroicon-m-arrow-right class="w-4 h-4" />
                 </a>

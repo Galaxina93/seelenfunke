@@ -134,8 +134,8 @@ class AccountingTax extends Component
 
     public function loadArchivedExports()
     {
-        Storage::disk('local')->makeDirectory('tax_exports');
-        $files = Storage::disk('local')->files('tax_exports');
+        Storage::disk('local')->makeDirectory('buchhaltung/tax_exports');
+        $files = Storage::disk('local')->files('buchhaltung/tax_exports');
 
         $this->archivedExports = collect($files)->map(function($file) {
             return [
@@ -295,7 +295,7 @@ class AccountingTax extends Component
 
         // Erweiterte Readiness Checklist für ERiC API
         $checklist = [
-            'receipts' => [
+            'buchhaltung/receipts' => [
                 'name' => '100% Belege verbucht (' . $totalBusinessItems . ' Transaktionen)',
                 'passed' => $missingReceiptsCount === 0,
                 'description' => 'Nur eine vollständige Belegablage garantiert eine rechtssichere Vorsteuerermittlung (Kz 66). Fehlende Belege blockieren den Export.'
@@ -401,7 +401,7 @@ class AccountingTax extends Component
 
         $file = $this->receiptFiles[$itemId];
         $filename = Str::uuid() . '_' . $file->getClientOriginalName();
-        $path = $file->storeAs('Shop/Accounting/Receipts', $filename, 'local');
+        $path = $file->storeAs('buchhaltung/receipts', $filename, 'local');
 
         if ($type === 'variable') {
             $issue = \App\Models\Accounting\AccountingSpecialIssue::find($itemId);
@@ -468,7 +468,7 @@ class AccountingTax extends Component
         foreach ($data['raw_specials'] as $special) {
             if (!empty($special->file_paths)) {
                 foreach ($special->file_paths as $idx => $path) {
-                    $source = storage_path('app/accounting/' . $path);
+                    $source = storage_path('app/buchhaltung/' . $path);
                     if (File::exists($source)) {
                         $ext = pathinfo($source, PATHINFO_EXTENSION);
                         File::copy($source, $receiptsDir . "/Ausgabe_" . date('Y-m-d', strtotime($special->execution_date)) . "_" . Str::slug($special->title) . "_{$idx}.{$ext}");
@@ -481,8 +481,8 @@ class AccountingTax extends Component
 
         // ZIPPEN
         $zipName = "TaxExport_{$yearStr}_{$monthStr}.zip";
-        $zipPath = storage_path("app/tax_exports/{$zipName}");
-        if (!File::exists(storage_path('app/tax_exports'))) File::makeDirectory(storage_path('app/tax_exports'), 0755, true);
+        $zipPath = storage_path("app/buchhaltung/tax_exports/{$zipName}");
+        if (!File::exists(storage_path('app/buchhaltung/tax_exports'))) File::makeDirectory(storage_path('app/buchhaltung/tax_exports'), 0755, true);
 
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {

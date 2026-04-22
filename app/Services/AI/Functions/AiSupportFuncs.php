@@ -722,7 +722,7 @@ trait AiSupportFuncs
                     elseif ($name === 'cart' || $uri === 'warenkorb') $actionName = 'Warenkorb';
                     elseif ($name === 'checkout' || $uri === 'checkout') $actionName = 'Kasse (Checkout)';
                     elseif ($name === 'contact' || $uri === 'kontakt') $actionName = 'Kontakt & Support';
-                    elseif ($name === 'blog' || $uri === 'blog') $actionName = 'Magazin / Blog';
+                    elseif ($name === 'marketing/marketing/blog' || $uri === 'marketing/marketing/blog') $actionName = 'Magazin / Blog';
                     elseif ($name === 'manufacture' || $uri === 'manufaktur') $actionName = 'Unsere Manufaktur';
                     elseif (str_contains($name, 'customer.')) $actionName = 'Kundenportal - ' . ucfirst(str_replace('customer.', '', $name));
 

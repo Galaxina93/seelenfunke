@@ -215,7 +215,7 @@ class AccountingFixCosts extends Component
             abort(403);
         }
 
-        $path = $this->quickUploadFile->store('Shop/Accounting/Contracts', 'local');
+        $path = $this->quickUploadFile->store('leitung/contracts', 'local');
         $item->update(['contract_file_path' => $path]);
 
         $this->uploadingMissingItemId = null;
@@ -386,7 +386,7 @@ class AccountingFixCosts extends Component
         ];
 
         if ($this->itemFile) {
-            $path = $this->itemFile->store('Shop/Accounting/Contracts', 'local');
+            $path = $this->itemFile->store('leitung/contracts', 'local');
             $data['contract_file_path'] = $path;
         }
 

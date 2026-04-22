@@ -105,7 +105,7 @@ class GeminiAgent implements AiProviderInterface
         // === ARTIFACT INJECTION (ANTIGRAVITY ARCHITECTURE) ===
         $sessionId = config('ai.current_session_id') ?: session()->getId();
         if (!empty($sessionId)) {
-            $artifactPath = 'ai-artifacts/' . $sessionId;
+            $artifactPath = 'agenten/ai-artifacts/' . $sessionId;
             $artifactsPrompt = "";
             if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath)) {
                 $files = ['implementation_plan.md', 'task.md', 'walkthrough.md'];

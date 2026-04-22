@@ -66,7 +66,7 @@ return [
     'temporary_file_upload' => [
         'disk' => null,        // Example: 'local', 's3'              | Default: 'default'
         'rules' => ['required', 'file', 'max:102400'], // HIER GEÄNDERT: Als Array definieren!
-        'directory' => null,   // Example: 'tmp'                      | Default: 'livewire-tmp'
+        'directory' => 'system/livewire-tmp',   // Changed to map into the new 11 main folder structure
         'middleware' => null,  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
         'preview_mimes' => [   // Supported file types for temporary pre-signed file URLs...
             'png', 'gif', 'bmp', 'svg', 'wav', 'mp4',

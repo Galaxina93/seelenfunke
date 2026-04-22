@@ -46,14 +46,14 @@ return [
 
         'private' => [
             'driver' => 'local',
-            'root' => storage_path('app/private'),
+            'root' => storage_path('app/bestellungen/private'),
             'visibility' => 'private',
             'throw' => false,
         ],
 
         'accounting' => [
             'driver' => 'local',
-            'root' => storage_path('app/accounting'),
+            'root' => storage_path('app/buchhaltung'),
             'visibility' => 'private',
             'throw' => false,
         ],

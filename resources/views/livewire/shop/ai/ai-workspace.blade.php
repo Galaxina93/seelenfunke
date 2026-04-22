@@ -1161,7 +1161,7 @@
                                     @if(isset($msg['profile_picture']) && $msg['profile_picture'])
                                         @php
                                             $pp = $msg['profile_picture'];
-                                            $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
+                                            $src = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/'))
                                                    ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                                         @endphp
                                         <img src="{{ $src }}" class="w-full h-full object-cover" alt="Profile">
@@ -1217,7 +1217,7 @@
                             <div class="flex items-center gap-3 mb-1.5 ">
                                 <div class="w-10 h-10 rounded shrink-0 flex justify-center items-center bg-{{ $tAgent->color }}/10 border border-{{ $tAgent->color }}/40 shadow-[0_0_10px_currentColor] text-{{ $tAgent->color }} overflow-hidden">
                                      @if($tAgent->profile_picture)
-                                         <img src="{{ \Illuminate\Support\Str::startsWith($tAgent->profile_picture, 'shop/') || \Illuminate\Support\Str::startsWith($tAgent->profile_picture, 'images/') || \Illuminate\Support\Str::startsWith($tAgent->profile_picture, '/') ? asset($tAgent->profile_picture) : Storage::url($tAgent->profile_picture) }}" class="w-full h-full object-cover">
+                                         <img src="{{ \Illuminate\Support\Str::startsWith($tAgent->profile_picture, 'shop/') || \Illuminate\Support\Str::startsWith($tAgent->profile_picture, 'shopverwaltung/images/') || \Illuminate\Support\Str::startsWith($tAgent->profile_picture, '/') ? asset($tAgent->profile_picture) : Storage::url($tAgent->profile_picture) }}" class="w-full h-full object-cover">
                                      @else
                                          <x-dynamic-component :component="'heroicon-o-' . str_replace(['bi-stars', 'bi-'], ['sparkles', ''], ($tAgent->icon ?: 'cpu-chip'))" class="w-6 h-6" />
                                      @endif

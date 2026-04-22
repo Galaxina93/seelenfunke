@@ -234,7 +234,7 @@ class AccountingQuickEntry extends Component
 
         $filePaths = [];
         foreach ($this->specialFiles as $file) {
-            $path = $file->store('Shop/Accounting/Receipts', 'local');
+            $path = $file->store('buchhaltung/receipts', 'local');
             $filePaths[] = $path;
         }
 

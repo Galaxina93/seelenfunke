@@ -57,7 +57,7 @@ class ProductTemplate extends Model
         }
 
         // Falls das Bild hart in public/shop/... oder public/images/... liegt
-        if (\Illuminate\Support\Str::startsWith($this->preview_image, ['shop/', 'images/'])) {
+        if (\Illuminate\Support\Str::startsWith($this->preview_image, ['shop/', 'shopverwaltung/images/'])) {
             return asset($this->preview_image);
         }
 

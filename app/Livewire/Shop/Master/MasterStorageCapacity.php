@@ -169,9 +169,9 @@ class MasterStorageCapacity extends Component
     {
         try {
             $pathsToClear = [
-                storage_path('app/livewire-tmp'),
-                storage_path('app/tmp'),
-                storage_path('app/public/tmp')
+                storage_path('app/system/livewire-tmp'),
+                storage_path('app/system/tmp'),
+                storage_path('app/public/system/tmp')
             ];
 
             $freedBytes = 0;

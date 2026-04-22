@@ -18,7 +18,7 @@ class ElsterEricService
         $this->isTestMode = env('ERIC_TEST_MODE', true);
         
         // Auto-Detect: Wenn das kompilierte C++ Executable im Tresor existiert, schalten wir in den Königsklasse-Modus (Nativ C++)
-        $cppScriptPath = storage_path('app/erictresor/eric-linux/ERiC-43.4.6.0/Linux-x86_64/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo');
+        $cppScriptPath = storage_path('app/buchhaltung/erictresor/eric-linux/ERiC-43.4.6.0/Linux-x86_64/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo');
         $this->useNativeBinary = filter_var(env('ERIC_USE_NATIVE_BINARY', file_exists($cppScriptPath)), FILTER_VALIDATE_BOOLEAN);
         
         $this->apiEndpoint = env('ERIC_API_ENDPOINT', 'https://api.elster-sandbox.local/v1/transmit');
@@ -128,8 +128,8 @@ class ElsterEricService
     private function executeEricBinaryNative($xmlPayload, $authMethod, $pin)
     {
         // 1. Sicheres Temp-File für das XML Payload erzeugen
-        $tempXmlPath = storage_path('app/erictresor/temp_payload_' . uniqid() . '.xml');
-        $tempOutPath = storage_path('app/erictresor/eric_answer_' . uniqid() . '.xml');
+        $tempXmlPath = storage_path('app/buchhaltung/erictresor/temp_payload_' . uniqid() . '.xml');
+        $tempOutPath = storage_path('app/buchhaltung/erictresor/eric_answer_' . uniqid() . '.xml');
         file_put_contents($tempXmlPath, $xmlPayload);
         
         // Neu: Wir nutzen den offiziellen Python-Wrapper, den wir vorhin lauffähig & headless gemacht haben!

@@ -184,8 +184,8 @@ class AiWorkspace extends Component
 
         // Neue extrem zuverlässige Methode (funktioniert über Container-Grenzen hinweg)
         $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
-        if (!$cacheHit && \Illuminate\Support\Facades\Storage::disk('local')->exists('ai_worker_heartbeat.txt')) {
-            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('ai_worker_heartbeat.txt');
+        if (!$cacheHit && \Illuminate\Support\Facades\Storage::disk('local')->exists('system/ai_worker_heartbeat.txt')) {
+            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('system/ai_worker_heartbeat.txt');
             if (now()->timestamp - $lastPing <= 45) {
                 $cacheHit = true;
             }
@@ -218,8 +218,8 @@ class AiWorkspace extends Component
         
         $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
         $storageHit = false;
-        if (\Illuminate\Support\Facades\Storage::disk('local')->exists('ai_worker_heartbeat.txt')) {
-            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('ai_worker_heartbeat.txt');
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists('system/ai_worker_heartbeat.txt')) {
+            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('system/ai_worker_heartbeat.txt');
             if (now()->timestamp - $lastPing <= 45) {
                 $storageHit = true;
             }
@@ -338,7 +338,7 @@ class AiWorkspace extends Component
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
                 // Store in public disk so that Storage::url() works in blade
-                $path = $file->store('ai-chat-uploads', 'public');
+                $path = $file->store('agenten/ai-chat-uploads', 'public');
                 $localUploads[] = [
                     'path' => $path,
                     'name' => $file->getClientOriginalName(),
@@ -612,8 +612,8 @@ class AiWorkspace extends Component
     {
         AiChatMemory::where('session_id', session()->getId())->delete();
         // Clear locally stored artifacts when chat is wiped
-        if (Storage::disk('local')->exists('ai-artifacts/' . session()->getId())) {
-            Storage::disk('local')->deleteDirectory('ai-artifacts/' . session()->getId());
+        if (Storage::disk('local')->exists('agenten/ai-artifacts/' . session()->getId())) {
+            Storage::disk('local')->deleteDirectory('agenten/ai-artifacts/' . session()->getId());
         }
 
         $this->typingAgents = [];
@@ -625,7 +625,7 @@ class AiWorkspace extends Component
     public function artifacts()
     {
         $sessionId = session()->getId();
-        $path = 'ai-artifacts/' . $sessionId;
+        $path = 'agenten/ai-artifacts/' . $sessionId;
         if (!Storage::disk('local')->exists($path)) {
             return collect();
         }
@@ -981,7 +981,7 @@ class AiWorkspace extends Component
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
                 // Store in public disk so that Storage::url() works in blade
-                $path = $file->store('ai-chat-uploads', 'public');
+                $path = $file->store('agenten/ai-chat-uploads', 'public');
                 $localUploads[] = [
                     'path' => $path,
                     'name' => $file->getClientOriginalName(),

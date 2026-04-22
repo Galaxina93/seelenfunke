@@ -131,7 +131,7 @@
                                             </div>
                                         @endforeach
 
-                                    @elseif($key === 'contracts')
+                                    @elseif($key === 'leitung/contracts')
                                         @foreach($check['data'] as $item)
                                             <div wire:key="con-{{ $item['id'] }}" class="bg-gray-950 p-4 rounded-2xl border border-gray-800 shadow-inner">
                                                 <div class="flex justify-between items-start mb-3 gap-2 text-[10px]">

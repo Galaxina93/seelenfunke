@@ -135,7 +135,7 @@ class AccountingBank extends Component
         if($this->uploadingBankTxId && $this->quickUploadFile) {
             $tx = AccountingBankTransaction::find($this->uploadingBankTxId);
             if($tx && $tx->account->admin_id === auth('admin')->id()) {
-                $path = $this->quickUploadFile->store('Shop/Accounting/Receipts', 'local');
+                $path = $this->quickUploadFile->store('buchhaltung/receipts', 'local');
 
                 $files = is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths;
                 if (!is_array($files)) {

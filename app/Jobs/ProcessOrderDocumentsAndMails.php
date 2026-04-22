@@ -43,7 +43,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             $invoice = $invoiceService->createFromOrder($this->order);
 
             // A) PDF Generieren
-            $pdfPath = storage_path("app/public/invoices/{$invoice->invoice_number}.pdf");
+            $pdfPath = storage_path("app/public/buchhaltung/invoices/{$invoice->invoice_number}.pdf");
 
             if ($invoice && !file_exists($pdfPath)) {
                 $pdf = $invoiceService->generatePdf($invoice);

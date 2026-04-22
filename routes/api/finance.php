@@ -114,7 +114,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
 
         foreach ($files as $file) {
-            $path = $file->store('financial/receipts', 'public');
+            $path = $file->store('buchhaltung/financial/receipts', 'public');
             $paths[] = $path;
         }
         $issue->update(['file_paths' => $paths]);
@@ -155,7 +155,7 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
     if ($request->hasFile('file')) {
         $existingPaths = $issue->file_paths ?? [];
         foreach ($request->file('file') as $file) {
-            $existingPaths[] = $file->store('financial/receipts', 'public');
+            $existingPaths[] = $file->store('buchhaltung/financial/receipts', 'public');
         }
         $issue->update(['file_paths' => $existingPaths]);
     }
@@ -205,7 +205,7 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
         }
 
         foreach ($files as $file) {
-            $existingPaths[] = $file->store('financial/receipts', 'public');
+            $existingPaths[] = $file->store('buchhaltung/financial/receipts', 'public');
         }
 
         $issue->update(['file_paths' => $existingPaths]);
@@ -328,7 +328,7 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
         }
 
         $file = is_array($request->file('file')) ? $request->file('file')[0] : $request->file('file');
-        $path = $file->store('financial/contracts', 'public');
+        $path = $file->store('buchhaltung/financial/contracts', 'public');
         $item->update(['contract_file_path' => $path]);
     }
 

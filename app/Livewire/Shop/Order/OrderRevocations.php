@@ -104,7 +104,7 @@ class OrderRevocations extends Component
         $revocation = OrderRevocation::findOrFail($id);
         
         if (!empty($revocation->attachments)) {
-            \Illuminate\Support\Facades\Storage::disk('private')->deleteDirectory("revocations/{$revocation->id}");
+            \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("bestellungen/private/revocations/{$revocation->id}");
         }
         
         $revocation->delete();

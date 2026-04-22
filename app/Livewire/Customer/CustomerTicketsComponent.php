@@ -176,7 +176,7 @@ class CustomerTicketsComponent extends Component
         ]);
 
         $attachmentPaths = [];
-        foreach ($this->attachments as $photo) { $attachmentPaths[] = $photo->store('tickets/attachments', 'public'); }
+        foreach ($this->attachments as $photo) { $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public'); }
 
         $message = SupportTicketMessage::create([
             'support_ticket_id' => $ticket->id,
@@ -237,7 +237,7 @@ class CustomerTicketsComponent extends Component
         $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
 
         $attachmentPaths = [];
-        foreach ($this->chatAttachments as $photo) { $attachmentPaths[] = $photo->store('tickets/attachments', 'public'); }
+        foreach ($this->chatAttachments as $photo) { $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public'); }
 
         $message = SupportTicketMessage::create([
             'support_ticket_id' => $ticket->id,

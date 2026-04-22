@@ -126,7 +126,7 @@ trait AiProductTemplatesFuncs
             $name = $template->name;
             
             // Delete image if it belongs uniquely to the template
-            if ($template->preview_image && Str::startsWith($template->preview_image, 'product-templates/')) {
+            if ($template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($template->preview_image);
             }
             

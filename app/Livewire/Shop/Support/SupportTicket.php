@@ -96,7 +96,7 @@ class SupportTicket extends Component
 
         $attachmentPaths = [];
         foreach ($this->replyAttachments as $photo) {
-            $attachmentPaths[] = $photo->store('tickets/attachments', 'public');
+            $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public');
         }
 
         $message = SupportTicketMessage::create([

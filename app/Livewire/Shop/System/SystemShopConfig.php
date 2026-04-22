@@ -226,8 +226,8 @@ class SystemShopConfig extends Component
     public function loadReports()
     {
         try {
-            Storage::makeDirectory('reports/laravel-updates');
-            $files = Storage::files('reports/laravel-updates');
+            Storage::makeDirectory('shopverwaltung/reports/laravel-updates');
+            $files = Storage::files('shopverwaltung/reports/laravel-updates');
             rsort($files);
             $this->reportFiles = $files;
         } catch (\Exception $e) {
@@ -253,7 +253,7 @@ class SystemShopConfig extends Component
         foreach ($this->uploads as $file) {
             $filename = $file->getClientOriginalName();
             // Store directly in our updates folder
-            $file->storeAs('reports/laravel-updates', $filename);
+            $file->storeAs('shopverwaltung/reports/laravel-updates', $filename);
         }
 
         $this->uploads = [];

@@ -264,7 +264,7 @@ class ProductConfigurator extends Component
                     continue;
                 }
 
-                $path = $file->store('cart-uploads', 'public');
+                $path = $file->store('bestellungen/cart-uploads', 'public');
 
                 if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])) {
                     $newFileName = $this->applyLaserEffect(Storage::disk('public')->path($path), $extension);
@@ -374,7 +374,7 @@ class ProductConfigurator extends Component
                     if (count($parts) === 2) {
                         $decoded = base64_decode($parts[1]);
                         if ($decoded !== false) {
-                            $filename = 'snapshots/' . Str::uuid() . '_' . $side . '.jpg';
+                            $filename = 'system/snapshots/' . Str::uuid() . '_' . $side . '.jpg';
                             Storage::disk('public')->put($filename, $decoded);
                             $snapshotPaths[$side] = $filename;
                         }
@@ -386,7 +386,7 @@ class ProductConfigurator extends Component
                 if (count($parts) === 2) {
                     $decoded = base64_decode($parts[1]);
                     if ($decoded !== false) {
-                        $filename = 'snapshots/' . Str::uuid() . '.jpg';
+                        $filename = 'system/snapshots/' . Str::uuid() . '.jpg';
                         Storage::disk('public')->put($filename, $decoded);
                         $snapshotPaths['front'] = $filename;
                     }

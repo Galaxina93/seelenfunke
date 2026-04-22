@@ -27,7 +27,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta property="og:image"
-          content="{{ asset('images/logo/mein-projekt-logo.jpg') }}"> {{-- Pfad zu einem schönen Produktbild anpassen --}}
+          content="{{ asset('shopverwaltung/images/logo/mein-projekt-logo.jpg') }}"> {{-- Pfad zu einem schönen Produktbild anpassen --}}
 
     <!-- Canonical -->
     <link rel="canonical" href="{{ url()->current() }}">

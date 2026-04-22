@@ -41,7 +41,7 @@
                         @if($user && $user->profile && $user->profile->photo_path)
                             @php
                                 $pp = $user->profile->photo_path;
-                                $src = (str_starts_with($pp, 'images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) 
+                                $src = (str_starts_with($pp, 'shopverwaltung/images/') || str_starts_with($pp, 'shop/') || str_starts_with($pp, '/')) 
                                        ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                             @endphp
                             <img src="{{ $src }}" class="w-full h-full object-cover">

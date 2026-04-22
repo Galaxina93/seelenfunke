@@ -129,7 +129,7 @@ class GoogleAuthController extends Controller
 
                         // 1. Physischer Pfad (wohin gespeichert wird)
                         // Wir nutzen den Disk 'public', der zeigt automatisch auf storage/app/public
-                        $folderPath = 'user/' . $guard . '/' . $user->id . '/profile-photo/';
+                        $folderPath = 'dashboard/user/' . $guard . '/' . $user->id . '/profile-photo/';
 
                         // 2. Speichern über den 'public' Disk
                         Storage::disk('public')->put($folderPath . $filename, (string) $image->encode('jpg', 90));

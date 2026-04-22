@@ -75,7 +75,7 @@ class ProductTemplates extends Component
 
         // HIER IST DER FIX: Lösche das Bild NUR, wenn es explizit für die Vorlage hochgeladen wurde
         // und nicht das Fallback-Bild des Hauptprodukts ist!
-        if ($template->preview_image && Str::startsWith($template->preview_image, 'product-templates/')) {
+        if ($template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
             Storage::disk('public')->delete($template->preview_image);
         }
 
@@ -120,12 +120,12 @@ class ProductTemplates extends Component
         // Bild-Verarbeitung
         if ($this->templateImage) {
             // HIER AUCH DER FIX: Altes Bild nur löschen, wenn es ein Vorlagen-Bild ist
-            if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'product-templates/')) {
+            if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
                 Storage::disk('public')->delete($template->preview_image);
             }
-            $template->preview_image = $this->templateImage->store('product-templates', 'public');
+            $template->preview_image = $this->templateImage->store('produkte/product-templates', 'public');
         } elseif ($this->removeExistingImage) {
-            if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'product-templates/')) {
+            if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
                 Storage::disk('public')->delete($template->preview_image);
             }
             $template->preview_image = null;

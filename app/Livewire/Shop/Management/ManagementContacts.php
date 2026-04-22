@@ -178,7 +178,7 @@ class ManagementContacts extends Component
         ];
 
         if ($this->avatar_upload) {
-            $data['avatar_path'] = $this->avatar_upload->store('person_profiles', 'public');
+            $data['avatar_path'] = $this->avatar_upload->store('leitung/person_profiles', 'public');
         }
 
         if ($this->editForm['id']) {

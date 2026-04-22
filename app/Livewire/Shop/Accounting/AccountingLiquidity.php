@@ -54,7 +54,7 @@ class AccountingLiquidity extends Component
         'room_extra' => ['label' => 'Raumnebenkosten', 'tooltip' => 'Energie, Heizung, Instandhaltung'],
         'vehicle' => ['label' => 'Fahrzeugkosten', 'tooltip' => 'Benzin, Leasing, Instandhaltung'],
         'office' => ['label' => 'Bürokosten', 'tooltip' => 'PC, Telefon, Software (Sevdesk), Porto'],
-        'marketing' => ['label' => 'Werbung / Vertrieb', 'tooltip' => 'Marketingkosten (TikTok Ads, Etsy Ads)'],
+        'marketing/marketing/marketing' => ['label' => 'Werbung / Vertrieb', 'tooltip' => 'Marketingkosten (TikTok Ads, Etsy Ads)'],
         'insurance' => ['label' => 'Versicherungen / Beiträge', 'tooltip' => 'Betriebshaftpflicht, IHK, Verpackungslizenz'],
         'taxes' => ['label' => 'Ertragssteuern', 'tooltip' => 'Gewerbesteuer, Einkommensteuer Vorauszahlungen'],
         'interest' => ['label' => 'Zinsen', 'tooltip' => 'Zinsen für Darlehen'],
@@ -259,7 +259,7 @@ class AccountingLiquidity extends Component
             foreach($salesY2 as $m => $val) {
                 $this->data[$y2][$m]['in']['sales'] = $val;
                 $this->data[$y2][$m]['out']['goods'] = $val * 0.15;
-                $this->data[$y2][$m]['out']['marketing'] = 150;
+                $this->data[$y2][$m]['out']['marketing/marketing/marketing'] = 150;
                 $this->data[$y2][$m]['out']['private'] = 1800;
             }
         }
@@ -270,7 +270,7 @@ class AccountingLiquidity extends Component
             foreach($salesY3 as $m => $val) {
                 $this->data[$y3][$m]['in']['sales'] = $val;
                 $this->data[$y3][$m]['out']['goods'] = $val * 0.15;
-                $this->data[$y3][$m]['out']['marketing'] = 200;
+                $this->data[$y3][$m]['out']['marketing/marketing/marketing'] = 200;
                 $this->data[$y3][$m]['out']['private'] = 2000;
             }
         }
@@ -360,7 +360,7 @@ class AccountingLiquidity extends Component
                 }
                 foreach ($this->expenseRows as $key => $row) {
                     if (isset($dbData[$y][$m]['out'][$key])) {
-                        if (in_array($key, ['goods', 'marketing', 'investments', 'other_out']) && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
+                        if (in_array($key, ['goods', 'marketing/marketing/marketing', 'investments', 'other_out']) && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
                             // Behalte Businessplan
                         } elseif ($key === 'private' && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
                             // Behalte Businessplan Entnahmen, wenn keine Livedaten vorhanden sind
@@ -417,7 +417,7 @@ class AccountingLiquidity extends Component
         if (Str::contains($text, ['lohn', 'gehalt', 'personal'])) return ['type' => 'out', 'key' => 'personnel'];
         if (Str::contains($text, ['miete', 'raum'])) return ['type' => 'out', 'key' => 'room'];
         if (Str::contains($text, ['büro', 'telefon', 'internet', 'software', 'lizenz', 'server', 'hosting'])) return ['type' => 'out', 'key' => 'office'];
-        if (Str::contains($text, ['marketing', 'werbung', 'ads', 'tiktok', 'instagram'])) return ['type' => 'out', 'key' => 'marketing'];
+        if (Str::contains($text, ['marketing/marketing/marketing', 'werbung', 'ads', 'tiktok', 'instagram'])) return ['type' => 'out', 'key' => 'marketing/marketing/marketing'];
         if (Str::contains($text, ['umsatzsteuer', 'ustva', 'zahllast', 'steuer'])) return ['type' => 'out', 'key' => 'tax_payment'];
         if (Str::contains($text, ['kfz', 'auto', 'benzin', 'tanken', 'leasing', 'fahrzeug'])) return ['type' => 'out', 'key' => 'vehicle'];
 
@@ -577,7 +577,7 @@ class AccountingLiquidity extends Component
                 $raumneben += (float) ($this->data[$year][$m]['out']['room_extra'] ?? 0);
                 $fahrzeug += (float) ($this->data[$year][$m]['out']['vehicle'] ?? 0);
                 $buero += (float) ($this->data[$year][$m]['out']['office'] ?? 0);
-                $werbung += (float) ($this->data[$year][$m]['out']['marketing'] ?? 0);
+                $werbung += (float) ($this->data[$year][$m]['out']['marketing/marketing/marketing'] ?? 0);
                 $versicherung += (float) ($this->data[$year][$m]['out']['insurance'] ?? 0);
                 $sonstige += (float) ($this->data[$year][$m]['out']['other_out'] ?? 0);
                 $zinsen += (float) ($this->data[$year][$m]['out']['interest'] ?? 0);
@@ -636,7 +636,7 @@ class AccountingLiquidity extends Component
             $this->kapitalbedarf['investitionen']['maschinen'] = (float) ($this->data[$firstY][$sm]['out']['investments'] ?? 0);
             $nextMonth = $sm < 12 ? $sm + 1 : 12;
             $this->kapitalbedarf['investitionen']['waren'] = (float) ($this->data[$firstY][$sm]['out']['goods'] ?? 0) + (float) ($this->data[$firstY][$nextMonth]['out']['goods'] ?? 0);
-            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][$sm]['out']['marketing'] ?? 0);
+            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][$sm]['out']['marketing/marketing/marketing'] ?? 0);
             $this->kapitalbedarf['gruendung']['beratung'] = (float) ($this->data[$firstY][$sm]['out']['other_out'] ?? 0);
             
             $totalPrivateIn = 0;
@@ -675,7 +675,7 @@ class AccountingLiquidity extends Component
 
                 $bruttoAusgaben = (float) ($this->data[$year][$m]['out']['goods'] ?? 0)
                     + (float) ($this->data[$year][$m]['out']['investments'] ?? 0)
-                    + (float) ($this->data[$year][$m]['out']['marketing'] ?? 0)
+                    + (float) ($this->data[$year][$m]['out']['marketing/marketing/marketing'] ?? 0)
                     + (float) ($this->data[$year][$m]['out']['office'] ?? 0)
                     + (float) ($this->data[$year][$m]['out']['room_extra'] ?? 0);
 
@@ -749,9 +749,9 @@ class AccountingLiquidity extends Component
         if (isset($this->data[2026])) {
             $q4Sales = ($this->data[2026][10]['in']['sales'] ?? 0) + ($this->data[2026][11]['in']['sales'] ?? 0) + ($this->data[2026][12]['in']['sales'] ?? 0);
             $avgSalesAfterSubsidy = $q4Sales / 3;
-            $q4Costs = ($this->data[2026][10]['out']['goods'] ?? 0) + ($this->data[2026][10]['out']['marketing'] ?? 0) + ($this->data[2026][10]['out']['private'] ?? 0) +
-                ($this->data[2026][11]['out']['goods'] ?? 0) + ($this->data[2026][11]['out']['marketing'] ?? 0) + ($this->data[2026][11]['out']['private'] ?? 0) +
-                ($this->data[2026][12]['out']['goods'] ?? 0) + ($this->data[2026][12]['out']['marketing'] ?? 0) + ($this->data[2026][12]['out']['private'] ?? 0);
+            $q4Costs = ($this->data[2026][10]['out']['goods'] ?? 0) + ($this->data[2026][10]['out']['marketing/marketing/marketing'] ?? 0) + ($this->data[2026][10]['out']['private'] ?? 0) +
+                ($this->data[2026][11]['out']['goods'] ?? 0) + ($this->data[2026][11]['out']['marketing/marketing/marketing'] ?? 0) + ($this->data[2026][11]['out']['private'] ?? 0) +
+                ($this->data[2026][12]['out']['goods'] ?? 0) + ($this->data[2026][12]['out']['marketing/marketing/marketing'] ?? 0) + ($this->data[2026][12]['out']['private'] ?? 0);
             $avgCostsAfterSubsidy = $q4Costs / 3;
         } else {
             $avgCostsAfterSubsidy = 0;

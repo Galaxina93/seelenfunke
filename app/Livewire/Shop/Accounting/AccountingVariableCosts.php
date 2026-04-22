@@ -320,7 +320,7 @@ class AccountingVariableCosts extends Component
                 }
 
                 if($model) {
-                    $path = $this->quickUploadFile->store('Shop/Accounting/Receipts', 'local');
+                    $path = $this->quickUploadFile->store('buchhaltung/receipts', 'local');
 
                     $files = is_string($model->file_paths) ? json_decode($model->file_paths, true) : $model->file_paths;
                     if (!is_array($files)) {

@@ -124,7 +124,7 @@ class FileDownloadService
 
     public function downloadTaxExport($filename)
     {
-        $path = storage_path('app/tax_exports/' . $filename);
+        $path = storage_path('app/buchhaltung/tax_exports/' . $filename);
 
         if (!File::exists($path)) {
             abort(404, 'Die Datei existiert nicht mehr im Tresor.');
@@ -184,7 +184,7 @@ class FileDownloadService
                         $localPath = storage_path('app/public/' . $relativePath);
                     } elseif (str_contains($urlPath, '/images/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
-                        $localPath = public_path('images/' . ltrim($relativePath, '/'));
+                        $localPath = public_path('shopverwaltung/images/' . ltrim($relativePath, '/'));
                     } elseif (str_contains($urlPath, '/shop/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/shop/') + 6);
                         $localPath = public_path('shop/' . ltrim($relativePath, '/'));

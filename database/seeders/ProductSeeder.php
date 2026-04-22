@@ -72,11 +72,11 @@ class ProductSeeder extends Seeder
             'height' => 200,
             'length' => 40,
             'shipping_class' => 'paket_s',
-            'preview_image_path' => 'testdata/seelenkristall/overlay.png',
-            'three_d_model_path' => 'testdata/seelenkristall/t_seelenk.glb',
-            'three_d_background_path' => 'testdata/seelenkristall/header_bg.png',
+            'preview_image_path' => 'system/testdata/seelenkristall/overlay.png',
+            'three_d_model_path' => 'system/testdata/seelenkristall/t_seelenk.glb',
+            'three_d_background_path' => 'system/testdata/seelenkristall/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/seelenkristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
+                ['type' => 'image', 'path' => 'system/testdata/seelenkristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -158,11 +158,11 @@ class ProductSeeder extends Seeder
             'length' => 2.3,
             'shipping_class' => 'paket_s',
 
-            'preview_image_path' => 'testdata/seelenanhaenger/overlay.png',
-            'three_d_model_path' => 'testdata/seelenanhaenger/seelenanhaenger_3d_.glb',
-            'three_d_background_path' => 'testdata/seelenanhaenger/header_bg.png',
+            'preview_image_path' => 'system/testdata/seelenanhaenger/overlay.png',
+            'three_d_model_path' => 'system/testdata/seelenanhaenger/seelenanhaenger_3d_.glb',
+            'three_d_background_path' => 'system/testdata/seelenanhaenger/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/seelenanhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
+                ['type' => 'image', 'path' => 'system/testdata/seelenanhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -272,13 +272,13 @@ class ProductSeeder extends Seeder
             'shipping_class' => 'paket_m',
 
             // Dateipfade
-            'preview_image_path' => 'testdata/weizenspaß/overlay.png',
-            'three_d_model_path' => 'testdata/weizenspaß/beer_glas_3d.glb',
+            'preview_image_path' => 'system/testdata/weizenspaß/overlay.png',
+            'three_d_model_path' => 'system/testdata/weizenspaß/beer_glas_3d.glb',
             'three_d_background_path' => null,
 
             // Einzelbild
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/weizenspaß/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Weizenglas Frontansicht']
+                ['type' => 'image', 'path' => 'system/testdata/weizenspaß/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Weizenglas Frontansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
@@ -350,11 +350,11 @@ class ProductSeeder extends Seeder
             'quantity' => 0,
             'continue_selling_when_out_of_stock' => true,
             'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
-            'digital_download_path' => 'testdata/seelenbuch/Produktübersicht - Mein Seelenfunke.pdf',
+            'digital_download_path' => 'system/testdata/seelenbuch/Produktübersicht - Mein Seelenfunke.pdf',
             'digital_filename' => 'Produktübersicht - Mein Seelenfunke.pdf',
             'preview_image_path' => null,
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/seelenbuch/Seelen-Book.png', 'is_main' => true, 'alt' => 'Das Seelenbuch Cover']
+                ['type' => 'image', 'path' => 'system/testdata/seelenbuch/Seelen-Book.png', 'is_main' => true, 'alt' => 'Das Seelenbuch Cover']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => false,
@@ -396,7 +396,7 @@ class ProductSeeder extends Seeder
             'digital_download_path' => null, 'digital_filename' => null,
             'preview_image_path' => null,
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'testdata/laserberatung/laser-beratung.png', 'is_main' => true, 'alt' => 'Laser Beratungsservice']
+                ['type' => 'image', 'path' => 'system/testdata/laserberatung/laser-beratung.png', 'is_main' => true, 'alt' => 'Laser Beratungsservice']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => false,

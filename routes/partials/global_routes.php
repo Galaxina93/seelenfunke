@@ -93,7 +93,7 @@ Route::get('/shop', ProductFrontendFilterArea::class)->name('shop');
 // Marketing Landing Page
 Route::get('/l/{slug}', \App\Livewire\Landing\LandingPageView::class)->name('landing-page');
 
-Route::get('/blog', MarketingBlogIndex::class)->name('blog');
+Route::get('/blog', MarketingBlogIndex::class)->name('marketing/marketing/blog');
 
 // Blog Einzelansicht (muss nach der Übersicht kommen, damit "magazin" nicht als Slug interpretiert wird)
 Route::get('/blog/{slug}', MarketingBlogShow::class)->name('blog.show');

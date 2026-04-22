@@ -138,7 +138,7 @@ class FetchMailsCommand extends Command
                             $safeFilename = Str::slug(pathinfo($filename, PATHINFO_FILENAME)) . '.' . $extension;
 
                             // Save to a secure local folder
-                            $filePath = 'crm/mail-attachments/' . $mailMessage->id . '/' . uniqid() . '_' . $safeFilename;
+                            $filePath = 'leitung/crm/mail-attachments/' . $mailMessage->id . '/' . uniqid() . '_' . $safeFilename;
                             Storage::put($filePath, $attachment->getContent());
 
                             MailAttachment::create([

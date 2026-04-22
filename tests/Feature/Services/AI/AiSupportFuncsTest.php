@@ -49,6 +49,7 @@ class AiSupportFuncsTest extends TestCase
     public function test_identifies_personalized_orders_for_returns_policy()
     {
         $customer = Customer::factory()->create();
+        $this->actingAs($customer, 'customer');
         $order = OrderOrder::create([
             'order_number' => 'ORD-123456',
             'customer_id' => $customer->id,
@@ -82,6 +83,7 @@ class AiSupportFuncsTest extends TestCase
     public function test_identifies_standard_orders_for_returns_policy()
     {
         $customer = Customer::factory()->create();
+        $this->actingAs($customer, 'customer');
         $order = OrderOrder::create([
             'order_number' => 'ORD-789012',
             'customer_id' => $customer->id,

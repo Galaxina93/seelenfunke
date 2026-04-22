@@ -50,7 +50,7 @@ class AccountingInvoicePreview extends Component
         $invoice = AccountingInvoice::findOrFail($this->invoiceId);
 
         // Prüfung auf physisches Archiv ( storage/app/invoices )
-        $fileName = "invoices/{$invoice->invoice_number}.pdf";
+        $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
         if (Storage::disk('local')->exists($fileName)) {
             return Storage::disk('local')->download($fileName);
         }

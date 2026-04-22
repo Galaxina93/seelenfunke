@@ -360,7 +360,7 @@ class AiAgentEditor extends Component
                 Storage::disk('public')->delete($agent->profile_picture);
             }
             
-            $path = $this->profile_picture->store('agents/avatars', 'public');
+            $path = $this->profile_picture->store('agenten/avatars', 'public');
             $agent->profile_picture = $path;
         }
 

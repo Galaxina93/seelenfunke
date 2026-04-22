@@ -20,7 +20,7 @@ class OrderRevocationTest extends TestCase
     {
         parent::setUp();
 
-        Storage::fake('private');
+        Storage::fake('local');
         \Illuminate\Support\Facades\Mail::fake();
     }
 
@@ -47,7 +47,7 @@ class OrderRevocationTest extends TestCase
         $this->assertCount(1, $revocation->attachments);
 
         // Verify file is stored securely
-        Storage::disk('private')->assertExists($revocation->attachments[0]);
+        Storage::disk('local')->assertExists($revocation->attachments[0]);
     }
 
     public function test_revocation_rejects_files_larger_than_5_mb()
@@ -95,7 +95,7 @@ class OrderRevocationTest extends TestCase
         ]);
 
         $fakeFile = UploadedFile::fake()->create('proof.pdf', 100, 'application/pdf');
-        $path = $fakeFile->store("revocations/{$revocation->id}", 'private');
+        $path = $fakeFile->store("bestellungen/private/revocations/{$revocation->id}", 'local');
         $revocation->update(['attachments' => [$path]]);
 
         $filename = basename($path);
@@ -256,15 +256,15 @@ class OrderRevocationTest extends TestCase
         ]);
 
         $fakeFile = UploadedFile::fake()->create('proof.pdf', 100, 'application/pdf');
-        $path = $fakeFile->store("revocations/{$revocation->id}", 'private');
+        $path = $fakeFile->store("bestellungen/private/revocations/{$revocation->id}", 'local');
         $revocation->update(['attachments' => [$path]]);
 
-        Storage::disk('private')->assertExists($path);
+        Storage::disk('local')->assertExists($path);
 
         \Livewire\Livewire::test(\App\Livewire\Shop\Order\OrderRevocations::class)
             ->call('deleteRevocation', $revocation->id);
 
         $this->assertDatabaseMissing('order_revocations', ['id' => $revocation->id]);
-        Storage::disk('private')->assertMissing($path);
+        Storage::disk('local')->assertMissing($path);
     }
 }

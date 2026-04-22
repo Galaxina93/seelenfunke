@@ -109,8 +109,8 @@ class OrderRevocationForm extends Component
                 if (!empty($this->attachments)) {
                     $savedAttachments = [];
                     foreach ($this->attachments as $file) {
-                        // Speichere in storage/app/private/revocations/{id} gesichert ab
-                        $path = $file->store("revocations/{$revocation->id}", 'private');
+                        // Speichere in storage/app/bestellungen/private/revocations/{id} gesichert ab
+                        $path = $file->store("bestellungen/private/revocations/{$revocation->id}", 'local');
                         if ($path) {
                             $savedAttachments[] = $path;
                         }

@@ -196,7 +196,7 @@ class InvoiceService
     {
         try {
             $pdf = $this->generatePdf($invoice);
-            $fileName = "invoices/{$invoice->invoice_number}.pdf";
+            $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
 
             // Speichert die Datei im 'local' disk (storage/app/invoices) für GoBD
             Storage::disk('local')->put($fileName, $pdf->output());
@@ -221,7 +221,7 @@ class InvoiceService
      */
     public function generateEInvoiceXml(AccountingInvoice $invoice)
     {
-        $fileName = "invoices/xml/{$invoice->invoice_number}.xml";
+        $fileName = "buchhaltung/invoices/xml/{$invoice->invoice_number}.xml";
 
         // Einfaches XML-Schema nach E-Commerce Richtlinien
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"/>');
@@ -241,7 +241,7 @@ class InvoiceService
     {
         if ($invoice->status !== 'draft') return false;
 
-        $fileName = "invoices/{$invoice->invoice_number}.pdf";
+        $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
         if (Storage::disk('local')->exists($fileName)) {
             Storage::disk('local')->delete($fileName);
         }

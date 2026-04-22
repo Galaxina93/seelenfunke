@@ -152,7 +152,7 @@ class GenerateTaxExport extends Command
         $this->info("Erstelle Dateien für den Datentresor...");
 
         $monthStr = $data['month_number'];
-        $tempDir = storage_path("app/temp_export_{$monthStr}_{$year}");
+        $tempDir = storage_path("app/system/temp_export_{$monthStr}_{$year}");
         if (!File::exists($tempDir)) File::makeDirectory($tempDir, 0755, true);
 
         // CSV
@@ -194,9 +194,9 @@ class GenerateTaxExport extends Command
         }
 
         // Zippen
-        Storage::disk('local')->makeDirectory('tax_exports');
+        Storage::disk('local')->makeDirectory('buchhaltung/tax_exports');
         $zipName = "TaxExport_{$year}_{$monthStr}.zip";
-        $zipPath = storage_path("app/tax_exports/{$zipName}");
+        $zipPath = storage_path("app/buchhaltung/tax_exports/{$zipName}");
 
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {

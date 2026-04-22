@@ -14,7 +14,7 @@
         <div class="absolute inset-0 flex flex-col justify-end items-center text-center p-6 md:p-12 pb-16 md:pb-24">
             <div class="max-w-4xl animate-fade-in-up">
                 @if($post->category)
-                    <a href="{{ route('blog', ['kategorie' => $post->category->slug]) }}" class="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest mb-6 border border-white/20 hover:bg-white/20 hover:border-white/40 transition-all shadow-[0_0_15px_rgba(0,0,0,0.2)]">
+                    <a href="{{ route('marketing/marketing/blog', ['kategorie' => $post->category->slug]) }}" class="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest mb-6 border border-white/20 hover:bg-white/20 hover:border-white/40 transition-all shadow-[0_0_15px_rgba(0,0,0,0.2)]">
                         {{ $post->category->name }}
                     </a>
                 @endif
@@ -42,7 +42,7 @@
     <div class="max-w-[800px] mx-auto px-6 py-12 md:py-20 bg-white shadow-[0_-20px_50px_rgba(0,0,0,0.05)] rounded-t-[3rem] relative -mt-8 border-t border-gray-100/50">
 
         {{-- NAVIGATION --}}
-        <a href="{{ route('blog') }}" class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary mb-12 transition-colors group">
+        <a href="{{ route('marketing/marketing/blog') }}" class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-primary mb-12 transition-colors group">
             <span class="p-1.5 rounded-lg bg-gray-50 border border-gray-100 group-hover:border-primary/30 transition-colors">
                 <svg class="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             </span>
@@ -190,7 +190,7 @@
                     @if($post->category)
                         <div class="flex items-center gap-3">
                             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Kategorie</span>
-                            <a href="{{ route('blog', ['kategorie' => $post->category->slug]) }}" class="px-4 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold hover:bg-primary hover:text-white transition-colors">
+                            <a href="{{ route('marketing/marketing/blog', ['kategorie' => $post->category->slug]) }}" class="px-4 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold hover:bg-primary hover:text-white transition-colors">
                                 {{ $post->category->name }}
                             </a>
                         </div>

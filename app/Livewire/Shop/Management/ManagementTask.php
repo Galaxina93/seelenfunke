@@ -226,6 +226,7 @@ class ManagementTask extends Component
                 }])
                 ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
                 ->orderBy('is_completed', 'asc')
+                ->orderByRaw("FIELD(priority, 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('position', 'asc')
                 ->orderBy('created_at', 'desc')
                 ->get();

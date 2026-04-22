@@ -61,11 +61,11 @@ class AccountingXmlInvoiceService
         // Speichern
         $xmlContent = $this->dom->saveXML();
 
-        if(!Storage::disk('local')->exists('invoices/xml')) {
-            Storage::disk('local')->makeDirectory('invoices/xml');
+        if(!Storage::disk('local')->exists('buchhaltung/invoices/xml')) {
+            Storage::disk('local')->makeDirectory('buchhaltung/invoices/xml');
         }
 
-        $filename = 'invoices/xml/' . $invoice->invoice_number . '.xml';
+        $filename = 'buchhaltung/invoices/xml/' . $invoice->invoice_number . '.xml';
         Storage::disk('local')->put($filename, $xmlContent);
 
         return $filename;

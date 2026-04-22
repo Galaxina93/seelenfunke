@@ -168,7 +168,7 @@ Antworte EXAKT in valide formatierter, roher JSON Struktur ohne Markdown-Tags wi
         $post = MarketingInstagramPost::find($id);
         if ($post) {
             // Delete local directory
-            \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("marketing/instagram/posts/{$post->id}");
+            \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("marketing/marketing/instagram/posts/{$post->id}");
             $post->delete();
         }
     }

@@ -28,7 +28,7 @@ trait handleProfilesTrait
 
         $photo = Image::make($this->photo)->fit(400, 400);
         $filename = strtolower($this->photo->hashName());
-        $folderPath = 'user/' . $this->guard . '/' . auth()->id() . '/profile-photo/';
+        $folderPath = 'dashboard/user/' . $this->guard . '/' . auth()->id() . '/profile-photo/';
         $fullPath = $folderPath . $filename;
 
         Storage::disk('public')->put($fullPath, (string) $photo->encode());

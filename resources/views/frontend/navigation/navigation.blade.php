@@ -40,8 +40,8 @@
                             Shop
                         </a>
 
-                        <a href="{{ route('blog') }}"
-                           class="{{ Request::routeIs('blog') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
+                        <a href="{{ route('marketing/marketing/blog') }}"
+                           class="{{ Request::routeIs('marketing/marketing/blog') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
                             Blog
                         </a>
 
@@ -116,8 +116,8 @@
                     Shop
                 </a>
 
-                <a href="{{ route('blog') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('blog') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
+                <a href="{{ route('marketing/marketing/blog') }}"
+                   class="block px-3 py-2 text-lg {{ Request::routeIs('marketing/marketing/blog') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
                     Blog
                 </a>
 

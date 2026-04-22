@@ -44,12 +44,12 @@
                         </button>
                     </div>
                     @if($template->preview_image)
-                        <div class="text-[9px] text-gray-500 font-mono truncate mt-3 border-t border-gray-800/50 pt-3" title="{{ str_starts_with($template->preview_image, 'shop/') || str_starts_with($template->preview_image, 'images/') ? 'public/' : 'storage/app/public/' }}{{$template->preview_image}}">
+                        <div class="text-[9px] text-gray-500 font-mono truncate mt-3 border-t border-gray-800/50 pt-3" title="{{ str_starts_with($template->preview_image, 'shop/') || str_starts_with($template->preview_image, 'shopverwaltung/images/') ? 'public/' : 'storage/app/public/' }}{{$template->preview_image}}">
                             <span class="text-[var(--theme-color)] font-bold">Pfad:</span> 
                             @if(str_starts_with($template->preview_image, 'http'))
                                 <a href="{{ $template->preview_image }}" target="_blank" class="text-blue-400 hover:underline">{{ $template->preview_image }}</a>
                             @else
-                                {{ str_starts_with($template->preview_image, 'shop/') || str_starts_with($template->preview_image, 'images/') ? 'public/' : 'storage/app/public/' }}{{$template->preview_image}}
+                                {{ str_starts_with($template->preview_image, 'shop/') || str_starts_with($template->preview_image, 'shopverwaltung/images/') ? 'public/' : 'storage/app/public/' }}{{$template->preview_image}}
                             @endif
                         </div>
                     @endif
@@ -126,7 +126,7 @@
                                         @else
                                             <div class="text-gray-500">Physischer Server-Pfad:</div>
                                             <div class="text-amber-500/80 bg-amber-500/10 px-1 py-0.5 rounded">
-                                                {{ str_starts_with($existingTemplateImagePath, 'shop/') || str_starts_with($existingTemplateImagePath, 'images/') ? 'public/' : 'storage/app/public/' }}{{ $existingTemplateImagePath }}
+                                                {{ str_starts_with($existingTemplateImagePath, 'shop/') || str_starts_with($existingTemplateImagePath, 'shopverwaltung/images/') ? 'public/' : 'storage/app/public/' }}{{ $existingTemplateImagePath }}
                                             </div>
                                         @endif
                                     </div>
