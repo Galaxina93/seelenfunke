@@ -269,7 +269,7 @@
             <main class="{{ $guard !== 'customer' ? 'py-8 flex-1' : 'flex-1' }}">
                 @if($guard !== 'customer')
                     <div class="max-w-[1700px] w-full mx-auto px-4 sm:px-6 lg:px-8">
-                        <div class="animate-fade-in-up">
+                        <div class="animate-fade-in-up" x-data x-init="setTimeout(() => $el.classList.remove('animate-fade-in-up'), 1000)">
                             @yield('content')
                             {{ $slot ?? '' }}
                         </div>

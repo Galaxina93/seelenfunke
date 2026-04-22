@@ -1416,6 +1416,9 @@ video {
 .z-\[999\] {
   z-index: 999;
 }
+.\!z-\[99999\] {
+  z-index: 99999 !important;
+}
 .order-1 {
   order: 1;
 }
