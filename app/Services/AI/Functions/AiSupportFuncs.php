@@ -137,11 +137,10 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_get_product_info',
-                'description' => 'Findet Preise und Basis-Informationen zu Produkten. Das Tool gibt dir JSON zurück. Formatiere die Ausgabe zwingend als schöne Markdown-Tabelle oder Bullet-Points für den Kunden!',
+                'description' => 'Findet Preise und Basis-Informationen zu Produkten. Wenn du "all" als search_term übergibst (oder es leer lässt), erhältst du eine Liste aller Produkte. Nutze dies zwingend, wenn der Kunde nach dem Sortiment fragt oder eine vorherige spezifische Suche fehlgeschlagen ist (z.B. wegen Leerzeichen/Rechtschreibung)!',
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => ['search_term' => ['type' => 'string']],
-                    'required' => ['search_term']
+                    'properties' => ['search_term' => ['type' => 'string', 'description' => 'Suchbegriff (z.B. "Seelenkristall"). Leer oder "all" für alle Produkte.']]
                 ],
                 'callable' => [self::class, 'executeGetProductInfo']
             ],
@@ -390,14 +389,31 @@ trait AiSupportFuncs
     {
         try {
             $term = trim($args['search_term'] ?? '');
-            if (empty($term)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Du hast keinen Suchbegriff übergeben.'];
-
-            $products = \App\Models\Product\Product::where('status', 'active')->where(function($q) use ($term) {
-                            $q->where('name', 'LIKE', "%{$term}%")->orWhere('sku', 'LIKE', "%{$term}%");
-                        })->take(3)->get();
+            $query = \App\Models\Product\Product::where('status', 'active');
+            
+            if (empty($term) || strtolower($term) === 'all' || strtolower($term) === 'aktuelle produkte') {
+                $products = $query->take(15)->get();
+            } else {
+                $qTerm = '%' . $term . '%';
+                $dbProducts = (clone $query)->where(function($q) use ($qTerm) {
+                    $q->where('name', 'LIKE', $qTerm)
+                      ->orWhere('sku', 'LIKE', $qTerm);
+                })->take(5)->get();
+                
+                if ($dbProducts->isEmpty()) {
+                    // Fallback: Fuzzy search in PHP um Leerzeichen, Bindestriche etc. zu ignorieren (z.B. "Seelenkristall" findet "Seelen Kristall")
+                    $cleanTerm = str_replace([' ', '-'], '', strtolower($term));
+                    $allProducts = $query->get();
+                    $dbProducts = $allProducts->filter(function($p) use ($cleanTerm) {
+                        $cleanName = str_replace([' ', '-'], '', strtolower($p->name));
+                        return str_contains($cleanName, $cleanTerm) || str_contains($cleanTerm, $cleanName);
+                    })->take(5);
+                }
+                $products = $dbProducts;
+            }
 
             if ($products->isEmpty()) {
-                return ['status' => 'success', 'data' => []];
+                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Kein Produkt mit diesem Namen gefunden. Bitte rufe das Tool sofort noch einmal mit search_term="all" auf, um dir selbst einen Überblick der verfügbaren Produkte zu verschaffen und dem Kunden dann eine sinnvolle Alternative zu empfehlen. Sag dem Kunden nicht, dass die Suche fehlschlug, sondern empfiehl stattdessen die gefundenen Produkte aus dem "all" Aufruf!'];
             }
             $pData = [];
             foreach ($products as $p) {
@@ -407,11 +423,15 @@ trait AiSupportFuncs
                     \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
                     $url = url('/produkt/' . $p->slug);
                 }
+                
+                // Wir übergeben dem AI-Agenten nur die relevantesten Daten, OHNE interne Einkaufsdaten/3D-Settings.
                 $pData[] = [
                     'name' => $p->name,
                     'price' => $p->formatted_price,
                     'url' => $url,
-                    'short_description' => mb_substr(strip_tags($p->description), 0, 80) . "..."
+                    'short_description' => $p->short_description ? strip_tags($p->short_description) : '',
+                    'description' => $p->description ? strip_tags($p->description) : '',
+                    'attributes' => $p->attributes ?? null
                 ];
             }
             return ['status' => 'success', 'data' => $pData];

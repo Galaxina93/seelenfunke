@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use App\Livewire\Traits\WithDepartmentTheming;
 
-class CustomerChat extends Component
+class AiFrontendSupportChat extends Component
 {
     use WithDepartmentTheming;
     
@@ -390,6 +390,6 @@ class CustomerChat extends Component
             $this->guestLimitReached = false;
         }
 
-        return view('livewire.frontend.support.customer-chat');
+        return view('livewire.frontend.support.ai-frontend-support-chat');
     }
 }

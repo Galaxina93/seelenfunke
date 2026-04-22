@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Livewire\Frontend\Support;
 
-use App\Livewire\Frontend\Support\CustomerChat;
+use App\Livewire\Frontend\Support\AiFrontendSupportChat;
 use App\Models\Customer\Customer;
 use App\Models\Support\SupportCustomerChat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Session;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-class CustomerChatTest extends TestCase
+class AiFrontendSupportChatTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -44,7 +44,7 @@ class CustomerChatTest extends TestCase
         // 2. Auth customer visits the chat
         $this->actingAs($customer, 'customer');
 
-        Livewire::test(CustomerChat::class)
+        Livewire::test(AiFrontendSupportChat::class)
             ->assertSet('chatId', $chat->id)
             ->assertSet('isResolved', false);
 
@@ -73,7 +73,7 @@ class CustomerChatTest extends TestCase
 
         Session::put('current_chat_id', $chat->id);
 
-        Livewire::test(CustomerChat::class)
+        Livewire::test(AiFrontendSupportChat::class)
             ->set('message', 'This is message 6')
             ->call('sendMessage')
             ->assertSee('Sichere deinen Fortschritt!');
@@ -85,7 +85,7 @@ class CustomerChatTest extends TestCase
         $chat = SupportCustomerChat::create(['status' => 'resolved']);
         Session::put('current_chat_id', $chat->id);
 
-        Livewire::test(CustomerChat::class)
+        Livewire::test(AiFrontendSupportChat::class)
             ->assertSet('isResolved', true)
             ->assertSee('heute geholfen?');
     }
@@ -96,7 +96,7 @@ class CustomerChatTest extends TestCase
         $chat = SupportCustomerChat::create(['status' => 'resolved_admin']);
         Session::put('current_chat_id', $chat->id);
 
-        Livewire::test(CustomerChat::class)
+        Livewire::test(AiFrontendSupportChat::class)
             ->assertSet('isResolved', true)
             ->assertSee('heute geholfen?');
     }
@@ -107,7 +107,7 @@ class CustomerChatTest extends TestCase
         $chat = SupportCustomerChat::create(['status' => 'resolved_auto']);
         Session::put('current_chat_id', $chat->id);
 
-        Livewire::test(CustomerChat::class)
+        Livewire::test(AiFrontendSupportChat::class)
             ->assertSet('isResolved', true)
             ->assertSee('heute geholfen?');
     }
@@ -118,7 +118,7 @@ class CustomerChatTest extends TestCase
         $chat = SupportCustomerChat::create(['status' => 'resolved']);
         Session::put('current_chat_id', $chat->id);
 
-        Livewire::test(CustomerChat::class)
+        Livewire::test(AiFrontendSupportChat::class)
             ->set('rating', 5)
             ->set('feedbackText', 'Great bot!')
             ->call('submitRating')

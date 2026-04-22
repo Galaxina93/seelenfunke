@@ -169,7 +169,7 @@
              class="bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] rounded-3xl border border-gray-100 overflow-hidden flex flex-col pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
              :style="chatMaximized ? 'z-index: 100001;' : 'z-index: 99999;'"
         >
-            @livewire('frontend.support.customer-chat')
+            @livewire('frontend.support.ai-frontend-support-chat')
             <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] sm:w-[380px] sm:h-[75vh] sm:max-h-[600px] right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:bottom-10 sm:top-10 sm:top-1/2 sm:-translate-y-1/2"></div>
         </div>
     </template>

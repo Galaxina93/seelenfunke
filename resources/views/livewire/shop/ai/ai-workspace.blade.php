@@ -1126,7 +1126,7 @@
             </div>
 
             <!-- BOTTOM: AI Chat Console -->
-            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0 lg:flex-none" :style="(window.innerWidth < 1024 && !showWorkspaceMobile) ? 'height: 100%; min-height: 400px;' : 'height: calc(' + chatHeightPercent + '% - 0.75rem);'" :class="{'!fixed !inset-0 !z-[9999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen, 'flex-1': (window.innerWidth < 1024 && !showWorkspaceMobile)}">
+            <div class="shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] min-h-0 lg:flex-none" :style="isChatFullScreen ? '' : ((window.innerWidth < 1024 && !showWorkspaceMobile) ? 'height: 100%; min-height: 400px;' : 'height: calc(' + chatHeightPercent + '% - 0.75rem);')" :class="{'!fixed !inset-0 !m-0 !p-0 !z-[9999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen, 'flex-1': (window.innerWidth < 1024 && !showWorkspaceMobile)}">
                 
                 <!-- Fullscreen Toggle Button (Mobile) -->
                 <button @click="isChatFullScreen = !isChatFullScreen" class="lg:hidden absolute top-4 right-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chat maximieren">
