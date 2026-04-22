@@ -331,8 +331,6 @@
         <!-- 8. KUNDENGEWINNUNG & WACHSTUM -->
         <div class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
              :class="activeTab === 'customers' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
-             
-            <div class="absolute top-2.5 right-2.5 text-[8px] font-bold uppercase tracking-wider text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded-full border border-purple-500/30">Wachstum</div>
 
             <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">Kunden</h3>
 

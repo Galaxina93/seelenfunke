@@ -36,7 +36,7 @@
     @endif
 
     <div class="grid lg:grid-cols-2 gap-6 xl:gap-8">
-        <div class="space-y-6 xl:space-y-8">
+        <div class="space-y-6 xl:space-y-8 min-w-0">
 
             {{-- Empfänger --}}
             <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border {{ $errors->has('manualInvoice.last_name') ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-gray-800' }}">
@@ -44,7 +44,7 @@
                     <h3 class="text-sm font-serif font-bold text-white tracking-wide">Empfänger</h3>
                     <div class="flex items-center gap-3 w-full sm:w-auto">
                         @include('components.alerts.info-tooltip', ['key' => 'customer'])
-                        <select wire:model.live="selectedCustomerId" class="flex-1 sm:flex-none bg-gray-950 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold p-2 focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] outline-none shadow-inner cursor-pointer">
+                        <select wire:model.live="selectedCustomerId" class="flex-1 sm:flex-none bg-gray-950 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold p-2 focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] outline-none shadow-inner cursor-pointer w-full max-w-full">
                             <option value="">Bestandskunde wählen...</option>
                             @foreach($customers as $c)
                                 <option value="{{ $c->id }}">{{ $c->last_name }}, {{ $c->first_name }}</option>
@@ -58,40 +58,40 @@
                     $errorClass = "border-red-500/50 focus:ring-red-500/30 focus:border-red-500 bg-red-900/10";
                 @endphp
 
-                <div class="grid grid-cols-2 gap-5">
-                    <div class="col-span-2">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div class="col-span-1 sm:col-span-2">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">E-Mail Adresse *</label>
                         <input type="email" wire:model.live="manualInvoice.customer_email" class="{{ $inputClass }} {{ $errors->has('manualInvoice.customer_email') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2">
+                    <div class="col-span-1 sm:col-span-2">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Firma (Optional)</label>
                         <input type="text" wire:model.live="manualInvoice.company" class="{{ $inputClass }}">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Vorname *</label>
                         <input type="text" wire:model.live="manualInvoice.first_name" class="{{ $inputClass }} {{ $errors->has('manualInvoice.first_name') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Nachname *</label>
                         <input type="text" wire:model.live="manualInvoice.last_name" class="{{ $inputClass }} {{ $errors->has('manualInvoice.last_name') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2">
+                    <div class="col-span-1 sm:col-span-2">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Straße & Hausnummer *</label>
                         <input type="text" wire:model.live="manualInvoice.address" class="{{ $inputClass }} {{ $errors->has('manualInvoice.address') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2">
+                    <div class="col-span-1 sm:col-span-2">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Adresszusatz</label>
                         <input type="text" wire:model.live="manualInvoice.address_addition" class="{{ $inputClass }}">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">PLZ *</label>
                         <input type="text" wire:model.live="manualInvoice.postal_code" class="{{ $inputClass }} {{ $errors->has('manualInvoice.postal_code') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Stadt *</label>
                         <input type="text" wire:model.live="manualInvoice.city" class="{{ $inputClass }} {{ $errors->has('manualInvoice.city') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2">
+                    <div class="col-span-1 sm:col-span-2">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Land *</label>
                         <select wire:model.live="manualInvoice.country" class="{{ $inputClass }} cursor-pointer appearance-none">
                             @foreach(shop_setting('active_countries', ['DE' => 'Deutschland']) as $code => $name)
@@ -108,24 +108,24 @@
                     <h3 class="text-sm font-serif font-bold text-white tracking-wide">Rechnungsinformationen</h3>
                     @include('components.alerts.info-tooltip', ['key' => 'invoice_info'])
                 </div>
-                <div class="grid grid-cols-2 gap-5">
-                    <div class="col-span-2 sm:col-span-1">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Rechnungsdatum *</label>
                         <input type="date" wire:model.live="manualInvoice.invoice_date" class="{{ $inputClass }} {{ $errors->has('manualInvoice.invoice_date') ? $errorClass : '' }} [&::-webkit-calendar-picker-indicator]:filter-[invert(1)] cursor-pointer">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Lieferdatum / Zeitraum *</label>
                         <input type="date" wire:model.live="manualInvoice.delivery_date" class="{{ $inputClass }} {{ $errors->has('manualInvoice.delivery_date') ? $errorClass : '' }} [&::-webkit-calendar-picker-indicator]:filter-[invert(1)] cursor-pointer">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Rechnungsnummer *</label>
                         <input type="text" wire:model.live="manualInvoice.invoice_number" class="{{ $inputClass }} font-mono tracking-wider {{ $errors->has('manualInvoice.invoice_number') ? $errorClass : '' }}">
                     </div>
-                    <div class="col-span-2 sm:col-span-1">
+                    <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Referenznummer</label>
                         <input type="text" wire:model.live="manualInvoice.reference_number" class="{{ $inputClass }}">
                     </div>
-                    <div class="col-span-2 grid grid-cols-2 gap-5">
+                    <div class="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
                             <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Zahlungsziel (Datum)</label>
                             <input type="date" wire:model.live="manualInvoice.due_date" class="{{ $inputClass }} bg-gray-900 text-gray-400 [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">

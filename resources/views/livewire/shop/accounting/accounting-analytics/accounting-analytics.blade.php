@@ -213,9 +213,9 @@
                                         </svg>
                                     </td>
                                     @foreach(range(1,12) as $m)
-                                        <td class="p-4 text-gray-400 font-medium font-mono">{{ number_format($category['months'][$m], 0, ',', '.') }}</td>
+                                        <td class="p-4 text-gray-400 font-medium font-mono">{{ number_format($category['months'][$m], 2, ',', '.') }}</td>
                                     @endforeach
-                                    <td class="p-4 font-bold bg-gray-900 shadow-inner text-white font-mono">{{ number_format($category['year_sum'], 0, ',', '.') }}</td>
+                                    <td class="p-4 font-bold bg-gray-900 shadow-inner text-white font-mono">{{ number_format($category['year_sum'], 2, ',', '.') }}</td>
                                 </tr>
 
                                 @if(in_array($key, $expandedCategories))
@@ -223,9 +223,9 @@
                                         <tr class="bg-gray-950/50 text-[11px] text-gray-500 animate-fade-in-down border-b border-gray-800/30 last:border-b-0">
                                             <td class="p-3 pl-10 text-left border-l-2 {{ str_replace('bg-', 'border-', $category['bg']) }} font-medium">{{ $item['name'] }}</td>
                                             @foreach(range(1,12) as $m)
-                                                <td class="p-3 font-mono">{{ $item['months'][$m] != 0 ? number_format($item['months'][$m], 0, ',', '.') : '-' }}</td>
+                                                <td class="p-3 font-mono">{{ $item['months'][$m] != 0 ? number_format($item['months'][$m], 2, ',', '.') : '-' }}</td>
                                             @endforeach
-                                            <td class="p-3 font-bold text-gray-400 bg-gray-900/30 font-mono">{{ number_format($item['year_sum'], 0, ',', '.') }}</td>
+                                            <td class="p-3 font-bold text-gray-400 bg-gray-900/30 font-mono">{{ number_format($item['year_sum'], 2, ',', '.') }}</td>
                                         </tr>
                                     @endforeach
                                 @endif
@@ -235,11 +235,11 @@
                                 <td class="p-5 text-left uppercase text-[10px] font-black tracking-[0.2em] text-white">Bilanz</td>
                                 @foreach(range(1,12) as $m)
                                     <td class="p-5 font-mono font-bold text-sm {{ $yearlyMatrix['totals']['months'][$m] >= 0 ? 'text-emerald-400 drop-shadow-[0_0_5px_currentColor]' : 'text-red-400 drop-shadow-[0_0_5px_currentColor]' }}">
-                                        {{ number_format($yearlyMatrix['totals']['months'][$m], 0, ',', '.') }}
+                                        {{ number_format($yearlyMatrix['totals']['months'][$m], 2, ',', '.') }}
                                     </td>
                                 @endforeach
                                 <td class="p-5 text-white font-mono font-black text-base bg-gray-950 border-l border-gray-800 shadow-inner">
-                                    {{ number_format($yearlyMatrix['totals']['year_sum'], 0, ',', '.') }}
+                                    {{ number_format($yearlyMatrix['totals']['year_sum'], 2, ',', '.') }}
                                 </td>
                             </tr>
                             </tbody>

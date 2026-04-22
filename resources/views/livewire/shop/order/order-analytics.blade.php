@@ -256,8 +256,8 @@
 
             initCharts() {
                 const colors = {
-                    primary: 'var(--theme-color)',      // Gold
-                    primaryLight: 'var(--theme-color-20)', // Gold Fade
+                    primary: '{{ $this->themeColorHex }}',      // Theme Color
+                    primaryLight: '{{ $this->themeColorHex }}33', // Theme Color Fade
                     blue: 'rgba(59, 130, 246, 1)',         // Blue
                     blueLight: 'rgba(59, 130, 246, 0.2)',
                     purple: 'rgba(168, 85, 247, 1)',       // Purple

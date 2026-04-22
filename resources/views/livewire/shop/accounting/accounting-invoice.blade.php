@@ -103,8 +103,8 @@
                 
                 <p class="text-xs text-gray-400 leading-relaxed mb-6">Mit einem Klick auf <strong>Bulk-Action</strong> nimmt dir das System die gesamte Arbeit ab, wenn Kunden über den Front-Shop bestellt und bezahlt haben, aber die Rechnung noch fehlt.</p>
 
-                <div class="relative w-full overflow-hidden flex justify-center py-2">
-                    <svg viewBox="0 0 1000 200" class="w-full h-auto drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
+                <div class="relative w-full overflow-x-auto no-scrollbar flex justify-start sm:justify-center py-2">
+                    <svg viewBox="0 0 1000 200" class="w-full min-w-[800px] h-auto drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
                         <defs>
                             <linearGradient id="bulkPathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                                 <stop offset="0%" stop-color="var(--theme-color)" stop-opacity="0.3"/>

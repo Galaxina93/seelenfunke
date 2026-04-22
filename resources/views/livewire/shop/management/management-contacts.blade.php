@@ -285,8 +285,11 @@
                     </div>
                 @elseif($activeProfile)
                     <!-- Detail View -->
-                    <div class="p-8 lg:p-12 pb-6 border-b border-gray-800 bg-gray-900/30 shrink-0 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')]">
-                        <div class="absolute top-8 right-8 flex gap-2">
+                    <!-- Detail View -->
+                    <div class="p-6 sm:p-8 lg:p-12 pb-6 border-b border-gray-800 bg-gray-900/30 shrink-0 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')]">
+                        
+                        <!-- Action Buttons -->
+                        <div class="absolute top-4 right-4 sm:top-8 sm:right-8 flex gap-2 z-10">
                             <button wire:click="editProfile('{{ $activeProfile->id }}')" class="p-2 bg-gray-800 border border-gray-700 hover:bg-[var(--theme-color-20)] hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
                                 <x-heroicon-o-pencil class="w-5 h-5" />
                             </button>
@@ -295,55 +298,57 @@
                             </button>
                         </div>
 
-                        <div class="flex items-center gap-6 mb-6" x-data="{ showImage: false }" wire:key="profile-image-{{ $activeProfile->id }}">
-                            @if($activeProfile->avatar_path)
-                                <button @click="showImage = true" class="relative group outline-none shrink-0" title="Bild vergrößern">
-                                    <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="w-20 h-20 rounded-full object-cover border-2 border-[var(--theme-color-50)] shadow-[0_0_20px_var(--theme-color-20)] group-hover:scale-105 transition-transform duration-300">
-                                    <div class="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                        <x-heroicon-o-magnifying-glass-plus class="w-6 h-6 text-white drop-shadow-md" />
-                                    </div>
-                                </button>
+                        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6 mt-12 sm:mt-0 relative" x-data="{ showImage: false }" wire:key="profile-image-{{ $activeProfile->id }}">
+                            <div class="shrink-0">
+                                @if($activeProfile->avatar_path)
+                                    <button @click="showImage = true" class="relative group outline-none shrink-0" title="Bild vergrößern">
+                                        <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="w-24 h-24 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-[var(--theme-color-50)] shadow-[0_0_20px_var(--theme-color-20)] group-hover:scale-105 transition-transform duration-300">
+                                        <div class="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                            <x-heroicon-o-magnifying-glass-plus class="w-6 h-6 text-white drop-shadow-md" />
+                                        </div>
+                                    </button>
 
-                                <!-- Fullscreen Image Modal (Alpine) -->
-                                <div x-show="showImage" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-12">
-                                    <!-- Backdrop -->
-                                    <div x-show="showImage"
-                                         x-transition:enter="transition ease-out duration-300"
-                                         x-transition:enter-start="opacity-0 backdrop-blur-none"
-                                         x-transition:enter-end="opacity-100 backdrop-blur-md"
-                                         x-transition:leave="transition ease-in duration-200"
-                                         x-transition:leave-start="opacity-100 backdrop-blur-md"
-                                         x-transition:leave-end="opacity-0 backdrop-blur-none"
-                                         @click="showImage = false"
-                                         class="absolute inset-0 bg-gray-950/80 cursor-pointer">
+                                    <!-- Fullscreen Image Modal (Alpine) -->
+                                    <div x-show="showImage" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-12">
+                                        <!-- Backdrop -->
+                                        <div x-show="showImage"
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 backdrop-blur-none"
+                                             x-transition:enter-end="opacity-100 backdrop-blur-md"
+                                             x-transition:leave="transition ease-in duration-200"
+                                             x-transition:leave-start="opacity-100 backdrop-blur-md"
+                                             x-transition:leave-end="opacity-0 backdrop-blur-none"
+                                             @click="showImage = false"
+                                             class="absolute inset-0 bg-gray-950/80 cursor-pointer">
+                                        </div>
+                                        <!-- Modal Image -->
+                                        <div x-show="showImage"
+                                             x-transition:enter="transition ease-out duration-300"
+                                             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+                                             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave="transition ease-in duration-200"
+                                             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                             x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+                                             class="relative z-10 max-w-4xl max-h-full flex flex-col items-center">
+                                            <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="rounded-3xl border border-gray-700 shadow-2xl max-h-[85vh] object-contain bg-gray-900" @click.stop>
+                                            <button @click="showImage = false" class="absolute -top-4 -right-4 md:-top-6 md:-right-6 w-10 h-10 md:w-12 md:h-12 bg-gray-800 hover:bg-red-500 text-white rounded-full flex items-center justify-center border-2 border-gray-700 hover:border-red-400 transition-colors shadow-xl">
+                                                <x-heroicon-o-x-mark class="w-6 h-6" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <!-- Modal Image -->
-                                    <div x-show="showImage"
-                                         x-transition:enter="transition ease-out duration-300"
-                                         x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-                                         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-                                         x-transition:leave="transition ease-in duration-200"
-                                         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-                                         x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-                                         class="relative z-10 max-w-4xl max-h-full flex flex-col items-center">
-                                        <img src="{{ Storage::url($activeProfile->avatar_path) }}" class="rounded-3xl border border-gray-700 shadow-2xl max-h-[85vh] object-contain bg-gray-900" @click.stop>
-                                        <button @click="showImage = false" class="absolute -top-4 -right-4 md:-top-6 md:-right-6 w-10 h-10 md:w-12 md:h-12 bg-gray-800 hover:bg-red-500 text-white rounded-full flex items-center justify-center border-2 border-gray-700 hover:border-red-400 transition-colors shadow-xl">
-                                            <x-heroicon-o-x-mark class="w-6 h-6" />
-                                        </button>
+                                @else
+                                    <div class="w-24 h-24 sm:w-20 sm:h-20 shrink-0 rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-3xl shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                                        {{ substr($activeProfile->first_name, 0, 1) }}{{ $activeProfile->last_name ? substr($activeProfile->last_name, 0, 1) : '' }}
                                     </div>
-                                </div>
-                            @else
-                                <div class="w-20 h-20 shrink-0 rounded-full bg-gradient-to-br from-indigo-500/30 to-purple-500/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-3xl shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-                                    {{ substr($activeProfile->first_name, 0, 1) }}{{ $activeProfile->last_name ? substr($activeProfile->last_name, 0, 1) : '' }}
-                                </div>
-                            @endif
-                            <div>
-                                <h2 class="text-3xl lg:text-4xl font-serif font-bold text-white tracking-tight leading-none mb-2">
+                                @endif
+                            </div>
+                            <div class="flex-1 w-full text-center sm:text-left sm:pr-24">
+                                <h2 class="text-3xl lg:text-4xl font-serif font-bold text-white tracking-tight leading-tight mb-2 break-words">
                                     {{ $activeProfile->full_name }}
                                 </h2>
-                                <div class="flex items-center gap-3 text-sm">
+                                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-sm mt-2">
                                     @if($activeProfile->relation_type)
-                                        <span class="px-2 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300 font-medium">
+                                        <span class="px-3 py-1 rounded-full bg-gray-800 border border-gray-700 text-gray-300 font-medium">
                                             {{ $activeProfile->relation_type }}
                                         </span>
                                     @endif

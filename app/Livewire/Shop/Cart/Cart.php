@@ -162,7 +162,7 @@ class Cart extends Component
 
     public function render()
     {
-        $cart = $this->cartService->getCart();
+        $cart = $this->cartService->getCart(false);
         $totals = $this->cartService->getTotals();
 
         // KORREKTUR: Wir laden nur die Relation 'product'.

@@ -139,13 +139,24 @@ class AccountingAnalytics extends Component
         // 3. Cost Items
         // Show newly generated fixing items or total fixed cost by group
         $costs = AccountingCostItem::with('group')->get();
-        // Since Fix costs are static, we calculate global weight
+        // Wir berechnen das monatliche Äquivalent ("Gewichtung") für die Kategorien.
         $cLabels = [];
         $cData = [];
         foreach ($costs->groupBy('accounting_group_id') as $gId => $groupItems) {
             $grpName = $groupItems->first()->group->name ?? 'Zuweisung Fehlt';
             $cLabels[] = $grpName;
-            $cData[] = $groupItems->sum('amount');
+            
+            $monthlySum = 0;
+            foreach($groupItems as $item) {
+                $amount = $item->amount;
+                if ($this->isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                    $amount = $amount / (1 + ($item->tax_rate / 100));
+                }
+                
+                $interval = max(1, $item->interval_months);
+                $monthlySum += abs($amount / $interval);
+            }
+            $cData[] = round($monthlySum, 2);
         }
         $this->costItemData = ['labels' => $cLabels, 'data' => $cData];
 

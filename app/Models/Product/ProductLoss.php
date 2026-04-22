@@ -25,6 +25,6 @@ class ProductLoss extends Model
 
     public function supplier()
     {
-        return $this->belongsTo(ProductSupplier::class);
+        return $this->belongsTo(ProductSupplier::class, 'product_supplier_id');
     }
 }

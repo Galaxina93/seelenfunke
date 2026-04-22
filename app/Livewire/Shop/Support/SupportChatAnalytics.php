@@ -19,6 +19,7 @@ class SupportChatAnalytics extends Component
     public $search = '';
     public $statusFilter = '';
     public $ratingFilter = '';
+    public $showDetails = false;
 
     public function markAsResolved($id)
     {
@@ -139,7 +140,8 @@ class SupportChatAnalytics extends Component
             'escalationRate' => $escalationRate,
             'avgMessagesPerChat' => $avgMessagesPerChat,
             'avgCustomerLength' => $avgCustomerLength,
-            'recentSummaries' => $recentSummaries
+            'recentSummaries' => $recentSummaries,
+            'totalChatsAll' => $totalChatsAll
         ])->layout('components.layouts.backend_layout', ['guard' => 'admin']);
     }
 }

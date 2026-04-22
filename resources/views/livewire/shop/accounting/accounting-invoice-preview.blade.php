@@ -4,9 +4,9 @@
             <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 md:p-4">
                 <div class="bg-gray-200 w-full max-w-5xl h-[95vh] md:h-[90vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden relative animate-modal-up">
                     {{-- Modal Header Toolbar --}}
-                    <div class="bg-white p-4 border-b flex justify-between items-center shrink-0">
+                    <div class="bg-white p-3 md:p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 gap-3 sm:gap-0">
                         <div>
-                            <h3 class="font-bold text-gray-900 flex items-center gap-2">
+                            <h3 class="font-bold text-gray-900 flex flex-wrap items-center gap-2 text-sm md:text-base">
                                 <span style="color: var(--theme-color)">Belegvorschau:</span> {{ $invoice->invoice_number }}
                                 @if($invoice->status === 'cancelled')
                                     <span class="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full uppercase font-bold">Storniert</span>
@@ -18,25 +18,28 @@
                                 @endif
                             </h3>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
                             @if($invoice->type === 'invoice' && $invoice->status !== 'cancelled' && $invoice->status !== 'draft')
                                 <button wire:click="cancelInvoice" wire:confirm="Soll diese Rechnung wirklich storniert werden? Es wird eine Gegenbuchung erzeugt." class="hidden md:block bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100 text-xs font-bold border border-red-200 transition">Stornieren</button>
                             @endif
-                            <button wire:click="downloadPdf" class="text-white px-4 py-1.5 rounded-lg hover:opacity-90 text-xs font-bold transition shadow-sm flex items-center gap-2" style="background-color: var(--theme-color)">
+                            <button wire:click="downloadPdf" class="text-white px-3 md:px-4 py-1.5 rounded-lg hover:opacity-90 text-xs font-bold transition shadow-sm flex items-center gap-2" style="background-color: var(--theme-color)">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                PDF Download
+                                <span class="hidden sm:inline">PDF Download</span><span class="sm:hidden">PDF</span>
                             </button>
-                            <button onclick="window.print()" class="bg-gray-800 text-white px-4 py-1.5 rounded-lg hover:bg-black text-xs font-bold transition shadow-sm">Drucken</button>
-                            <button wire:click="closeModal" class="bg-gray-100 text-gray-500 p-1.5 rounded-lg hover:bg-gray-200 transition">
-                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <button onclick="window.print()" class="bg-gray-800 text-white px-3 md:px-4 py-1.5 rounded-lg hover:bg-black text-xs font-bold transition shadow-sm">
+                                <span class="hidden sm:inline">Drucken</span>
+                                <svg class="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                            </button>
+                            <button wire:click="closeModal" class="bg-gray-100 text-gray-500 p-1.5 rounded-lg hover:bg-gray-200 transition ml-auto sm:ml-0">
+                                <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </button>
                         </div>
                     </div>
 
                     {{-- Invoice Area --}}
-                    <div class="flex-1 overflow-y-auto p-4 md:p-12 bg-gray-500/20 flex justify-center scrollbar-hide">
+                    <div class="flex-1 overflow-auto p-4 md:p-12 bg-gray-500/20 flex flex-col md:items-center scrollbar-hide">
                         {{-- Das Blatt Papier --}}
-                        <div id="printable-invoice" class="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-2xl p-8 md:p-[15mm] text-gray-800 relative flex flex-col" style="font-family: sans-serif; font-size: 11px; line-height: 1.4;">
+                        <div id="printable-invoice" class="bg-white w-[210mm] min-w-[210mm] min-h-[297mm] shadow-2xl p-8 md:p-[15mm] text-gray-800 relative flex flex-col mx-auto shrink-0" style="font-family: sans-serif; font-size: 11px; line-height: 1.4;">
 
                             @php
                                 $data = $invoice->toFormattedArray();

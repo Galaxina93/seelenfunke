@@ -77,7 +77,7 @@
                     <div class="bg-gray-950 rounded-xl p-3 border border-gray-800 flex items-start gap-4 hover:border-gray-700 transition-colors">
                         <div class="flex flex-col items-center justify-center shrink-0 w-14 h-14 rounded-lg border {{ $colorClass }}">
                             <span class="text-[10px] font-bold uppercase">{{ $dateLabel }}</span>
-                            <span class="text-[13px] font-black">{{ $timeStr }}</span>
+                            <span class="{{ $event->is_all_day ? 'text-[8px] sm:text-[9px] tracking-tight uppercase mt-0.5' : 'text-[13px]' }} font-black">{{ $timeStr }}</span>
                         </div>
                         <div class="flex-1 min-w-0 py-0.5">
                             <h4 class="text-sm font-bold text-gray-200 truncate">{{ $event->title }}</h4>

@@ -75,18 +75,18 @@
     <div class="bg-gray-900 rounded-3xl border border-gray-800 shadow-2xl overflow-hidden relative backdrop-blur-xl">
         <div class="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent"></div>
 
-        <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+        <div class="p-6 border-b border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-900/50">
             <h2 class="text-lg font-serif font-semibold text-white flex items-center gap-3">
                 <x-heroicon-o-list-bullet class="w-5 h-5 text-gray-500" />
                 Ausgestellte Belege
             </h2>
-            <div class="relative group">
-                <input wire:model.live.debounce.300ms="search" type="text" placeholder="Beleg oder Kunde suchen..." class="bg-gray-950 border border-gray-800 text-white text-sm rounded-xl pl-11 pr-4 py-2.5 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] w-64 transition-all">
+            <div class="relative group w-full sm:w-auto">
+                <input wire:model.live.debounce.300ms="search" type="text" placeholder="Beleg oder Kunde suchen..." class="bg-gray-950 border border-gray-800 text-white text-sm rounded-xl pl-11 pr-4 py-2.5 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] w-full sm:w-64 transition-all">
                 <x-heroicon-o-magnifying-glass class="w-5 h-5 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-[var(--theme-color)] transition-colors" />
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left text-sm text-gray-300">
                 <thead class="text-[10px] text-gray-400 uppercase tracking-widest bg-gray-950/50 border-b border-gray-800 font-bold">
                     <tr>
@@ -171,6 +171,80 @@
             </table>
         </div>
 
+        {{-- Mobile Cards --}}
+        <div class="md:hidden divide-y divide-gray-800/50">
+            @forelse($credits as $credit)
+                <div class="p-4 hover:bg-gray-800/20 transition-colors relative">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <div class="font-bold text-white mb-1 flex items-center gap-2">
+                                <x-heroicon-s-document-text class="w-4 h-4 text-[var(--theme-color)]" />
+                                {{ $credit->invoice_number }}
+                            </div>
+                            <div class="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                <x-heroicon-o-calendar class="w-3.5 h-3.5" />
+                                {{ $credit->created_at->format('d.m.Y H:i') }}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-mono font-bold text-rose-400">
+                                {{ number_format($credit->total / 100, 2, ',', '.') }} €
+                            </div>
+                            @if($credit->type === 'cancellation')
+                                 <span class="text-[9px] px-2 py-0.5 mt-1 inline-block bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-md">Storno</span>
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mt-1">
+                                    <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                                    Fertig
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+
+                    <div class="mb-3 cursor-pointer p-3 bg-gray-950/50 hover:bg-gray-950 rounded-xl border border-gray-800 transition-colors" wire:click="selectCustomer('{{ $credit->customer_id }}')">
+                        @if($credit->customer)
+                            <div class="font-bold text-gray-200 text-sm mb-0.5">{{ $credit->customer->first_name }} {{ $credit->customer->last_name }}</div>
+                            <div class="text-xs text-gray-500">{{ $credit->customer->email }}</div>
+                        @else
+                            <span class="text-gray-500 italic text-sm">Kein Kunde hinterlegt</span>
+                        @endif
+                    </div>
+
+                    <div class="text-sm text-gray-400 mb-4 truncate">
+                        {{ $credit->subject }}
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 border-t border-gray-800/50 pt-3">
+                        @if($credit->customer_id)
+                            <button wire:click="sendCreditEmail('{{ $credit->id }}')" wire:confirm="Wirklich E-Mail an den Kunden senden?" class="p-2.5 rounded-xl transition-colors border {{ $credit->email_sent_at ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border-rose-500/20' }}" title="{{ $credit->email_sent_at ? 'Erneut senden (Zuletzt: ' . \Carbon\Carbon::parse($credit->email_sent_at)->format('d.m.Y H:i') . ')' : 'An Kunden senden' }}">
+                                @if($credit->email_sent_at)
+                                    <x-heroicon-s-paper-airplane class="w-4 h-4" />
+                                @else
+                                    <x-heroicon-o-paper-airplane class="w-4 h-4" />
+                                @endif
+                            </button>
+                        @endif
+                        @if(!$credit->email_sent_at)
+                            <button wire:click="markAsSent('{{ $credit->id }}')" wire:confirm="Soll dieser Beleg wirklich als 'Versendet / Erledigt' markiert werden, ohne dass eine E-Mail rausgeht?" class="p-2.5 bg-gray-800 hover:bg-emerald-500/20 text-gray-400 hover:text-emerald-400 rounded-xl transition-colors inline-flex border border-gray-700 hover:border-emerald-500/30">
+                                <x-heroicon-o-check-circle class="w-4 h-4" />
+                            </button>
+                        @endif
+                        <a href="{{ route('invoice.download', $credit->id) }}" target="_blank" class="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl transition-colors inline-flex border border-gray-700 hover:border-gray-600">
+                            <x-heroicon-m-arrow-down-tray class="w-4 h-4" />
+                        </a>
+                    </div>
+                </div>
+            @empty
+                <div class="p-8 text-center text-gray-500">
+                    <div class="bg-gray-950/50 rounded-2xl p-6 max-w-sm mx-auto border border-gray-800/50">
+                        <x-heroicon-o-document-minus class="w-10 h-10 mx-auto mb-3 text-gray-700" />
+                        <h3 class="text-md font-serif font-bold text-white mb-2">Keine Belege</h3>
+                        <p class="text-xs">Bisher wurden keine Gutschriften oder Rechnungskorrekturen erstellt.</p>
+                    </div>
+                </div>
+            @endforelse
+        </div>
+
         <div class="p-4 border-t border-gray-800 bg-gray-900/50">
             {{ $credits->links() }}
         </div>
@@ -180,7 +254,7 @@
     <div class="mt-8 bg-gray-900 border border-gray-800 rounded-3xl p-6 lg:p-8 backdrop-blur-xl shadow-2xl relative overflow-hidden">
         <div class="absolute inset-0 bg-gradient-to-r from-[var(--theme-color)]/5 to-transparent opacity-50 pointer-events-none"></div>
         <div class="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
-            
+
             <div class="w-full md:w-1/3 space-y-2">
                 <h3 class="text-white font-serif font-bold text-xl flex items-center gap-2">
                     <x-heroicon-o-chart-bar class="w-6 h-6 text-[var(--theme-color)]" />
@@ -199,7 +273,7 @@
                     <span class="text-3xl font-serif text-white">{{ $customerStats ? $customerStats['total_credits'] : 0 }}</span>
                 </div>
                 <div class="bg-gray-950/80 border border-gray-800 rounded-2xl p-4 flex flex-col justify-center">
-                    <span class="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Rückzahlungsvolumen</span>
+                    <span class="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Rückzahlung</span>
                     <span class="text-3xl font-serif text-rose-400">{{ $customerStats ? number_format($customerStats['total_volume'] / 100, 2, ',', '.') : '0,00' }} €</span>
                 </div>
             </div>
@@ -262,8 +336,8 @@
             Dein Gutschriften Workflow
         </h3>
 
-        <div class="relative w-full overflow-hidden flex justify-center py-4">
-            <svg viewBox="0 0 1000 200" class="w-full h-auto drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
+        <div class="relative w-full overflow-x-auto no-scrollbar flex justify-start sm:justify-center py-4">
+            <svg viewBox="0 0 1000 200" class="w-full min-w-[800px] h-auto drop-shadow-2xl font-sans" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                     <marker id="arrowPrimary" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                         <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--theme-color)" />
@@ -272,7 +346,7 @@
                         <feGaussianBlur stdDeviation="5" result="blur" />
                         <feComposite in="SourceGraphic" in2="blur" operator="over" />
                     </filter>
-                    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <linearGradient id="lineGrad" gradientUnits="userSpaceOnUse" x1="125" y1="70" x2="875" y2="70">
                         <stop offset="0%" stop-color="#4b5563" />
                         <stop offset="50%" stop-color="var(--theme-color)" />
                         <stop offset="100%" stop-color="#10b981" />
@@ -280,7 +354,7 @@
                 </defs>
 
                 <!-- Connecting Path -->
-                <path d="M 125 70 L 875 70" fill="none" stroke="url(#lineGrad)" stroke-width="2" stroke-dasharray="6" marker-end="url(#arrowPrimary)"/>
+                <path d="M 125 70 L 840 70" fill="none" stroke="url(#lineGrad)" stroke-width="2" stroke-dasharray="6" marker-end="url(#arrowPrimary)"/>
 
                 <!-- Node 1: Anfrage -->
                 <g transform="translate(125, 70)">
@@ -419,7 +493,7 @@
                                         <input wire:model="creditItems.{{$index}}.name" type="text" placeholder="Bezeichnung (z.B. Kulanzrabatt)" class="w-full bg-gray-900 border border-gray-800 text-white font-bold text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none">
                                         @error("creditItems.{$index}.name") <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                     </div>
-                                    <div class="grid grid-cols-3 gap-4">
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div>
                                             <div class="text-[9px] text-gray-500 uppercase tracking-widest mb-1.5 font-bold">Menge</div>
                                             <input wire:model="creditItems.{{$index}}.quantity" type="number" step="0.01" class="w-full bg-gray-900 border border-gray-800 text-white text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none text-center">
@@ -458,9 +532,9 @@
 
             </div>
 
-            <div class="p-6 border-t border-gray-800 bg-gray-900/80 backdrop-blur-md shrink-0 flex justify-between items-center gap-4">
-                <button wire:click="closeCreateModal" class="px-6 py-3 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                <button wire:click="generateCreditNote" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-dark text-white shadow-[0_0_20px_var(--theme-color-20)] hover:shadow-[0_0_30px_var(--theme-color-40)] px-8 py-3 rounded-xl font-bold flex flex-row items-center justify-center whitespace-nowrap transition-all hover:-translate-y-0.5" wire:loading.attr="disabled">
+            <div class="p-4 sm:p-6 border-t border-gray-800 bg-gray-900/80 backdrop-blur-md shrink-0 flex flex-col-reverse sm:flex-row justify-between items-center gap-3 sm:gap-4">
+                <button wire:click="closeCreateModal" class="w-full sm:w-auto px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-gray-800 sm:hover:bg-transparent rounded-xl sm:rounded-none transition-colors">Abbrechen</button>
+                <button wire:click="generateCreditNote" class="w-full sm:w-auto bg-[var(--theme-color)] hover:bg-[var(--theme-color)]-dark text-white shadow-[0_0_20px_var(--theme-color-20)] hover:shadow-[0_0_30px_var(--theme-color-40)] px-8 py-3 rounded-xl font-bold flex flex-row items-center justify-center whitespace-nowrap transition-all hover:-translate-y-0.5" wire:loading.attr="disabled">
                     <span wire:loading.remove wire:target="generateCreditNote" class="flex items-center gap-2">
                         <x-heroicon-o-check class="w-5 h-5 shrink-0" /> Gutschrift erzeugen
                     </span>

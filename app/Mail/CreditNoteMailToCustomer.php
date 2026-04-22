@@ -15,12 +15,12 @@ class CreditNoteMailToCustomer extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public Invoice $invoice;
+    public AccountingInvoice $invoice;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(Invoice $invoice)
+    public function __construct(AccountingInvoice $invoice)
     {
         $this->invoice = $invoice;
     }

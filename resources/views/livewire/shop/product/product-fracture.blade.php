@@ -123,7 +123,7 @@
         <div class="grid gap-4">
             @forelse($losses as $loss)
                 @php
-                    $isAssigned = !is_null($loss->supplier_id);
+                    $isAssigned = !is_null($loss->product_supplier_id);
                     $isReported = !is_null($loss->reported_to_supplier_at);
                     $isRefunded = !is_null($loss->refund_received_at);
 
@@ -168,21 +168,21 @@
                 <div x-data="{ expanded: false }" class="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-red-500/40 transition-all flex flex-col shadow-inner">
                     <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 w-full cursor-pointer" @click="expanded = !expanded">
                         <div class="pl-2 flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                                <i class="bi bi-chevron-down text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"></i>
-                                <h3 class="font-bold text-gray-100 text-lg line-clamp-1">{{ $loss->product->name ?? 'Gelöschtes Produkt' }}</h3>
-                                <span class="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold border {{ $statusColor }}">
+                            <div class="flex flex-wrap items-center gap-2 mb-1">
+                                <i class="bi bi-chevron-down text-gray-500 transition-transform shrink-0" :class="expanded ? 'rotate-180' : ''"></i>
+                                <h3 class="font-bold text-gray-100 text-base sm:text-lg line-clamp-1">{{ $loss->product->name ?? 'Gelöschtes Produkt' }}</h3>
+                                <span class="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold border {{ $statusColor }} shrink-0 mt-1 sm:mt-0">
                                     {{ $statusLabel }}
                                 </span>
                             </div>
-                            <p class="text-xs text-gray-500 font-mono ml-7">
-                                {{ $loss->created_at->format('d.m.Y H:i') }} |
-                                {{ $loss->quantity }} Stück defekt |
+                            <p class="text-xs text-gray-500 font-mono ml-7 leading-relaxed">
+                                {{ $loss->created_at->format('d.m.Y H:i') }} <span class="hidden sm:inline">|</span><br class="sm:hidden">
+                                {{ $loss->quantity }} Stück defekt <span class="hidden sm:inline">|</span><br class="sm:hidden">
                                 Verlustwert: <span class="text-red-400 font-bold">-{{ number_format($loss->cost_value / 100, 2, ',', '.') }} €</span>
                             </p>
                         </div>
 
-                        <div class="flex items-center gap-2 pl-7 sm:pl-0 shrink-0">
+                        <div class="flex items-center gap-2 pl-7 sm:pl-0 shrink-0 mt-3 sm:mt-0">
                             @if(!$isRefunded)
                                 <button wire:click.stop="deleteLoss('{{ $loss->id }}')" wire:confirm="Dieses SupportTicket unwiderruflich löschen und Bestand wiederherstellen?" class="btn btn-sm bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-red-500 p-2.5 rounded-lg shadow-lg flex items-center justify-center transition-colors" title="Löschen">
                                     <x-heroicon-o-trash class="w-4 h-4" />
@@ -208,7 +208,7 @@
                             <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3 block">Grund: "{{ $loss->reason }}"</span>
 
                             <!-- STEP 1: Supplier -->
-                            <div class="flex items-start gap-3 p-3 rounded-xl transition-colors {{ $isAssigned ? 'opacity-50 bg-gray-950 border border-gray-800/50' : 'bg-gray-900 border border-gray-700 shadow-sm' }}">
+                            <div class="flex items-start gap-3 p-3 sm:p-4 rounded-xl transition-colors {{ $isAssigned ? 'opacity-50 bg-gray-950 border border-gray-800/50' : 'bg-gray-900 border border-gray-700 shadow-sm' }}">
                                 <div class="mt-1 shrink-0">
                                     @if($isAssigned)
                                         <i class="solar-check-circle-bold text-emerald-500 text-2xl drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]"></i>
@@ -216,11 +216,11 @@
                                         <i class="solar-danger-circle-bold-duotone text-red-500 text-2xl"></i>
                                     @endif
                                 </div>
-                                <div class="flex-1">
-                                    <p class="text-sm font-semibold {{ $isAssigned ? 'line-through text-gray-500' : 'text-gray-200' }}">Wareneinkauf / Händler zuweisen</p>
+                                <div class="flex-1 w-full overflow-hidden">
+                                    <p class="text-xs sm:text-sm font-semibold {{ $isAssigned ? 'line-through text-gray-500' : 'text-gray-200' }}">Wareneinkauf / Händler zuweisen</p>
                                     @if(!$isAssigned)
                                         <div class="mt-3">
-                                            <select wire:change="assignSupplier('{{ $loss->id }}', $event.target.value)" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-xs font-bold text-white focus:border-red-500 outline-none">
+                                            <select x-on:change="$wire.assignSupplier('{{ $loss->id }}', $event.target.value)" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 sm:py-3 text-xs sm:text-sm font-bold text-white focus:border-red-500 outline-none">
                                                 <option value="">-- Händler auswählen zur Klärung --</option>
                                                 @foreach($suppliers as $supplier)
                                                     <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
@@ -228,9 +228,9 @@
                                             </select>
                                         </div>
                                     @else
-                                        <div class="flex items-center justify-between mt-1">
-                                            <div class="text-[10px] text-gray-500 font-mono">Verknüpft mit Händler: <span class="text-blue-400">{{ $loss->supplier->name ?? 'Unbekannt' }}</span></div>
-                                            <button wire:click.stop="unassignSupplier('{{ $loss->id }}')" class="text-red-500 hover:text-red-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors"><i class="bi bi-x-circle"></i> Lösen</button>
+                                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 sm:mt-1 gap-2">
+                                            <div class="text-[10px] sm:text-xs text-gray-500 font-mono">Verknüpft mit: <span class="text-blue-400">{{ $loss->supplier->name ?? 'Unbekannt' }}</span></div>
+                                            <button wire:click.stop="unassignSupplier('{{ $loss->id }}')" class="text-red-500 hover:text-red-400 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors w-fit"><i class="bi bi-x-circle"></i> Lösen</button>
                                         </div>
                                     @endif
                                 </div>

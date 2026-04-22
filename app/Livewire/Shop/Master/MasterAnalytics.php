@@ -944,8 +944,17 @@ class MasterAnalytics extends Component
             $startMins = (int)$timeParts[0] * 60 + (int)$timeParts[1];
             $endMins = $startMins + $r->duration_minutes;
             
-            if ($currentTimeMin >= $startMins && $currentTimeMin < $endMins) {
-                return $r;
+            // Check if routine spans across midnight
+            if ($endMins > 1440) {
+                // Routine goes past midnight
+                if ($currentTimeMin >= $startMins || $currentTimeMin < ($endMins - 1440)) {
+                    return $r;
+                }
+            } else {
+                // Normal routine within the same day
+                if ($currentTimeMin >= $startMins && $currentTimeMin < $endMins) {
+                    return $r;
+                }
             }
         }
         return null;

@@ -45,7 +45,7 @@
             @include('livewire.shop.ai.ask-ai-dropdown', [
                 'themeColor' => 'primary',
                 'actionMethod' => 'downloadAiReport',
-                'buttonText' => 'CEO PDF Report generieren',
+                'buttonText' => 'CEO-Report',
                 'loadingText' => 'Berechne PDF...'
             ])
         </div>

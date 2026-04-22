@@ -232,7 +232,7 @@
                                   rows="1"
                                   class="w-full bg-black/40 border border-slate-700 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] text-slate-200 placeholder-slate-500 rounded-3xl py-2.5 sm:py-3.5 pl-10 sm:pl-12 pr-12 sm:pr-14 transition-all resize-none custom-scrollbar text-base"
                                   style="min-height: 48px; max-height: 150px; line-height: 1.5;"
-                                  placeholder="Tippe deine Nachricht... (Nutze @ für Dateien)"
+                                  placeholder="Deine Nachricht... (@Dateien)"
                                   autocomplete="off"></textarea>
 
                         <div class="absolute bottom-0 right-1 flex items-center pr-1 pb-1 sm:pb-1.5">
@@ -446,7 +446,7 @@
                                  this.isScanning = true;
                                  let rawFiles = [];
                                  let rawPaths = [];
-                                 
+
                                  async function traverseFileTree(item, path) {
                                      path = path || '';
                                      if (item.isFile) {
@@ -488,19 +488,19 @@
                                  for(let i=0; i < rawFiles.length; i++) {
                                      let f = rawFiles[i];
                                      let ext = f.name.split('.').pop().toLowerCase();
-                                     
+
                                      // Skip hidden files or files with wrong extensions
                                      if (f.name.startsWith('.') || !allowedExtensions.includes(ext)) {
                                          skippedCount++;
                                          continue;
                                      }
-                                     
+
                                      // PHP upload_max_filesize is 2MB on this server. Prevent 422 errors:
                                      if (f.size > 2 * 1024 * 1024) {
                                          skippedCount++;
                                          continue;
                                      }
-                                     
+
                                      validFiles.push(f);
                                      validPaths.push(rawPaths[i]);
                                  }
@@ -515,21 +515,21 @@
                                      this.totalBytes = validFiles.reduce((sum, f) => sum + f.size, 0);
                                      this.uploadedBytes = 0;
                                      this.uploadProgress = 0;
-                                     
+
                                      let chunkSize = 5;
                                      let currentIndex = 0;
-                                     
+
                                      let uploadNextChunk = async () => {
                                          if (currentIndex >= validFiles.length) {
                                              setTimeout(() => { this.isUploading = false; }, 500);
                                              return;
                                          }
-                                         
+
                                          let chunkFiles = validFiles.slice(currentIndex, currentIndex + chunkSize);
                                          let chunkPaths = validPaths.slice(currentIndex, currentIndex + chunkSize);
                                          let chunkBytes = chunkFiles.reduce((sum, f) => sum + f.size, 0);
                                          currentIndex += chunkSize;
-                                         
+
                                          await this.$wire.set('relativePaths', chunkPaths);
                                          this.$wire.uploadMultiple('healthFiles', chunkFiles, () => {
                                              // Chunk Success
@@ -546,7 +546,7 @@
                                              this.uploadProgress = Math.min(100, Math.max(1, Math.round((currentUploaded / this.totalBytes) * 100)));
                                          });
                                      };
-                                     
+
                                      uploadNextChunk();
                                  } else {
                                      this.isScanning = false;
@@ -579,7 +579,7 @@
                             </svg>
                             <span class="text-xs text-[var(--theme-color)] font-mono tracking-widest uppercase">Verzeichnis wird strukturiert...</span>
                         </div>
-                        
+
                         <!-- Upload Progress Overlay -->
                         <div x-cloak x-show="isUploading" class="absolute inset-0 bg-slate-900/95 backdrop-blur-xl rounded-xl flex items-center justify-center z-30 border border-[var(--theme-color)] shadow-[0_0_20px_var(--theme-color-20)]">
                             <div class="w-2/3 flex flex-col items-center gap-4">
@@ -623,7 +623,7 @@
                                     <div class="w-16 flex justify-center"></div>
                                 </div>
                             @endif
-                            
+
                             @forelse($uploadedHealthFiles as $item)
                                 <div class="flex items-center p-3 border-b border-slate-800 hover:bg-slate-800/60 transition-colors group">
                                     <div class="flex-1 flex items-center gap-3 overflow-hidden pr-4">

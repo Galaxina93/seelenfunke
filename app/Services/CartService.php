@@ -22,10 +22,18 @@ class CartService
     /**
      * Ruft den aktuellen Warenkorb ab oder erstellt einen neuen.
      */
-    public function getCart(): Cart
+    public function getCart(bool $createIfNotExists = true): ?Cart
     {
         if (Auth::guard('customer')->check()) {
             $user = Auth::guard('customer')->user();
+
+            if (!$createIfNotExists) {
+                $cart = Cart::where('customer_id', $user->id)->first();
+                if ($cart && $cart->session_id !== Session::getId()) {
+                    $cart->update(['session_id' => Session::getId()]);
+                }
+                return $cart;
+            }
 
             $cart = Cart::firstOrCreate(
                 ['customer_id' => $user->id],
@@ -52,6 +60,10 @@ class CartService
                 }
             }
             return $mainCart;
+        }
+
+        if (!$createIfNotExists) {
+            return null;
         }
 
         return Cart::create(['session_id' => Session::getId()]);
@@ -232,7 +244,30 @@ class CartService
 
     public function getTotals(string $countryCode = 'DE'): array
     {
-        return $this->calculateTotals($this->getCart(), $countryCode);
+        $cart = $this->getCart(false);
+        if (!$cart) {
+            return [
+                'subtotal_original' => 0,
+                'subtotal_gross' => 0,
+                'volume_discount' => 0,
+                'discount_amount' => 0,
+                'coupon_code' => null,
+                'tax' => 0,
+                'taxes_breakdown' => [],
+                'shipping' => 0,
+                'shipping_tax' => 0,
+                'express' => 0,
+                'express_tax' => 0,
+                'is_express' => false,
+                'is_free_shipping' => false,
+                'missing_for_free_shipping' => 0,
+                'total' => 0,
+                'item_count' => 0,
+                'weight' => 0,
+                'country' => $countryCode
+            ];
+        }
+        return $this->calculateTotals($cart, $countryCode);
     }
 
     /**
