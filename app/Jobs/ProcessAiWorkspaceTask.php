@@ -54,7 +54,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
             // -------------------------------------------------------------
             if (empty($plan)) {
                 $contentArray = [];
-                $contentArray[] = ['type' => 'text', 'text' => "SWARM ORCHESTRATOR INSTRUCTION:\nDu bist im PLANUNGSMODUS. Bevor du die eigentliche Aufgabe startest, musst du die Aufgabe zwingend in Einzelschritte zerlegen.\nDeine Ausgabe darf AUSSCHLIESSLICH ein valides JSON-Array sein, nichts anderes! Formatiere es als: [{\"id\": 1, \"description\": \"...\"}, {\"id\": 2, \"description\": \"...\"}]. VERWENDE KEINE WERKZEUGE JETZT!\n\nAUFGABE: " . $this->task->prompt];
+                $contentArray[] = ['type' => 'text', 'text' => "SWARM ORCHESTRATOR INSTRUCTION:\nDu bist im PLANUNGSMODUS. Bevor du die eigentliche Aufgabe startest, musst du die Aufgabe zwingend in Einzelschritte zerlegen.\nDeine Ausgabe darf AUSSCHLIESSLICH ein valides JSON-Array sein, nichts anderes! Formatiere es als: [{\"id\": 1, \"description\": \"...\"}, {\"id\": 2, \"description\": \"...\"}]. VERWENDE KEINE WERKZEUGE JETZT!\n\nBEACHTE: Du hast bereits vollen Zugriff auf die angehängten Dateien (siehe [FILE ATTACHMENT] oder [UPLOADED FILE] weiter unten). Du MUSST NICHT mehr nach diesen Dateien suchen oder sie einlesen. Dein Plan kann direkt mit der Verarbeitung/Modifikation dieser Dateien beginnen!\n\nAUFGABE: " . $this->task->prompt];
 
                 // Append Attachments for Context during planning
                 if (!empty($metadata['attachments'])) {
@@ -166,8 +166,54 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                     'content' => "Führe nun folgenden Schritt aus (und nutze falls nötig deine Werkzeuge dafür): \nSchritt " . $step['id'] . ": " . $step['description'] . "\nGib eine kurze Bestätigung oder das Ergebnis des Schritts zurück, wenn du fertig bist."
                 ];
 
-                $stepResponseArray = $apiService->ask($history);
+                if (!isset($metadata['work_log'])) {
+                    $metadata['work_log'] = [];
+                }
+                $metadata['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'info', 'message' => "Thinking...", 'color' => 'yellow'];
+                $this->task->update(['ui_metadata' => $metadata]);
+                \App\Events\TaskUpdated::dispatch($this->task);
+
+                $startTime = microtime(true);
+                $lastActionTime = microtime(true);
+
+                $streamCallback = function($event) use (&$lastActionTime) {
+                    if (($event['type'] ?? '') === 'tool_call') {
+                        $toolName = $event['tool'] ?? 'System';
+                        $friendlyName = "Running tool: " . $toolName;
+                        if ($toolName === 'system_write_artifact') $friendlyName = "Generating...";
+                        else if ($toolName === 'system_multi_replace_file' || $toolName === 'system_replace_file') $friendlyName = "Editing...";
+                        else if ($toolName === 'system_run_command') $friendlyName = "Ran command...";
+
+                        $thinkDuration = round(microtime(true) - $lastActionTime, 1);
+                        if ($thinkDuration > 0.5) {
+                            $t = $this->task->fresh();
+                            $md = $t->ui_metadata ?? [];
+                            $md['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'success', 'message' => "Thought for {$thinkDuration} seconds.", 'color' => 'emerald'];
+                            $t->update(['ui_metadata' => $md]);
+                            \App\Events\TaskUpdated::dispatch($t);
+                        }
+
+                        $t = $this->task->fresh();
+                        $md = $t->ui_metadata ?? [];
+                        $md['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'tool', 'message' => $friendlyName, 'color' => 'cyan'];
+                        $t->update(['ui_metadata' => $md]);
+                        \App\Events\TaskUpdated::dispatch($t);
+
+                        $lastActionTime = microtime(true);
+                    }
+                };
+
+                $stepResponseArray = $apiService->ask($history, $streamCallback);
                 $stepResult = $stepResponseArray['response'] ?? 'Keine Antwort.';
+
+                $thinkDuration = round(microtime(true) - $lastActionTime, 1);
+                if ($thinkDuration > 0.5) {
+                    $t = $this->task->fresh();
+                    $md = $t->ui_metadata ?? [];
+                    $md['work_log'][] = ['time' => now()->format('H:i:s'), 'type' => 'success', 'message' => "Thought for {$thinkDuration} seconds.", 'color' => 'emerald'];
+                    $t->update(['ui_metadata' => $md]);
+                    \App\Events\TaskUpdated::dispatch($t);
+                }
 
                 if (str_contains(strtoupper($stepResult), '[SKIP]')) {
                     $this->task->update(['status' => 'pending', 'assigned_agent_id' => null]);
@@ -178,10 +224,28 @@ class ProcessAiWorkspaceTask implements ShouldQueue
 
                 $step['status'] = 'completed';
                 $step['result'] = $stepResult;
-                $metadata['execution_plan'] = $plan;
-                $metadata['llm_history'] = $history;
+                
+                // Fetch fresh metadata to avoid overwriting stream logs
+                $freshMd = $this->task->fresh()->ui_metadata ?? [];
+                $freshMd['execution_plan'] = $plan;
+                $freshMd['llm_history'] = $history;
+                
+                // Replace the 'Thinking...' log with a completion mark
+                if (!empty($freshMd['work_log'])) {
+                    foreach (array_reverse(array_keys($freshMd['work_log'])) as $k) {
+                        if ($freshMd['work_log'][$k]['message'] === 'Thinking...') {
+                            $freshMd['work_log'][$k] = [
+                                'time' => now()->format('H:i:s'),
+                                'type' => 'success',
+                                'message' => "Completed step " . $step['id'],
+                                'color' => 'gray'
+                            ];
+                            break;
+                        }
+                    }
+                }
 
-                $this->task->update(['ui_metadata' => $metadata]);
+                $this->task->update(['ui_metadata' => $freshMd]);
                 \App\Events\TaskUpdated::dispatch($this->task);
             }
 

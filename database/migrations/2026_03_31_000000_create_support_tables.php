@@ -132,11 +132,11 @@ return new class extends Migration
 
     public function down(): void
     {
+        Schema::dropIfExists('support_ticket_messages');
+        Schema::dropIfExists('support_tickets');
         Schema::dropIfExists('support_contact_request_messages');
         Schema::dropIfExists('support_contact_requests');
         Schema::dropIfExists('support_customer_chat_messages');
         Schema::dropIfExists('support_customer_chats');
-        Schema::dropIfExists('support_tickets');
-        Schema::dropIfExists('support_ticket_messages');
     }
 };

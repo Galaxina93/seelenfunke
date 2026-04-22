@@ -147,6 +147,7 @@ class BackendNavigationService
                             ['id' => 'global-logs', 'title' => 'Log', 'route' => '/admin/global-logs', 'icon' => 'server-stack'],
                             ['id' => 'user-management', 'title' => 'Benutzer', 'route' => '/admin/user-management', 'icon' => 'users'],
                             ['id' => 'company-map', 'title' => 'Architektur-Map', 'route' => '/admin/company-map', 'icon' => 'map'],
+                            ['id' => 'backups', 'title' => 'Sicherungen', 'route' => '/admin/system/backups', 'icon' => 'archive-box'],
                             ['id' => 'configuration', 'title' => 'Einstellungen', 'route' => '/admin/configuration', 'icon' => 'cog-8-tooth'],
                         ]
                     ]
