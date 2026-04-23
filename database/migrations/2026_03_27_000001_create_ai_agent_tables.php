@@ -257,6 +257,18 @@ return new class extends Migration
                 $table->timestamps();
             });
         }
+
+        if (!Schema::hasTable('ai_widget_configs')) {
+            Schema::create('ai_widget_configs', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->index();
+                $table->foreignUuid('ai_agent_id')->nullable()->constrained('ai_agents')->nullOnDelete();
+                $table->integer('volume')->default(15);
+                $table->boolean('continuous_mode')->default(false);
+                $table->boolean('require_wake_word')->default(false);
+                $table->timestamps();
+            });
+        }
     }
 
     /**
@@ -264,6 +276,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('ai_widget_configs');
         Schema::dropIfExists('ai_user_workspace_settings');
         Schema::dropIfExists('ai_workspace_tasks');
         Schema::dropIfExists('ai_health_medications');

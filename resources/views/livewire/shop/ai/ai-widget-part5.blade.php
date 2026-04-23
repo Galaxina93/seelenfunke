@@ -97,9 +97,9 @@
                     }
 
                     float map(vec3 p) {
-                        float critical = min(hoverTime / 4.0, 1.0); 
+                        float critical = min(hoverTime / 12.0, 1.0); 
 
-                        float rotSpeed = time * (0.02 + hoverState * 0.05 + critical * 0.3 + isThinking * 0.15);
+                        float rotSpeed = time * (0.02 + hoverState * 0.05 + critical * 0.03 + isThinking * 0.15);
                         p = rotY(rotSpeed) * rotX(rotSpeed * 0.6) * p;
 
                         float baseRadius = 45.0 + hoverState * 8.0 + critical * 12.0;
@@ -129,7 +129,7 @@
                         vec3 accumulatedColor = vec3(0.0);
                         float accumulatedAlpha = 0.0;
 
-                        float critical = min(hoverTime / 4.0, 1.0);
+                        float critical = min(hoverTime / 12.0, 1.0);
 
                         vec3 currentGlowColor = mix(glowColor, glowColor * 1.5, hoverState * 0.95);
                         currentGlowColor = mix(currentGlowColor, currentGlowColor * 1.8, isThinking);
@@ -160,7 +160,7 @@
                             if (t > maxT || accumulatedAlpha > 0.99) break;
                         }
 
-                        float speedBoost = critical * 15.0 + isThinking * 25.0;
+                        float speedBoost = critical * 5.0 + isThinking * 25.0;
                         float breathingPulse = 0.8 + 0.3 * sin(time * (3.0 + speedBoost));
                         float quickPulse = 0.7 + 0.5 * sin(time * (8.0 + speedBoost));
                         float combinedPulse = mix(breathingPulse, quickPulse, hoverState);

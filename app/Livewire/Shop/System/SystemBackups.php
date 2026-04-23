@@ -12,8 +12,9 @@ use Illuminate\Support\Facades\Storage;
 class SystemBackups extends Component
 {
     use WithDepartmentTheming;
+    use \Livewire\WithPagination;
 
-    public string $themingDepartment = 'Architektur';
+    public string $themingDepartment = 'System';
     public $appName;
     public $backupName;
     public $diskName;
@@ -83,17 +84,29 @@ class SystemBackups extends Component
     public function runTestBackup()
     {
         try {
-            \Illuminate\Support\Facades\Artisan::queue('backup:run', ['--only-db' => true]);
-            session()->flash('success', 'Ein Datenbank-Backup wurde angefordert und wird nun im Hintergrund erstellt.');
+            \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
+            session()->flash('success', 'Ein Datenbank-Backup wurde erfolgreich erstellt.');
         } catch (\Exception $e) {
-            session()->flash('error', 'Fehler beim Starten des Backups: ' . $e->getMessage());
+            session()->flash('error', 'Fehler beim Erstellen des Backups: ' . $e->getMessage());
         }
     }
 
     public function render()
     {
+        $allBackups = $this->getBackupsProperty();
+        $page = $this->getPage();
+        $perPage = 10;
+        
+        $paginatedBackups = new \Illuminate\Pagination\LengthAwarePaginator(
+            array_slice($allBackups, ($page - 1) * $perPage, $perPage),
+            count($allBackups),
+            $perPage,
+            $page,
+            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+        );
+
         return view('livewire.shop.system.system-backups', [
-            'backups' => $this->getBackupsProperty(),
+            'backups' => $paginatedBackups,
             'stats' => $this->getBackupStatsProperty(),
         ]);
     }

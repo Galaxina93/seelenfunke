@@ -179,10 +179,38 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $streamCallback = function($event) use (&$lastActionTime) {
                     if (($event['type'] ?? '') === 'tool_call') {
                         $toolName = $event['tool'] ?? 'System';
-                        $friendlyName = "Running tool: " . $toolName;
-                        if ($toolName === 'system_write_artifact') $friendlyName = "Generating...";
-                        else if ($toolName === 'system_multi_replace_file' || $toolName === 'system_replace_file') $friendlyName = "Editing...";
-                        else if ($toolName === 'system_run_command') $friendlyName = "Ran command...";
+                        $friendlyName = "Nutze Werkzeug " . str_replace('system_', '', $toolName) . "...";
+                        $speechText = "Ich nutze ein Werkzeug.";
+                        
+                        if ($toolName === 'system_write_artifact') {
+                            $friendlyName = "Generating...";
+                            $speechText = "Ich generiere ein Dokument.";
+                        }
+                        else if ($toolName === 'system_multi_replace_file' || $toolName === 'system_replace_file' || str_contains($toolName, 'edit')) {
+                            $friendlyName = "Editing...";
+                            $speechText = "Ich bearbeite eine Datei.";
+                        }
+                        else if ($toolName === 'system_run_command' || str_contains($toolName, 'command')) {
+                            $friendlyName = "Ran command...";
+                            $speechText = "Ich führe einen Befehl aus.";
+                        }
+                        else if ($toolName === 'system_read_file' || str_contains($toolName, 'view')) {
+                            $friendlyName = "Reading...";
+                            $speechText = "Ich analysiere den Quellcode.";
+                        }
+                        else if ($toolName === 'grep_search' || str_contains($toolName, 'search')) {
+                            $friendlyName = "Searching...";
+                            $speechText = "Ich suche im System.";
+                        }
+                        else if ($toolName === 'system_list_directory' || str_contains($toolName, 'list')) {
+                            $friendlyName = "Listing dir...";
+                            $speechText = "Ich analysiere die Ordnerstruktur.";
+                        }
+
+                        // Broadcast the event so the active widget can read it out loud
+                        if (class_exists(\App\Events\AiWidgetSpeechEvent::class)) {
+                            broadcast(new \App\Events\AiWidgetSpeechEvent($this->task->assigned_agent_id ?? 'system', $speechText));
+                        }
 
                         $thinkDuration = round(microtime(true) - $lastActionTime, 1);
                         if ($thinkDuration > 0.5) {
@@ -255,7 +283,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
             if ($allCompleted && $finalSummaryNeeded) {
                 $history[] = [
                     'role' => 'user',
-                    'content' => "Alle Schritte sind abgeschlossen. Bitte schreibe nun eine abschließende Zusammenfassung der erledigten Aufgabe für den User."
+                    'content' => "Alle Schritte sind abgeschlossen. Bitte bestätige den Abschluss der Aufgabe. WICHTIG: Halte dich extrem kurz (max. 1-2 Sätze). Beginne mit 'Verstanden, ich habe...' oder 'Erledigt'. Verzichte vollständig auf technische Details, Erklärungen oder Zusammenfassungen der einzelnen Schritte."
                 ];
                 $finalRespArray = $apiService->ask($history);
                 $finalResponse = $finalRespArray['response'] ?? 'Aufgabe erfolgreich abgeschlossen.';

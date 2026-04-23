@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Ai;
 
 use App\Livewire\Traits\WithDepartmentTheming;
+use App\Livewire\Shop\Ai\Traits\ManagesAiChat;
 
 use Livewire\Attributes\Layout;
 
@@ -23,15 +24,10 @@ class AiWorkspace extends Component
 {
     use WithDepartmentTheming;
     use WithFileUploads;
+    use ManagesAiChat;
 
     public string $themingDepartment = 'Agenten';
-    public $input = '';
-    public $activeAgentIds = [];
-    public $typingAgents = []; // Array of agent IDs currently typing
-    public $attachments = []; // Files attached via @ mentions
-    public $uploadedFiles = []; // Real uploaded files
-    public $mentionQuery = '';
-    public $mentionResults = [];
+
     public string $activeWorkspaceView = 'workspace';
     public int $chatHeightPercent = 40;
     public bool $autoApprovePlan = false;
@@ -44,87 +40,6 @@ class AiWorkspace extends Component
     public $newPlanFeatures = [['title' => '', 'description' => '']];
     public ?int $editingPlanId = null;
 
-    public function getListeners()
-    {
-        return [
-            "echo:workspace,TaskUpdated" => '$refresh',
-        ];
-    }
-    
-    public function assignAgent($taskId, $agentId)
-    {
-        $task = AiWorkspaceTask::find($taskId);
-        if ($task && $task->status === 'pending') {
-            $task->update([
-                'assigned_agent_id' => $agentId,
-                'status' => 'assigned'
-            ]);
-            
-            \App\Events\TaskUpdated::dispatch($task);
-            ProcessAiWorkspaceTask::dispatch($task);
-        }
-    }
-
-    public function updatedAutoApprovePlan($value)
-    {
-        if (auth()->check()) {
-            \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
-                ['user_id' => auth()->id()],
-                ['auto_approve_execution_plan' => $value]
-            );
-        }
-    }
-
-    public function approvePlan($taskId)
-    {
-        $task = AiWorkspaceTask::find($taskId);
-        if ($task && $task->status === 'awaiting_approval') {
-            $task->update(['status' => 'pending']); // or 'processing' if we want immediate spin
-            \App\Events\TaskUpdated::dispatch($task);
-            \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
-        }
-    }
-
-    public function approvePlanAlways($taskId)
-    {
-        $this->autoApprovePlan = true;
-        if (auth()->check()) {
-            \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
-                ['user_id' => auth()->id()],
-                ['auto_approve_execution_plan' => true]
-            );
-        }
-        $this->approvePlan($taskId);
-    }
-
-    #[Computed]
-    public function messages()
-    {
-        $messages = [];
-        $history = AiChatMemory::where('session_id', session()->getId())
-                               ->orderBy('created_at', 'asc')
-                               ->get();
-
-        if ($history->isNotEmpty()) {
-            foreach ($history as $mem) {
-                if ($mem->role === 'tool') continue;
-
-                $ctx = $mem->context_data ?? [];
-                $messages[] = [
-                    'role' => $mem->role,
-                    'name' => $ctx['name'] ?? ucfirst($mem->role),
-                    'content' => $mem->content,
-                    'color' => $ctx['color'] ?? ($mem->role === 'user' ? 'gray-400' : 'emerald-500'),
-                    'icon' => $ctx['icon'] ?? ($mem->role === 'user' ? 'user' : 'sparkles'),
-                    'profile_picture' => $ctx['profile_picture'] ?? null,
-                    'attachments' => $ctx['attachments'] ?? [],
-                    'local_uploads' => $ctx['local_uploads'] ?? [],
-                ];
-            }
-        }
-        return $messages;
-    }
-
     public function mount()
     {
         if (auth()->check()) {
@@ -135,9 +50,8 @@ class AiWorkspace extends Component
             }
         }
 
-
         $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
-        $this->forcedAgentIds = $this->activeAgentIds; // By default, all DB-selected agents are manually forced in the session
+        $this->forcedAgentIds = $this->activeAgentIds;
 
         $teamLeader = AiAgent::where('is_active', true)->whereHas('role', function($q) {
             $q->where('name', 'like', '%Teamleiter%');
@@ -145,7 +59,6 @@ class AiWorkspace extends Component
         
         $fallbackAgent = $teamLeader ?? AiAgent::where('is_active', true)->first();
 
-        // Safety fallback just in case no agent is in chat
         if (empty($this->activeAgentIds) && $fallbackAgent) {
             $fallbackAgent->update(['is_in_chat' => true]);
             $this->activeAgentIds[] = $fallbackAgent->id;
@@ -170,841 +83,13 @@ class AiWorkspace extends Component
         }
     }
 
-    public function getAgentsProperty()
+    public function getListeners()
     {
-        return AiAgent::where('is_active', true)->orderBy('name')->get();
-    }
-
-    #[Computed]
-    public function getIsWorkerRunningProperty()
-    {
-        if (config('queue.default') === 'sync') {
-            return true;
-        }
-
-        // Neue extrem zuverlässige Methode (funktioniert über Container-Grenzen hinweg)
-        $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
-        if (!$cacheHit && \Illuminate\Support\Facades\Storage::disk('local')->exists('system/ai_worker_heartbeat.txt')) {
-            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('system/ai_worker_heartbeat.txt');
-            if (now()->timestamp - $lastPing <= 45) {
-                $cacheHit = true;
-            }
-        }
-        
-        if ($cacheHit) {
-            return true;
-        }
-
-        // Alter Fallback auf Linux/Shell Ebene falls Cache fehlt
-        if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
-            // Methode 1: pgrep (Standard Linux)
-            $output = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
-            
-            if (empty(trim($output))) {
-                // Methode 2: ps (Standard Shared Hosting / Alpine Container wie Mittwald)
-                // Busybox kompatibel: Simples Piping anstelle von Regex
-                $output = shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
-            }
-            return !empty(trim($output));
-        }
-        return true; // Fallback wenn shell_exec() systemseitig verboten ist
-    }
-
-    #[Computed]
-    public function getWorkerDiagnosticProperty()
-    {
-        $info = [];
-        $info[] = "Treiber: " . config('queue.default');
-        
-        $cacheHit = \Illuminate\Support\Facades\Cache::has('ai-worker-heartbeat');
-        $storageHit = false;
-        if (\Illuminate\Support\Facades\Storage::disk('local')->exists('system/ai_worker_heartbeat.txt')) {
-            $lastPing = (int)\Illuminate\Support\Facades\Storage::disk('local')->get('system/ai_worker_heartbeat.txt');
-            if (now()->timestamp - $lastPing <= 45) {
-                $storageHit = true;
-            }
-        }
-        
-        $info[] = "Cache-Signal: " . ($cacheHit ? 'OK' : 'Fehlt');
-        $info[] = "NFS-Signal: " . ($storageHit ? 'OK' : 'Fehlt');
-        
-        if (function_exists('shell_exec') && !str_contains(ini_get('disable_functions'), 'shell_exec')) {
-            $out1 = shell_exec('pgrep -f "[a]rtisan queue" 2>/dev/null');
-            $info[] = "pgrep: " . (!empty(trim($out1)) ? 'Treffer' : 'Leer');
-            
-            $out2 = shell_exec('ps ax 2>/dev/null | grep "artisan" | grep -i "queue" | grep -v grep');
-            $info[] = "ps: " . (!empty(trim($out2)) ? 'Treffer' : 'Leer');
-        } else {
-             $info[] = "Shell: Verboten";
-        }
-        
-        return implode(" | ", $info);
-    }
-
-    public $forcedAgentIds = [];
-    public $pendingRouterMessage = null;
-
-    public function toggleAgent($agentId)
-    {
-        $agent = AiAgent::find($agentId);
-        if ($agent) {
-            $agent->is_in_chat = !$agent->is_in_chat;
-            $agent->save();
-        }
-
-        $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
-        $this->forcedAgentIds = $this->activeAgentIds;
-    }
-
-    private function saveMessageToDb($role, $content, $contextData)
-    {
-        AiChatMemory::create([
-            'session_id' => session()->getId(),
-            'role' => $role,
-            'content' => $content,
-            'context_data' => $contextData,
-        ]);
-    }
-
-    public function searchFilesForMention($query)
-    {
-        $this->mentionQuery = $query;
-        if (strlen($query) < 2) {
-            $this->mentionResults = [];
-            return;
-        }
-
-        $basePath = base_path();
-        $allowedDirs = ['app', 'config', 'resources', 'routes', 'database'];
-        $results = [];
-
-        foreach ($allowedDirs as $dir) {
-            $path = $basePath . '/' . $dir;
-            if (!is_dir($path)) continue;
-
-            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
-            foreach ($iterator as $file) {
-                if ($file->isDir()) continue;
-                if (stripos($file->getFilename(), $query) !== false) {
-                    $results[] = str_replace($basePath . '/', '', $file->getPathname());
-                    if (count($results) >= 10) break 2;
-                }
-            }
-        }
-        
-        // Also suggest AI Artifacts / Plans
-        $artifacts = $this->artifacts;
-        foreach ($artifacts as $art) {
-            if (str_starts_with(strtolower($query), 'plan') || stripos($art['filename'], $query) !== false) {
-                // Prepend so plans show up first if matching!
-                array_unshift($results, 'storage/app/ai-artifacts/' . session()->getId() . '/' . $art['filename']);
-            }
-        }
-
-        $this->mentionResults = $results;
-    }
-
-    public function addAttachment($filePath)
-    {
-        if (!in_array($filePath, $this->attachments)) {
-            $this->attachments[] = $filePath;
-        }
-        $this->mentionQuery = '';
-        $this->mentionResults = [];
-    }
-
-    public function removeAttachment($index)
-    {
-        if (isset($this->attachments[$index])) {
-            unset($this->attachments[$index]);
-            $this->attachments = array_values($this->attachments);
-        }
-    }
-
-    public function sendMessage()
-    {
-        if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) return;
-
-        $userCtx = [
-            'name' => auth()->check() ? auth()->user()->first_name : 'User',
-            'color' => 'gray-400',
-            'icon' => 'user',
-            'profile_picture' => auth()->check() && auth()->user()->profile ? auth()->user()->profile->photo_path : null,
-            'attachments' => $this->attachments,
+        return [
+            "echo:workspace,TaskUpdated" => '$refresh',
         ];
-
-        // Process real file uploads
-        $localUploads = [];
-        if (!empty($this->uploadedFiles)) {
-            foreach ($this->uploadedFiles as $file) {
-                // Store in public disk so that Storage::url() works in blade
-                $path = $file->store('agenten/ai-chat-uploads', 'public');
-                $localUploads[] = [
-                    'path' => $path,
-                    'name' => $file->getClientOriginalName(),
-                    'mime' => $file->getMimeType()
-                ];
-            }
-            $userCtx['local_uploads'] = $localUploads;
-        }
-
-        // DB Save
-        // Die Nachricht wird nun über das Computed-Property 'messages' direkt beim Rerender aus der DB in die UI gestreamt.
-        $this->saveMessageToDb('user', $this->input, $userCtx);
-
-        // Keep ref for async router
-        $this->pendingRouterMessage = $this->input;
-
-        $this->input = '';
-        $this->attachments = [];
-        $this->uploadedFiles = [];
-
-        // Ping Frontend to dispatch parallel routing processing
-        $this->typingAgents = array_merge($this->typingAgents, $this->activeAgentIds);
-        $this->dispatch('start-auto-routing');
     }
-
-    #[On('start-auto-routing')]
-    public function processAutoRouting()
-    {
-        $rawUserInput = $this->pendingRouterMessage;
-        $this->pendingRouterMessage = null;
-
-        if (!$rawUserInput) return;
-
-        // AUTO-ROUTER: Hand over the conversation to the most capable subset of agents.
-        $routedIds = \App\Services\AI\AiAgentRouter::determineRequiredAgents($rawUserInput, $this->activeAgentIds);
-        
-        // Ensure explicitly activated agents are NEVER dropped
-        $finalIds = array_values(array_unique(array_merge($routedIds, $this->forcedAgentIds)));
-
-        if (!empty($finalIds)) {
-            $this->activeAgentIds = $finalIds;
-            // Update the database to reflect that these agents have joined the chat dynamically
-            AiAgent::whereIn('id', $this->activeAgentIds)->update(['is_in_chat' => true]);
-        }
-
-        if (empty($this->activeAgentIds)) {
-            $errCtx = [
-                'name' => 'System',
-                'color' => 'red-500',
-                'icon' => 'exclamation-triangle',
-                'profile_picture' => null,
-            ];
-            $errStr = 'FEHLER: Kein Agent für Verarbeitung ausgewählt und Auto-Routing schlug fehl. Bitte wähle mindestens einen Agenten im oberen Panel manuell aus.';
-            $this->saveMessageToDb('assistant', $errStr, $errCtx);
-            return;
-        }
-
-        // Aktiviere / Korrigiere paralleles Tipping für alle *final* gewählten Agenten
-        // Behalte bestehende, falls noch andere getippt haben (z.B. Hintergrundtasks), aber füge die neuen der Liste hinzu.
-        // Falls wir jemanden weggeswitched haben, entziehen wir ihm den Typing Status:
-        $this->typingAgents = array_intersect($this->typingAgents, $this->activeAgentIds);
-        $this->typingAgents = array_unique(array_merge($this->typingAgents, $this->activeAgentIds));
-
-        // Notify client to actually trigger inference sequence
-        $this->dispatch('start-ai-inference', agentIds: $this->activeAgentIds);
-    }
-
-    public function abortInference($agentId)
-    {
-        \Illuminate\Support\Facades\Cache::put('abort_ai_agent_' . $agentId, true, 60);
-        $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
-    }
-
-    public function cancelTask($taskId)
-    {
-        $task = AiWorkspaceTask::find($taskId);
-        if ($task && $task->assigned_agent_id) {
-            \Illuminate\Support\Facades\Cache::put('abort_ai_agent_' . $task->assigned_agent_id, true, 60);
-            
-            // Optimistic UI update
-            $task->update([
-                'status' => 'pending',
-                'assigned_agent_id' => null,
-            ]);
-        }
-    }
-
-    #[On('process-agent')]
-    public function processAgent($agentId)
-    {
-        // Falls dieser Event mehrfach feuert, checken, ob er noch laden muss
-        if (!in_array($agentId, $this->typingAgents)) return;
-
-        $agent = AiAgent::find($agentId);
-        if (!$agent) {
-             $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
-             return;
-        }
-
-        // Lade nur die letzten 5 Nachrichten (anstatt 20) für extrem schnelle API-Antworten und geringste Latenz
-        $fullDbHistory = AiChatMemory::where('session_id', session()->getId())
-            ->orderBy('created_at', 'desc')
-            ->take(5)
-            ->get()
-            ->reverse();
-
-        $apiHistory = [];
-        $collectedProjectFiles = [];
-        $collectedTextUploads = [];
-
-        foreach ($fullDbHistory as $mem) {
-            // Übersetze alte Tool-Calls für den API Kontext in Klartext (Memory-Injection), damit die KI weiß, was sie schon getan hat.
-            if ($mem->role === 'tool') {
-                $apiHistory[] = [
-                    'role' => 'assistant',
-                    'content' => "[SYSTEM-LOG: Du hast für diese User-Anfrage bereits ein Werkzeug eingesetzt. Das Resultat war: " . trim(strip_tags($mem->content)) . "]"
-                ];
-                continue;
-            }
-
-            $contentToAPI = $mem->content;
-            $messageImages = [];
-
-            if ($mem->role === 'user') {
-                $ctx = $mem->context_data ?? [];
-
-                // Lade Projekt-Dateien genau dort, wo sie referenziert wurden (für Prompt-Caching und Timeline)
-                if (!empty($ctx['attachments'])) {
-                    $contentToAPI .= "\n\n[PROJEKT-DATEIEN IN DIESER NACHRICHT REFERENZIERT:]\n";
-                    foreach ($ctx['attachments'] as $filePath) {
-                        $fullPath = base_path($filePath);
-                        if (file_exists($fullPath) && is_file($fullPath)) {
-                            $lines = array_slice(file($fullPath), 0, 2000);
-                            $code = rtrim(implode("", $lines));
-                            $contentToAPI .= "\n--- DATEI: {$filePath} ---\n```\n{$code}\n```\n";
-                        }
-                    }
-                }
-
-                // Sammle Uploads und hänge Text/Bilder direkt an diese spezifische Nachricht!
-                if (!empty($ctx['local_uploads'])) {
-                    $upNames = collect($ctx['local_uploads'])->pluck('name')->implode(', ');
-                    $contentToAPI .= "\n\n[LOKALE DATEI-UPLOADS IN DIESER NACHRICHT: " . $upNames . "]\n";
-
-                    foreach ($ctx['local_uploads'] as $up) {
-                        $mime = $up['mime'] ?? 'unknown';
-                        $fullPath = storage_path('app/public/' . $up['path']);
-                        if (!file_exists($fullPath)) {
-                            $fullPath = storage_path('app/' . $up['path']); // Fallback
-                        }
-
-                        if (file_exists($fullPath)) {
-                            if (str_starts_with($mime, 'image/')) {
-                                $base64 = base64_encode(file_get_contents($fullPath));
-                                $messageImages[] = [
-                                    'type' => 'image_url',
-                                    'image_url' => [
-                                        'url' => 'data:' . $mime . ';base64,' . $base64
-                                    ]
-                                ];
-                            } else {
-                                if (in_array($mime, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/x-zip-compressed'])) {
-                                    if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
-                                        try {
-                                            $parser = new \Smalot\PdfParser\Parser();
-                                            $pdf = $parser->parseFile($fullPath);
-                                            $pdfText = $pdf->getText();
-                                            // Limit text to 40k characters to save token limits (~10k tokens)
-                                            $safePdfText = mb_convert_encoding(mb_substr($pdfText, 0, 40000, 'UTF-8'), 'UTF-8', 'UTF-8');
-                                            $contentToAPI .= "\n--- DATEI: {$up['name']} (PDF TEXT-EXTRAKT) ---\n```\n" . $safePdfText . "\n```\n";
-                                        } catch (\Exception $e) {
-                                            $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine PDF-Datei, aber das automatische Einlesen des Textes schlug fehl: " . $e->getMessage() . "]\n";
-                                        }
-                                    } else {
-                                        $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine {$mime} Datei. Binäre Dokumente (außer Standard-PDFs) können nicht direkt als Text gelesen werden. Der Dateiinhalt ist für dich verborgen. Teile dem Nutzer mit, dass du das Dokument nicht lesen kannst, es sei denn, er kopiert den Text direkt hinein.]\n";
-                                    }
-                                } else {
-                                    $lines = array_slice(file($fullPath), 0, 2000);
-                                    $safeText = mb_convert_encoding(rtrim(implode("", $lines)), 'UTF-8', 'UTF-8');
-                                    $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n```\n" . $safeText . "\n```\n";
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (!empty($messageImages)) {
-                $contentArray = [['type' => 'text', 'text' => $contentToAPI]];
-                foreach ($messageImages as $img) {
-                    $contentArray[] = $img;
-                }
-                $apiHistory[] = [
-                    'role' => $mem->role,
-                    'content' => $contentArray
-                ];
-            } else {
-                $apiHistory[] = [
-                    'role' => $mem->role,
-                    'content' => $contentToAPI
-                ];
-            }
-        }
-
-        try {
-            $apiService = \App\Services\AI\AiAgentFactory::make($agent);
-
-            $response = $apiService->ask($apiHistory, function($event) use ($agentId) {
-                if (($event['type'] ?? '') === 'tool_call') {
-                    $toolName = $event['tool'] ?? 'System';
-                    $html = '<div class="text-[10px] text-[var(--theme-color)] font-mono opacity-80 mt-1 flex items-center gap-1.5 animate-pulse"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Führe aus: ' . htmlspecialchars($toolName) . '</div>';
-                    $this->stream('thought_' . $agentId, $html, false); // false = append to stream
-                } elseif (($event['type'] ?? '') === 'thought_html') {
-                    $this->stream('thought_' . $agentId, $event['html'], false);
-                } elseif (($event['type'] ?? '') === 'text_chunk') {
-                    $this->stream('answer_' . $agentId, $event['chunk'], false);
-                }
-            });
-            $replyText = $response['response'] ?? '';
-
-            // Frontend-Events (Navigation & UI Overlays) ausführen
-            if (!empty($response['events'])) {
-                foreach ($response['events'] as $eventMsg) {
-                    $evtType = $eventMsg['type'] ?? '';
-                    if ($evtType === 'navigate' && !empty($eventMsg['url'])) {
-                        // Da wire:navigate läuft, machen wir serverseitigen Redirect
-                        $this->redirect($eventMsg['url'], navigate: true);
-                        return; // Chat muss nicht weiter rendern, da wir die Seite verlassen
-                    } elseif ($evtType === 'dispatch' || !empty($eventMsg['name'])) {
-                        $name = $eventMsg['name'] ?? 'ai-global-event';
-                        $detail = $eventMsg['detail'] ?? [];
-                        $this->dispatch($name, payload: $detail);
-                    }
-                }
-            }
-
-            // Überprüfe auf gänzlich leere Responses (Fast-Track UI Events, bei denen der Agent nur Tools ausführt)
-            if (trim($replyText) === '') {
-                // Agent ignoriert die Nachricht still (kein DB Eintrag, keine leere Sprechblase)
-                $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
-                return;
-            }
-
-            // Tracking is now automatically handled centrally in AiAgentFactory
-
-            $ctx = [
-                'name' => $agent->name,
-                'color' => $agent->color,
-                'icon' => $agent->icon,
-                'profile_picture' => $agent->profile_picture,
-            ];
-
-            $this->saveMessageToDb('assistant', $replyText, $ctx);
-
-        } catch (\Exception $e) {
-            $errCtx = [
-                'name' => 'System',
-                'color' => 'red-500',
-                'icon' => 'exclamation-triangle',
-                'profile_picture' => null,
-            ];
-            $errStr = 'API Fehler [' . $agent->name . ']: ' . $e->getMessage();
-            $this->saveMessageToDb('assistant', $errStr, $errCtx);
-        }
-
-        // Remove from typing array
-        $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
-    }
-
-    public function clearChat()
-    {
-        AiChatMemory::where('session_id', session()->getId())->delete();
-        // Clear locally stored artifacts when chat is wiped
-        if (Storage::disk('local')->exists('agenten/ai-artifacts/' . session()->getId())) {
-            Storage::disk('local')->deleteDirectory('agenten/ai-artifacts/' . session()->getId());
-        }
-
-        $this->typingAgents = [];
-        
-        $this->mount();
-    }
-
-    #[Computed]
-    public function artifacts()
-    {
-        $sessionId = session()->getId();
-        $path = 'agenten/ai-artifacts/' . $sessionId;
-        if (!Storage::disk('local')->exists($path)) {
-            return collect();
-        }
-
-        $files = Storage::disk('local')->files($path);
-        $artifactData = [];
-
-        foreach ($files as $file) {
-            $artifactData[] = [
-                'name' => str_replace('.md', '', basename($file)),
-                'filename' => basename($file),
-                'content' => Storage::disk('local')->get($file),
-                'last_modified' => Storage::disk('local')->lastModified($file)
-            ];
-        }
-
-        return collect($artifactData)->sortByDesc('last_modified')->values();
-    }
-
-    #[Computed]
-    public function globalFiles()
-    {
-        $sessionId = session()->getId();
-        $memories = AiChatMemory::where('session_id', $sessionId)->get();
-        $allFiles = [];
-        $seen = [];
-
-        foreach ($memories as $mem) {
-            $ctx = $mem->context_data ?? [];
-            if (!empty($ctx['attachments'])) {
-                foreach ($ctx['attachments'] as $att) {
-                    if (!isset($seen[$att])) {
-                        $allFiles[] = [
-                            'type' => 'project_file',
-                            'path' => $att,
-                            'name' => basename($att),
-                            'added_at' => $mem->created_at
-                        ];
-                        $seen[$att] = true;
-                    }
-                }
-            }
-            if (!empty($ctx['local_uploads'])) {
-                foreach ($ctx['local_uploads'] as $up) {
-                    $uniqueKey = $up['name'];
-                    if (!isset($seen[$uniqueKey])) {
-                        $allFiles[] = [
-                            'type' => 'local_upload',
-                            'path' => $up['path'],
-                            'name' => basename($up['name']),
-                            'mime' => $up['mime'] ?? 'unknown',
-                            'added_at' => $mem->created_at
-                        ];
-                        $seen[$uniqueKey] = true;
-                    }
-                }
-            }
-        }
-
-        // Füge temporäre Uploads (noch nicht abgesendet) hinzu
-        if (!empty($this->uploadedFiles)) {
-            foreach ($this->uploadedFiles as $tmpFile) {
-                if ($tmpFile instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
-                    $uniqueKey = 'tmp_' . $tmpFile->getClientOriginalName();
-                    if (!isset($seen[$uniqueKey])) {
-                        $allFiles[] = [
-                            'type' => 'local_upload',
-                            'path' => $tmpFile->getRealPath(),
-                            'name' => $tmpFile->getClientOriginalName(),
-                            'mime' => $tmpFile->getMimeType() ?? 'unknown',
-                            'added_at' => now(),
-                            'is_pending' => true,
-                            'temporary_url' => (str_starts_with($tmpFile->getMimeType(), 'image/')) ? $tmpFile->temporaryUrl() : null,
-                            'livewire_filename' => $tmpFile->getFilename()
-                        ];
-                        $seen[$uniqueKey] = true;
-                    }
-                }
-            }
-        }
-
-        return collect($allFiles)->sortByDesc('added_at')->values();
-    }
-
-    public function removeGlobalFile($type, $path)
-    {
-        if ($type === 'local_upload') {
-            $sessionId = session()->getId();
-            $memories = AiChatMemory::where('session_id', $sessionId)->get();
-
-            foreach($memories as $mem) {
-                $ctx = $mem->context_data ?? [];
-                $changed = false;
-
-                if (!empty($ctx['local_uploads'])) {
-                    $filtered = array_filter($ctx['local_uploads'], fn($u) => $u['path'] !== $path);
-                    if (count($filtered) !== count($ctx['local_uploads'])) {
-                        $ctx['local_uploads'] = array_values($filtered);
-                        $changed = true;
-                    }
-                }
-
-                if ($changed) {
-                    $mem->update(['context_data' => $ctx]);
-                }
-            }
-
-            // Optional: Hard-Delete from storage to save disk space
-            @unlink(storage_path('app/public/' . $path));
-            @unlink(storage_path('app/' . $path));
-
-        } elseif ($type === 'project_file') {
-            $sessionId = session()->getId();
-            $memories = AiChatMemory::where('session_id', $sessionId)->get();
-
-            foreach($memories as $mem) {
-                $ctx = $mem->context_data ?? [];
-                $changed = false;
-
-                if (!empty($ctx['attachments'])) {
-                    $filtered = array_filter($ctx['attachments'], fn($a) => $a !== $path);
-                    if (count($filtered) !== count($ctx['attachments'])) {
-                        $ctx['attachments'] = array_values($filtered);
-                        $changed = true;
-                    }
-                }
-
-                if ($changed) {
-                    $mem->update(['context_data' => $ctx]);
-                }
-            }
-        }
-    }
-
-    public $pingResults = [];
-
-    public function archiveTask($taskId)
-    {
-        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
-        if ($task) {
-            $task->update(['status' => 'archived']);
-        }
-    }
-
-    public function deleteTask($taskId)
-    {
-        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
-        if ($task) {
-            $task->delete();
-        }
-    }
-
-    public function restartTask($taskId)
-    {
-        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
-        if ($task && ($task->status === 'completed' || $task->status === 'archived' || $task->status === 'failed')) {
-            $agentId = $task->assigned_agent_id;
-            $task->update([
-                'status' => $agentId ? 'processing' : 'pending',
-                'response_content' => null,
-                'completed_at' => null,
-            ]);
-            
-            if ($agentId) {
-                // Restart immediately if agent was previously assigned
-                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
-            }
-        }
-    }
-
-    public function appendAndRestartTask($taskId, $addition)
-    {
-        if (empty(trim($addition))) return;
-        
-        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
-        if ($task && ($task->status === 'completed' || $task->status === 'archived' || $task->status === 'failed')) {
-            $agentId = $task->assigned_agent_id;
-            
-            $newPrompt = $task->prompt . "\n\n--- Ergänzung / Retry ---\n" . trim($addition);
-            
-            $task->update([
-                'prompt' => $newPrompt,
-                'status' => $agentId ? 'processing' : 'pending',
-                'response_content' => null,
-                'completed_at' => null,
-            ]);
-            
-            $meta = $task->ui_metadata ?? [];
-            if (isset($meta['execution_plan'])) {
-                unset($meta['execution_plan']);
-                $task->update(['ui_metadata' => $meta]);
-            }
-            
-            if ($agentId) {
-                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($task));
-            }
-        }
-    }
-
-    // --- AI HOSTING TARIFFS MANAGEMENT ---
     
-    #[Computed]
-    public function aiPlans()
-    {
-        return class_exists(\App\Models\System\SystemAiHostingPlan::class) 
-            ? \App\Models\System\SystemAiHostingPlan::all() 
-            : collect();
-    }
-
-    public function addFeatureRow()
-    {
-        $this->newPlanFeatures[] = ['title' => '', 'description' => ''];
-    }
-
-    public function removeFeatureRow($index)
-    {
-        if (isset($this->newPlanFeatures[$index])) {
-            unset($this->newPlanFeatures[$index]);
-            $this->newPlanFeatures = array_values($this->newPlanFeatures);
-        }
-    }
-
-    public function setActivePlan($id)
-    {
-        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
-            \App\Models\System\SystemAiHostingPlan::where('is_active', true)->update(['is_active' => false]);
-            \App\Models\System\SystemAiHostingPlan::where('id', $id)->update(['is_active' => true]);
-            session()->flash('message', 'KI Hosting Paket gewechselt!');
-        }
-    }
-
-    public function editPlan($id)
-    {
-        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
-            $plan = \App\Models\System\SystemAiHostingPlan::find($id);
-            if ($plan) {
-                $this->editingPlanId = $plan->id;
-                $this->newPlanName = $plan->name;
-                $this->newPlanTokens = $plan->token_limit;
-                $this->newPlanPrice = rtrim(rtrim(sprintf('%.2f', $plan->price_monthly), '0'), '.'); // clean format
-                if (empty($this->newPlanPrice)) $this->newPlanPrice = '0';
-                $this->newPlanDescription = $plan->description ?? '';
-                $this->newPlanFeatures = is_array($plan->features) && count($plan->features) > 0 ? $plan->features : [['title' => '', 'description' => '']];
-            }
-        }
-    }
-
-    public function cancelEdit()
-    {
-        $this->editingPlanId = null;
-        $this->resetPlanForm();
-    }
-
-    private function resetPlanForm()
-    {
-        $this->newPlanName = '';
-        $this->newPlanTokens = null;
-        $this->newPlanPrice = '0.00';
-        $this->newPlanDescription = '';
-        $this->newPlanFeatures = [['title' => '', 'description' => '']];
-    }
-
-    public function saveNewPlan()
-    {
-        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
-            $this->validate([
-                'newPlanName' => 'required|string|max:200',
-                'newPlanTokens' => 'nullable|integer|min:0',
-                'newPlanPrice' => 'required|numeric|min:0',
-                'newPlanFeatures.*.title' => 'nullable|string',
-                'newPlanFeatures.*.description' => 'nullable|string',
-            ]);
-
-            // Filter empty features
-            $filteredFeatures = array_filter($this->newPlanFeatures, function($feature) {
-                return !empty(trim($feature['title']));
-            });
-
-            if ($this->editingPlanId) {
-                $plan = \App\Models\System\SystemAiHostingPlan::find($this->editingPlanId);
-                if ($plan) {
-                    $plan->update([
-                        'name' => $this->newPlanName,
-                        'token_limit' => $this->newPlanTokens ?: null,
-                        'price_monthly' => $this->newPlanPrice,
-                        'description' => $this->newPlanDescription,
-                        'features' => array_values($filteredFeatures)
-                    ]);
-                    session()->flash('message', 'Tarif aktualisiert.');
-                }
-                $this->editingPlanId = null;
-            } else {
-                \App\Models\System\SystemAiHostingPlan::create([
-                    'name' => $this->newPlanName,
-                    'token_limit' => $this->newPlanTokens ?: null,
-                    'price_monthly' => $this->newPlanPrice,
-                    'description' => $this->newPlanDescription,
-                    'features' => array_values($filteredFeatures),
-                    'is_active' => false,
-                ]);
-                session()->flash('message', 'Individueller Tarif angelegt.');
-            }
-
-            $this->resetPlanForm();
-        }
-    }
-
-    public function deletePlan($id)
-    {
-        if (class_exists(\App\Models\System\SystemAiHostingPlan::class)) {
-            $plan = \App\Models\System\SystemAiHostingPlan::find($id);
-            if ($plan && !$plan->is_active) {
-                $plan->delete();
-                session()->flash('message', 'Tarif gelöscht.');
-            }
-        }
-    }
-
-    public function undoTask($taskId)
-    {
-        $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
-        if ($task && $task->status === 'completed') {
-            $undoPrompt = "Mache folgende Aufgabe rückgängig:\n\n" . $task->prompt;
-            
-            $newTask = \App\Models\Ai\AiWorkspaceTask::create([
-                'prompt' => $undoPrompt,
-                'status' => 'pending',
-                'parent_task_id' => $task->id,
-                'ui_metadata' => $task->ui_metadata,
-            ]);
-            
-            if ($task->assigned_agent_id) {
-                $newTask->update([
-                    'assigned_agent_id' => $task->assigned_agent_id,
-                    'status' => 'assigned'
-                ]);
-                \App\Events\TaskUpdated::dispatch($newTask);
-                \Illuminate\Support\Facades\Bus::dispatch(new \App\Jobs\ProcessAiWorkspaceTask($newTask));
-            }
-        }
-    }
-
-    public function createTaskFromChat()
-    {
-        if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) return;
-
-        $meta = [
-            'attachments' => $this->attachments,
-        ];
-
-        // Process real file uploads exactly as sendMessage does
-        $localUploads = [];
-        if (!empty($this->uploadedFiles)) {
-            foreach ($this->uploadedFiles as $file) {
-                // Store in public disk so that Storage::url() works in blade
-                $path = $file->store('agenten/ai-chat-uploads', 'public');
-                $localUploads[] = [
-                    'path' => $path,
-                    'name' => $file->getClientOriginalName(),
-                    'mime' => $file->getMimeType()
-                ];
-            }
-            $meta['local_uploads'] = $localUploads;
-        }
-
-        // Add session ID so the background task queue knows where to save generated JSON/Markdown artifacts
-        $meta['session_id'] = session()->getId();
-
-        \App\Models\Ai\AiWorkspaceTask::create([
-            'prompt' => trim($this->input),
-            'status' => 'pending',
-            'ui_metadata' => $meta
-        ]);
-
-        $this->input = '';
-        $this->attachments = [];
-        $this->uploadedFiles = [];
-    }
-
     public function syncAll()
     {
         $agents = AiAgent::where('is_active', true)->get();
@@ -1120,5 +205,104 @@ class AiWorkspace extends Component
             ['user_id' => auth()->id()],
             ['chat_height_percent' => $percent]
         );
+    }
+
+    public function updatedAutoApprovePlan($value)
+    {
+        if (!auth()->check()) return;
+        
+        \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
+            ['user_id' => auth()->id()],
+            ['auto_approve_execution_plan' => $value]
+        );
+    }
+
+    #[Computed]
+    public function aiPlans()
+    {
+        return \App\Models\System\SystemAiHostingPlan::all();
+    }
+
+    public function addFeatureRow()
+    {
+        $this->newPlanFeatures[] = ['title' => '', 'description' => ''];
+    }
+
+    public function removeFeatureRow($index)
+    {
+        unset($this->newPlanFeatures[$index]);
+        $this->newPlanFeatures = array_values($this->newPlanFeatures);
+    }
+
+    public function editPlan($id)
+    {
+        $plan = \App\Models\System\SystemAiHostingPlan::find($id);
+        if ($plan) {
+            $this->editingPlanId = $plan->id;
+            $this->newPlanName = $plan->name;
+            $this->newPlanPrice = $plan->price_monthly;
+            $this->newPlanTokens = $plan->token_limit;
+            $this->newPlanDescription = $plan->description;
+            $this->newPlanFeatures = $plan->features ?: [['title' => '', 'description' => '']];
+        }
+    }
+
+    public function cancelEdit()
+    {
+        $this->editingPlanId = null;
+        $this->newPlanName = '';
+        $this->newPlanPrice = '0.00';
+        $this->newPlanTokens = null;
+        $this->newPlanDescription = '';
+        $this->newPlanFeatures = [['title' => '', 'description' => '']];
+    }
+
+    public function saveNewPlan()
+    {
+        $features = array_filter($this->newPlanFeatures, function($f) {
+            return !empty($f['title']);
+        });
+
+        if ($this->editingPlanId) {
+            $plan = \App\Models\System\SystemAiHostingPlan::find($this->editingPlanId);
+            if ($plan) {
+                $plan->update([
+                    'name' => $this->newPlanName,
+                    'price_monthly' => $this->newPlanPrice,
+                    'token_limit' => $this->newPlanTokens,
+                    'description' => $this->newPlanDescription,
+                    'features' => array_values($features),
+                ]);
+                session()->flash('message', 'Tarif erfolgreich aktualisiert.');
+            }
+        } else {
+            \App\Models\System\SystemAiHostingPlan::create([
+                'name' => $this->newPlanName,
+                'price_monthly' => $this->newPlanPrice,
+                'token_limit' => $this->newPlanTokens,
+                'description' => $this->newPlanDescription,
+                'features' => array_values($features),
+                'is_active' => false,
+            ]);
+            session()->flash('message', 'Neuer Tarif erfolgreich angelegt.');
+        }
+
+        $this->cancelEdit();
+    }
+
+    public function setActivePlan($id)
+    {
+        \App\Models\System\SystemAiHostingPlan::where('id', '!=', $id)->update(['is_active' => false]);
+        \App\Models\System\SystemAiHostingPlan::where('id', $id)->update(['is_active' => true]);
+        session()->flash('message', 'Tarif wurde als aktiv gesetzt.');
+    }
+
+    public function deletePlan($id)
+    {
+        $plan = \App\Models\System\SystemAiHostingPlan::find($id);
+        if ($plan && !$plan->is_active) {
+            $plan->delete();
+            session()->flash('message', 'Tarif gelöscht.');
+        }
     }
 }

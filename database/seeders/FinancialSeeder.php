@@ -406,13 +406,19 @@ class FinancialSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'    => 'Laserschutzschulung',
+                'location' => 'Luminus Institut für Laserschutz und Arbeitssicherheit',
+                'amount'   => -712,81,
+                'date'     => '2026-04-23',
+                'category' => 'Software & Lizenzen',
+            ],
+            [
                 'title'    => 'Lenovo Docking Station',
                 'location' => 'AFB Social & Green IT',
                 'amount'   => -84,90,
                 'date'     => '2026-02-27',
                 'category' => 'Arbeitsmaterial',
             ],
-
             [
                 'title'    => 'Laserschutzbrille',
                 'location' => 'Amazon',

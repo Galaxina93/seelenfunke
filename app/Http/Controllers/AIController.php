@@ -93,7 +93,8 @@ class AIController extends Controller
         }
 
         $dynamicSystemPrompt = "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste. Erfinde und rate NIEMALS fremde URLs! Nutze ausschließlich diese:\n" . $navMap . "\n" .
-                         "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!";
+                         "ACHTUNG: Wenn Alina befiehlt das 'Zentrum' zu öffnen, dann MUSS zwingend das Tool `open_zentrum` ausgeführt werden! Vergiss in dem Fall `open_nav_item`!\n" .
+                         "WICHTIG ZUR SPRACHAUSGABE: Wenn du lange Erklärungen, Pläne oder Code schreibst, fasse das Wichtigste in ein bis zwei Sätzen zusammen und umschließe diese Zusammenfassung mit <speak>...</speak> Tags. Nur der Text innerhalb der <speak> Tags wird laut vorgelesen. Der Rest erscheint nur im Text-Log. Beispiel: `<speak>Ich habe den Plan wie gewünscht erstellt.</speak> Hier sind die Details: ...`";
 
         $agentId = $request->input('agent_id');
         if ($agentId) {
@@ -150,6 +151,20 @@ class AIController extends Controller
         if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
             try {
                 $cleanText = $result['response'];
+                
+                // Extract <speak> tag content if present
+                if (preg_match('/<speak>(.*?)<\/speak>/is', $cleanText, $matches)) {
+                    $cleanText = trim($matches[1]);
+                } else {
+                    // Fallback to full text but strip markdown
+                    $cleanText = strip_tags($cleanText);
+                }
+                
+                // Limit the spoken text length slightly just in case
+                if (strlen($cleanText) > 800) {
+                    $cleanText = substr($cleanText, 0, 800) . "...";
+                }
+
                 $speed = $aiAgent->tts_speed ?? 1.0;
                 $apiUrl = $aiAgent->tts_api_url ?: env('TONI_AI_URL', 'http://192.168.188.32:8000');
                 if (!str_ends_with(parse_url($apiUrl, PHP_URL_PATH) ?? '', '/api/toni/tts')) {
@@ -197,6 +212,15 @@ class AIController extends Controller
         } elseif ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
             try {
                 $cleanText = $result['response'];
+                
+                // Extract <speak> tag content if present
+                if (preg_match('/<speak>(.*?)<\/speak>/is', $cleanText, $matches)) {
+                    $cleanText = trim($matches[1]);
+                } else {
+                    // Fallback to full text but strip markdown
+                    $cleanText = strip_tags($cleanText);
+                }
+
                 $voiceName = $aiAgent->tts_voice ?: 'Puck';
                 $apiKey = env('GEMINI_API_KEY');
                 

@@ -79,6 +79,31 @@
                 this.fallbackToBrowserTTS(cleanText);
             },
 
+            speakFeedback(text) {
+                if (t3.isShuttingDown) return;
+                if (this.agentTtsEnabled === false) return;
+
+                if (this.synthesis) {
+                    this.synthesis.cancel();
+                }
+                if (window.funkiAudioPlayer) {
+                    window.funkiAudioPlayer.pause();
+                    window.funkiAudioPlayer.currentTime = 0;
+                }
+                
+                if (this.isMobile && this.recognition) {
+                    this.recognition.onend = null; 
+                    try { this.recognition.abort(); } catch(e) {}
+                }
+
+                this.isSpeaking = true;
+                
+                if (this.voiceAbortController) this.voiceAbortController.abort();
+                this.voiceAbortController = new AbortController();
+
+                this.fallbackToBrowserTTS(text);
+            },
+
             fallbackToBrowserTTS(cleanText) {
                 if (!this.synthesis) {
                     this.isSpeaking = false;

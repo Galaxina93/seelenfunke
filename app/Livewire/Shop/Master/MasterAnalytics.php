@@ -328,6 +328,32 @@ class MasterAnalytics extends Component
             $health['backup'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim Lesen der Festplatte: ' . $e->getMessage(), 'path' => 'Unbekannt'];
         }
 
+        // 9. Storage Check
+        try {
+            $path = base_path();
+            $totalSpace = @disk_total_space($path);
+            $freeSpace = @disk_free_space($path);
+
+            if ($totalSpace && $freeSpace !== false) {
+                $percentFree = round(($freeSpace / $totalSpace) * 100);
+                $freeGb = round($freeSpace / 1024 / 1024 / 1024, 1);
+                
+                if ($percentFree > 20) {
+                    $health['storage'] = ['status' => 'connected', 'value' => "{$freeGb} GB frei", 'error' => null, 'percent_free' => $percentFree];
+                } elseif ($percentFree > 10) {
+                    $health['storage'] = ['status' => 'warning', 'value' => "{$freeGb} GB frei", 'error' => "Speicher wird knapp ({$percentFree}% frei)", 'percent_free' => $percentFree];
+                    $this->logSystemFailure('storage', "Speicherplatz auf dem Server geht zur Neige! Nur noch {$percentFree}% ({$freeGb} GB) frei.");
+                } else {
+                    $health['storage'] = ['status' => 'error', 'value' => "Kritisch", 'error' => "Nur {$percentFree}% frei!", 'percent_free' => $percentFree];
+                    $this->logSystemFailure('storage', "KRITISCH: Server-Speicherplatz fast voll! Nur noch {$percentFree}% ({$freeGb} GB) frei.");
+                }
+            } else {
+                $health['storage'] = ['status' => 'warning', 'value' => 'Unbekannt', 'error' => 'Konnte Festplattengröße nicht lesen.', 'percent_free' => 100];
+            }
+        } catch (\Exception $e) {
+            $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Storage-Fehler', 'percent_free' => 0];
+        }
+
         // --- ASYNCHRONE EXTERNE API CHECKS ---
         $apiMapping = [
             'stripe' => ['name' => 'Stripe API', 'log_msg' => 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.'],

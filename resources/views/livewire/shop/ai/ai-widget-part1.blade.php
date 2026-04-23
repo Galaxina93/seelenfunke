@@ -1,10 +1,13 @@
-<div x-data="funkiView()"
+<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, {{ $widgetConfig && $widgetConfig->continuous_mode ? 'true' : 'false' }}, {{ $widgetConfig && $widgetConfig->require_wake_word ? 'true' : 'false' }})"
      wire:ignore
      @open-funkira.window="openFunkiView()"
      @close-funkira.window="closeFunkiView()"
      @funki-event.window="updateFunkiStatus($event.detail.state)"
      @funki-force-stop.window="stopSpeech()"
-     @keyup.escape.window="closeFunkiView()">
+     @ai-speech-feedback.window="speakFeedback($event.detail.text)"
+     @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId)"
+     @keyup.escape.window="closeFunkiView()"
+     @change="$wire.saveWidgetConfig({ volume: bgVolume, continuousMode: continuousMode, requireWakeWord: requireWakeWord, agentId: activeAgentId })">
 
 <div x-data="{ dockOpen: false }"
      class="fixed right-0 top-1/2 -translate-y-1/2 z-[99999] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none"
@@ -34,7 +37,7 @@
         <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex flex-col gap-3">
-                    <span class="leading-tight break-words break-all hyphens-auto">Agent</span>
+                    <span class="leading-tight break-words break-all hyphens-auto">Live-Agent</span>
                     <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
                             <rect x="5" y="5" width="10" height="10" rx="1" />
@@ -99,40 +102,65 @@
     <!-- UI Overlay Navigation -->
     <div class="absolute top-6 right-6 z-50 flex flex-col items-end gap-2" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
 
-        <div class="flex items-center gap-4 transition-transform hover:scale-105">
-            <!-- Token Usage -->
-            <div x-show="tokenUsage" x-transition class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md" style="display: none;">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-emerald-400"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
-                <span class="text-[10px] font-mono font-bold text-gray-300 tracking-wider" x-text="tokenUsage"></span>
-            </div>
+        <!-- Control Bar: Aufgaben, Log, Pause, Stop, Agent -->
+        <div class="flex items-center gap-2 transition-transform hover:scale-105 pointer-events-auto">
+            
+            <!-- Agent Switcher -->
+            <select wire:model.live="agentId" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-gray-900/50 text-gray-400 border-gray-700 hover:text-gray-300 focus:outline-none focus:border-emerald-500 appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                <option value="">(Agent wählen)</option>
+                @foreach($availableAgents as $agentOpt)
+                    <option value="{{ $agentOpt->id }}">{{ $agentOpt->name }}</option>
+                @endforeach
+            </select>
+            
+            <!-- Aufgaben Button -->
+            <button @click="showTasks = !showTasks" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2"
+                :class="(isOutputActive()) ? 'text-cyan-300 border-cyan-500/50 bg-cyan-900/30 hover:bg-cyan-800 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300'">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" /><path fill-rule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd" /></svg> 
+                Aufgaben
+            </button>
 
-            <!-- Audio Stop -->
-            <button x-show="isOutputActive() && continuousMode" x-cloak @click="stopSpeech()" class="px-3 py-2 bg-red-900/80 border border-red-700 rounded-lg text-[10px] font-black uppercase tracking-widest text-red-100 hover:text-white hover:border-red-400 hover:bg-red-800 transition-all shadow-[0_0_15px_rgba(239,68,68,0.5)] flex items-center gap-2 backdrop-blur-md" title="Funkira unterbrechen">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6.75 6.75a.75.75 0 01.75-.75h5a.75.75 0 01.75.75v5a.75.75 0 01-.75.75h-5a.75.75 0 01-.75-.75v-5z" clip-rule="evenodd" /></svg> Stop
+            <!-- Log Button -->
+            <button @click="showDebugLog = !showDebugLog" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2"
+                :class="(isOutputActive()) ? 'text-emerald-300 border-emerald-500/50 bg-emerald-900/30 hover:bg-emerald-800 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300'">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd" /></svg>
+                Log
+            </button>
+            
+            <!-- Dateien & Pläne Button -->
+            <button @click="showFiles = !showFiles" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2"
+                :class="(isOutputActive()) ? 'text-indigo-300 border-indigo-500/50 bg-indigo-900/30 hover:bg-indigo-800 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300'">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                Dateien
+            </button>
+            
+            <!-- Pause Button -->
+            <button @click="$wire.pauseAllTasks()" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2"
+                :class="(isOutputActive()) ? 'text-yellow-300 border-yellow-500/50 bg-yellow-900/30 hover:bg-yellow-800 shadow-[0_0_15px_rgba(234,179,8,0.3)]' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300'">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                Pause
+            </button>
+
+            <!-- Stop Button -->
+            <button @click="stopSpeech()" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2"
+                :class="(isOutputActive()) ? 'text-red-300 border-red-500/50 bg-red-900/30 hover:bg-red-800 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300'">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6.75 6.75a.75.75 0 01.75-.75h5a.75.75 0 01.75.75v5a.75.75 0 01-.75.75h-5a.75.75 0 01-.75-.75v-5z" clip-rule="evenodd" /></svg>
+                Stop
             </button>
         </div>
 
-        <!-- Mobile: Listening Mode Toggle (PTT vs Continuous) relocated here -->
-        <label x-show="isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Knopf drücken (PTT) vs Dauerhaft zuhören (Stellt Musik stumm)">
-            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Immer hören</span>
-            <div class="relative inline-block w-8 outline-none focus:outline-none">
-                <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="peer sr-only">
-                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
-                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
-            </div>
-        </label>
+        <!-- Token Usage -->
+        <div x-show="tokenUsage" x-transition class="flex items-center gap-2 px-3 py-1 mt-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md" style="display: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-emerald-400"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
+            <span class="text-[10px] font-mono font-bold text-gray-300 tracking-wider" x-text="tokenUsage"></span>
+        </div>
 
         <!-- Action Debug Log -->
-        <div x-data="{ showDebugLog: false }" class="flex flex-col items-end w-full">
-            <button @click="showDebugLog = !showDebugLog" x-show="funkiLogs.length > 0" class="mt-2 text-[10px] text-emerald-500/50 hover:text-emerald-400 transition-colors uppercase tracking-widest bg-black/40 px-2 py-1 rounded backdrop-blur-sm border border-emerald-900/30 flex items-center gap-1">
-                <svg x-show="!showDebugLog" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M2.5 4A1.5 1.5 0 001 5.5v9A1.5 1.5 0 002.5 16h15a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0017.5 4h-15zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zm0 4a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
-                <svg x-show="showDebugLog" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
-                Log <span x-show="!showDebugLog" x-text="'('+funkiLogs.length+')'"></span>
-            </button>
+        <div class="flex flex-col items-end w-full">
             <div x-show="showDebugLog" x-collapse x-transition class="w-80 mt-2 p-3 bg-black/60 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.1)] flex flex-col gap-2 max-h-80 overflow-y-auto pointer-events-auto custom-scrollbar" style="display: none;">
                 <div class="text-[8px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-2 mb-1 sticky top-0 bg-black/80 z-10">KI Aktionen (Live-Log)</div>
                 <template x-for="(log, i) in funkiLogs.slice().reverse()" :key="i">
-                    <div class="text-[10px] font-mono leading-tight text-gray-300 break-words flex flex-col gap-1 border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                    <div class="text-[10px] font-mono leading-tight text-gray-300 break-words flex flex-col gap-1 border-b border-white/5 pb-2 last:border-0 last:pb-0" x-data="{ expandedLog: false }">
                         <div class="flex justify-between items-center text-[8px] mb-0.5">
                             <span class="text-emerald-500/60" x-text="log.time"></span>
                             <span x-show="log.role === 'user'" class="text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">User</span>
@@ -143,7 +171,12 @@
                             <span x-show="log.role === 'user'" class="text-blue-500 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 mt-0.5"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg></span>
                             <span x-show="log.role === 'ai'" class="text-cyan-500 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 mt-0.5"><path fill-rule="evenodd" d="M11 2a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V3a1 1 0 00-1-1h-4zm-7 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4a1 1 0 00-1-1h-4v4H4V5h4a1 1 0 001-1V3a2 2 0 00-2-2H4z" clip-rule="evenodd" /></svg></span>
                             <span x-show="log.role === 'tool'" class="text-purple-500 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 mt-0.5"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z" clip-rule="evenodd" /></svg></span>
-                            <span class="leading-relaxed" x-text="log.message.substring(0, 150) + (log.message.length > 150 ? '...' : '')"></span>
+                            <div class="flex flex-col w-full">
+                                <span class="leading-relaxed" x-text="expandedLog ? log.message.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '') : log.message.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '').substring(0, 150) + (log.message.length > 150 ? '...' : '')"></span>
+                                <button x-show="log.message.length > 150" @click="expandedLog = !expandedLog" class="text-[8px] uppercase font-bold text-emerald-400 mt-1 hover:text-white self-start bg-emerald-900/30 px-1.5 py-0.5 rounded transition-colors">
+                                    <span x-text="expandedLog ? 'Weniger anzeigen' : 'Mehr lesen'"></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -151,11 +184,27 @@
         </div>
     </div>
 
-    <!-- Bottom Left Controls (Desktop Wake Word) -->
-    <div class="absolute left-6 z-50 flex flex-col items-start gap-4" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <!-- Widget Task List (Live Log) -->
+    @include('livewire.shop.ai.blocks.widget-tasks')
+    
+    <!-- Widget Files & Plans -->
+    @include('livewire.shop.ai.blocks.widget-files')
 
-        <!-- Desktop: Wake Word Toggle -->
-        <label x-show="!isMobile" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
+    <!-- Bottom Left Controls (Listening Modes) -->
+    <div class="absolute left-6 z-50 flex flex-col items-start gap-2 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+
+        <!-- Continuous Mode Toggle -->
+        <label class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Knopf drücken (PTT) vs Dauerhaft zuhören (Stellt Musik stumm)">
+            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Immer hören</span>
+            <div class="relative inline-block w-8 outline-none focus:outline-none">
+                <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="peer sr-only">
+                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
+                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+            </div>
+        </label>
+
+        <!-- Wake Word Toggle -->
+        <label class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Aktivierungswort</span>
             <div class="relative inline-block w-8 outline-none focus:outline-none">
                 <input type="checkbox" x-model="requireWakeWord" class="peer sr-only">
@@ -166,10 +215,10 @@
     </div>
 
     <!-- Bottom Right Controls (Audio & Close) -->
-    <div class="absolute right-6 z-50 flex flex-col items-end gap-3" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <div class="absolute right-6 z-50 flex flex-col items-end gap-3 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
 
         <!-- Audio Toggle & Slider -->
-        <div class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black group">
+        <div x-data="{ showVol: false }" @click.outside="showVol = false" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black">
             <button @click="toggleBackgroundAudio()" class="w-8 h-8 flex justify-center items-center text-gray-300 hover:text-emerald-400 transition-colors" title="Hintergrundmusik an/aus">
                 <template x-if="isAudioMuted">
                     <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -182,8 +231,14 @@
                     </svg>
                 </template>
             </button>
+            <button @click="showVol = !showVol" class="w-6 h-8 flex justify-center items-center text-gray-500 hover:text-gray-300 transition-colors" title="Lautstärke regeln">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                </svg>
+            </button>
             <input type="range" min="0" max="100" x-model="bgVolume"
-                   class="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer hidden group-hover:block accent-emerald-500"
+                   x-show="showVol" x-transition
+                   class="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                    title="Lautstärke" />
         </div>
 

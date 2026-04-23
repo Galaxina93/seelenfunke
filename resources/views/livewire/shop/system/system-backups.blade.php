@@ -99,7 +99,8 @@
                 <x-heroicon-o-table-cells class="w-5 h-5 text-[var(--theme-color)]" /> Backup-Historie
             </h2>
             <div class="text-[10px] uppercase tracking-widest text-gray-400 font-mono">
-                APP: <span class="text-[var(--theme-color)]">{{ $appName }}</span>
+                APP: <span class="text-[var(--theme-color)] mr-4">{{ $appName }}</span>
+                PFAD: <span class="text-[var(--theme-color)]">{{ $backupName }}</span>
             </div>
         </div>
         
@@ -151,6 +152,11 @@
                 </tbody>
             </table>
         </div>
+        @if($backups->hasPages())
+        <div class="px-6 py-4 border-t border-gray-800">
+            {{ $backups->links() }}
+        </div>
+        @endif
     </div>
 </div>
 </div>

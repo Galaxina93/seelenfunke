@@ -70,11 +70,9 @@
             updateCoreColor(instant = false) {
                 if(!t3.raymarchUniforms || !t3.coreLight || !t3.targetColor) return;
 
-                let targetColorHex = 0x00ff88; 
+                let targetColorHex = this.getColorHex(this.agentColor); 
                 if (this.thinking) {
                     targetColorHex = 0xff66b2; 
-                } else if (this.systemState === 'good' || this.systemState === true) {
-                    targetColorHex = 0x00ff88; 
                 } else if (this.systemState === 'warning') {
                     targetColorHex = 0xffcc00; 
                 } else if (this.systemState === 'error' || this.systemState === false) {
@@ -148,7 +146,7 @@
                         document.body.style.cursor = 'pointer';
                         t3.raymarchUniforms.hoverState.value += (1.0 - t3.raymarchUniforms.hoverState.value) * 0.05; 
                         t3.raymarchUniforms.hoverTime.value += delta;
-                        if(t3.controls) t3.controls.autoRotateSpeed = 0.15; 
+                        if(t3.controls) t3.controls.autoRotateSpeed = 0.02; 
                     } else {
                         document.body.style.cursor = 'default';
                         t3.raymarchUniforms.hoverState.value += (0.0 - t3.raymarchUniforms.hoverState.value) * 0.05; 

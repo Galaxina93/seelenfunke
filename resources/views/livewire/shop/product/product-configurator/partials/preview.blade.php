@@ -17,6 +17,15 @@
         {{-- 3D Ansicht --}}
         <div wire:ignore x-show="config.modelPath" x-ref="container3d" class="absolute inset-0 w-full h-full z-10 cursor-move transition-opacity duration-500" :class="showDrawingBoard ? 'opacity-0 pointer-events-none' : 'opacity-100'"></div>
 
+        {{-- Lade-Overlay für 3D --}}
+        <div x-show="config.modelPath && !modelLoaded && !showDrawingBoard" x-transition.opacity.duration.300ms class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-gray-950/60 backdrop-blur-sm pointer-events-none">
+            <svg class="w-10 h-10 text-primary animate-spin mb-4 drop-shadow-lg" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-[10px] font-black uppercase tracking-[0.2em] text-primary drop-shadow-lg">3D Modell wird geladen...</span>
+        </div>
+
         {{-- 2D Ansicht & Zeichenbrett --}}
         <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full z-20 pointer-events-auto transition-opacity duration-500">
 

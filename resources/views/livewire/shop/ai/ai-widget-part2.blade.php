@@ -24,12 +24,17 @@
             heartbeatAudio: null,
         };
 
-        Alpine.data('funkiView', (initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '') => ({
+        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialContinuous = false, initialWakeWord = false) => ({
             // State
+            agentColor: initialAgentColor,
+            activeAgentId: initialAgentId,
             showFunkiView: false,
             showErrorPanel: false,
-            isAudioMuted: localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true, // Default to muted as requested
-            bgVolume: localStorage.getItem('funki_bgVolume') !== null ? parseInt(localStorage.getItem('funki_bgVolume')) : 15,       // Default background volume
+            showDebugLog: false,
+            showTasks: false,
+            showFiles: false,
+            isAudioMuted: initialContinuous ? true : (localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true), // Default to muted as requested
+            bgVolume: initialVolume,
             systemState: initialState, // 'good', 'warning', 'error', true, false
             activeSparks: initialSparks,
             avgProfit: avgProfit + ' €',
@@ -42,8 +47,8 @@
             // Voice AI State
             listening: false,
             thinking: false,
-            continuousMode: localStorage.getItem('funki_continuousMode') === 'true',
-            requireWakeWord: localStorage.getItem('funki_requireWakeWord') === 'true', // Default: Reacts to everything
+            continuousMode: initialContinuous,
+            requireWakeWord: initialWakeWord,
             agentWakeWord: '{{ addslashes($agentWakeWord ?? "funkira") }}'.toLowerCase(),
             allowSpontaneous: true, // Default: On (Spontaneous Self-Analysis)
             recognition: null,
@@ -60,6 +65,40 @@
 
             chatAbortController: null,
             voiceAbortController: null,
+
+            updateAgentConfig(color, name, wakeWord, agentId) {
+                this.agentColor = color || 'emerald-500';
+                if (name) this.activeAgentName = name;
+                if (wakeWord) this.agentWakeWord = wakeWord.toLowerCase();
+                if (agentId) this.activeAgentId = agentId;
+                this.updateCoreColor(true); 
+            },
+
+            getColorHex(colorStr) {
+                const map = {
+                    'red': 0xef4444,
+                    'orange': 0xf97316,
+                    'amber': 0xf59e0b,
+                    'yellow': 0xeab308,
+                    'lime': 0x84cc16,
+                    'green': 0x22c55e,
+                    'emerald': 0x10b981,
+                    'teal': 0x14b8a6,
+                    'cyan': 0x06b6d4,
+                    'sky': 0x0ea5e9,
+                    'blue': 0x3b82f6,
+                    'indigo': 0x6366f1,
+                    'violet': 0x8b5cf6,
+                    'purple': 0xa855f7,
+                    'fuchsia': 0xd946ef,
+                    'pink': 0xec4899,
+                    'rose': 0xf43f5e
+                };
+                for (const key in map) {
+                    if (colorStr.includes(key)) return map[key];
+                }
+                return 0x10b981; // fallback emerald
+            },
 
             isOutputActive() {
                 return this.isSpeaking || this.thinking;
@@ -183,7 +222,7 @@
                         },
                         body: JSON.stringify({ 
                             history: this.chatHistory,
-                            agent_id: {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!}
+                            agent_id: this.activeAgentId || {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!}
                         }),
                         signal: this.chatAbortController.signal
                     });

@@ -109,6 +109,24 @@
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
              :class="activeTab === 'shop' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
 
+            <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                <div class="text-gray-400 hover:text-white cursor-help">
+                    <x-heroicon-o-information-circle class="w-5 h-5" />
+                </div>
+                <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl text-left pointer-events-none" style="display: none;">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800 pb-2">Zusammensetzung</p>
+                    <ul class="text-xs text-gray-300 space-y-1.5">
+                        <li class="flex justify-between items-center"><span class="text-gray-400">Break-Even:</span> <span class="text-emerald-400">+30</span></li>
+                        <li class="flex justify-between items-center"><span class="text-gray-400">Netto-Ziel:</span> <span class="text-emerald-400">+20</span></li>
+                        <li class="flex justify-between items-center"><span class="text-gray-400">Gewinn-Marge:</span> <span class="text-emerald-400">+25</span></li>
+                        <li class="flex justify-between items-center"><span class="text-gray-400">Umsatz-Trend:</span> <span class="text-emerald-400">+15</span></li>
+                        <li class="flex justify-between items-center"><span class="text-gray-400">Offene Posten:</span> <span class="text-emerald-400">+10</span></li>
+                        <li class="flex justify-between items-center pt-1 mt-1 border-t border-gray-800"><span class="text-gray-400">Abzüge Op.:</span> <span class="text-red-400">-5 / -1</span></li>
+                        <li class="flex justify-between items-center"><span class="text-gray-400">Abzüge Sys.:</span> <span class="text-red-400">-10 / -2</span></li>
+                    </ul>
+                </div>
+            </div>
+
             <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Shop Health</h3>
 
             <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
@@ -133,6 +151,23 @@
         <!-- 2. OPERATIVER SCORE -->
         <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
              :class="activeTab === 'operative' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+
+            <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                <div class="text-gray-400 hover:text-white cursor-help">
+                    <x-heroicon-o-information-circle class="w-5 h-5" />
+                </div>
+                <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl text-left pointer-events-none" style="display: none;">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800 pb-2">Berechnung</p>
+                    <div class="text-xs text-gray-300 space-y-2">
+                        <p class="text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-white">100 Punkte</span></p>
+                        <ul class="space-y-1.5">
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro offenes Todo:</span> <span class="text-red-400">-2</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro Warnung:</span> <span class="text-red-400">-10</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro Fehler:</span> <span class="text-red-400">-25</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
 
             <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Operativer Status</h3>
 

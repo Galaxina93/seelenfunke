@@ -126,10 +126,16 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_fix_errors',
-                'description' => 'Agiert als automatischer Administrator: Behebt gefundene Backend-Fehler durch Cache-Clearing, OPcache Resets und Queue Restarts. FÜHRE DIESES TOOL ZWINGEND AUS, wenn get_system_health Fehler meldet. Stichworte: Repariere das System, Behebe die Fehler, Auto-Heal starten.',
+                'description' => 'Agiert als automatischer Administrator: Behebt gefundene Backend-Fehler durch Cache-Clearing, OPcache Resets, Queue Restarts, Backup-Triggers und NPM-Kompilierung. FÜHRE DIESES TOOL ZWINGEND AUS, wenn get_system_health Fehler meldet. Stichworte: Repariere das System, Behebe die Fehler, Auto-Heal starten.',
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => new \stdClass(),
+                    'properties' => [
+                        'target' => [
+                            'type' => 'string',
+                            'description' => 'Gibt das Ziel der Reparatur an. Standard ist "all". Erlaubt: all, database, redis, queue, scheduler, backup, stripe, smtp, ws',
+                            'enum' => ['all', 'database', 'redis', 'queue', 'scheduler', 'backup', 'stripe', 'smtp', 'ws']
+                        ]
+                    ]
                 ],
                 'callable' => [self::class, 'executeFixSystemErrors']
             ],
@@ -686,18 +692,68 @@ trait AiSystemFuncs
 
     public static function executeFixSystemErrors(array $args)
     {
+        $target = $args['target'] ?? 'all';
+        $targets = $target === 'all' ? ['database', 'redis', 'queue', 'scheduler', 'backup', 'stripe', 'smtp', 'ws'] : [$target];
+        $logs = [];
+
         try {
-            \Illuminate\Support\Facades\Artisan::call('view:clear');
-            \Illuminate\Support\Facades\Artisan::call('cache:clear');
-            \Illuminate\Support\Facades\Artisan::call('config:clear');
-            \Illuminate\Support\Facades\Artisan::call('queue:restart');
+            foreach ($targets as $t) {
+                switch ($t) {
+                    case 'redis':
+                    case 'database':
+                        \Illuminate\Support\Facades\Artisan::call('config:clear');
+                        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+                        \Illuminate\Support\Facades\Artisan::call('view:clear');
+                        \Illuminate\Support\Facades\Artisan::call('route:clear');
+                        $logs[] = "Cache, Views und Configs für {$t} geleert.";
+                        break;
+                    case 'queue':
+                        \Illuminate\Support\Facades\Artisan::call('queue:restart');
+                        $logs[] = "Queue Worker Restart-Signal gesendet.";
+                        $failed = \Illuminate\Support\Facades\Schema::hasTable('failed_jobs') ? \Illuminate\Support\Facades\DB::table('failed_jobs')->count() : 0;
+                        if ($failed > 0) {
+                            \Illuminate\Support\Facades\Artisan::call('queue:retry', ['id' => 'all']);
+                            $logs[] = "{$failed} fehlgeschlagene Jobs wurden neu gestartet.";
+                        }
+                        break;
+                    case 'scheduler':
+                        \Illuminate\Support\Facades\Artisan::call('schedule:run');
+                        $logs[] = "Scheduler manuell ausgeführt.";
+                        break;
+                    case 'backup':
+                        \Illuminate\Support\Facades\Artisan::queue('backup:run', ['--only-db' => true]);
+                        $logs[] = "Datenbank-Backup Auftrag gestartet.";
+                        break;
+                    case 'stripe':
+                    case 'smtp':
+                        \Illuminate\Support\Facades\Artisan::call('config:clear');
+                        $logs[] = "Network Reset für {$t} durch Config-Clear durchgeführt.";
+                        break;
+                    case 'ws':
+                        \Illuminate\Support\Facades\Artisan::call('config:clear');
+                        $logs[] = "Config Cache Reset für WebSockets.";
+                        try {
+                            $process = \Symfony\Component\Process\Process::fromShellCommandline('export PATH=$PATH:/usr/local/bin:/usr/bin:/bin; npm run prod', base_path());
+                            $process->setTimeout(120);
+                            $process->run();
+                            if ($process->isSuccessful()) {
+                                $logs[] = "Frontend (NPM) erfolgreich neu gebaut.";
+                            } else {
+                                $logs[] = "Frontend (NPM) Build fehlgeschlagen. Error: " . substr($process->getErrorOutput(), 0, 100);
+                            }
+                        } catch (\Exception $e) {
+                            $logs[] = "Frontend (NPM) Build Exception: " . $e->getMessage();
+                        }
+                        break;
+                }
+            }
 
             if (class_exists(\App\Models\System\SystemLog::class)) {
                 $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
                 \App\Models\System\SystemLog::create([
                     'ai_agent_id' => $agent ? $agent->id : null,
                     'title' => '[FUNKIRA] - System Healing',
-                    'message' => '[Funkira] - Caches, Configs und Views wurden geleert. Queue-Worker Restart angefragt.',
+                    'message' => '[Funkira] - System Healing durchgeführt für: ' . implode(', ', $targets) . '. Logs: ' . implode(' | ', $logs),
                     'status' => 'success',
                     'type' => 'ai',
                     'started_at' => now(),
@@ -708,7 +764,8 @@ trait AiSystemFuncs
 
             return [
                 'status' => 'success',
-                'message' => 'Das System-Healing wurde durchgeführt. Caches sind geleert, Configs resettet, Queue wird neu gestartet.'
+                'message' => 'Das System-Healing wurde durchgeführt.',
+                'details' => $logs
             ];
         } catch (\Exception $e) {
             return [
