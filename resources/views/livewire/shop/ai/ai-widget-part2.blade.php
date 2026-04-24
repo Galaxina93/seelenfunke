@@ -853,6 +853,9 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
                         channelCount: 1,
                         sampleRate: 16000,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
                     } });
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
