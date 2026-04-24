@@ -31,6 +31,7 @@ class AiWorkspace extends Component
     public string $activeWorkspaceView = 'workspace';
     public int $chatHeightPercent = 40;
     public bool $autoApprovePlan = false;
+    public array $pingResults = [];
 
     // AI Hosting Tariffs Management
     public $newPlanName = '';

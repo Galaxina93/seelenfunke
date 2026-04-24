@@ -1,6 +1,6 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
-    <div class="animate-fade-in-up font-sans antialiased text-gray-400 pb-12 w-full">
+    <div class="animate-fade-in-up font-sans antialiased text-gray-400 pb-28 lg:pb-12 w-full">
 
         <div class="flex flex-col lg:flex-row h-[calc(100vh-18rem)] min-h-[600px] bg-gray-900/80 backdrop-blur-xl backdrop-blur-xl rounded-2xl shadow-xl shadow-[var(--theme-color-10)] border border-gray-800 overflow-hidden">
 

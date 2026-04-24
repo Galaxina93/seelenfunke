@@ -1,15 +1,17 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="flex flex-col h-[85vh] md:h-[calc(100vh-10rem)] bg-gray-900/80 backdrop-blur-xl rounded-2xl md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[500px] md:min-h-[700px] animate-fade-in-up">
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="flex flex-col h-[95vh] md:h-[calc(100vh-10rem)] bg-gray-900/80 backdrop-blur-xl rounded-2xl md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[500px] md:min-h-[700px] animate-fade-in-up">
 
     {{-- HEADER BEREICH --}}
-    <div class="bg-gray-950/50 border-b border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md">
-        <div class="max-w-7xl mx-auto px-6 py-5">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-6 mb-6">
-                <div class="flex items-center gap-4 w-full">
+    <div class="bg-gray-950/50 border-b border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md shrink-0">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-5">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 md:gap-6">
+                <div class="flex items-center gap-2 md:gap-4 w-full">
                     <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
-                           class="w-full pl-6 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
+                           class="w-full pl-4 md:pl-6 pr-4 py-2.5 md:py-3 bg-gray-950 border border-gray-800 rounded-xl md:rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-xs md:text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
                            
-                    <button wire:click="toggleArchiveMode" class="flex-shrink-0 px-5 py-3 rounded-2xl border-2 {{ $showArchive ? 'border-amber-500 text-amber-500 bg-amber-500/10' : 'border-gray-800 text-gray-500 hover:text-white hover:border-[var(--theme-color-40)]' }} transition-all flex items-center gap-3 font-black uppercase text-[10px] tracking-widest shadow-inner">
-                        <x-heroicon-m-archive-box class="w-5 h-5" /> {{ $showArchive ? 'Archiv schließen' : 'Archiv öffnen' }}
+                    <button wire:click="toggleArchiveMode" class="flex-shrink-0 px-3 md:px-5 py-2.5 md:py-3 rounded-xl md:rounded-2xl border-2 {{ $showArchive ? 'border-amber-500 text-amber-500 bg-amber-500/10' : 'border-gray-800 text-gray-500 hover:text-white hover:border-[var(--theme-color-40)]' }} transition-all flex items-center gap-2 md:gap-3 font-black uppercase text-[9px] md:text-[10px] tracking-widest shadow-inner">
+                        <x-heroicon-m-archive-box class="w-4 h-4 md:w-5 md:h-5" /> 
+                        <span class="hidden sm:inline">{{ $showArchive ? 'Archiv schließen' : 'Archiv öffnen' }}</span>
+                        <span class="sm:hidden">{{ $showArchive ? 'Archiv zu' : 'Archiv auf' }}</span>
                     </button>
                 </div>
             </div>
@@ -19,7 +21,7 @@
     <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
 
         {{-- SIDEBAR: LISTEN --}}
-        <div class="w-full lg:w-72 max-h-[30vh] lg:max-h-none bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col overflow-y-auto custom-scrollbar p-4 gap-3 shrink-0"
+        <div class="w-full lg:w-72 max-h-[25vh] lg:max-h-none bg-gray-950/30 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col overflow-y-auto custom-scrollbar p-3 md:p-4 gap-2 md:gap-3 shrink-0"
              id="category-sortable-list"
              x-data="{
                 initListSortable() {
@@ -54,7 +56,7 @@
                 <div class="category-item shrink-0 relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false }">
                     <div @contextmenu.prevent="showListMenu = true"
                          @class([
-                            'flex items-center gap-2 p-3.5 rounded-2xl transition-all duration-300 w-full border',
+                            'flex items-center gap-2 p-2.5 md:p-3.5 rounded-xl md:rounded-2xl transition-all duration-300 w-full border',
                             'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_15px_var(--theme-color-10)]' => $selectedListId === $list->id,
                             'bg-gray-900/50 border-transparent hover:bg-gray-800 hover:border-gray-700 text-gray-500' => $selectedListId !== $list->id
                         ])>
@@ -153,23 +155,23 @@
         {{-- MAIN CONTENT: TASKS --}}
         <div class="flex-1 flex flex-col bg-gray-950/20 min-w-0 min-h-0 relative">
 
-            <div class="p-4 md:p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm relative shrink-0">
+            <div class="p-3 md:p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm relative shrink-0">
                 <form wire:submit.prevent="createTask" class="relative group max-w-4xl mx-auto">
-                    <div class="absolute inset-0 bg-[var(--theme-color-10)] rounded-2xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                    <div class="absolute inset-0 bg-[var(--theme-color-10)] rounded-xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                     <input wire:model="newTask_title" type="text"
                            placeholder="{{ $selectedListId ? 'Was gibt es zu tun?' : 'Wähle links eine Liste...' }}"
                            @disabled(!$selectedListId)
-                           class="relative w-full pl-6 pr-20 py-5 md:py-6 md:pl-8 md:pr-40 bg-gray-950 border-2 border-gray-800 rounded-2xl md:rounded-3xl focus:ring-4 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-lg md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
+                           class="relative w-full pl-4 md:pl-8 pr-14 md:pr-40 py-3.5 md:py-6 bg-gray-950 border-2 border-gray-800 rounded-xl md:rounded-3xl focus:ring-4 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-base md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
 
                     <button type="submit" @disabled(!$selectedListId)
-                    class="absolute right-2 top-2 bottom-2 px-5 md:px-8 bg-[var(--theme-color)] text-gray-900 rounded-xl md:rounded-2xl flex items-center justify-center hover:bg-white transition-all shadow-lg active:scale-95 disabled:bg-gray-800 disabled:text-gray-600">
-                        <x-heroicon-o-plus class="w-6 h-6 md:w-8 md:h-8 stroke-[3]" />
+                    class="absolute right-1.5 md:right-2 top-1.5 md:top-2 bottom-1.5 md:bottom-2 px-4 md:px-8 bg-[var(--theme-color)] text-gray-900 rounded-lg md:rounded-2xl flex items-center justify-center hover:bg-white transition-all shadow-lg active:scale-95 disabled:bg-gray-800 disabled:text-gray-600">
+                        <x-heroicon-o-plus class="w-5 h-5 md:w-8 md:h-8 stroke-[3]" />
                         <span class="hidden md:inline-block ml-2 font-black uppercase text-sm tracking-widest">Hinzufügen</span>
                     </button>
                 </form>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
+            <div class="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-4 custom-scrollbar">
                 @if(!$selectedListId)
                     <div class="flex flex-col items-center justify-center h-full text-center p-10 opacity-30">
                         <div class="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mb-6 border border-gray-800 shadow-inner">
@@ -210,7 +212,7 @@
                             <div class="group/task" data-task-id="{{ $task->id }}" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }" wire:key="task-{{ $task->id }}">
 
                                 <div @class([
-                                    'relative flex items-center justify-between p-4 md:p-5 rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
+                                    'relative flex items-center justify-between p-3.5 md:p-5 rounded-2xl md:rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
                                     'bg-gray-950/40 border-gray-900 opacity-40 grayscale' => $task->is_completed,
                                     'shadow-lg hover:border-[var(--theme-color-40)]' => !$task->is_completed,
                                     'bg-gray-900 border-gray-800' => !$task->is_completed,

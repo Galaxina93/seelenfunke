@@ -165,7 +165,7 @@
 
                 <!-- Metric Mini-Cards & Log -->
                 <div class="flex-1 flex flex-col gap-5 sm:gap-6">
-                    <div class="flex flex-row gap-3 sm:gap-4">
+                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full">
                         <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 relative overflow-hidden group">
                             <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
                                 <i class="bi bi-boxes text-8xl text-white"></i>

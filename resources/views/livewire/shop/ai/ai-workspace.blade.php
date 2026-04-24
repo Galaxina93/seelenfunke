@@ -361,6 +361,7 @@
                         </button>
                     </div>
                     <livewire:shop.ai.ai-knowledge-base />
+                    <div class="h-32 lg:hidden w-full shrink-0"></div>
                 </div>
             @elseif($activeWorkspaceView === 'gen-ui')
                 <div wire:key="gen-ui-view-container" class="flex-1 overflow-y-auto w-full h-full relative rounded-2xl flex flex-col">
@@ -370,6 +371,7 @@
                         </button>
                     </div>
                     <livewire:shop.ai.ai-visualization-registry />
+                    <div class="h-32 lg:hidden w-full shrink-0"></div>
                 </div>
             @else
                 <div wire:key="workspace-main-view" class="flex-1 flex flex-col gap-4 overflow-hidden h-full w-full" x-data="{ activeTab: 'chat' }">

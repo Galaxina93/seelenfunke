@@ -1,5 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
-    <div class="animate-fade-in-up font-sans antialiased text-[color:var(--theme-color)] pb-12 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+    <div class="animate-fade-in-up font-sans antialiased text-[color:var(--theme-color)] pb-28 lg:pb-12 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div class="md:col-span-full bg-gray-950 backdrop-blur-xl border border-gray-800 rounded-3xl p-6 shadow-xl">
                 <p class="text-gray-400 leading-relaxed mb-4 text-sm max-w-4xl">

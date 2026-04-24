@@ -1,3 +1,11 @@
+<style>
+@keyframes theme-pulse-glow {
+    0%, 100% { box-shadow: 0 0 5px var(--theme-color), inset 0 0 5px var(--theme-color); border-color: var(--theme-color); }
+    50% { box-shadow: 0 0 25px var(--theme-color), inset 0 0 10px var(--theme-color); border-color: var(--theme-color); }
+}
+.hover-theme-pulse { cursor: pointer; transition: all 0.3s ease; }
+.hover-theme-pulse:hover, .active-theme-pulse { animation: theme-pulse-glow 2s ease-in-out infinite; border-color: var(--theme-color) !important; z-index: 10; }
+</style>
 <div x-data="{ activeTab: null }" class="space-y-6">
 
     @php
@@ -106,8 +114,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
         <!-- 1. SHOP HEALTH SCORE -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'shop' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <div @click="activeTab = activeTab === 'shop' ? null : 'shop'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'shop' ? 'active-theme-pulse' : 'border-gray-800'">
 
             <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
                 <div class="text-gray-400 hover:text-white cursor-help">
@@ -140,17 +149,12 @@
                 </div>
             </div>
 
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'shop' ? null : 'shop'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'shop' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'shop' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
 
         <!-- 2. OPERATIVER SCORE -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'operative' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <div @click="activeTab = activeTab === 'operative' ? null : 'operative'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'operative' ? 'active-theme-pulse' : 'border-gray-800'">
 
             <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
                 <div class="text-gray-400 hover:text-white cursor-help">
@@ -194,17 +198,12 @@
                 @endif
             </div>
 
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'operative' ? null : 'operative'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'operative' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'operative' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
 
         <!-- 3. SYSTEM SCORE -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'system' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <div @click="activeTab = activeTab === 'system' ? null : 'system'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'system' ? 'active-theme-pulse' : 'border-gray-800'">
 
             <div class="absolute top-4 right-4 text-[9px] font-bold uppercase tracking-wider text-gray-400 bg-gray-800 px-2.5 py-1 rounded-full border border-gray-700">Live</div>
 
@@ -233,20 +232,15 @@
                 @endif
             </div>
 
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'system' ? null : 'system'" class="w-full px-5 py-3 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'system' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'system' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
     </div>
 
-    <!-- 2nd ROW: THE 5 BENTO WIDGETS -->
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6">
+    <!-- 2nd ROW: THE 4 BENTO WIDGETS -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
         <!-- 4. SPEICHER & PRODUKTIONS-LAST -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'capacities' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <div @click="activeTab = activeTab === 'capacities' ? null : 'capacities'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'capacities' ? 'active-theme-pulse' : 'border-gray-800'">
              
             <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">Kapazitäten</h3>
 
@@ -264,17 +258,12 @@
                 <p class="text-[10px] font-black uppercase tracking-widest mt-1 text-blue-500">{{ isset($storageData['percent_free']) ? $storageData['percent_free'] . '% Frei' : 'N/A' }}</p>
             </div>
 
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'capacities' ? null : 'capacities'" class="w-full px-4 py-2 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'capacities' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'capacities' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
 
         <!-- 5. GEWINN-ENTWICKLUNG -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'profit' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <div @click="activeTab = activeTab === 'profit' ? null : 'profit'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'profit' ? 'active-theme-pulse' : 'border-gray-800'">
              
             <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">Gewinn</h3>
 
@@ -301,17 +290,12 @@
                 @endif
             </div>
 
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'profit' ? null : 'profit'" class="w-full px-4 py-2 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'profit' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'profit' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
 
         <!-- 6. E-COMMERCE EINBLICKE -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'ecommerce' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <div @click="activeTab = activeTab === 'ecommerce' ? null : 'ecommerce'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'ecommerce' ? 'active-theme-pulse' : 'border-gray-800'">
              
             <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">E-Commerce</h3>
 
@@ -328,20 +312,16 @@
                 <p class="text-[10px] font-black uppercase tracking-widest mt-1 text-[#C5A059]">Umsatz & Artikel</p>
             </div>
 
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'ecommerce' ? null : 'ecommerce'" class="w-full px-4 py-2 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'ecommerce' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'ecommerce' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
 
-        <!-- 7. BESUCHER & ANALYSEN -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'traffic' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
+        <!-- 7. TRAFFIC & KUNDEN -->
+        <div @click="activeTab = activeTab === 'traffic' ? null : 'traffic'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'traffic' ? 'active-theme-pulse' : 'border-gray-800'">
              
-            <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">Traffic</h3>
+            <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">Traffic & Kunden</h3>
 
+            @php $onlineCount = collect($systemHealth)->count() > 0 ? $this->getActiveSessionsCount() : 0; @endphp
             <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-950 rounded-2xl border border-gray-800">
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                     <x-heroicon-s-globe-alt class="w-6 h-6 text-blue-400 mb-1 opacity-80 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]" />
@@ -350,51 +330,23 @@
                 </div>
             </div>
 
-            <div class="mb-3">
-                <p class="text-[9px] font-bold uppercase tracking-widest text-gray-400">Total Pageviews</p>
-                <p class="text-[10px] font-black uppercase tracking-widest mt-1 text-blue-300">{{ number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.') }}</p>
-            </div>
-
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'traffic' ? null : 'traffic'" class="w-full px-4 py-2 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'traffic' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'traffic' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- 8. KUNDENGEWINNUNG & WACHSTUM -->
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300"
-             :class="activeTab === 'customers' ? 'border-primary/80 ring-1 ring-primary/50' : 'border-gray-800 hover:border-gray-700'">
-
-            <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2.5">Kunden</h3>
-
-            @php $onlineCount = collect($systemHealth)->count() > 0 ? $this->getActiveSessionsCount() : 0; @endphp
-            <div class="relative w-24 h-24 flex items-center justify-center shrink-0 mb-3 bg-gray-950 rounded-2xl border border-gray-800">
-                <div class="absolute inset-0 flex flex-col items-center justify-center">
-                    <x-heroicon-s-users class="w-6 h-6 text-purple-500 mb-1 opacity-80 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
-                    <span class="text-base font-black text-white tracking-tighter leading-none">{{ number_format($stats['registered_users'] ?? 0, 0, ',', '.') }}</span>
-                    <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">Kunden Insges.</span>
+            <div class="mb-3 space-y-2">
+                <div>
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-400">Total Pageviews</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest mt-0.5 text-blue-300">{{ number_format($stats['frontend_visits_total'] ?? 0, 0, ',', '.') }}</p>
+                </div>
+                <div>
+                    <p class="text-[9px] font-bold uppercase tracking-widest text-gray-400">Aktuell Online</p>
+                    <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                        <span class="relative flex h-1.5 w-1.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400">{{ $onlineCount }} Nutzer</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="mb-3">
-                <p class="text-[9px] font-bold uppercase tracking-widest text-gray-400">Aktuell Online</p>
-                <div class="flex items-center justify-center gap-1.5 mt-1">
-                    <span class="relative flex h-1.5 w-1.5">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                    </span>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-400">{{ $onlineCount }} Nutzer</p>
-                </div>
-            </div>
-
-            <div class="flex-1 flex flex-col justify-end w-full">
-                <button @click="activeTab = activeTab === 'customers' ? null : 'customers'" class="w-full px-4 py-2 bg-gray-950 border border-gray-700 hover:border-primary/50 text-gray-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner active:scale-95 flex items-center justify-center gap-2">
-                    <span x-text="activeTab === 'customers' ? 'Details ausblenden' : 'Details anzeigen'"></span>
-                    <i :class="activeTab === 'customers' ? 'bi-chevron-up' : 'bi-chevron-down'" class="bi transition-transform text-primary"></i>
-                </button>
-            </div>
         </div>
 
     </div>
@@ -877,30 +829,22 @@
                 @include('livewire.shop.master.master-analytics-partials.charts')
             </div>
 
-            <!-- 7. TRAFFIC -->
+            <!-- 7. TRAFFIC & KUNDEN -->
             <div x-show="activeTab === 'traffic'" x-transition.opacity.duration.300ms>
                 <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
                     <div>
-                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Besucher & Analysen</h2>
-                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Web-Traffic, Quellen und Geräte-Statistiken für optimale Performance.</p>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Traffic & Kunden</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Web-Traffic, Kundenverhalten und Wachstumsstatistiken für optimale Performance.</p>
                     </div>
                 </div>
                 <!-- Traffic Content -->
                 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     @include('livewire.shop.master.master-analytics-partials.traffic')
                 </div>
-            </div>
-
-            <!-- 8. CUSTOMERS -->
-            <div x-show="activeTab === 'customers'" x-transition.opacity.duration.300ms>
-                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
-                    <div>
-                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Kundengewinnung & Wachstum</h2>
-                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Statistiken über Benutzer-Registrierungen und Kundenverhalten.</p>
-                    </div>
+                <div class="mt-8 pt-8 border-t border-gray-800/80">
+                    <h3 class="text-xl font-serif font-bold text-white mb-6">Kundengewinnung & Registrierungen</h3>
+                    @include('livewire.shop.master.master-analytics-partials.customers')
                 </div>
-                <!-- Customers Content -->
-                @include('livewire.shop.master.master-analytics-partials.customers')
             </div>
 
         </div>
