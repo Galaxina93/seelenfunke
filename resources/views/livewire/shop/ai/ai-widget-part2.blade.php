@@ -849,15 +849,11 @@
 
             async startMicrophone() {
                 try {
-                    // Verwende native Sample-Rate des Geräts (verhindert das iOS-Knacken bei echoCancellation=false)
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const nativeRate = this.audioContext.sampleRate;
-
+                    // Zurück zum Standard (mit echoCancellation), damit die iOS Hardware nicht crasht
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
                         channelCount: 1,
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
+                        sampleRate: 16000,
                     } });
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
@@ -869,20 +865,11 @@
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || this.isOutputActive()) return;
                         
                         const inputData = e.inputBuffer.getChannelData(0);
-                        const outRate = 16000;
-                        const outLength = Math.floor(inputData.length * outRate / nativeRate);
-                        const pcm16 = new Int16Array(outLength);
+                        const pcm16 = new Int16Array(inputData.length);
                         
-                        // Lineare Interpolation (Downsampling) von nativer Rate auf 16kHz
-                        for (let i = 0; i < outLength; i++) {
-                            const inIndex = i * nativeRate / outRate;
-                            const index1 = Math.floor(inIndex);
-                            const index2 = Math.min(index1 + 1, inputData.length - 1);
-                            const fraction = inIndex - index1;
-                            
-                            const s = inputData[index1] + fraction * (inputData[index2] - inputData[index1]);
-                            const clamped = Math.max(-1, Math.min(1, s));
-                            pcm16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+                        for (let i = 0; i < inputData.length; i++) {
+                            const s = Math.max(-1, Math.min(1, inputData[i]));
+                            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                         }
                         
                         const base64Pcm = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
@@ -1000,7 +987,14 @@
 
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
-                source.connect(this.audioContext.destination);
+                
+                // Booster für Mobile: Erhöht die Lautstärke der KI massiv, 
+                // um das iOS "Auto-Ducking" während aktiven Mikrofons auszugleichen
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = 3.5; 
+                
+                source.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
                 
                 if (this.nextPlayTime < this.audioContext.currentTime) {
                     this.nextPlayTime = this.audioContext.currentTime;
