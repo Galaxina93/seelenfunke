@@ -849,10 +849,12 @@
 
             async startMicrophone() {
                 try {
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    // Verwende native Sample-Rate des Geräts (verhindert das iOS-Knacken bei echoCancellation=false)
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const nativeRate = this.audioContext.sampleRate;
+
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
                         channelCount: 1,
-                        sampleRate: 16000,
                         echoCancellation: false,
                         noiseSuppression: false,
                         autoGainControl: false
@@ -867,10 +869,20 @@
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || this.isOutputActive()) return;
                         
                         const inputData = e.inputBuffer.getChannelData(0);
-                        const pcm16 = new Int16Array(inputData.length);
-                        for (let i = 0; i < inputData.length; i++) {
-                            const s = Math.max(-1, Math.min(1, inputData[i]));
-                            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        const outRate = 16000;
+                        const outLength = Math.floor(inputData.length * outRate / nativeRate);
+                        const pcm16 = new Int16Array(outLength);
+                        
+                        // Lineare Interpolation (Downsampling) von nativer Rate auf 16kHz
+                        for (let i = 0; i < outLength; i++) {
+                            const inIndex = i * nativeRate / outRate;
+                            const index1 = Math.floor(inIndex);
+                            const index2 = Math.min(index1 + 1, inputData.length - 1);
+                            const fraction = inIndex - index1;
+                            
+                            const s = inputData[index1] + fraction * (inputData[index2] - inputData[index1]);
+                            const clamped = Math.max(-1, Math.min(1, s));
+                            pcm16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
                         }
                         
                         const base64Pcm = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
