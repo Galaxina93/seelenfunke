@@ -39,6 +39,13 @@ class AIController extends Controller
         $functionName = $request->input('function');
         $args = $request->input('args', []);
 
+        $sessionId = $request->input('session_id');
+        if ($sessionId) {
+            config(['ai.current_session_id' => $sessionId]);
+            session()->setId($sessionId);
+            session()->start();
+        }
+
         try {
             // Forward execution to the registry
             $result = AIFunctionsRegistry::execute($functionName, $args);
@@ -297,6 +304,78 @@ class AIController extends Controller
             'events_data' => $result['events'] ?? [],
             'usage' => $result['usage'] ?? [],
             'audio' => $base64Audio
+        ]);
+    }
+
+    /**
+     * Endpoint for Multimodal Live API Mode.
+     * Returns the API key and system instructions securely to authenticated admins.
+     */
+    public function liveCredentials(Request $request)
+    {
+        if (!auth()->check() && !auth('sanctum')->check() && !auth('admin')->check()) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $aiAgent = null;
+        if (auth('admin')->check()) {
+            $aiAgent = auth('admin')->user()->ai_agent;
+        }
+        if (!$aiAgent) {
+            $aiAgent = \App\Models\Ai\AiAgent::first();
+        }
+        $voiceName = $aiAgent ? $aiAgent->tts_voice : 'Puck';
+
+        $map = \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
+
+        $navMap = "Verfügbare Admin-Routen:\n";
+        foreach ($map as $path => $name) {
+            $navMap .= "- " . $name . " => " . $path . "\n";
+        }
+
+        $systemInstruction = "Du bist Funkira, die KI-Assistentin des Seelenfunke Dashboards. Antworte immer kurz, präzise und freundlich. " .
+            "Nutze die Tools, um Daten abzufragen oder Aktionen auszuführen. " .
+            "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap;
+
+        // Retrieve the API Key
+        $apiKey = env('GEMINI_API_KEY');
+
+        if (empty($apiKey)) {
+            return response()->json(['error' => 'No Gemini API Key configured.'], 500);
+        }
+
+        $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();
+        
+        $removeAdditionalProperties = function ($obj) use (&$removeAdditionalProperties) {
+            if (!is_object($obj) && !is_array($obj)) return;
+            
+            foreach ($obj as $key => $value) {
+                if (is_object($value) || is_array($value)) {
+                    $removeAdditionalProperties($value);
+                }
+            }
+            if (is_object($obj) && property_exists($obj, 'additionalProperties')) {
+                unset($obj->additionalProperties);
+            } elseif (is_array($obj) && array_key_exists('additionalProperties', $obj)) {
+                unset($obj['additionalProperties']);
+            }
+        };
+
+        $functionDeclarations = [];
+        foreach ($schemaTools as $tool) {
+            if (isset($tool['function'])) {
+                // Decode without 'true' to preserve empty objects as {}
+                $func = json_decode(json_encode($tool['function']));
+                $removeAdditionalProperties($func);
+                $functionDeclarations[] = $func;
+            }
+        }
+
+        return response()->json([
+            'api_key' => $apiKey,
+            'system_instruction' => $systemInstruction,
+            'voice_name' => $voiceName,
+            'tools' => [['functionDeclarations' => $functionDeclarations]],
         ]);
     }
 }

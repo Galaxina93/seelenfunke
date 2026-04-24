@@ -22,25 +22,7 @@
         </div>
         <div class="flex items-center gap-4 w-full md:w-auto">
             <div class="flex items-center gap-2">
-                @if($currentMission)
-                    <div class="flex items-center bg-gray-900 border border-gray-700 rounded-xl overflow-hidden shadow-inner group transition-all hover:border-white">
-                        <button wire:click="toggleMission" class="h-10 px-4 text-xs font-bold text-white hover:bg-gray-800 transition-all flex items-center gap-2 whitespace-nowrap border-r border-gray-700">
-                            <x-heroicon-s-bolt class="w-4 h-4 text-emerald-400 group-hover:animate-pulse" />
-                            <span>Deine Mission</span>
-                        </button>
-                        <button wire:click="generateNewRefreshMission" class="h-10 px-3 hover:bg-gray-800 transition-all flex items-center justify-center text-gray-400 hover:text-white group/refresh" title="Mission neu berechnen">
-                            <x-heroicon-o-arrow-path class="w-4 h-4 group-hover/refresh:rotate-90 transition-transform" wire:loading.class="animate-spin" wire:target="generateNewRefreshMission" />
-                        </button>
-                    </div>
-                @else
-                    <button wire:click="generateMission" class="h-10 px-4 rounded-xl bg-gray-900 border border-gray-700 hover:border-white text-xs font-bold text-white transition-all flex items-center justify-center gap-2 group whitespace-nowrap shadow-inner">
-                        <x-heroicon-s-bolt class="w-4 h-4 text-emerald-400 group-hover:animate-pulse" />
-                        <span wire:loading.remove wire:target="generateMission">Deine Mission</span>
-                        <span wire:loading wire:target="generateMission" class="animate-pulse text-gray-400">Analysiert...</span>
-                    </button>
-                @endif
             </div>
-
 
             @include('livewire.shop.ai.ask-ai-dropdown', [
                 'themeColor' => 'primary',

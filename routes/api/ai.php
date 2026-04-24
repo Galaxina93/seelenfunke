@@ -21,9 +21,12 @@ Route::prefix('ai')->group(function () {
     Route::get('/schema', [AIController::class, 'schema']);
     
     // Führt eine der registrierten Tools aus
-    Route::post('/execute', [AIController::class, 'execute']);
+    Route::post('/execute', [AIController::class, 'execute'])->middleware('web');
 
     // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
-    Route::post('/chat', [AIController::class, 'chat']);
+    Route::post('/chat', [AIController::class, 'chat'])->middleware('web');
+
+    // Endpunkt für den Multimodal Live API Mode (WebSockets)
+    Route::get('/live-credentials', [AIController::class, 'liveCredentials'])->middleware('web');
 
 });

@@ -3,10 +3,6 @@
 
     @include('livewire.shop.master.master-analytics-partials.header')
 
-    @if($showMission)
-        @include('livewire.shop.master.master-analytics-partials.master-mission-banner')
-    @endif
-
     @include('livewire.shop.master.master-analytics-partials.master_scores')
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

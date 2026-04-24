@@ -66,7 +66,7 @@ trait AiScoutFuncs
     public static function executeGetCurrentMission(array $args)
     {
         try {
-            $botService = app(\App\Services\Ai\AiSupportService::class);
+            $botService = app(\App\Services\AI\AiSupportService::class);
             $missionData = $botService->getUltimateCommand();
 
             return [

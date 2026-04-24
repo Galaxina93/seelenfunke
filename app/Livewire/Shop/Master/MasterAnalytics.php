@@ -43,9 +43,6 @@ class MasterAnalytics extends Component
     public ?string $expandedHealthKey = null;
     public array $repairLogs = [];
 
-    // AI Mission State
-    public $currentMission = null;
-    public $showMission = false;
     public $showAbandonedCarts = false;
 
     // AI Agent Properties
@@ -92,8 +89,6 @@ class MasterAnalytics extends Component
         } elseif (count($this->availableAgents) > 0) {
             $this->selectedAgentId = $this->availableAgents[0]['id'];
         }
-
-        $this->currentMission = \App\Models\Management\ManagementMission::latest()->first();
 
         $this->loadSettings();
         $this->loadStats($service);
@@ -471,17 +466,6 @@ class MasterAnalytics extends Component
             $this->saveSettings('year');
             $this->loadStats(app(AnalyticsService::class));
         }
-    }
-
-    public function toggleMission()
-    {
-        $this->showMission = !$this->showMission;
-    }
-
-    public function generateNewRefreshMission()
-    {
-        $this->generateMission();
-        $this->showMission = true;
     }
 
     public function toggleAbandonedCarts()
@@ -866,71 +850,6 @@ class MasterAnalytics extends Component
             ]);
 
             return response()->streamDownload(fn () => print($pdf->output()), 'CEO-Strategie-Report.pdf');
-
-        } catch (\Exception $e) {
-            session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());
-        }
-    }
-
-    public function generateMission()
-    {
-        if (empty($this->selectedAgentId)) {
-            session()->flash('error', 'Bitte wähle zuerst einen KI-Agenten aus (HUD).');
-            return;
-        }
-
-        $agent = \App\Models\Ai\AiAgent::find($this->selectedAgentId);
-        if (!$agent) {
-            session()->flash('error', 'Agent nicht gefunden.');
-            return;
-        }
-
-        $statsJson = json_encode($this->stats, JSON_PRETTY_PRINT);
-        $env = app()->environment();
-
-        $prompt = "Du bist der virtuelle CFO (Chief Financial Officer) eines E-Commerce Laser-Graveur Shops.\n";
-        $prompt .= "WICHTIGSTE MISSION: Unser Ziel ist es, die Firma auf 100.000 Euro Umsatz pro Monat zu skalieren!\n\n";
-        $prompt .= "Hier sind die aktuellen Live-Kennzahlen des Shops (Server-Umgebung: $env):\n$statsJson\n\n";
-        
-        $activeHighPriorityEvents = \App\Models\Management\ManagementCalendarEvent::where('priority', 'high')
-             ->where('start_date', '<=', now())
-             ->where(function($q) {
-                 $q->whereNull('end_date')->orWhere('end_date', '>=', now());
-             })->get();
-
-        $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->orderBy('priority', 'desc')->get();
-        $upcomingCalendar = \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
-             ->orderBy('start_date', 'asc')->take(5)->get();
-
-        $prompt .= "--- MANAGEMENT KONTEXT (Extrem Wichtig für Triage) ---\n";
-        foreach ($activeHighPriorityEvents as $roadblock) {
-            $prompt .= "- [ROADBLOCK] " . $roadblock->title . "\n";
-        }
-        if ($activeHighPriorityEvents->isEmpty()) $prompt .= "- Keine aktiven Kalender-Blockaden.\n";
-        $prompt .= "\nOffene operative Aufgaben:\n";
-        foreach ($openTasks as $task) {
-            $prompt .= "- [Prio: " . $task->priority . "] " . $task->title . "\n";
-        }
-        if ($openTasks->isEmpty()) $prompt .= "- Keine offene operative Aufgabe.\n";
-        $prompt .= "--------------------------------------------------------\n\n";
-
-        $prompt .= "DEINE AUFGABE:\n";
-        $prompt .= "Du wertest zwingend den MANAGEMENT KONTEXT (Roadblocks, Tasks, Kalender) zusammen mit den Shop-Daten aus.\n";
-        $prompt .= "Liefere mir ALS REINEN TEXT exakt ZWEI BIS DREI SÄTZE, was JETZT für den Erfolg am wichtigsten ist.\n";
-        $prompt .= "Zusätzlich nennst du am Ende der Mission noch genau EINE wichtigste operative Aufgabe (aus der Liste der offenen Aufgaben), die heute die höchste Prio hat. Der gesamte Text darf maximal 4 Sätze lang sein.\n";
-        $prompt .= "KEINE Markdown-Formatierung, KEINE Überschriften, KEINE Begrüßung. Nur die Direktive.\n";
-        $prompt .= "Wenn ein Roadblock aktiv ist (z.B. Krankheit/Ausfall), formuliere die Mission so, dass Prioritäten reduziert werden.\n";
-
-        try {
-            $response = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
-
-            \App\Models\Management\ManagementMission::create([
-                'ai_agent_id' => $agent->id,
-                'mission_text' => trim($response)
-            ]);
-
-            $this->currentMission = \App\Models\Management\ManagementMission::latest()->first();
-            session()->flash('success', 'HUD Mission aktualisiert.');
 
         } catch (\Exception $e) {
             session()->flash('error', 'Fehler während der KI-Verarbeitung: ' . $e->getMessage());

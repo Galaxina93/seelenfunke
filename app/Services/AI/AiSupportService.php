@@ -203,6 +203,23 @@ class AiSupportService
         }
 
         // ------------------------------------------------------------------
+        // 2.5. CEO MISSION (Score 400)
+        // ------------------------------------------------------------------
+        if (class_exists(\App\Models\Management\ManagementMission::class)) {
+            $latestMission = \App\Models\Management\ManagementMission::latest()->first();
+            if ($latestMission) {
+                $options[] = [
+                    'score' => 400,
+                    'title' => 'CEO Mission',
+                    'message' => "Die aktuelle, vom KI-Agenten festgelegte Hauptmission lautet:\n" . $latestMission->mission_text,
+                    'action_label' => 'Verstanden',
+                    'action_route' => 'admin.dashboard',
+                    'icon' => '🎯'
+                ];
+            }
+        }
+
+        // ------------------------------------------------------------------
         // 3. BUSINESS (Score 200)
         // ------------------------------------------------------------------
         $prioOrder = OrderOrder::whereIn('status', ['pending', 'processing'])

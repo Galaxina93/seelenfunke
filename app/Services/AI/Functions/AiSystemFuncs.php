@@ -1352,18 +1352,32 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'topic fehlt.'];
         }
 
-        $filename = str_replace(' ', '_', strtolower($topic)) . '.md';
-        $path = 'agenten/ai/knowledge/' . $filename;
-        
-        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
+        if (!class_exists(\App\Models\Ai\AiKnowledgeBase::class)) {
+             return ['status' => 'error', 'message' => 'Wissensdatenbank-System ist offline.'];
+        }
+
+        $category = \App\Models\Ai\AiKnowledgeBaseCategory::firstOrCreate(
+            ['name' => 'System & Architektur'],
+            ['description' => 'Automatisch generierte System-Ressourcen der KI.']
+        );
+
+        $article = \App\Models\Ai\AiKnowledgeBase::updateOrCreate(
+            ['title' => str_replace('_', ' ', $topic)],
+            [
+                'slug' => \Illuminate\Support\Str::slug($topic),
+                'content' => $content,
+                'ai_knowledge_base_category_id' => $category->id,
+                'is_published' => true,
+            ]
+        );
 
         $addedLines = substr_count($content, "\n") + 1;
 
         return [
             'status' => 'success',
-            'message' => "Knowledge Item '$filename' wurde global dauerhaft gespeichert.",
+            'message' => "Knowledge Item '{$topic}' wurde global dauerhaft in der Datenbank gespeichert.",
             '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-yellow-500/50 p-1.5 rounded bg-black/20">
-                               <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . $filename . '</div>
+                               <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . htmlspecialchars($topic) . '</div>
                                <div class="flex gap-2.5 mt-0.5">
                                    <span class="text-yellow-400">Wissen gesichert (' . $addedLines . ' Zeilen)</span>
                                </div>
@@ -1379,20 +1393,23 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'topic fehlt.'];
         }
 
-        $filename = str_replace(' ', '_', strtolower($topic)) . '.md';
-        $path = 'agenten/ai/knowledge/' . $filename;
-        
-        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-             return ['status' => 'empty', 'message' => "Das Knowledge Item '$filename' existiert nicht."];
+        if (!class_exists(\App\Models\Ai\AiKnowledgeBase::class)) {
+             return ['status' => 'error', 'message' => 'Wissensdatenbank-System ist offline.'];
         }
 
-        $content = \Illuminate\Support\Facades\Storage::disk('local')->get($path);
+        $article = \App\Models\Ai\AiKnowledgeBase::where('title', str_replace('_', ' ', $topic))
+                                                 ->orWhere('slug', \Illuminate\Support\Str::slug($topic))
+                                                 ->first();
+        
+        if (!$article) {
+             return ['status' => 'empty', 'message' => "Das Knowledge Item '{$topic}' existiert nicht in der Datenbank."];
+        }
 
         return [
             'status' => 'success',
-            'content' => $content,
+            'content' => $article->content,
             '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-yellow-500/50 p-1.5 rounded bg-black/20">
-                               <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . $filename . '</div>
+                               <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . htmlspecialchars($topic) . '</div>
                                <div class="flex gap-2.5 mt-0.5">
                                    <span class="text-yellow-400">Wissen in Prompt geladen</span>
                                </div>

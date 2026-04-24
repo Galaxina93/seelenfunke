@@ -66,6 +66,11 @@
             chatAbortController: null,
             voiceAbortController: null,
 
+            // Live API State
+            isLiveMode: false,
+            liveWs: null,
+            audioContext: null,
+
             updateAgentConfig(color, name, wakeWord, agentId) {
                 this.agentColor = color || 'emerald-500';
                 if (name) this.activeAgentName = name;
@@ -106,6 +111,11 @@
 
             // --- AI VOICE CHAT LOGIC ---
             toggleMobileContinuous() {
+                if (this.isLiveMode) {
+                    this.toggleLiveMode();
+                    return;
+                }
+                
                 if (!this.recognition) this.initSpeech();
                 if (!this.recognition) return; // Browser doesn't support SpeechRecognition
 
@@ -127,8 +137,42 @@
                 }
             },
 
+            toggleLiveMode() {
+                this.isLiveMode = !this.isLiveMode;
+                if (this.isLiveMode) {
+                    // Turn off normal continuous mode without recursive toggleLiveMode
+                    if (this.continuousMode) {
+                        this.continuousMode = false;
+                        this.listening = false;
+                        if (this.recognition) {
+                            this.recognition.onstart = null;
+                            this.recognition.onend = null;
+                            try { this.recognition.abort(); } catch(e) {}
+                            try { this.recognition.stop(); } catch(e) {}
+                        }
+                        this.stopSpeech();
+                    }
+                    this.systemState = 'good';
+                    this.thinking = true; // Show loading state
+                    this.updateCoreColor(true);
+                    
+                    if (typeof this.initLiveMode === 'function') {
+                        this.initLiveMode();
+                    } else {
+                        console.error("Live Mode Logik (part7) fehlt!");
+                        this.isLiveMode = false;
+                        this.thinking = false;
+                        this.updateCoreColor(true);
+                    }
+                } else {
+                    if (typeof this.stopLiveMode === 'function') {
+                        this.stopLiveMode();
+                    }
+                }
+            },
+
             toggleSpeech() {
-                if (this.thinking) return;
+                if (this.thinking || this.isLiveMode) return;
 
                 if (this.isMobile) {
                     return;
@@ -156,6 +200,10 @@
             },
 
             fullStop() {
+                if (this.isLiveMode) {
+                    this.toggleLiveMode();
+                    return;
+                }
                 this.continuousMode = false;
                 this.listening = false;
                 if (this.recognition) {
@@ -706,4 +754,274 @@
                     clickAudio.volume = 0.6;
                     clickAudio.play().catch(e => console.log(e));
                 }
+            },
+
+            // --- Multimodal Live API ---
+            nextPlayTime: 0,
+            
+            async initLiveMode() {
+                try {
+                    this.thinking = true;
+                    this.updateCoreColor(true);
+
+                    // 1. Fetch Credentials securely
+                    const response = await fetch('/api/ai/live-credentials', {
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                        }
+                    });
+
+                    if (!response.ok) throw new Error('Konnte keine Live-Credentials abrufen.');
+                    const creds = await response.json();
+
+                    if (!creds.api_key) throw new Error('API Key fehlt.');
+
+                    // 2. Setup WebSocket
+                    const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
+                    this.liveWs = new WebSocket(wsUrl);
+
+                    this.liveWs.onopen = () => {
+                        console.log('Gemini Live WS Connected');
+                        
+                        // Send Initial Setup
+                        const setupMsg = {
+                            setup: {
+                                model: "models/gemini-3.1-flash-live-preview",
+                                systemInstruction: {
+                                    parts: [{ text: creds.system_instruction }]
+                                },
+                                generationConfig: {
+                                    responseModalities: ["AUDIO"],
+                                    speechConfig: {
+                                        voiceConfig: {
+                                            prebuiltVoiceConfig: {
+                                                voiceName: creds.voice_name || "Puck"
+                                            }
+                                        }
+                                    }
+                                },
+                                tools: creds.tools || []
+                            }
+                        };
+                        this.liveWs.send(JSON.stringify(setupMsg));
+                        
+                        this.thinking = false;
+                        this.updateCoreColor(true);
+                        
+                        // Start Microphone
+                        this.startMicrophone();
+                    };
+
+                    this.liveWs.onmessage = async (event) => {
+                        let data;
+                        if (event.data instanceof Blob) {
+                            const text = await event.data.text();
+                            data = JSON.parse(text);
+                        } else {
+                            data = JSON.parse(event.data);
+                        }
+
+                        this.handleWsMessage(data);
+                    };
+
+                    this.liveWs.onerror = (error) => {
+                        console.error('WebSocket Error:', error);
+                        alert('WebSocket Error aufgetreten (siehe Console).');
+                        this.stopLiveMode();
+                    };
+
+                    this.liveWs.onclose = (event) => {
+                        console.log('WebSocket Closed', event);
+                        if (event.code !== 1000 && event.code !== 1005) {
+                            alert('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
+                        }
+                        this.stopLiveMode();
+                    };
+
+                } catch (err) {
+                    console.error("Live Mode Init Error:", err);
+                    alert("Init Error: " + err.message);
+                    this.stopLiveMode();
+                }
+            },
+
+            async startMicrophone() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+                        channelCount: 1,
+                        sampleRate: 16000,
+                    } });
+
+                    this.audioInput = this.audioContext.createMediaStreamSource(stream);
+                    
+                    const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+                    this.audioWorklet = processor;
+                    
+                    processor.onaudioprocess = (e) => {
+                        if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || this.isOutputActive()) return;
+                        
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        const pcm16 = new Int16Array(inputData.length);
+                        for (let i = 0; i < inputData.length; i++) {
+                            const s = Math.max(-1, Math.min(1, inputData[i]));
+                            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
+                        
+                        const base64Pcm = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
+                        
+                        const msg = {
+                            realtimeInput: {
+                                audio: {
+                                    mimeType: "audio/pcm;rate=16000",
+                                    data: base64Pcm
+                                }
+                            }
+                        };
+                        this.liveWs.send(JSON.stringify(msg));
+                    };
+
+                    this.audioInput.connect(processor);
+                    processor.connect(this.audioContext.destination);
+
+                } catch (err) {
+                    console.error("Mic Access Denied", err);
+                    alert("Mikrofon-Fehler: " + err.message);
+                    this.stopLiveMode();
+                }
+            },
+
+            async handleWsMessage(data) {
+                if (data.serverContent && data.serverContent.modelTurn) {
+                    const parts = data.serverContent.modelTurn.parts;
+                    parts.forEach(part => {
+                        if (part.inlineData && part.inlineData.data) {
+                            this.playLiveAudioChunk(part.inlineData.data);
+                        }
+                    });
+                }
+                
+                if (data.serverContent && data.serverContent.interrupted) {
+                    this.stopCurrentAudioPlayback();
+                }
+
+                // Handle Tool Calls from WebSocket
+                if (data.toolCall) {
+                    const call = data.toolCall.functionCalls[0];
+                    if (call) {
+                        try {
+                            const res = await fetch('/api/ai/execute', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                                },
+                                body: JSON.stringify({
+                                    function: call.name,
+                                    args: call.args,
+                                    session_id: '{{ session()->getId() }}'
+                                })
+                            });
+                            const resultData = await res.json();
+                            
+                            // Visualize
+                            this.renderAnalytics([resultData]);
+
+                            // Send Tool Response back to Gemini
+                            const toolResp = {
+                                toolResponse: {
+                                    functionResponses: [{
+                                        id: call.id,
+                                        name: call.name,
+                                        response: {
+                                            result: resultData
+                                        }
+                                    }]
+                                }
+                            };
+                            this.liveWs.send(JSON.stringify(toolResp));
+                        } catch (e) {
+                            console.error("Tool execution failed", e);
+                        }
+                    }
+                }
+            },
+            
+            stopCurrentAudioPlayback() {
+                if (this.audioContext) {
+                    this.audioContext.suspend();
+                    setTimeout(() => {
+                        this.audioContext.resume();
+                        this.nextPlayTime = 0;
+                    }, 100);
+                }
+            },
+
+            playLiveAudioChunk(base64Data) {
+                if (!this.audioContext) return;
+                
+                this.thinking = false;
+                this.isSpeaking = true;
+                this.updateCoreColor(true);
+
+                const binaryString = window.atob(base64Data);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                const pcm16 = new Int16Array(bytes.buffer);
+                const float32 = new Float32Array(pcm16.length);
+                for (let i = 0; i < pcm16.length; i++) {
+                    float32[i] = pcm16[i] / 32768;
+                }
+
+                const audioBuffer = this.audioContext.createBuffer(1, float32.length, 24000);
+                audioBuffer.getChannelData(0).set(float32);
+
+                const source = this.audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(this.audioContext.destination);
+                
+                if (this.nextPlayTime < this.audioContext.currentTime) {
+                    this.nextPlayTime = this.audioContext.currentTime;
+                }
+                
+                source.start(this.nextPlayTime);
+                this.nextPlayTime += audioBuffer.duration;
+                
+                source.onended = () => {
+                    if (this.audioContext.currentTime >= this.nextPlayTime - 0.1) {
+                        this.isSpeaking = false;
+                        this.updateCoreColor(true);
+                    }
+                };
+            },
+
+            stopLiveMode() {
+                this.isLiveMode = false;
+                if (this.liveWs) {
+                    this.liveWs.close();
+                    this.liveWs = null;
+                }
+                if (this.audioInput) {
+                    this.audioInput.disconnect();
+                    this.audioInput = null;
+                }
+                if (this.audioWorklet) {
+                    this.audioWorklet.disconnect();
+                    this.audioWorklet = null;
+                }
+                if (this.audioContext) {
+                    this.audioContext.close();
+                    this.audioContext = null;
+                }
+                this.nextPlayTime = 0;
+                this.isSpeaking = false;
+                this.thinking = false;
+                this.updateCoreColor(true);
             },
