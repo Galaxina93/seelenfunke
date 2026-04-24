@@ -988,13 +988,21 @@
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
                 
-                // Booster für Mobile: Erhöht die Lautstärke der KI massiv, 
-                // um das iOS "Auto-Ducking" während aktiven Mikrofons auszugleichen
+                // Booster für Mobile: Erhöht die Lautstärke der KI
                 const gainNode = this.audioContext.createGain();
-                gainNode.gain.value = 3.5; 
+                gainNode.gain.value = 2.5; // Leicht reduziert, um extremes Clipping zu vermeiden
+                
+                // Limiter (Kompressor), um Übersteuern komplett zu verhindern!
+                const compressor = this.audioContext.createDynamicsCompressor();
+                compressor.threshold.setValueAtTime(-2, this.audioContext.currentTime); // Ab -2dB abriegeln
+                compressor.knee.setValueAtTime(5, this.audioContext.currentTime); // Weicher Übergang
+                compressor.ratio.setValueAtTime(20, this.audioContext.currentTime); // Hard Limiter
+                compressor.attack.setValueAtTime(0.005, this.audioContext.currentTime); // Fast sofort
+                compressor.release.setValueAtTime(0.1, this.audioContext.currentTime);
                 
                 source.connect(gainNode);
-                gainNode.connect(this.audioContext.destination);
+                gainNode.connect(compressor);
+                compressor.connect(this.audioContext.destination);
                 
                 if (this.nextPlayTime < this.audioContext.currentTime) {
                     this.nextPlayTime = this.audioContext.currentTime;
