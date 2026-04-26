@@ -75,7 +75,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.4,
                 'color' => 'blue-500',
                 'icon' => 'shopping-bag',
-                'tts_voice' => 'Aoede',
+                'tts_voice' => 'Fenrir',
                 'role' => 'Analyst'
             ],
             [
@@ -88,7 +88,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.6,
                 'color' => 'purple-500',
                 'icon' => 'megaphone',
-                'tts_voice' => 'Kore',
+                'tts_voice' => 'Charon',
                 'role' => 'Marketing'
             ],
             [
@@ -101,7 +101,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.1,
                 'color' => 'emerald-500',
                 'icon' => 'currency-dollar',
-                'tts_voice' => 'Kore',
+                'tts_voice' => 'Puck',
                 'role' => 'Finanzmanager'
             ],
             [
@@ -140,7 +140,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.6,
                 'color' => 'cyan-500',
                 'icon' => 'lifebuoy',
-                'tts_voice' => 'Aoede',
+                'tts_voice' => 'Puck',
                 'role' => 'Supporter'
             ],
             [

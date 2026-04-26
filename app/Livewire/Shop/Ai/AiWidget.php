@@ -83,7 +83,12 @@ class AiWidget extends Component
     public function updatedAgentId($value)
     {
         if (auth()->check() && $this->widgetConfig) {
-            $this->widgetConfig->update(['ai_agent_id' => $value]);
+            $this->widgetConfig->update(['ai_agent_id' => empty($value) ? null : $value]);
+        }
+
+        if (!empty($value)) {
+            $this->activeAgentIds = [$value];
+            $this->forcedAgentIds = [$value];
         }
 
         $agent = \App\Models\Ai\AiAgent::find($value);
@@ -104,7 +109,7 @@ class AiWidget extends Component
                 'volume' => $data['volume'] ?? $this->widgetConfig->volume,
                 'continuous_mode' => $data['continuousMode'] ?? $this->widgetConfig->continuous_mode,
                 'require_wake_word' => $data['requireWakeWord'] ?? $this->widgetConfig->require_wake_word,
-                'ai_agent_id' => $data['agentId'] ?? $this->widgetConfig->ai_agent_id,
+                'ai_agent_id' => isset($data['agentId']) ? (empty($data['agentId']) ? null : $data['agentId']) : $this->widgetConfig->ai_agent_id,
             ]);
         }
     }

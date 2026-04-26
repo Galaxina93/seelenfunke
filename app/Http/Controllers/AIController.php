@@ -318,13 +318,27 @@ class AIController extends Controller
         }
 
         $aiAgent = null;
-        if (auth('admin')->check()) {
+        if ($request->has('agent_id') && !empty($request->agent_id)) {
+            $aiAgent = \App\Models\Ai\AiAgent::find($request->agent_id);
+        }
+        if (!$aiAgent && auth('admin')->check()) {
             $aiAgent = auth('admin')->user()->ai_agent;
         }
         if (!$aiAgent) {
             $aiAgent = \App\Models\Ai\AiAgent::first();
         }
+        
         $voiceName = $aiAgent ? $aiAgent->tts_voice : 'Puck';
+        $agentName = $aiAgent ? $aiAgent->name : 'Funkira';
+        
+        $payload = [];
+        $systemInstruction = "";
+        if ($aiAgent) {
+            $payload = \App\Services\AI\AiAgentService::getAgentPayload($aiAgent);
+            $systemInstruction = $payload['system_prompt'] ?? '';
+        } else {
+            $systemInstruction = 'Du bist Funkira, die KI-Assistentin des Seelenfunke Dashboards. Antworte immer kurz, präzise und freundlich.';
+        }
 
         $map = \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
 
@@ -333,18 +347,36 @@ class AIController extends Controller
             $navMap .= "- " . $name . " => " . $path . "\n";
         }
 
-        $systemInstruction = "Du bist Funkira, die KI-Assistentin des Seelenfunke Dashboards. Antworte immer kurz, präzise und freundlich. " .
+        $systemInstruction = "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ". " .
             "Nutze die Tools, um Daten abzufragen oder Aktionen auszuführen. " .
             "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap;
 
+        // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert
+        $sessionId = auth()->check() ? 'user_' . auth()->id() : session()->getId();
+        if ($sessionId) {
+            $history = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)->orderBy('created_at', 'desc')->take(15)->get()->reverse();
+            if ($history->count() > 0) {
+                $historyText = "\n\n--- BISHERIGER CHAT-VERLAUF DIESER SESSION (ZUR ERINNERUNG) ---\n";
+                foreach ($history as $msg) {
+                    $roleName = strtoupper($msg->role);
+                    $historyText .= "[{$roleName}]: " . $msg->content . "\n";
+                }
+                $systemInstruction .= $historyText . "\n--- ENDE CHAT-VERLAUF ---\nSetze das Gespräch natürlich fort.";
+            }
+        }
+
         // Retrieve the API Key
-        $apiKey = env('GEMINI_API_KEY');
+        $apiKey = config('services.gemini.key');
 
         if (empty($apiKey)) {
             return response()->json(['error' => 'No Gemini API Key configured.'], 500);
         }
 
-        $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();
+        if ($aiAgent && array_key_exists('tools', $payload)) {
+            $schemaTools = $payload['tools'] ?: [];
+        } else {
+            $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();
+        }
         
         $removeAdditionalProperties = function ($obj) use (&$removeAdditionalProperties) {
             if (!is_object($obj) && !is_array($obj)) return;

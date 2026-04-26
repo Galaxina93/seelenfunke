@@ -65,7 +65,7 @@ class AiWorkspace extends Component
             $this->activeAgentIds[] = $fallbackAgent->id;
             $this->forcedAgentIds[] = $fallbackAgent->id;
         }
-        if (AiChatMemory::where('session_id', session()->getId())->doesntExist()) {
+        if (AiChatMemory::where('session_id', $this->getAiSessionId())->doesntExist()) {
             if ($fallbackAgent) {
                 $this->saveMessageToDb('assistant', '> Gesicherter Chat aktiviert... Wie kann ich helfen?', [
                     'name' => $fallbackAgent->name,

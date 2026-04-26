@@ -96,16 +96,16 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_delete',
-                'description' => 'Löscht eine offene Aufgabe vollständig. Stichworte: Lösche das Todo, entferne die Aufgabe, Task löschen.',
+                'description' => 'Löscht eine offene Aufgabe vollständig. NUTZE ZWINGEND die task_id, die du vorher über task_get_all abgefragt hast. Stichworte: Lösche das Todo, entferne die Aufgabe, Task löschen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'task_title' => [
+                        'task_id' => [
                             'type' => 'string',
-                            'description' => 'Der ungefährer Name der Aufgabe.'
+                            'description' => 'Die exakte ID der Aufgabe.'
                         ]
                     ],
-                    'required' => ['task_title']
+                    'required' => ['task_id']
                 ],
                 'callable' => [self::class, 'executeDeleteTask']
             ]
@@ -272,29 +272,14 @@ trait AiTaskFuncs
     public static function executeDeleteTask(array $args)
     {
         try {
-            if (empty($args['task_title'])) {
-                return ['status' => 'error', 'message' => 'Kein Aufgaben-Titel angegeben.'];
+            if (empty($args['task_id'])) {
+                return ['status' => 'error', 'message' => 'Keine Aufgaben ID angegeben.'];
             }
 
-            $term = $args['task_title'];
-
-            $task = ManagementTask::where('is_completed', false)
-                ->where('is_archived', false)
-                ->where('title', 'LIKE', '%' . $term . '%')
-                ->first();
+            $task = ManagementTask::find($args['task_id']);
 
             if (!$task) {
-                $firstWord = explode(' ', $term)[0];
-                if(strlen($firstWord) > 3) {
-                    $task = ManagementTask::where('is_completed', false)
-                        ->where('is_archived', false)
-                        ->where('title', 'LIKE', '%' . $firstWord . '%')
-                        ->first();
-                }
-
-                if(!$task) {
-                    return ['status' => 'error', 'message' => "Aufgabe '$term' wurde nicht gefunden."];
-                }
+                return ['status' => 'error', 'message' => "Aufgabe mit der ID '{$args['task_id']}' wurde nicht gefunden."];
             }
 
             $title = $task->title;

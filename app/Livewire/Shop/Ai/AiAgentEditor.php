@@ -343,10 +343,10 @@ class AiAgentEditor extends Component
         $agent->icon = $this->icon;
         $agent->tts_enabled = $this->tts_enabled;
         $agent->tts_provider = $this->tts_provider;
-        $agent->tts_voice = $this->tts_voice;
-        $agent->tts_api_url = $this->tts_api_url;
+        $agent->tts_voice = empty($this->tts_voice) ? null : $this->tts_voice;
+        $agent->tts_api_url = empty($this->tts_api_url) ? null : $this->tts_api_url;
         $agent->tts_speed = $this->tts_speed;
-        $agent->telegram_bot_token = $this->telegram_bot_token;
+        $agent->telegram_bot_token = empty($this->telegram_bot_token) ? null : $this->telegram_bot_token;
         
         if (!empty(trim($this->telegram_allowed_chat_ids))) {
             $agent->telegram_allowed_chat_ids = array_map('trim', explode(',', $this->telegram_allowed_chat_ids));

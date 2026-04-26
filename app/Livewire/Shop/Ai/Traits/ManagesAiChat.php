@@ -12,6 +12,11 @@ use Livewire\Attributes\On;
 
 trait ManagesAiChat
 {
+    protected function getAiSessionId()
+    {
+        return auth()->check() ? 'user_' . auth()->id() : session()->getId();
+    }
+
     public $input = '';
     public $activeAgentIds = [];
     public $typingAgents = []; // Array of agent IDs currently typing
@@ -40,7 +45,7 @@ trait ManagesAiChat
     public function messages()
     {
         $messages = [];
-        $history = AiChatMemory::where('session_id', session()->getId())
+        $history = AiChatMemory::where('session_id', $this->getAiSessionId())
                                ->orderBy('created_at', 'asc')
                                ->get();
 
@@ -146,11 +151,39 @@ trait ManagesAiChat
     protected function saveMessageToDb($role, $content, $contextData)
     {
         AiChatMemory::create([
-            'session_id' => session()->getId(),
+            'session_id' => $this->getAiSessionId(),
             'role' => $role,
             'content' => $content,
             'context_data' => $contextData,
         ]);
+    }
+
+    public function appendLiveChatMemory($role, $text)
+    {
+        $contextData = [];
+        if ($role === 'user') {
+            $contextData = [
+                'name' => auth()->check() ? auth()->user()->first_name : 'User',
+                'color' => 'gray-400',
+                'icon' => 'user',
+                'is_live_audio' => true
+            ];
+        } else {
+            $agentId = $this->activeAgentIds[0] ?? null;
+            $agent = \App\Models\Ai\AiAgent::find($agentId);
+            if (!$agent) {
+                $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->first();
+            }
+            $contextData = [
+                'name' => $agent ? $agent->name : 'Funkira',
+                'color' => $agent ? $agent->color : 'purple-500',
+                'icon' => 'robot',
+                'is_live_audio' => true
+            ];
+        }
+
+        $this->saveMessageToDb($role, $text, $contextData);
+        unset($this->messages);
     }
 
     public function searchFilesForMention($query)
@@ -182,7 +215,7 @@ trait ManagesAiChat
         $artifacts = $this->artifacts;
         foreach ($artifacts as $art) {
             if (str_starts_with(strtolower($query), 'plan') || stripos($art['filename'], $query) !== false) {
-                array_unshift($results, 'storage/app/ai-artifacts/' . session()->getId() . '/' . $art['filename']);
+                array_unshift($results, 'storage/app/ai-artifacts/' . $this->getAiSessionId() . '/' . $art['filename']);
             }
         }
 
@@ -328,7 +361,7 @@ trait ManagesAiChat
              return;
         }
 
-        $fullDbHistory = AiChatMemory::where('session_id', session()->getId())
+        $fullDbHistory = AiChatMemory::where('session_id', $this->getAiSessionId())
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get()
@@ -500,9 +533,9 @@ trait ManagesAiChat
 
     public function clearChat()
     {
-        AiChatMemory::where('session_id', session()->getId())->delete();
-        if (Storage::disk('local')->exists('agenten/ai-artifacts/' . session()->getId())) {
-            Storage::disk('local')->deleteDirectory('agenten/ai-artifacts/' . session()->getId());
+        AiChatMemory::where('session_id', $this->getAiSessionId())->delete();
+        if (Storage::disk('local')->exists('agenten/ai-artifacts/' . $this->getAiSessionId())) {
+            Storage::disk('local')->deleteDirectory('agenten/ai-artifacts/' . $this->getAiSessionId());
         }
 
         $this->typingAgents = [];
@@ -512,7 +545,7 @@ trait ManagesAiChat
     #[Computed]
     public function artifacts()
     {
-        $sessionId = session()->getId();
+        $sessionId = $this->getAiSessionId();
         $path = 'agenten/ai-artifacts/' . $sessionId;
         if (!Storage::disk('local')->exists($path)) {
             return collect();
@@ -536,7 +569,7 @@ trait ManagesAiChat
     #[Computed]
     public function globalFiles()
     {
-        $sessionId = session()->getId();
+        $sessionId = $this->getAiSessionId();
         $memories = AiChatMemory::where('session_id', $sessionId)->get();
         $allFiles = [];
         $seen = [];
@@ -600,7 +633,7 @@ trait ManagesAiChat
     public function removeGlobalFile($type, $path)
     {
         if ($type === 'local_upload') {
-            $sessionId = session()->getId();
+            $sessionId = $this->getAiSessionId();
             $memories = AiChatMemory::where('session_id', $sessionId)->get();
 
             foreach($memories as $mem) {
@@ -624,7 +657,7 @@ trait ManagesAiChat
             @unlink(storage_path('app/' . $path));
 
         } elseif ($type === 'project_file') {
-            $sessionId = session()->getId();
+            $sessionId = $this->getAiSessionId();
             $memories = AiChatMemory::where('session_id', $sessionId)->get();
 
             foreach($memories as $mem) {
@@ -778,7 +811,7 @@ trait ManagesAiChat
             $meta['local_uploads'] = $localUploads;
         }
 
-        $meta['session_id'] = session()->getId();
+        $meta['session_id'] = $this->getAiSessionId();
 
         \App\Models\Ai\AiWorkspaceTask::create([
             'prompt' => trim($this->input),

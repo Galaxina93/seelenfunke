@@ -30,4 +30,20 @@ class ManagementCalendarEvent extends Model
     {
         return !empty($this->recurrence);
     }
+
+    protected static function booted()
+    {
+        static::created(function ($event) {
+            // Find Alina or fallback to the first user
+            $recipient = \App\Models\System\SystemUser::where('first_name', 'like', '%Alina%')->first();
+            if (!$recipient) {
+                $recipient = \App\Models\System\SystemUser::first();
+            }
+
+            if ($recipient && $recipient->email) {
+                \Illuminate\Support\Facades\Mail::to($recipient->email)
+                    ->queue(new \App\Mail\CalendarEventCreated($event));
+            }
+        });
+    }
 }

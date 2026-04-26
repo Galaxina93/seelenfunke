@@ -765,7 +765,7 @@
                     this.updateCoreColor(true);
 
                     // 1. Fetch Credentials securely
-                    const response = await fetch('/api/ai/live-credentials', {
+                    const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&session_id={{ session()->getId() }}', {
                         credentials: 'same-origin',
                         headers: {
                             'Accept': 'application/json',
@@ -847,13 +847,54 @@
                 }
             },
 
+            interruptLiveMode() {
+                if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    this.stopCurrentAudioPlayback();
+                    this.liveWs.send(JSON.stringify({
+                        clientContent: { turns: [ { role: 'user', parts: [] } ], turnComplete: true }
+                    }));
+                }
+            },
+
+            startLiveSpeechRecognition() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) return;
+                
+                this.liveRecognition = new SpeechRecognition();
+                this.liveRecognition.continuous = true;
+                this.liveRecognition.interimResults = false;
+                this.liveRecognition.lang = 'de-DE';
+
+                this.liveRecognition.onresult = (event) => {
+                    const lastResult = event.results[event.results.length - 1];
+                    if (lastResult.isFinal) {
+                        const transcript = lastResult[0].transcript.trim();
+                        if (transcript) {
+                            try { @this.appendLiveChatMemory('user', transcript); } catch(e) {}
+                        }
+                    }
+                };
+
+                this.liveRecognition.onend = () => {
+                    if (this.isLiveMode) {
+                        try { this.liveRecognition.start(); } catch(e) {}
+                    }
+                };
+
+                try { this.liveRecognition.start(); } catch(e) {}
+            },
+
             async startMicrophone() {
                 try {
+                    this.startLiveSpeechRecognition();
+
                     // Zurück zum Standard (mit echoCancellation), damit die iOS Hardware nicht crasht
                     this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
                         channelCount: 1,
                         sampleRate: 16000,
+                        echoCancellation: true,
+                        noiseSuppression: true
                     } });
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
@@ -862,7 +903,7 @@
                     this.audioWorklet = processor;
                     
                     processor.onaudioprocess = (e) => {
-                        if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || this.isOutputActive()) return;
+                        if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) return;
                         
                         const inputData = e.inputBuffer.getChannelData(0);
                         const pcm16 = new Int16Array(inputData.length);
@@ -898,11 +939,22 @@
             async handleWsMessage(data) {
                 if (data.serverContent && data.serverContent.modelTurn) {
                     const parts = data.serverContent.modelTurn.parts;
+                    let fullText = "";
                     parts.forEach(part => {
                         if (part.inlineData && part.inlineData.data) {
                             this.playLiveAudioChunk(part.inlineData.data);
                         }
+                        if (part.text) {
+                            fullText += part.text;
+                        }
                     });
+                    
+                    if (fullText) {
+                        this.chatHistory.push({ role: 'model', parts: [{ text: fullText }] });
+                        try {
+                            @this.appendLiveChatMemory('model', fullText);
+                        } catch(e) {}
+                    }
                 }
                 
                 if (data.serverContent && data.serverContent.interrupted) {
@@ -955,10 +1007,22 @@
             stopCurrentAudioPlayback() {
                 if (this.audioContext) {
                     this.audioContext.suspend();
+                }
+                if (this.activeAudioSources && this.activeAudioSources.length > 0) {
+                    this.activeAudioSources.forEach(source => {
+                        try { source.stop(); } catch(e) {}
+                        try { source.disconnect(); } catch(e) {}
+                    });
+                    this.activeAudioSources = [];
+                }
+                this.nextPlayTime = 0;
+                this.isSpeaking = false;
+                this.updateCoreColor(true);
+                
+                if (this.audioContext) {
                     setTimeout(() => {
-                        this.audioContext.resume();
-                        this.nextPlayTime = 0;
-                    }, 100);
+                        if (this.audioContext) this.audioContext.resume();
+                    }, 20);
                 }
             },
 
@@ -1008,11 +1072,15 @@
                     this.nextPlayTime = this.audioContext.currentTime;
                 }
                 
+                if (!this.activeAudioSources) this.activeAudioSources = [];
+                this.activeAudioSources.push(source);
+                
                 source.start(this.nextPlayTime);
                 this.nextPlayTime += audioBuffer.duration;
                 
                 source.onended = () => {
-                    if (this.audioContext.currentTime >= this.nextPlayTime - 0.1) {
+                    this.activeAudioSources = this.activeAudioSources.filter(s => s !== source);
+                    if (this.audioContext && this.audioContext.currentTime >= this.nextPlayTime - 0.1) {
                         this.isSpeaking = false;
                         this.updateCoreColor(true);
                     }
@@ -1036,6 +1104,12 @@
                 if (this.audioContext) {
                     this.audioContext.close();
                     this.audioContext = null;
+                }
+                if (this.liveRecognition) {
+                    this.liveRecognition.onend = null;
+                    try { this.liveRecognition.abort(); } catch(e) {}
+                    try { this.liveRecognition.stop(); } catch(e) {}
+                    this.liveRecognition = null;
                 }
                 this.nextPlayTime = 0;
                 this.isSpeaking = false;

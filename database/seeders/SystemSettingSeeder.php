@@ -83,7 +83,7 @@ class SystemSettingSeeder extends Seeder
             'packaging_weight_grams'    => '350',   // 350g Leergewicht für Verpackung
 
             // Produkt & Lager Einstellungen
-            'inventory_low_stock_threshold' => '50',     // Warnung ab 50 Stück
+            'inventory_low_stock_threshold' => '100',     // Warnung ab 50 Stück
             'skip_shipping_for_digital'     => 'true', // false = Digitale Produkte haben auch Versandkosten / true = Versand fällt weg bei D. Produkten
 
             // Stripe Konfiguration

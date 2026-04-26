@@ -11,7 +11,7 @@ trait AiSystemFuncs
 {
     public static function getAiSystemFuncsSchema(): array
     {
-        return [
+        $schema = [
 
             [
                 'name' => 'system_visualize_data',
@@ -449,6 +449,15 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeSearchWeb']
             ]
         ];
+
+        if (!app()->environment('local')) {
+            $schema = array_filter($schema, function($tool) {
+                return !in_array($tool['name'], ['system_multi_replace_file', 'system_write_to_file']);
+            });
+            $schema = array_values($schema);
+        }
+
+        return $schema;
     }
 
 
@@ -1309,7 +1318,7 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'artifact_name fehlt.'];
         }
 
-        $sessionId = config('ai.current_session_id') ?: session()->getId();
+        $sessionId = config('ai.current_session_id') ?: (auth()->check() ? 'user_' . auth()->id() : session()->getId());
         if (!$sessionId) {
             return ['status' => 'error', 'message' => 'Keine aktive Session für Artefakt-Speicherung gefunden.'];
         }
@@ -1358,7 +1367,10 @@ trait AiSystemFuncs
 
         $category = \App\Models\Ai\AiKnowledgeBaseCategory::firstOrCreate(
             ['name' => 'System & Architektur'],
-            ['description' => 'Automatisch generierte System-Ressourcen der KI.']
+            [
+                'slug' => \Illuminate\Support\Str::slug('System & Architektur'),
+                // Falls 'description' nicht fillable ist, kann es hier weggelassen werden
+            ]
         );
 
         $article = \App\Models\Ai\AiKnowledgeBase::updateOrCreate(
@@ -1562,7 +1574,9 @@ trait AiSystemFuncs
         if (empty($url)) return ['status' => 'error', 'message' => 'URL fehlt.'];
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(10)->get($url);
+            $response = \Illuminate\Support\Facades\Http::timeout(10)->withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ])->get($url);
             if ($response->failed()) {
                 return ['status' => 'error', 'message' => 'HTTP Fehler: ' . $response->status()];
             }
@@ -1589,7 +1603,9 @@ trait AiSystemFuncs
         try {
             // Wikipedia Fallback API as simple free search
             $url = "https://de.wikipedia.org/w/api.php?action=query&list=search&srsearch=" . urlencode($query) . "&utf8=&format=json";
-            $response = \Illuminate\Support\Facades\Http::timeout(10)->get($url);
+            $response = \Illuminate\Support\Facades\Http::timeout(10)->withHeaders([
+                'User-Agent' => 'SeelenfunkeAiBot/1.0 (contact@seelenfunke.example)'
+            ])->get($url);
             
             if ($response->successful()) {
                 $data = $response->json();
