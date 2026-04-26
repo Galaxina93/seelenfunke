@@ -34,10 +34,10 @@ class ManagementCalendarEvent extends Model
     protected static function booted()
     {
         static::created(function ($event) {
-            // Find Alina or fallback to the first user
-            $recipient = \App\Models\System\SystemUser::where('first_name', 'like', '%Alina%')->first();
+            // Find Alina or fallback to the first Admin
+            $recipient = \App\Models\Admin\Admin::where('first_name', 'like', '%Alina%')->first();
             if (!$recipient) {
-                $recipient = \App\Models\System\SystemUser::first();
+                $recipient = \App\Models\Admin\Admin::first();
             }
 
             if ($recipient && $recipient->email) {
