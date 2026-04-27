@@ -10,6 +10,7 @@ trait ManagesAiWorkspaceFiles
     public $currentFilePath = 'agenten/workspace';
     public $fileManagerItems = [];
     public $newFolderName = '';
+    public $searchFileManager = '';
     public $fileUpload;
     public $previewContent = null;
     public $previewFilename = null;
@@ -53,36 +54,77 @@ trait ManagesAiWorkspaceFiles
             Storage::disk('public')->makeDirectory($this->currentFilePath);
         }
 
-        $files = Storage::disk('public')->files($this->currentFilePath);
-        $dirs = Storage::disk('public')->directories($this->currentFilePath);
-
         $items = [];
+        $searchQuery = strtolower(trim($this->searchFileManager));
 
-        foreach($dirs as $dir) {
-            $items[] = [
-                'type' => 'folder',
-                'name' => basename($dir),
-                'path' => $dir,
-                'size' => 0,
-                'lastModified' => Storage::disk('public')->lastModified($dir),
-                'mimeType' => 'directory',
-                'url' => null,
-            ];
-        }
+        if (!empty($searchQuery)) {
+            // Recursive Search
+            $allFiles = Storage::disk('public')->allFiles('agenten/workspace');
+            $allDirs = Storage::disk('public')->allDirectories('agenten/workspace');
 
-        foreach($files as $file) {
-            $items[] = [
-                'type' => 'file',
-                'name' => basename($file),
-                'path' => $file,
-                'size' => Storage::disk('public')->size($file),
-                'lastModified' => Storage::disk('public')->lastModified($file),
-                'mimeType' => Storage::disk('public')->mimeType($file),
-                'url' => Storage::url($file),
-            ];
+            foreach ($allDirs as $dir) {
+                if (str_contains(strtolower(basename($dir)), $searchQuery) || str_contains(strtolower($dir), $searchQuery)) {
+                    $items[] = [
+                        'type' => 'folder',
+                        'name' => basename($dir),
+                        'path' => $dir,
+                        'size' => 0,
+                        'lastModified' => Storage::disk('public')->lastModified($dir),
+                        'mimeType' => 'directory',
+                        'url' => null,
+                    ];
+                }
+            }
+
+            foreach ($allFiles as $file) {
+                if (str_contains(strtolower(basename($file)), $searchQuery) || str_contains(strtolower($file), $searchQuery)) {
+                    $items[] = [
+                        'type' => 'file',
+                        'name' => basename($file),
+                        'path' => $file,
+                        'size' => Storage::disk('public')->size($file),
+                        'lastModified' => Storage::disk('public')->lastModified($file),
+                        'mimeType' => Storage::disk('public')->mimeType($file),
+                        'url' => Storage::url($file),
+                    ];
+                }
+            }
+        } else {
+            // Normal directory listing
+            $files = Storage::disk('public')->files($this->currentFilePath);
+            $dirs = Storage::disk('public')->directories($this->currentFilePath);
+
+            foreach($dirs as $dir) {
+                $items[] = [
+                    'type' => 'folder',
+                    'name' => basename($dir),
+                    'path' => $dir,
+                    'size' => 0,
+                    'lastModified' => Storage::disk('public')->lastModified($dir),
+                    'mimeType' => 'directory',
+                    'url' => null,
+                ];
+            }
+
+            foreach($files as $file) {
+                $items[] = [
+                    'type' => 'file',
+                    'name' => basename($file),
+                    'path' => $file,
+                    'size' => Storage::disk('public')->size($file),
+                    'lastModified' => Storage::disk('public')->lastModified($file),
+                    'mimeType' => Storage::disk('public')->mimeType($file),
+                    'url' => Storage::url($file),
+                ];
+            }
         }
 
         $this->fileManagerItems = $items;
+    }
+
+    public function updatedSearchFileManager()
+    {
+        $this->loadFileManagerFiles();
     }
 
     public function openFileManagerFolder($folderName)

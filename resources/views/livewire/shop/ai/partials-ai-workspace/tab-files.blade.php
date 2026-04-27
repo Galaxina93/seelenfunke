@@ -55,6 +55,16 @@
             }
         }" @click="closeContextMenu" @scroll.window="closeContextMenu" :class="{'hidden': activeTab !== 'files'}" class="flex-1 shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full p-6">
             
+            <!-- Suchleiste (Volle Breite) -->
+            <div class="w-full mb-4">
+                <div class="relative w-full">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-500" />
+                    </div>
+                    <input type="text" wire:model.live.debounce.300ms="searchFileManager" placeholder="Dateien und Ordner im gesamten Workspace suchen..." class="w-full bg-black/50 border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-200 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-all shadow-inner">
+                </div>
+            </div>
+
             <!-- Header & Navigation -->
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-800">
                 <div class="flex items-center gap-2">
@@ -247,6 +257,9 @@
                                             <span>{{ $file['name'] }}</span>
                                         </template>
                                     </div>
+                                    @if(!empty($this->searchFileManager))
+                                        <div class="text-[9px] text-gray-500 truncate w-full px-2" title="{{ dirname($file['path']) }}">{{ dirname($file['path']) }}</div>
+                                    @endif
                                 </div>
                             @else
                                 @php
@@ -301,6 +314,9 @@
                                             <span>{{ $file['name'] }}</span>
                                         </template>
                                     </div>
+                                    @if(!empty($this->searchFileManager))
+                                        <div class="text-[9px] text-gray-500 truncate w-full px-2 mt-[-8px]" title="{{ dirname($file['path']) }}">{{ dirname($file['path']) }}</div>
+                                    @endif
                                     <div class="text-[9px] opacity-70 mb-1">{{ round($file['size'] / 1024, 1) }} KB</div>
                                     
                                     <!-- Delete File Button -->
@@ -345,7 +361,12 @@
                                                     <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-2 py-1 text-white outline-none font-bold">
                                                 </template>
                                                 <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                                    <button @click="if(renamingItemPath !== '{{ addslashes($file['path']) }}') { $wire.openFileManagerFolder('{{ addslashes($file['name']) }}') }" class="font-bold text-gray-300 hover:text-white hover:underline">{{ $file['name'] }}</button>
+                                                    <button @click="if(renamingItemPath !== '{{ addslashes($file['path']) }}') { $wire.openFileManagerFolder('{{ addslashes($file['name']) }}') }" class="font-bold text-gray-300 hover:text-white hover:underline flex flex-col items-start">
+                                                        <span>{{ $file['name'] }}</span>
+                                                        @if(!empty($this->searchFileManager))
+                                                            <span class="text-[10px] text-gray-600 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
+                                                        @endif
+                                                    </button>
                                                 </template>
                                             @else
                                                 @php
@@ -365,7 +386,12 @@
                                                         <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-2 py-1 text-white outline-none">
                                                     </template>
                                                     <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                                        <button wire:click="openFilePreview('{{ addslashes($file['path']) }}')" class="text-gray-400 hover:text-white hover:underline">{{ $file['name'] }}</button>
+                                                        <button wire:click="openFilePreview('{{ addslashes($file['path']) }}')" class="text-gray-400 hover:text-white hover:underline flex flex-col items-start">
+                                                            <span>{{ $file['name'] }}</span>
+                                                            @if(!empty($this->searchFileManager))
+                                                                <span class="text-[10px] text-gray-600 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
+                                                            @endif
+                                                        </button>
                                                     </template>
                                                 @else
                                                     @if($previewType === 'image') <x-heroicon-o-photo class="w-6 h-6 text-gray-400" />
@@ -377,7 +403,12 @@
                                                         <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-2 py-1 text-white outline-none">
                                                     </template>
                                                     <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                                        <button @click="openPreview('{{ $file['url'] }}', '{{ $previewType }}', '{{ addslashes($file['name']) }}')" class="text-gray-400 hover:text-white hover:underline">{{ $file['name'] }}</button>
+                                                        <button @click="openPreview('{{ $file['url'] }}', '{{ $previewType }}', '{{ addslashes($file['name']) }}')" class="text-gray-400 hover:text-white hover:underline flex flex-col items-start">
+                                                            <span>{{ $file['name'] }}</span>
+                                                            @if(!empty($this->searchFileManager))
+                                                                <span class="text-[10px] text-gray-600 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
+                                                            @endif
+                                                        </button>
                                                     </template>
                                                 @endif
                                             @endif
