@@ -17,6 +17,7 @@
             },
             showDrawingBoard: true,
             modelLoaded: false,
+            loadingProgress: 0,
 
             activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
 

@@ -168,7 +168,11 @@
                     if(onLoadedCallback) onLoadedCallback();
                     this.animate();
                 },
-                undefined,
+                (xhr) => {
+                    if (xhr.lengthComputable && this.configurator) {
+                        this.configurator.loadingProgress = Math.round((xhr.loaded / xhr.total) * 100);
+                    }
+                },
                 (err) => {
                     console.error('GLB Loading Error:', err);
                     if(onLoadedCallback) onLoadedCallback();

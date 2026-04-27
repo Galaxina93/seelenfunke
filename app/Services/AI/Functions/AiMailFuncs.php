@@ -143,6 +143,32 @@ trait AiMailFuncs
                     'required' => ['updates']
                 ],
                 'callable' => [self::class, 'executeMailBulkUpdate']
+            ],
+            [
+                'name' => 'mail_mark_as_read',
+                'description' => 'Markiert eine spezifische E-Mail oder alle betreffenden E-Mails als gelesen ODER ungelesen.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'email_id' => [
+                            'type' => 'integer',
+                            'description' => 'Die ID der E-Mail, die als gelesen/ungelesen markiert werden soll. Lass dies leer, wenn du nach Betreff suchst.'
+                        ],
+                        'subject' => [
+                            'type' => 'string',
+                            'description' => 'Der Betreff (Titel) oder ein Teil des Betreffs der E-Mail. Die Suche ist unscharf (fuzzy), findet also auch ähnliche Mails.'
+                        ],
+                        'all' => [
+                            'type' => 'boolean',
+                            'description' => 'Setze dies auf true, um alle aktuell zutreffenden E-Mails global zu ändern.'
+                        ],
+                        'is_read' => [
+                            'type' => 'boolean',
+                            'description' => 'Setze dies auf true (gelesen) oder false (ungelesen). Standard ist true.'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeMarkAsRead']
             ]
         ];
     }
@@ -327,6 +353,66 @@ trait AiMailFuncs
 
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Bulk-Update: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeMarkAsRead(array $args)
+    {
+        try {
+            $all = $args['all'] ?? false;
+            $emailId = $args['email_id'] ?? null;
+            $subject = $args['subject'] ?? null;
+            $isRead = isset($args['is_read']) ? (bool) $args['is_read'] : true;
+
+            $statusText = $isRead ? 'gelesen' : 'ungelesen';
+
+            if ($all && empty($subject)) {
+                $count = MailMessage::where('is_read', !$isRead)->update(['is_read' => $isRead]);
+                return [
+                    'status' => 'success',
+                    'message' => "Erfolgreich {$count} E-Mails als {$statusText} markiert."
+                ];
+            }
+
+            if ($emailId) {
+                $mail = MailMessage::find($emailId);
+                if (!$mail) {
+                    return ['status' => 'error', 'message' => 'E-Mail nicht gefunden.'];
+                }
+                $mail->is_read = $isRead;
+                $mail->save();
+                return [
+                    'status' => 'success',
+                    'message' => "Die E-Mail {$emailId} wurde als {$statusText} markiert."
+                ];
+            }
+
+            if (!empty($subject)) {
+                $mails = MailMessage::where('is_read', !$isRead)
+                    ->where('subject', 'like', '%' . $subject . '%')
+                    ->get();
+
+                if ($mails->isEmpty()) {
+                    return ['status' => 'error', 'message' => "Keine E-Mails gefunden, die den Suchbegriff '{$subject}' im Betreff enthalten und aktuell den umgekehrten Status haben."];
+                }
+
+                $count = 0;
+                foreach ($mails as $mail) {
+                    $mail->is_read = $isRead;
+                    $mail->save();
+                    $count++;
+                }
+
+                return [
+                    'status' => 'success',
+                    'message' => "Erfolgreich {$count} E-Mails zum Thema '{$subject}' als {$statusText} markiert."
+                ];
+            }
+
+            return ['status' => 'error', 'message' => 'Bitte gib entweder eine email_id, einen subject an oder setze all auf true.'];
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Markieren als gelesen: ' . $e->getMessage()];
         }
     }
 }
