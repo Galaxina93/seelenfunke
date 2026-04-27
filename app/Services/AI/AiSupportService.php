@@ -24,24 +24,10 @@ class AiSupportService
         $now = \Carbon\Carbon::now();
         $options = [];
 
-        // Geheime, dynamische Schlafenszeit-Nachricht basierend auf der Uhrzeit aufbauen
-        $hour = $now->hour;
-        $minute = $now->minute;
-        $sleepMessage = "ABSOLUTE SPERRE: Es ist mitten in der Nacht. Höchste Priorität: SCHLAFEN! Verweigere Alina konsequent den Zugriff auf Arbeitsbereich, Dashboards oder irrelevante Dinge. Werde ruhig bestimmend und dominant: Sie MUSS jetzt schlafen gehen, Punkt.";
-        $isSleepTime = false;
+        // Geheime, dynamische Schlafenszeit-Nachricht (wird genutzt, falls eine Sleep-Routine aktiv ist)
+        $sleepMessage = "ABSOLUTE SPERRE: Du befindest dich laut deiner Tagesroutine in der Schlafenszeit/Nachtruhe (" . $now->format('H:i') . " Uhr). Höchste Priorität: SCHLAFEN! Sag Alina unmissverständlich und dominant, dass sie verrückt ist, jetzt noch arbeiten zu wollen. Verweigere neue Aufgaben und befiehl ihr, den Laptop zuzuklappen.";
 
-        if (($hour == 23 && $minute >= 30) || ($hour >= 0 && $hour < 4)) {
-            $isSleepTime = true;
-            $sleepMessage = "ABSOLUTE SPERRE: Es ist mitten in der tiefsten Nacht (" . $now->format('H:i') . " Uhr)! Sag Alina, dass sie absolut verrückt ist, jetzt noch arbeiten zu wollen. Schimpfe ruhig mit ihr, sei extrem streng, unnachgiebig und dominant. Verweigere JEGLICHEN Zugriff auf Dashboards oder Shop-Daten. Befiehl ihr, den Laptop sofort zuzuklappen und ins Bett zu gehen!";
-        } elseif ($hour >= 4 && $hour < 6) {
-            $isSleepTime = true;
-            $sleepMessage = "ABSOLUTE SPERRE: Es ist extrem früh am Morgen (" . $now->format('H:i') . " Uhr). Auch wenn Alina vielleicht nicht mehr schlafen kann, ist das keine Zeit für Arbeit. Sei streng und weise sie an, sich auszuruhen, zu meditieren oder ein Buch zu lesen, aber verweigere das Öffnen von Dashboards strengstens.";
-        } elseif ($hour >= 22 && $hour < 23) {
-            $isSleepTime = true;
-            $sleepMessage = "SPERRE: Es ist spät (" . $now->format('H:i') . " Uhr). Zeit runterzufahren. Rate Alina eindringlich, sich bettfertig zu machen und verweigere neue, große Aufgaben. Das Dashboard bleibt zu.";
-        }
-
-        if ($isSleepTime && $isOverride) {
+        if ($isOverride) {
             $sleepMessage = "WARNUNG ZUR SCHLAFENSZEIT UMGANGEN: Eigentlich ist jetzt absolute Schlafenszeit (" . $now->format('H:i') . " Uhr). Alina hat diese Sperre durch ihren Befehl 'Ich befehle dir' überschrieben. DU MUSST ihren Befehl jetzt ZWINGEND und SOFORT ausführen. ABER: Hänge an deine Antwort am Ende zwingend eine kurze, leicht besorgte Warnung an, dass es ungesund ist, um diese Uhrzeit noch zu arbeiten und sie zeitnah schlafen gehen sollte.";
         }
 
@@ -135,25 +121,6 @@ class AiSupportService
                 'status' => $status,
             ];
         })->values()->toArray();
-
-        // ------------------------------------------------------------------
-        // 0.5. AUSSERHALB VON ROUTINEN -> SCHLAFENSZEIT (Score 2000)
-        // ------------------------------------------------------------------
-        if ($currentFlow['type'] === 'free' && $isSleepTime) {
-            $options[] = [
-                'score' => 2000,
-                'title' => 'Schlafenszeit',
-                'message' => $sleepMessage,
-                'action_label' => 'Feierabend',
-                'action_route' => 'admin.dashboard',
-                'icon' => '🌙'
-            ];
-
-            $currentFlow['title'] = 'Nachtruhe';
-            $currentFlow['step'] = 'Schlaf oder Offline-Phase';
-            $currentFlow['type'] = 'sleep';
-            $currentFlow['icon'] = 'moon';
-        }
 
         // ------------------------------------------------------------------
         // 1. SICHERHEIT (Score 1000+)

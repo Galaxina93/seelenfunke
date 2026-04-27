@@ -113,6 +113,16 @@
                         </div>
                     </div>
                     <div class="space-y-1.5">
+                        <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Typ der Routine</label>
+                        <select wire:model="r_type" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner transition-all">
+                            <option value="general">Allgemeine Arbeit (General)</option>
+                            <option value="sleep">Schlafenszeit / Nachtruhe (Sleep)</option>
+                            <option value="break">Pause / Entspannung (Break)</option>
+                            <option value="food">Essen / Trinken (Food)</option>
+                            <option value="sport">Sport / Bewegung (Sport)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
                         <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Titel der Routine</label>
                         <input type="text" wire:model="r_title" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner transition-all placeholder-gray-700" placeholder="z.B. Deep Work Phase">
                     </div>

@@ -20,7 +20,7 @@ class ManagementRoutine extends Component
     public $isEditing = false;
 
     // Form fields
-    public $r_id, $r_time, $r_title, $r_message, $r_duration;
+    public $r_id, $r_time, $r_title, $r_message, $r_duration, $r_type = 'general';
 
     public function render()
     {
@@ -42,6 +42,7 @@ class ManagementRoutine extends Component
         $this->r_title = $r->title;
         $this->r_message = $r->message;
         $this->r_duration = $r->duration_minutes;
+        $this->r_type = $r->type ?? 'general';
         $this->isEditing = true;
     }
 
@@ -50,7 +51,8 @@ class ManagementRoutine extends Component
         $this->validate([
             'r_time' => 'required',
             'r_title' => 'required',
-            'r_duration' => 'required|integer'
+            'r_duration' => 'required|integer',
+            'r_type' => 'required|string'
         ]);
 
         RoutineModel::updateOrCreate(
@@ -60,7 +62,7 @@ class ManagementRoutine extends Component
                 'title' => $this->r_title,
                 'message' => $this->r_message,
                 'duration_minutes' => $this->r_duration,
-                'type' => 'general', // Simplified for manual entry
+                'type' => $this->r_type,
                 'is_active' => true
             ]
         );
@@ -83,5 +85,6 @@ class ManagementRoutine extends Component
     private function resetInput()
     {
         $this->reset(['r_id', 'r_time', 'r_title', 'r_message', 'r_duration']);
+        $this->r_type = 'general';
     }
 }

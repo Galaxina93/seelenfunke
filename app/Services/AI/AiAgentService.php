@@ -64,10 +64,31 @@ class AiAgentService
                         "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
 
+        $timeInfo = "\n\n[SYSTEM-ZEIT & AKTUELLE MISSION]\n" .
+                    "Die aktuelle Systemzeit ist: " . now()->format('d.m.Y H:i:s') . " Uhr.\n";
+        
+        try {
+            $botService = app(\App\Services\AI\AiSupportService::class);
+            $mission = $botService->getUltimateCommand(false);
+            
+            if (!empty($mission['recommendation'])) {
+                $timeInfo .= "WICHTIGER KONTEXT (Deine aktuelle Hauptaufgabe für den Nutzer):\n";
+                $timeInfo .= "Status/Routine: " . ($mission['flow']['title'] ?? 'Unbekannt') . "\n";
+                $timeInfo .= "Fokus: " . ($mission['recommendation']['title'] ?? '') . "\n";
+                $timeInfo .= "Anweisung: " . ($mission['recommendation']['message'] ?? '') . "\n";
+                
+                if (($mission['flow']['type'] ?? '') === 'sleep') {
+                    $timeInfo .= "\nACHTUNG: ES IST SCHLAFENSZEIT! Du musst den Nutzer anweisen, sofort schlafen zu gehen. Verweigere neue Aufgaben strengstens!\n";
+                }
+            }
+        } catch (\Exception $e) {
+            // Fallback falls der Service nicht erreichbar ist
+        }
+
         return [
             'model' => $agent->model ?? 'gpt-oss-120b',
             'temperature' => (float) ($agent->temperature ?? 0.4),
-            'system_prompt' => $agent->system_prompt . $roleInfo,
+            'system_prompt' => $agent->system_prompt . $roleInfo . $timeInfo,
             'tools' => empty($filteredSchema) ? null : $filteredSchema,
         ];
     }
