@@ -608,24 +608,47 @@ class ManagementEMails extends Component
             ];
         }
 
-        // Fetch actual messages for the currently selected folder
-        if ($this->selectedAccountId) {
+        // Fetch actual messages
+        if (!empty($this->searchQuery)) {
+            // Global Search Mode across all accounts and folders
+            $query = MailMessage::query();
+
+            $query->where(function ($q) {
+                $search = '%' . $this->searchQuery . '%';
+                $searchLower = '%' . strtolower($this->searchQuery) . '%';
+                
+                $q->where('subject', 'like', $search)
+                  ->orWhere('from_email', 'like', $search)
+                  ->orWhere('from_name', 'like', $search)
+                  ->orWhere('category', 'like', $search)
+                  ->orWhereRaw('LOWER(CAST(tags AS CHAR)) LIKE ?', [$searchLower]);
+                  
+                $exactMatch = strtolower(trim($this->searchQuery));
+                if ($exactMatch === 'wichtig' || $exactMatch === 'high') {
+                    $q->orWhere('priority', 'high');
+                } elseif ($exactMatch === 'niedrig' || $exactMatch === 'low') {
+                    $q->orWhere('priority', 'low');
+                } elseif ($exactMatch === 'normal') {
+                    $q->orWhere('priority', 'normal');
+                }
+            });
+
+            // Apply Filters
+            if ($this->filterMode === 'unread') {
+                $query->where('is_read', false);
+            } elseif ($this->filterMode === 'attachments') {
+                $query->where('has_attachments', true);
+            }
+
+            $messages = $query->orderBy('received_at', 'desc')->get();
+        } elseif ($this->selectedAccountId) {
+            // Normal Folder View Mode
             $query = MailMessage::where('mail_account_id', $this->selectedAccountId);
 
             if ($this->selectedFolder === 'Archive') {
                 $query->where('is_archived', true);
             } else {
                 $query->where('folder', $this->selectedFolder)->where('is_archived', false);
-            }
-
-            // Apply Search Query
-            if (!empty($this->searchQuery)) {
-                $query->where(function ($q) {
-                    $search = '%' . $this->searchQuery . '%';
-                    $q->where('subject', 'like', $search)
-                      ->orWhere('from_email', 'like', $search)
-                      ->orWhere('from_name', 'like', $search);
-                });
             }
 
             // Apply Filters

@@ -238,7 +238,10 @@ class AiAgentSeeder extends Seeder
                 'Sales' => array_column(AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
                 'Marketing' => array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
                 'Finanzmanager' => array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-                'Supporter' => array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                'Supporter' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
                 'Hausarzt' => array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
                 'Systemadmin' => [],
                 'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')

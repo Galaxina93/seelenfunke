@@ -196,9 +196,38 @@
                                 @endif
                                 {{ $msg->from_name ?: $msg->from_email }}
                             </span>
-                            <span class="text-[10px] text-gray-500 shrink-0">{{ $msg->received_at ? $msg->received_at->format('H:i') : '' }}</span>
+                            <span class="text-[10px] text-gray-500 shrink-0 flex items-center gap-1">
+                                @if($msg->ai_status === 'processed' || $msg->ai_status === 'replied')
+                                    <x-heroicon-s-sparkles class="w-3 h-3 text-[var(--theme-color)]" title="Von KI verarbeitet"/>
+                                @endif
+                                {{ $msg->received_at ? $msg->received_at->format('H:i') : '' }}
+                            </span>
                         </div>
                         <h4 class="text-xs truncate mb-1 {{ !$msg->is_read ? 'text-gray-200 font-semibold' : 'text-gray-400' }}">{{ $msg->subject }}</h4>
+                        
+                        @if($msg->category || !empty($msg->tags) || $msg->priority)
+                            <div class="flex flex-wrap gap-1 mb-1.5">
+                                @if($msg->priority === 'high')
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-900/50 text-red-400 border border-red-800/50">Wichtig</span>
+                                @elseif($msg->priority === 'low')
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-800 text-gray-400 border border-gray-700">Niedrig</span>
+                                @endif
+                                
+                                @if($msg->category)
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-900/40 text-blue-400 border border-blue-800/50">{{ ucfirst($msg->category) }}</span>
+                                @endif
+
+                                @if(!empty($msg->tags) && is_array($msg->tags))
+                                    @foreach(array_slice($msg->tags, 0, 3) as $tag)
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-800 text-gray-300 border border-gray-700">{{ $tag }}</span>
+                                    @endforeach
+                                    @if(count($msg->tags) > 3)
+                                        <span class="px-1 py-0.5 rounded text-[9px] font-medium bg-gray-800 text-gray-500 border border-gray-700">+{{ count($msg->tags) - 3 }}</span>
+                                    @endif
+                                @endif
+                            </div>
+                        @endif
+
                         <!-- Preview snippet could go here -->
                         <p class="text-[10px] text-gray-500 truncate">{{ Str::limit(strip_tags($msg->body_plain ?? $msg->body_html), 40) }}</p>
                     </button>

@@ -157,6 +157,10 @@ return new class extends Migration {
                 $table->longText('body_plain')->nullable();
                 $table->boolean('is_read')->default(false);
                 $table->boolean('has_attachments')->default(false);
+                $table->string('priority')->default('normal');
+                $table->string('category')->nullable();
+                $table->json('tags')->nullable();
+                $table->string('ai_status')->default('pending'); // pending, processed, needs_human_review, replied
                 $table->timestamp('received_at')->nullable();
                 $table->timestamps();
             });

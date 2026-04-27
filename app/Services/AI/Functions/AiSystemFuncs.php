@@ -108,6 +108,22 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeSwitchAgent']
             ],
             [
+                'name' => 'system_execute_command',
+                'description' => 'Führt sichere Systemwartungs-Befehle aus (z.B. Cache leeren, Backups machen, Tests ausführen, Mails verarbeiten). Nutze dies, wenn der Nutzer dich bittet "Leere den Cache", "Mach ein Backup" oder "Starte den Mail-Worker".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'command' => [
+                            'type' => 'string',
+                            'enum' => ['cache', 'backup', 'test', 'mailworker', 'fetch_mails', 'storage'],
+                            'description' => 'Der sichere Befehl, der ausgeführt werden soll. "cache" leert alle System-Caches. "backup" erstellt ein Datenbank-Backup. "test" führt Unit-Tests aus. "mailworker" triggert die KI-Postfach-Verarbeitung. "fetch_mails" ruft neue Mails vom IMAP ab. "storage" erneuert den Storage-Link.'
+                        ]
+                    ],
+                    'required' => ['command']
+                ],
+                'callable' => [self::class, 'executeSystemCommand']
+            ],
+            [
                 'name' => 'system_assign_tool_to_role',
                 'description' => 'Gibt deinem Agenten (oder genauer gesagt deiner Rolle) dynamisch eine neue Fähigkeit (Werkzeug), die dir momentan fehlt. Nutze dies IMMER, wenn der Nutzer verlangt: "Gib dir mal die Fähigkeit X" oder "Aktiviere das Tool Y für dich".',
                 'parameters' => [
@@ -594,13 +610,65 @@ trait AiSystemFuncs
         $agent = \App\Models\Ai\AiAgent::where('name', 'LIKE', '%' . $agentName . '%')->first();
         if ($agent) {
             return [
-                'status' => 'success',
-                'agent_id' => $agent->id,
-                'agent_name' => $agent->name,
-                'message' => 'Agent wechselt nun zu ' . $agent->name
-            ];
+            'status' => 'success',
+            'action' => 'switch_agent',
+            'agent' => $agent->name,
+            'message' => "Der Kontext wurde erfolgreich an {$agent->name} übergeben."
+        ];
         }
         return ['status' => 'error', 'message' => 'Agent mit dem Namen ' . $agentName . ' nicht gefunden.'];
+    }
+
+    public static function executeSystemCommand(array $args)
+    {
+        try {
+            if (empty($args['command'])) {
+                return ['status' => 'error', 'message' => 'Kein Befehl angegeben.'];
+            }
+
+            $command = $args['command'];
+            $output = '';
+
+            switch ($command) {
+                case 'cache':
+                    \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+                    $output = 'Alle Caches (Views, Routen, Config, App) wurden erfolgreich restlos geleert.';
+                    break;
+                case 'backup':
+                    \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
+                    $output = 'Ein sicheres Datenbank-Backup wurde erfolgreich erstellt.';
+                    break;
+                case 'test':
+                    \Illuminate\Support\Facades\Artisan::call('test');
+                    $testOutput = \Illuminate\Support\Facades\Artisan::output();
+                    $output = "Tests wurden ausgeführt. Zusammenfassung:\n" . substr($testOutput, -1000); // Nur die letzten 1000 Zeichen (Summary)
+                    break;
+                case 'mailworker':
+                    \Illuminate\Support\Facades\Artisan::call('crm:ai-process-mails');
+                    $output = 'Der KI-Mail-Worker wurde angestoßen und hat den Posteingang verarbeitet.';
+                    break;
+                case 'fetch_mails':
+                    \Illuminate\Support\Facades\Artisan::call('crm:fetch-mails');
+                    $output = 'Neue E-Mails wurden erfolgreich via IMAP abgerufen.';
+                    break;
+                case 'storage':
+                    // Storage link command
+                    \Illuminate\Support\Facades\Artisan::call('storage:link');
+                    $output = 'Der Public-Storage-Link wurde erfolgreich erneuert.';
+                    break;
+                default:
+                    return ['status' => 'error', 'message' => "Der Befehl '{$command}' ist nicht erlaubt oder existiert nicht auf der Sicherheits-Whitelist."];
+            }
+
+            return [
+                'status' => 'success',
+                'message' => $output
+            ];
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('System Command Error: ' . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler bei der System-Ausführung: ' . $e->getMessage()];
+        }
     }
 
     public static function executeOpenNavItem(array $args)

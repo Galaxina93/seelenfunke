@@ -49,6 +49,7 @@ case "$1" in
         echo -e "  \033[1;32m🌐 websocket\033[0m     Starte den Reverb WebSocket-Server (Echtzeit-Verbindungen)."
         echo -e "  \033[1;32m💾 backup\033[0m        Sichert die Datenbank als ZIP-Datei (Spatie Backup)."
         echo -e "  \033[1;32m📧 mails\033[0m         Ruft per IMAP neue E-Mails von Konten ab."
+        echo -e "  \033[1;32m🤖 mailworker\033[0m    Lässt die KI autonom E-Mails lesen, sortieren und beantworten."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
         echo -e "  \033[1;32m🔐 rights\033[0m        Repariert die Dateiberechtigungen (www-data) und leert Caches sicher."
         echo -e "  \033[1;32m🧹 cache\033[0m         Leert alle Anwendungs- und System-Caches auf einen Schlag restlos aus."
@@ -158,6 +159,11 @@ case "$1" in
     mails)
         echo "📧 Rufe neue E-Mails per IMAP ab..."
         $PREFIX_DEFAULT php artisan crm:fetch-mails
+        ;;
+    mailworker)
+        shift
+        echo "🤖 Starte den autonomen KI-Mail-Worker (Funki)..."
+        $PREFIX_DEFAULT php artisan crm:ai-process-mails "$@"
         ;;
     backup)
         echo "💾 Erstelle sicheres Datenbank-Backup..."

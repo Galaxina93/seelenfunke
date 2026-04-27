@@ -13,6 +13,7 @@ class MailMessage extends Model
         'is_archived' => 'boolean',
         'has_attachments' => 'boolean',
         'received_at' => 'datetime',
+        'tags' => 'array',
     ];
 
     public function account()
