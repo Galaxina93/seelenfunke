@@ -828,48 +828,8 @@
                 }
             },
 
-            startLiveSpeechRecognition() {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!SpeechRecognition) return;
-                
-                this.liveRecognition = new SpeechRecognition();
-                this.liveRecognition.continuous = true;
-                this.liveRecognition.interimResults = false;
-                this.liveRecognition.lang = 'de-DE';
-
-                this.liveRecognition.onresult = (event) => {
-                    const lastResult = event.results[event.results.length - 1];
-                    if (lastResult.isFinal) {
-                        const transcript = lastResult[0].transcript.trim();
-                        if (transcript) {
-                            try { @this.appendLiveChatMemory('user', transcript); } catch(e) {}
-                            this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
-                            
-                            // Signal Gemini that the user has finished their turn
-                            if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                                this.liveWs.send(JSON.stringify({
-                                    clientContent: {
-                                        turnComplete: true
-                                    }
-                                }));
-                            }
-                        }
-                    }
-                };
-
-                this.liveRecognition.onend = () => {
-                    if (this.isLiveMode) {
-                        try { this.liveRecognition.start(); } catch(e) {}
-                    }
-                };
-
-                try { this.liveRecognition.start(); } catch(e) {}
-            },
-
             async startMicrophone() {
                 try {
-                    this.startLiveSpeechRecognition();
-
                     // Zurück zum Standard (mit echoCancellation), damit die iOS Hardware nicht crasht
                     this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
