@@ -392,6 +392,29 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeWriteArtifact']
             ],
             [
+                'name' => 'system_patch_artifact',
+                'description' => 'Bearbeitet ein bestehendes Artefakt (z.B. Implementierungsplan), indem ein spezifischer Textabschnitt durch einen neuen ersetzt wird. Perfekt, um z.B. Checklisten-Punkte von "- [ ]" auf "- [x]" zu setzen und den Bearbeitungsstand zu tracken.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'artifact_name' => [
+                            'type' => 'string',
+                            'description' => 'Name des Artefakts ohne Dateiendung (z.B. implementation_plan).'
+                        ],
+                        'search_text' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Text, der gesucht und ersetzt werden soll (z.B. "- [ ] Mein Schritt").'
+                        ],
+                        'replace_text' => [
+                            'type' => 'string',
+                            'description' => 'Der neue Text, der eingefügt werden soll (z.B. "- [x] Mein Schritt").'
+                        ]
+                    ],
+                    'required' => ['artifact_name', 'search_text', 'replace_text']
+                ],
+                'callable' => [self::class, 'executePatchArtifact']
+            ],
+            [
                 'name' => 'system_write_knowledge',
                 'description' => 'Speichert wichtige Architektur-Entscheidungen, Regeln oder Masterpläne GLOBAL ab. Im Gegensatz zu Artefakten bleiben diese Dokumente über den aktuellen Chat hinaus für immer bestehen und können später wieder abgerufen werden.',
                 'parameters' => [
@@ -1489,6 +1512,13 @@ trait AiSystemFuncs
                 'content' => $content
             ]
         );
+
+        // ZUSÄTZLICH: Datei physisch im Workspace speichern, damit der User sie im Dateimanager (Tab 'Dateien') bearbeiten kann.
+        $workspacePath = 'agenten/workspace/pläne/' . $filename;
+        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists('agenten/workspace/pläne')) {
+            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory('agenten/workspace/pläne');
+        }
+        \Illuminate\Support\Facades\Storage::disk('public')->put($workspacePath, $content);
 
         if (str_contains(strtolower($name), 'implementation_plan') || str_contains(strtolower($name), 'plan')) {
             session()->put('has_ai_implementation_plan', true);

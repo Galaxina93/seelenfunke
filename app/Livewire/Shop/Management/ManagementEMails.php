@@ -159,6 +159,8 @@ class ManagementEMails extends Component
             $this->applyPreset('t-online');
         } elseif (str_ends_with($email, '@gmail.com') || str_ends_with($email, '@googlemail.com')) {
             $this->applyPreset('gmail');
+        } elseif (str_ends_with($email, '@gmx.de') || str_ends_with($email, '@gmx.net') || str_ends_with($email, '@gmx.at') || str_ends_with($email, '@gmx.ch')) {
+            $this->applyPreset('gmx');
         }
     }
 
@@ -188,6 +190,14 @@ class ManagementEMails extends Component
                 $this->smtp_host = 'mail.agenturserver.de';
                 $this->smtp_port = '465';
                 $this->smtp_encryption = 'ssl';
+                break;
+            case 'gmx':
+                $this->imap_host = 'imap.gmx.net';
+                $this->imap_port = '993';
+                $this->imap_encryption = 'ssl';
+                $this->smtp_host = 'mail.gmx.net';
+                $this->smtp_port = '587';
+                $this->smtp_encryption = 'tls';
                 break;
         }
     }

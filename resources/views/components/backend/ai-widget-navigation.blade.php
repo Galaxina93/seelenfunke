@@ -27,6 +27,16 @@
              @endforeach
          </select>
          
+         <select wire:model.live="currentChatSessionId" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-gray-700 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[150px]">
+             @if($this->chatSessions && $this->chatSessions->count() > 0)
+                 @foreach($this->chatSessions as $chat)
+                     <option value="{{ $chat->id }}" class="bg-black text-white">{{ \Illuminate\Support\Str::limit($chat->title, 20) }}</option>
+                 @endforeach
+             @else
+                 <option value="">(Neuer Chat)</option>
+             @endif
+         </select>
+         
          <button @click="toggleLiveMode(); if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
              :class="isLiveMode ? 'text-yellow-400 border-yellow-500/50 bg-yellow-900/30 hover:bg-yellow-800 shadow-[0_0_15px_rgba(250,204,21,0.5)] animate-pulse' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" /></svg>
@@ -41,11 +51,7 @@
              Log
          </button>
          
-         <button @click="showFiles = !showFiles; if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
-             :class="(isOutputActive()) ? 'text-indigo-300 border-indigo-500/50 bg-indigo-900/30 hover:bg-indigo-800 shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
-             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
-             Dateien
-         </button>
+
          
 
     </div>

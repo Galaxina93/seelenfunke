@@ -39,11 +39,14 @@ class AIController extends Controller
         $functionName = $request->input('function');
         $args = $request->input('args', []);
 
-        $sessionId = $request->input('session_id');
+        $sessionId = $request->input('chat_session_id') ?: $request->input('session_id');
         if ($sessionId) {
             config(['ai.current_session_id' => $sessionId]);
-            session()->setId($sessionId);
-            session()->start();
+            // Only set PHP session ID if it's not a database UUID/ID to avoid corrupting native sessions
+            if (strlen($sessionId) <= 40 && !str_contains($sessionId, '-')) {
+                session()->setId($sessionId);
+                session()->start();
+            }
         }
 
         try {
@@ -124,16 +127,20 @@ class AIController extends Controller
         $result = $agent->ask($history);
 
         // Speichere finalen Dialog-Verlauf in der Datenbank
-        $sessionId = session()->getId();
-        if (auth()->check()) {
-            $lastSession = \App\Models\Ai\AiChatSession::where('user_id', auth()->id())
-                             ->orderBy('updated_at', 'desc')
-                             ->first();
-            if ($lastSession) {
-                $sessionId = $lastSession->id;
-            } else {
-                $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => auth()->id(), 'title' => 'Widget Chat']);
-                $sessionId = $newSession->id;
+        $sessionId = $request->input('chat_session_id');
+        
+        if (!$sessionId) {
+            $sessionId = session()->getId();
+            if (auth()->check()) {
+                $lastSession = \App\Models\Ai\AiChatSession::where('user_id', auth()->id())
+                                 ->orderBy('updated_at', 'desc')
+                                 ->first();
+                if ($lastSession) {
+                    $sessionId = $lastSession->id;
+                } else {
+                    $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => auth()->id(), 'title' => 'Widget Chat']);
+                    $sessionId = $newSession->id;
+                }
             }
         }
 
@@ -363,7 +370,11 @@ class AIController extends Controller
             "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap;
 
         // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert
-        $sessionId = auth()->check() ? 'user_' . auth()->id() : session()->getId();
+        $sessionId = $request->input('chat_session_id');
+        if (!$sessionId) {
+            $sessionId = auth()->check() ? 'user_' . auth()->id() : session()->getId();
+        }
+        
         if ($sessionId) {
             $history = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)->orderBy('created_at', 'desc')->take(15)->get()->reverse();
             if ($history->count() > 0) {

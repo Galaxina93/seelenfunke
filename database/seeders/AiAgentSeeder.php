@@ -247,7 +247,8 @@ class AiAgentSeeder extends Seeder
             $baseSystemTools = [
                 'brain_save_entry', 'brain_search', 'brain_update_entry', 'brain_delete_entry',
                 'system_search_chat_history', 'system_close_ui', 'system_visualize_data',
-                'system_ask_agent', 'system_search_web', 'system_switch_agent'
+                'system_ask_agent', 'system_search_web', 'system_switch_agent',
+                'system_write_artifact', 'system_patch_artifact'
             ];
 
             $allToolsCollection = AiTool::all();

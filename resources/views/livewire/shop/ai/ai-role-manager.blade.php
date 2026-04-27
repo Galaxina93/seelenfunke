@@ -49,12 +49,12 @@
 
                 <!-- Tools & Capabilities -->
                 <section class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.3)]">
-                    <div class="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent pointer-events-none"></div>
+                    <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent pointer-events-none"></div>
 
                     <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between border-b border-gray-800/80 pb-4 mb-8">
                         <div class="mb-4 md:mb-0">
                             <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
-                                <div class="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+                                <div class="p-2 rounded-lg bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shadow-[0_0_10px_var(--theme-color-20)]">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M11.828 2.25c-.916 0-1.699.663-1.85 1.567l-.091.549a3.375 3.375 0 01-2.423 2.423l-.549.091c-.904.15-1.567.933-1.567 1.85v.682c0 .916.663 1.699 1.567 1.85l.549.091a3.375 3.375 0 012.423 2.423l.091.549c.15.904.933 1.567 1.85 1.567h.682c.916 0 1.699-.663 1.85-1.567l.091-.549a3.375 3.375 0 012.423-2.423l.549-.091c.904-.15 1.567-.933 1.567-1.85v-.682c0-.916-.663-1.699-1.567-1.85l-.549-.091a3.375 3.375 0 01-2.423-2.423l-.091-.549c-.15-.904-.933-1.567-1.85-1.567h-.682zM6 15a.75.75 0 01-.75.75H4.5a.75.75 0 010-1.5h.75A.75.75 0 016 15zm13.5-.75a.75.75 0 000 1.5h.75a.75.75 0 000-1.5h-.75zM15 6a.75.75 0 01-.75.75H13.5a.75.75 0 010-1.5h.75A.75.75 0 0115 6zM5.25 6a.75.75 0 000 1.5h.75a.75.75 0 000-1.5H5.25z" clip-rule="evenodd" /></svg>
                                 </div>
                                 2. Fähigkeiten & Werkzeuge
@@ -64,12 +64,12 @@
                         
                         <div class="w-full md:w-auto flex flex-col items-end gap-3 mt-4 md:mt-0">
                             <div class="relative w-full md:w-64">
-                                <input type="text" wire:model.live.debounce.300ms="searchTool" placeholder="Werkzeuge filtern..." class="w-full bg-black/40 border border-cyan-900/50 rounded-lg focus:border-cyan-500 focus:ring focus:ring-cyan-500/20 text-white sm:text-sm p-2 pl-9 font-mono transition-all">
+                                <input type="text" wire:model.live.debounce.300ms="searchTool" placeholder="Werkzeuge filtern..." class="w-full bg-black/40 border border-[var(--theme-color-50)] rounded-lg focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color-20)] text-white sm:text-sm p-2 pl-9 font-mono transition-all">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg class="h-4 w-4 text-cyan-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                    <svg class="h-4 w-4 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                                 </div>
                             </div>
-                            <span class="text-xs font-mono text-cyan-400 font-bold bg-cyan-500/10 px-3 py-1.5 rounded border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)] inline-block text-right">
+                            <span class="text-xs font-mono text-[var(--theme-color)] font-bold bg-[var(--theme-color-10)] px-3 py-1.5 rounded border border-[var(--theme-color-20)] shadow-[0_0_10px_var(--theme-color-10)] inline-block text-right">
                                 <span x-data x-text="$wire.selectedTools.filter(x => x).length"></span> von {{ $totalToolsCount }} {{ !empty($searchTool) ? 'Gefilterte' : 'Aktiviert' }}
                             </span>
                         </div>
@@ -101,23 +101,23 @@
                                                         get isChecked() { return Array.isArray($wire.selectedTools) && $wire.selectedTools.includes('{{ $tool->id }}'); } 
                                                      }" 
                                                      class="rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden shadow-inner cursor-pointer"
-                                                     :class="isChecked ? 'bg-cyan-900/10 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'bg-black/30 border-gray-800/80 hover:border-gray-600'">
+                                                     :class="isChecked ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] shadow-[0_0_15px_var(--theme-color-15)]' : 'bg-black/30 border-gray-800/80 hover:border-gray-600'">
                                                     
                                                     <!-- Header / Brief -->
                                                     <div class="p-4 flex items-start gap-4">
                                                         <!-- Checkbox Replika -->
                                                         <button type="button" @click.stop="if(isChecked) { $wire.selectedTools = $wire.selectedTools.filter(t => t !== '{{ $tool->id }}'); } else { $wire.selectedTools.push('{{ $tool->id }}'); }"
                                                             class="shrink-0 w-6 h-6 rounded flex items-center justify-center transition-colors border mt-1"
-                                                            :class="isChecked ? 'bg-cyan-500 text-white border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-gray-900 border-gray-700 text-transparent'">
+                                                            :class="isChecked ? 'bg-[var(--theme-color)] text-white border-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-50)]' : 'bg-gray-900 border-gray-700 text-transparent'">
                                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
                                                         </button>
                                                         
                                                         <div class="flex-1 min-w-0" @click="expanded = !expanded">
                                                             <div class="flex justify-between items-center mb-1">
-                                                                <h4 class="text-sm font-bold truncate transition-colors font-mono uppercase" :class="isChecked ? 'text-cyan-300' : 'text-gray-200'" title="{{ $tool->name }}">{{ $tool->name }}</h4>
+                                                                <h4 class="text-sm font-bold truncate transition-colors font-mono uppercase" :class="isChecked ? 'text-[var(--theme-color)]' : 'text-gray-200'" title="{{ $tool->name }}">{{ $tool->name }}</h4>
                                                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"><path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
                                                             </div>
-                                                            <div class="text-[9px] font-mono tracking-widest lowercase mb-1 truncate" :class="isChecked ? 'text-cyan-600' : 'text-gray-600'">
+                                                            <div class="text-[9px] font-mono tracking-widest lowercase mb-1 truncate" :class="isChecked ? 'text-[var(--theme-color-70)]' : 'text-gray-600'">
                                                                 ({{ $tool->identifier }})
                                                             </div>
                                                         </div>
@@ -171,7 +171,7 @@
                     </h3>
                     <div class="flex flex-wrap gap-2">
                         @foreach($topTools as $tTool)
-                            <span class="bg-gray-900/50 border border-gray-800 text-cyan-400 text-[10px] font-mono px-2.5 py-1 rounded shadow-sm">
+                            <span class="bg-gray-900/50 border border-gray-800 text-[var(--theme-color)] text-[10px] font-mono px-2.5 py-1 rounded shadow-sm">
                                 {{ $tTool['tool_name'] }} ({{ $tTool['usage_count'] }}x)
                             </span>
                         @endforeach
@@ -208,9 +208,9 @@
                                 <tr class="hover:bg-white/5 transition-colors">
                                     <td class="px-6 py-4 font-bold text-white">{{ $role->name }}</td>
                                     <td class="px-6 py-4 truncate max-w-xs">{{ $role->description }}</td>
-                                    <td class="px-6 py-4 text-cyan-400 font-bold">{{ $role->tools->count() }} aktiv</td>
+                                    <td class="px-6 py-4 text-[var(--theme-color)] font-bold">{{ $role->tools->count() }} aktiv</td>
                                     <td class="px-6 py-4 text-right space-x-3">
-                                        <button wire:click="edit('{{ $role->id }}')" class="font-bold text-cyan-500 hover:text-cyan-400 uppercase tracking-widest text-[10px]">Bearbeiten</button>
+                                        <button wire:click="edit('{{ $role->id }}')" class="font-bold text-[var(--theme-color)] hover:opacity-80 uppercase tracking-widest text-[10px]">Bearbeiten</button>
                                         <button wire:click="delete('{{ $role->id }}')" class="font-bold text-red-500 hover:text-red-400 uppercase tracking-widest text-[10px]" onclick="confirm('Bist du sicher, dass du diese Rolle löschen möchtest?') || event.stopImmediatePropagation()">Löschen</button>
                                     </td>
                                 </tr>

@@ -33,7 +33,7 @@
             showErrorPanel: false,
             showDebugLog: false,
             showTasks: false,
-            showFiles: false,
+
             isAudioMuted: localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true, // Default to muted as requested
             bgVolume: initialVolume,
             systemState: initialState, // 'good', 'warning', 'error', true, false
@@ -244,7 +244,8 @@
                         },
                         body: JSON.stringify({ 
                             history: this.chatHistory,
-                            agent_id: this.activeAgentId || {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!}
+                            agent_id: this.activeAgentId || {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!},
+                            chat_session_id: this.$wire.currentChatSessionId
                         }),
                         signal: this.chatAbortController.signal
                     });
@@ -746,8 +747,10 @@
                     this.thinking = true;
                     this.updateCoreColor(true);
 
+                    let activeChatId = this.$wire.currentChatSessionId || '';
+
                     // 1. Fetch Credentials securely
-                    const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&session_id={{ session()->getId() }}&t=' + Date.now(), {
+                    const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&chat_session_id=' + activeChatId + '&session_id={{ session()->getId() }}&t=' + Date.now(), {
                         credentials: 'same-origin',
                         headers: {
                             'Accept': 'application/json',
@@ -848,21 +851,29 @@
                     processor.onaudioprocess = (e) => {
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) return;
                         
+                        // We only send audio when the mic is not explicitly muted
+                        if (this.isMuted) return;
+
                         const inputData = e.inputBuffer.getChannelData(0);
-                        const pcm16 = new Int16Array(inputData.length);
-                        
+                        const pcmData = new Int16Array(inputData.length);
                         for (let i = 0; i < inputData.length; i++) {
-                            const s = Math.max(-1, Math.min(1, inputData[i]));
-                            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            let s = Math.max(-1, Math.min(1, inputData[i]));
+                            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                         }
-                        
-                        const base64Pcm = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16.buffer)));
+
+                        // Convert Int16Array directly to base64 string
+                        let binary = '';
+                        const bytes = new Uint8Array(pcmData.buffer);
+                        for (let i = 0; i < bytes.byteLength; i++) {
+                            binary += String.fromCharCode(bytes[i]);
+                        }
+                        const base64Audio = btoa(binary);
                         
                         const msg = {
                             realtimeInput: {
                                 audio: {
-                                    mimeType: "audio/pcm;rate=16000",
-                                    data: base64Pcm
+                                    mimeType: 'audio/pcm;rate=16000',
+                                    data: base64Audio
                                 }
                             }
                         };
@@ -871,11 +882,59 @@
 
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
+                    
+                    // Start speech recognition parallel to capture user transcripts for memory
+                    this.startSpeechRecognition();
 
                 } catch (err) {
-                    console.error("Mic Access Denied", err);
-                    alert("Mikrofon-Fehler: " + err.message);
+                    console.error('Mikrofon Fehler:', err);
+                    alert('Mikrofon Zugriff verweigert oder Fehler: ' + err.message);
                     this.stopLiveMode();
+                }
+            },
+            
+            startSpeechRecognition() {
+                if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
+                
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.recognition = new SpeechRecognition();
+                this.recognition.continuous = true;
+                this.recognition.interimResults = false;
+                this.recognition.lang = 'de-DE';
+
+                this.recognition.onresult = (event) => {
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            const transcript = event.results[i][0].transcript.trim();
+                            if (transcript) {
+                                // Save User's spoken text to chat memory
+                                try {
+                                    this.$wire.appendLiveChatMemory('user', transcript);
+                                } catch(e) {}
+                                this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
+                            }
+                        }
+                    }
+                };
+                
+                this.recognition.onerror = (e) => {
+                    console.log('Speech recognition error', e);
+                };
+                
+                this.recognition.onend = () => {
+                    if (this.isLiveMode && !this.isMuted) {
+                        try { this.recognition.start(); } catch(e) {}
+                    }
+                };
+                
+                try { this.recognition.start(); } catch(e) {}
+            },
+            
+            stopSpeechRecognition() {
+                if (this.recognition) {
+                    this.recognition.onend = null;
+                    try { this.recognition.stop(); } catch(e) {}
+                    this.recognition = null;
                 }
             },
 
@@ -900,8 +959,10 @@
                     if (fullText) {
                         this.chatHistory.push({ role: 'model', parts: [{ text: fullText }] });
                         try {
-                            @this.appendLiveChatMemory('model', fullText);
-                        } catch(e) {}
+                            this.$wire.appendLiveChatMemory('assistant', fullText);
+                        } catch(e) {
+                            console.error('Fehler beim Speichern in Chat-Memory:', e);
+                        }
                         this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: fullText.replace(/\[.*?\]/s, '') });
                     }
                 }
@@ -925,6 +986,7 @@
                                 body: JSON.stringify({
                                     function: call.name,
                                     args: call.args,
+                                    chat_session_id: this.$wire.currentChatSessionId,
                                     session_id: '{{ session()->getId() }}'
                                 })
                             });
@@ -1046,7 +1108,6 @@
             },
 
             stopLiveMode() {
-                this.isLiveMode = false;
                 if (this.liveWs) {
                     this.liveWs.close();
                     this.liveWs = null;
@@ -1059,6 +1120,10 @@
                     this.audioWorklet.disconnect();
                     this.audioWorklet = null;
                 }
+                
+                this.stopSpeechRecognition();
+
+                this.isLiveMode = false;
                 if (this.audioContext) {
                     this.audioContext.close();
                     this.audioContext = null;

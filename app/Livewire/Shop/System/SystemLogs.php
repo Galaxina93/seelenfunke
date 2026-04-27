@@ -38,6 +38,17 @@ class SystemLogs extends Component
         $this->resetPage();
     }
 
+    public function markAsResolved($logId)
+    {
+        $log = SystemLog::find($logId);
+        if ($log && $log->status === 'error') {
+            $log->status = 'success';
+            // Optionally, add a note that it was resolved manually
+            $log->title = '[GELÖST] ' . $log->title;
+            $log->save();
+        }
+    }
+
     public function render()
     {
         // One-time fix for terminal access restrictions

@@ -69,7 +69,7 @@
                                             @endif
                                             @if(!empty($msg['local_uploads']))
                                                 @foreach($msg['local_uploads'] as $file)
-                                                    <div class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-cyan-400 text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-inner">
+                                                    <div class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-[var(--theme-color)] text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-inner">
                                                         <x-heroicon-o-paper-clip class="w-3 h-3" />
                                                         <span>{{ $file['name'] ?? 'Upload' }}</span>
                                                     </div>
@@ -91,7 +91,7 @@
                                             </div>
                                             <div x-show="!expanded && content.length > 300" class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-gray-900/80 to-transparent pointer-events-none"></div>
                                         </div>
-                                        <button x-show="content.length > 300" @click="expanded = !expanded" class="text-[10px] uppercase font-bold tracking-widest text-cyan-400 mt-3 hover:text-white transition-colors flex items-center gap-1">
+                                        <button x-show="content.length > 300" @click="expanded = !expanded" class="text-[10px] uppercase font-bold tracking-widest text-[var(--theme-color)] mt-3 hover:text-white transition-colors flex items-center gap-1">
                                             <span x-text="expanded ? 'Weniger anzeigen' : 'Vollständige Nachricht lesen'"></span>
                                             <x-heroicon-s-chevron-down class="w-3 h-3 transition-transform" x-bind:class="expanded ? 'rotate-180' : ''" />
                                         </button>
@@ -232,7 +232,7 @@
                                 <div wire:key="up-{{ $idx }}" class="flex items-center gap-1 bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] text-xs px-2 py-1 rounded">
                                     <x-heroicon-o-paper-clip class="w-3 h-3" />
                                     <span>{{ is_object($file) ? $file->getClientOriginalName() : 'Uploading...' }}</span>
-                                    <button type="button" wire:click="$removeUpload('uploadedFiles', '{{ is_object($file) ? $file->getFilename() : $idx }}')" class="hover:text-red-400 ml-1"><x-heroicon-s-x-mark class="w-3.5 h-3.5" /></button>
+                                    <button type="button" wire:click="removeUploadedFile('{{ $idx }}')" class="hover:text-red-400 ml-1"><x-heroicon-s-x-mark class="w-3.5 h-3.5" /></button>
                                 </div>
                             @endforeach
                         </div>

@@ -37,14 +37,24 @@
         <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex flex-col gap-3">
-                    <span class="leading-tight break-words break-all hyphens-auto flex flex-col gap-1 w-full">
-                        <span>Live-AI</span>
+                    <div class="leading-tight break-words break-all hyphens-auto flex flex-col gap-2 w-full">
+                        <div class="flex items-center justify-between">
+                            <span>Live-AI</span>
+                            <button wire:click.stop="createNewChat" class="text-[var(--theme-color)] hover:text-white" title="Neuen Chat erstellen">
+                                <x-heroicon-o-plus class="w-3 h-3" />
+                            </button>
+                        </div>
                         <select wire:model.live="agentId" class="w-full bg-black/50 border border-emerald-900/50 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none">
                             @foreach($availableAgents as $agent)
                                 <option value="{{ $agent->id }}">{{ $agent->name }}</option>
                             @endforeach
                         </select>
-                    </span>
+                        <select wire:model.live="currentChatSessionId" class="w-full bg-black/50 border border-emerald-900/50 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none" title="Chat Referenz">
+                            @foreach($this->chatSessions() as $chat)
+                                <option value="{{ $chat->id }}">{{ Str::limit($chat->title, 15) }}</option>
+                            @endforeach
+                        </select>
+                    </div>
 
                     <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
@@ -142,8 +152,7 @@
     <!-- Widget Task List (Live Log) -->
     @include('livewire.shop.ai.blocks.widget-tasks')
 
-    <!-- Widget Files & Plans -->
-    @include('livewire.shop.ai.blocks.widget-files')
+    <!-- Widget Files & Plans (Removed, now managed centrally in workspace) -->
 
 
 

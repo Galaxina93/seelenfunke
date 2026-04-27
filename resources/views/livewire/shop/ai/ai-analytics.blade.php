@@ -90,13 +90,13 @@
         
         <!-- Top Werkzeuge -->
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 relative overflow-hidden flex flex-col justify-center">
-            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-cyan-500/10 to-transparent"></div>
-            <div class="text-gray-400 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5"><i class="bi bi-cpu text-cyan-400"></i> Top KI-Tools</div>
+            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[var(--theme-color-15)] to-transparent"></div>
+            <div class="text-gray-400 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5"><i class="bi bi-cpu text-[var(--theme-color)]"></i> Top KI-Tools</div>
             <div class="space-y-1.5 overflow-hidden">
                 @forelse($topToolsAllAgents as $t)
                     <div class="flex justify-between items-center text-xs text-gray-300 font-mono">
                         <span class="truncate pr-2 w-32" title="{{ $t->tool_name }}">{{ Str::limit(str_replace('support_', '', $t->tool_name), 12) }}</span>
-                        <span class="text-cyan-400 font-bold bg-gray-900 border border-gray-700 px-1.5 py-0.5 rounded">{{ $t->usage_count }}</span>
+                        <span class="text-[var(--theme-color)] font-bold bg-gray-900 border border-gray-700 px-1.5 py-0.5 rounded">{{ $t->usage_count }}</span>
                     </div>
                 @empty
                     <div class="text-[10px] text-gray-500 italic mt-2">Noch keine Tool-Aktivität heute.</div>
@@ -172,7 +172,7 @@
                 let options = {
                     series: [{ name: 'Tokens', data: data.data }],
                     chart: { type: 'area', height: 350, toolbar: { show: false }, background: 'transparent' },
-                    colors: ['#06b6d4'],
+                    colors: ['{{ $this->themeColorHex }}'],
                     fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] } },
                     dataLabels: { enabled: false },
                     stroke: { curve: 'smooth', width: 2 },

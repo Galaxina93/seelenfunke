@@ -239,7 +239,7 @@
                                         @endif
 
                                         @php
-                                            $c = $agent->department ? $agent->department->color : 'cyan-500';
+                                            $c = $agent->color ?: 'cyan-500';
                                             $borderClass = match($c) {
                                                 'blue-500' => 'border-gray-800 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.15)]',
                                                 'purple-500' => 'border-gray-800 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]',
@@ -312,7 +312,7 @@
 
                                 {{-- Add Agent Dropdown --}}
                                 <div class="w-11/12 mt-2" x-data="{ open: false }">
-                                    <button @click="open = !open" class="w-full border border-dashed border-gray-700 hover:border-cyan-500 hover:text-cyan-400 text-gray-600 rounded-lg p-3 text-[10px] uppercase tracking-widest transition-all font-bold flex items-center justify-between group">
+                                    <button @click="open = !open" class="w-full border border-dashed border-gray-700 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] text-gray-600 rounded-lg p-3 text-[10px] uppercase tracking-widest transition-all font-bold flex items-center justify-between group">
                                         <span class="flex items-center gap-2"><x-heroicon-m-plus class="w-3 h-3 group-hover:scale-110 transition-transform" /> Agent Zuweisen</span>
                                         <x-heroicon-o-chevron-down class="w-3 h-3 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
                                     </button>
@@ -320,7 +320,7 @@
                                         <div class="max-h-48 overflow-y-auto custom-scrollbar">
                                             @forelse($freeAgents as $freeAgent)
                                                 <button wire:click.stop="moveAgent('{{ $freeAgent->id }}', '{{ $dept->id }}')" @click="open = false" class="w-full text-left p-3 text-[10px] text-gray-300 hover:bg-gray-800 hover:text-white border-b border-gray-800/50 flex flex-col transition-colors group">
-                                                    <span class="font-bold text-cyan-500 group-hover:text-cyan-400 flex items-center justify-between">
+                                                    <span class="font-bold text-[var(--theme-color)] group-hover:text-[var(--theme-color)] flex items-center justify-between">
                                                         {{ $freeAgent->name }}
                                                         <x-heroicon-o-arrow-right-circle class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                     </span>
@@ -334,7 +334,7 @@
                                         </div>
                                         <div class="p-2 border-t border-gray-800">
                                             <button wire:click.stop="moveAgent('{{ $freeAgent->id ?? null }}', 'unassigned')" class="hidden"></button> {{-- For Drop Handler --}}
-                                            <a href="{{ route('admin.ai.workspace') }}" class="block w-full text-center p-2 text-[9px] font-bold uppercase tracking-widest text-gray-400 hover:bg-cyan-500/10 hover:text-cyan-500 rounded transition-colors">Im Manager Erschaffen</a>
+                                            <a href="{{ route('admin.ai.workspace') }}" class="block w-full text-center p-2 text-[9px] font-bold uppercase tracking-widest text-gray-400 hover:bg-[var(--theme-color-10)] hover:text-[var(--theme-color)] rounded transition-colors">Im Manager Erschaffen</a>
                                         </div>
                                     </div>
                                 </div>

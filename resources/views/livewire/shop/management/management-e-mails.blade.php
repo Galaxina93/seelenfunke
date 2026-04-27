@@ -424,6 +424,9 @@
                         <button type="button" wire:click="applyPreset('t-online')" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-[#E20074] text-white text-sm font-semibold rounded-xl transition-all">
                             T-Online
                         </button>
+                        <button type="button" wire:click="applyPreset('gmx')" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-[#1C449B] text-white text-sm font-semibold rounded-xl transition-all">
+                            GMX
+                        </button>
                     </div>
                 </div>
 

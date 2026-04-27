@@ -11,10 +11,10 @@
                     "x": 50,
                     "y": 34.4242426554362,
                     "id": "a2f0cff1-17ef-4c56-8f80-240549bcd2ec",
-                    "url": "http:\/\/127.0.0.1\/shop\/product\/configurator\/vectors\/baby_black.svg",
+                    "url": "http://127.0.0.1/shop/product/configurator/vectors/baby_black.svg",
                     "size": 100,
                     "type": "vector",
-                    "value": "vectors\/baby_black.svg",
+                    "value": "vectors/baby_black.svg",
                     "rotation": 0
                 }
             ],
@@ -31,7 +31,7 @@
                     "rotation": 0
                 }
             ],
-            "logo_path": "vectors\/baby_black.svg",
+            "logo_path": "vectors/baby_black.svg",
             "is_digital": false,
             "is_express": false,
             "logos_back": [],
@@ -39,12 +39,12 @@
             "variant_id": null,
             "variant_name": null,
             "snapshot_path": {
-                "front": "snapshots\/3cbfde45-d3db-4663-b4b4-f7cd0603cfd1_front.jpg"
+                "front": "snapshots/3cbfde45-d3db-4663-b4b4-f7cd0603cfd1_front.jpg"
             }
         },
         "is_active": true,
         "holiday": "Weihnachten",
-        "preview_image": "product-templates\/QsbobAkvSdhwHtgKfgr1M0fiCr9lYfM9FK1iognO.jpg"
+        "preview_image": null
     },
     {
         "product_slug": "seelen-kristall",
@@ -74,7 +74,7 @@
     },
     {
         "product_slug": "seelen-kristall",
-        "name": "Lieblingsmensch \/ Hochzeit",
+        "name": "Lieblingsmensch / Hochzeit",
         "configuration": {
             "logos": [],
             "notes": "",
@@ -178,7 +178,7 @@
     },
     {
         "product_slug": "seelen-anhaenger",
-        "name": "Lieblingsmensch \/ Hochzeit",
+        "name": "Lieblingsmensch / Hochzeit",
         "configuration": {
             "logos": [],
             "notes": "",
@@ -266,10 +266,10 @@
                     "x": 50,
                     "y": 31.450000000000006,
                     "id": "8d696104-9c6e-46d8-9b2a-7cdd1ae23f56",
-                    "url": "http:\/\/127.0.0.1\/shop\/product\/configurator\/vectors\/babygirl_black.svg",
+                    "url": "http://127.0.0.1/shop/product/configurator/vectors/babygirl_black.svg",
                     "size": 100,
                     "type": "vector",
-                    "value": "vectors\/babygirl_black.svg",
+                    "value": "vectors/babygirl_black.svg",
                     "rotation": 0
                 }
             ],
@@ -286,7 +286,7 @@
                     "rotation": 0
                 }
             ],
-            "logo_path": "vectors\/babygirl_black.svg",
+            "logo_path": "vectors/babygirl_black.svg",
             "is_digital": false,
             "is_express": false,
             "logos_back": [],
@@ -294,7 +294,7 @@
             "variant_id": null,
             "variant_name": null,
             "snapshot_path": {
-                "front": "snapshots\/c854e39f-993d-4dba-a9e9-08c960483aa9_front.jpg"
+                "front": "snapshots/c854e39f-993d-4dba-a9e9-08c960483aa9_front.jpg"
             }
         },
         "is_active": true,
@@ -303,7 +303,7 @@
     },
     {
         "product_slug": "weizenglas-personalisiert",
-        "name": "Lieblingsmensch \/ Hochzeit",
+        "name": "Lieblingsmensch / Hochzeit",
         "configuration": {
             "logos": [],
             "notes": "",

@@ -21,17 +21,7 @@ trait WithDepartmentTheming
     }
     public function getThemeColorHexProperty()
     {
-        $departmentName = property_exists($this, 'themingDepartment') ? $this->themingDepartment : 'Marketing';
-        $cacheKey = strtolower($departmentName) . '_dept_color';
-
-        // Cache the color lookup for 5 minutes to avoid DB bottlenecks 
-        // when Livewire performs many roundtrips (like updating an input)
-        $color = Cache::remember($cacheKey, 300, function () use ($departmentName) {
-            $dept = AiDepartment::where('name', $departmentName)
-                        ->orWhere('name', rtrim($departmentName, 'e'))
-                        ->first();
-            return $dept ? $dept->color : 'primary';
-        });
+        $color = $this->themeColorClass;
 
         // Map Tailwind classes to Hex codes natively so we can use them in CSS vars
         return match ($color) {

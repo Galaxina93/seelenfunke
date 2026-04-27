@@ -35,7 +35,6 @@ class BackendNavigationService
                             ['id' => 'routine', 'title' => 'Routine', 'route' => '/admin/routine', 'icon' => 'arrow-path'],
                             ['id' => 'tasks', 'title' => 'Aufgaben', 'route' => '/admin/tasks', 'icon' => 'check-circle'],
                             ['id' => 'calender', 'title' => 'Kalender', 'route' => '/admin/calender', 'icon' => 'calendar-days'],
-                            ['id' => 'gesundheit', 'title' => 'Gesundheit', 'route' => '/admin/ceo/gesundheit', 'icon' => 'heart'],
                         ]
                     ]
                 ]

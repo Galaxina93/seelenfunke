@@ -13,5 +13,6 @@ class AiUserWorkspaceSetting extends Model
         'user_id',
         'chat_height_percent',
         'auto_approve_execution_plan',
+        'active_tab',
     ];
 }

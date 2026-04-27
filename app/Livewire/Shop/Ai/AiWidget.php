@@ -19,6 +19,7 @@ class AiWidget extends Component
     
     public function mount($agentId = null)
     {
+        $this->loadDefaultChatSession();
         $this->agentId = $agentId;
         
         $this->activeAgentIds = \App\Models\Ai\AiAgent::where('is_in_chat', true)->pluck('id')->toArray();

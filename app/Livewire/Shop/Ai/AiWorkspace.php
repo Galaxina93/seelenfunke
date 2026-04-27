@@ -4,6 +4,8 @@ namespace App\Livewire\Shop\Ai;
 
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Livewire\Shop\Ai\Traits\ManagesAiChat;
+use App\Livewire\Shop\Ai\Traits\ManagesAiWorkspaceFiles;
+use App\Livewire\Shop\Ai\Traits\ManagesHealthData;
 
 use Livewire\Attributes\Layout;
 
@@ -25,13 +27,17 @@ class AiWorkspace extends Component
     use WithDepartmentTheming;
     use WithFileUploads;
     use ManagesAiChat;
+    use ManagesAiWorkspaceFiles;
+    use ManagesHealthData;
 
     public string $themingDepartment = 'Agenten';
 
     public string $activeWorkspaceView = 'workspace';
+    public string $activeTab = 'chat';
     public int $chatHeightPercent = 40;
     public bool $autoApprovePlan = false;
     public array $pingResults = [];
+
 
     // AI Hosting Tariffs Management
     public $newPlanName = '';
@@ -48,8 +54,14 @@ class AiWorkspace extends Component
             if ($setting) {
                 $this->chatHeightPercent = $setting->chat_height_percent;
                 $this->autoApprovePlan = (bool) $setting->auto_approve_execution_plan;
+                if (!empty($setting->active_tab)) {
+                    $this->activeTab = $setting->active_tab;
+                }
             }
         }
+
+        $this->loadFileManagerFiles();
+        $this->loadHealthData();
 
         $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
         $this->forcedAgentIds = $this->activeAgentIds;
@@ -84,11 +96,20 @@ class AiWorkspace extends Component
         }
     }
 
-    public function getListeners()
+    #[On('echo:workspace,TaskUpdated')]
+    public function refreshWorkspaceTasks()
     {
-        return [
-            "echo:workspace,TaskUpdated" => '$refresh',
-        ];
+        // Just refresh the component
+    }
+
+    public function updatedActiveTab($value)
+    {
+        if (auth()->check()) {
+            \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
+                ['user_id' => auth()->id()],
+                ['active_tab' => $value]
+            );
+        }
     }
     
     public function syncAll()

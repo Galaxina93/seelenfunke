@@ -56,7 +56,7 @@
                                     if (frameCount % 30 === 0) {
                                         const workerNode = document.getElementById('worker-status-node');
                                         isWorkerRunning = workerNode ? workerNode.getAttribute('data-running') === 'true' : true;
-                                        const activeTask = document.querySelector('span.bg-cyan-500\\/10');
+                                        const activeTask = document.querySelector('span.bg-\\[var\\(--theme-color-10\\)\\]');
                                         const typingAgent = document.querySelector('.animate-bounce');
                                         
                                         // The heart only beats if background queue worker is strictly running AND doing work (or typing).
@@ -181,7 +181,7 @@
                         Damit dies lokal aktiv ist, muss der Queue Worker laufen:<br>
                         <code class="block bg-gray-900 text-emerald-300 p-1.5 mt-1.5 rounded border border-gray-800 font-mono text-[9px] break-all">php artisan queue:work</code>
                         <div class="mt-3 bg-gray-900 p-2 rounded text-gray-400 text-[8px] font-mono border border-gray-800 shadow-inner">
-                            <span class="text-cyan-500 font-bold">Diagnose-Pings:</span><br>
+                            <span class="text-[var(--theme-color)] font-bold">Diagnose-Pings:</span><br>
                             {{ $this->workerDiagnostic }}
                         </div>
                     </div>
@@ -196,7 +196,7 @@
                     <!-- ============================== -->
                     <div class="flex lg:hidden w-full flex-wrap gap-4 items-start content-start">
 @foreach($tasks as $task)
-                        <div class="task-node relative w-full lg:w-80 {{ $task->parent_task_id ? 'ml-0 lg:ml-8 border-l-4 border-l-[var(--theme-color-50)]' : '' }} bg-gray-950/90 backdrop-blur-md border {{ $task->status === 'completed' ? 'border-[var(--theme-color-50)] shadow-xl shadow-[var(--theme-color-10)]' : ($task->status === 'processing' ? 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)] animate-pulse-slow' : 'border-gray-800') }} rounded-2xl p-5 flex flex-col transition-all shrink-0"
+                        <div class="task-node relative w-full lg:w-80 {{ $task->parent_task_id ? 'ml-0 lg:ml-8 border-l-4 border-l-[var(--theme-color-50)]' : '' }} bg-gray-950/90 backdrop-blur-md border {{ $task->status === 'completed' ? 'border-[var(--theme-color-50)] shadow-xl shadow-[var(--theme-color-10)]' : ($task->status === 'processing' ? 'border-[var(--theme-color-50)] shadow-[0_0_15px_var(--theme-color-10)] animate-pulse-slow' : 'border-gray-800') }} rounded-2xl p-5 flex flex-col transition-all shrink-0"
                              @if($task->status === 'pending')
                                  x-on:dragover.prevent="dragOver($event)"
                                  x-on:dragleave.prevent="dragLeave($event)"
@@ -216,7 +216,7 @@
                                     @if($task->status === 'completed')
                                         <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest">Fertig</span>
                                         <button wire:click="undoTask('{{ $task->id }}')" 
-                                                class="text-gray-500 hover:text-cyan-400 p-1 rounded-md hover:bg-cyan-500/10 transition-colors"
+                                                class="text-gray-500 hover:text-[var(--theme-color)] p-1 rounded-md hover:bg-[var(--theme-color-10)] transition-colors"
                                                 title="Aufgabe rückgängig machen (Umkehren)">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
                                         </button>
@@ -240,8 +240,8 @@
                                         </button>
                                     @elseif($task->status === 'processing')
                                         <div class="flex items-center gap-1.5">
-                                            <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase tracking-widest flex items-center gap-1">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse-slow"></span> Läuft
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest flex items-center gap-1">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] animate-pulse-slow"></span> Läuft
                                             </span>
                                             <button type="button" wire:click="cancelTask('{{ $task->id }}')" 
                                                     class="text-gray-500 hover:text-red-400 p-0.5 rounded-md hover:bg-red-500/10 transition-colors"
@@ -456,8 +456,8 @@
                                             </span>
                                                 @elseif($task->status === 'processing')
                                                     <div class="flex flex-col gap-2.5">
-                                                        <span class="inline-flex w-fit px-2.5 py-1 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase tracking-widest items-center gap-1.5 shadow-[0_0_10px_rgba(6,182,212,0.1)]">
-                                                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse-slow"></span> Läuft
+                                                        <span class="inline-flex w-fit px-2.5 py-1 rounded text-[10px] font-bold bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] uppercase tracking-widest items-center gap-1.5 shadow-[0_0_10px_var(--theme-color-10)]">
+                                                            <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] animate-pulse-slow"></span> Läuft
                                                         </span>
                                                         
                                                         @if($task->assigned_agent_id)
@@ -505,7 +505,7 @@
                                                             </button>
                                                         @endif
                                                         @if($task->status === 'completed')
-                                                            <button wire:click="undoTask('{{ $task->id }}')" class="text-gray-500 hover:text-cyan-400 p-2 rounded-lg hover:bg-cyan-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Aufgabe rückgängig machen (Umkehren)">
+                                                            <button wire:click="undoTask('{{ $task->id }}')" class="text-gray-500 hover:text-[var(--theme-color)] p-2 rounded-lg hover:bg-[var(--theme-color-10)] transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Aufgabe rückgängig machen (Umkehren)">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
                                                             </button>
                                                             <button wire:click="archiveTask('{{ $task->id }}')" class="text-gray-500 hover:text-orange-400 p-2 rounded-lg hover:bg-orange-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Archivieren & Ausblenden">

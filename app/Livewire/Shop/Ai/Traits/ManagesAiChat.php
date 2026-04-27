@@ -338,11 +338,19 @@ trait ManagesAiChat
         $this->mentionResults = [];
     }
 
-    public function removeAttachment($index)
+    public function removeAttachment($idx)
     {
-        if (isset($this->attachments[$index])) {
-            unset($this->attachments[$index]);
+        if (isset($this->attachments[$idx])) {
+            unset($this->attachments[$idx]);
             $this->attachments = array_values($this->attachments);
+        }
+    }
+
+    public function removeUploadedFile($idx)
+    {
+        if (isset($this->uploadedFiles[$idx])) {
+            unset($this->uploadedFiles[$idx]);
+            $this->uploadedFiles = array_values($this->uploadedFiles);
         }
     }
 
@@ -356,7 +364,7 @@ trait ManagesAiChat
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
-                $path = $file->store('ai-uploads', 'public');
+                $path = $file->store('agenten/workspace/chat-medien', 'public');
                 $localUploads[] = [
                     'path' => $path,
                     'name' => $file->getClientOriginalName(),
@@ -374,6 +382,10 @@ trait ManagesAiChat
         
         if (!empty($localUploads)) {
             $userCtx['local_uploads'] = $localUploads;
+        }
+
+        if (!empty($this->attachments)) {
+            $userCtx['attachments'] = $this->attachments;
         }
 
         $this->saveMessageToDb('user', $this->input, $userCtx);
@@ -569,24 +581,24 @@ trait ManagesAiChat
                                     ]
                                 ];
                             } else {
-                                if (in_array($mime, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip', 'application/x-zip-compressed'])) {
-                                    if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
-                                        try {
-                                            $parser = new \Smalot\PdfParser\Parser();
-                                            $pdf = $parser->parseFile($fullPath);
-                                            $pdfText = $pdf->getText();
-                                            $safePdfText = mb_convert_encoding(mb_substr($pdfText, 0, 40000, 'UTF-8'), 'UTF-8', 'UTF-8');
-                                            $contentToAPI .= "\n--- DATEI: {$up['name']} (PDF TEXT-EXTRAKT) ---\n```\n" . $safePdfText . "\n```\n";
-                                        } catch (\Exception $e) {
-                                            $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine PDF-Datei, aber das automatische Einlesen des Textes schlug fehl: " . $e->getMessage() . "]\n";
-                                        }
-                                    } else {
-                                        $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine {$mime} Datei. Binäre Dokumente (außer Standard-PDFs) können nicht direkt als Text gelesen werden. Der Dateiinhalt ist für dich verborgen. Teile dem Nutzer mit, dass du das Dokument nicht lesen kannst, es sei denn, er kopiert den Text direkt hinein.]\n";
+                                $isText = str_starts_with($mime, 'text/') || in_array($mime, ['application/json', 'application/xml', 'application/javascript', 'application/x-httpd-php', 'application/csv']);
+                                
+                                if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
+                                    try {
+                                        $parser = new \Smalot\PdfParser\Parser();
+                                        $pdf = $parser->parseFile($fullPath);
+                                        $pdfText = $pdf->getText();
+                                        $safePdfText = mb_convert_encoding(mb_substr($pdfText, 0, 40000, 'UTF-8'), 'UTF-8', 'UTF-8');
+                                        $contentToAPI .= "\n--- DATEI: {$up['name']} (PDF TEXT-EXTRAKT) ---\n```\n" . $safePdfText . "\n```\n";
+                                    } catch (\Exception $e) {
+                                        $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine PDF-Datei, aber das automatische Einlesen des Textes schlug fehl: " . $e->getMessage() . "]\n";
                                     }
-                                } else {
+                                } elseif ($isText) {
                                     $lines = array_slice(file($fullPath), 0, 2000);
                                     $safeText = mb_convert_encoding(rtrim(implode("", $lines)), 'UTF-8', 'UTF-8');
                                     $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n```\n" . $safeText . "\n```\n";
+                                } else {
+                                    $contentToAPI .= "\n--- DATEI: {$up['name']} ---\n[SYSTEM-HINWEIS: Dies ist eine Datei vom Typ {$mime}. Binäre Dokumente, Audios, Videos oder proprietäre Formate können nicht direkt eingelesen werden. Teile dem Nutzer mit, dass die Datei erfolgreich in den Chat geladen wurde, du aber den Inhalt nicht direkt 'sehen' oder 'lesen' kannst, da dir die passenden Werkzeuge fehlen.]\n";
                                 }
                             }
                         }
@@ -958,7 +970,7 @@ trait ManagesAiChat
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
-                $path = $file->store('agenten/ai-chat-uploads', 'public');
+                $path = $file->store('agenten/workspace/chat-medien', 'public');
                 $localUploads[] = [
                     'path' => $path,
                     'name' => $file->getClientOriginalName(),

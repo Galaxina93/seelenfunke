@@ -30,10 +30,14 @@ class AiWorkspaceTest extends TestCase
     public function test_renders_ai_chat_component_and_loads_history()
     {
         $admin = Admin::first() ?? Admin::factory()->create();
+        $chatSession = \App\Models\Ai\AiChatSession::create([
+            'user_id' => $admin->id,
+            'title' => 'Test Session'
+        ]);
 
         // Seed some AiChatMemory
         AiChatMemory::create([
-            'session_id' => session()->getId(),
+            'session_id' => $chatSession->id,
             'role' => 'user',
             'content' => 'Hello Funkira',
             'context_data' => [
@@ -73,18 +77,20 @@ class AiWorkspaceTest extends TestCase
             ->set('attachments', ['routes/web.php'])
             ->call('sendMessage');
 
+        $chatSessionId = $component->get('currentChatSessionId');
+
         // Check if state is reset
         $component->assertSet('input', '')
                   ->assertSet('attachments', []);
 
         // Assert memory DB persistence
         $this->assertDatabaseHas('ai_chat_memories', [
-            'session_id' => session()->getId(),
+            'session_id' => $chatSessionId,
             'role' => 'user',
             'content' => 'Test Message 123'
         ]);
         
-        $mem = AiChatMemory::where('session_id', session()->getId())->orderBy('id', 'desc')->first();
+        $mem = AiChatMemory::where('session_id', $chatSessionId)->orderBy('id', 'desc')->first();
         $this->assertEquals(['routes/web.php'], $mem->context_data['attachments']);
     }
 
@@ -102,7 +108,7 @@ class AiWorkspaceTest extends TestCase
             ['id' => Str::uuid()->toString(), 'provider' => 'openai', 'model' => 'gemini-1.5-flash', 'is_active' => true]
         );
 
-        Livewire::actingAs($admin, 'admin')
+        $component = Livewire::actingAs($admin, 'admin')
             ->test(AiWorkspace::class)
             ->set('activeAgentIds', [$agent->id])
             ->set('input', 'Look at this picture')
@@ -110,8 +116,10 @@ class AiWorkspaceTest extends TestCase
             ->call('sendMessage')
             ->assertSet('uploadedFiles', []);
 
+        $chatSessionId = $component->get('currentChatSessionId');
+
         // Validate DB structure
-        $mem = AiChatMemory::where('session_id', session()->getId())->orderBy('id', 'desc')->first();
+        $mem = AiChatMemory::where('session_id', $chatSessionId)->orderBy('id', 'desc')->first();
         
         $this->assertNotNull($mem);
         $this->assertArrayHasKey('local_uploads', $mem->context_data);
@@ -126,7 +134,7 @@ class AiWorkspaceTest extends TestCase
     {
         $admin = Admin::first() ?? Admin::factory()->create();
 
-        Livewire::actingAs($admin, 'admin')
+        $component = Livewire::actingAs($admin, 'admin')
             ->test(AiWorkspace::class)
             ->set('activeAgentIds', [])
             ->set('input', 'Agent should not respond')
@@ -134,9 +142,11 @@ class AiWorkspaceTest extends TestCase
             ->call('processAutoRouting')
             ->assertSee('FEHLER: Kein Agent für Verarbeitung ausgewählt');
             
+        $chatSessionId = $component->get('currentChatSessionId');
+
         // Memory holds the error message
         $this->assertDatabaseHas('ai_chat_memories', [
-            'session_id' => session()->getId(),
+            'session_id' => $chatSessionId,
             'role' => 'assistant',
         ]);
     }
@@ -145,10 +155,20 @@ class AiWorkspaceTest extends TestCase
     public function test_computes_artifacts_from_storage()
     {
         $admin = Admin::first() ?? Admin::factory()->create();
-        Storage::fake('local');
         
-        $sessionId = session()->getId();
-        Storage::disk('local')->put("agenten/ai-artifacts/{$sessionId}/implementation_plan.md", "# Test Plan");
+        $chatSession = \App\Models\Ai\AiChatSession::create([
+            'user_id' => $admin->id,
+            'title' => 'Test Session'
+        ]);
+
+        \App\Models\Ai\AiArtifact::create([
+            'session_id' => $chatSession->id,
+            'user_id' => $admin->id,
+            'name' => 'implementation_plan.md',
+            'content' => '# Test Plan',
+            'summary' => 'Test Summary',
+            'type' => 'implementation_plan'
+        ]);
         
         Livewire::actingAs($admin, 'admin')
             ->test(AiWorkspace::class)
@@ -161,9 +181,13 @@ class AiWorkspaceTest extends TestCase
     public function test_computes_global_files_from_chat_memory()
     {
         $admin = Admin::first() ?? Admin::factory()->create();
+        $chatSession = \App\Models\Ai\AiChatSession::create([
+            'user_id' => $admin->id,
+            'title' => 'Test Session'
+        ]);
 
         AiChatMemory::create([
-            'session_id' => session()->getId(),
+            'session_id' => $chatSession->id,
             'role' => 'user',
             'content' => 'Hello',
             'context_data' => [

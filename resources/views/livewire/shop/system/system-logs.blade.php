@@ -196,9 +196,16 @@
                             <tr x-show="expanded" x-transition x-cloak>
                                 <td colspan="5" class="px-8 py-6 bg-gray-950/80 border-t border-gray-800 shadow-inner">
                                     <div class="space-y-4">
-                                        <div>
-                                            <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2"><x-heroicon-o-document-text class="w-3.5 h-3.5" /> Nachrichten-Trace</div>
-                                            <div class="text-xs text-gray-300 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ $log->message }}</div>
+                                        <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                            <div class="flex-1 w-full">
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2"><x-heroicon-o-document-text class="w-3.5 h-3.5" /> Nachrichten-Trace</div>
+                                                <div class="text-xs text-gray-300 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ $log->message }}</div>
+                                            </div>
+                                            @if($log->status === 'error')
+                                                <button wire:click.stop="markAsResolved({{ $log->id }})" class="sm:mt-8 shrink-0 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner transition-colors flex items-center gap-2">
+                                                    <x-heroicon-o-check-circle class="w-4 h-4" /> Als Gelöst markieren
+                                                </button>
+                                            @endif
                                         </div>
 
                                         @if($log->payload)
