@@ -258,6 +258,17 @@ return new class extends Migration
             });
         }
 
+        if (!Schema::hasTable('ai_artifacts')) {
+            Schema::create('ai_artifacts', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->nullable()->index();
+                $table->string('session_id')->nullable()->index();
+                $table->string('name');
+                $table->longText('content')->nullable();
+                $table->timestamps();
+            });
+        }
+
         if (!Schema::hasTable('ai_widget_configs')) {
             Schema::create('ai_widget_configs', function (Blueprint $table) {
                 $table->uuid('id')->primary();
@@ -269,6 +280,35 @@ return new class extends Migration
                 $table->timestamps();
             });
         }
+
+        if (!Schema::hasTable('ai_contacts')) {
+            Schema::create('ai_contacts', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->string('phone_number')->nullable();
+                $table->string('email')->nullable();
+                $table->string('company')->nullable();
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (!Schema::hasTable('ai_calls')) {
+            Schema::create('ai_calls', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->foreignUuid('ai_agent_id')->nullable()->constrained('ai_agents')->nullOnDelete();
+                $table->foreignUuid('ai_contact_id')->nullable()->constrained('ai_contacts')->nullOnDelete();
+                $table->string('phone_number');
+                $table->string('direction')->default('outbound'); // outbound, inbound
+                $table->string('status')->default('initiated'); // initiated, ringing, in_progress, completed, failed, busy, no_answer
+                $table->integer('duration_seconds')->default(0);
+                $table->string('external_call_id')->nullable();
+                $table->string('recording_url')->nullable();
+                $table->longText('transcript')->nullable();
+                $table->text('summary')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /**
@@ -276,8 +316,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('ai_calls');
+        Schema::dropIfExists('ai_contacts');
         Schema::dropIfExists('ai_widget_configs');
         Schema::dropIfExists('ai_user_workspace_settings');
+        Schema::dropIfExists('ai_artifacts');
         Schema::dropIfExists('ai_workspace_tasks');
         Schema::dropIfExists('ai_health_medications');
         Schema::dropIfExists('ai_health_treatment_items');

@@ -121,7 +121,9 @@ class AccountingAnalytics extends Component
         $invData = [];
         foreach ($invGrouped->sortKeys() as $gDate => $items) {
             $invLabels[] = Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
-            $invData[] = $items->sum($this->isNet ? 'subtotal' : 'total') / 100; // Euro conversion assumed based on typical integration
+            $invData[] = $items->sum(function($i) {
+                return $this->isNet ? ($i->total - $i->tax_amount) : $i->total;
+            }) / 100; // Euro conversion assumed based on typical integration
         }
         $this->invoiceData = ['labels' => $invLabels, 'data' => $invData];
 
@@ -132,7 +134,13 @@ class AccountingAnalytics extends Component
         $issData = [];
         foreach ($issGrouped->sortKeys() as $gDate => $items) {
             $issLabels[] = Carbon::createFromFormat('Y-m', $gDate)->locale('de')->shortMonthName . ' ' . substr($gDate, 0, 4);
-            $issData[] = $items->sum('amount');
+            $issData[] = $items->sum(function($i) {
+                $amount = $i->amount;
+                if ($this->isNet && isset($i->tax_rate) && $i->tax_rate > 0) {
+                    $amount = $amount / (1 + ($i->tax_rate / 100));
+                }
+                return $amount;
+            });
         }
         $this->specialIssueData = ['labels' => $issLabels, 'data' => $issData];
 

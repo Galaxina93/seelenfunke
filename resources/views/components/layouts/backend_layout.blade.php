@@ -283,8 +283,10 @@
     </div>
 
     @if($guard !== 'customer')
-        <livewire:shop.ai.ai-widget />
-        <livewire:shop.ai.ai-data-visualization />
+        @persist('ai-widget-container')
+            <livewire:shop.ai.ai-widget />
+            <livewire:shop.ai.ai-data-visualization />
+        @endpersist
     @endif
 
 </div> {{-- ENDE DES GLOBALEN ALPINE STATES --}}

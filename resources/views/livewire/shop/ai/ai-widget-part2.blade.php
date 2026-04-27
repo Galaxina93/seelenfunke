@@ -24,7 +24,8 @@
             heartbeatAudio: null,
         };
 
-        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialContinuous = false, initialWakeWord = false) => ({
+        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialAgentName = 'System') => ({
+            activeAgentName: initialAgentName,
             // State
             agentColor: initialAgentColor,
             activeAgentId: initialAgentId,
@@ -33,7 +34,7 @@
             showDebugLog: false,
             showTasks: false,
             showFiles: false,
-            isAudioMuted: initialContinuous ? true : (localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true), // Default to muted as requested
+            isAudioMuted: localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true, // Default to muted as requested
             bgVolume: initialVolume,
             systemState: initialState, // 'good', 'warning', 'error', true, false
             activeSparks: initialSparks,
@@ -47,8 +48,7 @@
             // Voice AI State
             listening: false,
             thinking: false,
-            continuousMode: initialContinuous,
-            requireWakeWord: initialWakeWord,
+            isLiveMode: false,
             agentWakeWord: '{{ addslashes($agentWakeWord ?? "funkira") }}'.toLowerCase(),
             allowSpontaneous: true, // Default: On (Spontaneous Self-Analysis)
             recognition: null,
@@ -60,7 +60,7 @@
             restartCount: 0,
             lastRestartTime: 0,
             isSpeaking: false,
-            activeAgentName: 'System', // Neu: Speichert den Namen des antwortenden Agenten
+            activeAgentName: initialAgentName, // Neu: Speichert den Namen des antwortenden Agenten
             agentTtsEnabled: false, // Prevents calling TTS apis
 
             chatAbortController: null,
@@ -77,6 +77,13 @@
                 if (wakeWord) this.agentWakeWord = wakeWord.toLowerCase();
                 if (agentId) this.activeAgentId = agentId;
                 this.updateCoreColor(true); 
+                
+                if (this.isLiveMode) {
+                    this.toggleLiveMode(); // Gracefully turn off Live Mode (UI & WS)
+                    setTimeout(() => {
+                        this.toggleLiveMode(); // Gracefully turn it back on after cleanup
+                    }, 1200); // 1.2s gives the old AudioContext and WebSocket enough time to fully close
+                }
             },
 
             getColorHex(colorStr) {
@@ -110,39 +117,10 @@
             },
 
             // --- AI VOICE CHAT LOGIC ---
-            toggleMobileContinuous() {
-                if (this.isLiveMode) {
-                    this.toggleLiveMode();
-                    return;
-                }
-                
-                if (!this.recognition) this.initSpeech();
-                if (!this.recognition) return; // Browser doesn't support SpeechRecognition
-
-
-                if (this.continuousMode) {
-                    this.isAudioMuted = true; // Auto-mute background logic
-                    this.enforceAudioMuteState();
-
-                    if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
-                    if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
-
-                    this.listening = true;
-                    this.updateCoreColor();
-                    this.startSafeRecognition(0);
-                } else {
-                    this.listening = false;
-                    this.updateCoreColor();
-                    this.recognition.stop();
-                }
-            },
-
             toggleLiveMode() {
                 this.isLiveMode = !this.isLiveMode;
                 if (this.isLiveMode) {
-                    // Turn off normal continuous mode without recursive toggleLiveMode
-                    if (this.continuousMode) {
-                        this.continuousMode = false;
+                    if (this.listening) {
                         this.listening = false;
                         if (this.recognition) {
                             this.recognition.onstart = null;
@@ -178,8 +156,7 @@
                     return;
                 }
 
-                if (this.continuousMode) {
-                    this.continuousMode = false;
+                if (this.listening) {
                     this.listening = false;
                     if (this.recognition) {
                         this.recognition.onend = null;
@@ -190,12 +167,10 @@
                     if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
                     if (this.synthesis && this.synthesis.speaking) this.synthesis.cancel();
 
-                    this.continuousMode = true;
                     this.listening = true;
                     this.restartCount = 0;
                     if (!this.recognition) this.initSpeech();
                     this.startSafeRecognition(200);
-                    this.resetWatchdog();
                 }
             },
 
@@ -204,7 +179,6 @@
                     this.toggleLiveMode();
                     return;
                 }
-                this.continuousMode = false;
                 this.listening = false;
                 if (this.recognition) {
                     this.recognition.onstart = null;
@@ -223,7 +197,6 @@
                 if (this.synthesis) this.synthesis.cancel();
 
                 this.playClickSound();
-                this.continuousMode = false;
                 this.listening = true;
                 this.updateCoreColor();
                 this.restartCount = 0;
@@ -401,6 +374,14 @@
                     this.destroyCurrentChart();
                     this.showChartCanvas = false;
                     return; 
+                }
+
+                const switchCommand = contextData.find(c => c.function === 'system_switch_agent');
+                if (switchCommand && switchCommand.data && switchCommand.data.status === 'success') {
+                    if (switchCommand.data.agent_id) {
+                        this.$wire.set('agentId', switchCommand.data.agent_id);
+                        return;
+                    }
                 }
 
                 let chartType = 'doughnut';
@@ -765,7 +746,7 @@
                     this.updateCoreColor(true);
 
                     // 1. Fetch Credentials securely
-                    const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&session_id={{ session()->getId() }}', {
+                    const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&session_id={{ session()->getId() }}&t=' + Date.now(), {
                         credentials: 'same-origin',
                         headers: {
                             'Accept': 'application/json',
@@ -810,8 +791,8 @@
                         this.thinking = false;
                         this.updateCoreColor(true);
                         
-                        // Start Microphone
-                        this.startMicrophone();
+                        // Start Microphone ONLY after setupComplete is received!
+                        // this.startMicrophone();
                     };
 
                     this.liveWs.onmessage = async (event) => {
@@ -847,15 +828,6 @@
                 }
             },
 
-            interruptLiveMode() {
-                if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                    this.stopCurrentAudioPlayback();
-                    this.liveWs.send(JSON.stringify({
-                        clientContent: { turns: [ { role: 'user', parts: [] } ], turnComplete: true }
-                    }));
-                }
-            },
-
             startLiveSpeechRecognition() {
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SpeechRecognition) return;
@@ -871,6 +843,16 @@
                         const transcript = lastResult[0].transcript.trim();
                         if (transcript) {
                             try { @this.appendLiveChatMemory('user', transcript); } catch(e) {}
+                            this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
+                            
+                            // Signal Gemini that the user has finished their turn
+                            if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                                this.liveWs.send(JSON.stringify({
+                                    clientContent: {
+                                        turnComplete: true
+                                    }
+                                }));
+                            }
                         }
                     }
                 };
@@ -937,6 +919,11 @@
             },
 
             async handleWsMessage(data) {
+                if (data.setupComplete) {
+                    console.log('Gemini Live Setup Complete received');
+                    this.startMicrophone();
+                    return;
+                }
                 if (data.serverContent && data.serverContent.modelTurn) {
                     const parts = data.serverContent.modelTurn.parts;
                     let fullText = "";
@@ -954,6 +941,7 @@
                         try {
                             @this.appendLiveChatMemory('model', fullText);
                         } catch(e) {}
+                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: fullText.replace(/\[.*?\]/s, '') });
                     }
                 }
                 
@@ -983,6 +971,28 @@
                             
                             // Visualize
                             this.renderAnalytics([resultData]);
+                            
+                            // MAGIC: Synchronize frontend UI if the agent decided to switch itself!
+                            if (call.name === 'system_switch_agent' && resultData.result && resultData.result.status === 'success') {
+                                // This triggers the Livewire updatedAgentId hook which in turn dispatches 'agent-changed',
+                                // naturally shutting down this WS connection and spinning up the new one,
+                                // exactly as if the user clicked the dropdown manually!
+                                @this.set('agentId', resultData.result.agent_id);
+                            }
+
+                            // MAGIC: Handle explicit UI events returned by tools (like navigation)
+                            if (resultData.result && resultData.result._event) {
+                                const ev = resultData.result._event;
+                                if (ev.type === 'navigate' && ev.url) {
+                                    if (typeof window.Livewire !== 'undefined') {
+                                        window.Livewire.navigate(ev.url);
+                                    } else {
+                                        window.location.href = ev.url;
+                                    }
+                                } else if (ev.type === 'dispatch' && ev.name) {
+                                    window.dispatchEvent(new CustomEvent(ev.name, { detail: ev.detail || {} }));
+                                }
+                            }
 
                             // Send Tool Response back to Gemini
                             const toolResp = {
@@ -1052,21 +1062,8 @@
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
                 
-                // Booster für Mobile: Erhöht die Lautstärke der KI
-                const gainNode = this.audioContext.createGain();
-                gainNode.gain.value = 2.5; // Leicht reduziert, um extremes Clipping zu vermeiden
-                
-                // Limiter (Kompressor), um Übersteuern komplett zu verhindern!
-                const compressor = this.audioContext.createDynamicsCompressor();
-                compressor.threshold.setValueAtTime(-2, this.audioContext.currentTime); // Ab -2dB abriegeln
-                compressor.knee.setValueAtTime(5, this.audioContext.currentTime); // Weicher Übergang
-                compressor.ratio.setValueAtTime(20, this.audioContext.currentTime); // Hard Limiter
-                compressor.attack.setValueAtTime(0.005, this.audioContext.currentTime); // Fast sofort
-                compressor.release.setValueAtTime(0.1, this.audioContext.currentTime);
-                
-                source.connect(gainNode);
-                gainNode.connect(compressor);
-                compressor.connect(this.audioContext.destination);
+                // Directly connect to output for pure, clean Gemini audio
+                source.connect(this.audioContext.destination);
                 
                 if (this.nextPlayTime < this.audioContext.currentTime) {
                     this.nextPlayTime = this.audioContext.currentTime;

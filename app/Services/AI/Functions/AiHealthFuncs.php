@@ -151,21 +151,7 @@ trait AiHealthFuncs
                 ],
                 'callable' => [self::class, 'executeWriteProtocol']
             ],
-            [
-                'name' => 'health_search_medical_web',
-                'description' => 'Durchsucht das Internet nach spezifischen, aktuellen medizinischen Studien, Medikamentenhinweisen oder Symptomen.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'query' => [
-                            'type' => 'string',
-                            'description' => 'Suchbegriff, z.B. "Langzeitwirkungen von Medikament X" oder "Aktuelle Symptombehandlung Y".'
-                        ]
-                    ],
-                    'required' => ['query']
-                ],
-                'callable' => [self::class, 'executeSearchMedicalWeb']
-            ],
+
             [
                 'name' => 'health_create_medication',
                 'description' => 'Fügt ein neues, aktives Medikament in die Patientenakte ein, sobald der Nutzer ein Medikament erwähnt, das er aktuell, langfristig oder kurzfristig einnimmt.',
@@ -530,79 +516,6 @@ trait AiHealthFuncs
         }
     }
 
-    public static function executeSearchMedicalWeb(array $args)
-    {
-        try {
-            $apiKey = env('SCRAPER_API_KEY', '707ccc851a9e7c4759106d2f6e6bf764');
-            $query = $args['query'];
-
-            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                'progress' => 20,
-                'action_text' => 'Baue Stealth-Verbindung (ScraperAPI) auf für: "' . $query . '" ...'
-            ], 60);
-
-            $targetUrl = "https://html.duckduckgo.com/html/?q=" . urlencode($query);
-
-            $response = \Illuminate\Support\Facades\Http::timeout(60)->get('http://api.scraperapi.com', [
-                'api_key' => $apiKey,
-                'url' => $targetUrl,
-                'country_code' => 'de',
-            ]);
-
-            if (!$response->successful()) {
-                return ['error' => true, 'message' => 'Die Suche ist aktuell fehlgeschlagen (HTTP ' . $response->status() . '). BITTE BRICH AB UND ANTWORTE AUS DEINEM EIGENEN WISSENSSTAND. Führe keine weiteren Suchen durch.'];
-            }
-
-            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                'progress' => 70,
-                'action_text' => 'Web-DOM geladen. Extrahiere medizinische Nodes...'
-            ], 60);
-
-            $html = $response->body();
-
-            // Parse simple text snippets
-            preg_match_all('/<a class="result__snippet[^>]*>(.*?)<\/a>/is', $html, $matches);
-            $snippets = $matches[1] ?? [];
-
-            $results = [];
-            foreach(array_slice($snippets, 0, 7) as $snippet) {
-                $results[] = trim(strip_tags(html_entity_decode($snippet, ENT_QUOTES, 'UTF-8')));
-            }
-
-            if (empty($results)) {
-                preg_match_all('/class="result__body".*?>(.*?)<\/div>/is', $html, $fallbackMatches);
-                $fallbackSnippets = $fallbackMatches[1] ?? [];
-                foreach(array_slice($fallbackSnippets, 0, 5) as $snippet) {
-                    $results[] = trim(strip_tags(html_entity_decode($snippet, ENT_QUOTES, 'UTF-8')));
-                }
-            }
-
-            if (empty($results)) {
-                return [
-                    'error' => true,
-                    'message' => "Die Internetsuche nach '{$query}' lieferte keine direkten Text-Auswertungen (mögliche Bot-Sperre). Führe KEINE weitere Suche durch. Nutze ab sofort stattdessen ausschließlich dein intern antrainiertes medizinisches Fachwissen für die Diagnose."
-                ];
-            }
-
-            \Illuminate\Support\Facades\Cache::put('ai_live_state', [
-                'progress' => 100,
-                'action_text' => count($results) . ' Resultate gefiltert. Lese Daten ein...'
-            ], 60);
-
-            return [
-                'success' => true,
-                'query' => $query,
-                'results' => array_filter($results),
-                'note' => 'Nutze diese Auszüge aus dem Web für deine medizinische Antwort. VERMEIDE WEITERE SUCHEN, falls du jetzt ausreichende Daten hast.'
-            ];
-
-        } catch (\Exception $e) {
-            return [
-                'error' => true,
-                'message' => 'Web-Suche blockiert oder Timeout: ' . $e->getMessage() . '. STOPPE DIE ENDLOSSCHLEIFE. Führe diese oder andere Suchen NICHT erneut aus! Entwickle ein Fazit oder Protokoll aus deinem Trainingsdatensatz.'
-            ];
-        }
-    }
 
     public static function executeCreateMedication(array $args)
     {

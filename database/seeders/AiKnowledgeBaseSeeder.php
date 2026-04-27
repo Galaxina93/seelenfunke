@@ -29,6 +29,7 @@ class AiKnowledgeBaseSeeder extends Seeder
             'Bestell- & Produktionsprozess' => 'Konfigurator, Laser-Personalisierung und Toleranzen.',
             'Gamification & 3D-Welt' => '3D-Dashboard, Mini-Spiele, Level-System und Rabattcodes.',
             'Support & Kundenservice' => 'Umgang mit Reklamationen, Beschwerden und Eskalationen.',
+            'Buchhaltung & Steuern' => 'Wissen über DATEV-Exporte, Steuersätze, Sonderausgaben, Privates vs. Gewerbliches und BWAs.',
         ];
 
         $catMap = [];
@@ -41,7 +42,7 @@ class AiKnowledgeBaseSeeder extends Seeder
         }
 
         // 2. Tags definieren und anlegen
-        $tags = ['Kontakt', 'Recht', 'Personalisierung', 'Laser', 'Gamification', 'Datenschutz', 'Widerruf', 'Etsy', 'Zahlung', '3D', 'KI-Sicherheit', 'Support', 'Ticket', 'Reklamation', 'Versand', 'Retoure', 'B2B', 'Produkte'];
+        $tags = ['Kontakt', 'Recht', 'Personalisierung', 'Laser', 'Gamification', 'Datenschutz', 'Widerruf', 'Etsy', 'Zahlung', '3D', 'KI-Sicherheit', 'Support', 'Ticket', 'Reklamation', 'Versand', 'Retoure', 'B2B', 'Produkte', 'Buchhaltung', 'Steuern', 'Sonderausgaben', 'Export'];
         $tagMap = [];
         foreach ($tags as $tagName) {
             $tagMap[$tagName] = AiKnowledgeBaseTag::firstOrCreate([
@@ -192,6 +193,32 @@ Funki ist loyal und 100% deeskalierend.
 Egal ob ein Kunde wütend ist oder Sonderwünsche hat, Funki beruhigt die Lage professionell.
 Wenn dem Kunden nicht systemweit im Chat geholfen werden kann, ruft Funki das Werkzeug `support_mark_needs_employee` auf. Dieses Werkzeug legt ein echtes Ticket an, das direkt auf dem Schreibtisch der Produktions- und Supportleitung (dem internen Team) landet. Funki gibt niemals vor, Aktionen (wie Pakete verpacken) auszuführen, sondern reicht die Tickets faktisch und sauber an das menschliche Team weiter.
 Sobald Fragen geklärt sind, ruft er `support_resolve_chat` auf.
+                "
+            ],
+            // Artikel 11
+            [
+                'title' => 'Sonderausgaben & Schnellerfassung (Buchhaltung)',
+                'category' => 'Buchhaltung & Steuern',
+                'tags' => ['Buchhaltung', 'Sonderausgaben'],
+                'content' => "
+# Sonderausgaben & Schnellerfassung
+Die Buchhaltung unterscheidet streng zwischen:
+1. **Gewerbliche Ausgaben (is_business = true):** Anschaffungen für Seelenfunke (z.B. Serverkosten, Arbeitsmaterial, Werbung). Nur hier greift der Steuersatz (meist 19%).
+2. **Private Ausgaben (is_business = false):** Privatentnahmen oder private Einkäufe des Geschäftsführers (z.B. privater Einkauf, Essen gehen). Hier gibt es keine abziehbare Vorsteuer (tax_rate = null).
+**Erfassung durch KI:**
+Die KI kann Ausgaben mittels `finance_create_quick_entry_expense` direkt erfassen. Zuvor sollte mit `finance_list_categories` geprüft werden, in welche Kategorie die Ausgabe gehört.
+                "
+            ],
+            // Artikel 12
+            [
+                'title' => 'Steuer-Export & Jahresabschluss (DATEV)',
+                'category' => 'Buchhaltung & Steuern',
+                'tags' => ['Buchhaltung', 'Steuern', 'Export'],
+                'content' => "
+# Steuer-Export
+Seelenfunke bietet einen vollständigen Rechnungs- und Transaktions-Export für Steuerberater (DATEV-konform) an.
+**Ausführung durch KI:**
+Die KI kann den Export anstoßen, indem sie `finance_generate_tax_export` aufruft. Dies generiert eine ZIP-Datei mit allen Rechnungen (PDFs) und Buchungs-CSV-Daten des gewählten Monats. Den Link zur generierten Datei gibt die KI dem Benutzer, welcher diesen über das Dashboard herunterladen kann.
                 "
             ]
         ];

@@ -15,7 +15,7 @@ trait AiMailFuncs
                     'properties' => [
                         'to_address' => [
                             'type' => 'string',
-                            'description' => 'Die E-Mail Adresse des Empfängers. Leer lassen, um sie an die Standard-Shop-Adresse zu senden.'
+                            'description' => 'Die E-Mail Adresse des Empfängers. WICHTIGE REGEL: Wenn dir der User keine spezifische E-Mail-Adresse nennt, MUSS dieses Feld zwingend leer (null) bleiben! Erfinde NIEMALS eigene Adressen oder Platzhalter (wie example.com oder email@domain.de). Wenn dieses Feld leer gelassen wird, wird die E-Mail automatisch an die interne System-Adresse (shop_setting("company_email")) gesendet.'
                         ],
                         'subject' => [
                             'type' => 'string',
@@ -45,11 +45,17 @@ trait AiMailFuncs
             }
 
             $to = $args['to_address'] ?? null;
+            
+            // Validate dummy emails
+            if ($to && (str_contains(strtolower($to), 'example') || str_contains(strtolower($to), 'test.com') || str_contains(strtolower($to), 'dummy') || str_contains(strtolower($to), 'domain.de') || str_contains(strtolower($to), 'platzhalter'))) {
+                return ['status' => 'error', 'message' => 'Ungültige E-Mail Adresse. Bitte erfinde keine Adressen. Lass das Feld to_address zwingend leer (null), wenn du die exakte Adresse nicht kennst.'];
+            }
+
             if (empty($to)) {
-                $to = shop_setting('owner_email');
+                $to = shop_setting('company_email') ?: shop_setting('owner_email');
             }
             if (empty($to)) {
-                return ['status' => 'error', 'message' => 'Keine Empfänger-E-Mail angegeben und keine Standard-E-Mail im System (owner_email) hinterlegt.'];
+                return ['status' => 'error', 'message' => 'Keine Empfänger-E-Mail angegeben und keine Standard-E-Mail im System (company_email) hinterlegt.'];
             }
 
             $subject = $args['subject'];

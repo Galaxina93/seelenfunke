@@ -133,10 +133,10 @@
                                 </div>
                             </div>
                             <div class="flex gap-2">
-                                <button type="button" wire:click="removeExistingImage" class="flex-1 bg-gray-900 hover:bg-[var(--theme-color)] hover:text-gray-900 text-[10px] text-gray-400 font-black uppercase tracking-widest py-2.5 px-3 rounded-xl border border-gray-800 hover:border-transparent transition-all shadow-lg active:scale-95">
+                                <button type="button" wire:click="removePreviewImage" class="flex-1 bg-gray-900 hover:bg-[var(--theme-color)] hover:text-gray-900 text-[10px] text-gray-400 font-black uppercase tracking-widest py-2.5 px-3 rounded-xl border border-gray-800 hover:border-transparent transition-all shadow-lg active:scale-95">
                                     Vorschau ersetzen
                                 </button>
-                                <button type="button" wire:click="removeExistingImage" class="w-10 shrink-0 flex flex-col items-center justify-center bg-gray-900 border border-gray-800 hover:border-red-500/50 hover:bg-red-500/10 text-gray-500 hover:text-red-400 rounded-xl transition-all shadow-lg active:scale-95" title="Bild komplett entfernen">
+                                <button type="button" wire:click="removePreviewImage" class="w-10 shrink-0 flex flex-col items-center justify-center bg-gray-900 border border-gray-800 hover:border-red-500/50 hover:bg-red-500/10 text-gray-500 hover:text-red-400 rounded-xl transition-all shadow-lg active:scale-95" title="Bild komplett entfernen">
                                     <x-heroicon-o-x-mark class="w-4 h-4" />
                                 </button>
                             </div>

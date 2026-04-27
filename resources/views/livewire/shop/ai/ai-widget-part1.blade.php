@@ -1,4 +1,4 @@
-<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, {{ $widgetConfig && $widgetConfig->continuous_mode ? 'true' : 'false' }}, {{ $widgetConfig && $widgetConfig->require_wake_word ? 'true' : 'false' }})"
+<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}')"
      wire:ignore
      @open-funkira.window="openFunkiView()"
      @close-funkira.window="closeFunkiView()"
@@ -7,7 +7,7 @@
      @ai-speech-feedback.window="speakFeedback($event.detail.text)"
      @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId)"
      @keyup.escape.window="closeFunkiView()"
-     @change="$wire.saveWidgetConfig({ volume: bgVolume, continuousMode: continuousMode, requireWakeWord: requireWakeWord, agentId: activeAgentId })">
+     @change="$wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId })">
 
 <div x-data="{ dockOpen: false }"
      class="fixed right-0 top-1/2 -translate-y-1/2 z-[99999] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] pointer-events-none"
@@ -37,13 +37,15 @@
         <div class="flex flex-col gap-3">
             <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
                 <div class="flex flex-col gap-3">
-                    <span class="leading-tight break-words break-all hyphens-auto">Live-AI</span>
-                    <button x-show="isLiveMode" @click="interruptLiveMode()" x-cloak class="text-amber-500 hover:text-amber-400 flex items-center justify-center gap-1.5 bg-amber-900/40 px-2 py-1.5 rounded-lg border border-amber-500/30 transition-colors w-full shadow-inner mb-1" title="KI sofort unterbrechen">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
-                        </svg>
-                        <span>Stoppen</span>
-                    </button>
+                    <span class="leading-tight break-words break-all hyphens-auto flex flex-col gap-1 w-full">
+                        <span>Live-AI</span>
+                        <select wire:model.live="agentId" class="w-full bg-black/50 border border-emerald-900/50 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none">
+                            @foreach($availableAgents as $agent)
+                                <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                            @endforeach
+                        </select>
+                    </span>
+
                     <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5 shrink-0">
                             <rect x="5" y="5" width="10" height="10" rx="1" />
@@ -64,23 +66,14 @@
                 </button>
                 @endif
 
-                <label class="flex items-center gap-2 cursor-pointer group" title="Zuhören (Immer hören)">
-                    <div class="relative w-8 h-4 transition-colors rounded-full" :class="continuousMode ? 'bg-emerald-500' : 'bg-gray-700'">
-                        <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="sr-only">
-                        <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="continuousMode ? 'translate-x-4' : 'translate-x-0'"></div>
+                <!-- Live Mode Toggle -->
+                <label class="flex items-center gap-2 cursor-pointer group" title="Live-AI (Echtzeit Sprachmodus)">
+                    <div class="relative w-8 h-4 transition-colors rounded-full" :class="isLiveMode ? 'bg-emerald-500' : 'bg-gray-700'">
+                        <input type="checkbox" x-on:click.prevent="toggleLiveMode()" :checked="isLiveMode" class="sr-only">
+                        <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="isLiveMode ? 'translate-x-4' : 'translate-x-0'"></div>
                     </div>
                     <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
-                        <x-heroicon-o-microphone class="w-4 h-4" />
-                    </div>
-                </label>
-
-                <label class="flex items-center gap-2 cursor-pointer group" title="Aktivierungswort (Wake-Word) nutzen">
-                    <div class="relative w-8 h-4 transition-colors rounded-full" :class="requireWakeWord ? 'bg-emerald-500' : 'bg-gray-700'">
-                        <input type="checkbox" x-model="requireWakeWord" class="sr-only">
-                        <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="requireWakeWord ? 'translate-x-4' : 'translate-x-0'"></div>
-                    </div>
-                    <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
-                        <x-heroicon-o-at-symbol class="w-4 h-4" />
+                        <x-heroicon-o-bolt class="w-4 h-4" />
                     </div>
                 </label>
             </div>
@@ -152,29 +145,7 @@
     <!-- Widget Files & Plans -->
     @include('livewire.shop.ai.blocks.widget-files')
 
-    <!-- Bottom Left Controls (Listening Modes) -->
-    <div class="absolute left-6 z-50 flex flex-col items-start gap-2 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
 
-        <!-- Continuous Mode Toggle -->
-        <label class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Knopf drücken (PTT) vs Dauerhaft zuhören (Stellt Musik stumm)">
-            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Immer hören</span>
-            <div class="relative inline-block w-8 outline-none focus:outline-none">
-                <input type="checkbox" x-model="continuousMode" @change="toggleMobileContinuous()" class="peer sr-only">
-                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
-                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
-            </div>
-        </label>
-
-        <!-- Wake Word Toggle -->
-        <label class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md cursor-pointer hover:border-emerald-500 transition-colors" title="Aktivierungswort (Funkira) nutzen oder auf jedes Wort reagieren">
-            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Aktivierungswort</span>
-            <div class="relative inline-block w-8 outline-none focus:outline-none">
-                <input type="checkbox" x-model="requireWakeWord" class="peer sr-only">
-                <div class="block h-4 bg-gray-700 rounded-full peer-checked:bg-emerald-500 transition-all"></div>
-                <div class="dot absolute left-1 top-1 w-2 h-2 bg-white rounded-full transition peer-checked:translate-x-4"></div>
-            </div>
-        </label>
-    </div>
 
     <!-- Bottom Right Controls (Audio & Close) -->
     <div class="absolute right-6 z-50 flex flex-col items-end gap-3 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">

@@ -162,14 +162,16 @@ trait ManagesAiChat
     {
         $contextData = [];
         if ($role === 'user') {
+            $user = auth()->check() ? auth()->user() : null;
             $contextData = [
-                'name' => auth()->check() ? auth()->user()->first_name : 'User',
+                'name' => $user ? $user->first_name : 'User',
                 'color' => 'gray-400',
                 'icon' => 'user',
-                'is_live_audio' => true
+                'is_live_audio' => true,
+                'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null
             ];
         } else {
-            $agentId = $this->activeAgentIds[0] ?? null;
+            $agentId = $this->agentId ?? ($this->activeAgentIds[0] ?? null);
             $agent = \App\Models\Ai\AiAgent::find($agentId);
             if (!$agent) {
                 $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->first();
@@ -178,7 +180,8 @@ trait ManagesAiChat
                 'name' => $agent ? $agent->name : 'Funkira',
                 'color' => $agent ? $agent->color : 'purple-500',
                 'icon' => 'robot',
-                'is_live_audio' => true
+                'is_live_audio' => true,
+                'profile_picture' => $agent ? $agent->profile_picture : null
             ];
         }
 
@@ -546,24 +549,29 @@ trait ManagesAiChat
     public function artifacts()
     {
         $sessionId = $this->getAiSessionId();
-        $path = 'agenten/ai-artifacts/' . $sessionId;
-        if (!Storage::disk('local')->exists($path)) {
-            return collect();
+        $userId = auth()->id();
+
+        $query = \App\Models\Ai\AiArtifact::query();
+
+        if ($userId) {
+            $query->where('user_id', $userId);
+        } else {
+            $query->where('session_id', $sessionId);
         }
 
-        $files = Storage::disk('local')->files($path);
-        $artifactData = [];
+        $artifacts = $query->orderBy('updated_at', 'desc')->get();
 
-        foreach ($files as $file) {
+        $artifactData = [];
+        foreach ($artifacts as $artifact) {
             $artifactData[] = [
-                'name' => str_replace('.md', '', basename($file)),
-                'filename' => basename($file),
-                'content' => Storage::disk('local')->get($file),
-                'last_modified' => Storage::disk('local')->lastModified($file)
+                'name' => str_replace('.md', '', $artifact->name),
+                'filename' => $artifact->name,
+                'content' => $artifact->content,
+                'last_modified' => $artifact->updated_at->timestamp
             ];
         }
 
-        return collect($artifactData)->sortByDesc('last_modified')->values();
+        return collect($artifactData);
     }
 
     #[Computed]

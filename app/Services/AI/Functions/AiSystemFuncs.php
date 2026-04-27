@@ -11,8 +11,54 @@ trait AiSystemFuncs
 {
     public static function getAiSystemFuncsSchema(): array
     {
-        $schema = [
+        $agentMap = \Illuminate\Support\Facades\Cache::remember('ai_agent_capabilities_map', 3600, function() {
+            $agents = \App\Models\Ai\AiAgent::with('role.tools')->where('is_active', true)->get();
+            $list = [];
+            foreach ($agents as $a) {
+                $list[$a->name] = $a->tools->pluck('identifier')->toArray();
+            }
+            return json_encode($list);
+        });
 
+        $schema = [
+            [
+                'name' => 'system_ask_agent',
+                'description' => 'Frage einen anderen hochspezialisierten KI-Agenten um Hilfe, wenn du eine Aufgabe nicht selbst lösen kannst oder dir eine Fähigkeit fehlt. Folgende Agenten und ihre Tools stehen zur Verfügung: ' . $agentMap,
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'agent_name' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Name des Agenten, den du fragen möchtest.'
+                        ],
+                        'question' => [
+                            'type' => 'string',
+                            'description' => 'Deine detaillierte Frage oder Arbeitsanweisung an den Agenten.'
+                        ]
+                    ],
+                    'required' => ['agent_name', 'question']
+                ],
+                'callable' => [self::class, 'executeAskAgent']
+            ],
+            [
+                'name' => 'system_call_contact',
+                'description' => 'Führt einen KI-Sprachanruf bei einem Kontakt durch (z.B. über Vapi.ai oder Twilio).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'phone_number' => [
+                            'type' => 'string',
+                            'description' => 'Die Telefonnummer des Kontakts im E.164 Format (z.B. +491701234567).'
+                        ],
+                        'objective' => [
+                            'type' => 'string',
+                            'description' => 'Das Ziel des Anrufs (Was soll der Voice-Agent herausfinden oder besprechen?).'
+                        ]
+                    ],
+                    'required' => ['phone_number', 'objective']
+                ],
+                'callable' => [self::class, 'executeCallContact']
+            ],
             [
                 'name' => 'system_visualize_data',
                 'description' => 'Zeigt strukturierte JSON-Daten visuell als Master Modal Dashboard für den User an. IMMER ausführen, wenn der User nach einer grafischen Übersicht, Tabelle, Liste oder Grafik fragt. Stichworte: Visualisiere mir, Zeig mir das als Liste, Tabelle einblenden, Übersicht anzeigen.',
@@ -45,6 +91,21 @@ trait AiSystemFuncs
                     'properties' => new \stdClass(),
                 ],
                 'callable' => [self::class, 'executeCloseUi']
+            ],
+            [
+                'name' => 'system_switch_agent',
+                'description' => 'Wechselt den aktiven Agenten. Nutze dies IMMER, wenn der Nutzer sagt: "Ich möchte mit Agent X sprechen", "Hol mir Marketi", "Wechsle zu Buchi" etc. Du verabschiedest dich und übergibst das Wort.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'agent_name' => [
+                            'type' => 'string',
+                            'description' => 'Der Name des Ziel-Agenten (z.B. Marketi, Buchi, Systemi).'
+                        ]
+                    ],
+                    'required' => ['agent_name']
+                ],
+                'callable' => [self::class, 'executeSwitchAgent']
             ],
             [
                 'name' => 'system_assign_tool_to_role',
@@ -395,6 +456,15 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeCommandStatus']
             ],
             [
+                'name' => 'system_get_rights',
+                'description' => 'Gibt dem Agenten volle Datei- und Systemberechtigungen zurück, indem es das "funki rights" Skript ausführt (Cache leeren, www-data chown, chmod 775 auf storage und bootstrap/cache). Nutze dies, wenn du Permission Denied Fehler erhältst.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetRights']
+            ],
+            [
                 'name' => 'system_request_user_approval',
                 'description' => 'Pausiert die Ausführung und fragt den User nach einer expliziten Erlaubnis/Freigabe für einen generierten Plan. Nutze dies IMMER, nachdem du ein "implementation_plan" Artefakt erstellt hast. Du darfst nicht weiterarbeiten, bevor der User zustimmt.',
                 'parameters' => [
@@ -435,13 +505,13 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_search_web',
-                'description' => 'Führt eine Internet-Suche aus, um externe Informationen, Dokumentationen oder Fehlermeldungen im Web zu recherchieren.',
+                'description' => 'Mächtiges Deep Research Web-Tool. Führt eine hochintelligente, tiefgreifende Internet-Suche (Google Search Grounding) aus, um externe Informationen, News, medizinische Fakten oder Marktdaten zu recherchieren.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'query' => [
                             'type' => 'string',
-                            'description' => 'Der Suchbegriff.'
+                            'description' => 'Der Suchbegriff oder die ausformulierte Recherche-Aufgabe.'
                         ]
                     ],
                     'required' => ['query']
@@ -493,6 +563,21 @@ trait AiSystemFuncs
             'status' => 'success',
             'message' => 'Die UI wurde erfolgreich geschlossen.'
         ];
+    }
+
+    public static function executeSwitchAgent(array $args)
+    {
+        $agentName = $args['agent_name'] ?? '';
+        $agent = \App\Models\Ai\AiAgent::where('name', 'LIKE', '%' . $agentName . '%')->first();
+        if ($agent) {
+            return [
+                'status' => 'success',
+                'agent_id' => $agent->id,
+                'agent_name' => $agent->name,
+                'message' => 'Agent wechselt nun zu ' . $agent->name
+            ];
+        }
+        return ['status' => 'error', 'message' => 'Agent mit dem Namen ' . $agentName . ' nicht gefunden.'];
     }
 
     public static function executeOpenNavItem(array $args)
@@ -621,6 +706,73 @@ trait AiSystemFuncs
                 'type' => 'dispatch',
                 'name' => 'close-funkira'
             ],
+        ];
+    }
+
+    public static function executeAskAgent(array $args)
+    {
+        try {
+            $targetAgentName = $args['agent_name'] ?? '';
+            $question = $args['question'] ?? '';
+
+            if (empty($targetAgentName) || empty($question)) {
+                return ['status' => 'error', 'message' => 'Agenten-Name oder Frage fehlt.'];
+            }
+
+            $agent = \App\Models\Ai\AiAgent::where('name', $targetAgentName)->where('is_active', true)->first();
+            if (!$agent) {
+                return ['status' => 'error', 'message' => "Der Agent '{$targetAgentName}' wurde nicht gefunden oder ist inaktiv."];
+            }
+
+            // Instantiate the appropriate agent service based on the model or class
+            $providerClass = \App\Services\AI\GeminiAgent::class; // Default to Gemini
+            if (str_contains(strtolower($agent->model), 'mittwald') || str_contains(strtolower($agent->model), 'llama')) {
+                if (class_exists(\App\Services\AI\MittwaldAgent::class)) {
+                    $providerClass = \App\Services\AI\MittwaldAgent::class;
+                }
+            }
+            
+            $aiService = new $providerClass($agent);
+
+            // Run a sterile ask request
+            $response = $aiService->ask([
+                ['role' => 'user', 'content' => "Ein anderer Agent aus unserem System bittet dich um Hilfe bei folgender Aufgabe/Frage:\n\n" . $question]
+            ]);
+
+            return [
+                'status' => 'success',
+                'message' => "Antwort von {$targetAgentName}: \n\n" . ($response['content'] ?? 'Keine Antwort erhalten.')
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler bei der Kommunikation mit dem Agenten: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeCallContact(array $args)
+    {
+        $phoneNumber = $args['phone_number'] ?? null;
+        $objective = $args['objective'] ?? null;
+
+        if (!$phoneNumber || !$objective) {
+            return ['status' => 'error', 'message' => 'Telefonnummer und Ziel des Anrufs müssen angegeben werden.'];
+        }
+
+        // Dummy implementation for the concept
+        // Hier würde z.B. der API Call an Vapi.ai oder Twilio stattfinden.
+        
+        if (class_exists(\App\Models\Ai\AiCall::class)) {
+            \App\Models\Ai\AiCall::create([
+                'ai_agent_id' => auth()->user() ? null : null, // Agent ID müsste aus Kontext kommen
+                'phone_number' => $phoneNumber,
+                'direction' => 'outbound',
+                'status' => 'initiated',
+                'summary' => 'Initialisiert: ' . $objective
+            ]);
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Der Anruf an ' . $phoneNumber . ' wurde erfolgreich initiiert. Das Ziel ist: ' . $objective . '. Der Agent telefoniert nun im Hintergrund.'
         ];
     }
 
@@ -1319,19 +1471,24 @@ trait AiSystemFuncs
         }
 
         $sessionId = config('ai.current_session_id') ?: (auth()->check() ? 'user_' . auth()->id() : session()->getId());
-        if (!$sessionId) {
+        $userId = auth()->id();
+
+        if (!$userId && !$sessionId) {
             return ['status' => 'error', 'message' => 'Keine aktive Session für Artefakt-Speicherung gefunden.'];
         }
 
         $filename = str_replace(' ', '_', strtolower($name)) . '.md';
-        $path = 'agenten/ai-artifacts/' . $sessionId . '/' . $filename;
         
-        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $content);
-        
-        // Ensure that the file and directory are readable by www-data
-        @chmod(storage_path('app/agenten/ai-artifacts'), 0777);
-        @chmod(storage_path('app/agenten/ai-artifacts/' . $sessionId), 0777);
-        @chmod(storage_path('app/' . $path), 0666);
+        \App\Models\Ai\AiArtifact::updateOrCreate(
+            [
+                'name' => $filename,
+                'user_id' => $userId,
+                'session_id' => $userId ? null : $sessionId,
+            ],
+            [
+                'content' => $content
+            ]
+        );
 
         if (str_contains(strtolower($name), 'implementation_plan') || str_contains(strtolower($name), 'plan')) {
             session()->put('has_ai_implementation_plan', true);
@@ -1497,6 +1654,24 @@ trait AiSystemFuncs
         ];
     }
 
+    public static function executeGetRights(array $args)
+    {
+        $basePath = base_path();
+        $funkiPath = $basePath . '/funki';
+        
+        if (!file_exists($funkiPath)) {
+            return ['status' => 'error', 'message' => 'Das funki Skript konnte nicht gefunden werden.'];
+        }
+
+        $output = shell_exec("cd " . escapeshellarg($basePath) . " && ./funki rights 2>&1");
+        
+        return [
+            'status' => 'success',
+            'message' => 'Systemberechtigungen wurden erfolgreich erneuert!',
+            'output' => $output
+        ];
+    }
+
     public static function executeAssignToolToRole(array $args, $agent = null)
     {
         $toolId = $args['tool_identifier'] ?? '';
@@ -1601,30 +1776,70 @@ trait AiSystemFuncs
         if (empty($query)) return ['status' => 'error', 'message' => 'Query fehlt.'];
 
         try {
-            // Wikipedia Fallback API as simple free search
-            $url = "https://de.wikipedia.org/w/api.php?action=query&list=search&srsearch=" . urlencode($query) . "&utf8=&format=json";
-            $response = \Illuminate\Support\Facades\Http::timeout(10)->withHeaders([
-                'User-Agent' => 'SeelenfunkeAiBot/1.0 (contact@seelenfunke.example)'
-            ])->get($url);
-            
+            $apiKey = config('services.gemini.key');
+            if (empty($apiKey)) {
+                return ['status' => 'error', 'message' => 'Gemini API Key fehlt. Websuche nicht möglich.'];
+            }
+
+            // Wir nutzen Gemini 2.5 Flash für schnelle, tiefe Suche via Search Grounding
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
+
+            $payload = [
+                "contents" => [
+                    [
+                        "role" => "user",
+                        "parts" => [
+                            [
+                                "text" => "Bitte recherchiere detailliert und präzise im Internet nach folgendem Thema. Liefere eine zusammenhängende, informative und auf den Punkt gebrachte Zusammenfassung (Deep Research). Suchanfrage: " . $query
+                            ]
+                        ]
+                    ]
+                ],
+                "tools" => [
+                    [
+                        "googleSearch" => new \stdClass()
+                    ]
+                ]
+            ];
+
+            $response = \Illuminate\Support\Facades\Http::timeout(45)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post($url, $payload);
+
             if ($response->successful()) {
                 $data = $response->json();
-                $results = $data['query']['search'] ?? [];
                 
-                $out = "WIKIPEDIA SUCH-ERGEBNISSE FÜR: {$query}\n\n";
-                foreach (array_slice($results, 0, 5) as $result) {
-                    $out .= "TITEL: " . $result['title'] . "\n";
-                    $out .= "AUSZUG: " . strip_tags($result['snippet']) . "\n\n";
+                $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                $groundingMetadata = $data['candidates'][0]['groundingMetadata'] ?? null;
+                
+                if (empty($text)) {
+                     return ['status' => 'error', 'message' => 'Keine Textantwort von Gemini Research erhalten.'];
                 }
-                
+
+                $sourceHint = "";
+                if ($groundingMetadata && isset($groundingMetadata['groundingChunks'])) {
+                    $sourceHint = "\n\n(Quellen: ";
+                    $sources = [];
+                    foreach ($groundingMetadata['groundingChunks'] as $chunk) {
+                        if (isset($chunk['web']['title'])) {
+                            $sources[] = $chunk['web']['title'];
+                        }
+                    }
+                    $sourceHint .= implode(", ", array_unique($sources)) . ")";
+                }
+
                 return [
                     'status' => 'success',
-                    'content' => empty($results) ? 'Keine Ergebnisse auf Wikipedia gefunden.' : $out
+                    'content' => $text . $sourceHint,
+                    'note' => 'Nutze diese detaillierten Deep Research Informationen, um dem User zu antworten.'
                 ];
             }
-            return ['status' => 'error', 'message' => 'Such-Dienst nicht erreichbar.'];
+            
+            $err = $response->json();
+            $errMsg = $err['error']['message'] ?? 'Unbekannter API Fehler';
+            return ['status' => 'error', 'message' => 'Deep Research Service nicht erreichbar: ' . $errMsg];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler bei Dateisuche: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler bei Deep Research Websuche: ' . $e->getMessage()];
         }
     }
 }

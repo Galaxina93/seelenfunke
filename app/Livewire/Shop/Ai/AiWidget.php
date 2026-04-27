@@ -107,8 +107,6 @@ class AiWidget extends Component
         if (auth()->check() && $this->widgetConfig) {
             $this->widgetConfig->update([
                 'volume' => $data['volume'] ?? $this->widgetConfig->volume,
-                'continuous_mode' => $data['continuousMode'] ?? $this->widgetConfig->continuous_mode,
-                'require_wake_word' => $data['requireWakeWord'] ?? $this->widgetConfig->require_wake_word,
                 'ai_agent_id' => isset($data['agentId']) ? (empty($data['agentId']) ? null : $data['agentId']) : $this->widgetConfig->ai_agent_id,
             ]);
         }

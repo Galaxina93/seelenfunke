@@ -90,7 +90,7 @@ class ProductTemplates extends Component
         ]);
     }
 
-    public function removeExistingImage()
+    public function removePreviewImage()
     {
         $this->removeExistingImage = true;
         $this->existingTemplateImagePath = null;

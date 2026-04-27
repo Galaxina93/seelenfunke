@@ -16,10 +16,6 @@
 
                 audio.onended = () => {
                     this.isSpeaking = false;
-                    if (this.continuousMode) {
-                        this.listening = true;
-                        this.startSafeRecognition(100);
-                    }
                 };
             },
 
@@ -32,11 +28,6 @@
                 
                 this.isSpeaking = false;
                 this.thinking = false;
-                
-                if (this.continuousMode && !this.listening) {
-                    this.listening = true;
-                    this.startSafeRecognition(100);
-                }
             },
 
             speakResponse(text) {
@@ -66,7 +57,7 @@
                                      .replace(/\b([0-9\.]+)\s*[Mm](?=\s|$|[.,!?])/g, '$1 Minuten')
                                      .replace(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/g, '$1. $2. $3');
 
-                if (this.isMobile && this.recognition) {
+                if (this.recognition) {
                     this.recognition.onend = null; 
                     try { this.recognition.abort(); } catch(e) {}
                 }
@@ -91,7 +82,7 @@
                     window.funkiAudioPlayer.currentTime = 0;
                 }
                 
-                if (this.isMobile && this.recognition) {
+                if (this.recognition) {
                     this.recognition.onend = null; 
                     try { this.recognition.abort(); } catch(e) {}
                 }
@@ -119,19 +110,26 @@
                     utterance.voice = germanVoice;
                 }
 
-                utterance.rate = 1.05;
-                utterance.pitch = 0.95;
+                // Dynamische Anpassung an den Agenten!
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                
+                if (this.activeAgentName) {
+                    const name = this.activeAgentName.toLowerCase();
+                    if (name.includes('buchi') || name.includes('finanz')) {
+                        utterance.pitch = 0.8; // Tiefere Stimme
+                        utterance.rate = 0.95; // Etwas ruhiger
+                    } else if (name.includes('marketi') || name.includes('marketing')) {
+                        utterance.pitch = 1.2; // Höhere Stimme
+                        utterance.rate = 1.1; // Etwas schneller
+                    } else if (name.includes('system') || name.includes('admin')) {
+                        utterance.pitch = 0.5; // Roboterhaft tief
+                        utterance.rate = 1.0;
+                    }
+                }
 
                 utterance.onend = () => {
                     this.isSpeaking = false;
-                    if (this.continuousMode && !t3.isShuttingDown && this.isMobile && this.listening) {
-                        if (this.recognition) {
-                            this.recognition.onend = () => { 
-                                if (this.continuousMode) this.restartRecognition(); 
-                            };
-                        }
-                        this.restartRecognition();
-                    }
                 };
 
                 this.synthesis.speak(utterance);
@@ -167,14 +165,6 @@
                     }
                 });
 
-                this.$watch('continuousMode', value => {
-                    localStorage.setItem('funki_continuousMode', value);
-                });
-
-                this.$watch('requireWakeWord', value => {
-                    localStorage.setItem('funki_requireWakeWord', value);
-                });
-
                 this.boundAnimate = () => this.animate();
 
                 window.updateFunkiStatus = (state) => {
@@ -196,18 +186,8 @@
                 });
 
                 document.addEventListener('livewire:navigated', () => {
-                    if (this.continuousMode) {
-                        this.listening = true;
-                        if (!this.recognition) this.initSpeech();
-                        this.startSafeRecognition(1000);
-                    }
+                    // Do nothing on navigate since continuous mode is gone
                 });
-
-                if (this.continuousMode) {
-                    this.listening = true;
-                    if (!this.recognition) this.initSpeech();
-                    this.startSafeRecognition(1000);
-                }
             },
 
             destroy() {
@@ -255,46 +235,6 @@
                 }, delay);
             },
 
-            resetWatchdog() {
-                if (this.watchdogTimer) clearInterval(this.watchdogTimer);
-                this.watchdogTimer = setInterval(() => {
-                    if (this.isMobile && this.isOutputActive()) return; 
-                    
-                    if (this.listening && this.continuousMode && (Date.now() - this.lastActivityTime > 45000)) {
-                        console.log('Orb Voice watchdog restarting mic...');
-                        if (this.recognition) {
-                            this.recognition.onend = null;
-                            try { this.recognition.abort(); } catch(e) {}
-                            this.recognition = null;
-                        }
-                        this.initSpeech();
-                        this.startSafeRecognition(300);
-                        this.lastActivityTime = Date.now();
-                    }
-                }, 10000);
-            },
-
-            restartRecognition() {
-                if (!this.listening || !this.continuousMode || t3.isShuttingDown) return;
-                if (this.isMobile && this.isOutputActive()) return; 
-                
-                
-                if (Date.now() - this.lastRestartTime < 1000) {
-                    this.restartCount++;
-                    if (this.restartCount > 5) {
-                        console.warn('Voice restart loop detected in Orb, aborting...');
-                        this.listening = false;
-                        if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
-                        return;
-                    }
-                } else {
-                    this.restartCount = 0;
-                }
-                this.lastRestartTime = Date.now();
-
-                        this.startSafeRecognition(100);
-            },
-
             initSpeech() {
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 if (!SpeechRecognition) {
@@ -336,12 +276,8 @@
 
                 this.recognition.onend = () => {
                     this.isRecognizing = false;
-                    if (!this.continuousMode) {
-                        this.listening = false;
-                        if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
-                        return;
-                    }
-                    this.restartRecognition();
+                    this.listening = false;
+                    if (window.t3 && window.t3.coreMesh) this.updateCoreColor();
                 };
 
                 this.recognition.onresult = (event) => {
@@ -363,26 +299,9 @@
 
                         if (this.isOutputActive()) return;
 
-                        if (!this.continuousMode) {
-                            this.listening = false;
-                            this.recognition.stop();
-                            this.sendToAI(transcript);
-                        } else {
-                            if (this.requireWakeWord) {
-                                // Nutzt das dynamische Wake-Word des Agenten aus der Datenbank
-                                const hw = this.agentWakeWord || 'funkira';
-                                
-                                if (textToLower.includes(hw)) {
-                                    console.log('Wake word heard: ', transcript);
-                                    this.sendToAI(transcript);
-                                } else {
-                                    console.log('Ignored (No wake word matched): ', transcript);
-                                }
-                            } else {
-                                console.log('Funkira (No Wake-Word) heard: ', transcript);
-                                this.sendToAI(transcript);
-                            }
-                        }
+                        this.listening = false;
+                        this.recognition.stop();
+                        this.sendToAI(transcript);
                     }
                 };
             },

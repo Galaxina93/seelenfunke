@@ -595,6 +595,15 @@ class GeminiAgent implements AiProviderInterface
 
                     // Decode arguments from JSON string back to array (OpenAI schema sends arguments as stringied JSON)
                     $functionArgsString = $toolCall['function']['arguments'] ?? '{}';
+                    
+                    if (is_array($functionArgsString)) {
+                        $functionArgsString = json_encode($functionArgsString, JSON_UNESCAPED_UNICODE);
+                    }
+                    
+                    // Fix Gemini hallucination where it outputs "{}{}" for empty arguments, or "[]" from json_encode of empty assoc array
+                    if ($functionArgsString === '{}{}' || $functionArgsString === '[]' || trim($functionArgsString) === '') {
+                        $functionArgsString = '{}';
+                    }
 
                     // --- ANTI-LOOP IDENTICAL CALL CHECK ---
                     $callSignature = md5($functionName . $functionArgsString);

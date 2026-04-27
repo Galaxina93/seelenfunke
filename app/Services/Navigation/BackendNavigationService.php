@@ -54,6 +54,7 @@ class BackendNavigationService
                             ['id' => 'support-chats', 'title' => 'Chats', 'route' => '/admin/support-chats', 'icon' => 'chat-bubble-left-ellipsis'],
                             ['id' => 'support-ticket', 'title' => 'Tickets', 'route' => '/admin/support-tickets', 'icon' => 'ticket', 'is_ticket' => true],
                             ['id' => 'support-contact-form', 'title' => 'Kontaktanfragen', 'route' => '/admin/support-contact-form', 'icon' => 'envelope'],
+                            ['id' => 'support-telephony', 'title' => 'Telefonie', 'route' => '/admin/support/telephony', 'icon' => 'phone'],
                         ]
                     ],
                     [

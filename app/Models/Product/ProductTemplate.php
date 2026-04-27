@@ -61,8 +61,8 @@ class ProductTemplate extends Model
             return asset($this->preview_image);
         }
 
-        // Ansonsten gehen wir davon aus, dass es im Storage liegt
-        return \Illuminate\Support\Facades\Storage::url($this->preview_image);
+        // Ansonsten gehen wir davon aus, dass es im Storage liegt (public disk)
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($this->preview_image);
     }
 
     /**
