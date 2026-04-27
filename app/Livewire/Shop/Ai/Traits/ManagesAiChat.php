@@ -12,9 +12,88 @@ use Livewire\Attributes\On;
 
 trait ManagesAiChat
 {
+    public $currentChatSessionId = null;
+
     protected function getAiSessionId()
     {
-        return auth()->check() ? 'user_' . auth()->id() : session()->getId();
+        if (!$this->currentChatSessionId) {
+            $this->loadDefaultChatSession();
+        }
+        return $this->currentChatSessionId;
+    }
+
+    public function loadDefaultChatSession()
+    {
+        if (!auth()->check()) {
+            $this->currentChatSessionId = session()->getId();
+            return;
+        }
+
+        $userId = auth()->id();
+        $session = \App\Models\Ai\AiChatSession::where('user_id', $userId)
+            ->where('is_archived', false)
+            ->orderBy('updated_at', 'desc')
+            ->first();
+
+        if (!$session) {
+            $session = \App\Models\Ai\AiChatSession::create([
+                'user_id' => $userId,
+                'title' => 'Neuer Chat',
+            ]);
+        }
+        
+        $this->currentChatSessionId = $session->id;
+    }
+
+    #[Computed]
+    public function chatSessions()
+    {
+        return \App\Models\Ai\AiChatSession::where('user_id', auth()->id())
+            ->orderBy('updated_at', 'desc')
+            ->get();
+    }
+
+    public function createNewChat()
+    {
+        $session = \App\Models\Ai\AiChatSession::create([
+            'user_id' => auth()->id(),
+            'title' => 'Neuer Chat',
+        ]);
+        $this->currentChatSessionId = $session->id;
+        $this->messages; // trigger re-render
+    }
+
+    public function switchChat($id)
+    {
+        $this->currentChatSessionId = $id;
+        $this->messages; // trigger re-render
+    }
+
+    public function deleteChats(array $ids)
+    {
+        \App\Models\Ai\AiChatSession::whereIn('id', $ids)->where('user_id', auth()->id())->delete();
+        $this->currentChatSessionId = null;
+        $this->loadDefaultChatSession();
+    }
+
+    public function archiveChat($id)
+    {
+        $chat = \App\Models\Ai\AiChatSession::where('id', $id)->where('user_id', auth()->id())->first();
+        if ($chat) {
+            $chat->update(['is_archived' => true]);
+        }
+    }
+
+    public function updateChatTitle($title, $id = null)
+    {
+        if (!auth()->check()) return;
+        $chatId = $id ?: $this->currentChatSessionId;
+        if (!$chatId) return;
+        
+        $chat = \App\Models\Ai\AiChatSession::where('id', $chatId)->where('user_id', auth()->id())->first();
+        if ($chat) {
+            $chat->update(['title' => $title]);
+        }
     }
 
     public $input = '';
@@ -51,7 +130,32 @@ trait ManagesAiChat
 
         if ($history->isNotEmpty()) {
             foreach ($history as $mem) {
-                if ($mem->role === 'tool') continue;
+                if ($mem->role === 'tool') {
+                    $ctx = $mem->context_data ?? [];
+                    $argsStr = json_encode($ctx['args'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                    $resStr = json_encode($ctx['result'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+                    
+                    $markdown = "**⚙️ " . $mem->content . "**\n\n";
+                    $markdown .= "<details><summary class='cursor-pointer text-cyan-400'>Parameter & Argumente</summary>\n\n```json\n{$argsStr}\n```\n\n</details>";
+                    
+                    if (strlen($resStr) < 2000) {
+                        $markdown .= "<details><summary class='cursor-pointer text-emerald-400'>System-Antwort</summary>\n\n```json\n{$resStr}\n```\n\n</details>";
+                    } else {
+                        $markdown .= "<details><summary class='cursor-pointer text-emerald-400'>System-Antwort (Auszug)</summary>\n\n```json\n" . mb_substr($resStr, 0, 2000) . "...\n```\n\n</details>";
+                    }
+
+                    $messages[] = [
+                        'role' => 'assistant',
+                        'name' => 'System Execution',
+                        'content' => $markdown,
+                        'color' => 'purple-500',
+                        'icon' => 'wrench-screwdriver',
+                        'profile_picture' => null,
+                        'attachments' => [],
+                        'local_uploads' => [],
+                    ];
+                    continue;
+                }
 
                 $ctx = $mem->context_data ?? [];
                 $messages[] = [
@@ -244,26 +348,31 @@ trait ManagesAiChat
 
     public function sendMessage()
     {
-        if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) return;
+        if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) {
+            return;
+        }
 
-        $userCtx = [
-            'name' => auth()->check() ? auth()->user()->first_name : 'User',
-            'color' => 'gray-400',
-            'icon' => 'user',
-            'profile_picture' => auth()->check() && auth()->user()->profile ? auth()->user()->profile->photo_path : null,
-            'attachments' => $this->attachments,
-        ];
-
+        // Handle File Uploads First
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
-                $path = $file->store('agenten/ai-chat-uploads', 'public');
+                $path = $file->store('ai-uploads', 'public');
                 $localUploads[] = [
                     'path' => $path,
                     'name' => $file->getClientOriginalName(),
-                    'mime' => $file->getMimeType()
+                    'mime' => $file->getMimeType(),
                 ];
             }
+        }
+
+        $userCtx = [
+            'name' => auth()->user()->first_name ?? 'User',
+            'color' => 'gray-400',
+            'icon' => 'user',
+            'profile_picture' => (auth()->check() && auth()->user()->profile) ? auth()->user()->profile->photo_path : null,
+        ];
+        
+        if (!empty($localUploads)) {
             $userCtx['local_uploads'] = $localUploads;
         }
 
@@ -274,18 +383,30 @@ trait ManagesAiChat
         $this->input = '';
         $this->attachments = [];
         $this->uploadedFiles = [];
-
+        
         $this->typingAgents = array_merge($this->typingAgents, $this->activeAgentIds);
-        $this->dispatch('start-auto-routing');
+        
+        $this->dispatch('start-auto-routing', targetComponentId: $this->getId());
     }
 
     #[On('start-auto-routing')]
-    public function processAutoRouting()
+    public function processAutoRouting($targetComponentId = null)
     {
+        if ($targetComponentId !== null && $targetComponentId !== $this->getId()) {
+            return;
+        }
+
         $rawUserInput = $this->pendingRouterMessage;
         $this->pendingRouterMessage = null;
 
         if (!$rawUserInput) return;
+
+        // Prevent parallel routing execution for the same message
+        $lockKey = 'ai_routing_lock_' . $this->getAiSessionId() . '_' . md5($rawUserInput);
+        $routingLock = \Illuminate\Support\Facades\Cache::lock($lockKey, 10);
+        if (!$routingLock->get()) {
+            return;
+        }
 
         $routedIds = \App\Services\AI\AiAgentRouter::determineRequiredAgents($rawUserInput, $this->activeAgentIds);
         
@@ -311,7 +432,7 @@ trait ManagesAiChat
         $this->typingAgents = array_intersect($this->typingAgents, $this->activeAgentIds);
         $this->typingAgents = array_unique(array_merge($this->typingAgents, $this->activeAgentIds));
 
-        $this->dispatch('start-ai-inference', agentIds: $this->activeAgentIds);
+        $this->dispatch('start-ai-inference', targetComponentId: $this->getId(), agentIds: $this->activeAgentIds);
     }
 
     public function abortInference($agentId)
@@ -353,10 +474,36 @@ trait ManagesAiChat
         }
     }
 
+    #[On('start-ai-inference')]
+    public function handleStartAiInference($targetComponentId = null, $agentIds = [])
+    {
+        if ($targetComponentId !== null && $targetComponentId !== $this->getId()) {
+            return;
+        }
+
+        foreach ($agentIds as $id) {
+            $this->processAgent($id);
+        }
+    }
+
     #[On('process-agent')]
     public function processAgent($agentId)
     {
         if (!in_array($agentId, $this->typingAgents)) return;
+
+        // Prevent parallel or duplicate agent execution for the same message
+        $lastUserMsg = AiChatMemory::where('session_id', $this->getAiSessionId())
+            ->where('role', 'user')
+            ->orderBy('created_at', 'desc')
+            ->first();
+            
+        $msgHash = $lastUserMsg ? md5($lastUserMsg->content) : 'empty';
+        $lockKey = 'ai_inference_lock_' . $this->getAiSessionId() . '_' . $agentId . '_' . $msgHash;
+        
+        $inferenceLock = \Illuminate\Support\Facades\Cache::lock($lockKey, 30);
+        if (!$inferenceLock->get()) {
+            return;
+        }
 
         $agent = AiAgent::find($agentId);
         if (!$agent) {
@@ -465,6 +612,7 @@ trait ManagesAiChat
         }
 
         try {
+            config(['ai.current_session_id' => $this->getAiSessionId()]);
             $apiService = \App\Services\AI\AiAgentFactory::make($agent);
 
             $response = $apiService->ask($apiHistory, function($event) use ($agentId) {
@@ -532,6 +680,7 @@ trait ManagesAiChat
         }
 
         $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
+        unset($this->artifacts);
     }
 
     public function clearChat()

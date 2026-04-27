@@ -588,6 +588,22 @@ class GeminiAgent implements AiProviderInterface
 
             // Did the AI decide to call a tool?
             if (isset($message['tool_calls']) && !empty($message['tool_calls'])) {
+                
+                // ANTIGRAVITY FIX: Speichere auch den Zwischen-Text (Gedanken/Erklärungen vor dem Tool Call) in der DB!
+                if (!empty($streamedTextAccumulator) && class_exists(AiChatMemory::class)) {
+                    AiChatMemory::create([
+                        'session_id' => config('ai.current_session_id') ?: session()->getId(),
+                        'role' => 'assistant',
+                        'content' => $streamedTextAccumulator,
+                        'context_data' => [
+                            'name' => $this->agent->name,
+                            'color' => $this->agent->color,
+                            'icon' => $this->agent->icon,
+                            'profile_picture' => $this->agent->profile_picture,
+                        ]
+                    ]);
+                }
+
                 // Execute every tool the AI asked for (now safely max 1)
                 foreach ($message['tool_calls'] as $toolCall) {
                     $toolCallId = $toolCall['id'];
@@ -689,7 +705,7 @@ class GeminiAgent implements AiProviderInterface
                     // Speichere in Langzeitgedächtnis
                     if (class_exists(AiChatMemory::class)) {
                         AiChatMemory::create([
-                            'session_id' => session()->getId(),
+                            'session_id' => config('ai.current_session_id') ?: session()->getId(),
                             'role' => 'tool',
                             'content' => 'Werkzeug: ' . $functionName,
                             'context_data' => ['args' => $executeArgs, 'result' => $result]
@@ -762,7 +778,8 @@ class GeminiAgent implements AiProviderInterface
                     ], 60);
                 } catch (\Exception $e) {}
 
-                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
+                $prefix = isset($message['content']) && trim($message['content']) !== '' ? trim($message['content']) . "\n\n" : '';
+                return $prefix . $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
             }
 
             // Provide final answer

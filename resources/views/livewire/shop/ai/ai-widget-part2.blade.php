@@ -68,6 +68,7 @@
 
             // Live API State
             isLiveMode: false,
+            continuousMode: false,
             liveWs: null,
             audioContext: null,
 

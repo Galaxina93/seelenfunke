@@ -101,6 +101,16 @@ return new class extends Migration
             });
         }
 
+        if (!Schema::hasTable('ai_chat_sessions')) {
+            Schema::create('ai_chat_sessions', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->nullable()->index();
+                $table->string('title')->default('Neuer Chat');
+                $table->boolean('is_archived')->default(false);
+                $table->timestamps();
+            });
+        }
+
         if (!Schema::hasTable('ai_knowledge_base_categories')) {
             Schema::create('ai_knowledge_base_categories', function (Blueprint $table) {
                 $table->uuid('id')->primary();
@@ -333,6 +343,7 @@ return new class extends Migration
         Schema::dropIfExists('ai_knowledge_base_tags');
         Schema::dropIfExists('ai_knowledge_base_categories');
         Schema::dropIfExists('ai_chat_memories');
+        Schema::dropIfExists('ai_chat_sessions');
         Schema::dropIfExists('ai_role_tool');
         Schema::dropIfExists('ai_tools');
         Schema::dropIfExists('ai_agent_settings');

@@ -348,7 +348,8 @@ class MittwaldAgent
                     'pulse_color' => 'indigo'
                 ], 60);
 
-                return $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
+                $prefix = isset($message['content']) && trim($message['content']) !== '' ? trim($message['content']) . "\n\n" : '';
+                return $prefix . $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
             }
 
             // Provide final answer

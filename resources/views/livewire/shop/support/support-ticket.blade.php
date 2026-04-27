@@ -156,7 +156,7 @@
                             <span class="text-[9px] text-red-400 font-black uppercase tracking-widest bg-red-900/30 px-2 py-0.5 rounded border border-red-500/30 shrink-0">Geschlossen</span>
                         @endif
                     </div>
-                    <h2 class="text-lg sm:text-2xl font-bold text-white mb-2 leading-tight break-all whitespace-pre-wrap">{{ $activeTicket->subject }}</h2>
+                    <h2 class="text-lg sm:text-2xl font-bold text-white mb-2 leading-tight break-words whitespace-pre-wrap">{{ $activeTicket->subject }}</h2>
                     <p class="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
                         <span class="text-[var(--theme-color)]">{{ $activeTicket->customer->first_name }} {{ $activeTicket->customer->last_name }}</span>
                     </p>
@@ -199,7 +199,7 @@
                         <div class="flex justify-start w-full">
                             <div class="max-w-[90%] sm:max-w-[80%] xl:max-w-[70%]">
                                 <div class="bg-gray-800 border border-gray-700 rounded-2xl rounded-tl-sm p-4 sm:p-5 shadow-lg text-gray-200">
-                                    <p class="{{ $isOnlyEmojis ? 'text-5xl py-2' : 'text-sm' }} leading-relaxed break-all whitespace-pre-wrap">{{ $msg->message }}</p>
+                                    <p class="{{ $isOnlyEmojis ? 'text-5xl py-2' : 'text-sm' }} leading-relaxed break-words whitespace-pre-wrap">{{ $msg->message }}</p>
                                     @if($msg->attachments)
                                         <div class="mt-3 flex flex-wrap gap-2">
                                             @foreach($msg->attachments as $img)
@@ -215,7 +215,7 @@
                         <div class="flex justify-end w-full">
                             <div class="max-w-[90%] sm:max-w-[80%] xl:max-w-[70%]">
                                 <div class="bg-[var(--theme-color)]/10 border border-[var(--theme-color)]/30 rounded-2xl rounded-tr-sm p-4 sm:p-5 shadow-lg text-white">
-                                    <p class="{{ $isOnlyEmojis ? 'text-5xl py-2' : 'text-sm' }} leading-relaxed break-all whitespace-pre-wrap">{{ $msg->message }}</p>
+                                    <p class="{{ $isOnlyEmojis ? 'text-5xl py-2' : 'text-sm' }} leading-relaxed break-words whitespace-pre-wrap">{{ $msg->message }}</p>
                                     @if($msg->attachments)
                                         <div class="mt-3 flex flex-wrap gap-2">
                                             @foreach($msg->attachments as $img)
@@ -307,7 +307,7 @@
                                       x-init="resize()" @input="resize()"
                                       @keydown.enter.prevent="if(!$event.shiftKey) { $wire.sendReply(); }"
                                       rows="1" placeholder="Schreibe eine Antwort..."
-                                      class="flex-1 bg-transparent text-white text-sm px-2 sm:px-3 py-2.5 sm:py-3 resize-none focus:outline-none custom-scrollbar max-h-32 min-h-[44px] break-all whitespace-pre-wrap leading-relaxed"></textarea>
+                                      class="flex-1 bg-transparent text-white text-sm px-2 sm:px-3 py-2.5 sm:py-3 resize-none focus:outline-none custom-scrollbar max-h-32 min-h-[44px] break-words whitespace-pre-wrap leading-relaxed"></textarea>
 
                             <button type="submit" wire:loading.attr="disabled" class="w-10 h-10 sm:w-11 sm:h-11 ml-1 sm:ml-2 rounded-full bg-[var(--theme-color)] text-gray-900 flex items-center justify-center hover:scale-110 hover:-rotate-12 transition-all duration-300 shrink-0 shadow-[0_0_15px_var(--theme-color)0.3)] hover:shadow-[0_0_25px_var(--theme-color)0.8)] disabled:opacity-50 disabled:hover:scale-100 disabled:hover:rotate-0 mb-0.5 focus:outline-none">
                                 <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>

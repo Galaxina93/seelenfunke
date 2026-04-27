@@ -125,6 +125,17 @@ class AIController extends Controller
 
         // Speichere finalen Dialog-Verlauf in der Datenbank
         $sessionId = session()->getId();
+        if (auth()->check()) {
+            $lastSession = \App\Models\Ai\AiChatSession::where('user_id', auth()->id())
+                             ->orderBy('updated_at', 'desc')
+                             ->first();
+            if ($lastSession) {
+                $sessionId = $lastSession->id;
+            } else {
+                $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => auth()->id(), 'title' => 'Widget Chat']);
+                $sessionId = $newSession->id;
+            }
+        }
 
         // Was hat der User gesagt? (Finde die neuste User-Nachricht)
         $userMsg = collect($history)->reverse()->firstWhere('role', 'user');
