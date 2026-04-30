@@ -7,7 +7,7 @@ const { WaveFile } = wavefile;
 
 dotenv.config();
 
-const PORT = process.env.TWILIO_WS_PORT || 8081;
+const PORT = process.env.PORT || process.env.TWILIO_WS_PORT || 8081;
 const GOOGLE_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
 if (!GOOGLE_API_KEY) {
