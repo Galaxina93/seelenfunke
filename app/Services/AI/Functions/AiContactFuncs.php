@@ -124,8 +124,27 @@ trait AiContactFuncs
                 'callable' => [self::class, 'executeContactDeleteInfo']
             ],
             [
+                'name' => 'contact_draft_call',
+                'description' => 'WICHTIG: Nutze dies IMMER zuerst, bevor du einen Anruf tätigst! Erstellt einen Entwurf/Aufgabenplan für einen Anruf, der dem Nutzer in der UI angezeigt wird. Besprich den Plan mit dem Nutzer und hole dir sein finales "Go", bevor du contact_call nutzt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'first_name' => [
+                            'type' => 'string',
+                            'description' => 'Vorname der anzurufenden Person.'
+                        ],
+                        'objective' => [
+                            'type' => 'string',
+                            'description' => 'Der konkrete Aufgabenplan / Die Checkliste für den Anruf.'
+                        ]
+                    ],
+                    'required' => ['first_name', 'objective']
+                ],
+                'callable' => [self::class, 'executeContactDraftCall']
+            ],
+            [
                 'name' => 'contact_call',
-                'description' => 'Löst einen Anruf an diesen Kontakt unter der hinterlegten Telefonnummer aus. Erlaube dem Agenten, das Ziel des Anrufs zu definieren.',
+                'description' => 'ACHTUNG: Führe diesen Befehl erst aus, nachdem du mit contact_draft_call einen Plan erstellt hast UND der Nutzer ihn freigegeben hat! Löst den eigentlichen Anruf aus.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -297,6 +316,33 @@ trait AiContactFuncs
         return ['status' => 'success', 'message' => "Die Information bei {$p->first_name} wurde gelöscht."];
     }
 
+    public static function executeContactDraftCall(array $args)
+    {
+        if (empty($args['first_name']) || empty($args['objective'])) {
+            return ['status' => 'error', 'message' => 'Vorname und Ziel (objective) für den Anruf erforderlich.'];
+        }
+
+        $p = static::findPersonProfile($args['first_name']);
+        if (!$p) return ['status' => 'error', 'message' => 'Person nicht gefunden.'];
+
+        if (empty($p->phone)) {
+            return ['status' => 'error', 'message' => "Für {$p->first_name} ist keine Telefonnummer im Profil hinterlegt."];
+        }
+
+        // Erstelle den geplanten Anruf
+        $record = new \App\Models\SupportTelephonyCall();
+        $record->contact_name = $p->full_name;
+        $record->phone = $p->phone;
+        $record->objective = $args['objective'];
+        $record->status = 'planned';
+        $record->save();
+
+        return [
+            'status' => 'success',
+            'message' => "Der Entwurf wurde erfolgreich in der UI unter 'Anruf-Historie' (als Geplant) gespeichert. Bitte den Nutzer jetzt um sein finales 'Go' oder eventuelle Anpassungen, bevor du contact_call benutzt."
+        ];
+    }
+
     public static function executeContactCall(array $args)
     {
         if (empty($args['first_name']) || empty($args['objective'])) {
@@ -309,6 +355,12 @@ trait AiContactFuncs
         if (empty($p->phone)) {
             return ['status' => 'error', 'message' => "Für {$p->first_name} ist keine Telefonnummer im Profil hinterlegt."];
         }
+
+        // Suche nach einem geplanten Anruf für diese Nummer und aktualisiere ihn (oder erstelle später einen neuen, falls nicht vorhanden)
+        $plannedCall = \App\Models\SupportTelephonyCall::where('phone', preg_replace('/[^0-9+]/', '', $p->phone))
+            ->where('status', 'planned')
+            ->orderBy('created_at', 'desc')
+            ->first();
 
         // Hole die Kalender-Termine der nächsten 30 Tage für den Kontext
         $calendarEventsStr = "Keine anstehenden Termine in den nächsten 30 Tagen.";
@@ -334,7 +386,8 @@ trait AiContactFuncs
             'objective' => $args['objective'],
             'system_instructions' => $p->system_instructions ?? '',
             'ai_learned_facts' => $p->ai_learned_facts ?? '',
-            'calendar_events' => $calendarEventsStr
+            'calendar_events' => $calendarEventsStr,
+            'planned_call_id' => $plannedCall ? $plannedCall->id : null
         ], 600); // 10 Minuten gültig
 
         // WICHTIG: API Call direkt hier auslösen
@@ -415,8 +468,16 @@ trait AiContactFuncs
                 ]
             );
 
-            // NEU: Trage den Call als aktiven Aufgabenplan ein
-            $record = new \App\Models\SupportTelephonyCall();
+            // NEU: Trage den Call als aktiven Aufgabenplan ein oder update den Entwurf
+            $plannedCallId = $context['planned_call_id'] ?? null;
+            if ($plannedCallId) {
+                $record = \App\Models\SupportTelephonyCall::find($plannedCallId);
+            }
+            
+            if (!isset($record) || !$record) {
+                $record = new \App\Models\SupportTelephonyCall();
+            }
+
             $record->twilio_sid = $call->sid;
             $record->contact_name = $context['contact_name'] ?? 'Unbekannt';
             $record->phone = $toPhoneClean;
