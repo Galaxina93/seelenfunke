@@ -71,10 +71,14 @@ class TwilioCallController extends Controller
             'duration_seconds' => 'nullable|integer',
         ]);
 
-        $callRecord = new \App\Models\SupportTelephonyCall();
-        $callRecord->twilio_sid = $data['twilio_sid'] ?? '';
-        $callRecord->contact_name = $data['contact_name'] ?? 'Unbekannt';
-        $callRecord->objective = $data['objective'] ?? '';
+        $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $data['twilio_sid'])->first();
+        if (!$callRecord) {
+            $callRecord = new \App\Models\SupportTelephonyCall();
+            $callRecord->twilio_sid = $data['twilio_sid'] ?? '';
+            $callRecord->contact_name = $data['contact_name'] ?? 'Unbekannt';
+            $callRecord->objective = $data['objective'] ?? '';
+        }
+        
         $callRecord->transcript = json_encode($data['transcript'] ?? []);
         $callRecord->duration_seconds = $data['duration_seconds'] ?? 0;
         $callRecord->status = 'completed';

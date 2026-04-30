@@ -757,6 +757,19 @@
                                                     </button>
                                                 @endif
 
+                                                @if($sKey === 'telephony')
+                                                    <div class="mt-2 text-[9px] text-gray-400 bg-gray-900/50 p-2 rounded-lg border border-gray-800 text-left font-mono leading-relaxed">
+                                                        <span class="text-[#C5A059] font-bold uppercase tracking-widest block mb-1">Terminal Befehle:</span>
+                                                        <div class="truncate">Start: npx pm2 start server-twilio.js --name twilio-bridge</div>
+                                                        <div class="truncate">Logs: npx pm2 logs twilio-bridge</div>
+                                                        <div class="truncate">Stop: npx pm2 stop twilio-bridge</div>
+                                                    </div>
+                                                    <button type="button" wire:click="fixSystem('telephony')" wire:loading.attr="disabled" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-blue-700 bg-blue-900/30 hover:bg-blue-800 text-blue-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5">
+                                                        <span wire:loading.remove wire:target="fixSystem('telephony')"><i class="bi bi-arrow-clockwise"></i> Bridge Restart (PM2)</span>
+                                                        <span wire:loading wire:target="fixSystem('telephony')" class="animate-pulse">Neustart läuft...</span>
+                                                    </button>
+                                                @endif
+
                                                 @if(isset($health['error']) && $health['error'])
                                                     <div class="mt-1.5 pt-1.5 border-t border-red-500/20 text-red-500 text-[10px] font-bold">{{ $health['error'] }}</div>
                                                 @endif

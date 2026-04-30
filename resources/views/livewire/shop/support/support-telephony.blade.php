@@ -81,18 +81,26 @@
                 @else
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         @foreach($activeCalls as $call)
-                            <div class="bg-gray-900/50 border border-gray-700 p-4 rounded-xl flex items-center space-x-4">
-                                <div class="h-12 w-12 rounded-full bg-[var(--theme-color)] flex items-center justify-center text-gray-900 font-bold text-lg shadow-[0_0_10px_var(--theme-color)]">
-                                    {{ substr($call->agent->name ?? 'A', 0, 1) }}
-                                </div>
-                                <div>
-                                    <div class="text-white font-medium">{{ $call->agent->name ?? 'Unbekannter Agent' }}</div>
-                                    <div class="text-sm text-[var(--theme-color)] flex items-center space-x-1">
-                                        <i class="bi bi-telephone-outbound"></i>
-                                        <span>{{ $call->contact->name ?? $call->phone_number }}</span>
+                            <div class="bg-gray-900/50 border border-gray-700 p-4 rounded-xl flex flex-col space-y-3">
+                                <div class="flex items-center space-x-4">
+                                    <div class="h-12 w-12 rounded-full bg-[var(--theme-color)] flex items-center justify-center text-gray-900 font-bold text-lg shadow-[0_0_10px_var(--theme-color)]">
+                                        KI
                                     </div>
-                                    <div class="text-xs text-gray-500 mt-1">Status: {{ ucfirst($call->status) }}</div>
+                                    <div>
+                                        <div class="text-white font-medium">Sprach-KI Agent</div>
+                                        <div class="text-sm text-[var(--theme-color)] flex items-center space-x-1">
+                                            <i class="bi bi-telephone-outbound"></i>
+                                            <span>{{ $call->contact_name ?? $call->phone }}</span>
+                                        </div>
+                                        <div class="text-xs text-emerald-500 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Läuft aktuell</div>
+                                    </div>
                                 </div>
+                                @if($call->objective)
+                                    <div class="border-t border-gray-700 pt-3 mt-1">
+                                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Aufgabenplan:</div>
+                                        <div class="text-xs text-gray-300 leading-relaxed italic border-l-2 border-[var(--theme-color)] pl-3">{{ $call->objective }}</div>
+                                    </div>
+                                @endif
                             </div>
                         @endforeach
                     </div>

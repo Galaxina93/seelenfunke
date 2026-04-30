@@ -17,8 +17,7 @@ class SupportTelephony extends Component
 
     public function render()
     {
-        // Da wir nun SupportTelephonyCall für echte Twilio-Calls haben:
-        $activeCalls = collect(); // Aktive Twilio Calls könnten wir über einen Status "ongoing" in SupportTelephonyCall ermitteln, wenn wir sie beim Start eintragen würden. Für jetzt leer.
+        $activeCalls = \App\Models\SupportTelephonyCall::where('status', 'ongoing')->get();
 
         $historyCalls = \App\Models\SupportTelephonyCall::orderBy('created_at', 'desc')
             ->paginate(10);

@@ -410,9 +410,20 @@ trait AiContactFuncs
                 $toPhoneClean,
                 $fromNumber,
                 [
-                    "twiml" => $response->asXML()
+                    "twiml" => $response->asXML(),
+                    "timeLimit" => 180 // Maximal 3 Minuten Gesprächsdauer
                 ]
             );
+
+            // NEU: Trage den Call als aktiven Aufgabenplan ein
+            $record = new \App\Models\SupportTelephonyCall();
+            $record->twilio_sid = $call->sid;
+            $record->contact_name = $context['contact_name'] ?? 'Unbekannt';
+            $record->phone = $toPhoneClean;
+            $record->objective = $context['objective'] ?? '';
+            $record->status = 'ongoing';
+            $record->save();
+
             return ['success' => true, 'sid' => $call->sid];
         } catch (\Exception $e) {
             \Log::error("Twilio Call Error: " . $e->getMessage());

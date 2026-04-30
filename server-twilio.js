@@ -60,7 +60,10 @@ Achte darauf, dass Termine sich nicht überschneiden!
 Regeln:
 - Antworte extrem kurz und bündig, genau wie in einem echten, menschlichen Telefonat.
 - Keine Formatierungen, keine Emojis, sprich natürlich.
-- Sobald dein Ziel erreicht ist, verabschiede dich freundlich und professionell.
+- Höre dem Kunden kurz zu, aber unterbinde energisch jeden Smalltalk oder Zeitverschwendung. 
+- Das Telefonat kostet sekündlich Geld. Dein Ziel ist absolute Effizienz.
+- Wenn die Person vom Thema abschweift, weise sie darauf hin, dass du nur für das spezifische Ziel angerufen hast und keine Zeit für andere Themen hast.
+- Sobald dein Ziel erreicht ist, verabschiede dich freundlich aber bestimmt und lege quasi virtuell auf (beende das Gespräch).
             `.trim();
 
             const setupMessage = {
