@@ -17,6 +17,7 @@ class SupportTelephony extends Component
     public $currentTab = 'calls'; // calls, contacts, settings
 
     #[On('refreshTelephony')]
+    #[On('echo:telephony,SupportTelephonyUpdated')]
     public function refreshList()
     {
         // Löst einfach ein Livewire-Rerender aus, da render() danach automatisch aufgerufen wird

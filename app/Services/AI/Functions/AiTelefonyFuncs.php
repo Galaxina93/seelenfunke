@@ -128,6 +128,7 @@ trait AiTelefonyFuncs
         
         $record->objective = $args['objective'];
         $record->save();
+        \App\Events\SupportTelephonyUpdated::dispatch();
 
         return [
             'status' => 'success',
@@ -263,6 +264,7 @@ trait AiTelefonyFuncs
 
         $call->status = $args['status'];
         $call->save();
+        \App\Events\SupportTelephonyUpdated::dispatch();
 
         return [
             'status' => 'success',
@@ -313,6 +315,7 @@ trait AiTelefonyFuncs
                 $call->status = 'failed';
                 $call->summary = "Technischer Fehler: " . implode(" | ", $errorMessages);
                 $call->save();
+                \App\Events\SupportTelephonyUpdated::dispatch();
             }
 
             return [
@@ -401,6 +404,7 @@ trait AiTelefonyFuncs
             $record->objective = $context['objective'] ?? '';
             $record->status = 'ongoing';
             $record->save();
+            \App\Events\SupportTelephonyUpdated::dispatch();
 
             return [
                 'success' => true,
