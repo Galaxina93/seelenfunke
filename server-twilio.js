@@ -5,6 +5,17 @@ import WebSocket from 'ws';
 import wavefile from 'wavefile';
 const { WaveFile } = wavefile; 
 
+import fs from 'fs';
+
+process.on('uncaughtException', (err) => {
+    fs.writeFileSync('crash.log', err.stack || err.toString());
+    process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+    fs.writeFileSync('crash.log', err.stack || err.toString());
+    process.exit(1);
+});
+
 dotenv.config();
 
 const PORT = process.env.PORT || process.env.TWILIO_WS_PORT || 8081;
