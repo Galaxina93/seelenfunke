@@ -89,7 +89,7 @@ Regeln:
 
             const setupMessage = {
                 setup: {
-                    model: 'models/gemini-2.0-flash',
+                    model: 'models/gemini-2.0-flash-exp',
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
                     },
