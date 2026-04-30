@@ -445,7 +445,7 @@ trait AiContactFuncs
 
             $host = request()->getHost();
             // Erlaube Fallback auf öffentlichen Ngrok für lokale Entwicklung
-            $wssUrl = env('TWILIO_WSS_URL', 'wss://' . $host . '/twilio-stream');
+            $wssUrl = env('TWILIO_WSS_URL', 'wss://' . $host . ':8081/twilio-stream');
             if (str_contains($host, '.test') || str_contains($host, 'localhost')) {
                 \Log::warning("Lokale Umgebung erkannt! Twilio benötigt eine öffentliche WSS URL. Bitte TWILIO_WSS_URL in der .env setzen (z.B. ngrok).");
             }
