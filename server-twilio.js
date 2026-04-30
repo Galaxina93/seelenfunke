@@ -54,7 +54,7 @@ wss.on('connection', (ws) => {
     // 1. Initialisiere die Gemini Live API Verbindung
     const initGemini = () => {
         const HOST = "generativelanguage.googleapis.com";
-        const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
+        const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
         
         geminiWs = new WebSocket(WS_URL);
 
@@ -89,7 +89,7 @@ Regeln:
 
             const setupMessage = {
                 setup: {
-                    model: 'models/gemini-2.0-flash',
+                    model: 'models/gemini-3.1-flash-live-preview',
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
                     },
