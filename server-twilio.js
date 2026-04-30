@@ -220,6 +220,6 @@ Regeln:
     });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port ${PORT}`);
 });
