@@ -131,7 +131,10 @@ trait AiTelefonyFuncs
 
         return [
             'status' => 'success',
-            'message' => "Der Anrufplan wurde erfolgreich im Bereich 'Support Telefonie' (als Geplant) angelegt/aktualisiert. Er ist für den Nutzer dort jetzt sichtbar. Bitte ihn nun um Feedback oder Freigabe."
+            'message' => "Der Anrufplan wurde erfolgreich im Bereich 'Support Telefonie' (als Geplant) angelegt/aktualisiert. Er ist für den Nutzer dort jetzt sichtbar. Bitte ihn nun um Feedback oder Freigabe.",
+            '_frontend_event' => [
+                'name' => 'refreshTelephony'
+            ]
         ];
     }
 
@@ -263,7 +266,10 @@ trait AiTelefonyFuncs
 
         return [
             'status' => 'success',
-            'message' => "Der Status von Anruf ID {$call->id} wurde erfolgreich auf '{$args['status']}' geändert."
+            'message' => "Der Status von Anruf ID {$call->id} wurde erfolgreich auf '{$args['status']}' geändert.",
+            '_frontend_event' => [
+                'name' => 'refreshTelephony'
+            ]
         ];
     }
 
@@ -339,6 +345,9 @@ trait AiTelefonyFuncs
         }
 
         try {
+            $cacheKey = "twilio_call_" . $toPhoneClean;
+            $context = \Illuminate\Support\Facades\Cache::get($cacheKey);
+
             $host = request()->getHost();
             // Erlaube Fallback auf öffentlichen Ngrok für lokale Entwicklung
             $wssUrl = env('TWILIO_WSS_URL', 'wss://' . $host . ':8081/twilio-stream');
@@ -353,8 +362,16 @@ trait AiTelefonyFuncs
                 'track' => 'both_tracks'
             ]);
 
-            // Optional: Start-Parameter (Context) übergeben
-            $stream->parameter(['name' => 'objective', 'value' => 'ki_agent_outbound']);
+            // Start-Parameter (Context) übergeben
+            if ($context) {
+                $stream->parameter(['name' => 'contact_name', 'value' => $context['contact_name'] ?? 'Unbekannt']);
+                $stream->parameter(['name' => 'objective', 'value' => $context['objective'] ?? '']);
+                $stream->parameter(['name' => 'system_instructions', 'value' => $context['system_instructions'] ?? '']);
+                $stream->parameter(['name' => 'ai_learned_facts', 'value' => $context['ai_learned_facts'] ?? '']);
+                $stream->parameter(['name' => 'calendar_events', 'value' => $context['calendar_events'] ?? '']);
+            } else {
+                $stream->parameter(['name' => 'objective', 'value' => 'ki_agent_outbound']);
+            }
 
             $client = new \Twilio\Rest\Client($sid, $token);
             $call = $client->calls->create(
@@ -368,6 +385,23 @@ trait AiTelefonyFuncs
                     "statusCallbackMethod" => "POST"
                 ]
             );
+
+            // Den Call als aktiven Aufgabenplan eintragen oder den Entwurf updaten
+            $plannedCallId = $context['planned_call_id'] ?? null;
+            if ($plannedCallId) {
+                $record = \App\Models\SupportTelephonyCall::find($plannedCallId);
+            }
+            
+            if (!isset($record) || !$record) {
+                $record = new \App\Models\SupportTelephonyCall();
+            }
+
+            $record->twilio_sid = $call->sid;
+            $record->contact_name = $context['contact_name'] ?? 'Unbekannt';
+            $record->phone = $toPhoneClean;
+            $record->objective = $context['objective'] ?? '';
+            $record->status = 'ongoing';
+            $record->save();
 
             return [
                 'success' => true,

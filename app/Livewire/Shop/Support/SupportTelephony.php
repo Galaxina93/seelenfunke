@@ -6,6 +6,7 @@ use App\Models\Ai\AiCall;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Carbon\Carbon;
+use Livewire\Attributes\On;
 
 class SupportTelephony extends Component
 {
@@ -15,6 +16,7 @@ class SupportTelephony extends Component
 
     public $currentTab = 'calls'; // calls, contacts, settings
 
+    #[On('refreshTelephony')]
     public function render()
     {
         $activeCalls = \App\Models\SupportTelephonyCall::where('status', 'ongoing')->get();
