@@ -338,11 +338,18 @@ trait AiContactFuncs
         ], 600); // 10 Minuten gültig
 
         // WICHTIG: API Call direkt hier auslösen
-        $callSid = static::triggerTwilioCall($p->phone);
+        $callResult = static::triggerTwilioCall($p->phone);
+
+        if (!$callResult['success']) {
+            return [
+                'status' => 'error',
+                'message' => "Der Anruf konnte nicht aufgebaut werden! Twilio API Fehler: " . $callResult['error']
+            ];
+        }
 
         return [
             'status' => 'success',
-            'message' => "Löse Anruf zu {$p->first_name} aus. " . ($callSid ? "Anruf läuft (SID: $callSid)" : "Fehler beim API Call."),
+            'message' => "Anruf wurde erfolgreich initiiert. (Twilio SID: " . $callResult['sid'] . ")",
             '_frontend_event' => [
                 'name' => 'open-call-modal',
                 'detail' => [
@@ -366,7 +373,7 @@ trait AiContactFuncs
 
         if (!$sid || !$token || !$fromNumber) {
             \Log::error("Twilio Credentials fehlen in .env");
-            return false;
+            return ['success' => false, 'error' => 'Twilio Credentials fehlen in der .env Datei.'];
         }
 
         try {
@@ -406,10 +413,10 @@ trait AiContactFuncs
                     "twiml" => $response->asXML()
                 ]
             );
-            return $call->sid;
+            return ['success' => true, 'sid' => $call->sid];
         } catch (\Exception $e) {
             \Log::error("Twilio Call Error: " . $e->getMessage());
-            return false;
+            return ['success' => false, 'error' => $e->getMessage()];
         }
     }
 

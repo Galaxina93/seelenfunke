@@ -55,6 +55,7 @@
             'google_places' => ['label' => 'Google Places', 'host' => 'maps.googleapis.com', 'port' => '443', 'desc' => 'Schnittstelle für automatische Kundenbewertungen.'],
             'elster' => ['label' => 'Elster (ERiC)', 'host' => 'elster.de', 'port' => '443', 'desc' => 'Anbindung zur Finanzbehörde der Bundesrepublik Deutschland.'],
             'scraperapi' => ['label' => 'ScraperAPI', 'host' => 'api.scraperapi.com', 'port' => '80', 'desc' => 'Proxy-Service für Marktforschung und SEO-Agenten.'],
+            'telephony' => ['label' => 'Audio-Bridge', 'host' => 'localhost', 'port' => env('TWILIO_WS_PORT', '8081'), 'desc' => app()->environment('local') ? 'Lokal deaktiviert. Funktioniert nur auf Stage/Live und hat keinen Einfluss auf den Health-Score.' : 'Node.js WebSocket Server für Echtzeit-Sprachanrufe zwischen Twilio und KI.'],
         ];
 
         $systemGroups = [
@@ -68,7 +69,7 @@
             ],
             'AI & Daten-Agenten' => [
                 'color' => 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]',
-                'items' => ['mittwald', 'gemini', 'google_places', 'scraperapi']
+                'items' => ['mittwald', 'gemini', 'telephony', 'google_places', 'scraperapi']
             ],
             'Background & Security' => [
                 'color' => 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]',

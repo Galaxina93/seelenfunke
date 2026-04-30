@@ -99,6 +99,7 @@ class MasterAnalytics extends Component
             'smtp' => ['status' => 'checking', 'value' => '...', 'error' => null],
             'redis' => ['status' => 'checking', 'value' => '...', 'error' => null],
             'queue' => ['status' => 'checking', 'value' => '...', 'error' => null, 'pending' => 0, 'failed' => 0],
+            'telephony' => ['status' => 'checking', 'value' => '...', 'error' => null],
         ];
     }
 
@@ -347,6 +348,27 @@ class MasterAnalytics extends Component
             }
         } catch (\Exception $e) {
             $health['storage'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Storage-Fehler', 'percent_free' => 0];
+        }
+
+        // 10. NEU: Telephony (Audio-Bridge) Check
+        if (app()->environment('local')) {
+            $health['telephony'] = ['status' => 'connected', 'value' => 'Lokal (inaktiv)', 'error' => null];
+        } else {
+            try {
+                $port = env('TWILIO_WS_PORT', 8081);
+                $start = microtime(true);
+                $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
+                if ($fp) {
+                    $time = round((microtime(true) - $start) * 1000);
+                    fclose($fp);
+                    $health['telephony'] = ['status' => 'connected', 'value' => "Online ({$time}ms)", 'error' => null];
+                } else {
+                    $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => "Audio-Bridge auf Port {$port} reagiert nicht!"];
+                    $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! (Localhost Port {$port})");
+                }
+            } catch (\Exception $e) {
+                $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Fehler beim Telephony-Check.'];
+            }
         }
 
         // --- ASYNCHRONE EXTERNE API CHECKS ---
@@ -741,6 +763,24 @@ class MasterAnalytics extends Component
                             }
                             
                             $this->addRepairLog("Reverb WebSocket Daemon muss serverseitig nach wie vor laufen.", 'info');
+                            break;
+
+                        case 'telephony':
+                            $this->addRepairLog("Versuche KI-Telefonie Bridge neu zu starten...");
+                            try {
+                                $process = \Symfony\Component\Process\Process::fromShellCommandline('npx pm2 restart twilio-bridge', base_path());
+                                $process->run();
+                                if ($process->isSuccessful()) {
+                                    $this->addRepairLog("✓ PM2 hat die Telefonie-Bridge erfolgreich neu gestartet.", 'success');
+                                } else {
+                                    $this->addRepairLog("PM2-Neustart fehlgeschlagen. Starte Notfall-Skript...", 'warning');
+                                    $process2 = \Symfony\Component\Process\Process::fromShellCommandline('nohup node server-twilio.js > twilio.log 2>&1 &', base_path());
+                                    $process2->run();
+                                    $this->addRepairLog("✓ Notfall-Skript (nohup) wurde im Hintergrund abgefeuert.", 'success');
+                                }
+                            } catch (\Exception $e) {
+                                $this->addRepairLog("Fehler beim Starten der Bridge: " . $e->getMessage(), 'error');
+                            }
                             break;
 
                         default:

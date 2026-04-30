@@ -3,7 +3,6 @@
 namespace App\Livewire\Shop\Support;
 
 use App\Models\Ai\AiCall;
-use App\Models\Ai\AiContact;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Carbon\Carbon;
@@ -24,8 +23,6 @@ class SupportTelephony extends Component
         $historyCalls = \App\Models\SupportTelephonyCall::orderBy('created_at', 'desc')
             ->paginate(10);
 
-        $contacts = AiContact::orderBy('name')->paginate(20);
-
         // KPIs
         $totalCalls = \App\Models\SupportTelephonyCall::whereDate('created_at', Carbon::today())->count();
         $successfulCalls = \App\Models\SupportTelephonyCall::whereDate('created_at', Carbon::today())->where('status', 'completed')->count();
@@ -41,7 +38,6 @@ class SupportTelephony extends Component
         return view('livewire.shop.support.support-telephony', [
             'activeCalls' => $activeCalls,
             'historyCalls' => $historyCalls,
-            'contacts' => $contacts,
             'kpi' => $kpi
         ])->layout('components.layouts.backend_layout');
     }
