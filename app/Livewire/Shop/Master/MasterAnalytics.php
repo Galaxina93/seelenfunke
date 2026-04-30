@@ -356,20 +356,19 @@ class MasterAnalytics extends Component
         } else {
             try {
                 $wssUrl = env('TWILIO_WSS_URL', 'wss://localhost:8081');
-                $parsed = parse_url($wssUrl);
-                $host = $parsed['host'] ?? 'localhost';
-                $port = $parsed['port'] ?? (str_starts_with($wssUrl, 'wss://') ? 443 : 80);
+                // Ersetze wss:// durch https:// für den HTTP Health Check
+                $httpUrl = str_replace(['wss://', 'ws://'], ['https://', 'http://'], $wssUrl);
                 
                 $start = microtime(true);
-                $fp = @fsockopen($host, $port, $errno, $errstr, 1);
-                
-                if ($fp) {
-                    $time = round((microtime(true) - $start) * 1000);
-                    fclose($fp);
+                $response = \Illuminate\Support\Facades\Http::timeout(3)->get($httpUrl);
+                $time = round((microtime(true) - $start) * 1000);
+
+                if ($response->successful()) {
                     $health['telephony'] = ['status' => 'connected', 'value' => "Online ({$time}ms)", 'error' => null];
                 } else {
-                    $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => "Audio-Bridge unter {$host}:{$port} reagiert nicht!"];
-                    $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! ({$host}:{$port})");
+                    $status = $response->status();
+                    $health['telephony'] = ['status' => 'error', 'value' => "Offline ({$status})", 'error' => "Audio-Bridge meldet Fehler {$status} (Vermutlich 502 Bad Gateway)"];
+                    $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! HTTP Status: {$status}");
                 }
             } catch (\Exception $e) {
                 $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Fehler beim Telephony-Check.'];
