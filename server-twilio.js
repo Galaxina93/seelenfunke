@@ -198,8 +198,8 @@ Regeln:
                     // Wandle 8kHz mulaw zu 16kHz PCM (für Gemini)
                     let wav = new WaveFile();
                     wav.fromScratch(1, 8000, '8m', twilioMulawBuffer);
+                    wav.fromMuLaw(); // Entpacke mu-Law zu 16-bit PCM!
                     wav.toSampleRate(16000);
-                    wav.toBitDepth('16');
                     
                     const pcm16Data = wav.data.samples;
                     const pcmBase64 = Buffer.from(pcm16Data.buffer).toString('base64');
