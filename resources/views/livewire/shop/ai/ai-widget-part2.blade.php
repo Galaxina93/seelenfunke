@@ -883,8 +883,8 @@
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
                     
-                    // Start speech recognition parallel to capture user transcripts for memory
-                    this.startSpeechRecognition();
+                    // Parallele Spracherkennung deaktiviert, um Hardware-Konflikte ('Dudumm'-Geräusch) auf Mobilgeräten zu vermeiden
+                    // this.startSpeechRecognition();
 
                 } catch (err) {
                     console.error('Mikrofon Fehler:', err);
