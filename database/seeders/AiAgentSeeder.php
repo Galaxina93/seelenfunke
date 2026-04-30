@@ -223,7 +223,8 @@ class AiAgentSeeder extends Seeder
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiBrainFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name')
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
                 );
 
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
@@ -240,7 +241,8 @@ class AiAgentSeeder extends Seeder
                 'Finanzmanager' => array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
                 'Supporter' => array_merge(
                     array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
                 ),
                 'Hausarzt' => array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
                 'Systemadmin' => [],

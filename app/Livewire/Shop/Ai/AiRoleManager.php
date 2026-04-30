@@ -159,7 +159,10 @@ class AiRoleManager extends Component
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name')
             ),
-            $nameSupport => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+            $nameSupport => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
+            ),
             $nameProd => array_merge(
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductAnalyticsFuncsSchema(), 'name'),
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductFractureFuncsSchema(), 'name'),

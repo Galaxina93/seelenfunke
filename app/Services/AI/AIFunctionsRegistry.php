@@ -32,6 +32,7 @@ class AIFunctionsRegistry
     use Functions\AiProductPackagingConfiguratorFuncs;
     use Functions\AiAgentsFuncs;
     use Functions\AiMasterFuncs;
+    use Functions\AiTelefonyFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -76,7 +77,8 @@ class AIFunctionsRegistry
             self::getAiProductNicheScannerFuncsSchema(),
             self::getAiProductPackagingConfiguratorFuncsSchema(),
             self::getAiAgentsFuncsSchema(),
-            self::getAiMasterFuncsSchema()
+            self::getAiMasterFuncsSchema(),
+            self::getAiTelefonyFuncsSchema()
         );
     }
 
