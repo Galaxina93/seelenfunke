@@ -758,16 +758,20 @@
                                                 @endif
 
                                                 @if($sKey === 'telephony')
-                                                    <div class="mt-2 text-[9px] text-gray-400 bg-gray-900/50 p-2 rounded-lg border border-gray-800 text-left font-mono leading-relaxed">
-                                                        <span class="text-[#C5A059] font-bold uppercase tracking-widest block mb-1">Terminal Befehle:</span>
-                                                        <div class="truncate">Start: npx pm2 start server-twilio.js --name twilio-bridge</div>
-                                                        <div class="truncate">Logs: npx pm2 logs twilio-bridge</div>
-                                                        <div class="truncate">Stop: npx pm2 stop twilio-bridge</div>
-                                                    </div>
-                                                    <button type="button" wire:click="fixSystem('telephony')" wire:loading.attr="disabled" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-blue-700 bg-blue-900/30 hover:bg-blue-800 text-blue-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5">
-                                                        <span wire:loading.remove wire:target="fixSystem('telephony')"><i class="bi bi-arrow-clockwise"></i> Bridge Restart (PM2)</span>
-                                                        <span wire:loading wire:target="fixSystem('telephony')" class="animate-pulse">Neustart läuft...</span>
-                                                    </button>
+                                                    @if($status === 'connected')
+                                                        <div class="mt-2 text-[10px] text-emerald-400 bg-emerald-950/30 p-2 rounded-lg border border-emerald-900/50 text-left font-medium leading-relaxed">
+                                                            <i class="bi bi-check-circle-fill mr-1"></i> Perfekt! Die Node.js App ist wach, der Port ist offen und das Routing funktioniert. Du kannst jetzt anrufen!
+                                                        </div>
+                                                    @else
+                                                        <div class="mt-2 text-[10px] text-gray-300 bg-red-950/30 p-2 rounded-lg border border-red-900/50 text-left font-medium leading-relaxed">
+                                                            <strong class="text-red-400 block mb-1 uppercase tracking-wider"><i class="bi bi-exclamation-triangle-fill"></i> So reparierst du das:</strong>
+                                                            1. Logge dich in Mittwald ein.<br>
+                                                            2. Gehe in das Projekt <b>Seelenfunke</b>.<br>
+                                                            3. Klicke auf die App <b>seelenfunke-nodejs</b>.<br>
+                                                            4. Klicke oben rechts auf <b>"Neu starten"</b>.<br>
+                                                            5. Warte ca. 2-3 Minuten, bis diese Anzeige hier von alleine wieder grün wird!
+                                                        </div>
+                                                    @endif
                                                 @endif
 
                                                 @if(isset($health['error']) && $health['error'])

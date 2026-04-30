@@ -364,10 +364,10 @@ class MasterAnalytics extends Component
                 $time = round((microtime(true) - $start) * 1000);
 
                 if ($response->successful()) {
-                    $health['telephony'] = ['status' => 'connected', 'value' => "Online ({$time}ms)", 'error' => null];
+                    $health['telephony'] = ['status' => 'connected', 'value' => "BEREIT ({$time}ms)", 'error' => null];
                 } else {
                     $status = $response->status();
-                    $health['telephony'] = ['status' => 'error', 'value' => "Offline ({$status})", 'error' => "Audio-Bridge meldet Fehler {$status} (Vermutlich 502 Bad Gateway)"];
+                    $health['telephony'] = ['status' => 'error', 'value' => "GESTORBEN ({$status})", 'error' => "Die Node.js App ist abgestürzt oder Mittwald lädt noch! Gehe ins mStudio -> App 'seelenfunke-nodejs' -> Klicke auf 'Neu starten'!"];
                     $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! HTTP Status: {$status}");
                 }
             } catch (\Exception $e) {
