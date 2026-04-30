@@ -357,7 +357,11 @@ class MasterAnalytics extends Component
             try {
                 $port = env('TWILIO_WS_PORT', 8081);
                 $start = microtime(true);
-                $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
+                $fp = @fsockopen('localhost', $port, $errno, $errstr, 1);
+                if (!$fp) {
+                    $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
+                }
+                
                 if ($fp) {
                     $time = round((microtime(true) - $start) * 1000);
                     fclose($fp);
