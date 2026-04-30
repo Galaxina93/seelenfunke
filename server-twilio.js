@@ -109,7 +109,9 @@ Regeln:
         });
 
         geminiWs.on('message', (data) => {
-            const response = JSON.parse(data.toString());
+            const responseStr = data.toString();
+            // debugLog("RAW GEMINI MSG: " + responseStr.substring(0, 200));
+            const response = JSON.parse(responseStr);
             
             // Wenn Gemini Text zurückgibt (als Transcript), speichern wir ihn
             if (response.serverContent?.modelTurn?.parts) {
@@ -158,18 +160,25 @@ Regeln:
                 }
             }
             
-            // Unterbrechungserkennung (Gemini merkt, dass der User spricht)
-            if (response.serverContent?.interrupted) {
+            } else if (response.serverContent?.interrupted) {
                 console.log('🛑 User hat KI unterbrochen. Leere Twilio Audio-Puffer.');
                 ws.send(JSON.stringify({
                     event: 'clear',
                     streamSid: streamSid
                 }));
+            } else if (response.setupComplete) {
+                debugLog("Gemini Setup erfolgreich bestätigt!");
+            } else {
+                debugLog("Gemini Response: " + JSON.stringify(response));
             }
         });
 
-        geminiWs.on('close', () => console.log('🧠 Gemini Verbindung getrennt.'));
-        geminiWs.on('error', (err) => console.error('Gemini WS Error:', err));
+        geminiWs.on('close', (code, reason) => {
+            debugLog(`🧠 Gemini Verbindung getrennt. Code: ${code}, Reason: ${reason.toString()}`);
+        });
+        geminiWs.on('error', (err) => {
+            debugLog('Gemini WS Error: ' + err.toString());
+        });
     };
 
     // 2. Höre auf Nachrichten von Twilio
