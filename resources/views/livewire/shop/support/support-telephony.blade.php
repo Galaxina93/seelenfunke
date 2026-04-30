@@ -125,9 +125,9 @@
                                 <th class="p-4 font-medium text-right">Aktion</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-white/5">
-                            @forelse($historyCalls as $call)
-                                <tr class="hover:bg-gray-800/20 transition-colors">
+                        @forelse($historyCalls as $call)
+                            <tbody x-data="{ expanded: false }" class="border-b border-white/5 last:border-0">
+                                <tr class="hover:bg-gray-800/20 transition-colors cursor-pointer group" @click="expanded = !expanded">
                                     <td class="p-4 text-sm text-gray-300">{{ $call->created_at->format('d.m.Y H:i') }}</td>
                                     <td class="p-4 text-sm text-white font-medium">KI Agent</td>
                                     <td class="p-4 text-sm text-gray-300">
@@ -145,21 +145,57 @@
                                         @endif
                                     </td>
                                     <td class="p-4 text-sm text-right">
-                                        @if($call->status === 'planned')
-                                            <button class="text-amber-400 hover:text-white transition-colors text-xs font-medium mr-3" onclick="alert('Geplanter Aufgabenplan:\n\n{{ addslashes($call->objective ?? 'Kein Plan hinterlegt.') }}')">Plan ansehen</button>
-                                        @else
-                                            <button class="text-[var(--theme-color)] hover:text-white transition-colors text-xs font-medium mr-3" onclick="alert('Fazit: {{ addslashes($call->summary ?? 'Kein Fazit verfügbar.') }}\n\nNächste Schritte: {{ addslashes(implode(', ', json_decode($call->next_steps ?? '[]', true))) }}')">Fazit ansehen</button>
-                                        @endif
+                                        <button class="text-[var(--theme-color)] group-hover:text-white transition-colors text-xs font-medium mr-2 flex items-center justify-end gap-1 ml-auto">
+                                            <span x-text="expanded ? 'Schließen' : '{{ $call->status === 'planned' ? 'Plan ansehen' : 'Fazit ansehen' }}'"></span>
+                                            <i class="bi transition-transform" :class="expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                                        </button>
                                     </td>
                                 </tr>
-                            @empty
+                                <!-- EXPANDED INLINE CONTENT -->
+                                <tr x-show="expanded" style="display: none;" class="bg-gray-800/10">
+                                    <td colspan="6" class="p-0">
+                                        <div x-collapse>
+                                            <div class="p-6 border-l-2 border-[var(--theme-color)] ml-4 my-4 mr-4 bg-gray-900/50 rounded-r-xl shadow-inner">
+                                                @if($call->status === 'planned')
+                                                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Geplanter Aufgabenplan</h4>
+                                                    <p class="text-sm text-gray-300 leading-relaxed">{{ $call->objective ?? 'Kein Plan hinterlegt.' }}</p>
+                                                @else
+                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                        <div>
+                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-card-text mr-1"></i> Gesprächsfazit</h4>
+                                                            <p class="text-sm text-gray-300 leading-relaxed">{{ $call->summary ?? 'Kein Fazit verfügbar.' }}</p>
+                                                        </div>
+                                                        <div>
+                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-arrow-right-circle mr-1"></i> Nächste Schritte</h4>
+                                                            <ul class="list-disc list-inside text-sm text-gray-300 space-y-1.5">
+                                                                @php
+                                                                    $steps = json_decode($call->next_steps ?? '[]', true);
+                                                                @endphp
+                                                                @if(is_array($steps) && count($steps) > 0)
+                                                                    @foreach($steps as $step)
+                                                                        <li>{{ $step }}</li>
+                                                                    @endforeach
+                                                                @else
+                                                                    <li class="text-gray-500 list-none italic"><i class="bi bi-info-circle mr-1"></i> Keine nächsten Schritte definiert.</li>
+                                                                @endif
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        @empty
+                            <tbody>
                                 <tr>
                                     <td colspan="6" class="p-8 text-center text-gray-500">
                                         Noch keine Anrufe in der Historie.
                                     </td>
                                 </tr>
-                            @endforelse
-                        </tbody>
+                            </tbody>
+                        @endforelse
                     </table>
                 </div>
                 <div class="p-4 border-t border-white/5">

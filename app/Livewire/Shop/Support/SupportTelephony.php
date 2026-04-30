@@ -17,6 +17,11 @@ class SupportTelephony extends Component
     public $currentTab = 'calls'; // calls, contacts, settings
 
     #[On('refreshTelephony')]
+    public function refreshList()
+    {
+        // Löst einfach ein Livewire-Rerender aus, da render() danach automatisch aufgerufen wird
+    }
+
     public function render()
     {
         $activeCalls = \App\Models\SupportTelephonyCall::where('status', 'ongoing')->get();
