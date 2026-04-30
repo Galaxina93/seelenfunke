@@ -250,6 +250,8 @@ Regeln:
     });
 });
 
+debugLog(`Versuche auf Port ${PORT} zu lauschen... (process.env.PORT=${process.env.PORT})`);
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port ${PORT}`);
+    debugLog(`Erfolgreich gebunden auf Port ${PORT}`);
 });
