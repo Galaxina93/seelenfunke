@@ -212,10 +212,10 @@ Regeln:
 
                     const audioMessage = {
                         realtimeInput: {
-                            mediaChunks: [{
+                            audio: {
                                 mimeType: "audio/pcm;rate=8000",
                                 data: pcmBase64
-                            }]
+                            }
                         }
                     };
                     geminiWs.send(JSON.stringify(audioMessage));
