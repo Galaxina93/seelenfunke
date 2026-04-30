@@ -18,9 +18,11 @@ process.on('unhandledRejection', (err) => {
 
 function debugLog(msg) {
     try {
-        fs.appendFileSync('audio-debug.log', new Date().toISOString() + ' - ' + msg + '\n');
+        fs.appendFileSync('/home/p-g27wim/html/seelenfunke-stage/audio-debug.log', new Date().toISOString() + ' - ' + msg + '\n');
     } catch(e) {}
 }
+
+debugLog("--- NODE JS SERVER RESTARTED ---");
 
 dotenv.config();
 
@@ -57,6 +59,7 @@ wss.on('connection', (ws) => {
 
         geminiWs.on('open', () => {
             console.log('🧠 Mit Google Gemini Live API verbunden.');
+            debugLog('Gemini WebSocket connected!');
             
             // Sende den initialen System-Prompt (Kontext & Objective)
             const systemPrompt = `
@@ -173,6 +176,7 @@ Regeln:
         const msg = JSON.parse(message);
 
         if (msg.event === 'start') {
+            debugLog('Twilio stream started. StreamSid: ' + msg.start.streamSid);
             streamSid = msg.start.streamSid;
             // Extrahiere unsere Custom Parameters aus dem Twilio Webhook
             callContext = msg.start.customParameters || {};
