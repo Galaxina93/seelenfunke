@@ -764,12 +764,17 @@
                                                         </div>
                                                     @else
                                                         <div class="mt-2 text-[10px] text-gray-300 bg-red-950/30 p-2 rounded-lg border border-red-900/50 text-left font-medium leading-relaxed">
-                                                            <strong class="text-red-400 block mb-1 uppercase tracking-wider"><i class="bi bi-exclamation-triangle-fill"></i> So reparierst du das:</strong>
-                                                            1. Logge dich in Mittwald ein.<br>
-                                                            2. Gehe in das Projekt <b>Seelenfunke</b>.<br>
-                                                            3. Klicke auf die App <b>seelenfunke-nodejs</b>.<br>
-                                                            4. Klicke oben rechts auf <b>"Neu starten"</b>.<br>
-                                                            5. Warte ca. 2-3 Minuten, bis diese Anzeige hier von alleine wieder grün wird!
+                                                            <strong class="text-red-400 block mb-2 uppercase tracking-wider"><i class="bi bi-exclamation-triangle-fill"></i> SSH Notfall-Befehl (Copy & Paste):</strong>
+                                                            <div class="bg-black/50 rounded p-2 text-gray-300 font-mono text-[9.5px] leading-relaxed cursor-text selection:bg-purple-500/30 border border-red-900/50 mb-2">
+                                                                cd /html/seelenfunke-stage<br>
+                                                                git pull<br>
+                                                                cd /html/twilio-bridge<br>
+                                                                cp ../seelenfunke-stage/server-twilio.js .<br>
+                                                                cp ../seelenfunke-stage/.env .<br>
+                                                                npm install ws dotenv wavefile<br>
+                                                                kill -9 $(ps aux | grep '[n]ode' | awk '{print $2}')
+                                                            </div>
+                                                            <span class="text-gray-400 italic">Die Node.js App startet danach von alleine neu. Warte ca. 1-2 Minuten, bis die Anzeige grün wird!</span>
                                                         </div>
                                                     @endif
                                                 @endif
