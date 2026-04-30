@@ -16,6 +16,12 @@ process.on('unhandledRejection', (err) => {
     process.exit(1);
 });
 
+function debugLog(msg) {
+    try {
+        fs.appendFileSync('audio-debug.log', new Date().toISOString() + ' - ' + msg + '\n');
+    } catch(e) {}
+}
+
 dotenv.config();
 
 const PORT = process.env.PORT || process.env.TWILIO_WS_PORT || 8081;
@@ -106,9 +112,11 @@ Regeln:
                 const parts = response.serverContent.modelTurn.parts;
                 for (const part of parts) {
                     if (part.text) {
+                        debugLog('Gemini text response: ' + part.text);
                         callTranscript.push(`KI: ${part.text}`);
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
+                        debugLog('Gemini sent audio chunk. Base64 length: ' + part.inlineData.data.length);
                         // Twilio erwartet 8kHz mulaw (Base64). 
                         // Gemini sendet i.d.R. 24kHz PCM.
                         // HIER: Eine Resampling-Logik mittels WaveFile, um 24kHz PCM zu 8kHz mulaw zu wandeln.
@@ -136,9 +144,11 @@ Regeln:
                                 media: { payload: payloadBase64 }
                             };
                             ws.send(JSON.stringify(twilioMessage));
+                            debugLog('Sent mu-law to Twilio. Payload length: ' + payloadBase64.length);
                             
                         } catch (e) {
                             console.error("Audio Encoding Error:", e);
+                            debugLog("Audio Encoding Error: " + e.toString());
                         }
                     }
                 }
@@ -176,6 +186,8 @@ Regeln:
             // Twilio sendet uns Audio vom Anrufer (mulaw 8kHz base64)
             if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
                 try {
+                    const payloadLength = msg.media.payload.length;
+                    
                     const twilioMulawBuffer = Buffer.from(msg.media.payload, 'base64');
                     
                     // Wandle 8kHz mulaw zu 16kHz PCM (für Gemini)
@@ -196,8 +208,10 @@ Regeln:
                         }
                     };
                     geminiWs.send(JSON.stringify(audioMessage));
+                    debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM: ${pcmBase64.length}`);
                 } catch (e) {
                     // Audio conversion error
+                    debugLog("Audio input conversion error: " + e.toString());
                 }
             }
         } else if (msg.event === 'stop') {
