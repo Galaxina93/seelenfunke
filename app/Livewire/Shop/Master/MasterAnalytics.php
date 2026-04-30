@@ -355,20 +355,21 @@ class MasterAnalytics extends Component
             $health['telephony'] = ['status' => 'connected', 'value' => 'Lokal (inaktiv)', 'error' => null];
         } else {
             try {
-                $port = env('TWILIO_WS_PORT', 8081);
+                $wssUrl = env('TWILIO_WSS_URL', 'wss://localhost:8081');
+                $parsed = parse_url($wssUrl);
+                $host = $parsed['host'] ?? 'localhost';
+                $port = $parsed['port'] ?? (str_starts_with($wssUrl, 'wss://') ? 443 : 80);
+                
                 $start = microtime(true);
-                $fp = @fsockopen('localhost', $port, $errno, $errstr, 1);
-                if (!$fp) {
-                    $fp = @fsockopen('127.0.0.1', $port, $errno, $errstr, 1);
-                }
+                $fp = @fsockopen($host, $port, $errno, $errstr, 1);
                 
                 if ($fp) {
                     $time = round((microtime(true) - $start) * 1000);
                     fclose($fp);
                     $health['telephony'] = ['status' => 'connected', 'value' => "Online ({$time}ms)", 'error' => null];
                 } else {
-                    $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => "Audio-Bridge auf Port {$port} reagiert nicht!"];
-                    $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! (Localhost Port {$port})");
+                    $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => "Audio-Bridge unter {$host}:{$port} reagiert nicht!"];
+                    $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! ({$host}:{$port})");
                 }
             } catch (\Exception $e) {
                 $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Fehler beim Telephony-Check.'];
