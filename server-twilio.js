@@ -195,11 +195,10 @@ Regeln:
                     
                     const twilioMulawBuffer = Buffer.from(msg.media.payload, 'base64');
                     
-                    // Wandle 8kHz mulaw zu 16kHz PCM (für Gemini)
+                    // Wandle 8kHz mulaw zu 8kHz PCM (für Gemini) - Resampling ist nicht nötig!
                     let wav = new WaveFile();
                     wav.fromScratch(1, 8000, '8m', twilioMulawBuffer);
-                    wav.fromMuLaw(); // Entpacke mu-Law zu 16-bit PCM!
-                    wav.toSampleRate(16000);
+                    wav.fromMuLaw(); // Entpacke mu-Law zu 16-bit PCM (jetzt haben wir 8kHz PCM)
                     
                     const pcm16Data = wav.data.samples;
                     const pcmBase64 = Buffer.from(pcm16Data.buffer).toString('base64');
@@ -207,13 +206,13 @@ Regeln:
                     const audioMessage = {
                         realtimeInput: {
                             mediaChunks: [{
-                                mimeType: "audio/pcm;rate=16000",
+                                mimeType: "audio/pcm;rate=8000",
                                 data: pcmBase64
                             }]
                         }
                     };
                     geminiWs.send(JSON.stringify(audioMessage));
-                    debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM: ${pcmBase64.length}`);
+                    debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM 8kHz: ${pcmBase64.length}`);
                 } catch (e) {
                     // Audio conversion error
                     debugLog("Audio input conversion error: " + e.toString());
