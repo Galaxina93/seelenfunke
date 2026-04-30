@@ -158,8 +158,6 @@ Regeln:
                         }
                     }
                 }
-            }
-            
             } else if (response.serverContent?.interrupted) {
                 console.log('🛑 User hat KI unterbrochen. Leere Twilio Audio-Puffer.');
                 ws.send(JSON.stringify({
