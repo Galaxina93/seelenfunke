@@ -89,7 +89,7 @@ Regeln:
 
             const setupMessage = {
                 setup: {
-                    model: 'models/gemini-2.0-flash-exp',
+                    model: 'models/gemini-2.0-flash',
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
                     },
@@ -226,6 +226,8 @@ Regeln:
                     // Audio conversion error
                     debugLog("Audio input conversion error: " + e.toString());
                 }
+            } else {
+                debugLog(`Ignored media event. Gemini readyState is ${geminiWs ? geminiWs.readyState : 'null'}`);
             }
         } else if (msg.event === 'stop') {
             console.log('⏹️ Call beendet. Sende Log an Backend...');
