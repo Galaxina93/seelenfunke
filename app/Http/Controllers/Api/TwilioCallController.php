@@ -71,10 +71,24 @@ class TwilioCallController extends Controller
             'duration_seconds' => 'nullable|integer',
         ]);
 
-        $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $data['twilio_sid'])->first();
+        // Twilio sendet CallSid, Node.js sendet twilio_sid
+        $sid = $data['twilio_sid'] ?? $request->input('CallSid');
+        
+        // Direkter Twilio Fallback bei Fehlern
+        if ($request->has('CallStatus') && in_array($request->input('CallStatus'), ['failed', 'canceled', 'no-answer', 'busy'])) {
+            $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $sid)->first();
+            if ($callRecord) {
+                $callRecord->status = 'failed';
+                $callRecord->summary = "Anruf fehlgeschlagen. Twilio Status: " . $request->input('CallStatus') . ". Error: " . $request->input('ErrorCode', 'Kein Code');
+                $callRecord->save();
+                return response()->json(['status' => 'updated_from_twilio_status']);
+            }
+        }
+
+        $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $sid)->first();
         if (!$callRecord) {
             $callRecord = new \App\Models\SupportTelephonyCall();
-            $callRecord->twilio_sid = $data['twilio_sid'] ?? '';
+            $callRecord->twilio_sid = $sid ?? '';
             $callRecord->contact_name = $data['contact_name'] ?? 'Unbekannt';
             $callRecord->objective = $data['objective'] ?? '';
         }

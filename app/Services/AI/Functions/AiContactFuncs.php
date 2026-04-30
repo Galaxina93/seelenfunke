@@ -160,6 +160,58 @@ trait AiContactFuncs
                     'required' => ['first_name', 'objective']
                 ],
                 'callable' => [self::class, 'executeContactCall']
+            ],
+            [
+                'name' => 'contact_get_call_history',
+                'description' => 'Liest die Historie der letzten Telefonanrufe aus. Liefert dir Dauer, Status, das generierte Fazit und das komplette Transkript. Nutze dies, um das Ergebnis eines Anrufs zu analysieren oder zu prüfen, ob er abgeschlossen ist.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'first_name' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Vorname der Person, um nur deren Anrufe zu sehen.'
+                        ],
+                        'limit' => [
+                            'type' => 'integer',
+                            'description' => 'Anzahl der Anrufe (Standard: 3).'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeContactGetCallHistory']
+            ],
+            [
+                'name' => 'contact_update_call_status',
+                'description' => 'Ändert den Status eines Anrufs (z.B. wenn er in der UI fälschlicherweise auf "ongoing" hängt) auf "completed" oder "failed".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'call_id' => [
+                            'type' => 'integer',
+                            'description' => 'Die Datenbank-ID des Anrufs (aus contact_get_call_history).'
+                        ],
+                        'status' => [
+                            'type' => 'string',
+                            'description' => 'Der neue Status (completed, failed, ongoing, planned).'
+                        ]
+                    ],
+                    'required' => ['call_id', 'status']
+                ],
+                'callable' => [self::class, 'executeContactUpdateCallStatus']
+            ],
+            [
+                'name' => 'contact_analyze_call_errors',
+                'description' => 'Analysiert einen fehlgeschlagenen Anruf direkt über die Twilio API und liefert echte technische Fehlercodes (z.B. HTTP 404, WebSocket Connection Failed 11200), die erklären, warum die englische Ansage "An application error has occurred" kam.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'call_id' => [
+                            'type' => 'integer',
+                            'description' => 'Die lokale Datenbank-ID des Anrufs aus contact_get_call_history.'
+                        ]
+                    ],
+                    'required' => ['call_id']
+                ],
+                'callable' => [self::class, 'executeContactAnalyzeCallErrors']
             ]
         ];
     }
@@ -421,6 +473,119 @@ trait AiContactFuncs
         ];
     }
 
+    public static function executeContactGetCallHistory(array $args)
+    {
+        $limit = $args['limit'] ?? 3;
+        $query = \App\Models\SupportTelephonyCall::orderBy('created_at', 'desc');
+
+        if (!empty($args['first_name'])) {
+            $p = static::findPersonProfile($args['first_name']);
+            if ($p) {
+                $query->where('phone', preg_replace('/[^0-9+]/', '', $p->phone))
+                      ->orWhere('contact_name', 'like', '%' . $p->first_name . '%');
+            } else {
+                $query->where('contact_name', 'like', '%' . $args['first_name'] . '%');
+            }
+        }
+
+        $calls = $query->limit($limit)->get();
+
+        if ($calls->isEmpty()) {
+            return ['status' => 'success', 'message' => 'Keine Anrufe in der Historie gefunden.'];
+        }
+
+        $result = [];
+        foreach ($calls as $c) {
+            $result[] = [
+                'id' => $c->id,
+                'contact' => $c->contact_name,
+                'status' => $c->status,
+                'duration_seconds' => $c->duration_seconds,
+                'objective_plan' => $c->objective,
+                'summary_fazit' => $c->summary,
+                'next_steps' => json_decode($c->next_steps, true),
+                'transcript_preview' => substr(json_encode(json_decode($c->transcript, true)), 0, 500) . '...',
+                'created_at' => $c->created_at->format('Y-m-d H:i:s')
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'data' => $result
+        ];
+    }
+
+    public static function executeContactUpdateCallStatus(array $args)
+    {
+        if (empty($args['call_id']) || empty($args['status'])) {
+            return ['status' => 'error', 'message' => 'call_id und status sind erforderlich.'];
+        }
+
+        $call = \App\Models\SupportTelephonyCall::find($args['call_id']);
+        if (!$call) {
+            return ['status' => 'error', 'message' => 'Anruf mit dieser ID nicht gefunden.'];
+        }
+
+        $call->status = $args['status'];
+        $call->save();
+
+        return [
+            'status' => 'success',
+            'message' => "Der Status von Anruf ID {$call->id} wurde erfolgreich auf '{$args['status']}' geändert."
+        ];
+    }
+
+    public static function executeContactAnalyzeCallErrors(array $args)
+    {
+        if (empty($args['call_id'])) {
+            return ['status' => 'error', 'message' => 'call_id erforderlich.'];
+        }
+
+        $call = \App\Models\SupportTelephonyCall::find($args['call_id']);
+        if (!$call || empty($call->twilio_sid)) {
+            return ['status' => 'error', 'message' => 'Anruf oder Twilio SID nicht gefunden.'];
+        }
+
+        $sid = env('TWILIO_ACCOUNT_SID');
+        $token = env('TWILIO_AUTH_TOKEN');
+
+        if (!$sid || !$token) {
+            return ['status' => 'error', 'message' => 'Twilio Credentials fehlen in .env'];
+        }
+
+        try {
+            $client = new \Twilio\Rest\Client($sid, $token);
+            $twilioCall = $client->calls($call->twilio_sid)->fetch();
+            $notifications = $client->calls($call->twilio_sid)->notifications->read([], 5);
+
+            $errorMessages = [];
+            foreach ($notifications as $notification) {
+                $errorMessages[] = "[Code {$notification->errorCode}] {$notification->messageText} - Log: {$notification->log}";
+            }
+
+            if (empty($errorMessages)) {
+                return [
+                    'status' => 'success',
+                    'message' => "Der Anruf hat laut Twilio-API den Status '{$twilioCall->status}'. Es wurden keine expliziten Twilio-Fehlerbenachrichtigungen (Notifications) gefunden. Wenn die KI-Ansage auf Englisch kam, konnte Twilio vermutlich die WSS WebSocket URL nicht erreichen oder sie hat ein 404/500 geworfen."
+                ];
+            }
+
+            // Setze den Call automatisch auf failed, wenn wir hier Fehler finden
+            if ($call->status !== 'failed') {
+                $call->status = 'failed';
+                $call->summary = "Technischer Fehler: " . implode(" | ", $errorMessages);
+                $call->save();
+            }
+
+            return [
+                'status' => 'success',
+                'message' => "Folgende technische Twilio-Fehler sind während des Anrufs aufgetreten:\n" . implode("\n", $errorMessages)
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Twilio API Fehler beim Abrufen der Logs: ' . $e->getMessage()];
+        }
+    }
+
     /**
      * Helper Methode, um den echten Twilio Call zu feuern.
      * Kann vom Agent-Runner asynchron aufgerufen werden, sobald er das _backend_action sieht.
@@ -472,7 +637,10 @@ trait AiContactFuncs
                 $fromNumber,
                 [
                     "twiml" => $response->asXML(),
-                    "timeLimit" => 180 // Maximal 3 Minuten Gesprächsdauer
+                    "timeLimit" => 180, // Maximal 3 Minuten Gesprächsdauer
+                    "statusCallback" => "https://" . $host . "/api/twilio/call-log",
+                    "statusCallbackEvent" => ["completed", "failed", "busy", "no-answer", "canceled"],
+                    "statusCallbackMethod" => "POST"
                 ]
             );
 
