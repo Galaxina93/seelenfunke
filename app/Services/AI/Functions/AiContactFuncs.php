@@ -125,7 +125,7 @@ trait AiContactFuncs
             ],
             [
                 'name' => 'contact_draft_call',
-                'description' => 'WICHTIG: Nutze dies IMMER zuerst, bevor du einen Anruf tätigst! Erstellt einen Entwurf/Aufgabenplan für einen Anruf, der dem Nutzer in der UI angezeigt wird. Besprich den Plan mit dem Nutzer und hole dir sein finales "Go", bevor du contact_call nutzt.',
+                'description' => 'ABSOLUTE PFLICHT: Erstelle Anrufpläne/Aufgabenpläne für Telefonate AUSSCHLIESSLICH mit diesem Tool! Schreibe Anrufpläne NIEMALS in die Knowledge Base, in Dokumente oder Notizen. Dieser Befehl legt den Plan direkt im Bereich "Support Telefonie" an. Besprich den Plan danach mit dem Nutzer, passe ihn bei Bedarf an (indem du dieses Tool erneut aufrufst), und hole dir sein finales "Go", bevor du contact_call ausführst.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -329,17 +329,25 @@ trait AiContactFuncs
             return ['status' => 'error', 'message' => "Für {$p->first_name} ist keine Telefonnummer im Profil hinterlegt."];
         }
 
-        // Erstelle den geplanten Anruf
-        $record = new \App\Models\SupportTelephonyCall();
-        $record->contact_name = $p->full_name;
-        $record->phone = $p->phone;
+        // Suche nach bestehendem Entwurf für diese Person
+        $phoneClean = preg_replace('/[^0-9+]/', '', $p->phone);
+        $record = \App\Models\SupportTelephonyCall::where('phone', $phoneClean)
+            ->where('status', 'planned')
+            ->first();
+
+        if (!$record) {
+            $record = new \App\Models\SupportTelephonyCall();
+            $record->contact_name = $p->full_name;
+            $record->phone = $phoneClean; // Speichere die bereinigte Nummer für konsistente Abfragen
+            $record->status = 'planned';
+        }
+        
         $record->objective = $args['objective'];
-        $record->status = 'planned';
         $record->save();
 
         return [
             'status' => 'success',
-            'message' => "Der Entwurf wurde erfolgreich in der UI unter 'Anruf-Historie' (als Geplant) gespeichert. Bitte den Nutzer jetzt um sein finales 'Go' oder eventuelle Anpassungen, bevor du contact_call benutzt."
+            'message' => "Der Anrufplan wurde erfolgreich im Bereich 'Support Telefonie' (als Geplant) angelegt/aktualisiert. Er ist für den Nutzer dort jetzt sichtbar. Bitte ihn nun um Feedback oder Freigabe."
         ];
     }
 
