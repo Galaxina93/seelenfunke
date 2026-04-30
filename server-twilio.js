@@ -2,8 +2,8 @@ import { WebSocketServer } from 'ws';
 import http from 'http';
 import dotenv from 'dotenv';
 import WebSocket from 'ws';
-// wavefile can be used for PCM <-> Mulaw conversions if needed, but for now we rely on standard Base64 conversion
-import { WaveFile } from 'wavefile'; 
+import wavefile from 'wavefile';
+const { WaveFile } = wavefile; 
 
 dotenv.config();
 
