@@ -1769,11 +1769,11 @@ video {
 .mt-8 {
   margin-top: 2rem;
 }
-.mt-auto {
-  margin-top: auto;
-}
 .mt-\[-8px\] {
   margin-top: -8px;
+}
+.mt-auto {
+  margin-top: auto;
 }
 .line-clamp-1 {
   overflow: hidden;

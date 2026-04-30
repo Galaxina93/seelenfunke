@@ -18,25 +18,22 @@ class SupportTelephony extends Component
 
     public function render()
     {
-        $activeCalls = AiCall::with(['agent', 'contact'])
-            ->whereIn('status', ['initiated', 'ringing', 'in_progress'])
-            ->get();
+        // Da wir nun SupportTelephonyCall für echte Twilio-Calls haben:
+        $activeCalls = collect(); // Aktive Twilio Calls könnten wir über einen Status "ongoing" in SupportTelephonyCall ermitteln, wenn wir sie beim Start eintragen würden. Für jetzt leer.
 
-        $historyCalls = AiCall::with(['agent', 'contact'])
-            ->whereIn('status', ['completed', 'failed', 'busy', 'no_answer'])
-            ->orderBy('created_at', 'desc')
+        $historyCalls = \App\Models\SupportTelephonyCall::orderBy('created_at', 'desc')
             ->paginate(10);
 
         $contacts = AiContact::orderBy('name')->paginate(20);
 
         // KPIs
-        $totalCalls = AiCall::whereDate('created_at', Carbon::today())->count();
-        $successfulCalls = AiCall::whereDate('created_at', Carbon::today())->where('status', 'completed')->count();
-        $avgDurationSeconds = AiCall::whereDate('created_at', Carbon::today())->where('status', 'completed')->avg('duration_seconds');
+        $totalCalls = \App\Models\SupportTelephonyCall::whereDate('created_at', Carbon::today())->count();
+        $successfulCalls = \App\Models\SupportTelephonyCall::whereDate('created_at', Carbon::today())->where('status', 'completed')->count();
+        $avgDurationSeconds = \App\Models\SupportTelephonyCall::whereDate('created_at', Carbon::today())->where('status', 'completed')->avg('duration_seconds');
 
         $kpi = [
             'total_calls_today' => $totalCalls,
-            'total_minutes_today' => round(AiCall::whereDate('created_at', Carbon::today())->sum('duration_seconds') / 60, 1),
+            'total_minutes_today' => round(\App\Models\SupportTelephonyCall::whereDate('created_at', Carbon::today())->sum('duration_seconds') / 60, 1),
             'success_rate' => $totalCalls > 0 ? round(($successfulCalls / $totalCalls) * 100) : 0,
             'avg_duration' => $avgDurationSeconds ? gmdate("i:s", (int) $avgDurationSeconds) : '00:00'
         ];

@@ -15,6 +15,23 @@ class ManagementContactSeeder extends Seeder
     {
         $profiles = [
             [
+                'first_name' => 'Alina',
+                'last_name' => 'Steinhauer',
+                'is_favorite' => true,
+                'nickname' => 'Alina',
+                'relation_type' => 'Eigentümerin',
+                'avatar_path' => 'leitung/person_profiles/alina_steinhauer.jpg',
+                'birthday' => '1993-09-01',
+                'email' => 'alina.stone@t-online.de',
+                'phone' => '+49 159 01966864',
+                'street' => 'Carl-Goerdeler-Ring 26',
+                'postal_code' => '38518',
+                'city' => 'Gifhorn',
+                'country' => 'Deutschland',
+                'system_instructions' => 'WICHTIGE FAKTEN: Du selbst. Der Schöpfer. Eigentümerin des Systems.',
+                'ai_learned_facts' => "\n[30.04.2026] Profil angelegt."
+            ],
+            [
                 'first_name' => 'Tim',
                 'last_name' => 'Steinhauer',
                 'is_favorite' => true,

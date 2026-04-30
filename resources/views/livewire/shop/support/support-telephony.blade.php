@@ -124,24 +124,21 @@
                             @forelse($historyCalls as $call)
                                 <tr class="hover:bg-gray-800/20 transition-colors">
                                     <td class="p-4 text-sm text-gray-300">{{ $call->created_at->format('d.m.Y H:i') }}</td>
-                                    <td class="p-4 text-sm text-white font-medium">{{ $call->agent->name ?? 'N/A' }}</td>
+                                    <td class="p-4 text-sm text-white font-medium">KI Agent</td>
                                     <td class="p-4 text-sm text-gray-300">
-                                        {{ $call->contact->name ?? 'Unbekannt' }}<br>
-                                        <span class="text-xs text-gray-500">{{ $call->phone_number }}</span>
+                                        {{ $call->contact_name ?? 'Unbekannt' }}<br>
+                                        <span class="text-xs text-gray-500">{{ $call->phone }}</span>
                                     </td>
-                                    <td class="p-4 text-sm text-gray-300">{{ gmdate("i:s", $call->duration_seconds) }}</td>
+                                    <td class="p-4 text-sm text-gray-300">{{ gmdate("i:s", $call->duration_seconds ?? 0) }}</td>
                                     <td class="p-4 text-sm">
                                         @if($call->status === 'completed')
-                                            <span class="px-2 py-1 bg-green-500/10 text-green-400 rounded-md text-xs border border-green-500/20">Erfolgreich</span>
+                                            <span class="px-2 py-1 bg-green-500/10 text-green-400 rounded-md text-xs border border-green-500/20">Beendet</span>
                                         @else
                                             <span class="px-2 py-1 bg-red-500/10 text-red-400 rounded-md text-xs border border-red-500/20">{{ ucfirst($call->status) }}</span>
                                         @endif
                                     </td>
                                     <td class="p-4 text-sm text-right">
-                                        <button class="text-[var(--theme-color)] hover:text-white transition-colors text-xs font-medium mr-3">Details</button>
-                                        @if($call->recording_url)
-                                            <button class="text-white hover:text-[var(--theme-color)] text-xs font-medium"><i class="bi bi-play-fill text-sm"></i> Play</button>
-                                        @endif
+                                        <button class="text-[var(--theme-color)] hover:text-white transition-colors text-xs font-medium mr-3" onclick="alert('Fazit: {{ addslashes($call->summary ?? 'Kein Fazit verfügbar.') }}\n\nNächste Schritte: {{ addslashes(implode(', ', json_decode($call->next_steps ?? '[]', true))) }}')">Fazit ansehen</button>
                                     </td>
                                 </tr>
                             @empty

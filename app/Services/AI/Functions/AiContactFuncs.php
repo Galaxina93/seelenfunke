@@ -125,16 +125,20 @@ trait AiContactFuncs
             ],
             [
                 'name' => 'contact_call',
-                'description' => 'Löst einen Anruf an diesen Kontakt unter der hinterlegten Telefonnummer aus. Stichworte: Ruf Max an, Wähle die Nummer von Theresa.',
+                'description' => 'Löst einen Anruf an diesen Kontakt unter der hinterlegten Telefonnummer aus. Erlaube dem Agenten, das Ziel des Anrufs zu definieren.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'first_name' => [
                             'type' => 'string',
                             'description' => 'Vorname der anzurufenden Person.'
+                        ],
+                        'objective' => [
+                            'type' => 'string',
+                            'description' => 'Genaue Anweisung, was die KI am Telefon sagen soll oder in Erfahrung bringen soll (z.B. "Sag ihm dass Alina die geilste ist und frag wie es ihm geht").'
                         ]
                     ],
-                    'required' => ['first_name']
+                    'required' => ['first_name', 'objective']
                 ],
                 'callable' => [self::class, 'executeContactCall']
             ]
@@ -295,8 +299,8 @@ trait AiContactFuncs
 
     public static function executeContactCall(array $args)
     {
-        if (empty($args['first_name'])) {
-            return ['status' => 'error', 'message' => 'Vorname für den Anruf erforderlich.'];
+        if (empty($args['first_name']) || empty($args['objective'])) {
+            return ['status' => 'error', 'message' => 'Vorname und Ziel (objective) für den Anruf erforderlich.'];
         }
 
         $p = static::findPersonProfile($args['first_name']);
@@ -306,9 +310,39 @@ trait AiContactFuncs
             return ['status' => 'error', 'message' => "Für {$p->first_name} ist keine Telefonnummer im Profil hinterlegt."];
         }
 
+        // Hole die Kalender-Termine der nächsten 30 Tage für den Kontext
+        $calendarEventsStr = "Keine anstehenden Termine in den nächsten 30 Tagen.";
+        if (class_exists(\App\Models\Management\ManagementCalendarEvent::class)) {
+            $upcomingEvents = \App\Models\Management\ManagementCalendarEvent::where('start_date', '>=', now())
+                ->where('start_date', '<=', now()->addDays(30))
+                ->orderBy('start_date', 'asc')
+                ->get();
+            if ($upcomingEvents->isNotEmpty()) {
+                $calendarEventsStr = "Termine der nächsten 30 Tage:\n";
+                foreach ($upcomingEvents as $evt) {
+                    $dateStr = $evt->is_all_day ? $evt->start_date->format('d.m.Y') . ' (Ganztägig)' : $evt->start_date->format('d.m.Y H:i') . ' - ' . ($evt->end_date ? $evt->end_date->format('H:i') : '');
+                    $calendarEventsStr .= "- {$dateStr}: {$evt->title}\n";
+                }
+            }
+        }
+
+        // Kontext im Cache speichern, damit der Twilio Webhook (Outbound) darauf zugreifen kann
+        // Twilio sendet die Nummer im E.164 Format zurück.
+        $cacheKey = "twilio_call_" . preg_replace('/[^0-9+]/', '', $p->phone);
+        \Illuminate\Support\Facades\Cache::put($cacheKey, [
+            'contact_name' => $p->full_name,
+            'objective' => $args['objective'],
+            'system_instructions' => $p->system_instructions ?? '',
+            'ai_learned_facts' => $p->ai_learned_facts ?? '',
+            'calendar_events' => $calendarEventsStr
+        ], 600); // 10 Minuten gültig
+
+        // WICHTIG: API Call direkt hier auslösen
+        $callSid = static::triggerTwilioCall($p->phone);
+
         return [
             'status' => 'success',
-            'message' => "Löse Anruf zu {$p->first_name} aus.",
+            'message' => "Löse Anruf zu {$p->first_name} aus. " . ($callSid ? "Anruf läuft (SID: $callSid)" : "Fehler beim API Call."),
             '_frontend_event' => [
                 'name' => 'open-call-modal',
                 'detail' => [
@@ -317,6 +351,66 @@ trait AiContactFuncs
                 ]
             ],
         ];
+    }
+
+    /**
+     * Helper Methode, um den echten Twilio Call zu feuern.
+     * Kann vom Agent-Runner asynchron aufgerufen werden, sobald er das _backend_action sieht.
+     * Oder wir können ihn direkt hier abfeuern.
+     */
+    public static function triggerTwilioCall(string $toPhone)
+    {
+        $sid = env('TWILIO_ACCOUNT_SID');
+        $token = env('TWILIO_AUTH_TOKEN');
+        $fromNumber = env('TWILIO_PHONE_NUMBER');
+
+        if (!$sid || !$token || !$fromNumber) {
+            \Log::error("Twilio Credentials fehlen in .env");
+            return false;
+        }
+
+        try {
+            $toPhoneClean = preg_replace('/[^0-9+]/', '', $toPhone);
+            
+            $cacheKey = "twilio_call_" . $toPhoneClean;
+            $context = \Illuminate\Support\Facades\Cache::get($cacheKey);
+
+            $host = request()->getHost();
+            // Erlaube Fallback auf öffentlichen Ngrok für lokale Entwicklung
+            $wssUrl = env('TWILIO_WSS_URL', 'wss://' . $host . '/twilio-stream');
+            if (str_contains($host, '.test') || str_contains($host, 'localhost')) {
+                \Log::warning("Lokale Umgebung erkannt! Twilio benötigt eine öffentliche WSS URL. Bitte TWILIO_WSS_URL in der .env setzen (z.B. ngrok).");
+            }
+
+            // Direktes TwiML bauen, um HTTP Webhook Request durch Twilio zu umgehen
+            $response = new \Twilio\TwiML\VoiceResponse();
+            $connect = $response->connect();
+            $stream = $connect->stream([
+                'url' => $wssUrl,
+                'track' => 'both_tracks'
+            ]);
+
+            if ($context) {
+                $stream->parameter(['name' => 'contact_name', 'value' => $context['contact_name'] ?? 'Unbekannt']);
+                $stream->parameter(['name' => 'objective', 'value' => $context['objective'] ?? '']);
+                $stream->parameter(['name' => 'system_instructions', 'value' => $context['system_instructions'] ?? '']);
+                $stream->parameter(['name' => 'ai_learned_facts', 'value' => $context['ai_learned_facts'] ?? '']);
+                $stream->parameter(['name' => 'calendar_events', 'value' => $context['calendar_events'] ?? '']);
+            }
+
+            $client = new \Twilio\Rest\Client($sid, $token);
+            $call = $client->calls->create(
+                $toPhoneClean,
+                $fromNumber,
+                [
+                    "twiml" => $response->asXML()
+                ]
+            );
+            return $call->sid;
+        } catch (\Exception $e) {
+            \Log::error("Twilio Call Error: " . $e->getMessage());
+            return false;
+        }
     }
 
     private static function findPersonProfile($queryLower)

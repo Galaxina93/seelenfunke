@@ -576,11 +576,10 @@ class GeminiAgent implements AiProviderInterface
                 return "Ich empfange nur statisches Rauschen aus dem KI-Kern.";
             }
 
-            // ANTI-LOOP & TIMEOUT PREVENTION: Force maximum 1 tool call per iteration.
-            // If the AI spits out 5 tools, the request times out (CURL Error 28). We slice it down.
+            // Multitasking-Aktivierung: Wir erlauben Gemini, beliebig viele Tools parallel
+            // anzufordern (wie im Blueprint gefordert). Keine Begrenzung auf 1 Tool mehr.
             if (isset($message['tool_calls']) && count($message['tool_calls']) > 1) {
-                Log::warning("AI tried to call ".count($message['tool_calls'])." tools at once. Slicing to 1 to prevent timeout.");
-                $message['tool_calls'] = array_slice($message['tool_calls'], 0, 1);
+                Log::info("MULTITASKING: AI executing ".count($message['tool_calls'])." tools simultaneously.");
             }
 
             // Append the AI's response to the message history so context isn't lost
