@@ -11,14 +11,15 @@ process.on('uncaughtException', (err) => {
     fs.writeFileSync('crash.log', err.stack || err.toString());
     process.exit(1);
 });
-process.on('unhandledRejection', (err) => {
-    fs.writeFileSync('crash.log', err.stack || err.toString());
-    process.exit(1);
-});
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function debugLog(msg) {
     try {
-        fs.appendFileSync('/home/p-g27wim/html/seelenfunke-stage/audio-debug.log', new Date().toISOString() + ' - ' + msg + '\n');
+        fs.appendFileSync(join(__dirname, 'audio-debug.log'), new Date().toISOString() + ' - ' + msg + '\n');
     } catch(e) {}
 }
 
