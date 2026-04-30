@@ -358,8 +358,7 @@ trait AiTelefonyFuncs
             $response = new \Twilio\TwiML\VoiceResponse();
             $connect = $response->connect();
             $stream = $connect->stream([
-                'url' => $wssUrl,
-                'track' => 'both_tracks'
+                'url' => $wssUrl
             ]);
 
             // Start-Parameter (Context) übergeben
@@ -381,7 +380,7 @@ trait AiTelefonyFuncs
                     "twiml" => $response->asXML(),
                     "timeLimit" => 180, // Maximal 3 Minuten Gesprächsdauer
                     "statusCallback" => "https://" . $host . "/api/twilio/call-log",
-                    "statusCallbackEvent" => ["completed", "failed", "busy", "no-answer", "canceled"],
+                    "statusCallbackEvent" => ["initiated", "ringing", "answered", "completed"],
                     "statusCallbackMethod" => "POST"
                 ]
             );
