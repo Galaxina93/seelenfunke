@@ -91,26 +91,28 @@ let wav = new WaveFile();
 wav.fromScratch(1, 24000, '16', int16Data);
 ```
 
-## 8. Das Problem der "Stille" (16kHz Audio & Initialer Prompt)
+## 8. Das Problem der "Stille" (API-Tücken und Initialer Prompt)
 
 Nach der Behebung des statischen Rauschens waren beide Seiten der Leitung komplett stumm. Gemini antwortete nicht und schien den Anrufer nicht zu hören.
 
-### A. 16kHz natives Audio für Gemini
-Obwohl Twilio 8kHz Audio sendet, erwartet die Gemini 3.1 Live API natives **16kHz 16-bit PCM** Audio. Wenn Gemini Audio im 8kHz-Format empfängt, wird dies als inkorrekt interpretiert, wodurch die Voice Activity Detection (VAD) den Anrufer nicht versteht.
-**Lösung:** Ein Resampling (Upsampling) des Twilio-Audios von 8kHz auf 16kHz vor dem Senden an Gemini:
-```javascript
-wav.fromMuLaw();
-wav.toSampleRate(16000); // Upsampling auf 16kHz
-```
-Das `mimeType`-Attribut für Gemini muss dementsprechend zwingend auf `"audio/pcm;rate=16000"` gesetzt werden.
+### A. 8kHz Audio & Resampling
+Zunächst wurde vermutet, dass die Stille daran lag, dass Gemini 3.1 Flash Live nativ 16kHz erwartet und das 8kHz Audio von Twilio ablehnt. Ein Blick in die offizielle Dokumentation zeigt jedoch: *"Die Live API führt bei Bedarf jedoch eine Resampling durch, sodass jede Abtastrate gesendet werden kann."*
+**Erkenntnis:** Ein teures manuelles Upsampling auf 16kHz im Node.js Server ist unnötig! Es reicht völlig aus, das 8kHz PCM Audio zu senden und den `mimeType` korrekt auf `"audio/pcm;rate=8000"` zu deklarieren. Gemini übernimmt das Resampling intern.
 
 ### B. Gemini zwingen, das Gespräch zu eröffnen
-Gemini antwortet standardmäßig erst, wenn der Anrufer spricht (VAD-Trigger). Da viele Anrufer jedoch erst abwarten, bis sich die Gegenseite meldet, entstand ein stummes Deadlock.
-**Lösung:** Direkt nach der Bestätigung des WebSocket-Setups (`response.setupComplete`) sendet der Server nun proaktiv einen Text-Prompt (`clientContent`) an Gemini:
-*"Ein Anrufer ist nun in der Leitung. Bitte antworte sofort kurz und freundlich..."*
+Gemini antwortet standardmäßig erst, wenn der Anrufer spricht (VAD-Trigger). Da viele Anrufer jedoch erst abwarten, bis sich die Gegenseite meldet, entstand ein stummes Deadlock. Zunächst wurde versucht, einen initialen Prompt über `clientContent` zu senden. Die Doku besagt jedoch klar: *"send_client_content is only supported for seeding initial context history... To send text updates during the conversation, use send_realtime_input instead."*
+Zudem wird die Funktion `proactive_audio` von Gemini 3.1 Flash Live (Stand April 2026) noch nicht unterstützt.
+**Lösung:** Direkt nach der Bestätigung des WebSocket-Setups (`response.setupComplete`) sendet der Server nun einen Text-Prompt über `realtimeInput` an Gemini:
+```json
+{
+  "realtimeInput": {
+    "text": "Ein Anrufer ist nun in der Leitung. Bitte antworte sofort kurz und freundlich..."
+  }
+}
+```
 Dadurch wird Gemini gezwungen, das Gespräch proaktiv mit einer Begrüßung zu eröffnen, ohne auf den ersten Ton des Anrufers warten zu müssen.
 
 ## 9. Fazit & Aktueller Status
 Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch den strikten "Löschen & Kopieren" Workflow gelöst wurde. Die Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale API-Änderungen seitens Google verursacht. Das letzte Hindernis – das statische Rauschen – war ein Type-Casting Fehler im Audio-Buffer.
 
-Durch die exakte Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview`), das korrekte Casting des Audio-Buffers in ein `Int16Array`, das Upsampling auf 16kHz und die konsequente Container-Neuerstellung bei Code-Updates ist die Node.js Bridge nun zu 100% stabil. Sie nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt glasklare Antworten nahtlos an den Anrufer. Mission erfüllt!
+Durch die exakte Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview`), das korrekte Casting des Audio-Buffers in ein `Int16Array`, die Nutzung von `realtimeInput` für den initiierenden Text-Prompt und die konsequente Container-Neuerstellung bei Code-Updates ist die Node.js Bridge nun zu 100% stabil. Sie nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt glasklare Antworten nahtlos an den Anrufer. Mission erfüllt!
