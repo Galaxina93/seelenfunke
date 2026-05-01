@@ -23,7 +23,7 @@ function debugLog(msg) {
     } catch(e) {}
 }
 
-debugLog("--- NODE JS SERVER RESTARTED ---");
+debugLog("--- NODE JS SERVER RESTARTED (VERSION: AUDIO FIX V3) ---");
 
 dotenv.config();
 
