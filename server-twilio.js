@@ -130,8 +130,11 @@ Regeln:
                             const pcmBuffer = Buffer.from(part.inlineData.data, 'base64');
                             
                             // 1. Lese das Gemini PCM in WaveFile ein
+                            // WICHTIG: WaveFile erwartet bei 16-bit ein Int16Array, kein Buffer(byte) Array,
+                            // sonst wird jedes Byte als eigener 16-bit Sample interpretiert (Rauschen!)
+                            const int16Data = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.length / 2);
                             let wav = new WaveFile();
-                            wav.fromScratch(1, 24000, '16', pcmBuffer);
+                            wav.fromScratch(1, 24000, '16', int16Data);
                             
                             // 2. Resample auf 8000Hz (für Telefon)
                             wav.toSampleRate(8000);
