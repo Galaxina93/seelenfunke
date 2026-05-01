@@ -94,7 +94,7 @@ Regeln:
                         parts: [{ text: systemPrompt }]
                     },
                     generationConfig: {
-                        responseModalities: ["AUDIO"],
+                        responseModalities: ["audio"],
                         speechConfig: {
                             voiceConfig: {
                                 prebuiltVoiceConfig: {
