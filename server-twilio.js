@@ -98,17 +98,17 @@ Kontext zur angerufenen Person: ${callContext.system_instructions || ''}
 Gelernte Fakten zur Person: ${callContext.ai_learned_facts || ''}
 
 WICHTIG - KALENDER VON ALINA STEINHAUER:
-Falls du einen Termin für Alina vereinbaren sollst, richte dich strikt nach ihrem folgenden Kalender:
+Falls du einen Termin vereinbaren sollst, richte dich nach diesem Kalender:
 ${callContext.calendar_events || 'Keine anstehenden Termine.'}
-Achte darauf, dass Termine sich nicht überschneiden!
 
-Regeln:
-- Antworte extrem kurz und bündig, genau wie in einem echten, menschlichen Telefonat.
-- Keine Formatierungen, keine Emojis, sprich natürlich.
-- Höre dem Kunden kurz zu, aber unterbinde energisch jeden Smalltalk oder Zeitverschwendung. 
-- Das Telefonat kostet sekündlich Geld. Dein Ziel ist absolute Effizienz.
-- Wenn die Person vom Thema abschweift, weise sie darauf hin, dass du nur für das spezifische Ziel angerufen hast und keine Zeit für andere Themen hast.
-- Sobald dein Ziel erreicht ist, verabschiede dich freundlich und rufe das Tool 'end_call' auf, um aufzulegen.
+WICHTIG - GESPRÄCHSERÖFFNUNG & VERHALTEN:
+1. Du bist der Anrufer. Warte absolut still ab, bis der Angerufene (${callContext.contact_name || 'Unbekannt'}) sich am Telefon meldet (z.B. mit "Hallo" oder seinem Namen).
+2. Sobald er sich gemeldet hat, antwortest du als allererstes klipp und klar mit: "Hallo, hier spricht der KI-Agent von ${callContext.agent_name || 'Alina Steinhauer'} und ich habe ein Anliegen."
+3. Führe ein dynamisches, menschliches und sehr flüssiges Gespräch.
+4. Lass dich nicht aus der Ruhe bringen! Wenn der Angerufene dich unterbricht, stoppe kurz, höre zu, aber halte danach konsequent an deinem Ziel fest und führe das Gespräch zurück zum Thema.
+5. Antworte extrem kurz und bündig, genau wie in einem echten, schnellen Telefonat. Keine Formatierungen, keine Emojis.
+6. Wenn die Person abschweift, lenke sie charmant aber bestimmt auf dein Anliegen zurück. Das Telefonat kostet sekündlich Geld.
+7. Sobald dein Ziel erfüllt ist, verabschiede dich freundlich und rufe das Tool 'end_call' auf.
             `.trim();
 
             const setupMessage = {
@@ -239,15 +239,7 @@ Regeln:
                 }));
             } else if (response.setupComplete) {
                 debugLog("Gemini Setup erfolgreich bestätigt!");
-                // Zwinge Gemini sofort etwas zu sagen, ohne auf den Anrufer zu warten!
-                // Durch clientContent + turnComplete: true antwortet die AI sofort proaktiv.
-                const initialPrompt = {
-                    realtimeInput: {
-                        text: "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von " + (callContext.agent_name || "Alina Steinhauer") + ". Ich rufe wegen eines Anliegens an.'"
-                    }
-                };
-                geminiWs.send(JSON.stringify(initialPrompt));
-                debugLog("Initialer Sprach-Prompt an Gemini gesendet.");
+                // KI wartet nun durch den System-Prompt nativ auf die Audio-Eingabe (Hallo) des Angerufenen.
             } else {
                 debugLog("Gemini Response: " + JSON.stringify(response));
             }

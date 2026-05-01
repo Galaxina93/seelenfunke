@@ -99,18 +99,16 @@ Nach der Behebung des statischen Rauschens waren beide Seiten der Leitung komple
 Zunächst wurde vermutet, dass die Stille daran lag, dass Gemini 3.1 Flash Live nativ 16kHz erwartet und das 8kHz Audio von Twilio ablehnt. Ein Blick in die offizielle Dokumentation zeigt jedoch: *"Die Live API führt bei Bedarf jedoch eine Resampling durch, sodass jede Abtastrate gesendet werden kann."*
 **Erkenntnis:** Ein teures manuelles Upsampling auf 16kHz im Node.js Server ist unnötig! Es reicht völlig aus, das 8kHz PCM Audio zu senden und den `mimeType` korrekt auf `"audio/pcm;rate=8000"` zu deklarieren. Gemini übernimmt das Resampling intern.
 
-### B. Gemini zwingen, das Gespräch zu eröffnen
-Gemini antwortet standardmäßig erst, wenn der Anrufer spricht (VAD-Trigger). Da viele Anrufer jedoch erst abwarten, bis sich die Gegenseite meldet, entstand ein stummes Deadlock. Zunächst wurde versucht, einen initialen Prompt über `clientContent` zu senden. Die Doku besagt jedoch klar: *"send_client_content is only supported for seeding initial context history... To send text updates during the conversation, use send_realtime_input instead."*
-Zudem wird die Funktion `proactive_audio` von Gemini 3.1 Flash Live (Stand April 2026) noch nicht unterstützt.
-**Lösung:** Direkt nach der Bestätigung des WebSocket-Setups (`response.setupComplete`) sendet der Server nun einen Text-Prompt über `realtimeInput` an Gemini:
-```json
-{
-  "realtimeInput": {
-    "text": "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von Alina Steinhauer. Ich rufe wegen eines Anliegens an.'"
-  }
-}
-```
-Dadurch wird Gemini gezwungen, das Gespräch proaktiv mit einer Begrüßung zu eröffnen, ohne auf den ersten Ton des Anrufers warten zu müssen.
+### B. Natürlicher Gesprächsfluss (Warten auf das erste "Hallo")
+Zunächst wurde versucht, die KI zu zwingen, sofort beim Verbindungsaufbau loszusprechen (via `clientContent` oder `realtimeInput`). Dies führte jedoch zu Kollisionen: Wenn der Angerufene "Hallo" sagte, während die KI gerade ihren erzwungenen ersten Satz begann, interpretierte die KI dies als Unterbrechung (`interrupted: true`) und stoppte abrupt.
+
+**Die Lösung (Flüssige, menschliche Dynamik):**
+Wir verzichten komplett auf erzwungene Start-Prompts! Das Gemini-Modell arbeitet ohnehin bidirektional. 
+1. Der `systemPrompt` instruiert die KI nun: *"Warte absolut still ab, bis der Angerufene sich meldet."*
+2. Sobald der Angerufene abhebt und sich meldet (z.B. "Schmidt?"), greift Geminis Voice Activity Detection (VAD).
+3. Die KI reagiert nativ auf diese Begrüßung und stellt sich vor: *"Hallo, hier spricht der KI-Agent von..."*.
+
+Dieses "Warten auf den Angerufenen" entspricht der exakten Dynamik eines echten Telefonats und eliminiert jegliches Verschlucken oder fehlerhafte Unterbrechungen beim Gesprächsstart. Gleichzeitig wurde die KI angewiesen, bei echten Unterbrechungen kurz innezuhalten, aber danach konsequent zum ursprünglichen Ziel/Plan zurückzukehren.
 
 ## 9. Fazit & Aktueller Status
 Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch den strikten "Löschen & Kopieren" Workflow gelöst wurde. Die Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale API-Änderungen seitens Google verursacht. Das letzte Hindernis – das statische Rauschen – war ein Type-Casting Fehler im Audio-Buffer.

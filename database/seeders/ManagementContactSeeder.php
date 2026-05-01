@@ -83,7 +83,7 @@ class ManagementContactSeeder extends Seeder
                 'links' => [],
                 'birthday' => '1962-10-25',
                 'email' => 'jansteinhauer@t-online.de',
-                'phone' => '0176 57793016 / +49 160 90592752',
+                'phone' => '+4917657793016',
                 'street' => 'Holzweg 11',
                 'postal_code' => '38536',
                 'city' => 'Meinersen',
