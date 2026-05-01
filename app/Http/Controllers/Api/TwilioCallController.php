@@ -35,6 +35,7 @@ class TwilioCallController extends Controller
             $stream->parameter(['name' => 'calendar_events', 'value' => $context['calendar_events'] ?? 'Keine Termine']);
             $stream->parameter(['name' => 'agent_name', 'value' => $context['agent_name'] ?? 'Alina Steinhauer']);
             $stream->parameter(['name' => 'agent_profile', 'value' => $context['agent_profile'] ?? 'Du bist eine hilfreiche KI Assistentin.']);
+            $stream->parameter(['name' => 'planned_call_id', 'value' => (string)($context['planned_call_id'] ?? '')]);
         }
 
         return response($response->asXML(), 200)->header('Content-Type', 'text/xml');
@@ -87,13 +88,19 @@ class TwilioCallController extends Controller
             }
         }
 
-        $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $sid)->first();
+        $callRecord = null;
+        if (!empty($data['planned_call_id'])) {
+            $callRecord = \App\Models\SupportTelephonyCall::find($data['planned_call_id']);
+        }
+        if (!$callRecord) {
+            $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $sid)->first();
+        }
         if (!$callRecord) {
             $callRecord = new \App\Models\SupportTelephonyCall();
-            $callRecord->twilio_sid = $sid ?? '';
             $callRecord->contact_name = $data['contact_name'] ?? 'Unbekannt';
             $callRecord->objective = $data['objective'] ?? '';
         }
+        $callRecord->twilio_sid = $sid ?? '';
         
         $callRecord->transcript = json_encode($data['transcript'] ?? []);
         $callRecord->duration_seconds = $data['duration_seconds'] ?? 0;
@@ -105,7 +112,7 @@ class TwilioCallController extends Controller
             if ($apiKey) {
                 try {
                     $transcriptText = implode("\n", $data['transcript']);
-                    $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit (z.B. Termin wurde vereinbart)\", \"next_steps\": [\"Task 1\", \"Task 2\"]}";
+                    $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}, {\"task\": \"Zweites Ziel\", \"achieved\": false}]}";
 
                     $response = \Illuminate\Support\Facades\Http::withHeaders([
                         'Content-Type' => 'application/json'
@@ -123,7 +130,13 @@ class TwilioCallController extends Controller
 
                         if ($result) {
                             $callRecord->summary = $result['summary'] ?? null;
-                            $callRecord->next_steps = json_encode($result['next_steps'] ?? []);
+                            
+                            // Combine next_steps and goals into the next_steps JSON column to avoid DB schema changes
+                            $combinedJson = [
+                                'steps' => $result['next_steps'] ?? [],
+                                'goals' => $result['goals'] ?? []
+                            ];
+                            $callRecord->next_steps = json_encode($combinedJson);
                         }
                     }
                 } catch (\Exception $e) {

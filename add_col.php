@@ -1,0 +1,1 @@
+<?php require __DIR__.'/vendor/autoload.php'; $app = require_once __DIR__.'/bootstrap/app.php'; $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class); $kernel->bootstrap(); Illuminate\Support\Facades\Schema::table('support_telephony_calls', function ($table) { $table->json('goals_evaluation')->nullable(); }); echo 'Column added.';

@@ -152,56 +152,121 @@
                                     </td>
                                 </tr>
                                 <!-- EXPANDED INLINE CONTENT -->
-                                <tr x-show="expanded" style="display: none;" class="bg-gray-800/10">
-                                    <td colspan="6" class="p-0">
+                                <tr x-show="expanded" style="display: none;" class="bg-gray-900/60 shadow-inner">
+                                    <td colspan="6" class="p-0 border-t border-white/5">
                                         <div x-show="expanded" x-collapse>
-                                            <div class="p-6 border-l-2 border-[var(--theme-color)] ml-4 my-4 mr-4 bg-gray-900/50 rounded-r-xl shadow-inner">
+                                            <div class="p-8">
                                                 @if($call->status === 'planned')
-                                                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Geplanter Aufgabenplan</h4>
-                                                    <p class="text-sm text-gray-300 leading-relaxed">{{ $call->objective ?? 'Kein Plan hinterlegt.' }}</p>
+                                                    <div class="flex items-start gap-4">
+                                                        <div class="w-10 h-10 rounded-full bg-[var(--theme-color)]/20 flex items-center justify-center flex-shrink-0 text-[var(--theme-color)]">
+                                                            <i class="bi bi-calendar-event text-lg"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Geplanter Aufgabenplan</h4>
+                                                            <p class="text-sm text-gray-300 leading-relaxed max-w-3xl">{{ $call->objective ?? 'Kein Plan hinterlegt.' }}</p>
+                                                        </div>
+                                                    </div>
                                                 @else
-                                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                                        <div>
-                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-chat-left-dots mr-1"></i> Aussagen des Anrufers</h4>
-                                                            @php
-                                                                $transcriptArray = json_decode($call->transcript ?? '[]', true);
-                                                                $partnerAnswers = [];
-                                                                if(is_array($transcriptArray)) {
-                                                                    foreach($transcriptArray as $line) {
-                                                                        if(str_starts_with($line, 'Anrufer:')) {
-                                                                            $partnerAnswers[] = trim(substr($line, 8));
-                                                                        }
-                                                                    }
-                                                                }
-                                                            @endphp
-                                                            @if(count($partnerAnswers) > 0)
-                                                                <ul class="list-disc list-inside text-sm text-gray-300 space-y-1.5">
-                                                                    @foreach($partnerAnswers as $answer)
-                                                                        <li>{{ $answer }}</li>
-                                                                    @endforeach
-                                                                </ul>
-                                                            @else
-                                                                <p class="text-sm text-gray-500 italic"><i class="bi bi-info-circle mr-1"></i> Keine Aussagen erfasst.</p>
-                                                            @endif
-                                                        </div>
-                                                        <div>
-                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-card-text mr-1"></i> Gesprächsfazit</h4>
-                                                            <p class="text-sm text-gray-300 leading-relaxed">{{ $call->summary ?? 'Kein Fazit verfügbar.' }}</p>
-                                                        </div>
-                                                        <div>
-                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-arrow-right-circle mr-1"></i> Nächste Schritte</h4>
-                                                            <ul class="list-disc list-inside text-sm text-gray-300 space-y-1.5">
-                                                                @php
-                                                                    $steps = json_decode($call->next_steps ?? '[]', true);
-                                                                @endphp
-                                                                @if(is_array($steps) && count($steps) > 0)
-                                                                    @foreach($steps as $step)
-                                                                        <li>{{ $step }}</li>
+                                                    @php
+                                                        $transcriptArray = json_decode($call->transcript ?? '[]', true);
+                                                        $stepsAndGoals = json_decode($call->next_steps ?? '[]', true);
+                                                        // Fallback for old data where next_steps was an array of strings
+                                                        if(isset($stepsAndGoals[0]) && is_string($stepsAndGoals[0])) {
+                                                            $steps = $stepsAndGoals;
+                                                            $goals = [];
+                                                        } else {
+                                                            $steps = $stepsAndGoals['steps'] ?? [];
+                                                            $goals = $stepsAndGoals['goals'] ?? [];
+                                                        }
+                                                    @endphp
+
+                                                    <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+                                                        <!-- Left Column: Transcript (Chat Bubbles) -->
+                                                        <div class="xl:col-span-7 bg-gray-950/50 rounded-2xl border border-white/5 p-6 h-[450px] flex flex-col">
+                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-3 flex items-center gap-2">
+                                                                <i class="bi bi-chat-text"></i> Gesprächsprotokoll
+                                                            </h4>
+                                                            <div class="overflow-y-auto pr-2 space-y-4 flex-1 custom-scrollbar">
+                                                                @if(is_array($transcriptArray) && count($transcriptArray) > 0)
+                                                                    @foreach($transcriptArray as $line)
+                                                                        @if(str_starts_with($line, 'Anrufer:'))
+                                                                            <div class="flex justify-end w-full">
+                                                                                <div class="bg-gray-800 text-gray-200 px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm max-w-[85%] shadow-md border border-white/5">
+                                                                                    {{ trim(substr($line, 8)) }}
+                                                                                </div>
+                                                                            </div>
+                                                                        @elseif(str_starts_with($line, 'KI:'))
+                                                                            <div class="flex justify-start w-full">
+                                                                                <div class="bg-[var(--theme-color)]/20 text-white px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm max-w-[85%] shadow-md border border-[var(--theme-color)]/30">
+                                                                                    {{ trim(substr($line, 3)) }}
+                                                                                </div>
+                                                                            </div>
+                                                                        @endif
                                                                     @endforeach
                                                                 @else
-                                                                    <li class="text-gray-500 list-none italic"><i class="bi bi-info-circle mr-1"></i> Keine nächsten Schritte definiert.</li>
+                                                                    <div class="flex h-full items-center justify-center text-gray-500 italic text-sm">
+                                                                        Kein Protokoll verfügbar.
+                                                                    </div>
                                                                 @endif
-                                                            </ul>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Right Column: Goals, Summary, Next Steps -->
+                                                        <div class="xl:col-span-5 space-y-6">
+                                                            
+                                                            <!-- Goals Evaluation -->
+                                                            <div class="bg-gray-900/40 rounded-2xl border border-white/5 p-5">
+                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                                    <i class="bi bi-list-check"></i> Zielerreichung
+                                                                </h4>
+                                                                @if(count($goals) > 0)
+                                                                    <ul class="space-y-3">
+                                                                        @foreach($goals as $goal)
+                                                                            <li class="flex items-start gap-3">
+                                                                                @if($goal['achieved'] ?? false)
+                                                                                    <i class="bi bi-check-circle-fill text-green-500 text-lg mt-0.5 shadow-sm rounded-full bg-green-500/10"></i>
+                                                                                @else
+                                                                                    <i class="bi bi-x-circle-fill text-red-500 text-lg mt-0.5 shadow-sm rounded-full bg-red-500/10"></i>
+                                                                                @endif
+                                                                                <span class="text-sm text-gray-300">{{ $goal['task'] ?? 'Unbekanntes Ziel' }}</span>
+                                                                            </li>
+                                                                        @endforeach
+                                                                    </ul>
+                                                                @else
+                                                                    <p class="text-sm text-gray-500 italic border-l-2 border-gray-700 pl-3">
+                                                                        Ursprünglicher Plan:<br>
+                                                                        <span class="text-gray-400 mt-1 block">{{ $call->objective ?? 'Kein spezifischer Plan definiert.' }}</span>
+                                                                    </p>
+                                                                @endif
+                                                            </div>
+
+                                                            <!-- Summary -->
+                                                            <div class="bg-gray-900/40 rounded-2xl border border-white/5 p-5">
+                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                    <i class="bi bi-card-text"></i> Fazit
+                                                                </h4>
+                                                                <p class="text-sm text-gray-300 leading-relaxed">{{ $call->summary ?? 'Kein Fazit verfügbar.' }}</p>
+                                                            </div>
+
+                                                            <!-- Next Steps -->
+                                                            <div class="bg-gray-900/40 rounded-2xl border border-white/5 p-5">
+                                                                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                    <i class="bi bi-arrow-right-circle"></i> Nächste Schritte
+                                                                </h4>
+                                                                @if(count($steps) > 0)
+                                                                    <ul class="space-y-2">
+                                                                        @foreach($steps as $step)
+                                                                            <li class="flex items-start gap-2 text-sm text-gray-300">
+                                                                                <i class="bi bi-arrow-right-short text-[var(--theme-color)] mt-0.5"></i>
+                                                                                <span>{{ $step }}</span>
+                                                                            </li>
+                                                                        @endforeach
+                                                                    </ul>
+                                                                @else
+                                                                    <p class="text-sm text-gray-500 italic">Keine nächsten Schritte definiert.</p>
+                                                                @endif
+                                                            </div>
+
                                                         </div>
                                                     </div>
                                                 @endif

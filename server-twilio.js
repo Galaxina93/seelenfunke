@@ -64,7 +64,8 @@ wss.on('connection', (ws) => {
             contact_name: callContext.contact_name,
             objective: callContext.objective,
             transcript: callTranscript,
-            duration_seconds: duration
+            duration_seconds: duration,
+            planned_call_id: callContext.planned_call_id
         });
 
         const backendUrl = process.env.APP_URL || 'http://localhost';
