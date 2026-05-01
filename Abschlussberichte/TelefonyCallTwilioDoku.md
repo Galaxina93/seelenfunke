@@ -127,3 +127,23 @@ Die Gemini Live API arbeitet asynchron und streamt Audio-Chunks (Base64) an unse
 3. Sobald wir `turnComplete` erhalten und `shouldEndCall` aktiv ist, senden wir ein spezielles **Mark-Event** an Twilio (`{"event": "mark", "mark": {"name": "end_of_call"}}`).
 4. Twilio reiht dieses Mark-Event hinter den bereits empfangenen Audio-Puffer ein. Erst wenn Twilio die Audio-Wiedergabe bis genau zu diesem Punkt **abgeschlossen** hat, sendet Twilio uns das Mark-Event zurück.
 5. Wenn wir von Twilio das Event `msg.event === 'mark'` erhalten, wissen wir absolut sicher, dass der Anrufer den letzten Ton gehört hat, und rufen `ws.close()` auf. Das Gespräch wird sauber und ohne Abschneiden beendet.
+
+## 11. Enterprise UI & Datenintegrität (Anruf-Historie)
+Nachdem die technische Stabilität der Telefongespräche erreicht war, lag der Fokus auf der Optimierung der Datenbank-Logik und der Darstellung im Dashboard (Livewire UI).
+
+### A. Vermeidung doppelter Datenbankeinträge
+Zuvor wurde bei der Erstellung des *Anruf-Plans* (durch die AI) ein Datenbankeintrag im Status `planned` angelegt. Wenn der Anruf dann durch Twilio beendet und das Protokoll an das Backend gesendet wurde, konnte das Backend diesen Plan nicht zuordnen und erstellte einen **neuen Datensatz** für das Ergebnis.
+**Lösung:**
+1. Die `planned_call_id` wird nun von der Laravel-Planungslogik über den Twilio-Stream (als `<Parameter>`) direkt in die Node.js-Bridge eingespeist.
+2. Der Node.js-Server sendet diese `planned_call_id` am Ende des Anrufs im Payload an den `/api/twilio/call-log` Endpunkt zurück.
+3. Der `TwilioCallController` sucht anhand dieser ID den bestehenden `planned` Datensatz und aktualisiert diesen, statt einen neuen anzulegen.
+
+### B. Strukturierte Auswertung & Enterprise UI
+Statt eines einfachen Text-Fazits wird die Auswertungs-KI nun per Prompt gezwungen, das ursprüngliche Ziel (Objective) in eine strukturiertes Checklisten-Array (JSON) herunterzubrechen:
+`{"summary": "...", "next_steps": ["..."], "goals": [{"task": "Alter abfragen", "achieved": true}]}`
+Um aufwändige und riskante Datenbank-Migrationen auf dem Live-System zu vermeiden, werden diese `goals` und die `next_steps` elegant zusammen im bereits vorhandenen JSON-Feld `next_steps` gespeichert.
+
+**Dashboard UI Updates:**
+- **Gesprächsprotokoll:** Das Transkript wird nicht mehr als einfache Liste gerendert, sondern als modernes **Chat-Bubble-Interface** (ähnlich iMessage/WhatsApp), bei dem die KI und der Anrufer farblich und räumlich (links/rechts) getrennt sind.
+- **Zielerreichung (Checkliste):** Die strukturierten Ziele werden mit visuellen Badges dargestellt (grünes Tailwind-Checkmark für erreichte Ziele, rotes Kreuz für verfehlte Ziele).
+- Dadurch wirkt die Auswertung deutlich professioneller ("Enterprise Niveau") und erlaubt eine sofortige visuelle Erfassung der Call-Ergebnisse.
