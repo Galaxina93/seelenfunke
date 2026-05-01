@@ -116,3 +116,16 @@ Dadurch wird Gemini gezwungen, das Gespräch proaktiv mit einer Begrüßung zu e
 Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch den strikten "Löschen & Kopieren" Workflow gelöst wurde. Die Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale API-Änderungen seitens Google verursacht. Das letzte Hindernis – das statische Rauschen – war ein Type-Casting Fehler im Audio-Buffer.
 
 Durch die exakte Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview`), das korrekte Casting des Audio-Buffers in ein `Int16Array`, die Nutzung von `realtimeInput` für den initiierenden Text-Prompt und die konsequente Container-Neuerstellung bei Code-Updates ist die Node.js Bridge nun zu 100% stabil. Sie nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt glasklare Antworten nahtlos an den Anrufer. Mission erfüllt!
+
+## 10. Das Problem des abgeschnittenen Call-Endes (toolCall "end_call")
+Als die KI in der Lage war, Anrufe proaktiv zu beenden (durch Nutzung des `end_call` Tools), trat ein neues Problem auf: Die KI verabschiedete sich (z.B. "Das klingt ja wunderbar..."), aber der Anruf wurde **mitten im Satz abgebrochen**.
+
+**Die Ursache:**
+Die Gemini Live API arbeitet asynchron und streamt Audio-Chunks (Base64) an unseren Server, während sie gleichzeitig Metadaten wie `toolCall` sendet. Sobald die KI beschließt aufzulegen, wird der `toolCall` oft **gesendet, bevor die letzten Audio-Chunks vollständig übermittelt wurden**. Wenn wir den Twilio-WebSocket sofort beim Eintreffen des `toolCall` schließen, verwirft Twilio den gesamten Audio-Puffer und der Anrufer hört das Ende des Satzes nicht mehr.
+
+**Die finale Lösung (Graceful Hangup mit Twilio Mark-Event):**
+1. Wenn der `toolCall` `end_call` eintrifft, merken wir uns lediglich die Absicht (`shouldEndCall = true;`), schließen die Verbindung aber **nicht** sofort. Zudem bestätigen wir Gemini den Tool-Aufruf, damit die API nicht blockiert.
+2. Wir warten, bis Gemini das Flag `{"serverContent":{"turnComplete":true}}` sendet. Das signalisiert, dass Gemini alle Audio-Chunks für diesen Satz an uns übergeben hat.
+3. Sobald wir `turnComplete` erhalten und `shouldEndCall` aktiv ist, senden wir ein spezielles **Mark-Event** an Twilio (`{"event": "mark", "mark": {"name": "end_of_call"}}`).
+4. Twilio reiht dieses Mark-Event hinter den bereits empfangenen Audio-Puffer ein. Erst wenn Twilio die Audio-Wiedergabe bis genau zu diesem Punkt **abgeschlossen** hat, sendet Twilio uns das Mark-Event zurück.
+5. Wenn wir von Twilio das Event `msg.event === 'mark'` erhalten, wissen wir absolut sicher, dass der Anrufer den letzten Ton gehört hat, und rufen `ws.close()` auf. Das Gespräch wird sauber und ohne Abschneiden beendet.

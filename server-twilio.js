@@ -51,6 +51,7 @@ wss.on('connection', (ws) => {
     let callTranscript = [];
     let callStartTime = null;
     let callLogged = false;
+    let shouldEndCall = false;
 
     const saveCallLog = () => {
         if (callLogged) return;
@@ -146,11 +147,33 @@ Regeln:
                 const functionCalls = response.toolCall.functionCalls;
                 for (const call of functionCalls) {
                     if (call.name === 'end_call') {
-                        console.log('☎️ KI hat aufgelegt (end_call). Schließe Twilio Websocket.');
-                        if (ws.readyState === WebSocket.OPEN) {
-                            ws.close();
-                        }
+                        console.log('☎️ KI möchte auflegen. Warte auf turnComplete...');
+                        shouldEndCall = true; // wait for turnComplete
+                        
+                        const toolResponse = {
+                            toolResponse: {
+                                functionResponses: [{
+                                    id: call.id,
+                                    name: "end_call",
+                                    response: { success: true }
+                                }]
+                            }
+                        };
+                        geminiWs.send(JSON.stringify(toolResponse));
                     }
+                }
+            }
+
+            if (response.serverContent?.turnComplete) {
+                if (shouldEndCall && ws.readyState === WebSocket.OPEN) {
+                    console.log('☎️ KI ist fertig mit Sprechen. Sende Mark-Event an Twilio.');
+                    ws.send(JSON.stringify({
+                        event: "mark",
+                        streamSid: streamSid,
+                        mark: {
+                            name: "end_of_call"
+                        }
+                    }));
                 }
             }
 
@@ -291,6 +314,9 @@ Regeln:
             } else {
                 debugLog(`Ignored media event. Gemini readyState is ${geminiWs ? geminiWs.readyState : 'null'}`);
             }
+        } else if (msg.event === 'mark' && msg.mark.name === 'end_of_call') {
+            console.log('🏁 Twilio hat das Mark-Event erreicht. Schließe Verbindung.');
+            ws.close();
         } else if (msg.event === 'stop') {
             if (geminiWs) geminiWs.close();
             saveCallLog();
