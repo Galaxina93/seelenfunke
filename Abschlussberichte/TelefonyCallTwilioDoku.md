@@ -64,8 +64,20 @@ realtimeInput: {
 }
 ```
 
-## 6. Fazit & Aktueller Status
+## 6. Das Phantom-Caching (Warum Updates nicht zogen)
+Ein massives Hindernis bei der Fehlersuche war, dass Änderungen am Code (z.B. der Wechsel von `mediaChunks` zu `audio`) über Tage hinweg scheinbar vom Server ignoriert wurden. Die API warf weiterhin den "deprecated" Fehler.
+
+**Die Ursache:**
+Der Versuch, den Node-Prozess über die SSH-Konsole mittels `kill -9` neu zu starten, schlug stillschweigend fehl. Auf dem Mittwald mStudio laufen Apps in strikt isolierten Containern. Die SSH-Umgebung hat keinen Zugriff auf den Container der Node-App. 
+Das bedeutet: Obwohl Dateien per `git pull` oder `cp` auf der Festplatte aktualisiert wurden, lief der alte Node.js-Prozess ununterbrochen im Arbeitsspeicher weiter und verarbeitete Anrufe mit dem veralteten Code.
+
+**Die finale Lösung:**
+Um Änderungen an der Node.js App wirksam zu machen, MUSS die App zwingend über das **Mittwald-Dashboard** in der Weboberfläche neu gestartet (bzw. bei tiefgreifenden Ordner-Änderungen komplett neu angelegt) werden. Erst durch diesen harten Neustart des Containers zieht sich der Node-Prozess die aktuellen Dateien von der Festplatte.
+
+## 7. Fazit & Aktueller Status
 Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch ein gemeinsames App-Verzeichnis gelöst wurde.
 Die anschließenden Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale, teils undokumentierte API-Änderungen seitens Google (Modell-Deprecation & Syntax-Änderung) verursacht. 
 
-Durch das Brute-Forcing der Google API Endpunkte haben wir nun die exakte, aktuelle Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview` + neues `audio` Objekt) implementiert. Die Node.js Bridge steht stabil und nimmt Audio-Chunks von Twilio entgegen und sendet sie im korrekten Format an Google weiter.
+Durch das Brute-Forcing der Google API Endpunkte haben wir nun die exakte, aktuelle Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview` + neues `audio` Objekt) implementiert. Das letzte Hindernis – die Container-Isolation, die Code-Updates blockierte – wurde durch einen harten Neustart der App im Mittwald-Dashboard umgangen. 
+
+Die Node.js Bridge steht nun stabil, nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt die Antworten nahtlos an den Anrufer. Mission erfüllt!
