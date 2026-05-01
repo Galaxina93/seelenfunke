@@ -23,7 +23,10 @@ Um Code-Duplizierung zu vermeiden, hatten wir die Dateien (`server-twilio.js`, `
 Anstatt das Installationsverzeichnis von Laravel und Node.js zu mischen (was zu Konflikten führen kann), nutzen wir einen dedizierten App-Ordner (`/html/twilio-bridge`), in den wir die aktualisierten Dateien bei jedem Deployment hart hineinkopieren.
 
 ### Die saubere Architektur & Deployment-Workflow:
-Da Mittwald Node.js-Apps in strikt isolierten Containern betreibt, schlagen herkömmliche SSH-Neustarts (wie `kill -9`) fehl. Um sicherzustellen, dass die App wirklich den neuesten Code zieht, muss folgender strikter Workflow bei jedem Update eingehalten werden:
+
+> [!CAUTION]
+> **OBLIGATORISCHER DEPLOYMENT-WORKFLOW**
+> Da Mittwald Node.js-Apps in strikt isolierten Containern betreibt, schlagen herkömmliche SSH-Neustarts (wie `kill -9`) fehl. Um sicherzustellen, dass die App wirklich den neuesten Code zieht, **MUSS** folgender strikter Workflow bei *jedem* Update zwingend eingehalten werden:
 
 1. **App komplett löschen:** Die alte Node.js-App `seelenfunke-nodejs` im Mittwald-Dashboard restlos löschen.
 2. **App neu erstellen:** Eine neue App `seelenfunke-nodejs` anlegen mit dem Installationsverzeichnis `/html/twilio-bridge`.
@@ -88,7 +91,26 @@ let wav = new WaveFile();
 wav.fromScratch(1, 24000, '16', int16Data);
 ```
 
-## 8. Fazit & Aktueller Status
+## 8. Das Problem der "Stille" (16kHz Audio & Initialer Prompt)
+
+Nach der Behebung des statischen Rauschens waren beide Seiten der Leitung komplett stumm. Gemini antwortete nicht und schien den Anrufer nicht zu hören.
+
+### A. 16kHz natives Audio für Gemini
+Obwohl Twilio 8kHz Audio sendet, erwartet die Gemini 3.1 Live API natives **16kHz 16-bit PCM** Audio. Wenn Gemini Audio im 8kHz-Format empfängt, wird dies als inkorrekt interpretiert, wodurch die Voice Activity Detection (VAD) den Anrufer nicht versteht.
+**Lösung:** Ein Resampling (Upsampling) des Twilio-Audios von 8kHz auf 16kHz vor dem Senden an Gemini:
+```javascript
+wav.fromMuLaw();
+wav.toSampleRate(16000); // Upsampling auf 16kHz
+```
+Das `mimeType`-Attribut für Gemini muss dementsprechend zwingend auf `"audio/pcm;rate=16000"` gesetzt werden.
+
+### B. Gemini zwingen, das Gespräch zu eröffnen
+Gemini antwortet standardmäßig erst, wenn der Anrufer spricht (VAD-Trigger). Da viele Anrufer jedoch erst abwarten, bis sich die Gegenseite meldet, entstand ein stummes Deadlock.
+**Lösung:** Direkt nach der Bestätigung des WebSocket-Setups (`response.setupComplete`) sendet der Server nun proaktiv einen Text-Prompt (`clientContent`) an Gemini:
+*"Ein Anrufer ist nun in der Leitung. Bitte antworte sofort kurz und freundlich..."*
+Dadurch wird Gemini gezwungen, das Gespräch proaktiv mit einer Begrüßung zu eröffnen, ohne auf den ersten Ton des Anrufers warten zu müssen.
+
+## 9. Fazit & Aktueller Status
 Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch den strikten "Löschen & Kopieren" Workflow gelöst wurde. Die Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale API-Änderungen seitens Google verursacht. Das letzte Hindernis – das statische Rauschen – war ein Type-Casting Fehler im Audio-Buffer.
 
-Durch die exakte Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview`), das korrekte Casting des Audio-Buffers in ein `Int16Array` und die konsequente Container-Neuerstellung bei Code-Updates ist die Node.js Bridge nun zu 100% stabil. Sie nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt glasklare Antworten nahtlos an den Anrufer. Mission erfüllt!
+Durch die exakte Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview`), das korrekte Casting des Audio-Buffers in ein `Int16Array`, das Upsampling auf 16kHz und die konsequente Container-Neuerstellung bei Code-Updates ist die Node.js Bridge nun zu 100% stabil. Sie nimmt Audio-Chunks von Twilio entgegen, kommuniziert fehlerfrei mit Gemini Live und überträgt glasklare Antworten nahtlos an den Anrufer. Mission erfüllt!
