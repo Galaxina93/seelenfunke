@@ -242,12 +242,8 @@ Regeln:
                 // Zwinge Gemini sofort etwas zu sagen, ohne auf den Anrufer zu warten!
                 // Durch clientContent + turnComplete: true antwortet die AI sofort proaktiv.
                 const initialPrompt = {
-                    clientContent: {
-                        turns: [{
-                            role: "user",
-                            parts: [{ text: "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von " + (callContext.agent_name || "Alina Steinhauer") + ". Ich rufe wegen eines Anliegens an.'" }]
-                        }],
-                        turnComplete: true
+                    realtimeInput: {
+                        text: "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von " + (callContext.agent_name || "Alina Steinhauer") + ". Ich rufe wegen eines Anliegens an.'"
                     }
                 };
                 geminiWs.send(JSON.stringify(initialPrompt));
