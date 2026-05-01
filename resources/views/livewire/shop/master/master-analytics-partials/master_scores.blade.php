@@ -767,6 +767,7 @@
                                                             <strong class="text-red-400 block mb-2 uppercase tracking-wider"><i class="bi bi-exclamation-triangle-fill"></i> SSH Notfall-Befehl (Copy & Paste):</strong>
                                                             <div class="bg-black/50 rounded p-2 text-gray-300 font-mono text-[9.5px] leading-relaxed cursor-text selection:bg-purple-500/30 border border-red-900/50 mb-2">
                                                                 cd /html/seelenfunke-stage<br>
+                                                                git reset --hard<br>
                                                                 git pull<br>
                                                                 cd /html/twilio-bridge<br>
                                                                 cp ../seelenfunke-stage/server-twilio.js .<br>

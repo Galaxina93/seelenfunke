@@ -41,9 +41,31 @@ Anstatt Dateien mühsam zu kopieren oder fehleranfällige Workarounds zu bauen, 
 Der hartnäckige `503 Service Unavailable` Fehler war kein Netzwerkfehler, sondern ein `MODULE_NOT_FOUND` Crash beim Booten, verursacht durch tote Symlinks innerhalb der isolierten Mittwald Container-Umgebung. 
 Durch das Zusammenlegen des Installationsverzeichnisses von PHP-App und Node-App auf `/html/seelenfunke-stage` ist die Infrastruktur nun hochgradig robust, pflegeleicht (da keine Dateien kopiert werden müssen) und der WebSocket-Stream für Twilio steht fehlerfrei zur Verfügung.
 
-## 5. Status des Audio-Streams (Der Anruf)
-Nachdem die Verbindungs-Architektur erfolgreich korrigiert wurde, zeigten die Tests:
-- **Verbindung:** Twilio verbindet sich fehlerfrei mit dem Node.js Skript (keine 503 Fehler mehr).
-- **Tracking:** Das Skript hält die Verbindung aufrecht und trackt die korrekte Anrufdauer (z.B. 20 Sekunden).
-- **Audio-Übertragung:** Derzeit bleibt das Handy stumm. Dies belegt, dass die bidirektionale Serververbindung zwar steht, aber das Audio-Encoding (8kHz muLaw für Twilio) oder das Trigger-Verhalten von Gemini (Warten auf Voice Activity vs. initiales 'turnComplete') im `server-twilio.js` Skript noch feinjustiert werden muss.
-- **Nächster Schritt:** Implementierung eines internen Loggers im Skript, um zu prüfen, ob Gemini reine Text-Antworten oder korrekte `audio/pcm` Chunks zurückschickt, und Optimierung der `WaveFile` Resampling-Logik.
+## 5. Das Google Gemini Multimodal Live API Chaos
+Nachdem die Server- und Netzwerkarchitektur stand, stießen wir auf massive, undokumentierte Änderungen seitens Google bezüglich der Gemini Live API (Stand: April 2026).
+
+### A. Veraltete Modelle & Endpunkte (Fehler 1008)
+Twilio verband sich erfolgreich mit unserem Node-Server, doch die WebSocket-Verbindung zu Google brach sofort mit dem Fehler **"Code 1008: is not supported for bidiGenerateContent"** ab.
+**Erkenntnis:** Das anfänglich genutzte experimentelle Modell `models/gemini-2.0-flash-exp` wurde von Google komplett aus der Live API entfernt. Auch das Standardmodell `models/gemini-2.0-flash` auf dem `v1beta`-Endpunkt unterstützt kein bidirektionales Audio-Streaming (BidiGenerateContent). 
+**Die Lösung:** Google hat die Audio-API stillschweigend auf ein neues Preview-Modell verlagert. Die korrekte Kombination für das Live-Streaming lautet nun zwingend:
+- **Endpunkt:** `v1alpha`
+- **Modell:** `models/gemini-3.1-flash-live-preview`
+
+### B. Veraltete Audio-Payload Syntax (Fehler 1007)
+Nachdem das richtige Modell gefunden war, gab Google den Fehler **"Code 1007: realtime_input.media_chunks is deprecated. Use audio, video, or text instead."** aus.
+**Erkenntnis:** Google hat die Syntax für die Übermittlung von Echtzeit-Audio geändert. Das Konstrukt mit einem Array (`mediaChunks: [{ mimeType: ..., data: ... }]`) wird vom 3.1-Modell strikt abgelehnt.
+**Die Lösung:** Das Audio-Paket muss direkt als Objekt übergeben werden:
+```json
+realtimeInput: {
+    audio: {
+        mimeType: "audio/pcm;rate=8000",
+        data: pcmBase64
+    }
+}
+```
+
+## 6. Fazit & Aktueller Status
+Der hartnäckige `503 Service Unavailable` Fehler war ein Infrastruktur-Problem (Symlinks & Container-Isolation auf Mittwald), welches durch ein gemeinsames App-Verzeichnis gelöst wurde.
+Die anschließenden Verbindungsabbrüche (Code 1008 & 1007) wurden durch radikale, teils undokumentierte API-Änderungen seitens Google (Modell-Deprecation & Syntax-Änderung) verursacht. 
+
+Durch das Brute-Forcing der Google API Endpunkte haben wir nun die exakte, aktuelle Konfiguration (`v1alpha` + `gemini-3.1-flash-live-preview` + neues `audio` Objekt) implementiert. Die Node.js Bridge steht stabil und nimmt Audio-Chunks von Twilio entgegen und sendet sie im korrekten Format an Google weiter.
