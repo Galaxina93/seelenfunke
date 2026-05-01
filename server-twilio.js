@@ -107,7 +107,7 @@ Regeln:
 - Höre dem Kunden kurz zu, aber unterbinde energisch jeden Smalltalk oder Zeitverschwendung. 
 - Das Telefonat kostet sekündlich Geld. Dein Ziel ist absolute Effizienz.
 - Wenn die Person vom Thema abschweift, weise sie darauf hin, dass du nur für das spezifische Ziel angerufen hast und keine Zeit für andere Themen hast.
-- Sobald dein Ziel erreicht ist, verabschiede dich freundlich aber bestimmt und lege quasi virtuell auf (beende das Gespräch).
+- Sobald dein Ziel erreicht ist, verabschiede dich freundlich und rufe das Tool 'end_call' auf, um aufzulegen.
             `.trim();
 
             const setupMessage = {
@@ -116,6 +116,12 @@ Regeln:
                     systemInstruction: {
                         parts: [{ text: systemPrompt }]
                     },
+                    tools: [{
+                        functionDeclarations: [{
+                            name: "end_call",
+                            description: "Beendet den Anruf. Rufe diese Funktion auf, wenn du alle Fragen gestellt hast, alle Antworten erhalten hast und dich verabschiedet hast, oder wenn der Kunde das Gespräch beenden möchte."
+                        }]
+                    }],
                     generationConfig: {
                         responseModalities: ["audio"],
                         speechConfig: {
@@ -136,6 +142,24 @@ Regeln:
             // debugLog("RAW GEMINI MSG: " + responseStr.substring(0, 200));
             const response = JSON.parse(responseStr);
             
+            if (response.toolCall) {
+                const functionCalls = response.toolCall.functionCalls;
+                for (const call of functionCalls) {
+                    if (call.name === 'end_call') {
+                        console.log('☎️ KI hat aufgelegt (end_call). Schließe Twilio Websocket.');
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.close();
+                        }
+                    }
+                }
+            }
+
+            if (response.serverContent?.inputTranscription?.text) {
+                const userText = response.serverContent.inputTranscription.text;
+                debugLog('User audio text: ' + userText);
+                callTranscript.push(`Anrufer: ${userText}`);
+            }
+
             // Wenn Gemini Text zurückgibt (als Transcript), speichern wir ihn
             if (response.serverContent?.modelTurn?.parts) {
                 const parts = response.serverContent.modelTurn.parts;
@@ -241,24 +265,25 @@ Regeln:
                     
                     const twilioMulawBuffer = Buffer.from(msg.media.payload, 'base64');
                     
-                    // Wandle 8kHz mulaw zu 8kHz PCM. Resampling ist nicht nötig, da die Gemini API es intern unterstützt
+                    // Wandle 8kHz mulaw zu 16kHz PCM (Gemini Live API erfordert 16kHz)
                     let wav = new WaveFile();
                     wav.fromScratch(1, 8000, '8m', twilioMulawBuffer);
-                    wav.fromMuLaw(); // Entpacke mu-Law zu 16-bit PCM (jetzt 8kHz PCM)
+                    wav.fromMuLaw(); // Entpacke mu-Law zu 16-bit PCM (8kHz PCM)
+                    wav.toSampleRate(16000); // WICHTIG: Upsampling für Gemini API
                     
                     const pcm16Data = wav.data.samples;
                     const pcmBase64 = Buffer.from(pcm16Data.buffer).toString('base64');
 
                     const audioMessage = {
                         realtimeInput: {
-                            audio: {
-                                mimeType: "audio/pcm;rate=8000",
+                            mediaChunks: [{
+                                mimeType: "audio/pcm;rate=16000",
                                 data: pcmBase64
-                            }
+                            }]
                         }
                     };
                     geminiWs.send(JSON.stringify(audioMessage));
-                    debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM 8kHz: ${pcmBase64.length}`);
+                    debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM 16kHz: ${pcmBase64.length}`);
                 } catch (e) {
                     // Audio conversion error
                     debugLog("Audio input conversion error: " + e.toString());
