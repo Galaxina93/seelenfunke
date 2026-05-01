@@ -50,6 +50,29 @@ wss.on('connection', (ws) => {
     let callContext = {};
     let callTranscript = [];
     let callStartTime = null;
+    let callLogged = false;
+
+    const saveCallLog = () => {
+        if (callLogged) return;
+        callLogged = true;
+        console.log('⏹️ Call beendet. Sende Log an Backend...');
+        
+        const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+        const payload = JSON.stringify({
+            twilio_sid: streamSid,
+            contact_name: callContext.contact_name,
+            objective: callContext.objective,
+            transcript: callTranscript,
+            duration_seconds: duration
+        });
+
+        const backendUrl = process.env.APP_URL || 'http://localhost';
+        fetch(`${backendUrl}/api/twilio/call-log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload
+        }).catch(e => console.error("Error sending call log to backend:", e));
+    };
 
     // 1. Initialisiere die Gemini Live API Verbindung
     const initGemini = () => {
@@ -64,9 +87,9 @@ wss.on('connection', (ws) => {
             
             // Sende den initialen System-Prompt (Kontext & Objective)
             const systemPrompt = `
-Du bist ein neutraler, hochprofessioneller Telefonassistent. Du bist im Auftrag von "Alina Steinhauer" im Einsatz. 
-Nenne dich NIEMALS "Seelenfunke" oder "Seelenfunke KI". Du stellst dich am Anfang des Gesprächs zum Beispiel so vor: 
-"Hallo, mein Name ist [Dein frei gewählter Agenten-Name], ich rufe im Auftrag von Alina Steinhauer an."
+Du bist ein KI-Sprachagent für die Seelenfunke Plattform.
+Dein Name ist ${callContext.agent_name || 'Alina Steinhauer'}.
+Deine Rolle/Profil: ${callContext.agent_profile || 'Du bist eine freundliche und professionelle Assistentin.'}
 
 Du führst gerade ein Telefonat mit: ${callContext.contact_name || 'Unbekannt'}.
 Dein explizites Ziel für dieses Telefonat: ${callContext.objective || 'Führe ein nettes, hilfreiches Gespräch.'}
@@ -170,9 +193,14 @@ Regeln:
             } else if (response.setupComplete) {
                 debugLog("Gemini Setup erfolgreich bestätigt!");
                 // Zwinge Gemini sofort etwas zu sagen, ohne auf den Anrufer zu warten!
+                // Durch clientContent + turnComplete: true antwortet die AI sofort proaktiv.
                 const initialPrompt = {
-                    realtimeInput: {
-                        text: "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von Alina Steinhauer. Ich rufe wegen eines Anliegens an.'"
+                    clientContent: {
+                        turns: [{
+                            role: "user",
+                            parts: [{ text: "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von " + (callContext.agent_name || "Alina Steinhauer") + ". Ich rufe wegen eines Anliegens an.'" }]
+                        }],
+                        turnComplete: true
                     }
                 };
                 geminiWs.send(JSON.stringify(initialPrompt));
@@ -239,25 +267,8 @@ Regeln:
                 debugLog(`Ignored media event. Gemini readyState is ${geminiWs ? geminiWs.readyState : 'null'}`);
             }
         } else if (msg.event === 'stop') {
-            console.log('⏹️ Call beendet. Sende Log an Backend...');
             if (geminiWs) geminiWs.close();
-            
-            // Sende Anruf-Protokoll an Laravel Backend
-            const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
-            const payload = JSON.stringify({
-                twilio_sid: streamSid,
-                contact_name: callContext.contact_name,
-                objective: callContext.objective,
-                transcript: callTranscript,
-                duration_seconds: duration
-            });
-
-            const backendUrl = process.env.APP_URL || 'http://localhost';
-            fetch(`${backendUrl}/api/twilio/call-log`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: payload
-            }).catch(e => console.error("Error sending call log to backend:", e));
+            saveCallLog();
         }
     });
 
@@ -265,6 +276,10 @@ Regeln:
         console.log('Twilio WebSocket getrennt.');
         if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
             geminiWs.close();
+        }
+        // Falls der Anruf plötzlich abbrach und kein 'stop' Event gesendet wurde:
+        if (typeof saveCallLog === 'function') {
+            saveCallLog();
         }
     });
 });

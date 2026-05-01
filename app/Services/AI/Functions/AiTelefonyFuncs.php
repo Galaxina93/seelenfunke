@@ -174,6 +174,9 @@ trait AiTelefonyFuncs
             }
         }
 
+        // Lade den aktiven Agenten
+        $agent = \App\Models\Ai\AiAgent::where('is_active', true)->first();
+
         // Kontext im Cache speichern, damit der Twilio Webhook (Outbound) darauf zugreifen kann
         // Twilio sendet die Nummer im E.164 Format zurück.
         $cacheKey = "twilio_call_" . preg_replace('/[^0-9+]/', '', $p->phone);
@@ -183,7 +186,9 @@ trait AiTelefonyFuncs
             'system_instructions' => $p->system_instructions ?? '',
             'ai_learned_facts' => $p->ai_learned_facts ?? '',
             'calendar_events' => $calendarEventsStr,
-            'planned_call_id' => $plannedCall ? $plannedCall->id : null
+            'planned_call_id' => $plannedCall ? $plannedCall->id : null,
+            'agent_name' => $agent ? $agent->name : 'Alina Steinhauer',
+            'agent_profile' => $agent ? $agent->system_prompt : 'Du bist eine professionelle und freundliche KI Assistentin.',
         ], 600); // 10 Minuten gültig
 
         // WICHTIG: API Call direkt hier auslösen
