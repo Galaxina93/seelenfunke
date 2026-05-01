@@ -154,7 +154,7 @@
                                 <!-- EXPANDED INLINE CONTENT -->
                                 <tr x-show="expanded" style="display: none;" class="bg-gray-800/10">
                                     <td colspan="6" class="p-0">
-                                        <div x-collapse>
+                                        <div x-show="expanded" x-collapse>
                                             <div class="p-6 border-l-2 border-[var(--theme-color)] ml-4 my-4 mr-4 bg-gray-900/50 rounded-r-xl shadow-inner">
                                                 @if($call->status === 'planned')
                                                     <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Geplanter Aufgabenplan</h4>

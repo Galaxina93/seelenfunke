@@ -1,0 +1,3 @@
+2026-05-01T08:44:05.965Z - --- NODE JS SERVER RESTARTED (VERSION: AUDIO FIX V3) ---
+2026-05-01T08:44:05.975Z - Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+2026-05-01T08:44:05.978Z - Erfolgreich gebunden auf Port 8081
