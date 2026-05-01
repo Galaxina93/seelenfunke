@@ -106,7 +106,7 @@ Zudem wird die Funktion `proactive_audio` von Gemini 3.1 Flash Live (Stand April
 ```json
 {
   "realtimeInput": {
-    "text": "Ein Anrufer ist nun in der Leitung. Bitte antworte sofort kurz und freundlich..."
+    "text": "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von Alina Steinhauer. Ich rufe wegen eines Anliegens an.'"
   }
 }
 ```

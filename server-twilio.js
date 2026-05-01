@@ -172,7 +172,7 @@ Regeln:
                 // Zwinge Gemini sofort etwas zu sagen, ohne auf den Anrufer zu warten!
                 const initialPrompt = {
                     realtimeInput: {
-                        text: "Ein Anrufer ist nun in der Leitung. Bitte antworte sofort kurz und freundlich mit 'Hallo, wie kann ich dir heute helfen?'"
+                        text: "Die Verbindung wurde hergestellt. Bitte eröffne das Gespräch sofort mit einem Satz wie: 'Hallo, hier ist der KI-Agent von Alina Steinhauer. Ich rufe wegen eines Anliegens an.'"
                     }
                 };
                 geminiWs.send(JSON.stringify(initialPrompt));
