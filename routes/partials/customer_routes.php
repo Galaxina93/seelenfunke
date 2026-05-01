@@ -5,19 +5,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:customer'])->group(function () {
 
-    // Login-Redirect Fallback (Verhindert eine komplett leere Seite bei alten Logins/Links)
-    Route::redirect('/customer/dashboard', '/dashboard', 301);
-
     // Profile
     Route::get('/customer/profile', function () {
         return view('backend.customer.pages.profile');
     })->name('customer.profile');
 
-    // 1. Dashboard Redirect auf Bestellungen
-    Route::redirect('/dashboard', '/orders', 301)->name('customer.dashboard');
+    // 1. Dashboard (Zentrale)
+    Route::get('/customer/dashboard', \App\Livewire\Customer\CustomerDashboardComponent::class)->name('customer.dashboard');
 
-    // 1b. Spielen (Ehemalige Zentrale)
-    Route::get('/play', \App\Livewire\Customer\CustomerDashboardComponent::class)->name('customer.play');
 
     // 2. Bestellungen
     Route::get('/orders', \App\Livewire\Customer\CustomerOrdersComponent::class)->name('customer.orders');

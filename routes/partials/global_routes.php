@@ -123,6 +123,8 @@ Route::get('/agb', function () {
     return view('frontend.pages.agb');
 })->name('agb');
 
+Route::get('/links', \App\Livewire\Frontend\Management\ManagementLinktreePage::class)->name('frontend.linktree');
+
 Route::get('/widerruf', function () {
     return view('frontend.pages.widerruf');
 })->name('widerruf');

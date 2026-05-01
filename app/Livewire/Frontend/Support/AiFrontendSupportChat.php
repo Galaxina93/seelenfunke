@@ -24,6 +24,8 @@ class AiFrontendSupportChat extends Component
     public $agentName = 'Funki AI';
     public $agentImage = '';
     public $guestLimitReached = false;
+    public $hasAcceptedPrivacy = false;
+    public $privacyChecked = false;
     
     // Rating / Resolution State
     public $isResolved = false;
@@ -40,6 +42,8 @@ class AiFrontendSupportChat extends Component
         if (!$supportAgent) {
             $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->first();
         }
+
+        $this->hasAcceptedPrivacy = session()->get('ai_chat_privacy_accepted', false);
 
         if ($supportAgent) {
             $this->agentName = $supportAgent->name;
@@ -108,8 +112,16 @@ class AiFrontendSupportChat extends Component
         }
     }
 
+    public function acceptPrivacy()
+    {
+        $this->hasAcceptedPrivacy = true;
+        session()->put('ai_chat_privacy_accepted', true);
+    }
+
     public function sendMessage()
     {
+        if (!$this->hasAcceptedPrivacy) return;
+
         $text = trim($this->message);
         if (empty($text)) return;
 

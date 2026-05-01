@@ -135,7 +135,7 @@ class ManagementContactSeeder extends Seeder
                 'avatar_path' => 'leitung/person_profiles/gloria_rolinska.jpg',
                 'birthday' => '2005-02-09',
                 'email' => null,
-                'phone' => '+49 160 98327512',
+                'phone' => '+4916098327512',
                 'system_instructions' => <<<EOT
                 WICHTIGE FAKTEN ZU GLORCHIK ROLINSKA:
                 - Rolle: Alina's Mitbewohnerin, Prinzessin ❤️❤️❤️

@@ -19,6 +19,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
     Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');
+    Route::get('/admin/linktree', \App\Livewire\Backend\Management\ManagementLinktreeManager::class)->name('admin.linktree');
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
         if (\Illuminate\Support\Facades\Storage::exists($attachment->path)) {

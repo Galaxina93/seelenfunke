@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             ManagementContactSeeder::class,
             ManagementCalenderSeeder::class,
             ManagementTaskSeeder::class,
+            ManagementLinkTreeSeeder::class,
 
             //Product
             ProductSeeder::class,

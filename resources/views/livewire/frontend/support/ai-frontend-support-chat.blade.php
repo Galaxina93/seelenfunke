@@ -151,31 +151,55 @@
                     </div>
                 </div>
             @else
-                <form wire:submit.prevent="sendMessage" class="relative bg-gray-50 border border-gray-200 rounded-2xl focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all flex items-end">
-                    <textarea wire:model="message" 
-                           @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
-                           placeholder="Schreibe deine Nachricht..." maxlength="1000" rows="1"
-                           x-data="{ resize() { $el.style.height = '46px'; $el.style.height = $el.scrollHeight + 'px'; } }"
-                           x-init="resize()"
-                           @input="resize()"
-                           @message-sent.window="$el.style.height = '46px'"
-                           class="w-full bg-transparent text-sm text-gray-800 pl-4 pr-12 py-3 focus:outline-none placeholder:text-gray-400 resize-none overflow-y-auto max-h-32 min-h-[46px]"
-                           {{ $isTyping ? 'disabled' : '' }}></textarea>
-                           
-                    <button type="submit" 
-                            class="absolute right-1.5 bottom-1.5 p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 transition-colors shadow-sm disabled:opacity-50"
-                            {{ $isTyping ? 'disabled' : '' }}>
-                        <svg class="w-4 h-4 translate-x-[1px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                    </button>
-                </form>
-                <div class="text-center mt-2">
-                    <span class="text-[9px] text-gray-400 uppercase tracking-widest font-semibold flex justify-center items-center gap-1">
-                        <svg class="w-3 h-3 text-cyan-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
-                        Mein-Seelenfunke - Support
-                    </span>
-                </div>
+                @if(!$hasAcceptedPrivacy)
+                    <div class="p-3 text-center animate-fade-in-up mt-2 mb-2">
+                        <div class="mx-auto mb-4 bg-white p-3.5 rounded-xl border border-gray-100 shadow-sm text-left">
+                            <label class="flex items-start gap-3 cursor-pointer group">
+                                <input type="checkbox" wire:model.live="privacyChecked" class="mt-0.5 w-4 h-4 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500">
+                                <span class="text-[11px] text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
+                                    Ich bestätige, dass meine Eingaben zur Bearbeitung an das <strong>Seelenfunke Agent System (KI)</strong> übermittelt werden. Es gelten die <a href="/agb" target="_blank" class="text-cyan-600 underline font-bold">AGB</a> und die <a href="/datenschutz" target="_blank" class="text-cyan-600 underline font-bold">Datenschutzerklärung</a>.
+                                </span>
+                            </label>
+                        </div>
+                        
+                        <button wire:click="acceptPrivacy" @class([
+                            'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg shadow-sm transition-all text-center text-[11px] font-bold uppercase tracking-wider',
+                            'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white cursor-pointer' => $privacyChecked,
+                            'bg-gray-200 text-gray-400 cursor-not-allowed' => !$privacyChecked
+                        ]) @if(!$privacyChecked) disabled @endif>
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Zustimmen & Chat starten
+                        </button>
+                    </div>
+                @else
+                    <form wire:submit.prevent="sendMessage" class="relative bg-gray-50 border border-gray-200 rounded-2xl focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all flex items-end">
+                        <textarea wire:model="message" 
+                               @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); $wire.sendMessage() }"
+                               placeholder="Schreibe deine Nachricht..." maxlength="1000" rows="1"
+                               x-data="{ resize() { $el.style.height = '46px'; $el.style.height = $el.scrollHeight + 'px'; } }"
+                               x-init="resize()"
+                               @input="resize()"
+                               @message-sent.window="$el.style.height = '46px'"
+                               class="w-full bg-transparent text-sm text-gray-800 pl-4 pr-12 py-3 focus:outline-none placeholder:text-gray-400 resize-none overflow-y-auto max-h-32 min-h-[46px]"
+                               {{ $isTyping ? 'disabled' : '' }}></textarea>
+                               
+                        <button type="submit" 
+                                class="absolute right-1.5 bottom-1.5 p-2 bg-cyan-500 text-white rounded-full hover:bg-cyan-600 transition-colors shadow-sm disabled:opacity-50"
+                                {{ $isTyping ? 'disabled' : '' }}>
+                            <svg class="w-4 h-4 translate-x-[1px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                        </button>
+                    </form>
+                    <div class="text-center mt-2">
+                        <span class="text-[9px] text-gray-400 uppercase tracking-widest font-semibold flex justify-center items-center gap-1">
+                            <svg class="w-3 h-3 text-cyan-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                            Mein-Seelenfunke - Support
+                        </span>
+                    </div>
+                @endif
             @endif
         @endif
     </div>
