@@ -160,7 +160,30 @@
                                                     <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Geplanter Aufgabenplan</h4>
                                                     <p class="text-sm text-gray-300 leading-relaxed">{{ $call->objective ?? 'Kein Plan hinterlegt.' }}</p>
                                                 @else
-                                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                                        <div>
+                                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-chat-left-dots mr-1"></i> Aussagen des Anrufers</h4>
+                                                            @php
+                                                                $transcriptArray = json_decode($call->transcript ?? '[]', true);
+                                                                $partnerAnswers = [];
+                                                                if(is_array($transcriptArray)) {
+                                                                    foreach($transcriptArray as $line) {
+                                                                        if(str_starts_with($line, 'Anrufer:')) {
+                                                                            $partnerAnswers[] = trim(substr($line, 8));
+                                                                        }
+                                                                    }
+                                                                }
+                                                            @endphp
+                                                            @if(count($partnerAnswers) > 0)
+                                                                <ul class="list-disc list-inside text-sm text-gray-300 space-y-1.5">
+                                                                    @foreach($partnerAnswers as $answer)
+                                                                        <li>{{ $answer }}</li>
+                                                                    @endforeach
+                                                                </ul>
+                                                            @else
+                                                                <p class="text-sm text-gray-500 italic"><i class="bi bi-info-circle mr-1"></i> Keine Aussagen erfasst.</p>
+                                                            @endif
+                                                        </div>
                                                         <div>
                                                             <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2"><i class="bi bi-card-text mr-1"></i> Gesprächsfazit</h4>
                                                             <p class="text-sm text-gray-300 leading-relaxed">{{ $call->summary ?? 'Kein Fazit verfügbar.' }}</p>

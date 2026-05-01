@@ -105,7 +105,7 @@ class TwilioCallController extends Controller
             if ($apiKey) {
                 try {
                     $transcriptText = implode("\n", $data['transcript']);
-                    $prompt = "Du bist eine Analyse-KI. Folgendes ist das Protokoll (nur KI-Antworten) eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit (z.B. Termin wurde vereinbart)\", \"next_steps\": [\"Task 1\", \"Task 2\"]}";
+                    $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit (z.B. Termin wurde vereinbart)\", \"next_steps\": [\"Task 1\", \"Task 2\"]}";
 
                     $response = \Illuminate\Support\Facades\Http::withHeaders([
                         'Content-Type' => 'application/json'
