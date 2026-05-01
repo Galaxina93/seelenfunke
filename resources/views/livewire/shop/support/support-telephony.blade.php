@@ -95,10 +95,10 @@
                                         <div class="text-xs text-emerald-500 mt-1 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Läuft aktuell</div>
                                     </div>
                                 </div>
-                                @if($call->objective)
+                                @if($call->objective_plan)
                                     <div class="border-t border-gray-700 pt-3 mt-1">
                                         <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Aufgabenplan:</div>
-                                        <div class="text-xs text-gray-300 leading-relaxed italic border-l-2 border-[var(--theme-color)] pl-3">{{ $call->objective }}</div>
+                                        <div class="text-xs text-gray-300 leading-relaxed italic border-l-2 border-[var(--theme-color)] pl-3">{{ $call->objective_plan }}</div>
                                     </div>
                                 @endif
                             </div>
@@ -158,7 +158,7 @@
                                             <div class="p-6 border-l-2 border-[var(--theme-color)] ml-4 my-4 mr-4 bg-gray-900/50 rounded-r-xl shadow-inner">
                                                 @if($call->status === 'planned')
                                                     <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Geplanter Aufgabenplan</h4>
-                                                    <p class="text-sm text-gray-300 leading-relaxed">{{ $call->objective ?? 'Kein Plan hinterlegt.' }}</p>
+                                                    <p class="text-sm text-gray-300 leading-relaxed">{{ $call->objective_plan ?? 'Kein Plan hinterlegt.' }}</p>
                                                 @else
                                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                         <div>
