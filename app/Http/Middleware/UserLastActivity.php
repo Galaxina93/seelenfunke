@@ -19,8 +19,12 @@ class UserLastActivity
             if (Auth::guard($guard)->check()) {
                 $user = Auth::guard($guard)->user();
 
-                $expireTime = Carbon::now()->addMinute(1); // keep online for 1 min
-                Cache::put('is_online' . $user->id, true, $expireTime);
+                try {
+                    $expireTime = Carbon::now()->addMinute(1); // keep online for 1 min
+                    Cache::put('is_online' . $user->id, true, $expireTime);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Redis connection failed during UserLastActivity middleware: ' . $e->getMessage());
+                }
 
                 if ($user->profile) {
                     $user->profile->update(['last_seen' => Carbon::now()]);

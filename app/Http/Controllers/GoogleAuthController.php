@@ -103,7 +103,7 @@ class GoogleAuthController extends Controller
                 // WICHTIG: Model neu laden für Relationen
                 $user->refresh();
 
-                Log::info('Neuer Kunde via Google registriert: ' . $googleUser->email);
+                # Log::info('Neuer Kunde via Google registriert: ' . $googleUser->email);
             }
 
             // ---------------------------------------------------------
@@ -139,7 +139,7 @@ class GoogleAuthController extends Controller
                             'photo_path' => $folderPath . $filename
                         ]);
 
-                        Log::info('Google Profilbild für User ' . $user->id . ' (' . $guard . ') gespeichert.');
+                        # Log::info('Google Profilbild für User ' . $user->id . ' (' . $guard . ') gespeichert.');
                     }
                 } catch (\Exception $e) {
                     Log::error('Fehler beim Laden des Google Profilbilds: ' . $e->getMessage());
