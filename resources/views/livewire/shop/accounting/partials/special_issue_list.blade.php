@@ -209,6 +209,27 @@
                                     @endif
                                     <span class="text-gray-500 font-bold shrink-0">€</span>
                                 </div>
+                                @if($special['type'] === 'special' && $special['is_business'])
+                                    <div class="mt-2 flex justify-end">
+                                        <div class="flex items-center gap-1.5 bg-gray-900/30 border border-gray-800 rounded-lg px-2 py-1 shadow-inner">
+                                            <span class="text-[9px] font-black uppercase text-gray-500 tracking-widest">MwSt.</span>
+                                            <select wire:change="updateSpecialField('{{ $special['id'] }}', 'tax_rate', $event.target.value)"
+                                                    class="bg-transparent text-[10px] font-bold text-gray-400 outline-none cursor-pointer appearance-none text-right pr-1">
+                                                @php
+                                                    $rates = $activeTaxRates ?? [19, 7, 0];
+                                                    $currentTax = (float)($special['tax_rate'] ?? 19);
+                                                    if (!in_array($currentTax, $rates)) {
+                                                        $rates[] = $currentTax;
+                                                        rsort($rates);
+                                                    }
+                                                @endphp
+                                                @foreach($rates as $rate)
+                                                    <option value="{{ $rate }}" @selected($currentTax == $rate)>{{ $rate }}%</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+                                @endif
                             </td>
 
                             {{-- Belege (Inline Upload & Löschen) --}}
@@ -288,18 +309,39 @@
                                     </div>
                                 @endif
                             </div>
-                            <div class="shrink-0 flex items-center bg-gray-900/40 border border-transparent hover:border-gray-700 focus-within:bg-gray-950 focus-within:border-[var(--theme-color)] rounded-xl shadow-inner transition-all overflow-hidden pr-2">
-                                @if($special['type'] === 'special')
-                                    <input type="number" step="0.01"
-                                           value="{{ $special['amount'] }}"
-                                           wire:change="updateSpecialField('{{ $special['id'] }}', 'amount', $event.target.value)"
-                                           class="bg-transparent text-right font-mono font-bold text-base w-24 {{ $special['amount'] < 0 ? 'text-red-400' : 'text-emerald-400' }} px-2 py-2 outline-none">
-                                @else
-                                    <div class="bg-transparent text-right font-mono font-bold text-base w-24 {{ $special['amount'] < 0 ? 'text-red-400' : 'text-emerald-400' }} px-2 py-2">
-                                        {{ number_format($special['amount'], 2, ',', '.') }}
+                            <div class="shrink-0 flex flex-col items-end gap-2">
+                                <div class="flex items-center bg-gray-900/40 border border-transparent hover:border-gray-700 focus-within:bg-gray-950 focus-within:border-[var(--theme-color)] rounded-xl shadow-inner transition-all overflow-hidden pr-2">
+                                    @if($special['type'] === 'special')
+                                        <input type="number" step="0.01"
+                                               value="{{ $special['amount'] }}"
+                                               wire:change="updateSpecialField('{{ $special['id'] }}', 'amount', $event.target.value)"
+                                               class="bg-transparent text-right font-mono font-bold text-base w-24 {{ $special['amount'] < 0 ? 'text-red-400' : 'text-emerald-400' }} px-2 py-2 outline-none">
+                                    @else
+                                        <div class="bg-transparent text-right font-mono font-bold text-base w-24 {{ $special['amount'] < 0 ? 'text-red-400' : 'text-emerald-400' }} px-2 py-2">
+                                            {{ number_format($special['amount'], 2, ',', '.') }}
+                                        </div>
+                                    @endif
+                                    <span class="text-gray-500 font-bold ml-1">€</span>
+                                </div>
+                                @if($special['type'] === 'special' && $special['is_business'])
+                                    <div class="flex items-center gap-1.5 bg-gray-900/30 border border-gray-800 rounded-lg px-2 py-1 shadow-inner">
+                                        <span class="text-[9px] font-black uppercase text-gray-500 tracking-widest">MwSt.</span>
+                                        <select wire:change="updateSpecialField('{{ $special['id'] }}', 'tax_rate', $event.target.value)"
+                                                class="bg-transparent text-[10px] font-bold text-gray-400 outline-none cursor-pointer appearance-none text-right pr-1">
+                                            @php
+                                                $rates = $activeTaxRates ?? [19, 7, 0];
+                                                $currentTax = (float)($special['tax_rate'] ?? 19);
+                                                if (!in_array($currentTax, $rates)) {
+                                                    $rates[] = $currentTax;
+                                                    rsort($rates);
+                                                }
+                                            @endphp
+                                            @foreach($rates as $rate)
+                                                <option value="{{ $rate }}" @selected($currentTax == $rate)>{{ $rate }}%</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 @endif
-                                <span class="text-gray-500 font-bold ml-1">€</span>
                             </div>
                         </div>
 

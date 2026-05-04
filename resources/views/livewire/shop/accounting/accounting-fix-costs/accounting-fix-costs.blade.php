@@ -172,6 +172,96 @@
                             </div>
                         </div>
                     </div>
+                    </div>
+                @endif
+
+                {{-- Validierungstabelle: Fehlende Datensätze ODER Alles OK --}}
+                @if($missingDataItems->count() > 0)
+                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(234,179,8,0.05)] border border-yellow-500/20 overflow-hidden transition-all duration-300"
+                         x-data="{ expanded: false }">
+                        <div class="bg-yellow-900/10 px-6 sm:px-8 py-5 border-b border-yellow-500/20 flex justify-between items-center cursor-pointer hover:bg-yellow-900/20 transition-colors shadow-inner"
+                             @click="expanded = !expanded">
+                            <div class="flex items-center gap-4">
+                                <div class="p-2.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.2)] animate-pulse shrink-0">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-base sm:text-lg font-serif font-bold text-yellow-400 flex flex-wrap items-center gap-3 tracking-wide">
+                                        Vertrags-Check: Fehlende Datensätze
+                                        <span class="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingDataItems->count() }} Fehlend</span>
+                                    </h3>
+                                    <p class="text-[10px] sm:text-xs text-yellow-300/80 font-medium mt-1">Bei folgenden Kostenstellen fehlen wichtige Adress- oder Vertragsdaten (z. B. Anbieter).</p>
+                                </div>
+                            </div>
+
+                            <div class="text-yellow-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-yellow-400' : ''">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div x-show="expanded" x-collapse>
+                            <div class="block md:hidden divide-y divide-gray-800/50">
+                                @foreach($missingDataItems as $missingItem)
+                                    <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                        <div class="mb-3">
+                                            <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
+                                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
+                                        </div>
+                                        <div>
+                                            <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="w-full text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-3 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 flex items-center justify-center gap-2">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                                Daten ergänzen
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
+                                <table class="w-full text-sm text-left min-w-[600px]">
+                                    <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                    <tr>
+                                        <th class="px-8 py-4">Kostenstelle</th>
+                                        <th class="px-4 py-4">Gruppe</th>
+                                        <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                    @foreach($missingDataItems as $missingItem)
+                                        <tr class="hover:bg-gray-800/30 transition-colors group">
+                                            <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
+                                            <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
+                                            <td class="px-8 py-5 text-right">
+                                                <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}').scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-2 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 inline-flex items-center gap-2">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                                    Daten ergänzen
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                @else
+                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
+                        <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
+                            <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Datensätze vollständig</h3>
+                                <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen die entsprechenden Adress- und Anbieterdaten hinterlegt.</p>
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
                 {{-- 1. Donut Chart Section (WIRE:IGNORE WICHTIG) --}}
@@ -256,6 +346,7 @@
                                         @foreach($group->items as $item)
                                             {{-- ITEM CARD (Draggable) --}}
                                             <div wire:key="item-card-{{ $item->id }}"
+                                                 id="item-card-{{ $item->id }}"
                                                  class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-[0_0_15px_var(--theme-color-10)] transition-all cursor-grab active:cursor-grabbing group/item overflow-hidden"
                                                  draggable="true"
                                                  @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
@@ -289,14 +380,25 @@
                 </div>
 
                 {{-- GLOBAL TAG MANAGEMENT SECTION --}}
-                <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8">
-                    <h3 class="text-xl font-serif font-bold text-white mb-4 tracking-wide flex items-center gap-3">
-                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
-                        Tag-Verwaltung
-                    </h3>
-                    <p class="text-xs text-gray-400 mb-6">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
+                <div x-data="{ expandedTags: false }" class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8">
+                    <div class="flex items-center justify-between cursor-pointer group" @click="expandedTags = !expandedTags">
+                        <div>
+                            <h3 class="text-xl font-serif font-bold text-white mb-1 tracking-wide flex items-center gap-3">
+                                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                </svg>
+                                Tag-Verwaltung
+                            </h3>
+                            <p class="text-xs text-gray-400 mb-0">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
+                        </div>
+                        <div class="text-gray-500 transition-transform duration-300" :class="expandedTags ? 'rotate-180' : ''">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div x-show="expandedTags" x-collapse class="mt-6">
 
                     <div class="flex flex-wrap gap-3">
                         @forelse($this->globalTags as $tag)
@@ -327,11 +429,72 @@
                             <span class="text-xs text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
                         @endforelse
                     </div>
+                    </div>
                 </div>
 
             </div>
         </div>
     </div>
+
+    {{-- Kündigungs Modal --}}
+    @if($cancellingItemId)
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <div class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm" wire:click="closeCancellationModal"></div>
+            
+            <div class="relative bg-gray-900 border border-gray-700 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-lg w-full overflow-hidden animate-fade-in-up">
+                <div class="p-6 sm:p-8">
+                    <div class="flex items-start justify-between mb-6">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2.5 bg-red-500/10 text-red-500 rounded-xl shadow-inner border border-red-500/20">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-serif font-bold text-white tracking-wide">Kündigung erstellen</h3>
+                                <p class="text-xs text-gray-400 font-medium">Automatische PDF Generierung</p>
+                            </div>
+                        </div>
+                        <button wire:click="closeCancellationModal" class="text-gray-500 hover:text-white transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="space-y-5">
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2">Kündigungsdatum</label>
+                            <div class="space-y-3">
+                                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 bg-gray-950 cursor-pointer hover:border-gray-500 transition-colors">
+                                    <input type="radio" wire:model.live="cancellationDateType" value="next_possible" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-gray-900 border-gray-600">
+                                    <span class="text-sm font-medium text-white">Zum nächstmöglichen Zeitpunkt</span>
+                                </label>
+                                
+                                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 bg-gray-950 cursor-pointer hover:border-gray-500 transition-colors">
+                                    <input type="radio" wire:model.live="cancellationDateType" value="custom_date" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-gray-900 border-gray-600">
+                                    <span class="text-sm font-medium text-white">Zu einem bestimmten Datum</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        @if($cancellationDateType === 'custom_date')
+                            <div class="animate-fade-in-down">
+                                <label class="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2">Gewünschtes Datum</label>
+                                <input type="date" wire:model="cancellationCustomDate" class="w-full text-sm p-3.5 rounded-xl border border-gray-700 bg-gray-950 text-white focus:bg-black focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="bg-gray-950 p-6 flex justify-end gap-3 border-t border-gray-800">
+                    <button wire:click="closeCancellationModal" class="px-5 py-2.5 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors">Abbrechen</button>
+                    <button wire:click="generateCancellationPdf" class="bg-red-500 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:bg-red-400 transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        PDF generieren
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- Chart Initialization Script --}}
     @include('livewire.shop.accounting.accounting-fix-costs.partials.chart_scripts')

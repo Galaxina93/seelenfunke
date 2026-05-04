@@ -16,15 +16,17 @@ class AiAgentMessageMail extends Mailable
     public $messageSubject;
     public $messageContent;
     public $agentName;
+    public $attachmentPaths;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'System-Agent')
+    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'System-Agent', array $attachmentPaths = [])
     {
         $this->messageSubject = $messageSubject;
         $this->messageContent = $messageContent;
         $this->agentName = $agentName;
+        $this->attachmentPaths = $attachmentPaths;
     }
 
     /**
@@ -54,6 +56,10 @@ class AiAgentMessageMail extends Mailable
      */
     public function attachments(): array
     {
-        return [];
+        $atts = [];
+        foreach ($this->attachmentPaths as $path) {
+            $atts[] = \Illuminate\Mail\Mailables\Attachment::fromPath($path);
+        }
+        return $atts;
     }
 }

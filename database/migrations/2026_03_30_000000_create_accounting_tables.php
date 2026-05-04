@@ -102,6 +102,20 @@ return new class extends Migration
                 $table->integer('tax_rate')->nullable();
                 $table->string('contract_file_path')->nullable();
                 $table->json('tags')->nullable();
+                
+                // Provider/Contract Data
+                $table->string('provider_company')->nullable();
+                $table->string('provider_street')->nullable();
+                $table->string('provider_house_number')->nullable();
+                $table->string('provider_zip')->nullable();
+                $table->string('provider_city')->nullable();
+                $table->string('provider_phone')->nullable();
+                $table->string('provider_email')->nullable();
+                $table->string('provider_website')->nullable();
+                $table->string('contract_number')->nullable();
+                $table->string('notice_period')->nullable();
+                $table->date('contract_end_date')->nullable();
+                
                 $table->timestamps();
             });
         }
@@ -218,6 +232,20 @@ return new class extends Migration
                 $table->string('contract_file_path')->nullable();
                 $table->json('tags')->nullable();
                 $table->foreignUuid('accounting_group_id')->nullable()->constrained('accounting_groups')->nullOnDelete();
+                
+                // Provider/Contract Data
+                $table->string('provider_company')->nullable();
+                $table->string('provider_street')->nullable();
+                $table->string('provider_house_number')->nullable();
+                $table->string('provider_zip')->nullable();
+                $table->string('provider_city')->nullable();
+                $table->string('provider_phone')->nullable();
+                $table->string('provider_email')->nullable();
+                $table->string('provider_website')->nullable();
+                $table->string('contract_number')->nullable();
+                $table->string('notice_period')->nullable();
+                $table->date('contract_end_date')->nullable();
+                
                 $table->timestamps();
             });
         }

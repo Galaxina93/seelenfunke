@@ -31,6 +31,9 @@ class AccountingAnalytics extends Component
     #[Url]
     public $selectedMonth;
 
+    public $exportMonth;
+    public $exportYear;
+
     // Chart Filter
     public $chartFilter = 'last_12_months';
     public $dateFrom;
@@ -56,6 +59,9 @@ class AccountingAnalytics extends Component
 
         $this->selectedYear = $this->selectedYear ?? date('Y');
         $this->selectedMonth = $this->selectedMonth ?? date('n');
+        
+        $this->exportYear = $this->exportYear ?? $this->selectedYear;
+        $this->exportMonth = $this->exportMonth ?? $this->selectedMonth;
 
         $this->updateDateRange();
 
@@ -104,7 +110,7 @@ class AccountingAnalytics extends Component
     // --- Actions: Export ---
     public function downloadTaxExport(FinancialService $service)
     {
-        $path = $service->generateTaxExport($this->getAdminId(), $this->selectedMonth, $this->selectedYear);
+        $path = $service->generateTaxExport($this->getAdminId(), $this->exportMonth, $this->exportYear);
         return response()->download($path)->deleteFileAfterSend(true);
     }
 

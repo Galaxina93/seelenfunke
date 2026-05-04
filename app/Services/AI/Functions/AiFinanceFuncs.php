@@ -125,6 +125,29 @@ trait AiFinanceFuncs
                 'callable' => [self::class, 'executeGenerateTaxExport']
             ],
             [
+                'name' => 'finance_generate_and_send_report',
+                'description' => 'Generiert einen vollständigen Finanzreport (PDF & CSV im ZIP) für einen bestimmten Monat und sendet diesen direkt per E-Mail an die gewünschte E-Mail-Adresse. Nutze dies, wenn der Nutzer einen Finanzreport/Finanzansicht an jemanden schicken möchte.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'email' => [
+                            'type' => 'string',
+                            'description' => 'Die E-Mail-Adresse des Empfängers.'
+                        ],
+                        'month' => [
+                            'type' => 'integer',
+                            'description' => 'Der Monat (1-12). Falls nicht angegeben, aktueller Monat.'
+                        ],
+                        'year' => [
+                            'type' => 'integer',
+                            'description' => 'Das Jahr. Falls nicht angegeben, aktuelles Jahr.'
+                        ]
+                    ],
+                    'required' => ['email']
+                ],
+                'callable' => [self::class, 'executeGenerateAndSendReport']
+            ],
+            [
                 'name' => 'finance_create_quick_entry_expense',
                 'description' => 'Erfasst eine Sonderausgabe (Schnellerfassung). Nutze dies für jeden Beleg, jede Rechnung oder jeden Kauf, den der Nutzer dir mitteilt. WICHTIG: Trenne privat (is_business=false) und gewerblich (is_business=true).',
                 'parameters' => [
@@ -466,6 +489,39 @@ trait AiFinanceFuncs
             return ['status' => 'error', 'message' => 'Export-Datei konnte nicht gefunden werden.'];
         } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Export: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeGenerateAndSendReport(array $args)
+    {
+        try {
+            $email = $args['email'];
+            $month = $args['month'] ?? date('n');
+            $year = $args['year'] ?? date('Y');
+            $adminId = self::getAdminId();
+
+            if (empty($email)) {
+                return ['status' => 'error', 'message' => 'E-Mail-Adresse fehlt.'];
+            }
+
+            $service = new \App\Services\FinancialService();
+            $path = $service->generateTaxExport($adminId, $month, $year);
+
+            if (file_exists($path)) {
+                $subject = "Finanzbericht $month/$year";
+                $body = "Hallo,\n\nanbei erhalten Sie den angeforderten Finanzbericht für den Monat $month/$year als ZIP-Archiv. Darin enthalten ist die Übersicht als PDF sowie alle Transaktionen als CSV und die Belege.\n\nViele Grüße,\nIhr System-Agent";
+
+                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail($subject, $body, 'System-Agent', [$path]));
+
+                return [
+                    'status' => 'success',
+                    'message' => "Der Finanzbericht für $month/$year wurde erfolgreich generiert und an $email gesendet."
+                ];
+            }
+
+            return ['status' => 'error', 'message' => 'Report-Datei konnte nicht generiert oder gefunden werden.'];
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Erstellen oder Senden des Reports: ' . $e->getMessage()];
         }
     }
 

@@ -91,13 +91,23 @@
                 {{-- OBERER BEREICH: STATISTIKEN --}}
                 <div class="p-6 md:p-10 border-b border-gray-800 relative z-10 bg-gray-950/50">
                     {{-- Export Button (Jetzt flexibel und nicht mehr absolut schwebend) --}}
-                    <div class="flex justify-end mb-8">
+                    <div class="flex flex-wrap justify-end items-center gap-3 mb-8">
+                        <select wire:model="exportMonth" class="bg-gray-900 border border-gray-800 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-inner cursor-pointer appearance-none">
+                            @foreach(range(1,12) as $m)
+                                <option value="{{ $m }}">{{ \Carbon\Carbon::create()->month($m)->locale('de')->shortMonthName }}</option>
+                            @endforeach
+                        </select>
+                        <select wire:model="exportYear" class="bg-gray-900 border border-gray-800 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-inner cursor-pointer appearance-none">
+                            @foreach(range(date('Y')-2, date('Y')+2) as $y)
+                                <option value="{{ $y }}">{{ $y }}</option>
+                            @endforeach
+                        </select>
                         <button wire:click="downloadTaxExport"
                                 class="w-full md:w-auto flex items-center justify-center gap-2 bg-gray-800 border border-gray-700 text-gray-300 px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-gray-700 hover:text-white hover:border-gray-500 shadow-inner transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
-                            Export {{ $selectedMonth }}/{{ $selectedYear }}
+                            Exportieren
                         </button>
                     </div>
 

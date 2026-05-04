@@ -22,11 +22,24 @@ class AccountingCostItem extends Model
         'tax_rate',
         'first_payment_date',
         'last_payment_date',
+        // Provider/Contract Data
+        'provider_company',
+        'provider_street',
+        'provider_house_number',
+        'provider_zip',
+        'provider_city',
+        'provider_phone',
+        'provider_email',
+        'provider_website',
+        'contract_number',
+        'notice_period',
+        'contract_end_date',
     ];
 
     protected $casts = [
         'first_payment_date' => 'date',
         'last_payment_date'  => 'date',
+        'contract_end_date'  => 'date',
         'amount'             => 'decimal:2',
         'is_business'        => 'boolean',
         'tags'               => 'array',

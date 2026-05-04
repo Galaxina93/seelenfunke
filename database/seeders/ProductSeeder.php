@@ -148,7 +148,7 @@ class ProductSeeder extends Seeder
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
-            'quantity' => 50,
+            'quantity' => 150,
             'continue_selling_when_out_of_stock' => true,
 
             'weight' => 19,

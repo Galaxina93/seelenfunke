@@ -75,6 +75,24 @@ class AccountingFixCosts extends Component
     public $editingGlobalTag = null;
     public $editingGlobalTagValue = '';
 
+    // --- Provider / Contract Properties ---
+    public $itemProviderCompany = '';
+    public $itemProviderStreet = '';
+    public $itemProviderHouseNumber = '';
+    public $itemProviderZip = '';
+    public $itemProviderCity = '';
+    public $itemProviderPhone = '';
+    public $itemProviderEmail = '';
+    public $itemProviderWebsite = '';
+    public $itemContractNumber = '';
+    public $itemNoticePeriod = '';
+    public $itemContractEndDate;
+
+    // --- Cancellation Logic ---
+    public ?string $cancellingItemId = null;
+    public string $cancellationDateType = 'next_possible';
+    public $cancellationCustomDate;
+
     public function mount()
     {
         if (!Auth::guard('admin')->check()) {
@@ -96,6 +114,15 @@ class AccountingFixCosts extends Component
         return AccountingCostItem::whereHas('group', function ($q) {
             $q->where('admin_id', $this->getAdminId());
         })->whereNull('contract_file_path')->with('group')->orderBy('name')->get();
+    }
+
+    public function getMissingDataItemsProperty()
+    {
+        return AccountingCostItem::whereHas('group', function ($q) {
+            $q->where('admin_id', $this->getAdminId());
+        })->where(function($q) {
+            $q->whereNull('provider_company')->orWhere('provider_company', '');
+        })->with('group')->orderBy('name')->get();
     }
 
     // --- Tagging Methods ---
@@ -334,6 +361,7 @@ class AccountingFixCosts extends Component
         $this->resetItemForm();
         $this->showAddItemFormForGroup = null;
         $this->addingToGroupId = $groupId;
+        $this->activeGroupId = $groupId;
 
         if ($itemId) {
             $this->editingItemId = $itemId;
@@ -353,6 +381,18 @@ class AccountingFixCosts extends Component
             $this->itemExistingFile = $item->contract_file_path;
             $this->itemLastPaymentDate = $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null;
             $this->targetGroupId = $item->accounting_group_id;
+
+            $this->itemProviderCompany = $item->provider_company;
+            $this->itemProviderStreet = $item->provider_street;
+            $this->itemProviderHouseNumber = $item->provider_house_number;
+            $this->itemProviderZip = $item->provider_zip;
+            $this->itemProviderCity = $item->provider_city;
+            $this->itemProviderPhone = $item->provider_phone;
+            $this->itemProviderEmail = $item->provider_email;
+            $this->itemProviderWebsite = $item->provider_website;
+            $this->itemContractNumber = $item->contract_number;
+            $this->itemNoticePeriod = $item->notice_period;
+            $this->itemContractEndDate = $item->contract_end_date ? $item->contract_end_date->format('Y-m-d') : null;
         }
     }
 
@@ -383,6 +423,17 @@ class AccountingFixCosts extends Component
             'description'        => $this->itemDescription,
             'is_business'        => $this->itemIsBusiness ? 1 : 0,
             'tax_rate'           => (int) $this->itemTaxRate,
+            'provider_company'        => $this->itemProviderCompany,
+            'provider_street'         => $this->itemProviderStreet,
+            'provider_house_number'   => $this->itemProviderHouseNumber,
+            'provider_zip'            => $this->itemProviderZip,
+            'provider_city'           => $this->itemProviderCity,
+            'provider_phone'          => $this->itemProviderPhone,
+            'provider_email'          => $this->itemProviderEmail,
+            'provider_website'        => $this->itemProviderWebsite,
+            'contract_number'         => $this->itemContractNumber,
+            'notice_period'           => $this->itemNoticePeriod,
+            'contract_end_date'       => $this->itemContractEndDate ?: null,
         ];
 
         if ($this->itemFile) {
@@ -427,7 +478,27 @@ class AccountingFixCosts extends Component
                 : null;
             $lastDateChanged = $oldLastDate !== $newLastDate;
 
-            $isDirty = $amountChanged || $intervalChanged || $nameChanged || $descChanged || $businessChanged || $taxChanged || $firstDateChanged || $lastDateChanged || $this->itemFile;
+            $providerChanged = 
+                ($originalSnapshot['provider_company'] ?? '') !== ($item->provider_company ?? '') ||
+                ($originalSnapshot['provider_street'] ?? '') !== ($item->provider_street ?? '') ||
+                ($originalSnapshot['provider_house_number'] ?? '') !== ($item->provider_house_number ?? '') ||
+                ($originalSnapshot['provider_zip'] ?? '') !== ($item->provider_zip ?? '') ||
+                ($originalSnapshot['provider_city'] ?? '') !== ($item->provider_city ?? '') ||
+                ($originalSnapshot['provider_phone'] ?? '') !== ($item->provider_phone ?? '') ||
+                ($originalSnapshot['provider_email'] ?? '') !== ($item->provider_email ?? '') ||
+                ($originalSnapshot['provider_website'] ?? '') !== ($item->provider_website ?? '') ||
+                ($originalSnapshot['contract_number'] ?? '') !== ($item->contract_number ?? '') ||
+                ($originalSnapshot['notice_period'] ?? '') !== ($item->notice_period ?? '');
+
+            $oldContractEndDate = isset($originalSnapshot['contract_end_date'])
+                ? \Carbon\Carbon::parse($originalSnapshot['contract_end_date'])->timezone(config('app.timezone'))->format('Y-m-d')
+                : null;
+            $newContractEndDate = $item->contract_end_date
+                ? \Carbon\Carbon::parse($item->contract_end_date)->timezone(config('app.timezone'))->format('Y-m-d')
+                : null;
+            $contractEndDateChanged = $oldContractEndDate !== $newContractEndDate;
+
+            $isDirty = $amountChanged || $intervalChanged || $nameChanged || $descChanged || $businessChanged || $taxChanged || $firstDateChanged || $lastDateChanged || $providerChanged || $contractEndDateChanged || $this->itemFile;
 
             if ($isDirty && !$this->isRestoring) {
                 $description = $amountChanged
@@ -451,8 +522,19 @@ class AccountingFixCosts extends Component
                     'tax_rate'             => $item->tax_rate,
                     'contract_file_path'   => $item->contract_file_path,
                     'tags'                 => $item->tags,
-                    'accounting_group_id'     => $item->accounting_group_id,
+                    'accounting_group_id'  => $item->accounting_group_id,
                     'description'          => $description,
+                    'provider_company'     => $item->provider_company,
+                    'provider_street'      => $item->provider_street,
+                    'provider_house_number'=> $item->provider_house_number,
+                    'provider_zip'         => $item->provider_zip,
+                    'provider_city'        => $item->provider_city,
+                    'provider_phone'       => $item->provider_phone,
+                    'provider_email'       => $item->provider_email,
+                    'provider_website'     => $item->provider_website,
+                    'contract_number'      => $item->contract_number,
+                    'notice_period'        => $item->notice_period,
+                    'contract_end_date'    => $item->contract_end_date ? $item->contract_end_date->format('Y-m-d') : null,
                 ]);
             } else {
                 $item->save();
@@ -521,6 +603,18 @@ class AccountingFixCosts extends Component
         $this->itemIsBusiness      = (bool) $history->is_business;
         $this->itemTaxRate         = $history->tax_rate ?? 0;
         
+        $this->itemProviderCompany      = $history->provider_company;
+        $this->itemProviderStreet       = $history->provider_street;
+        $this->itemProviderHouseNumber  = $history->provider_house_number;
+        $this->itemProviderZip          = $history->provider_zip;
+        $this->itemProviderCity         = $history->provider_city;
+        $this->itemProviderPhone        = $history->provider_phone;
+        $this->itemProviderEmail        = $history->provider_email;
+        $this->itemProviderWebsite      = $history->provider_website;
+        $this->itemContractNumber       = $history->contract_number;
+        $this->itemNoticePeriod         = $history->notice_period;
+        $this->itemContractEndDate      = $history->contract_end_date ? $history->contract_end_date->format('Y-m-d') : null;
+        
         // Auto-save the restored state instantly
         $this->saveItem();
         $this->isRestoring = false;
@@ -568,12 +662,53 @@ class AccountingFixCosts extends Component
         session()->flash('success', 'Kostenstelle gelöscht.');
     }
 
+    public function openCancellationModal($itemId)
+    {
+        $this->cancellingItemId = $itemId;
+        $this->cancellationDateType = 'next_possible';
+        $this->cancellationCustomDate = null;
+    }
+
+    public function closeCancellationModal()
+    {
+        $this->cancellingItemId = null;
+    }
+
+    public function generateCancellationPdf()
+    {
+        $item = AccountingCostItem::findOrFail($this->cancellingItemId);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        $settings = \App\Models\System\SystemSetting::pluck('value', 'key')->toArray();
+        $shopSetting = (object) $settings;
+
+        $cancellationDateText = $this->cancellationDateType === 'next_possible' 
+            ? 'zum nächstmöglichen Zeitpunkt' 
+            : 'zum ' . \Carbon\Carbon::parse($this->cancellationCustomDate)->format('d.m.Y');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.accounting-cancellation-contract', [
+            'item' => $item,
+            'shopSetting' => $shopSetting,
+            'cancellationDateText' => $cancellationDateText,
+            'date' => now()->format('d.m.Y'),
+        ]);
+
+        $this->cancellingItemId = null;
+        
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->stream();
+        }, 'Kuendigung_' . \Illuminate\Support\Str::slug($item->name) . '.pdf');
+    }
+
     public function resetItemForm()
     {
         $this->reset([
             'itemName', 'itemAmount', 'itemInterval', 'itemDate', 'itemDescription',
             'itemFile', 'addingToGroupId', 'itemIsBusiness', 'editingItemId',
-            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId', 'itemTaxRate', 'itemLastPaymentDate'
+            'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId', 'itemTaxRate', 'itemLastPaymentDate',
+            'itemProviderCompany', 'itemProviderStreet', 'itemProviderHouseNumber', 'itemProviderZip', 'itemProviderCity',
+            'itemProviderPhone', 'itemProviderEmail', 'itemProviderWebsite', 'itemContractNumber',
+            'itemNoticePeriod', 'itemContractEndDate', 'cancellingItemId', 'cancellationDateType', 'cancellationCustomDate'
         ]);
         $this->itemDate = date('Y-m-d');
     }
@@ -632,7 +767,8 @@ class AccountingFixCosts extends Component
             'chartLabels'    => $chartLabels,
             'chartData'      => $chartData,
             'chartColors'    => $chartColors,
-            'missingContracts' => $this->missingContracts
+            'missingContracts' => $this->missingContracts,
+            'missingDataItems' => $this->missingDataItems
         ]);
     }
 }

@@ -30,6 +30,7 @@ class SystemSettingSeeder extends Seeder
             // Shop Status & Steuern
             'is_small_business'         => 'false',
             'default_tax_rate'          => '19',
+            'active_tax_rates'          => json_encode([19, 7, 0]),
             'prices_entered_gross'      => 'true',
             'maintenance_mode'          => 'false',
 

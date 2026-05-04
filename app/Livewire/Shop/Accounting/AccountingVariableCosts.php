@@ -455,6 +455,7 @@ class AccountingVariableCosts extends Component
             'specials' => $specials,
             'chartLabels' => $chartDataObj->pluck('category'),
             'chartData' => $chartDataObj->pluck('total'),
+            'activeTaxRates' => shop_setting('active_tax_rates', [19, 7, 0]),
         ]);
     }
 }

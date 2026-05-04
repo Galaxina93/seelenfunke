@@ -84,7 +84,19 @@
         </div>
 
         <div>
-            <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Vertrag / Datei</label>
+            <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5">
+                Vertrag / Datei
+                <div class="relative group cursor-help">
+                    <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 border border-gray-700 rounded-xl shadow-xl text-[10px] text-gray-300 font-medium normal-case tracking-normal opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                        <div class="font-bold text-white mb-1">Upload-Regel (E-Commerce Standard)</div>
+                        Bitte benenne die PDF-Datei vor dem Upload nach diesem Schema:<br>
+                        <span class="text-blue-400 font-mono mt-1 block">YYYY-MM-DD_Anbieter_Titel.pdf</span>
+                        <div class="text-gray-500 mt-1">Die Datei wird automatisch in den sicheren Speicher <span class="text-gray-400 font-mono">storage/app/buchhaltung/contracts/</span> verschoben.</div>
+                        <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-900 border-b border-r border-gray-700 rotate-45"></div>
+                    </div>
+                </div>
+            </label>
 
             <div class="space-y-2">
                 {{-- Force DOM recreation to clear file input text via wire:key --}}
@@ -118,6 +130,63 @@
 
         <textarea wire:model="itemDescription" placeholder="Notizen, Vertragsnummer, Kundennummer..."
                   class="{{ $inputClass }} resize-none leading-relaxed" rows="3"></textarea>
+    </div>
+
+    {{-- Zeile 4: Vertrags- und Adressdaten (Für Kündigungen) --}}
+    <div class="mt-6 border-t border-gray-800 pt-6">
+        <h4 class="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-4">Vertrags- & Adressdaten (optional)</h4>
+        
+        <div class="mb-6">
+            <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Vertragspartner / Firma</label>
+            <input type="text" wire:model="itemProviderCompany" class="{{ $inputClass }}">
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-8 mb-6">
+            <div>
+                <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Vertragsnummer</label>
+                <input type="text" wire:model="itemContractNumber" class="{{ $inputClass }}">
+            </div>
+            <div>
+                <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Kündigungsfrist (z.B. 3 Monate)</label>
+                <input type="text" wire:model="itemNoticePeriod" class="{{ $inputClass }}">
+            </div>
+            <div>
+                <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Vertragsende</label>
+                <input type="date" wire:model="itemContractEndDate" class="{{ $inputClass }} cursor-pointer [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
+            </div>
+        </div>
+
+        <h5 class="text-[9px] font-black uppercase text-gray-500 tracking-widest mb-3">Anbieter Adresse & Kontakt</h5>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 xl:gap-8 mb-4">
+            <div class="flex gap-4">
+                <div class="flex-1">
+                    <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Straße</label>
+                    <input type="text" wire:model="itemProviderStreet" class="{{ $inputClass }}">
+                </div>
+                <div class="w-1/3">
+                    <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Hausnr.</label>
+                    <input type="text" wire:model="itemProviderHouseNumber" class="{{ $inputClass }}">
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <div class="w-1/3">
+                    <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">PLZ</label>
+                    <input type="text" wire:model="itemProviderZip" class="{{ $inputClass }}">
+                </div>
+                <div class="flex-1">
+                    <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Ort</label>
+                    <input type="text" wire:model="itemProviderCity" class="{{ $inputClass }}">
+                </div>
+            </div>
+            <div>
+                <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">E-Mail</label>
+                <input type="email" wire:model="itemProviderEmail" class="{{ $inputClass }}">
+            </div>
+            <div>
+                <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Telefon / Webseite (Optional)</label>
+                <input type="text" wire:model="itemProviderPhone" class="{{ $inputClass }}" placeholder="Telefonnummer oder URL">
+            </div>
+        </div>
     </div>
 
     {{-- HISTORY & CHART SECTION --}}
@@ -199,7 +268,7 @@
 
                         // Gradient setup
                         const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                        gradient.addColorStop(0, 'var(--theme-color-50)'); // primary
+                        gradient.addColorStop(0, '{{ $this->themeColorHex }}80'); // primary
                         gradient.addColorStop(1, 'transparent');
 
                         this.chart = new Chart(ctx, {
@@ -231,7 +300,7 @@
                                         titleColor: '#9ca3af',
                                         bodyColor: '#fff',
                                         bodyFont: { family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas' },
-                                        borderColor: 'var(--theme-color-30)',
+                                        borderColor: '{{ $this->themeColorHex }}4D',
                                         borderWidth: 1,
                                         padding: 10,
                                         displayColors: false,

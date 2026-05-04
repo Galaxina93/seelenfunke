@@ -75,7 +75,19 @@
                 @error('itemDate') <span class="text-[10px] text-red-400 mt-2 block font-bold tracking-widest uppercase ml-1 drop-shadow-[0_0_8px_currentColor]">{{ $message }}</span> @enderror
             </div>
             <div>
-                <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Vertrag / Datei</label>
+                <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5">
+                    Vertrag / Datei
+                    <div class="relative group cursor-help">
+                        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 border border-gray-700 rounded-xl shadow-xl text-[10px] text-gray-300 font-medium normal-case tracking-normal opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
+                            <div class="font-bold text-white mb-1">Upload-Regel (E-Commerce Standard)</div>
+                            Bitte benenne die PDF-Datei vor dem Upload nach diesem Schema:<br>
+                            <span class="text-blue-400 font-mono mt-1 block">YYYY-MM-DD_Anbieter_Titel.pdf</span>
+                            <div class="text-gray-500 mt-1">Die Datei wird automatisch in den sicheren Speicher <span class="text-gray-400 font-mono">storage/app/buchhaltung/contracts/</span> verschoben.</div>
+                            <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-900 border-b border-r border-gray-700 rotate-45"></div>
+                        </div>
+                    </div>
+                </label>
                 <input type="file" wire:model="itemFile" class="block w-full text-xs text-gray-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-gray-300 hover:file:bg-gray-700 hover:file:text-white transition-all cursor-pointer bg-gray-900 border border-gray-800 rounded-xl p-1 shadow-inner">
             </div>
         </div>

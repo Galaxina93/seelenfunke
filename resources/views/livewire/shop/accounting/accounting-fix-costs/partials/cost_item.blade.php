@@ -53,6 +53,9 @@
                     <svg class="w-3 h-3 transition-transform duration-300" :class="expanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
             @endif
+            @if(is_array($item->tags) && (in_array('Versicherung', $item->tags) || in_array('Vertrag', $item->tags)))
+                <button wire:click.stop="openCancellationModal('{{ $item->id }}')" class="text-[9px] text-gray-500 hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-500 hover:border-red-400 pb-0.5 transition-colors">Kündigen</button>
+            @endif
             <button wire:click="openItemForm('{{ $group->id }}', '{{ $item->id }}')" class="text-[9px] text-gray-500 hover:text-[var(--theme-color)] font-black uppercase tracking-widest border-b border-gray-500 hover:border-[var(--theme-color)] pb-0.5 transition-colors">Bearbeiten</button>
             <button wire:click.stop="deleteItem('{{ $item->id }}')" wire:confirm="Wirklich löschen?" class="text-[9px] text-gray-600 hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-600 hover:border-red-400 pb-0.5 transition-colors">Löschen</button>
         </div>

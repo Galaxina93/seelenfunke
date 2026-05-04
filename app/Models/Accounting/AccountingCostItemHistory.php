@@ -20,6 +20,16 @@ class AccountingCostItemHistory extends Model
         'amount',
         'interval_months',
         'description',
+        'provider_street',
+        'provider_house_number',
+        'provider_zip',
+        'provider_city',
+        'provider_phone',
+        'provider_email',
+        'provider_website',
+        'contract_number',
+        'notice_period',
+        'contract_end_date',
         'created_at',
     ];
 
@@ -28,6 +38,7 @@ class AccountingCostItemHistory extends Model
         'interval_months' => 'integer',
         'first_payment_date' => 'date',
         'last_payment_date' => 'date',
+        'contract_end_date' => 'date',
         'is_business' => 'boolean',
         'tags' => 'array',
     ];
