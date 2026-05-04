@@ -178,6 +178,18 @@
                                                 </div>
                                             </div>
                                         @endforeach
+                                    @elseif($key === 'system_logs')
+                                        @foreach($check['data'] as $log)
+                                            <div wire:key="syslog-{{ $log['id'] }}" class="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-950 p-3.5 rounded-2xl border border-gray-800 shadow-inner gap-3">
+                                                <div class="min-w-0 flex-1">
+                                                    <span class="text-[10px] font-bold text-gray-300 truncate block"><span class="text-gray-500 mr-1">[{{ $log['type'] }}]</span>{{ $log['title'] }}</span>
+                                                    <span class="text-[9px] text-gray-500">{{ $log['created_at'] }}</span>
+                                                </div>
+                                                <div class="flex items-center shrink-0">
+                                                    <a href="/admin/global-logs" class="bg-primary text-gray-900 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-glow">Log öffnen</a>
+                                                </div>
+                                            </div>
+                                        @endforeach
                                     @endif
 
                                 </div>

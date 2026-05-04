@@ -134,7 +134,8 @@
                     <p class="text-sm md:text-base text-[var(--theme-color)] font-mono font-bold mb-6 drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
 
                     {{-- Lagerbestand Anzeige --}}
-                    <div class="mb-6 h-8 flex items-center"
+                    {{-- Lagerbestand Anzeige --}}
+                    <div class="mb-6 h-8 flex items-center gap-3"
                          x-data="{
                              editing: false,
                              qty: {{ $prod->quantity }}
@@ -144,7 +145,7 @@
                             {{-- ANZEIGE MODUS --}}
                             <div x-show="!editing"
                                  @click="editing = true; $nextTick(() => $refs.qtyInput.focus())"
-                                 class="cursor-pointer group/qty relative transition-transform hover:scale-[1.02]">
+                                 class="cursor-pointer group/qty relative transition-transform hover:scale-[1.02] flex items-center gap-2">
 
                                 @if($prod->quantity <= 0)
                                     {{-- Ausverkauft / Voll --}}
@@ -169,6 +170,14 @@
                                     </span>
                                 @endif
                             </div>
+
+                            {{-- Nachbestellen Link (Wenn kritisch oder 0 UND Link vorhanden) --}}
+                            @if($prod->quantity < $threshold && !empty($prod->reorder_url))
+                                <a href="{{ $prod->reorder_url }}" target="_blank" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 border border-blue-500/30 shadow-inner hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all z-10" title="Nachbestellen beim Lieferanten">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                    Nachbestellen
+                                </a>
+                            @endif
 
                             {{-- EDITIER MODUS --}}
                             <div x-show="editing" style="display: none;" class="flex items-center gap-2" @click.outside="editing = false; qty = {{ $prod->quantity }}">

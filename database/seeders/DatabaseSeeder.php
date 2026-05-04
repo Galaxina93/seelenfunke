@@ -30,10 +30,10 @@ class DatabaseSeeder extends Seeder
             ManagementLinkTreeSeeder::class,
 
             //Product
+            ProductSupplierSeeder::class,
             ProductSeeder::class,
             ProductCategorySeeder::class,
             ProductAttributeSeeder::class,
-            ProductSupplierSeeder::class,
             ProductTemplateSeeder::class,
 
             // Marketing

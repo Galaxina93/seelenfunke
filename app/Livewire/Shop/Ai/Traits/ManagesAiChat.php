@@ -652,10 +652,21 @@ trait ManagesAiChat
             });
             $replyText = $response['response'] ?? '';
 
+            if (trim($replyText) !== '') {
+                $ctx = [
+                    'name' => $agent->name,
+                    'color' => $agent->color,
+                    'icon' => $agent->icon,
+                    'profile_picture' => $agent->profile_picture,
+                ];
+                $this->saveMessageToDb('assistant', $replyText, $ctx);
+            }
+
             if (!empty($response['events'])) {
                 foreach ($response['events'] as $eventMsg) {
                     $evtType = $eventMsg['type'] ?? '';
                     if ($evtType === 'navigate' && !empty($eventMsg['url'])) {
+                        $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
                         $this->redirect($eventMsg['url'], navigate: true);
                         return; 
                     } elseif ($evtType === 'dispatch' || !empty($eventMsg['name'])) {
@@ -665,20 +676,6 @@ trait ManagesAiChat
                     }
                 }
             }
-
-            if (trim($replyText) === '') {
-                $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
-                return;
-            }
-
-            $ctx = [
-                'name' => $agent->name,
-                'color' => $agent->color,
-                'icon' => $agent->icon,
-                'profile_picture' => $agent->profile_picture,
-            ];
-
-            $this->saveMessageToDb('assistant', $replyText, $ctx);
 
         } catch (\Exception $e) {
             $errCtx = [

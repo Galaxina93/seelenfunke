@@ -17,7 +17,7 @@ trait AiMailFuncs
                     'properties' => [
                         'to_address' => [
                             'type' => 'string',
-                            'description' => 'Die E-Mail Adresse des Empfängers. WICHTIGE REGEL: Wenn dir der User keine spezifische E-Mail-Adresse nennt, MUSS dieses Feld zwingend leer (null) bleiben!'
+                            'description' => 'OPTIONAL. Die E-Mail Adresse des Empfängers. WICHTIGE REGEL: Erfinde NIEMALS eine E-Mail-Adresse! Wenn der Nutzer keine explizite E-Mail nennt und du sie nicht aus der Datenbank (z.B. Kontakt- oder Lieferanten-Info) sicher ausgelesen hast, MUSS dieses Feld zwingend LEER (null) bleiben. Das System nutzt dann automatisch die Firmen-E-Mail (kontakt@mein-seelenfunke.de).'
                         ],
                         'subject' => [
                             'type' => 'string',

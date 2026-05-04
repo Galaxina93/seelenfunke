@@ -34,6 +34,8 @@
                         <i class="bi bi-code-square"></i>
                     @elseif($category === 'customer' || $category === 'person')
                         <i class="bi bi-person-badge"></i>
+                    @elseif($category === 'supplier')
+                        <i class="bi bi-building"></i>
                     @elseif($category === 'task')
                         <i class="bi bi-list-check"></i>
                     @else
@@ -44,6 +46,8 @@
                     Gutschein Daten
                 @elseif($category === 'customer' || $category === 'person')
                     Kundenakte & Profil
+                @elseif($category === 'supplier')
+                    Lieferanten-Akte
                 @elseif($category === 'task')
                     Aufgaben & Tasks
                 @elseif($category === 'code')
@@ -77,6 +81,8 @@
                 @endif
             @elseif($category === 'customer' || $category === 'person')
                 @include('livewire.shop.ai.blocks.customer-profile', ['customer' => $data[0] ?? []])
+            @elseif($category === 'supplier')
+                @include('livewire.shop.ai.blocks.supplier-profile', ['supplier' => (is_array($data) && isset($data[0]) ? $data[0] : $data)])
             @elseif($category === 'task')
                 @include('livewire.shop.ai.blocks.task-list', ['tasks' => $data])
             @elseif($category === 'code')

@@ -14,6 +14,7 @@
 
     @livewireStyles
 
+    @include("components.layouts.partials.frontend-error-tracker")
 </head>
 
 <body class="min-h-screen font-sans antialiased">

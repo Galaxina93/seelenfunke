@@ -160,8 +160,15 @@ class AiAgentSeeder extends Seeder
                 'icon' => 'user-plus',
                 'tts_voice' => 'Charon',
                 'role' => 'Hausarzt'
-            ],
+            ]
         ];
+
+        $collaborationDirective = "\n\n--- WICHTIGE SYSTEMREGELN FÜR DICH ---\n1. WISSENSDATENBANK: Wenn du eine firmeninterne Information nicht weißt, suche ZWINGEND zuerst mit `brain_search` in der Datenbank.\n2. AGENTEN-DELEGATION: Wenn dir ein Werkzeug (z.B. für Lieferanten, Buchhaltung, Marketing) fehlt oder du eine Aufgabe nicht selbst lösen kannst, frage ZWINGEND einen anderen spezialisierten Agenten über das Tool `communication_ask_agent`! Du sagst dem Nutzer niemals 'Ich kann das nicht' oder 'Dafür habe ich keine Rechte', sondern delegierst die Aufgabe sofort an den passenden Agenten und gibst dessen finale Antwort direkt an den Nutzer weiter.";
+
+        foreach ($agentsData as &$aData) {
+            $aData['system_prompt'] .= $collaborationDirective;
+        }
+        unset($aData);
 
         foreach ($agentsData as $aData) {
             $sourceImagePath = 'shop/ai/images/' . $aData['sourceImage'];
@@ -205,18 +212,12 @@ class AiAgentSeeder extends Seeder
                 $toolIds[] = $tool->id;
             }
             if (!empty($toolIds) && isset($rolesMap['Teamleiter'])) {
-                // Teamleiter soll nur folgende Abteilungen haben: System, Buchhaltung, Bestellungen, Support, Leitung
+                // Teamleiter soll nur globale Steuerungs- und Leitungs-Aufgaben haben.
+                // Operative Aufgaben (Order, Finance, Support, Health) werden nun delegiert.
                 $teamleiterAllowedTools = array_merge(
                     // System
                     array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
-                    // Buchhaltung
-                    array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-                    // Bestellungen
-                    array_column(AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
-                    // Support
-                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
                     // Leitung
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
@@ -224,7 +225,8 @@ class AiAgentSeeder extends Seeder
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
                 );
 
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
@@ -234,9 +236,9 @@ class AiAgentSeeder extends Seeder
             $domainAssignments = [
                 'Analyst' => array_merge(
                     array_column(AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiProductAnalyticsFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name')
                 ),
-                'Sales' => array_column(AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+                'Sales' => array_column(AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
                 'Marketing' => array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
                 'Finanzmanager' => array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
                 'Supporter' => array_merge(
@@ -244,17 +246,20 @@ class AiAgentSeeder extends Seeder
                     array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
                 ),
-                'Hausarzt' => array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
+                'Hausarzt' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
+                ),
                 'Systemadmin' => [],
                 'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
             ];
 
-            $baseSystemTools = [
+            $baseSystemTools = array_merge([
                 'brain_save_entry', 'brain_search', 'brain_update_entry', 'brain_delete_entry',
                 'system_search_chat_history', 'system_close_ui', 'system_visualize_data',
-                'system_ask_agent', 'system_search_web', 'system_switch_agent',
+                'system_search_web', 'system_switch_agent',
                 'system_write_artifact', 'system_patch_artifact'
-            ];
+            ], array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'));
 
             $allToolsCollection = AiTool::all();
             foreach ($domainAssignments as $roleName => $specificTools) {

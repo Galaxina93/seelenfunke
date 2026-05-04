@@ -12,7 +12,7 @@ class AIFunctionsRegistry
     use Functions\AiMarketingNewsletterFuncs;
     use Functions\AiMarketingVoucherFuncs;
     use Functions\AiMarketingBlogFuncs;
-    use Functions\AiSalesFuncs;
+    use Functions\AiOrderFuncs;
     use Functions\AiFinanceFuncs;
     use Functions\AiScoutFuncs;
     use Functions\AiHealthFuncs;
@@ -22,17 +22,11 @@ class AIFunctionsRegistry
     use Functions\AiBrainFuncs;
     use Functions\AiMailFuncs;
     use Functions\AiContactFuncs;
-    use Functions\AiProductAnalyticsFuncs;
-    use Functions\AiProductFractureFuncs;
-    use Functions\AiProductCreateFuncs;
-    use Functions\AiSuppliersFuncs;
-    use Functions\AiProductTemplatesFuncs;
-    use Functions\AiProductControlReviewsFuncs;
-    use Functions\AiProductNicheScannerFuncs;
-    use Functions\AiProductPackagingConfiguratorFuncs;
+    use Functions\AiProductFuncs;
     use Functions\AiAgentsFuncs;
     use Functions\AiMasterFuncs;
     use Functions\AiTelefonyFuncs;
+    use Functions\AiAntigravityFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -58,7 +52,8 @@ class AIFunctionsRegistry
             self::getAiMarketingNewsletterFuncsSchema(),
             self::getAiMarketingVoucherFuncsSchema(),
             self::getAiMarketingBlogFuncsSchema(),
-            self::getAiSalesFuncsSchema(),
+            self::getAiOrderFuncsSchema(),
+            self::getAiCommunicationFuncsSchema(),
             self::getAiFinanceFuncsSchema(),
             self::getAiScoutFuncsSchema(),
             self::getAiHealthFuncsSchema(),
@@ -68,17 +63,11 @@ class AIFunctionsRegistry
             self::getAiBrainFuncsSchema(),
             self::getAiMailFuncsSchema(),
             self::getAiContactFuncsSchema(),
-            self::getAiProductAnalyticsFuncsSchema(),
-            self::getAiProductFractureFuncsSchema(),
-            self::getAiProductCreateFuncsSchema(),
-            self::getAiSuppliersFuncsSchema(),
-            self::getAiProductTemplatesFuncsSchema(),
-            self::getAiProductControlReviewsFuncsSchema(),
-            self::getAiProductNicheScannerFuncsSchema(),
-            self::getAiProductPackagingConfiguratorFuncsSchema(),
+            self::getAiProductFuncsSchema(),
             self::getAiAgentsFuncsSchema(),
             self::getAiMasterFuncsSchema(),
-            self::getAiTelefonyFuncsSchema()
+            self::getAiTelefonyFuncsSchema(),
+            self::getAiAntigravityFuncsSchema()
         );
     }
 

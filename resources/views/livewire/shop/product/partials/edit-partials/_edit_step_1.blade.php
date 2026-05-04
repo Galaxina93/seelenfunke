@@ -223,6 +223,13 @@
                         </select>
                     </div>
                 </div>
+                <div class="md:col-span-2">
+                    <div class="flex items-center gap-2 mb-2 ml-1">
+                        <label class="{{ $labelClassStep1 }} !mb-0 !ml-0">Nachbestell-Link (Lieferant)</label>
+                        @include('components.alerts.info-tooltip', ['key' => 'reorder_url', 'text' => 'Der genaue Link zum Artikel im B2B-Shop des Lieferanten. Wird bei kritischem Lagerbestand angezeigt.'])
+                    </div>
+                    <input type="url" wire:model.live="reorder_url" class="{{ $inputClassStep1 }}" placeholder="z.B. https://b2b.lieferant.de/artikel/123">
+                </div>
             </div>
         </div>
         {{-- Karte 4: Rechtliche Hinweise (Gesetzliche Kennzeichnungen) --}}

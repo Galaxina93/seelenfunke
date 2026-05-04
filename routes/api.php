@@ -18,6 +18,36 @@ require __DIR__ . '/api/auth.php';
 // --- Lokale KI API ---
 require __DIR__ . '/api/ai.php';
 
+// --- Frontend Error Tracking ---
+Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) {
+    try {
+        $data = $request->validate([
+            'message' => 'required|string',
+            'source' => 'nullable|string',
+            'lineno' => 'nullable|integer',
+            'colno' => 'nullable|integer',
+            'url' => 'nullable|string',
+            'userAgent' => 'nullable|string',
+            'type' => 'nullable|string',
+            'stack' => 'nullable|string'
+        ]);
+
+        \App\Models\System\SystemLog::create([
+            'type' => 'frontend_error',
+            'action_id' => 'js_error_' . uniqid(),
+            'title' => 'Frontend ' . ($data['type'] === 'promise_rejection' ? 'Promise Error' : 'JS Error'),
+            'message' => \Illuminate\Support\Str::limit($data['message'], 250),
+            'status' => 'error',
+            'payload' => $data,
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+        return response()->json(['status' => 'ok']);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error'], 500);
+    }
+});
+
 // --- Telegram Webhooks ---
 Route::post('/telegram/webhook/{telegram_token}', [\App\Http\Controllers\Api\TelegramAgentController::class, 'handleWebhook'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);

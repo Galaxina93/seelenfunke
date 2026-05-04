@@ -59,10 +59,7 @@ class AiCompanyStructureSeeder extends Seeder
         AiAgent::whereIn('name', ['Marketi'])->update(['ai_department_id' => $deptMarketing->id]);
         AiAgent::whereIn('name', ['Bestelli'])->update(['ai_department_id' => $deptOrders->id]);
         AiAgent::whereIn('name', ['Buchi'])->update(['ai_department_id' => $deptFinance->id]);
-        AiAgent::whereIn('name', ['Agenti'])->update(['ai_department_id' => $deptAgents->id]);
+        AiAgent::whereIn('name', ['Agenti', 'Dr. Funki'])->update(['ai_department_id' => $deptAgents->id]);
         AiAgent::whereIn('name', ['Systemi'])->update(['ai_department_id' => $deptSystem->id]);
-
-        // Nullify Stabsstelle binding so Dr. Funki acts as a Free Agent in the UI Dropzone
-        AiAgent::whereIn('name', ['Dr. Funki'])->update(['ai_department_id' => null]);
     }
 }

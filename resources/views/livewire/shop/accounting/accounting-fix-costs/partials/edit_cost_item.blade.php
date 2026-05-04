@@ -44,7 +44,7 @@
                 <select wire:model="itemTaxRate" class="{{ $inputClass }} appearance-none cursor-pointer">
                     <option value="0" class="bg-gray-950">0 %</option>
                     <option value="7" class="bg-gray-950">7 %</option>
-                    <option value="19" class="bg-gray-950">19 %</option>
+                    <option value="{{ shop_setting('default_tax_rate', 19) }}" class="bg-gray-950">{{ shop_setting('default_tax_rate', 19) }} %</option>
                 </select>
                 <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-500">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>

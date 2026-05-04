@@ -20,7 +20,8 @@ class ProductSupplierSeeder extends Seeder
                 'email' => '18058928838@163.COM',
                 'phone' => '+86 18058928838', // WhatsApp
                 'website' => 'https://yiwucrystal.en.alibaba.com/',
-                'address' => 'China',
+                'country' => 'China',
+                'country_code' => 'CN',
                 'lead_time_land_days' => 60,
                 'lead_time_air_days' => 12,
                 'shipping_method' => 'land',
@@ -49,7 +50,12 @@ class ProductSupplierSeeder extends Seeder
                 'email' => 'sales03@acegifts.co',
                 'phone' => '+86 18728191915',
                 'website' => '',
-                'address' => "Xipingxianyishugongyipin Co., Ltd.\nBaiyuan Avenue, Henan New Packaging Materials Industrial Park, Commercial Zone D, No. 1-83\nXiping County 463900\nHenan Province, Zhumadian City\nChina",
+                'company_name' => 'Xipingxianyishugongyipin Co., Ltd.',
+                'street' => 'Baiyuan Avenue, Henan New Packaging Materials Industrial Park, Commercial Zone D, No. 1-83',
+                'zip' => '463900',
+                'city' => 'Zhumadian City (Henan Province)',
+                'country' => 'China',
+                'country_code' => 'CN',
                 'lead_time_land_days' => 14,
                 'shipping_method' => 'land',
                 'notes' => 'Registrierungsnummer: 91411721MAK6AACC5E (Staatliche Behörde für Marktregulierung)',
@@ -65,8 +71,31 @@ class ProductSupplierSeeder extends Seeder
                 'email' => '',
                 'phone' => '',
                 'website' => 'https://www.amazon.de/stores/Sendez/page/D6F1430E-D320-4385-8EDB-3D3F82362222?lp_asin=B0D6RHB544&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto&bl_grd_status=override',
-                'address' => 'Amazon Händler',
+                'notes' => 'Amazon Händler',
+                'country_code' => 'DE',
                 'lead_time_land_days' => 5,
+                'shipping_method' => 'land',
+                'dynamic_links' => [],
+            ]
+        );
+
+        // 4. HÄNDLER 4: Mambocat
+        ProductSupplier::firstOrCreate(
+            ['name' => 'Mambocat'],
+            [
+                'company_name' => 'Mambocat',
+                'contact_person' => 'Steffanie Prüße',
+                'street' => 'Zur Finkenkuhle',
+                'house_number' => '54',
+                'zip' => '38259',
+                'city' => 'Salzgitter-Bad',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 5341 2255089',
+                'email' => 'info@mambocat.de',
+                'website' => 'https://www.mambocat.de/',
+                'vat_id' => 'DE274831032',
+                'lead_time_land_days' => 3,
                 'shipping_method' => 'land',
                 'dynamic_links' => [],
             ]

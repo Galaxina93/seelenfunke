@@ -506,6 +506,7 @@
                         'open_losses' => 'Transport-Schäden oder Bruch auf dem Transportweg, die auf Rückerstattung oder Nachsendung warten.',
                         'open_blog_posts' => 'Artikel, die sich momentan im Entwurf befinden oder auf ihre Veröffentlichung warten.',
                         'open_abandoned_carts' => 'Kunden haben ihren Einkaufsprozess abgebrochen. Überprüfe die Warenkörbe und sende ggf. eine Erinnerung.',
+                        'system_logs' => 'Offene System-Fehler und Warnungen, die im Hintergrund-Prozess protokolliert wurden.',
                     ];
 
                     $actionNeeded = [];
@@ -549,6 +550,7 @@
                                     'open_losses' => '/admin/product-fracture',
                                     'open_blog_posts' => '/admin/blog',
                                     'open_abandoned_carts' => '/admin/shopping-carts',
+                                    'system_logs' => '/admin/global-logs',
                                     default => '/admin/dashboard'
                                 };
 

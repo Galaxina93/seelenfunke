@@ -164,14 +164,7 @@ class AiRoleManager extends Component
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
             ),
             $nameProd => array_merge(
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductAnalyticsFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductFractureFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductCreateFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiSuppliersFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductTemplatesFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductControlReviewsFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductNicheScannerFuncsSchema(), 'name'),
-                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductPackagingConfiguratorFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiProductFuncsSchema(), 'name'),
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name')
             ),
             $nameMark => array_merge(
@@ -180,7 +173,7 @@ class AiRoleManager extends Component
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingVoucherFuncsSchema(), 'name'),
                 array_column(\App\Services\AI\AIFunctionsRegistry::getAiMarketingBlogFuncsSchema(), 'name')
             ),
-            $nameOrd => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSalesFuncsSchema(), 'name'),
+            $nameOrd => array_column(\App\Services\AI\AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
             $nameFin => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
             $nameAgents => array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
             $nameSystem => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),

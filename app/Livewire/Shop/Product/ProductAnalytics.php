@@ -187,6 +187,11 @@ class ProductAnalytics extends Component
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
+                    'sku' => $product->sku,
+                    'type' => $product->type,
+                    'brand' => $product->brand,
+                    'product_status' => $product->status,
+                    'short_description' => $product->short_description,
                     'price' => $product->price / 100,
                     'net_price' => $netPrice / 100,
                     'purchase_price' => $purchase / 100,
@@ -204,7 +209,13 @@ class ProductAnalytics extends Component
                     'delivery_days' => $deliveryDays,
                     'status' => $status,
                     'supplier_name' => $product->supplier ? $product->supplier->name : '-',
+                    'supplier' => $product->supplier ? collect($product->supplier->toArray())->except(['created_at', 'updated_at'])->toArray() : null,
+                    'weight' => $product->weight,
                     'packaging_weight' => $product->packaging_weight,
+                    'width' => $product->width,
+                    'height' => $product->height,
+                    'length' => $product->length,
+                    'shipping_class' => $product->shipping_class,
                 ];
             });
 

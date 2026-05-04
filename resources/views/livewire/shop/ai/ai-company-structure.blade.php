@@ -3,7 +3,6 @@
      x-data="{
          pulseLogo: false,
          pulseDept: null,
-         showStaff: false,
          draggedType: null,
          draggedId: null,
          startDrag(e, type, id) {
@@ -89,10 +88,6 @@
                         <div class="bg-gray-950 p-6 sm:px-8 sm:py-6 rounded-3xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all relative text-center"
                              :class="pulseLogo ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-[1.02]' : 'border-gray-800 hover:border-[var(--theme-color-50)]'">
 
-                            <button @click="showStaff = !showStaff" class="absolute top-2 right-2 p-1.5 text-gray-600 hover:text-emerald-400 transition-colors z-20" title="Stabsstelle anzeigen/ausblenden">
-                                <x-heroicon-s-cog-8-tooth class="w-5 h-5 transition-transform" ::class="showStaff ? 'text-emerald-500 rotate-90' : 'hover:rotate-90'" />
-                            </button>
-
                             <img src="/shop/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-[0_0_25px_var(--theme-color-40)] mx-auto mb-2 pointer-events-none">
                             <span class="text-[var(--theme-color)] tracking-widest uppercase font-black text-sm block drop-shadow-md">Headquarters</span>
                             <div class="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -103,71 +98,7 @@
                         </div>
                     </div>
 
-                    {{-- STAFF POSITIONS (Dr. Funki & Co) --}}
-                    <div x-show="showStaff"
-                         x-transition:enter="transition-all ease-out duration-500"
-                         x-transition:enter-start="opacity-0 -translate-x-12 scale-90"
-                         x-transition:enter-end="opacity-100 translate-x-0 scale-100"
-                         x-transition:leave="transition-all ease-in duration-300"
-                         x-transition:leave-start="opacity-100 translate-x-0 scale-100"
-                         x-transition:leave-end="opacity-0 -translate-x-12 scale-90"
-                         style="display: none;"
-                         class="absolute left-[calc(50%+160px)] sm:left-[calc(50%+180px)] top-1/2 -translate-y-1/2 hidden md:flex flex-col items-start z-10 origin-left">
-                        {{-- Connecting Horizontal Line --}}
-                        <div class="absolute -left-8 sm:-left-12 top-1/2 sm:w-[4rem] h-px bg-gray-700 -translate-y-1/2"></div>
-
-                        <div class="bg-black/80 backdrop-blur-xl border border-emerald-500/30 rounded-2xl ml-4 p-4 pt-5 shadow-[0_5px_20px_rgba(0,0,0,0.5)] w-40 sm:w-48 drop-zone relative transition-all"
-                             @dragover="dragOver($event, 'department')"
-                             @dragenter="dragEnter($event, 'department')"
-                             @dragleave="dragLeave"
-                             @drop="drop($event, 'department', 'unassigned')">
-
-                            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-950 border border-emerald-500/50 rounded-full px-3 py-1 shadow-[0_0_15px_rgba(16,185,129,0.3)] text-emerald-500 z-20 flex items-center gap-1 whitespace-nowrap">
-                                <x-heroicon-m-star class="w-3 h-3" />
-                                <span class="text-[9px] font-black uppercase tracking-widest">Stabsstelle</span>
-                            </div>
-
-                            <div class="mt-2 flex flex-col gap-3 min-h-[50px] w-full">
-                                @foreach($freeAgents as $agent)
-                                    <div class="flex flex-col items-center relative w-full group/agent z-10"
-                                         draggable="true"
-                                         @dragstart.stop="startDrag($event, 'agent', '{{ $agent->id }}')"
-                                         @dragend="endDrag">
-
-                                        {{-- Agent Card Mini --}}
-                                        <div class="w-full bg-gray-950/80 border border-gray-800 rounded-xl p-3 flex flex-col items-center gap-2 cursor-grab active:cursor-grabbing hover:border-emerald-500/50 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] transition-all">
-
-                                            <div class="absolute top-1 right-1 flex gap-1 opacity-0 md:group-hover/agent:opacity-100 transition-opacity">
-                                                <button wire:click.stop="editFullAgentDetails('{{ $agent->id }}')" class="p-1 text-gray-500 hover:text-white transition-colors" title="Bearbeiten">
-                                                    <x-heroicon-m-pencil-square class="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-
-                                            <div class="relative w-12 h-12 shrink-0">
-                                                @if($agent->profile_picture)
-                                                    <img src="{{ \Illuminate\Support\Str::startsWith($agent->profile_picture, 'shop/') ? asset($agent->profile_picture) : Storage::url($agent->profile_picture) }}" class="w-full h-full rounded-full object-cover border-2 border-emerald-500/50">
-                                                @else
-                                                    <div class="w-full h-full rounded-full bg-gray-900 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-500">
-                                                        <x-dynamic-component :component="'heroicon-s-' . ($agent->icon ?: 'sparkles')" class="w-5 h-5 pointer-events-none" />
-                                                    </div>
-                                                @endif
-                                            </div>
-                                            <div class="text-center min-w-0 w-full px-1">
-                                                <h4 class="text-[10px] font-bold text-white truncate">{{ $agent->name }}</h4>
-                                                <p class="text-[8px] text-gray-400 truncate uppercase tracking-widest mt-0.5">{{ $agent->role->name ?? 'Keine Rolle' }}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-
-                                <div class="text-[9px] text-gray-600 font-bold uppercase tracking-widest text-center py-2 flex flex-col items-center gap-1 border-2 border-dashed border-gray-800 rounded-xl transition-colors drag-over-target-highlight group-hover:border-emerald-500/30">
-                                    <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
-                                    <span>Agent hier ablegen</span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
-                </div>
 
                 {{-- Vertical Line down from Root --}}
                 @if($departments->count() > 0)
@@ -310,34 +241,7 @@
                                     </div>
                                 @endforeach
 
-                                {{-- Add Agent Dropdown --}}
-                                <div class="w-11/12 mt-2" x-data="{ open: false }">
-                                    <button @click="open = !open" class="w-full border border-dashed border-gray-700 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] text-gray-600 rounded-lg p-3 text-[10px] uppercase tracking-widest transition-all font-bold flex items-center justify-between group">
-                                        <span class="flex items-center gap-2"><x-heroicon-m-plus class="w-3 h-3 group-hover:scale-110 transition-transform" /> Agent Zuweisen</span>
-                                        <x-heroicon-o-chevron-down class="w-3 h-3 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
-                                    </button>
-                                    <div x-show="open" @click.away="open = false" x-transition.opacity class="mt-2 bg-black/90 backdrop-blur-md border border-gray-800 rounded-xl shadow-2xl overflow-hidden z-30 absolute left-0 right-0 w-11/12 mx-auto origin-top text-left">
-                                        <div class="max-h-48 overflow-y-auto custom-scrollbar">
-                                            @forelse($freeAgents as $freeAgent)
-                                                <button wire:click.stop="moveAgent('{{ $freeAgent->id }}', '{{ $dept->id }}')" @click="open = false" class="w-full text-left p-3 text-[10px] text-gray-300 hover:bg-gray-800 hover:text-white border-b border-gray-800/50 flex flex-col transition-colors group">
-                                                    <span class="font-bold text-[var(--theme-color)] group-hover:text-[var(--theme-color)] flex items-center justify-between">
-                                                        {{ $freeAgent->name }}
-                                                        <x-heroicon-o-arrow-right-circle class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                    </span>
-                                                    @if($freeAgent->role)
-                                                        <span class="text-[9px] text-gray-500 truncate mt-1">{{ $freeAgent->role->name }}</span>
-                                                    @endif
-                                                </button>
-                                            @empty
-                                                <div class="p-4 text-[10px] text-gray-500 italic text-center">Keine freien Agenten verfügbar.</div>
-                                            @endforelse
-                                        </div>
-                                        <div class="p-2 border-t border-gray-800">
-                                            <button wire:click.stop="moveAgent('{{ $freeAgent->id ?? null }}', 'unassigned')" class="hidden"></button> {{-- For Drop Handler --}}
-                                            <a href="{{ route('admin.ai.workspace') }}" class="block w-full text-center p-2 text-[9px] font-bold uppercase tracking-widest text-gray-400 hover:bg-[var(--theme-color-10)] hover:text-[var(--theme-color)] rounded transition-colors">Im Manager Erschaffen</a>
-                                        </div>
-                                    </div>
-                                </div>
+                                
                             </div>
 
                         </div>

@@ -255,51 +255,57 @@
     </div>
 
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('capacitySlider', () => ({
-                t1: @entangle('threshold1'),
-                t2: @entangle('threshold2'),
-                t3: @entangle('threshold3'),
-                activeThumb: null,
-                trackWidth: 0,
-                trackLeft: 0,
+        const registerCapacitySlider = () => {
+            if (!Alpine.data('capacitySlider')) {
+                Alpine.data('capacitySlider', () => ({
+                    t1: @entangle('threshold1'),
+                    t2: @entangle('threshold2'),
+                    t3: @entangle('threshold3'),
+                    activeThumb: null,
+                    trackWidth: 0,
+                    trackLeft: 0,
 
-                startDrag(e, thumb) {
-                    this.activeThumb = thumb;
-                    const rect = this.$refs.track.getBoundingClientRect();
-                    this.trackWidth = rect.width;
-                    this.trackLeft = rect.left;
-                    // Disable text selection and ensure Livewire doesn't interfere while dragging
-                    document.body.style.userSelect = 'none';
-                    // Stop event propagation to prevent triggering drag from parents
-                    if(e.stopPropagation) e.stopPropagation();
-                },
+                    startDrag(e, thumb) {
+                        this.activeThumb = thumb;
+                        const rect = this.$refs.track.getBoundingClientRect();
+                        this.trackWidth = rect.width;
+                        this.trackLeft = rect.left;
+                        document.body.style.userSelect = 'none';
+                        if(e.stopPropagation) e.stopPropagation();
+                    },
 
-                drag(e) {
-                    if (!this.activeThumb) return;
-                    let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                    if (!clientX) return;
+                    drag(e) {
+                        if (!this.activeThumb) return;
+                        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                        if (!clientX) return;
 
-                    let percent = ((clientX - this.trackLeft) / this.trackWidth) * 100;
-                    percent = Math.max(0, Math.min(100, Math.round(percent)));
+                        let percent = ((clientX - this.trackLeft) / this.trackWidth) * 100;
+                        percent = Math.max(0, Math.min(100, Math.round(percent)));
 
-                    if (this.activeThumb === 't1') {
-                        this.t1 = Math.min(percent, this.t2 - 2); // 2% minimum distance
-                    } else if (this.activeThumb === 't2') {
-                        this.t2 = Math.max(this.t1 + 2, Math.min(percent, this.t3 - 2));
-                    } else if (this.activeThumb === 't3') {
-                        this.t3 = Math.max(this.t2 + 2, Math.min(percent, 99)); // keep it under 100
+                        if (this.activeThumb === 't1') {
+                            this.t1 = Math.min(percent, this.t2 - 2); 
+                        } else if (this.activeThumb === 't2') {
+                            this.t2 = Math.max(this.t1 + 2, Math.min(percent, this.t3 - 2));
+                        } else if (this.activeThumb === 't3') {
+                            this.t3 = Math.max(this.t2 + 2, Math.min(percent, 99)); 
+                        }
+                    },
+
+                    stopDrag() {
+                        if (this.activeThumb) {
+                            this.$wire.updateThresholds(this.t1, this.t2, this.t3);
+                            this.activeThumb = null;
+                            document.body.style.userSelect = '';
+                        }
                     }
-                },
+                }));
+            }
+        };
 
-                stopDrag() {
-                    if (this.activeThumb) {
-                        this.$wire.updateThresholds(this.t1, this.t2, this.t3);
-                        this.activeThumb = null;
-                        document.body.style.userSelect = '';
-                    }
-                }
-            }))
-        })
+        if (window.Alpine) {
+            registerCapacitySlider();
+        } else {
+            document.addEventListener('alpine:init', registerCapacitySlider);
+        }
     </script>
 </div>

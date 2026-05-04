@@ -19,6 +19,7 @@
             }
         });
     </script>
+    @include("components.layouts.partials.frontend-error-tracker")
 </head>
 
 @php

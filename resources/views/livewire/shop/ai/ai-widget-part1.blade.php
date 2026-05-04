@@ -6,6 +6,7 @@
      @funki-force-stop.window="stopSpeech()"
      @ai-speech-feedback.window="speakFeedback($event.detail.text)"
      @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId)"
+     @ai-switch-agent.window="$wire.set('agentId', $event.detail.agent_id)"
      @keyup.escape.window="closeFunkiView()"
      @change="$wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId })">
 

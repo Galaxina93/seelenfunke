@@ -24,6 +24,7 @@
         });
     </script>
 
+    @include("components.layouts.partials.frontend-error-tracker")
 </head>
 <body class="min-h-screen bg-gray-950 font-sans text-gray-300 antialiased relative overflow-x-hidden" x-data="universeLayout()" x-init="init()">
 

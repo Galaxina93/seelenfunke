@@ -239,6 +239,22 @@ trait AiFinanceFuncs
                         'category' => [
                             'type' => 'string',
                             'description' => 'Neue Kategorie.'
+                        ],
+                        'invoice_number' => [
+                            'type' => 'string',
+                            'description' => 'Neue Rechnungsnummer.'
+                        ],
+                        'execution_date' => [
+                            'type' => 'string',
+                            'description' => 'Neues Datum im Format YYYY-MM-DD.'
+                        ],
+                        'is_business' => [
+                            'type' => 'boolean',
+                            'description' => 'Gewerblich (True) oder Privat (False).'
+                        ],
+                        'tax_rate' => [
+                            'type' => 'number',
+                            'description' => 'Steuersatz in Prozent (z.B. 19 oder 7).'
                         ]
                     ],
                     'required' => ['id']
@@ -377,13 +393,15 @@ trait AiFinanceFuncs
                 ->get()
                 ->map(function ($item) {
                     return [
+                        'id' => $item->id,
                         'type' => 'Sonderausgabe',
                         'title' => $item->title,
                         'amount' => $item->amount,
                         'category' => $item->category,
                         'date' => $item->execution_date->format('Y-m-d'),
                         'is_business' => (bool)$item->is_business,
-                        'tax_rate' => $item->tax_rate
+                        'tax_rate' => $item->tax_rate,
+                        'invoice_number' => $item->invoice_number
                     ];
                 });
 
@@ -397,13 +415,15 @@ trait AiFinanceFuncs
                     ->get()
                     ->map(function ($tx) {
                         return [
+                            'id' => $tx->id,
                             'type' => 'Banktransaktion',
                             'title' => $tx->counterpart_name ?? $tx->purpose ?? 'Unbekannt',
                             'amount' => $tx->amount,
                             'category' => $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges',
                             'date' => \Carbon\Carbon::parse($tx->transaction_date)->format('Y-m-d'),
                             'is_business' => (bool)($tx->is_business ?? ($tx->account ? $tx->account->is_business : false)),
-                            'tax_rate' => 0
+                            'tax_rate' => 0,
+                            'invoice_number' => null
                         ];
                     });
             }
@@ -584,7 +604,10 @@ trait AiFinanceFuncs
                 $searchTerm = '%' . $args['query'] . '%';
                 $query->where(function ($q) use ($searchTerm) {
                     $q->where('title', 'LIKE', $searchTerm)
-                      ->orWhere('category', 'LIKE', $searchTerm);
+                      ->orWhere('category', 'LIKE', $searchTerm)
+                      ->orWhere('invoice_number', 'LIKE', $searchTerm)
+                      ->orWhere('amount', 'LIKE', $searchTerm)
+                      ->orWhere('execution_date', 'LIKE', $searchTerm);
                 });
             }
 
@@ -602,7 +625,9 @@ trait AiFinanceFuncs
                     'amount' => $i->amount,
                     'category' => $i->category,
                     'date' => $i->execution_date->format('Y-m-d'),
-                    'is_business' => $i->is_business
+                    'is_business' => $i->is_business,
+                    'tax_rate' => $i->tax_rate,
+                    'invoice_number' => $i->invoice_number
                 ];
             });
 
@@ -636,6 +661,18 @@ trait AiFinanceFuncs
             if (isset($args['category'])) {
                 $entry->category = $args['category'];
             }
+            if (array_key_exists('invoice_number', $args)) {
+                $entry->invoice_number = $args['invoice_number'];
+            }
+            if (isset($args['execution_date'])) {
+                $entry->execution_date = $args['execution_date'];
+            }
+            if (isset($args['is_business'])) {
+                $entry->is_business = $args['is_business'];
+            }
+            if (array_key_exists('tax_rate', $args)) {
+                $entry->tax_rate = $args['tax_rate'];
+            }
 
             $entry->save();
 
@@ -646,7 +683,11 @@ trait AiFinanceFuncs
                     'id' => $entry->id,
                     'title' => $entry->title,
                     'amount' => $entry->amount,
-                    'category' => $entry->category
+                    'category' => $entry->category,
+                    'invoice_number' => $entry->invoice_number,
+                    'execution_date' => $entry->execution_date->format('Y-m-d'),
+                    'is_business' => $entry->is_business,
+                    'tax_rate' => $entry->tax_rate
                 ]
             ];
         } catch (\Throwable $e) {

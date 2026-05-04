@@ -74,6 +74,7 @@ class GeminiAgent implements AiProviderInterface
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
         $systemPromptText .= $roleInfo . "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
                              "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Benutzerin immer nur locker mit 'Alina' oder 'Hey Alina' an!\n" .
+                             "DELEGATIONSREGEL: Wenn dir Alina eine Aufgabe oder Frage gibt, für die dir das passende Werkzeug fehlt, darfst du dich NICHT hilflos entschuldigen! Nutze direkt 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen und ihr sofort die Antwort zu präsentieren. Alternativ: Nutze 'system_switch_agent', um Alina komplett an den passenden Agenten abzugeben!\n" .
                              'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .
                              'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n" .
                              'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
@@ -190,6 +191,7 @@ class GeminiAgent implements AiProviderInterface
         }
         $globalSchema = AIFunctionsRegistry::getSchema();
         $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
+
         $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers) {
             return in_array($t['function']['name'] ?? '', $allowedIdentifiers);
         }));
@@ -741,6 +743,12 @@ class GeminiAgent implements AiProviderInterface
                     if (isset($result['_frontend_event'])) {
                         $eventsData[] = $result['_frontend_event'];
                         unset($result['_frontend_event']); // Hide from LLM context to save tokens
+                    }
+                    if (isset($result['_frontend_events']) && is_array($result['_frontend_events'])) {
+                        foreach ($result['_frontend_events'] as $evt) {
+                            $eventsData[] = $evt;
+                        }
+                        unset($result['_frontend_events']);
                     }
 
 

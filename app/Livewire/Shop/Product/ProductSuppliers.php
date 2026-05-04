@@ -19,12 +19,37 @@ class ProductSuppliers extends Component
 
     // Form fields
     public $name;
+    public $company_name;
+    
+    // Address Data
+    public $street;
+    public $house_number;
+    public $zip;
+    public $city;
+    public $country;
+    public $country_code;
+    
+    // Contact Data
     public $contact_person;
     public $email;
     public $phone;
     public $website;
-    public $address;
     public $notes;
+    
+    // Business Data
+    public $tax_id;
+    public $vat_id;
+    public $bank_name;
+    public $iban;
+    public $bic;
+    public $customer_number;
+    
+    // Conditions
+    public $payment_terms;
+    public $minimum_order_value; // in Cent
+    public $shipping_costs; // in Cent
+
+    // Lead times & Logistics
     public $lead_time_land_days;
     public $lead_time_air_days;
     public $lead_time_sea_days;
@@ -39,12 +64,27 @@ class ProductSuppliers extends Component
 
     protected $rules = [
         'name' => 'required|string|max:255',
+        'company_name' => 'nullable|string|max:255',
+        'street' => 'nullable|string|max:255',
+        'house_number' => 'nullable|string|max:255',
+        'zip' => 'nullable|string|max:255',
+        'city' => 'nullable|string|max:255',
+        'country' => 'nullable|string|max:255',
+        'country_code' => 'nullable|string|max:2',
         'contact_person' => 'nullable|string|max:255',
         'email' => 'nullable|email|max:255',
         'phone' => 'nullable|string|max:255',
         'website' => 'nullable|url|max:255',
-        'address' => 'nullable|string',
         'notes' => 'nullable|string',
+        'tax_id' => 'nullable|string|max:255',
+        'vat_id' => 'nullable|string|max:255',
+        'bank_name' => 'nullable|string|max:255',
+        'iban' => 'nullable|string|max:255',
+        'bic' => 'nullable|string|max:255',
+        'customer_number' => 'nullable|string|max:255',
+        'payment_terms' => 'nullable|string|max:255',
+        'minimum_order_value' => 'nullable|integer|min:0',
+        'shipping_costs' => 'nullable|integer|min:0',
         'lead_time_land_days' => 'nullable|integer|min:0',
         'lead_time_air_days' => 'nullable|integer|min:0',
         'lead_time_sea_days' => 'nullable|integer|min:0',
@@ -62,7 +102,7 @@ class ProductSuppliers extends Component
 
     public function loadSuppliers()
     {
-        $this->suppliers = ProductSupplier::orderBy('name')->get();
+        $this->suppliers = ProductSupplier::with('products')->orderBy('name')->get();
     }
 
     public function create()
@@ -78,12 +118,28 @@ class ProductSuppliers extends Component
         
         $this->editingId = $supplier->id;
         $this->name = $supplier->name;
+        $this->company_name = $supplier->company_name;
+        $this->street = $supplier->street;
+        $this->house_number = $supplier->house_number;
+        $this->zip = $supplier->zip;
+        $this->city = $supplier->city;
+        $this->country = $supplier->country;
+        $this->country_code = $supplier->country_code;
         $this->contact_person = $supplier->contact_person;
         $this->email = $supplier->email;
         $this->phone = $supplier->phone;
         $this->website = $supplier->website;
-        $this->address = $supplier->address;
         $this->notes = $supplier->notes;
+        $this->tax_id = $supplier->tax_id;
+        $this->vat_id = $supplier->vat_id;
+        $this->bank_name = $supplier->bank_name;
+        $this->iban = $supplier->iban;
+        $this->bic = $supplier->bic;
+        $this->customer_number = $supplier->customer_number;
+        $this->payment_terms = $supplier->payment_terms;
+        $this->minimum_order_value = $supplier->minimum_order_value;
+        $this->shipping_costs = $supplier->shipping_costs;
+        
         $this->lead_time_land_days = $supplier->lead_time_land_days;
         $this->lead_time_air_days = $supplier->lead_time_air_days;
         $this->lead_time_sea_days = $supplier->lead_time_sea_days;
@@ -107,12 +163,27 @@ class ProductSuppliers extends Component
 
         $data = [
             'name' => $this->name,
+            'company_name' => $this->company_name,
+            'street' => $this->street,
+            'house_number' => $this->house_number,
+            'zip' => $this->zip,
+            'city' => $this->city,
+            'country' => $this->country,
+            'country_code' => $this->country_code,
             'contact_person' => $this->contact_person,
             'email' => $this->email,
             'phone' => $this->phone,
             'website' => $this->website,
-            'address' => $this->address,
             'notes' => $this->notes,
+            'tax_id' => $this->tax_id,
+            'vat_id' => $this->vat_id,
+            'bank_name' => $this->bank_name,
+            'iban' => $this->iban,
+            'bic' => $this->bic,
+            'customer_number' => $this->customer_number,
+            'payment_terms' => $this->payment_terms,
+            'minimum_order_value' => $this->minimum_order_value,
+            'shipping_costs' => $this->shipping_costs,
             'lead_time_land_days' => $this->lead_time_land_days,
             'lead_time_air_days' => $this->lead_time_air_days,
             'lead_time_sea_days' => $this->lead_time_sea_days,
@@ -153,7 +224,14 @@ class ProductSuppliers extends Component
 
     public function resetForm()
     {
-        $this->reset(['name', 'contact_person', 'email', 'phone', 'website', 'address', 'notes', 'lead_time_land_days', 'lead_time_air_days', 'lead_time_sea_days', 'lead_time_train_days', 'shipping_method', 'dynamic_links', 'editingId']);
+        $this->reset([
+            'name', 'company_name', 'street', 'house_number', 'zip', 'city', 'country', 'country_code',
+            'contact_person', 'email', 'phone', 'website', 'notes',
+            'tax_id', 'vat_id', 'bank_name', 'iban', 'bic', 'customer_number',
+            'payment_terms', 'minimum_order_value', 'shipping_costs',
+            'lead_time_land_days', 'lead_time_air_days', 'lead_time_sea_days', 'lead_time_train_days', 
+            'shipping_method', 'dynamic_links', 'editingId'
+        ]);
         $this->shipping_method = 'land';
         $this->dynamic_links = [];
         $this->showModal = false;

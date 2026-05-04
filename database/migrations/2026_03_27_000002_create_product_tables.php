@@ -12,12 +12,37 @@ return new class extends Migration
         Schema::create('product_suppliers', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
+            $table->string('company_name')->nullable();
+            
+            // Address Data
+            $table->string('street')->nullable();
+            $table->string('house_number')->nullable();
+            $table->string('zip')->nullable();
+            $table->string('city')->nullable();
+            $table->string('country')->nullable();
+            $table->string('country_code', 2)->nullable(); // For Flag UI (e.g. DE, CN)
+            
+            // Contact Data
             $table->string('contact_person')->nullable();
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
             $table->string('website')->nullable();
-            $table->text('address')->nullable();
             $table->text('notes')->nullable();
+            
+            // Business Data
+            $table->string('tax_id')->nullable();
+            $table->string('vat_id')->nullable();
+            $table->string('bank_name')->nullable();
+            $table->string('iban')->nullable();
+            $table->string('bic')->nullable();
+            $table->string('customer_number')->nullable();
+            
+            // Conditions
+            $table->string('payment_terms')->nullable();
+            $table->integer('minimum_order_value')->nullable(); // in Cent
+            $table->integer('shipping_costs')->nullable(); // in Cent
+            
+            // Lead times & Logistics
             $table->integer('lead_time_land_days')->nullable();
             $table->integer('lead_time_air_days')->nullable();
             $table->integer('lead_time_sea_days')->nullable();
@@ -46,7 +71,7 @@ return new class extends Migration
             $table->string('tax_class')->default('standard');
 
             $table->foreignUuid('product_supplier_id')->nullable()->constrained('product_suppliers')->nullOnDelete();
-            
+            $table->string('reorder_url', 1024)->nullable();            
             $table->string('sku')->nullable()->unique();
             $table->string('barcode')->nullable();
             $table->string('brand')->nullable();

@@ -174,21 +174,24 @@
                                 <td class="px-6 sm:px-8 py-4 text-right align-top">
                                     <div class="flex justify-end items-center gap-3 mt-1">
                                         @if($log->status === 'success')
-                                            <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">SUCCESS</span>
+                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:bg-emerald-500/20 transition-colors">GELÖST</button>
                                         @elseif($log->status === 'running')
                                             <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-sky-500/30 bg-sky-500/10 text-sky-400 flex items-center gap-2">
                                                 <span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping"></span> EXECUTING
                                             </span>
                                         @elseif($log->status === 'error')
-                                            <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/30 bg-red-500/10 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.1)] flex items-center gap-1.5">
+                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/30 bg-red-500/10 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.1)] flex items-center gap-1.5 hover:bg-red-500/20 transition-colors">
                                                 FEHLER
                                                 @if($log->error_count > 1)
                                                     <span class="bg-red-500 text-white rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $log->error_count }}x</span>
                                                 @endif
-                                            </span>
+                                            </button>
                                         @else
                                             <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-700 bg-gray-800 text-gray-400">{{ strtoupper($log->status) }}</span>
                                         @endif
+                                        <button wire:click.stop="deleteLog({{ $log->id }})" wire:confirm="Bist du sicher, dass du diesen Log endgültig löschen möchtest?" class="p-1 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Löschen">
+                                            <x-heroicon-o-trash class="w-4 h-4" />
+                                        </button>
                                         <x-heroicon-m-chevron-down class="w-4 h-4 text-gray-600 transition-transform group-hover:text-gray-400" x-bind:class="expanded ? 'rotate-180 text-[var(--theme-color)]' : ''" />
                                     </div>
                                 </td>
@@ -201,11 +204,7 @@
                                                 <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2"><x-heroicon-o-document-text class="w-3.5 h-3.5" /> Nachrichten-Trace</div>
                                                 <div class="text-xs text-gray-300 whitespace-pre-wrap break-all p-4 bg-black rounded-xl border border-gray-800 shadow-inner font-mono leading-relaxed">{{ $log->message }}</div>
                                             </div>
-                                            @if($log->status === 'error')
-                                                <button wire:click.stop="markAsResolved({{ $log->id }})" class="sm:mt-8 shrink-0 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner transition-colors flex items-center gap-2">
-                                                    <x-heroicon-o-check-circle class="w-4 h-4" /> Als Gelöst markieren
-                                                </button>
-                                            @endif
+
                                         </div>
 
                                         @if($log->payload)

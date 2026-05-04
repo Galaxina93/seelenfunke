@@ -42,7 +42,36 @@ class AnalyticsService
             'open_mails' => $this->checkMails(),
             'storage' => $this->checkStorage(),
             'open_abandoned_carts' => $this->checkAbandonedCarts(),
+            'system_logs' => $this->checkSystemLogs(),
         ]);
+    }
+
+    private function checkSystemLogs(): ?array
+    {
+        if (!class_exists(\App\Models\System\SystemLog::class)) return null;
+        $totalLogs = \App\Models\System\SystemLog::count();
+        $unresolvedLogsQuery = \App\Models\System\SystemLog::where('status', 'error');
+        $unresolvedLogsCount = $unresolvedLogsQuery->count();
+        
+        $status = $unresolvedLogsCount > 0 ? 'error' : 'success';
+        $msg = $unresolvedLogsCount > 0 ? $unresolvedLogsCount . ' ungelöste Fehler' : 'Alles fehlerfrei';
+        if ($totalLogs === 0) { $msg = 'Keine System-Logs vorhanden'; $status = 'success'; }
+
+        return [
+            'status' => $status,
+            'icon' => 'command-line',
+            'title' => 'Log',
+            'message' => $msg,
+            'count' => $unresolvedLogsCount,
+            'data' => $unresolvedLogsQuery->latest()->take(5)->get()->map(function($log) {
+                return [
+                    'id' => $log->id,
+                    'title' => $log->title,
+                    'type' => $log->type,
+                    'created_at' => $log->created_at->format('d.m. H:i')
+                ];
+            })->toArray()
+        ];
     }
 
     private function checkAbandonedCarts(): ?array

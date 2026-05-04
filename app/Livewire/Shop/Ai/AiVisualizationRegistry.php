@@ -57,6 +57,14 @@ class AiVisualizationRegistry extends Component
                 'Code Viewer' => 'livewire.shop.ai.blocks.code-viewer'
             ],
             'status' => 'active'
+        ],
+        'supplier' => [
+            'name' => 'Lieferanten & Händler',
+            'description' => 'Zeigt die detaillierte Profilkarte eines Lieferanten inklusive Produkte, Logistik-Infos und Kontaktwegen.',
+            'views' => [
+                'Profil-Karte' => 'livewire.shop.ai.blocks.supplier-profile'
+            ],
+            'status' => 'active'
         ]
     ];
 

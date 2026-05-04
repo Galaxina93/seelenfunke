@@ -18,7 +18,6 @@ class AiCompanyStructure extends Component
 
     public string $themingDepartment = 'Agenten';
     public $departments = [];
-    public $staffAgents = [];
     public $viewMode = 'tree'; 
     public $editingId = null;
 
@@ -56,7 +55,6 @@ class AiCompanyStructure extends Component
     public function loadStructure()
     {
         $this->departments = AiDepartment::with(['agents.role'])->orderBy('order_index')->get();
-        $this->staffAgents = AiAgent::whereNull('ai_department_id')->with('role')->orderBy('name')->get();
     }
 
     public function showSuccess()
@@ -121,9 +119,6 @@ class AiCompanyStructure extends Component
     {
         $dept = AiDepartment::findOrFail($id);
         
-        // Agenten in die Stabsstelle verschieben (unassigned)
-        AiAgent::where('ai_department_id', $id)->update(['ai_department_id' => null]);
-        
         $dept->delete();
         
         $this->closeEditor();
@@ -162,8 +157,7 @@ class AiCompanyStructure extends Component
 
     public function moveAgent($agentId, $targetDeptId)
     {
-        $deptId = $targetDeptId === 'unassigned' ? null : $targetDeptId;
-        AiAgent::where('id', $agentId)->update(['ai_department_id' => $deptId]);
+        AiAgent::where('id', $agentId)->update(['ai_department_id' => $targetDeptId]);
         $this->loadStructure();
         $this->dispatch('structure-updated');
     }
@@ -177,10 +171,6 @@ class AiCompanyStructure extends Component
 
     public function render()
     {
-        $freeAgents = AiAgent::whereNull('ai_department_id')->with('role')->orderBy('name')->get();
-
-        return view('livewire.shop.ai.ai-company-structure', [
-            'freeAgents' => $freeAgents
-        ]);
+        return view('livewire.shop.ai.ai-company-structure');
     }
 }

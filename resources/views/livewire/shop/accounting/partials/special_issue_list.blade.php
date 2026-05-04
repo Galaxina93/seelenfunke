@@ -3,6 +3,11 @@
     {{-- Volle Breite: Tabelle & Header --}}
     <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden w-full">
 
+        {{-- Schnellerfassung Sonderausgabe --}}
+        <div class="border-b border-gray-800 bg-gray-900/30">
+            <livewire:shop.accounting.accounting-quick-entry />
+        </div>
+
         {{-- Neuer Kompakter Header mit integriertem Chart --}}
         <div class="p-6 md:p-8 border-b border-gray-800 bg-gray-950 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 shadow-inner w-full">
 

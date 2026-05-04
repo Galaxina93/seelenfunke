@@ -61,6 +61,7 @@
             }
         });
     </script>
+    @include("components.layouts.partials.frontend-error-tracker")
 </head>
 
 <body class="min-h-screen overflow-x-hidden antialiased">
@@ -82,6 +83,8 @@
 
 {{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
 {{-- FunkiChat removed as per request --}}
+
+@livewire('shop.ai.ai-data-visualization')
 
 @livewireScripts
 </body>

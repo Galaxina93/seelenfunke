@@ -1,4 +1,29 @@
 <script>
+    window.addEventListener('ai-trigger-ui-element', (e) => {
+        const text = e.detail?.text?.toLowerCase();
+        if (!text) return;
+        const elements = Array.from(document.querySelectorAll('button, a, summary, .cursor-pointer, [role="button"], [wire\\:click], [x-on\\:click]'));
+        const found = elements.find(el => el.textContent.toLowerCase().includes(text) && el.offsetParent !== null);
+        if (found) {
+            found.click();
+        } else {
+            console.warn('AI Trigger: UI element not found for text:', text);
+        }
+    });
+
+    window.addEventListener('download-file', (e) => {
+        const { url, filename } = e.detail;
+        if (url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'download.pdf';
+            a.target = '_blank'; // Fallback for some browsers to open in new tab
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    });
+
     document.addEventListener('alpine:init', () => {
         let t3 = {
             scene: null,
@@ -296,7 +321,11 @@
                                         window.location.href = evt.url;
                                     }, 400);
                                 } else if (evt.type === 'dispatch') {
-                                    window.dispatchEvent(new Event(evt.name));
+                                    if (evt.detail !== undefined) {
+                                        window.dispatchEvent(new CustomEvent(evt.name, { detail: evt.detail }));
+                                    } else {
+                                        window.dispatchEvent(new Event(evt.name));
+                                    }
                                 }
                             });
                         }
@@ -834,13 +863,14 @@
 
             async startMicrophone() {
                 try {
-                    // Zurück zum Standard (mit echoCancellation), damit die iOS Hardware nicht crasht
+                    // Zurück zum Standard ohne echoCancellation, damit die iOS Hardware nicht crasht
                     this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
                         channelCount: 1,
                         sampleRate: 16000,
-                        echoCancellation: true,
-                        noiseSuppression: true
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
                     } });
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
@@ -883,8 +913,8 @@
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
                     
-                    // Parallele Spracherkennung deaktiviert, um Hardware-Konflikte ('Dudumm'-Geräusch) auf Mobilgeräten zu vermeiden
-                    // this.startSpeechRecognition();
+                    // Parallele Spracherkennung WIEDER AKTIVIERT (Audio-Flags oben auf false gesetzt, um Hardware-Konflikte ('Dudumm'-Geräusch) auf Mobilgeräten zu vermeiden)
+                    this.startSpeechRecognition();
 
                 } catch (err) {
                     console.error('Mikrofon Fehler:', err);

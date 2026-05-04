@@ -19,4 +19,8 @@ class ProductSupplier extends Model
         'lead_time_sea_days' => 'integer',
         'lead_time_train_days' => 'integer',
     ];
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
 }

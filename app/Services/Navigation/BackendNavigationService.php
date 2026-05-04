@@ -66,7 +66,7 @@ class BackendNavigationService
                         'children' => [
                             ['id' => 'product-analytics', 'title' => 'Analyse', 'route' => '/admin/product-analytics', 'icon' => 'chart-pie'],
                             ['id' => 'product-fracture', 'title' => 'Schaden', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
-                            ['id' => 'products', 'title' => 'Produkte', 'route' => '/admin/products', 'icon' => 'cube'],
+                            ['id' => 'products', 'title' => 'Produktübersicht', 'route' => '/admin/products', 'icon' => 'cube'],
                             ['id' => 'product-templates', 'title' => 'Vorlagen', 'route' => '/admin/product-templates', 'icon' => 'clipboard-document-list'],
                             ['id' => 'product-suppliers', 'title' => 'Lieferanten', 'route' => '/admin/product-suppliers', 'icon' => 'truck'],
                             ['id' => 'reviews', 'title' => 'Bewertungen', 'route' => '/admin/reviews', 'icon' => 'star'],

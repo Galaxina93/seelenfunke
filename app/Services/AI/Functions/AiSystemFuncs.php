@@ -22,25 +22,6 @@ trait AiSystemFuncs
 
         $schema = [
             [
-                'name' => 'system_ask_agent',
-                'description' => 'Frage einen anderen hochspezialisierten KI-Agenten um Hilfe, wenn du eine Aufgabe nicht selbst lösen kannst oder dir eine Fähigkeit fehlt. Folgende Agenten und ihre Tools stehen zur Verfügung: ' . $agentMap,
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'agent_name' => [
-                            'type' => 'string',
-                            'description' => 'Der exakte Name des Agenten, den du fragen möchtest.'
-                        ],
-                        'question' => [
-                            'type' => 'string',
-                            'description' => 'Deine detaillierte Frage oder Arbeitsanweisung an den Agenten.'
-                        ]
-                    ],
-                    'required' => ['agent_name', 'question']
-                ],
-                'callable' => [self::class, 'executeAskAgent']
-            ],
-            [
                 'name' => 'system_call_contact',
                 'description' => 'Führt einen KI-Sprachanruf bei einem Kontakt durch (z.B. über Vapi.ai oder Twilio).',
                 'parameters' => [
@@ -108,6 +89,15 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeSwitchAgent']
             ],
             [
+                'name' => 'system_create_database_backup',
+                'description' => 'Erstellt ein manuelles und asynchrones System-Backup der Datenbank. Benutze dieses Tool, wenn der Nutzer ausdrücklich ein Backup der Datenbank wünscht.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeCreateDatabaseBackup']
+            ],
+            [
                 'name' => 'system_execute_command',
                 'description' => 'Führt sichere Systemwartungs-Befehle aus (z.B. Cache leeren, Backups machen, Tests ausführen, Mails verarbeiten). Nutze dies, wenn der Nutzer dich bittet "Leere den Cache", "Mach ein Backup" oder "Starte den Mail-Worker".',
                 'parameters' => [
@@ -140,7 +130,7 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_open_nav_item',
-                'description' => 'Navigiert das Dashboard auf eine bestimmte Unterseite. WICHTIG: Erkenne den natürlichsprachlichen Wunsch (z.B. "wo ich Gutschriften hinterlegen kann" -> /admin/credit-management, "Belege hinterlegen" -> /admin/financial-variable-costs) und wähle die EXAKTE URL aus folgenden Optionen:' . "\n" . \App\Services\Navigation\BackendNavigationService::getAiNavigationPrompt(),
+                'description' => 'Öffnet, aktualisiert, navigiert oder lädt eine bestimmte Unterseite im Dashboard neu. WICHTIG: Nutze dieses Tool IMMER, wenn der Nutzer eine Seite "öffnen", "neu laden", "refreshen" oder "anzeigen" möchte. Erkenne den natürlichsprachlichen Wunsch (z.B. "Lade die Seite Log neu", "wo ich Gutschriften hinterlegen kann" -> /admin/credit-management, "Belege hinterlegen" -> /admin/financial-variable-costs) und wähle die EXAKTE URL aus folgenden Optionen:' . "\n" . \App\Services\Navigation\BackendNavigationService::getAiNavigationPrompt(),
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -152,6 +142,83 @@ trait AiSystemFuncs
                     'required' => ['url']
                 ],
                 'callable' => [self::class, 'executeOpenNavItem']
+            ],
+            [
+                'name' => 'system_trigger_ui_element',
+                'description' => 'Löst einen Klick auf ein beliebiges UI-Element (Button, Link, Akkordeon, Tab) im Frontend aus. Benutze dies, wenn der Nutzer sagt "Drücke den Button X" oder "Klappe den Bereich Y auf".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'element_text' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte oder ungefähre sichtbare Text des Elements, das geklickt werden soll (z.B. "Speichern", "Details aufklappen", "Neu laden").'
+                        ]
+                    ],
+                    'required' => ['element_text']
+                ],
+                'callable' => [self::class, 'executeTriggerUiElement']
+            ],
+            [
+                'name' => 'system_generate_pdf_report',
+                'description' => 'Generiert ein PDF-Dokument aus Daten/Tabellen/Texten, die du aufbereitet hast, und bietet es dem Nutzer als direkten Download an oder versendet es per E-Mail. Nutze dies IMMER, wenn der Nutzer fragt "Erstelle mir daraus ein PDF", "Exportiere das als Bericht", "Schick mir das als PDF".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Der Titel des Berichts, z.B. "Fehlerprotokoll Systemi" oder "Finanz-Übersicht".'
+                        ],
+                        'content_markdown' => [
+                            'type' => 'string',
+                            'description' => 'Der eigentliche Inhalt der PDF im Markdown-Format (Tabellen, Listen, Überschriften, Fettgedrucktes).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der PDF. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
+                        ],
+                        'target_action' => [
+                            'type' => 'string',
+                            'description' => 'Was soll mit der generierten PDF passieren? "download" (öffnet Download-Dialog beim Nutzer im Browser), "email" (versendet die PDF per Mail an recipient_email).',
+                            'enum' => ['download', 'email']
+                        ],
+                        'recipient_email' => [
+                            'type' => 'string',
+                            'description' => 'Die E-Mail-Adresse des Empfängers. Wenn der Nutzer keine E-Mail nennt, lasse dieses Feld zwingend leer (null). Das System nutzt dann automatisch die Standard-E-Mail des Admins.'
+                        ]
+                    ],
+                    'required' => ['title', 'content_markdown', 'target_action', 'design']
+                ],
+                'callable' => [self::class, 'executeGeneratePdfReport']
+            ],
+            [
+                'name' => 'system_export_system_report',
+                'description' => 'Generiert einen echten, nativen Systembericht (wie den Buchhaltungs-Export oder den CEO-Master-Report) und lädt diesen herunter, verschickt ihn per Mail oder speichert ihn im internen Datei-Manager. Nutze dies, wenn explizit der UStVA-Export, Finanz-Export, oder CEO-Report gewünscht wird.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'report_type' => [
+                            'type' => 'string',
+                            'description' => 'Welcher Bericht generiert werden soll. "tax_export" (Buchhaltungs-Export für Steuerbüro/UStVA als CSV) oder "ceo_report" (Der Master-Analytics CEO-Report als PDF).',
+                            'enum' => ['tax_export', 'ceo_report']
+                        ],
+                        'target_action' => [
+                            'type' => 'string',
+                            'description' => 'Was soll mit der Datei passieren? "download" (Browser-Download), "email" (Versand an E-Mail), oder "save_to_workspace" (Speichern im lokalen Datei-Manager).',
+                            'enum' => ['download', 'email', 'save_to_workspace']
+                        ],
+                        'recipient_email' => [
+                            'type' => 'string',
+                            'description' => 'Die Empfängeradresse. Wenn der Nutzer keine E-Mail nennt, lasse dieses Feld zwingend leer (null). Das System sendet es dann an die Standard-Admin-E-Mail.'
+                        ],
+                        'target_folder_name' => [
+                            'type' => 'string',
+                            'description' => 'Optional, wenn target_action = "save_to_workspace". Name des Unterordners (z.B. "buchhaltung_2026"). Standard ist Hauptordner.'
+                        ]
+                    ],
+                    'required' => ['report_type', 'target_action']
+                ],
+                'callable' => [self::class, 'executeExportSystemReport']
             ],
             [
                 'name' => 'system_open_zentrum',
@@ -224,6 +291,55 @@ trait AiSystemFuncs
                     'properties' => new \stdClass(),
                 ],
                 'callable' => [self::class, 'executeGetSystemLogs']
+            ],
+            [
+                'name' => 'system_manage_logs',
+                'description' => 'System-Werkzeug zur Verwaltung (Lösen, Fehler markieren oder Löschen) von Logs. WICHTIG FÜR MASSEN-AKTIONEN: Wenn der Benutzer sagt "Lösche alle Fehler die X heißen" oder "Lösche alle frontend_error", dann MUSST du target_scope="all" setzen, action="delete" wählen und den passenden Suchparameter (z.B. search_type="frontend_error" oder error_message_contains="X") übergeben. Nur so werden mehrere Einträge auf einmal gelöscht!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'action' => [
+                            'type' => 'string',
+                            'description' => 'Die Aktion, die ausgeführt werden soll: "resolve" (als gelöst markieren), "set_error" (als Fehler markieren) oder "delete" (komplett aus der Datenbank löschen).',
+                            'enum' => ['resolve', 'set_error', 'delete']
+                        ],
+                        'log_id' => [
+                            'type' => 'integer',
+                            'description' => 'Die exakte ID eines einzelnen Fehler-Logs. (Leer lassen für dynamische Suche).'
+                        ],
+                        'manage_all_similar' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true und eine log_id angegeben ist, wird die Aktion auf ALLE Fehler angewandt, die die exakt gleiche Fehlermeldung haben wie dieser Log.'
+                        ],
+                        'error_message_contains' => [
+                            'type' => 'string',
+                            'description' => 'Wenn keine log_id vorliegt: Wendet die Aktion auf Fehler an, deren Text (Message oder Title) diesen Begriff enthält.'
+                        ],
+                        'search_time' => [
+                            'type' => 'string',
+                            'description' => 'Filtert Logs nach Uhrzeit, z.B. "11:52:49".'
+                        ],
+                        'search_agent' => [
+                            'type' => 'string',
+                            'description' => 'Filtert Logs nach Agent-Name, z.B. "Systemi" oder "Funkira".'
+                        ],
+                        'search_type' => [
+                            'type' => 'string',
+                            'description' => 'Filtert Logs nach Typ, z.B. "ai_tool" oder "system".'
+                        ],
+                        'search_action_id' => [
+                            'type' => 'string',
+                            'description' => 'Filtert Logs nach Aktion, z.B. "ai_tool_..." oder "user:security_update".'
+                        ],
+                        'target_scope' => [
+                            'type' => 'string',
+                            'description' => 'WICHTIG: Bestimmt ob "all" (alle Treffer) oder "latest" (nur der absolut letzte Treffer) behandelt werden soll. Wenn der User sagt "alle" oder "mehrere", MUSST du diesen Wert zwingend auf "all" setzen! Standard ist "latest".',
+                            'enum' => ['all', 'latest']
+                        ]
+                    ],
+                    'required' => ['action']
+                ],
+                'callable' => [self::class, 'executeManageSystemLogs']
             ],
             [
                 'name' => 'system_read_wiki',
@@ -570,6 +686,21 @@ trait AiSystemFuncs
     }
 
 
+    public static function executeCreateDatabaseBackup(array $args)
+    {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
+            $output = \Illuminate\Support\Facades\Artisan::output();
+            return [
+                'status' => 'success',
+                'message' => 'Ein sicheres Datenbank-Backup wurde erfolgreich angestoßen und abgeschlossen.'
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('System Backup Error: ' . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler beim Erstellen des Backups: ' . $e->getMessage()];
+        }
+    }
+
     public static function executeVisualizeData(array $args)
     {
         $category = strtolower($args['category'] ?? 'general');
@@ -610,11 +741,17 @@ trait AiSystemFuncs
         $agent = \App\Models\Ai\AiAgent::where('name', 'LIKE', '%' . $agentName . '%')->first();
         if ($agent) {
             return [
-            'status' => 'success',
-            'action' => 'switch_agent',
-            'agent' => $agent->name,
-            'message' => "Der Kontext wurde erfolgreich an {$agent->name} übergeben."
-        ];
+                'status' => 'success',
+                'message' => "Der Kontext wurde erfolgreich an {$agent->name} übergeben.",
+                'agent_id' => $agent->id,
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-switch-agent',
+                    'detail' => [
+                        'agent_id' => $agent->id
+                    ]
+                ]
+            ];
         }
         return ['status' => 'error', 'message' => 'Agent mit dem Namen ' . $agentName . ' nicht gefunden.'];
     }
@@ -800,44 +937,7 @@ trait AiSystemFuncs
         ];
     }
 
-    public static function executeAskAgent(array $args)
-    {
-        try {
-            $targetAgentName = $args['agent_name'] ?? '';
-            $question = $args['question'] ?? '';
-
-            if (empty($targetAgentName) || empty($question)) {
-                return ['status' => 'error', 'message' => 'Agenten-Name oder Frage fehlt.'];
-            }
-
-            $agent = \App\Models\Ai\AiAgent::where('name', $targetAgentName)->where('is_active', true)->first();
-            if (!$agent) {
-                return ['status' => 'error', 'message' => "Der Agent '{$targetAgentName}' wurde nicht gefunden oder ist inaktiv."];
-            }
-
-            // Instantiate the appropriate agent service based on the model or class
-            $providerClass = \App\Services\AI\GeminiAgent::class; // Default to Gemini
-            if (str_contains(strtolower($agent->model), 'mittwald') || str_contains(strtolower($agent->model), 'llama')) {
-                if (class_exists(\App\Services\AI\MittwaldAgent::class)) {
-                    $providerClass = \App\Services\AI\MittwaldAgent::class;
-                }
-            }
-            
-            $aiService = new $providerClass($agent);
-
-            // Run a sterile ask request
-            $response = $aiService->ask([
-                ['role' => 'user', 'content' => "Ein anderer Agent aus unserem System bittet dich um Hilfe bei folgender Aufgabe/Frage:\n\n" . $question]
-            ]);
-
-            return [
-                'status' => 'success',
-                'message' => "Antwort von {$targetAgentName}: \n\n" . ($response['content'] ?? 'Keine Antwort erhalten.')
-            ];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler bei der Kommunikation mit dem Agenten: ' . $e->getMessage()];
-        }
-    }
+    // executeAskAgent removed and migrated to AiCommunicationFuncs
 
     public static function executeCallContact(array $args)
     {
@@ -940,6 +1040,113 @@ trait AiSystemFuncs
                 'message' => 'Konnte Systemstatus nicht abrufen: ' . $e->getMessage()
             ];
         }
+    }
+
+    public static function executeManageSystemLogs(array $args)
+    {
+        $action = $args['action'] ?? 'resolve';
+        $logId = $args['log_id'] ?? null;
+        $manageAllSimilar = $args['manage_all_similar'] ?? false;
+        
+        $errorContains = $args['error_message_contains'] ?? null;
+        $searchTime = $args['search_time'] ?? null;
+        $searchAgent = $args['search_agent'] ?? null;
+        $searchType = $args['search_type'] ?? null;
+        $searchActionId = $args['search_action_id'] ?? null;
+        
+        // Defaults to 'latest' if any search parameter is used without log_id to prevent bulk disaster
+        $targetScope = $args['target_scope'] ?? 'latest';
+
+        $processedCount = 0;
+
+        $processLog = function($log) use ($action, &$processedCount) {
+            if ($action === 'delete') {
+                $log->delete();
+                $processedCount++;
+            } elseif ($action === 'set_error') {
+                if ($log->status !== 'error') {
+                    $log->status = 'error';
+                    if (str_starts_with($log->title, '[GELÖST] ')) {
+                        $log->title = substr($log->title, strlen('[GELÖST] '));
+                    }
+                    $log->save();
+                    $processedCount++;
+                }
+            } else {
+                if ($log->status === 'error') {
+                    $log->status = 'success';
+                    if (!str_starts_with($log->title, '[GELÖST]')) {
+                        $log->title = '[GELÖST] ' . $log->title;
+                    }
+                    $log->save();
+                    $processedCount++;
+                }
+            }
+        };
+
+        if ($logId) {
+            $log = \App\Models\System\SystemLog::find($logId);
+            if (!$log) {
+                return ['status' => 'error', 'message' => "Log mit ID {$logId} nicht gefunden."];
+            }
+
+            if ($manageAllSimilar) {
+                $similarLogs = \App\Models\System\SystemLog::where('message', $log->message)->get();
+                
+                foreach ($similarLogs as $sl) {
+                    $processLog($sl);
+                }
+            } else {
+                $processLog($log);
+            }
+        } elseif ($errorContains || $searchTime || $searchAgent || $searchType || $searchActionId) {
+            $query = \App\Models\System\SystemLog::query();
+            
+            if ($errorContains) {
+                $query->where(function($q) use ($errorContains) {
+                    $q->where('message', 'like', '%' . $errorContains . '%')
+                      ->orWhere('title', 'like', '%' . $errorContains . '%');
+                });
+            }
+            if ($searchTime) {
+                $query->whereTime('created_at', 'like', $searchTime . '%');
+            }
+            if ($searchAgent) {
+                if (strtolower($searchAgent) === 'systemi' || strtolower($searchAgent) === 'system') {
+                    $query->whereNull('ai_agent_id');
+                } else {
+                    $query->whereHas('agent', function($q) use ($searchAgent) {
+                        $q->where('name', 'like', '%' . $searchAgent . '%');
+                    });
+                }
+            }
+            if ($searchType) {
+                $query->where('type', 'like', '%' . $searchType . '%');
+            }
+            if ($searchActionId) {
+                $query->where('action_id', 'like', '%' . $searchActionId . '%');
+            }
+            
+            if ($targetScope === 'latest') {
+                $log = $query->latest()->first();
+                if ($log) {
+                    $processLog($log);
+                }
+            } else {
+                $logs = $query->get();
+                foreach ($logs as $log) {
+                    $processLog($log);
+                }
+            }
+        } else {
+            return ['status' => 'error', 'message' => 'Bitte log_id oder Suchparameter (z.B. search_time, error_message_contains) angeben.'];
+        }
+
+        $actionText = $action === 'delete' ? 'GELÖSCHT' : ($action === 'set_error' ? 'als FEHLER markiert' : 'als GELÖST markiert');
+        return [
+            'status' => 'success',
+            'message' => "Erfolgreich! Es wurden {$processedCount} System-Logs {$actionText}."
+        ];
     }
 
     public static function executeFixSystemErrors(array $args)
@@ -1187,6 +1394,266 @@ trait AiSystemFuncs
 
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Generieren der System-Map: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeTriggerUiElement(array $args)
+    {
+        try {
+            if (empty($args['element_text'])) {
+                return ['status' => 'error', 'message' => 'Es wurde kein Suchtext übergeben.'];
+            }
+
+            return [
+                'status' => 'success',
+                'message' => 'Der Klick auf das Element wird nun clientseitig ausgeführt.',
+                '_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-trigger-ui-element',
+                    'detail' => [
+                        'text' => $args['element_text']
+                    ]
+                ],
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Triggern des Elements: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeGeneratePdfReport(array $args)
+    {
+        try {
+            $title = $args['title'] ?? 'KI-Bericht';
+            $markdown = $args['content_markdown'] ?? '';
+            $design = $args['design'] ?? 'seelenfunke';
+            $action = $args['target_action'] ?? 'download';
+            $recipient = $args['recipient_email'] ?? null;
+            $agentName = session('current_ai_agent_name', 'System'); // Could be fetched via context if available
+
+            if (empty($markdown)) {
+                return ['status' => 'error', 'message' => 'Der Markdown-Inhalt darf nicht leer sein.'];
+            }
+
+            // Convert Markdown to HTML
+            $htmlContent = \Illuminate\Support\Str::markdown($markdown);
+
+            // Select View
+            $viewName = $design === 'generic' ? 'global.pdf.ai-report-generic' : 'global.pdf.ai-report-seelenfunke';
+
+            // Generate PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView($viewName, [
+                'title' => $title,
+                'htmlContent' => $htmlContent,
+                'agentName' => $agentName
+            ]);
+
+            $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '.pdf';
+            $filePath = 'public/reports/' . $fileName;
+
+            \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
+
+            $downloadUrl = \Illuminate\Support\Facades\Storage::url($filePath);
+
+            if ($action === 'email') {
+                if (empty($recipient)) {
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address');
+                }
+                if (empty($recipient)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
+                }
+                
+                // Generic Mail sending logic
+                \Illuminate\Support\Facades\Mail::send('global.mails.ai_report', ['title' => $title], function($message) use ($recipient, $title, $pdf, $fileName) {
+                    $message->to($recipient)
+                            ->subject("KI-Bericht: $title")
+                            ->attachData($pdf->output(), $fileName, ['mime' => 'application/pdf']);
+                });
+
+                return [
+                    'status' => 'success',
+                    'message' => "Der PDF-Bericht '$title' wurde erfolgreich generiert und an $recipient gesendet."
+                ];
+            } else {
+                // Download action -> trigger frontend to download
+                return [
+                    'status' => 'success',
+                    'message' => "Der PDF-Bericht '$title' wurde generiert. Ein Download-Dialog öffnet sich nun beim Nutzer.",
+                    '_event' => [
+                        'type' => 'dispatch',
+                        'name' => 'download-file',
+                        'detail' => [
+                            'url' => $downloadUrl,
+                            'filename' => $fileName
+                        ]
+                    ]
+                ];
+            }
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler bei der PDF-Generierung: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeExportSystemReport(array $args)
+    {
+        try {
+            $reportType = $args['report_type'] ?? null;
+            $action = $args['target_action'] ?? 'download';
+            $recipient = $args['recipient_email'] ?? null;
+            $targetFolder = $args['target_folder_name'] ?? '';
+
+            if (!$reportType) {
+                return ['status' => 'error', 'message' => 'Es wurde kein report_type übergeben.'];
+            }
+
+            $adminId = session('current_admin_id', 1); // Fallback to 1 if session not set in CLI/AI context
+            if (\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+                $adminId = \Illuminate\Support\Facades\Auth::guard('admin')->id();
+            }
+
+            $generatedFilePath = null;
+            $generatedFileName = '';
+            $title = '';
+
+            if ($reportType === 'tax_export') {
+                $service = app(\App\Services\FinancialService::class);
+                // Hole den Export für den aktuellen Monat und Jahr
+                $month = date('n');
+                $year = date('Y');
+                $generatedFilePath = $service->generateTaxExport($adminId, $month, $year);
+                $generatedFileName = basename($generatedFilePath);
+                $title = 'Buchhaltungs-Export';
+            } elseif ($reportType === 'ceo_report') {
+                $service = app(\App\Services\AnalyticsService::class);
+                
+                // Wir bauen die Daten für den Report zusammen, analog zu MasterAnalytics
+                $dateStart = now()->startOfMonth()->format('Y-m-d');
+                $dateEnd = now()->endOfMonth()->format('Y-m-d');
+                $allLogins = $service->getAllLoginsCollection();
+                $stats = $service->getStats($dateStart, $dateEnd, 'all', $allLogins, []);
+                
+                // Hole den Agenten für den Report (Teamleiter/CEO)
+                $agent = \App\Models\Ai\AiAgent::where('is_active', true)->whereHas('role', function($q) {
+                    $q->where('name', 'like', '%Teamleiter%')->orWhere('name', 'like', '%CEO%');
+                })->first() ?? \App\Models\Ai\AiAgent::first();
+
+                if (!$agent) {
+                     return ['status' => 'error', 'message' => 'Kein aktiver Agent für den CEO-Report gefunden.'];
+                }
+
+                // Generiere den Prompt aus den Stats
+                $prompt = "Du bist der CEO/Teamleiter. Schreibe einen professionellen CEO-Strategie-Report basierend auf diesen Daten:\n\n";
+                $prompt .= json_encode($stats, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n\n";
+                $prompt .= "Schreibe eine Executive Summary, analysiere die finanzielle Gesundheit, nenne kritische Punkte und gebe eine klare Roadmap. Nutze sauberes Markdown, keine Emojis. Alles auf Deutsch.";
+
+                $markdownResponse = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
+                $htmlContent = \Illuminate\Support\Str::markdown($markdownResponse);
+                $htmlContent = mb_convert_encoding($htmlContent, 'HTML-ENTITIES', 'UTF-8');
+
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [
+                    'htmlContent' => $htmlContent,
+                    'agentName' => $agent->name
+                ]);
+
+                $generatedFileName = 'CEO-Strategie-Report-' . time() . '.pdf';
+                // Temporäres Speichern
+                $tempPath = storage_path('app/public/temp/' . $generatedFileName);
+                if (!\Illuminate\Support\Facades\File::exists(dirname($tempPath))) {
+                    \Illuminate\Support\Facades\File::makeDirectory(dirname($tempPath), 0755, true);
+                }
+                $pdf->save($tempPath);
+                $generatedFilePath = $tempPath;
+                $title = 'CEO-Strategie-Report';
+            } else {
+                return ['status' => 'error', 'message' => 'Unbekannter report_type: ' . $reportType];
+            }
+
+            // Verarbeitung der Datei anhand target_action
+            if ($action === 'save_to_workspace') {
+                $baseWorkspace = 'agenten/workspace';
+                if (!empty($targetFolder)) {
+                    $baseWorkspace .= '/' . trim($targetFolder, '/');
+                }
+                
+                if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($baseWorkspace)) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($baseWorkspace);
+                }
+
+                $finalPath = $baseWorkspace . '/' . $generatedFileName;
+                
+                // Kopiere von $generatedFilePath nach $finalPath (public disk)
+                \Illuminate\Support\Facades\Storage::disk('public')->put(
+                    $finalPath,
+                    file_get_contents($generatedFilePath)
+                );
+
+                // Aufräumen, wenn temporär generiert (ceo_report)
+                if ($reportType === 'ceo_report') {
+                    @unlink($generatedFilePath);
+                }
+
+                return [
+                    'status' => 'success',
+                    'message' => "Der Bericht '$title' wurde erfolgreich generiert und im Datei-Manager unter '$finalPath' gespeichert."
+                ];
+            } elseif ($action === 'email') {
+                if (empty($recipient)) {
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address');
+                }
+                if (empty($recipient)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss recipient_email angegeben werden, da keine System-E-Mail gefunden wurde.'];
+                }
+                
+                $pathForMail = $generatedFilePath;
+                $nameForMail = $generatedFileName;
+
+                \Illuminate\Support\Facades\Mail::send('global.mails.ai_report', ['title' => $title], function($message) use ($recipient, $title, $pathForMail, $nameForMail) {
+                    $message->to($recipient)
+                            ->subject("Ihr $title")
+                            ->attach($pathForMail, ['as' => $nameForMail]);
+                });
+
+                // Aufräumen
+                if ($reportType === 'ceo_report') {
+                    @unlink($generatedFilePath);
+                }
+
+                return [
+                    'status' => 'success',
+                    'message' => "Der Bericht '$title' wurde generiert und per E-Mail an $recipient versendet."
+                ];
+            } else {
+                // Default: Download
+                // Wir müssen die Datei so zugänglich machen, dass der Browser sie laden kann
+                $publicTempPath = 'reports/' . $generatedFileName;
+                \Illuminate\Support\Facades\Storage::disk('public')->put(
+                    $publicTempPath,
+                    file_get_contents($generatedFilePath)
+                );
+
+                // Aufräumen
+                if ($reportType === 'ceo_report') {
+                    @unlink($generatedFilePath);
+                }
+
+                $downloadUrl = \Illuminate\Support\Facades\Storage::url($publicTempPath);
+
+                return [
+                    'status' => 'success',
+                    'message' => "Der Bericht '$title' wurde generiert. Ein Download-Dialog öffnet sich nun.",
+                    '_event' => [
+                        'type' => 'dispatch',
+                        'name' => 'download-file',
+                        'detail' => [
+                            'url' => $downloadUrl,
+                            'filename' => $generatedFileName
+                        ]
+                    ]
+                ];
+            }
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Exportieren des System-Berichts: ' . $e->getMessage()];
         }
     }
 

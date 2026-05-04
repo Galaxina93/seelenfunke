@@ -15,7 +15,7 @@
     <!-- Suppliers Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in-up">
         @forelse($suppliers as $supplier)
-            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-xl relative group hover:border-gray-700 transition-colors">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-xl relative group hover:border-gray-700 transition-colors flex flex-col h-full">
                 <!-- Actions Dropdown -->
                 <div class="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button wire:click="edit('{{ $supplier->id }}')" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-blue-500/20 text-gray-400 hover:text-blue-400 flex items-center justify-center transition-colors">
@@ -28,8 +28,18 @@
 
                 <!-- Header -->
                 <div class="flex items-start gap-4 mb-5">
-                    <div class="w-12 h-12 bg-gray-950 rounded-xl border border-gray-800 flex items-center justify-center shrink-0 shadow-inner">
+                    <div class="w-12 h-12 bg-gray-950 rounded-xl border border-gray-800 flex items-center justify-center shrink-0 shadow-inner relative">
                         <x-heroicon-o-building-office-2 class="w-6 h-6 text-[var(--theme-color)] opacity-80" />
+                        @if($supplier->country_code)
+                            @php
+                                $flag = match(strtoupper($supplier->country_code)) {
+                                    'DE' => '🇩🇪', 'CN' => '🇨🇳', 'US' => '🇺🇸', 'GB' => '🇬🇧', 
+                                    'IT' => '🇮🇹', 'FR' => '🇫🇷', 'ES' => '🇪🇸', 'PL' => '🇵🇱', 
+                                    'NL' => '🇳🇱', 'AT' => '🇦🇹', 'CH' => '🇨🇭', default => '🏳️'
+                                };
+                            @endphp
+                            <div class="absolute -top-2 -right-2 text-xl drop-shadow-md" title="{{ $supplier->country }}">{{ $flag }}</div>
+                        @endif
                     </div>
                     <div>
                         <h3 class="text-lg font-bold text-white leading-tight break-all pr-12">{{ $supplier->name }}</h3>
@@ -105,6 +115,42 @@
                         @endforeach
                     @endif
                 </div>
+
+                <!-- Produkte -->
+                @if($supplier->products->count() > 0)
+                    <div class="mt-auto pt-5 border-t border-gray-800/50">
+                        <span class="block text-[10px] uppercase font-black tracking-widest text-gray-500 mb-3">Lieferbare Produkte ({{ $supplier->products->count() }})</span>
+                        <div class="flex overflow-x-auto gap-3 pb-2 scrollbar-hide snap-x">
+                            @foreach($supplier->products as $product)
+                                @php
+                                    $galleryImage = null;
+                                    if(isset($product->media_gallery) && is_array($product->media_gallery)) {
+                                        foreach($product->media_gallery as $media) {
+                                            if(is_array($media) && isset($media['path'])) {
+                                                if(!isset($media['type']) || $media['type'] === 'image') {
+                                                    $galleryImage = $media['path'];
+                                                    break;
+                                                }
+                                            } elseif(is_string($media)) {
+                                                $galleryImage = $media;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                @endphp
+                                @if($galleryImage)
+                                    <div class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 snap-start rounded-2xl bg-gray-950 border border-gray-800 overflow-hidden group/product relative shadow-inner" title="{{ $product->name }}">
+                                        <img src="{{ asset('storage/' . $galleryImage) }}" class="w-full h-full object-cover group-hover/product:scale-110 transition-transform">
+                                    </div>
+                                @else
+                                    <div class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 snap-start rounded-2xl bg-gray-950 border border-gray-800 flex items-center justify-center group/product relative shadow-inner" title="{{ $product->name }}">
+                                        <x-heroicon-o-cube class="w-8 h-8 sm:w-10 sm:h-10 text-gray-600" />
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
         @empty
             <div class="col-span-1 md:col-span-2 xl:col-span-3">
@@ -144,14 +190,56 @@
                     </h4>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
                         <div class="col-span-1 md:col-span-2 lg:col-span-3">
-                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Firmenname / Händler *</label>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Firmenname / Händler (Anzeigename) *</label>
                             <input type="text" wire:model="name" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-base font-bold text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Alibaba Merchant XYZ">
                             @error('name') <span class="text-xs text-red-500 mt-1 block font-bold">{{ $message }}</span> @enderror
                         </div>
 
+                        <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Offizieller Firmenname (Rechnung)</label>
+                            <input type="text" wire:model="company_name" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Shenzhen Technology Co., Ltd.">
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 lg:col-span-2">
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Straße & Hausnummer</label>
+                            <div class="flex gap-2">
+                                <input type="text" wire:model="street" class="w-2/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="Straße">
+                                <input type="text" wire:model="house_number" class="w-1/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="Nr.">
+                            </div>
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 lg:col-span-2">
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">PLZ & Stadt</label>
+                            <div class="flex gap-2">
+                                <input type="text" wire:model="zip" class="w-1/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="PLZ">
+                                <input type="text" wire:model="city" class="w-2/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="Stadt">
+                            </div>
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2 lg:col-span-2">
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Land & Flagge</label>
+                            <div class="flex gap-2">
+                                <input type="text" wire:model="country" class="w-2/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="Land (Ausgeschrieben)">
+                                <select wire:model="country_code" class="w-1/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner">
+                                    <option value="">Keine</option>
+                                    <option value="DE">🇩🇪 DE</option>
+                                    <option value="CN">🇨🇳 CN</option>
+                                    <option value="US">🇺🇸 US</option>
+                                    <option value="GB">🇬🇧 GB</option>
+                                    <option value="IT">🇮🇹 IT</option>
+                                    <option value="FR">🇫🇷 FR</option>
+                                    <option value="ES">🇪🇸 ES</option>
+                                    <option value="PL">🇵🇱 PL</option>
+                                    <option value="NL">🇳🇱 NL</option>
+                                    <option value="AT">🇦🇹 AT</option>
+                                    <option value="CH">🇨🇭 CH</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="col-span-1 md:col-span-2 lg:col-span-2">
                             <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Ansprechpartner</label>
-                            <input type="text" wire:model="contact_person" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Mr. Chen / Mia">
+                            <input type="text" wire:model="contact_person" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. Mr. Chen / Mia">
                         </div>
 
                         <!-- Shipping Methods und Lieferzeiten -->
@@ -260,6 +348,56 @@
                                 <input type="url" wire:model="website" class="w-full bg-gray-950 border border-gray-700 rounded-xl pl-12 pr-4 py-4 text-sm font-medium text-white focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="https://...">
                             </div>
                             @error('website') <span class="text-xs text-red-500 mt-2 block font-bold">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sektion: Geschäftsdaten & Bank -->
+                <div class="border-t border-gray-800/50 pt-8">
+                    <h4 class="text-xs font-black uppercase tracking-widest text-[var(--theme-color)] mb-6 px-2 flex items-center gap-2">
+                        <x-heroicon-o-banknotes class="w-4 h-4" /> Geschäftsdaten & Bankverbindung
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Unsere Kundennummer (beim Lieferant)</label>
+                            <input type="text" wire:model="customer_number" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. KD-12345">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Steuernummer / VAT ID</label>
+                            <div class="flex gap-2">
+                                <input type="text" wire:model="tax_id" class="w-1/2 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="Steuernummer">
+                                <input type="text" wire:model="vat_id" class="w-1/2 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="USt-IdNr (VAT)">
+                            </div>
+                        </div>
+
+                        <div class="col-span-1 md:col-span-2">
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Bankname & Konto</label>
+                            <input type="text" wire:model="bank_name" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600 mb-3" placeholder="Name der Bank (z.B. Deutsche Bank)">
+                            <div class="flex gap-2">
+                                <input type="text" wire:model="iban" class="w-2/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="IBAN">
+                                <input type="text" wire:model="bic" class="w-1/3 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="BIC / SWIFT">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sektion: Konditionen -->
+                <div class="border-t border-gray-800/50 pt-8">
+                    <h4 class="text-xs font-black uppercase tracking-widest text-[var(--theme-color)] mb-6 px-2 flex items-center gap-2">
+                        <x-heroicon-o-scale class="w-4 h-4" /> Konditionen & Zahlungsziele
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 px-2">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Zahlungsziel</label>
+                            <input type="text" wire:model="payment_terms" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="z.B. 30 Tage Netto">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Mindestbestellwert (MOQ in €)</label>
+                            <input type="number" wire:model="minimum_order_value" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="€">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Standard Versandkosten (€)</label>
+                            <input type="number" wire:model="shipping_costs" class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm font-medium text-white focus:border-[var(--theme-color)] shadow-inner placeholder-gray-600" placeholder="€">
                         </div>
                     </div>
                 </div>

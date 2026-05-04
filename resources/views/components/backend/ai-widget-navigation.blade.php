@@ -20,7 +20,7 @@
     <div :class="mobileMenuOpen ? 'flex flex-col absolute right-0 top-12 mt-2 w-48 bg-gray-900/95 border border-gray-700 rounded-xl shadow-2xl backdrop-blur-xl p-2 z-[100]' : 'hidden md:flex md:flex-row md:items-center md:gap-2 md:static md:bg-transparent md:border-0 md:p-0 md:shadow-none'"
          class="gap-2 transition-transform md:hover:scale-105" x-cloak>
          
-         <select wire:model.live="agentId" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-gray-700 hover:text-white focus:outline-none focus:border-emerald-500 appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0">
+         <select x-model="activeAgentId" @change="$wire.set('agentId', activeAgentId)" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-gray-700 hover:text-white focus:outline-none focus:border-emerald-500 appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0">
              <option value="">(Agent wählen)</option>
              @foreach($availableAgents as $agentOpt)
                  <option value="{{ $agentOpt->id }}" class="bg-black text-white">{{ $agentOpt->name }}</option>

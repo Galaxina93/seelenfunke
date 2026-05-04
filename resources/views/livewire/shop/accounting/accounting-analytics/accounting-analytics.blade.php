@@ -16,7 +16,7 @@
 
         {{-- Header & Datumswähler --}}
         <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
-            <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="w-full px-4 py-4 md:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
                     <div class="p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] shadow-inner rounded-xl text-[var(--theme-color)] shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,7 +82,7 @@
             </div>
         </div>
 
-        <div class="max-w-7xl mx-auto px-4 mt-8 md:mt-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
+        <div class="w-full px-4 mt-8 md:mt-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
 
             {{-- Section 1: Header Stats + Schnellerfassung --}}
             <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden relative group">
@@ -156,10 +156,7 @@
                     </div>
                 </div>
 
-                {{-- HIER WIRD DIE NEUE KOMPONENTE GELADEN --}}
-                <div class="bg-gray-900/30">
-                    <livewire:shop.accounting.accounting-quick-entry />
-                </div>
+
             </div>
 
             {{-- Section 2: Jahresübersicht + Bar Chart --}}
@@ -344,8 +341,9 @@
 
                 {{-- Dashboard Scripts --}}
                 <script>
-                    document.addEventListener('alpine:init', () => {
-                        Alpine.data('accountingDashboard', () => {
+                    const registerAccountingDashboard = () => {
+                        if (!window.Alpine) return;
+                        window.Alpine.data('accountingDashboard', () => {
                             let invoiceChartObj = null;
                             let specialChartObj = null;
                             let costChartObj = null;
@@ -355,121 +353,127 @@
                                 getPayload() {
                                     const el = document.getElementById('analytics-data-bridge');
                                     return {
-                                    invoices: JSON.parse(el.getAttribute('data-invoices')),
-                                    special: JSON.parse(el.getAttribute('data-special')),
-                                    costs: JSON.parse(el.getAttribute('data-costs')),
-                                    groups: JSON.parse(el.getAttribute('data-groups'))
-                                };
-                            },
+                                        invoices: JSON.parse(el.getAttribute('data-invoices')),
+                                        special: JSON.parse(el.getAttribute('data-special')),
+                                        costs: JSON.parse(el.getAttribute('data-costs')),
+                                        groups: JSON.parse(el.getAttribute('data-groups'))
+                                    };
+                                },
 
-                            initCharts() {
-                                const data = this.getPayload();
-                                const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
-                                const gridOptionsX = { display: false, drawBorder: false };
+                                initCharts() {
+                                    const data = this.getPayload();
+                                    const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
+                                    const gridOptionsX = { display: false, drawBorder: false };
 
-                                // 1. Invoices
-                                const ctxInv = document.getElementById('invoiceChart').getContext('2d');
-                                invoiceChartObj = new Chart(ctxInv, {
-                                    type: 'line',
-                                    data: {
-                                        labels: data.invoices.labels,
-                                        datasets: [{
-                                            label: 'Erlöse (€)',
-                                            data: data.invoices.data,
-                                            borderColor: 'rgba(16, 185, 129, 1)',
-                                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                            borderWidth: 2, tension: 0.4, fill: true,
-                                            pointBackgroundColor: 'rgba(16, 185, 129, 1)', pointBorderColor: '#fff',
-                                        }]
-                                    },
-                                    options: {
-                                        responsive: true, maintainAspectRatio: false,
-                                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
-                                        plugins: { legend: { display: false } }
-                                    }
-                                });
+                                    // 1. Invoices
+                                    const ctxInv = document.getElementById('invoiceChart').getContext('2d');
+                                    invoiceChartObj = new Chart(ctxInv, {
+                                        type: 'line',
+                                        data: {
+                                            labels: data.invoices.labels,
+                                            datasets: [{
+                                                label: 'Erlöse (€)',
+                                                data: data.invoices.data,
+                                                borderColor: 'rgba(16, 185, 129, 1)',
+                                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                                borderWidth: 2, tension: 0.4, fill: true,
+                                                pointBackgroundColor: 'rgba(16, 185, 129, 1)', pointBorderColor: '#fff',
+                                            }]
+                                        },
+                                        options: {
+                                            responsive: true, maintainAspectRatio: false,
+                                            scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                                            plugins: { legend: { display: false } }
+                                        }
+                                    });
 
-                                // 2. Special Issues
-                                const ctxSpec = document.getElementById('specialChart').getContext('2d');
-                                specialChartObj = new Chart(ctxSpec, {
-                                    type: 'bar',
-                                    data: {
-                                        labels: data.special.labels,
-                                        datasets: [{
-                                            label: 'Sonderausgaben (€)',
-                                            data: data.special.data,
-                                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                                            borderRadius: 4, barPercentage: 0.6
-                                        }]
-                                    },
-                                    options: {
-                                        responsive: true, maintainAspectRatio: false,
-                                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
-                                        plugins: { legend: { display: false } }
-                                    }
-                                });
+                                    // 2. Special Issues
+                                    const ctxSpec = document.getElementById('specialChart').getContext('2d');
+                                    specialChartObj = new Chart(ctxSpec, {
+                                        type: 'bar',
+                                        data: {
+                                            labels: data.special.labels,
+                                            datasets: [{
+                                                label: 'Sonderausgaben (€)',
+                                                data: data.special.data,
+                                                backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                                                borderRadius: 4, barPercentage: 0.6
+                                            }]
+                                        },
+                                        options: {
+                                            responsive: true, maintainAspectRatio: false,
+                                            scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                                            plugins: { legend: { display: false } }
+                                        }
+                                    });
 
-                                // 3. Cost Items
-                                const ctxCost = document.getElementById('costChart').getContext('2d');
-                                costChartObj = new Chart(ctxCost, {
-                                    type: 'bar',
-                                    data: {
-                                        labels: data.costs.labels,
-                                        datasets: [{
-                                            label: 'Fixkosten Volumen (€)',
-                                            data: data.costs.data,
-                                            backgroundColor: 'rgba(99, 102, 241, 0.8)',
-                                            borderRadius: 4, barPercentage: 0.6
-                                        }]
-                                    },
-                                    options: {
-                                        responsive: true, maintainAspectRatio: false,
-                                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
-                                        plugins: { legend: { display: false } }
-                                    }
-                                });
+                                    // 3. Cost Items
+                                    const ctxCost = document.getElementById('costChart').getContext('2d');
+                                    costChartObj = new Chart(ctxCost, {
+                                        type: 'bar',
+                                        data: {
+                                            labels: data.costs.labels,
+                                            datasets: [{
+                                                label: 'Fixkosten Volumen (€)',
+                                                data: data.costs.data,
+                                                backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                                                borderRadius: 4, barPercentage: 0.6
+                                            }]
+                                        },
+                                        options: {
+                                            responsive: true, maintainAspectRatio: false,
+                                            scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                                            plugins: { legend: { display: false } }
+                                        }
+                                    });
 
-                                // 4. Groups
-                                const ctxGrp = document.getElementById('groupChart').getContext('2d');
-                                groupChartObj = new Chart(ctxGrp, {
-                                    type: 'doughnut',
-                                    data: {
-                                        labels: data.groups.labels,
-                                        datasets: [{
-                                            data: data.groups.data,
-                                            backgroundColor: ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4'],
-                                            borderWidth: 2, borderColor: '#1f2937'
-                                        }]
-                                    },
-                                    options: {
-                                        responsive: true, maintainAspectRatio: false,
-                                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                        cutout: '60%'
-                                    }
-                                });
-                            },
+                                    // 4. Groups
+                                    const ctxGrp = document.getElementById('groupChart').getContext('2d');
+                                    groupChartObj = new Chart(ctxGrp, {
+                                        type: 'doughnut',
+                                        data: {
+                                            labels: data.groups.labels,
+                                            datasets: [{
+                                                data: data.groups.data,
+                                                backgroundColor: ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4'],
+                                                borderWidth: 2, borderColor: '#1f2937'
+                                            }]
+                                        },
+                                        options: {
+                                            responsive: true, maintainAspectRatio: false,
+                                            plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                                            cutout: '60%'
+                                        }
+                                    });
+                                },
 
-                            updateCharts() {
-                                const data = this.getPayload();
-                                
-                                const updateMap = [
-                                    { obj: invoiceChartObj, src: data.invoices },
-                                    { obj: specialChartObj, src: data.special },
-                                    { obj: costChartObj, src: data.costs },
-                                    { obj: groupChartObj, src: data.groups }
-                                ];
+                                updateCharts() {
+                                    const data = this.getPayload();
+                                    
+                                    const updateMap = [
+                                        { obj: invoiceChartObj, src: data.invoices },
+                                        { obj: specialChartObj, src: data.special },
+                                        { obj: costChartObj, src: data.costs },
+                                        { obj: groupChartObj, src: data.groups }
+                                    ];
 
-                                updateMap.forEach(m => {
-                                    if (m.obj && m.src) {
-                                        m.obj.data.labels = m.src.labels;
-                                        m.obj.data.datasets[0].data = m.src.data;
-                                        m.obj.update();
-                                    }
-                                });
-                            }
-                        };
-                    });
-                });
+                                    updateMap.forEach(m => {
+                                        if (m.obj && m.src) {
+                                            m.obj.data.labels = m.src.labels;
+                                            m.obj.data.datasets[0].data = m.src.data;
+                                            m.obj.update();
+                                        }
+                                    });
+                                }
+                            };
+                        });
+                    };
+
+                    if (window.Alpine) {
+                        registerAccountingDashboard();
+                    } else {
+                        document.addEventListener('alpine:init', registerAccountingDashboard);
+                    }
                 </script>
             </div>
 

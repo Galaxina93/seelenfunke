@@ -9,6 +9,55 @@ use App\Models\Ai\AiInteraction;
 
 trait AiAgentsFuncs
 {
+    public static function getAiCommunicationFuncsSchema(): array
+    {
+        return [
+            [
+                'name' => 'communication_list_agents',
+                'description' => 'Gibt eine Liste aller verfügbaren Agenten im System und deren zugehörigen Fähigkeiten (Tools) zurück. Nutze dies, um herauszufinden, welcher Agent für eine Aufgabe geeignet ist.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeCommunicationListAgents']
+            ],
+            [
+                'name' => 'communication_find_agent_for_tool',
+                'description' => 'Sucht gezielt nach dem Agenten, der ein bestimmtes Tool (z.B. system_open_zentrum) besitzt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'tool_name' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Name der gesuchten Fähigkeit/des Tools (z.B. system_open_zentrum).'
+                        ]
+                    ],
+                    'required' => ['tool_name']
+                ],
+                'callable' => [self::class, 'executeCommunicationFindAgent']
+            ],
+            [
+                'name' => 'communication_ask_agent',
+                'description' => 'Frage einen anderen hochspezialisierten KI-Agenten um Hilfe oder delegiere eine Aufgabe, wenn du eine Fähigkeit selbst nicht besitzt. Du gibst dem Agenten einen genauen Auftrag und erhältst seine Antwort.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'agent_name' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Name des Agenten, an den du die Aufgabe delegierst (z.B. "System-Administrator").'
+                        ],
+                        'instruction' => [
+                            'type' => 'string',
+                            'description' => 'Deine detaillierte Frage oder Arbeitsanweisung an den Agenten. Nenne ihm auch den Kontext, warum er das tun soll.'
+                        ]
+                    ],
+                    'required' => ['agent_name', 'instruction']
+                ],
+                'callable' => [self::class, 'executeCommunicationAskAgent']
+            ]
+        ];
+    }
+
     public static function getAiAgentsFuncsSchema(): array
     {
         return [
@@ -545,5 +594,118 @@ trait AiAgentsFuncs
                 'matches' => $matches
             ]
         ];
+    }
+
+    public static function executeCommunicationListAgents(array $args)
+    {
+        try {
+            $agentsMap = \Illuminate\Support\Facades\Cache::remember('ai_agent_capabilities_full_map', 3600, function() {
+                $agents = \App\Models\Ai\AiAgent::with('role.tools')->where('is_active', true)->get();
+                $list = [];
+                foreach ($agents as $a) {
+                    $list[] = [
+                        'agent_name' => $a->name,
+                        'role' => $a->role ? $a->role->name : 'Unbekannt',
+                        'description' => $a->prompt_objective,
+                        'tools' => $a->tools->pluck('identifier')->toArray()
+                    ];
+                }
+                return $list;
+            });
+
+            return [
+                'status' => 'success',
+                'message' => 'Folgende Agenten und ihre Tools stehen zur Verfügung:',
+                'agents' => $agentsMap
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Abrufen der Agentenliste: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeCommunicationFindAgent(array $args)
+    {
+        try {
+            $toolName = $args['tool_name'] ?? '';
+            if (empty($toolName)) {
+                return ['status' => 'error', 'message' => 'Bitte ein Tool angeben.'];
+            }
+
+            $agents = \App\Models\Ai\AiAgent::with('role.tools')->where('is_active', true)->get();
+            $foundAgents = [];
+
+            foreach ($agents as $a) {
+                if ($a->tools->contains('identifier', $toolName)) {
+                    $foundAgents[] = $a->name;
+                }
+            }
+
+            if (empty($foundAgents)) {
+                return [
+                    'status' => 'error', 
+                    'message' => "Es wurde kein aktiver Agent gefunden, der das Tool '{$toolName}' besitzt."
+                ];
+            }
+
+            return [
+                'status' => 'success',
+                'message' => "Das Tool '{$toolName}' wird von folgenden Agenten beherrscht:",
+                'capable_agents' => $foundAgents
+            ];
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler bei der Suche: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeCommunicationAskAgent(array $args)
+    {
+        try {
+            $targetAgentName = $args['agent_name'] ?? '';
+            $instruction = $args['instruction'] ?? '';
+
+            if (empty($targetAgentName) || empty($instruction)) {
+                return ['status' => 'error', 'message' => 'Agenten-Name oder Anweisung fehlt.'];
+            }
+
+            $originalAgent = \App\Models\Ai\AiAgent::where('name', $targetAgentName)->where('is_active', true)->first();
+            if (!$originalAgent) {
+                return ['status' => 'error', 'message' => "Der Agent '{$targetAgentName}' wurde nicht gefunden oder ist inaktiv. Nutze communication_list_agents, um gültige Agenten zu finden."];
+            }
+
+            // Force use of extremely fast flash model for internal delegation
+            $agent = clone $originalAgent;
+            if (str_contains(strtolower($agent->model), 'gemini')) {
+                $agent->model = 'gemini-1.5-flash';
+            }
+
+            // Instantiate the appropriate agent service based on the model or class
+            $providerClass = \App\Services\AI\GeminiAgent::class; // Default to Gemini
+            if (str_contains(strtolower($agent->model), 'mittwald') || str_contains(strtolower($agent->model), 'llama')) {
+                if (class_exists(\App\Services\AI\MittwaldAgent::class)) {
+                    $providerClass = \App\Services\AI\MittwaldAgent::class;
+                }
+            }
+            
+            $aiService = new $providerClass($agent);
+
+            // Run a sterile ask request representing the delegation
+            $response = $aiService->ask([
+                ['role' => 'user', 'content' => "DELEGATION_ANWEISUNG:\nEin anderer Agent aus unserem System hat dir eine Aufgabe delegiert. WICHTIG: Dies ist ein synchroner Aufruf! Du DARFST NICHT sagen 'Ich gebe dir Bescheid' oder 'Ich kümmere mich darum'. Du musst alle notwendigen Werkzeuge (wie brain_search, api_call, etc.) JETZT SOFORT in dieser Sitzung ausführen und mir als Antwort direkt das finale Ergebnis (oder eine finale Fehlermeldung) liefern! Führe die Aufgabe jetzt aus:\n\n" . $instruction]
+            ]);
+
+            $returnArray = [
+                'status' => 'success',
+                'message' => "Antwort des Agenten '{$targetAgentName}': \n\n" . ($response['response'] ?? 'Keine Antwort erhalten.')
+            ];
+
+            if (!empty($response['events'])) {
+                $returnArray['_frontend_events'] = $response['events'];
+            }
+
+            return $returnArray;
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler bei der Kommunikation mit dem Agenten: ' . $e->getMessage()];
+        }
     }
 }

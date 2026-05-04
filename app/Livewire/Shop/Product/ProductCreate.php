@@ -48,6 +48,7 @@ class ProductCreate extends Component
     public $barcode = '';
     public $brand = '';
     public $supplier_id = null;
+    public $reorder_url = '';
 
     // Status (Enum)
     public $status = 'draft';
@@ -248,6 +249,7 @@ class ProductCreate extends Component
         $this->barcode = $this->product->barcode;
         $this->brand = $this->product->brand;
         $this->supplier_id = $this->product->product_supplier_id;
+        $this->reorder_url = $this->product->reorder_url;
 
         // Versanddaten laden
         $this->weight = $this->product->weight;
@@ -486,6 +488,7 @@ class ProductCreate extends Component
         $this->product->barcode = $this->barcode;
         $this->product->brand = $this->brand;
         $this->product->product_supplier_id = empty($this->supplier_id) ? null : $this->supplier_id;
+        $this->product->reorder_url = empty($this->reorder_url) ? null : $this->reorder_url;
 
         // 5. Lager
         $this->product->track_quantity = (bool) $this->track_quantity;

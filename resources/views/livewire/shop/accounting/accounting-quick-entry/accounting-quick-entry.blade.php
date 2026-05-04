@@ -1,5 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <div class="p-6 md:p-10 bg-transparent font-sans text-gray-300">
+    <div x-data="{ open: false }" class="p-6 md:p-10 bg-transparent font-sans text-gray-300">
 
         {{-- Success Message --}}
         @if (session()->has('success'))
@@ -10,14 +10,15 @@
             </div>
         @endif
 
-        <h3 class="text-sm font-serif font-bold text-white text-center mb-8 flex items-center justify-center gap-3 tracking-wide">
-            <div class="p-2 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] shadow-inner">
+        <h3 @click="open = !open" class="text-sm font-serif font-bold text-white text-center mb-4 flex items-center justify-center gap-3 tracking-wide cursor-pointer hover:text-[var(--theme-color)] transition-colors group select-none">
+            <div class="p-2 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] shadow-inner group-hover:bg-[var(--theme-color-20)] transition-colors">
                 <svg class="w-5 h-5 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             </div>
             Schnellerfassung Sonderausgabe
+            <svg class="w-4 h-4 text-gray-500 group-hover:text-[var(--theme-color)] transition-transform duration-300" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
         </h3>
 
-        <div class="max-w-4xl mx-auto space-y-5">
+        <div x-show="open" x-collapse x-cloak class="max-w-4xl mx-auto space-y-5 pt-4">
 
             {{-- AUTO-FILL NACHRICHT (Die blaue Box) --}}
             @if($isAutoFilled)
@@ -82,8 +83,8 @@
                     <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in-down">
                         <input type="text" wire:model="specialInvoiceNumber" placeholder="Rechnungsnummer" class="{{ $inputClass }} !py-3 !text-xs font-mono">
                         <select wire:model="specialTaxRate" class="{{ $inputClass }} !py-3 !text-xs appearance-none cursor-pointer">
-                            <option value="19" class="bg-gray-900">19% MwSt.</option>
-                            <option value="7" class="bg-gray-900">7% MwSt.</option>
+                            <option value="{{ shop_setting('default_tax_rate', 19) }}" class="bg-gray-900">{{ shop_setting('default_tax_rate', 19) }}% MwSt. (Standard)</option>
+                            <option value="7" class="bg-gray-900">7% MwSt. (Ermäßigt)</option>
                             <option value="0" class="bg-gray-900">0% / Steuerfrei</option>
                         </select>
                     </div>

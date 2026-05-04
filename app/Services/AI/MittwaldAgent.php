@@ -127,6 +127,7 @@ class MittwaldAgent
         }
         $globalSchema = AIFunctionsRegistry::getSchema();
         $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
+
         $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers) {
             return in_array($t['function']['name'] ?? '', $allowedIdentifiers);
         }));
@@ -326,6 +327,12 @@ class MittwaldAgent
                     if (isset($result['_frontend_event'])) {
                         $eventsData[] = $result['_frontend_event'];
                         unset($result['_frontend_event']); // Hide from LLM context to save tokens
+                    }
+                    if (isset($result['_frontend_events']) && is_array($result['_frontend_events'])) {
+                        foreach ($result['_frontend_events'] as $evt) {
+                            $eventsData[] = $evt;
+                        }
+                        unset($result['_frontend_events']);
                     }
 
 

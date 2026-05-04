@@ -38,14 +38,30 @@ class SystemLogs extends Component
         $this->resetPage();
     }
 
-    public function markAsResolved($logId)
+    public function toggleStatus($logId)
     {
         $log = SystemLog::find($logId);
-        if ($log && $log->status === 'error') {
-            $log->status = 'success';
-            // Optionally, add a note that it was resolved manually
-            $log->title = '[GELÖST] ' . $log->title;
+        if ($log) {
+            if ($log->status === 'error') {
+                $log->status = 'success';
+                if (!str_starts_with($log->title, '[GELÖST]')) {
+                    $log->title = '[GELÖST] ' . $log->title;
+                }
+            } else {
+                $log->status = 'error';
+                if (str_starts_with($log->title, '[GELÖST] ')) {
+                    $log->title = substr($log->title, strlen('[GELÖST] '));
+                }
+            }
             $log->save();
+        }
+    }
+
+    public function deleteLog($logId)
+    {
+        $log = SystemLog::find($logId);
+        if ($log) {
+            $log->delete();
         }
     }
 

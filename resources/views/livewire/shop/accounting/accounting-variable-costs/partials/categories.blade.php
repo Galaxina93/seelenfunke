@@ -95,8 +95,8 @@
                                     <div class="grid grid-cols-2 gap-3 mb-4 animate-fade-in-down">
                                         <input type="text" wire:model="editSpecialInvoiceNumber" placeholder="Rechnungsnummer" class="text-xs rounded border-gray-300 focus:ring-orange-400 w-full">
                                         <select wire:model="editSpecialTaxRate" class="text-xs rounded border-gray-300 focus:ring-orange-400 w-full">
-                                            <option value="19">19% MwSt.</option>
-                                            <option value="7">7% MwSt.</option>
+                                            <option value="{{ shop_setting('default_tax_rate', 19) }}">{{ shop_setting('default_tax_rate', 19) }}% MwSt. (Standard)</option>
+                                            <option value="7">7% MwSt. (Ermäßigt)</option>
                                             <option value="0">0% / Steuerfrei</option>
                                         </select>
                                     </div>
