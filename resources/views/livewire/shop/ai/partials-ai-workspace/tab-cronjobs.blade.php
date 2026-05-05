@@ -1,4 +1,4 @@
-<div wire:key="tab-cronjobs" :class="{'hidden': activeTab !== 'cronjobs'}" class="flex-1 shrink-0 rounded-2xl border border-[var(--theme-color-50)] bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-4 sm:p-6">
+<div wire:key="tab-cronjobs" class="flex-1 shrink-0 rounded-2xl border border-[var(--theme-color-50)] bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-4 sm:p-6">
 <div class="h-full flex flex-col space-y-6 overflow-y-auto custom-scrollbar">
     <!-- Header -->
     <div class="flex items-center justify-between mb-2">

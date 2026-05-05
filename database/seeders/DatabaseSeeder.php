@@ -18,9 +18,9 @@ class DatabaseSeeder extends Seeder
             // System
             UserSeeder::class,
             SystemSettingSeeder::class,
-            SystemMapSeeder::class,
+            SystemCronjobSeeder::class,
+
             AiTarifeSeeder::class,
-            SystemApiNodeSeeder::class,
 
             // Management
             ManagementDayRoutineSeeder::class,

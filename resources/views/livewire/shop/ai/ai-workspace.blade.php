@@ -41,7 +41,9 @@
                     @include('livewire.shop.ai.partials-ai-workspace.tab-files')
                     @include('livewire.shop.ai.partials-ai-workspace.tab-health')
                     @include('livewire.shop.ai.partials-ai-workspace.tab-workflows')
-                    @livewire('shop.ai.partials-ai-workspace.tab-cronjobs')
+                    <div :class="{'hidden': activeTab !== 'cronjobs'}" class="flex-1 shrink-0 h-full w-full overflow-hidden">
+                        @livewire('shop.ai.partials-ai-workspace.tab-cronjobs')
+                    </div>
                 </div>
             @endif
         </div>

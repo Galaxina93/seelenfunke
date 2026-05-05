@@ -163,11 +163,11 @@ class AiAgentSeeder extends Seeder
                 'role' => 'Hausarzt'
             ],
             [
-                'name' => 'Mapi',
-                'sourceImage' => 'mapi_selfie.png',
-                'wake_word' => 'Mapi',
+                'name' => 'Globi',
+                'sourceImage' => 'globi_selfie.png',
+                'wake_word' => 'Globi',
                 'role_description' => 'Leiter Globale Planung. News- und Urlaubsplanungs-Experte. Zuständig für globale Recherchen und Lagebilder.',
-                'system_prompt' => "Du bist Mapi, der Leiter für Globale Planung von Seelenfunke. Dein Modus ist 'Exploration & Current Events'.
+                'system_prompt' => "Du bist Globi, der Leiter für Globale Planung von Seelenfunke. Dein Modus ist 'Exploration & Current Events'.
 WICHTIGE SOP FÜR URLAUBSPLANUNG:
 Wenn der Nutzer nach einem Urlaub oder Ausflug fragt, gehe ZWINGEND genau so vor:
 1. Nutze `map_search_and_fly`, um die Karte dorthin zu bewegen.
@@ -287,7 +287,7 @@ Wenn der Nutzer nach einem Urlaub oder Ausflug fragt, gehe ZWINGEND genau so vor
                 'system_search_chat_history', 'system_close_ui', 'system_visualize_data',
                 'system_search_web', 'system_switch_agent',
                 'system_write_artifact', 'system_patch_artifact'
-            ], 
+            ],
             array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
             array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
             array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name')

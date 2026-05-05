@@ -130,6 +130,27 @@
                 }
             },
 
+            handleAgentSwitch(agentId) {
+                setTimeout(() => {
+                    if (!this.isSpeaking) {
+                        this.$wire.set('agentId', agentId);
+                        return;
+                    }
+
+                    const checkInterval = setInterval(() => {
+                        if (!this.isSpeaking) {
+                            clearInterval(checkInterval);
+                            this.$wire.set('agentId', agentId);
+                        }
+                    }, 500);
+
+                    setTimeout(() => {
+                        clearInterval(checkInterval);
+                        this.$wire.set('agentId', agentId);
+                    }, 15000);
+                }, 1000);
+            },
+
             getColorHex(colorStr) {
                 const map = {
                     'red': 0xef4444,

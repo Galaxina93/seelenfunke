@@ -295,7 +295,7 @@
                     if (markerText) {
                         const el = document.createElement('div');
                         el.className = 'marker';
-                        el.innerHTML = `<div class="bg-cyan-900/80 border border-cyan-400 text-cyan-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(0,240,255,0.5)] animate-pulse whitespace-nowrap">${markerText}</div>`;
+                        el.innerHTML = `<div class="bg-cyan-900/80 border border-cyan-400 text-cyan-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(0,240,255,0.5)] animate-pulse whitespace-nowrap">${markerText}<\/div>`;
                         
                         window.funkiMarker = new mapboxgl.Marker(el)
                             .setLngLat([lng, lat])

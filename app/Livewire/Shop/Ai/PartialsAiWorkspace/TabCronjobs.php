@@ -6,13 +6,15 @@ use Livewire\Component;
 use App\Models\System\SystemCronjob;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Computed;
 
 class TabCronjobs extends Component
 {
     public $editingJobId = null;
     public $editingSchedule = '';
 
-    public function getCronjobsProperty()
+    #[Computed]
+    public function cronjobs()
     {
         return SystemCronjob::orderBy('name')->get();
     }

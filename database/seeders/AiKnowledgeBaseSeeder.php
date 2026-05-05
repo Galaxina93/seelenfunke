@@ -220,6 +220,37 @@ Seelenfunke bietet einen vollständigen Rechnungs- und Transaktions-Export für 
 **Ausführung durch KI:**
 Die KI kann den Export anstoßen, indem sie `finance_generate_tax_export` aufruft. Dies generiert eine ZIP-Datei mit allen Rechnungen (PDFs) und Buchungs-CSV-Daten des gewählten Monats. Den Link zur generierten Datei gibt die KI dem Benutzer, welcher diesen über das Dashboard herunterladen kann.
                 "
+            ],
+            // Artikel 13
+            [
+                'title' => 'System-Architektur & API-Schnittstellen',
+                'category' => 'Datenschutz & Infrastruktur',
+                'tags' => ['Datenschutz', 'KI-Sicherheit'],
+                'content' => "
+# System-Architektur & API-Schnittstellen
+Unser ERP-Ökosystem 'Mein-Seelenfunke' ist das Herzstück der Infrastruktur. Es ist mit folgenden zentralen APIs verbunden:
+- **Mittwald:** Server & Hosting (Unsere sichere Cloud)
+- **Google API:** Maps, Fonts, Auth (Social Login)
+- **Stripe API:** Payments & Wallets
+- **Etsy API:** Marktplatz Sync für Bestellungen
+- **Finom & Fin API:** Geschäftskonto und Open Banking / Kontosync
+- **ERiC (Elster):** Finanzamt UStVA API (Native XML Direktübertragung)
+- **DATEV API:** Steuer Export (ZIP/CSV)
+- **Firebase API:** Push Notifications für die App
+- **DHL API:** Automatischer Label-Druck (geplant)
+
+## KI-Architektur Workflow
+Der Sprach-Assistent verarbeitet Eingaben nach folgendem Flow:
+1. **KI Lauscht...:** Wake Word & Mic Input über das Computermikrofon
+2. **Spracheingabe via Interface:** Web Speech API / Alpine.js übersetzt Audio zu Text
+3. **FunkiraChat.php:** Livewire Component Base packt den Kontext & Historie
+4. **MittwaldAgent.php:** Prompt System Assembler tätigt den Remote API Call
+5. **LLaMA / GPT:** Mittwald AI Proxy antwortet mit Tool Call (z.B. create_task)
+6. **AIFunctionsRegistry.php:** Verifiziert und führt Werkzeuge aus
+7. **DB & Models:** Datenbank Read/Write Actions (ORM Action)
+8. **Final Response:** LLM sendet die fertige Antwort als Text
+9. **Audioausgabe (TTS):** Browser liest die Antwort vor
+                "
             ]
         ];
 

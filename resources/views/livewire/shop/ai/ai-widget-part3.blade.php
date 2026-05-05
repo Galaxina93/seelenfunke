@@ -212,9 +212,9 @@
                             window.funkiMap.on('click', 'live-flights-layer', (e) => {
                                 const coordinates = e.features[0].geometry.coordinates.slice();
                                 const p = e.features[0].properties;
-                                new mapboxgl.Popup()
+                                new mapboxgl.Popup({ closeButton: false })
                                     .setLngLat(coordinates)
-                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-emerald-500 uppercase">Flug: ${p.callsign || 'Unbekannt'}</strong><br><span class="text-gray-300">Herkunft: ${p.origin_country || 'Unbekannt'}<br>Höhe: ${Math.round(p.geo_altitude)}m<br>V: ${Math.round(p.velocity * 3.6)} km/h</span></div>`)
+                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-emerald-500 uppercase">Flug: ${p.callsign || 'Unbekannt'}<\/strong><br><span class="text-gray-300">Herkunft: ${p.origin_country || 'Unbekannt'}<br>Höhe: ${Math.round(p.geo_altitude)}m<br>V: ${Math.round(p.velocity * 3.6)} km/h<\/span><\/div>`)
                                     .addTo(window.funkiMap);
                             });
                             window.funkiMap.on('mouseenter', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
@@ -223,9 +223,9 @@
                             window.funkiMap.on('click', 'live-crises-layer', (e) => {
                                 const coordinates = e.features[0].geometry.coordinates.slice();
                                 const p = e.features[0].properties;
-                                new mapboxgl.Popup()
+                                new mapboxgl.Popup({ closeButton: false })
                                     .setLngLat(coordinates)
-                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-red-500 uppercase">Krisenherd: ${p.name || 'Unbekannt'}</strong><br><span class="text-gray-300">${p.description || 'Keine Details verfügbar'}</span></div>`)
+                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-red-500 uppercase">Krisenherd: ${p.name || 'Unbekannt'}<\/strong><br><span class="text-gray-300">${p.description || 'Keine Details verfügbar'}<\/span><\/div>`)
                                     .addTo(window.funkiMap);
                             });
                             window.funkiMap.on('mouseenter', 'live-crises-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
@@ -353,6 +353,7 @@
                         }
                         return;
                     }
+                    this.youtubeWidgets = [];
                 });
 
 

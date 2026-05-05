@@ -34,7 +34,7 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     // System
     // -----------------------------------------------------------------------
-    Route::get('/admin/company-map', \App\Livewire\Shop\System\SystemCompanyMap::class)->name('admin.company-map');
+
     Route::get('/admin/global-logs', \App\Livewire\Shop\System\SystemLogs::class)->name('admin.global-logs');
     Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
     Route::get('/admin/system/backups', \App\Livewire\Shop\System\SystemBackups::class)->name('admin.system.backups');

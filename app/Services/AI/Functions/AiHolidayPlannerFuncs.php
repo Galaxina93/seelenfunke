@@ -13,7 +13,7 @@ trait AiHolidayPlannerFuncs
         return [
             [
                 'name' => 'holiday_generate_pdf_plan',
-                'description' => 'Generiert aus den recherchierten Daten ein professionelles Urlaubs-PDF (inkl. Packliste, Sehenswürdigkeiten, Route) und liefert den Download-Link für den User. Nutze diese Funktion am ENDE eines Urlaubsplanungs-Workflows.',
+                'description' => 'Generiert aus den recherchierten Daten ein professionelles Urlaubs-PDF (inkl. Packliste, Sehenswürdigkeiten, Route). Du kannst das PDF dem Nutzer entweder zum Download anbieten ODER es direkt als E-Mail Anhang an ihn senden. Nutze diese Funktion zwingend, wenn der Nutzer einen Plan oder eine Zusammenfassung als PDF per E-Mail haben möchte.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -76,7 +76,7 @@ trait AiHolidayPlannerFuncs
         $itinerary = $args['itinerary'] ?? [];
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
-        $agentName = session('current_ai_agent_name', 'Mapi - Leiter Globale Planung');
+        $agentName = session('current_ai_agent_name', 'Globi - Leiter Globale Planung');
 
         try {
             // Generate PDF using dompdf
@@ -104,7 +104,7 @@ trait AiHolidayPlannerFuncs
                 if (empty($recipient)) {
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
-                
+
                 \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
                     "Dein exklusiver Urlaubsplan: $title",
                     $description,
