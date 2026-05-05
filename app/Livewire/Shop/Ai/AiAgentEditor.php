@@ -368,8 +368,7 @@ class AiAgentEditor extends Component
 
         session()->flash('message', 'Agent Profil erfolgreich gespeichert.');
 
-        $this->dispatch('close-agent-manager');
-        $this->dispatch('$refresh');
+        return redirect()->route('admin.ai-company-structure');
     }
 
     public function deleteProfilePicture()
@@ -388,7 +387,7 @@ class AiAgentEditor extends Component
 
     public function cancel()
     {
-        $this->dispatch('close-agent-manager');
+        return redirect()->route('admin.ai-company-structure');
     }
 
     public function render()

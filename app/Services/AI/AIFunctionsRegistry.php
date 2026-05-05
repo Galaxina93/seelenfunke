@@ -27,6 +27,9 @@ class AIFunctionsRegistry
     use Functions\AiMasterFuncs;
     use Functions\AiTelefonyFuncs;
     use Functions\AiAntigravityFuncs;
+    use Functions\AiHolidayPlannerFuncs;
+    use Functions\AiNewsFuncs;
+    use Functions\AiMapControlFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -67,7 +70,10 @@ class AIFunctionsRegistry
             self::getAiAgentsFuncsSchema(),
             self::getAiMasterFuncsSchema(),
             self::getAiTelefonyFuncsSchema(),
-            self::getAiAntigravityFuncsSchema()
+            self::getAiAntigravityFuncsSchema(),
+            self::getAiHolidayPlannerFuncsSchema(),
+            self::getAiNewsFuncsSchema(),
+            self::getAiMapControlFuncsSchema()
         );
     }
 

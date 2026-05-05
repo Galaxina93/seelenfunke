@@ -56,6 +56,17 @@
 
                     this.$nextTick(() => {
                         this.initThreeJS();
+                        this.initMapbox();
+                        
+                        if (!this.isLiveMode) {
+                            this.toggleLiveMode(); // Start voice interaction automatically!
+                        }
+                        
+                        setTimeout(() => {
+                            if (window.funkiMap) {
+                                window.funkiMap.resize();
+                            }
+                        }, 500);
                     });
                 };
 
@@ -160,6 +171,7 @@
                     this.showFunkiView = false; 
 
                     setTimeout(() => {
+                        this.destroyMapbox();
                         this.destroyThreeJS();
                         document.body.style.overflow = 'auto'; 
                     }, 1000);
@@ -189,5 +201,206 @@
                     } else {
                         ambientAudio.volume = 0;
                     }
+                }
+            },
+
+            initMapbox() {
+                if (typeof mapboxgl === 'undefined') return;
+                mapboxgl.accessToken = '{{ env("MAPBOX_TOKEN") }}';
+                
+                window.funkiMap = new mapboxgl.Map({
+                    container: 'funki-mapbox-container',
+                    style: this.activeMapStyle,
+                    center: [13.4050, 52.5200], // Berlin
+                    zoom: 4,
+                    pitch: 45,
+                    bearing: -17.6,
+                    antialias: true
+                });
+
+                window.funkiMap.on('style.load', () => {
+                    const currentStyle = window.funkiMap.getStyle();
+                    // In 'Dark Cyber' mode, the container has a filter: hue-rotate(180deg). 
+                    // So we color the water #cc4400 (orange/brown) so it hue-rotates into a beautiful deep cyan-blue!
+                    if (currentStyle && currentStyle.sprite && currentStyle.sprite.includes('dark-v')) {
+                        if (window.funkiMap.getLayer('water')) {
+                            window.funkiMap.setPaintProperty('water', 'fill-color', '#cc4400');
+                        }
+                    }
+
+                    const layers = currentStyle.layers || [];
+                    let labelLayerId;
+                    for (let i = 0; i < layers.length; i++) {
+                        if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+                            labelLayerId = layers[i].id;
+                            break;
+                        }
+                    }
+
+                    if (window.funkiMap.getSource('composite')) {
+                        window.funkiMap.addLayer({
+                            'id': '3d-buildings',
+                            'source': 'composite',
+                            'source-layer': 'building',
+                            'filter': ['==', 'extrude', 'true'],
+                            'type': 'fill-extrusion',
+                            'minzoom': 15,
+                            'paint': {
+                                'fill-extrusion-color': '#00f0ff',
+                                'fill-extrusion-height': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['zoom'],
+                                    15, 0,
+                                    15.05, ['get', 'height']
+                                ],
+                                'fill-extrusion-base': [
+                                    'interpolate',
+                                    ['linear'],
+                                    ['zoom'],
+                                    15, 0,
+                                    15.05, ['get', 'min_height']
+                                ],
+                                'fill-extrusion-opacity': 0.6
+                            }
+                        }, labelLayerId);
+                    }
+                });
+
+                window.funkiMap.on('load', () => {
+                    if (this.isMapFocus) {
+                        if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
+                        const rotateCamera = () => {
+                            if (window.funkiMap && this.isMapFocus) {
+                                window.funkiMap.rotateTo(window.funkiMap.getBearing() + 0.02, { duration: 0 });
+                                window.mapRotateAnimationFrame = requestAnimationFrame(rotateCamera);
+                            }
+                        };
+                        rotateCamera();
+                    }
+                });
+
+                window.funkiMap.on('dragstart', () => {
+                    if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
+                });
+
+                window.flyToLocation = (lng, lat, zoom = 14, pitch = 60, markerText = '') => {
+                    if(!window.funkiMap) return;
+                    
+                    // Stop any ongoing camera rotation so it doesn't cancel flyTo immediately
+                    if (window.mapRotateAnimationFrame) {
+                        cancelAnimationFrame(window.mapRotateAnimationFrame);
+                        window.mapRotateAnimationFrame = null;
+                    }
+                    
+                    window.funkiMap.flyTo({
+                        center: [lng, lat],
+                        zoom: zoom,
+                        pitch: pitch,
+                        essential: true, // Forces animation even if another one is running
+                        bearing: Math.random() * 90 - 45,
+                        speed: 1.2,
+                        curve: 1,
+                        easing: (t) => t
+                    });
+
+                    // Resume rotation once we arrive
+                    window.funkiMap.once('moveend', () => {
+                        if (this.isMapFocus) {
+                            if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
+                            const rotateCamera = () => {
+                                if (window.funkiMap && this.isMapFocus) {
+                                    window.funkiMap.rotateTo(window.funkiMap.getBearing() + 0.02, { duration: 0 });
+                                    window.mapRotateAnimationFrame = requestAnimationFrame(rotateCamera);
+                                }
+                            };
+                            rotateCamera();
+                        }
+                    });
+
+                    if (window.funkiMarker) window.funkiMarker.remove();
+                    
+                    if (markerText) {
+                        const el = document.createElement('div');
+                        el.className = 'marker';
+                        el.innerHTML = `<div class="bg-cyan-900/80 border border-cyan-400 text-cyan-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(0,240,255,0.5)] animate-pulse whitespace-nowrap">${markerText}</div>`;
+                        
+                        window.funkiMarker = new mapboxgl.Marker(el)
+                            .setLngLat([lng, lat])
+                            .addTo(window.funkiMap);
+                    }
+                };
+            },
+            
+            async fetchLiveFlightData() {
+                if (!this.isFlightDataActive || !window.funkiMap) return;
+                try {
+                    // Using OpenSky API for live flights over Europe/World.
+                    // For performance, we limit to the first 1000 flights returned, or a bounding box if we had one.
+                    const response = await fetch('https://opensky-network.org/api/states/all');
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    
+                    const features = [];
+                    if (data && data.states) {
+                        // Take up to 1000 planes to keep performance high
+                        const limit = Math.min(data.states.length, 1000);
+                        for (let i = 0; i < limit; i++) {
+                            const state = data.states[i];
+                            const lng = state[5];
+                            const lat = state[6];
+                            const onGround = state[8];
+                            
+                            if (lng !== null && lat !== null && !onGround) {
+                                features.push({
+                                    type: 'Feature',
+                                    geometry: { type: 'Point', coordinates: [lng, lat] },
+                                    properties: {
+                                        callsign: state[1] ? state[1].trim() : 'UNKNOWN',
+                                        country: state[2],
+                                        velocity: state[9],
+                                        heading: state[10]
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    
+                    if (window.funkiMap.getSource('live-flights')) {
+                        window.funkiMap.getSource('live-flights').setData({
+                            type: 'FeatureCollection',
+                            features: features
+                        });
+                    }
+                } catch (e) {
+                    console.log('Flight data fetch error:', e);
+                }
+            },
+
+            generateMockShipData() {
+                if (!this.isFlightDataActive || !window.funkiMap) return;
+                // Generate random maritime traffic along coastlines/oceans (approximate bounding boxes)
+                const features = [];
+                for (let i = 0; i < 200; i++) {
+                    const lat = (Math.random() * 140) - 70;
+                    const lng = (Math.random() * 360) - 180;
+                    features.push({
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: [lng, lat] },
+                        properties: { type: 'ship' }
+                    });
+                }
+                if (window.funkiMap.getSource('live-ships')) {
+                    window.funkiMap.getSource('live-ships').setData({
+                        type: 'FeatureCollection',
+                        features: features
+                    });
+                }
+            },
+
+            destroyMapbox() {
+                if (window.funkiMap) {
+                    window.funkiMap.remove();
+                    window.funkiMap = null;
                 }
             },

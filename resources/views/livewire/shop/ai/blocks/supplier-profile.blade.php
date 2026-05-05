@@ -13,17 +13,17 @@
     <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-800 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
         <div class="absolute top-0 right-0 w-40 h-40 bg-[color:var(--theme-color)] opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all duration-700 pointer-events-none"></div>
         <div class="relative z-10">
-            <div class="flex items-center gap-6 mb-6">
+            <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6 text-center sm:text-left">
                 <!-- Avatar -->
-                <div class="w-20 h-20 shrink-0 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 border border-[color:var(--theme-color-50)] flex items-center justify-center text-[color:var(--theme-color)] font-bold text-3xl shadow-[0_0_20px_var(--theme-color-20)]">
+                <div class="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 border border-[color:var(--theme-color-50)] flex items-center justify-center text-[color:var(--theme-color)] font-bold text-2xl sm:text-3xl shadow-[0_0_20px_var(--theme-color-20)]">
                     <i class="bi bi-building"></i>
                 </div>
                 <!-- Name -->
-                <div class="flex-1">
-                    <h3 class="text-2xl font-sans font-bold text-white tracking-tight leading-tight">
+                <div class="flex-1 w-full overflow-hidden">
+                    <h3 class="text-xl sm:text-2xl font-sans font-bold text-white tracking-tight leading-tight truncate px-2 sm:px-0">
                         {{ $name }}
                     </h3>
-                    <div class="text-[color:var(--theme-color-70)] text-sm mt-1 flex items-center gap-2">
+                    <div class="text-[color:var(--theme-color-70)] text-xs sm:text-sm mt-1 flex items-center justify-center sm:justify-start gap-2">
                         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
                         Status: Lieferant geladen
                     </div>

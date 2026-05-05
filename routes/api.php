@@ -60,6 +60,23 @@ Route::post('/twilio/inbound', [\App\Http\Controllers\Api\TwilioCallController::
 Route::post('/twilio/call-log', [\App\Http\Controllers\Api\TwilioCallController::class, 'callLog'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
 
+// --- Flight Data Proxy (CORS Fix) ---
+Route::get('/flights', function (\Illuminate\Http\Request $request) {
+    try {
+        $lamin = $request->query('lamin');
+        $lomin = $request->query('lomin');
+        $lamax = $request->query('lamax');
+        $lomax = $request->query('lomax');
+        
+        $url = "https://opensky-network.org/api/states/all?lamin={$lamin}&lomin={$lomin}&lamax={$lamax}&lomax={$lomax}";
+        $response = \Illuminate\Support\Facades\Http::get($url);
+        
+        return response()->json($response->json());
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Flight API Proxy failed'], 500);
+    }
+});
+
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 

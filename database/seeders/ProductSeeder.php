@@ -102,9 +102,9 @@ class ProductSeeder extends Seeder
                 'engraving_pos_x' => -0.49,
                 'engraving_pos_y' => 0.62,
                 'engraving_pos_z' => -4.28,
-                'engraving_rot_x' => -151.53,
-                'engraving_rot_y' => 86.59,
-                'engraving_rot_z' => 153.04,
+                'engraving_rot_x' => -108.76,
+                'engraving_rot_y' => 88.32,
+                'engraving_rot_z' => 110.35,
                 'custom_points' => [
                     ['x' => 20, 'y' => 20], ['x' => 80, 'y' => 20],
                     ['x' => 80, 'y' => 80], ['x' => 20, 'y' => 80]

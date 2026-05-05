@@ -1456,7 +1456,7 @@ trait AiSystemFuncs
 
             if ($action === 'email') {
                 if (empty($recipient)) {
-                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address');
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
                 if (empty($recipient)) {
                     return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];

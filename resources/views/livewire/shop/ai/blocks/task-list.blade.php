@@ -37,10 +37,10 @@
                         <summary class="cursor-pointer font-bold uppercase tracking-widest hover:text-[color:var(--theme-color)] transition-colors list-none flex items-center gap-1">
                             <i class="bi bi-code-slash"></i> Payload ansehen
                         </summary>
-                        <div class="mt-2 bg-black/40 p-2 rounded-lg font-mono text-[9px] overflow-x-auto custom-scrollbar">
+                        <div class="mt-2 bg-black/40 p-2 sm:p-3 rounded-lg font-mono text-[9px] overflow-x-auto custom-scrollbar break-all whitespace-pre-wrap">
                             @foreach($task as $k => $v)
                                 @if(!in_array($k, ['title', 'name', 'status', 'description', 'due_date', 'deadline']))
-                                    <div class="text-[color:var(--theme-color-70)]"><strong class="text-gray-500">{{ $k }}:</strong> {{ is_array($v) ? json_encode($v) : $v }}</div>
+                                    <div class="text-[color:var(--theme-color-70)] mb-1"><strong class="text-gray-500">{{ $k }}:</strong> {{ is_array($v) ? json_encode($v) : $v }}</div>
                                 @endif
                             @endforeach
                         </div>

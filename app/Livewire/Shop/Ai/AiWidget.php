@@ -17,6 +17,11 @@ class AiWidget extends Component
     public $agentId = null;
     public $widgetConfig = null;
     
+    // UI State for AlpineJS Entangle
+    public $isMapFocus = false;
+    public $isMapMode = false;
+    public $isFlightDataActive = false;
+    
     public function mount($agentId = null)
     {
         $this->loadDefaultChatSession();
@@ -68,9 +73,10 @@ class AiWidget extends Component
     public function getListeners()
     {
         return [
-            "echo:workspace,TaskUpdated" => '$refresh',
             "echo:workspace,AiWidgetSpeechEvent" => 'handleSpeechEvent',
             "echo:workspace,.App\\Events\\AiWidgetSpeechEvent" => 'handleSpeechEvent',
+            "echo:workspace,AiFrontendEvent" => 'handleFrontendEvent',
+            "echo:workspace,.App\\Events\\AiFrontendEvent" => 'handleFrontendEvent',
         ];
     }
 
@@ -78,6 +84,13 @@ class AiWidget extends Component
     {
         if (isset($payload['text'])) {
             $this->dispatch('ai-speech-feedback', text: $payload['text']);
+        }
+    }
+
+    public function handleFrontendEvent($payload)
+    {
+        if (isset($payload['name'])) {
+            $this->dispatch($payload['name'], payload: $payload['detail'] ?? []);
         }
     }
 

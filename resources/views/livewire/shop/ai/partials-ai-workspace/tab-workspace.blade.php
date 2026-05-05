@@ -187,7 +187,7 @@
                     </div>
                 </div>
 
-                <div class="w-full h-full pt-20 pb-4 px-4 lg:pt-24 lg:pb-8 lg:px-8 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col" id="war-room-canvas" wire:poll.2s>
+                <div class="w-full h-full pt-20 pb-4 px-4 lg:pt-24 lg:pb-8 lg:px-8 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col" id="war-room-canvas">
                     <!-- Hidden attribute exposing worker state to JS (Must be inside polled DOM) -->
                     <div id="worker-status-node" class="hidden" data-running="{{ $this->isWorkerRunning ? 'true' : 'false' }}"></div>
 

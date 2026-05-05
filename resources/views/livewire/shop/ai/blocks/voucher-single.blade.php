@@ -1,6 +1,6 @@
 @props(['voucher'])
 
-<div class="relative bg-gray-950 border border-gray-800 rounded-3xl p-8 overflow-hidden group shadow-2xl mx-auto max-w-sm w-full">
+<div class="relative bg-gray-950 border border-gray-800 rounded-3xl p-6 sm:p-8 overflow-hidden group shadow-2xl mx-auto max-w-sm w-full">
     <!-- Glowing Accent Background -->
     <div class="absolute -top-32 -right-32 w-64 h-64 bg-[color:var(--theme-color-15)] rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-all duration-700"></div>
     <div class="absolute -bottom-32 -left-32 w-64 h-64 bg-[color:var(--theme-color-10)] rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-all duration-700"></div>

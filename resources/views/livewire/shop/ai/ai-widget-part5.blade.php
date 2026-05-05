@@ -206,43 +206,93 @@
                 t3.coreMesh = new THREE.Mesh(coreGeometry, t3.coreMaterial);
                 t3.scene.add(t3.coreMesh);
 
-                const planetPos = new THREE.Vector3(800, 300, -1200);
-                const planetGeo = new THREE.SphereGeometry(150, 32, 32);
-
-                const planetMat = new THREE.ShaderMaterial({
-                    uniforms: {
-                        color: { value: new THREE.Color(0x0a1a3a) },
-                        glowColor: { value: new THREE.Color(0x1a4a8a) },
-                        viewVector: { value: new THREE.Vector3() }
-                    },
-                    vertexShader: `
-                        varying vec3 vNormal;
-                        void main() {
-                            vNormal = normalize(normalMatrix * normal);
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                        }
-                    `,
-                    fragmentShader: `
-                        uniform vec3 color;
-                        uniform vec3 glowColor;
-                        varying vec3 vNormal;
-                        void main() {
-                            float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
-                            gl_FragColor = vec4(mix(color, glowColor, intensity), 1.0);
-                        }
-                    `,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending
-                });
-
-                t3.planetMesh = new THREE.Mesh(planetGeo, planetMat);
-                t3.planetMesh.position.copy(planetPos);
-                t3.scene.add(t3.planetMesh);
 
                 const hitboxGeo = new THREE.SphereGeometry(35, 16, 16); 
                 const hitboxMat = new THREE.MeshBasicMaterial({ visible: false });
                 t3.hitboxMesh = new THREE.Mesh(hitboxGeo, hitboxMat);
                 t3.scene.add(t3.hitboxMesh);
+
+                t3.hudRings = [];
+                const createSmoothRing = (radius, tube, color, speed, rotX, rotY, dashRatio) => {
+                    const group = new THREE.Group();
+                    const geo = new THREE.TorusGeometry(radius, tube, 32, 100, Math.PI * 2 * dashRatio);
+                    
+                    const solidMat = new THREE.MeshBasicMaterial({
+                        color: color, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false
+                    });
+                    
+                    const solidMesh = new THREE.Mesh(geo, solidMat);
+                    
+                    // Cap spheres for smooth ends
+                    const capGeo = new THREE.SphereGeometry(tube, 32, 32);
+                    const startCap = new THREE.Mesh(capGeo, solidMat);
+                    startCap.position.set(radius, 0, 0); 
+                    
+                    const endAngle = Math.PI * 2 * dashRatio;
+                    const endCap = new THREE.Mesh(capGeo, solidMat);
+                    endCap.position.set(Math.cos(endAngle) * radius, Math.sin(endAngle) * radius, 0);
+                    
+                    group.add(solidMesh);
+                    if (dashRatio < 1.0) {
+                        group.add(startCap);
+                        group.add(endCap);
+                    }
+                    
+                    group.rotation.x = rotX;
+                    group.rotation.y = rotY;
+                    group.userData = { speed: speed, solidMat: solidMat, baseOpacitySolid: 0.15 };
+                    
+                    t3.scene.add(group);
+                    t3.hudRings.push(group);
+                };
+
+                // Initial color is white, will be overridden dynamically in part 6
+                const baseColor = 0xffffff;
+
+                createSmoothRing(70, 2, baseColor, 0.008, 0.1, 0, 0.2);
+                createSmoothRing(85, 4, baseColor, 0.006, -0.1, 0.2, 0.15);
+                createSmoothRing(100, 1.5, baseColor, 0.01, 0.3, -0.1, 0.25);
+                createSmoothRing(115, 3, baseColor, 0.005, -0.2, 0.3, 0.1);
+
+                // AI Face (Smooth, Fluid, Capsule-based)
+                t3.faceGroup = new THREE.Group();
+                t3.faceMatSolid = new THREE.MeshBasicMaterial({
+                    color: baseColor, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false
+                });
+
+                // Eyes (Smooth Capsules)
+                t3.leftEye = new THREE.Mesh(new THREE.CapsuleGeometry(3, 15, 16, 32), t3.faceMatSolid);
+                t3.leftEye.rotation.z = Math.PI / 2 + 0.15; // horizontal, angled slightly
+                t3.leftEye.position.set(-15, 15, 62);
+                t3.faceGroup.add(t3.leftEye);
+
+                t3.rightEye = new THREE.Mesh(new THREE.CapsuleGeometry(3, 15, 16, 32), t3.faceMatSolid);
+                t3.rightEye.rotation.z = Math.PI / 2 - 0.15; 
+                t3.rightEye.position.set(15, 15, 62);
+                t3.faceGroup.add(t3.rightEye);
+
+                // Mouth (Smooth Capsule Equalizer)
+                t3.mouthBars = [];
+                const numBars = 25;
+                const mouthRadius = 66;
+                for(let i=0; i<numBars; i++) {
+                    const angle = (i / (numBars - 1)) * Math.PI * 0.6 - Math.PI * 0.3; 
+                    const barGeo = new THREE.CapsuleGeometry(1.5, 2, 16, 16);
+                    
+                    const solid = new THREE.Mesh(barGeo, t3.faceMatSolid);
+                    
+                    const posX = Math.sin(angle) * mouthRadius;
+                    const posY = -18;
+                    const posZ = Math.cos(angle) * mouthRadius;
+                    
+                    solid.position.set(posX, posY, posZ);
+                    // Capsule default is Y up. Positioned in arc, it naturally stands vertically.
+                    
+                    t3.faceGroup.add(solid);
+                    t3.mouthBars.push({ solid: solid, angle: angle });
+                }
+                
+                t3.scene.add(t3.faceGroup);
 
                 if (THREE.CSS2DRenderer && THREE.CSS2DObject) {
                     const panelElement = document.getElementById('diagnostic-panel');

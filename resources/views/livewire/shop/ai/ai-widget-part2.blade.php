@@ -58,6 +58,18 @@
             showErrorPanel: false,
             showDebugLog: false,
             showTasks: false,
+            showNewsPanel: false,
+            isMapFocus: false,
+            isMapMode: false,
+            isFlightDataActive: false,
+            activeMapStyle: 'mapbox://styles/mapbox/dark-v11',
+            mapStyles: [
+                { id: 'mapbox://styles/mapbox/dark-v11', name: 'Dark Cyber' },
+                { id: 'mapbox://styles/mapbox/satellite-streets-v12', name: 'Satellit' },
+                { id: 'mapbox://styles/mapbox/light-v11', name: 'Light Base' },
+                { id: 'mapbox://styles/mapbox/standard', name: '3D Standard' },
+                { id: 'mapbox://styles/mapbox/outdoors-v12', name: 'Outdoors' }
+            ],
 
             isAudioMuted: localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true, // Default to muted as requested
             bgVolume: initialVolume,
@@ -320,7 +332,7 @@
                                     setTimeout(() => {
                                         window.location.href = evt.url;
                                     }, 400);
-                                } else if (evt.type === 'dispatch') {
+                                } else if (evt.type === 'dispatch' || !evt.type) {
                                     if (evt.detail !== undefined) {
                                         window.dispatchEvent(new CustomEvent(evt.name, { detail: evt.detail }));
                                     } else {
@@ -750,6 +762,9 @@
                         });
                     }, 300); 
                 });
+
+
+
             },
 
             destroyCurrentChart() {
@@ -1034,18 +1049,24 @@
                             }
 
                             // MAGIC: Handle explicit UI events returned by tools (like navigation)
-                            if (resultData.result && resultData.result._event) {
-                                const ev = resultData.result._event;
+                            let frontendEvents = resultData.result && resultData.result._frontend_events;
+                            let frontendEvent = resultData.result && (resultData.result._frontend_event || resultData.result._event);
+                            
+                            let eventsToProcess = [];
+                            if (frontendEvents && Array.isArray(frontendEvents)) eventsToProcess = [...frontendEvents];
+                            if (frontendEvent) eventsToProcess.push(frontendEvent);
+                            
+                            eventsToProcess.forEach(ev => {
                                 if (ev.type === 'navigate' && ev.url) {
                                     if (typeof window.Livewire !== 'undefined') {
                                         window.Livewire.navigate(ev.url);
                                     } else {
                                         window.location.href = ev.url;
                                     }
-                                } else if (ev.type === 'dispatch' && ev.name) {
+                                } else if ((ev.type === 'dispatch' || !ev.type) && ev.name) {
                                     window.dispatchEvent(new CustomEvent(ev.name, { detail: ev.detail || {} }));
                                 }
-                            }
+                            });
 
                             // Send Tool Response back to Gemini
                             const toolResp = {

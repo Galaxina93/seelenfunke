@@ -90,25 +90,6 @@ trait AiProductFuncs
                 'callable' => [self::class, 'executeProductDraftGetDetails']
             ],
             [
-                'name' => 'product_create',
-                'description' => 'Erstellt ein komplett neues Produkt im Shop-System. Setzt den initialen Preis, Bestand, Titel und Status.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'name' => ['type' => 'string', 'description' => 'Der offizielle Produktname.'],
-                        'type' => ['type' => 'string', 'description' => 'Muss "physical", "digital" oder "service" sein.', 'enum' => ['physical', 'digital', 'service']],
-                        'price_eur' => ['type' => 'number', 'description' => 'Der Verkaufspreis in Euro (z.B. 19.99).'],
-                        'status' => ['type' => 'string', 'description' => 'Der Status ("draft" für Entwürfe, "active" sofort für den Verkauf, "archived" fürs Archiv).', 'enum' => ['draft', 'active', 'archived']],
-                        'sku' => ['type' => 'string', 'description' => 'Eindeutige Artikelnummer.'],
-                        'description' => ['type' => 'string', 'description' => 'Der Webseiten-Beschreibungstext (kann Markdown/HTML enthalten).'],
-                        'short_description' => ['type' => 'string', 'description' => 'Ein kurzer Teaser-Text.'],
-                        'quantity' => ['type' => 'integer', 'description' => 'Der initiale Lagerbestand.']
-                    ],
-                    'required' => ['name', 'type', 'price_eur']
-                ],
-                'callable' => [self::class, 'executeProductDraftCreate']
-            ],
-            [
                 'name' => 'product_update',
                 'description' => 'Aktualisiert ein oder mehrere Felder eines bestehenden Produkts (PIM Patch-Operation). Überschreibt nur die spezifischen Keys, die im JSON übergeben werden. Gut für direkte SEO Optimierung oder Preisanpassungen aus dem Chat heraus.',
                 'parameters' => [
@@ -561,46 +542,6 @@ trait AiProductFuncs
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
-        }
-    }
-
-    public static function executeProductDraftCreate(array $args)
-    {
-        try {
-            if (empty($args['name']) || empty($args['type'])) {
-                return ['status' => 'error', 'message' => 'Name und Type (physical/digital/service) sind Pflichtfelder.'];
-            }
-
-            $priceCents = isset($args['price_eur']) ? (int)round((float)$args['price_eur'] * 100) : 0;
-            $slug = Str::slug($args['name']);
-
-            // Kollisionsvermeidung
-            if (Product::withTrashed()->where('slug', $slug)->exists()) {
-                $slug .= '-' . time();
-            }
-
-            $product = Product::create([
-                'name' => $args['name'],
-                'slug' => $slug,
-                'status' => $args['status'] ?? 'draft',
-                'type' => $args['type'],
-                'price' => $priceCents,
-                'sku' => $args['sku'] ?? 'SKU-' . date('YmdHis'),
-                'description' => $args['description'] ?? null,
-                'short_description' => $args['short_description'] ?? null,
-                'quantity' => isset($args['quantity']) ? (int)$args['quantity'] : 0,
-                'track_quantity' => isset($args['quantity']) ? true : false,
-                'completion_step' => 4, // So the UI won't force wizard steps
-                'attributes' => []
-            ]);
-
-            return [
-                'status' => 'success',
-                'message' => "Produkt erfolgreich angelegt. ID: {$product->id}",
-                'product_id' => $product->id
-            ];
-        } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Anlegen des Produkts: ' . $e->getMessage()];
         }
     }
 

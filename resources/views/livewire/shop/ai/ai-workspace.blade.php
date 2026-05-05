@@ -40,6 +40,8 @@
                     @include('livewire.shop.ai.partials-ai-workspace.tab-chat')
                     @include('livewire.shop.ai.partials-ai-workspace.tab-files')
                     @include('livewire.shop.ai.partials-ai-workspace.tab-health')
+                    @include('livewire.shop.ai.partials-ai-workspace.tab-workflows')
+                    @livewire('shop.ai.partials-ai-workspace.tab-cronjobs')
                 </div>
             @endif
         </div>

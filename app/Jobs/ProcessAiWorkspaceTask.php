@@ -234,6 +234,19 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $stepResponseArray = $apiService->ask($history, $streamCallback);
                 $stepResult = $stepResponseArray['response'] ?? 'Keine Antwort.';
 
+                if (!empty($stepResponseArray['events'])) {
+                    foreach ($stepResponseArray['events'] as $eventMsg) {
+                        $evtType = $eventMsg['type'] ?? '';
+                        if ($evtType === 'dispatch' || !empty($eventMsg['name'])) {
+                            $name = $eventMsg['name'] ?? 'ai-global-event';
+                            $detail = $eventMsg['detail'] ?? [];
+                            if (class_exists(\App\Events\AiFrontendEvent::class)) {
+                                broadcast(new \App\Events\AiFrontendEvent($name, $detail));
+                            }
+                        }
+                    }
+                }
+
                 $thinkDuration = round(microtime(true) - $lastActionTime, 1);
                 if ($thinkDuration > 0.5) {
                     $t = $this->task->fresh();

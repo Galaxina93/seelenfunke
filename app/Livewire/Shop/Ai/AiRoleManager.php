@@ -17,7 +17,7 @@ class AiRoleManager extends Component
 
     public string $themingDepartment = 'Agenten';
     public $roles;
-    
+
     // Inline Edit State
     public $editingRoleId = null;
     public $isCreating = false;
@@ -146,6 +146,7 @@ class AiRoleManager extends Component
         $nameFin = $depts['019d4444-4444-4444-4444-444444444444'] ?? 'Buchhaltung';
         $nameAgents = $depts['019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'] ?? 'Agenten';
         $nameSystem = $depts['019d5555-5555-5555-5555-555555555555'] ?? 'System';
+        $nameWorld = 'Welt & Urlaub'; // Neue Kategorie für News & Holiday
 
         // Strikte Array-Map Reihenfolge vom CEO gefordert:
         $categoryMap = [
@@ -177,6 +178,11 @@ class AiRoleManager extends Component
             $nameFin => array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
             $nameAgents => array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
             $nameSystem => array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+            $nameWorld => array_merge(
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiHolidayPlannerFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiNewsFuncsSchema(), 'name'),
+                array_column(\App\Services\AI\AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name')
+            ),
         ];
 
         // Initiiere das leere Array mit der exakten geforderten Reihenfolge

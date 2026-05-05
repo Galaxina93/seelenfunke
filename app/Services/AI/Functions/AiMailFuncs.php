@@ -188,7 +188,7 @@ trait AiMailFuncs
             }
 
             if (empty($to)) {
-                $to = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address');
+                $to = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
             }
             if (empty($to)) {
                 return ['status' => 'error', 'message' => 'Keine Empfänger-E-Mail angegeben und keine Standard-E-Mail im System (company_email, owner_email oder mail.from.address) hinterlegt.'];

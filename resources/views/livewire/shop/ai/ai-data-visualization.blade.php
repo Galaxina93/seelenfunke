@@ -24,12 +24,12 @@
          x-transition:leave="ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
          x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-         class="relative transform overflow-hidden rounded-2xl bg-gray-900 border border-gray-700/50 shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-all max-w-4xl w-full m-4 max-h-[90vh] flex flex-col">
+         class="relative transform overflow-hidden rounded-2xl bg-gray-900 border border-gray-700/50 shadow-[0_0_50px_rgba(0,0,0,0.5)] transition-all max-w-4xl w-full m-2 sm:m-4 max-h-[90vh] flex flex-col">
 
         <!-- Header -->
-        <div class="px-6 py-4 border-b border-gray-800 bg-gray-900/50 flex items-center justify-between z-10">
-            <h3 class="text-lg font-sans font-medium text-gray-200 flex items-center gap-3" id="modal-title">
-                <span class="text-[color:var(--theme-color)]">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-800 bg-gray-900/50 flex items-center justify-between z-10 shrink-0">
+            <h3 class="text-base sm:text-lg font-sans font-medium text-gray-200 flex items-center gap-2 sm:gap-3 truncate pr-2" id="modal-title">
+                <span class="text-[color:var(--theme-color)] shrink-0">
                     @if($category === 'code')
                         <i class="bi bi-code-square"></i>
                     @elseif($category === 'customer' || $category === 'person')
@@ -42,22 +42,24 @@
                         <i class="bi bi-box"></i>
                     @endif
                 </span>
-                @if($category === 'voucher')
-                    Gutschein Daten
-                @elseif($category === 'customer' || $category === 'person')
-                    Kundenakte & Profil
-                @elseif($category === 'supplier')
-                    Lieferanten-Akte
-                @elseif($category === 'task')
-                    Aufgaben & Tasks
-                @elseif($category === 'code')
-                    Code Viewer
-                @else
-                    System Analyse
-                @endif
+                <span class="truncate">
+                    @if($category === 'voucher')
+                        Gutschein Daten
+                    @elseif($category === 'customer' || $category === 'person')
+                        Kundenakte & Profil
+                    @elseif($category === 'supplier')
+                        Lieferanten-Akte
+                    @elseif($category === 'task')
+                        Aufgaben & Tasks
+                    @elseif($category === 'code')
+                        Code Viewer
+                    @else
+                        System Analyse
+                    @endif
+                </span>
             </h3>
             <button wire:click="close" type="button"
-                    class="rounded-full w-8 h-8 flex items-center justify-center bg-gray-800 text-gray-400 hover:text-white hover:bg-rose-500/20 hover:text-rose-400 transition-all focus:outline-none">
+                    class="rounded-full shrink-0 w-8 h-8 flex items-center justify-center bg-gray-800 text-gray-400 hover:text-white hover:bg-rose-500/20 hover:text-rose-400 transition-all focus:outline-none">
                 <span class="sr-only">Schließen</span>
                 <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path
@@ -68,7 +70,7 @@
 
         <!-- Body: Der Headless Router! -->
         <div
-            class="p-6 overflow-y-auto w-full custom-scrollbar flex-1 relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-800/20 via-gray-900 to-black">
+            class="p-4 sm:p-6 overflow-y-auto w-full custom-scrollbar flex-1 relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-800/20 via-gray-900 to-black">
             @if($category === 'voucher')
                 @if(count($data) === 1)
                     <!-- Single Voucher Card -->

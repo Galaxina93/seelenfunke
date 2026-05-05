@@ -242,7 +242,7 @@ trait AiTelefonyFuncs
                 'contact' => $c->contact_name,
                 'status' => $c->status,
                 'duration_seconds' => $c->duration_seconds,
-                'objective_plan' => $c->objective,
+                'objective' => $c->objective,
                 'summary_fazit' => $c->summary,
                 'next_steps' => json_decode($c->next_steps, true),
                 'transcript_preview' => substr(json_encode(json_decode($c->transcript, true)), 0, 500) . '...',

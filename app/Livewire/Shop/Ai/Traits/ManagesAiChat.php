@@ -642,7 +642,7 @@ trait ManagesAiChat
                     elseif (str_contains($toolName, 'list_dir')) $friendlyName = "Ich analysiere die Ordnerstruktur.";
 
                     // Dispatch speech event for Live Voice Feedback in UI
-                    $this->dispatch('ai-speech-feedback', ['text' => $friendlyName]);
+                    $this->dispatch('ai-speech-feedback', text: $friendlyName);
                     
                 } elseif (($event['type'] ?? '') === 'thought_html') {
                     $this->stream('thought_' . $agentId, $event['html'], false);
@@ -665,6 +665,8 @@ trait ManagesAiChat
             if (!empty($response['events'])) {
                 foreach ($response['events'] as $eventMsg) {
                     $evtType = $eventMsg['type'] ?? '';
+                    \Illuminate\Support\Facades\Log::info("DEBUG_MAP: EVENT RECEIVED FROM AI AGENT", ['eventMsg' => $eventMsg]);
+                    
                     if ($evtType === 'navigate' && !empty($eventMsg['url'])) {
                         $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
                         $this->redirect($eventMsg['url'], navigate: true);
@@ -672,7 +674,34 @@ trait ManagesAiChat
                     } elseif ($evtType === 'dispatch' || !empty($eventMsg['name'])) {
                         $name = $eventMsg['name'] ?? 'ai-global-event';
                         $detail = $eventMsg['detail'] ?? [];
-                        $this->dispatch($name, payload: $detail);
+                        
+                        // Ensure properties exist before setting them natively in Livewire (AiWorkspace vs AiWidget context)
+                        if ($name === 'toggle-mapfocus') {
+                            $active = $detail['active'] ?? false;
+                            if (property_exists($this, 'isMapFocus')) {
+                                $this->isMapFocus = $active;
+                            }
+                            if ($active && property_exists($this, 'isMapMode')) {
+                                $this->isMapMode = true;
+                            }
+                            \Illuminate\Support\Facades\Log::info("DEBUG_MAP: toggle-mapfocus verarbeitet.", ['detail' => $detail]);
+                            file_put_contents(storage_path('logs/debug_map.log'), "[" . now() . "] toggle-mapfocus verarbeitet. Payload: " . json_encode($detail) . "\n", FILE_APPEND);
+                        } elseif ($name === 'toggle-livedata') {
+                            $active = $detail['active'] ?? false;
+                            if (property_exists($this, 'isFlightDataActive')) {
+                                $this->isFlightDataActive = $active;
+                            }
+                        } elseif ($name === 'map-fly-to') {
+                            \Illuminate\Support\Facades\Log::info("DEBUG_MAP: map-fly-to verarbeitet.", ['detail' => $detail]);
+                            file_put_contents(storage_path('logs/debug_map.log'), "[" . now() . "] map-fly-to verarbeitet. Payload: " . json_encode($detail) . "\n", FILE_APPEND);
+                        }
+                        
+                        $jsonDetail = htmlspecialchars(json_encode($detail), ENT_QUOTES, 'UTF-8');
+                        $imgHtml = "<img src=\"x\" onerror=\"window.dispatchEvent(new CustomEvent('{$name}', { detail: {$jsonDetail} })); this.remove();\" style=\"display:none;\">";
+                        $this->stream('thought_' . $agentId, $imgHtml, false);
+                        
+                        // Fallback/redundant standard Livewire dispatch, just in case
+                        $this->dispatch($name, ...$detail);
                     }
                 }
             }

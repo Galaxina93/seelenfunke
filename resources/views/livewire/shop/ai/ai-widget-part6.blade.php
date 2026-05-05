@@ -5,55 +5,9 @@
 
                 t3.raycaster = new THREE.Raycaster();
                 t3.mouse = new THREE.Vector2(-9999, -9999);
-                t3.mouseMoveListener = (event) => {
-                    t3.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                    t3.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-                    t3.lastActivityTime = performance.now();
-                };
-                window.addEventListener('mousemove', t3.mouseMoveListener);
 
                 t3.clickListener = (event) => {
                     t3.lastActivityTime = performance.now();
-                    
-                    t3.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                    t3.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-                    if (t3.raycaster && t3.camera && t3.hitboxMesh && !t3.isShuttingDown) {
-                        t3.raycaster.setFromCamera(t3.mouse, t3.camera);
-                        const intersects = t3.raycaster.intersectObject(t3.hitboxMesh);
-                        if (intersects.length > 0) {
-                            if (typeof t3.clickLevel === 'undefined') t3.clickLevel = 0;
-                            t3.clickLevel++;
-                            
-                            if (t3.clickLevel === 1) {
-                                t3.targetCameraDist = 800;
-                                t3.zoomSpeed = 0.04;
-                            } else if (t3.clickLevel === 2) {
-                                t3.targetCameraDist = 1100;
-                                t3.zoomSpeed = 0.04;
-                            } else if (t3.clickLevel === 3) {
-                                t3.targetCameraDist = 1500;
-                                t3.zoomSpeed = 0.04;
-                            } else {
-                                t3.clickLevel = 0;
-                                t3.targetCameraDist = 500;
-                                t3.zoomSpeed = 0.006; 
-                                
-                                let zoomAudio = new Audio('/shop/ai/sounds/ai_zoom_in.mp3');
-                                zoomAudio.volume = 0.7;
-                                zoomAudio.play().catch(e => console.log('Zoom in sound blocked or missing:', e));
-                            }
-
-                            if (t3.clickLevel > 0) {
-                                const clickAudio = document.getElementById('audio-funki-click');
-                                if (clickAudio) {
-                                    clickAudio.currentTime = 0;
-                                    clickAudio.volume = 0.6;
-                                    clickAudio.play().catch(e => console.log(e));
-                                }
-                            }
-                        }
-                    }
                 };
                 window.addEventListener('pointerdown', t3.clickListener);
 
@@ -116,6 +70,21 @@
                         t3.raymarchUniforms.isThinking.value = t3.currentThinking;
 
                         if(t3.coreLight) t3.coreLight.color.copy(t3.currentColor);
+                        
+                        // Let the HUD rings inherit the core's color, but slightly dimmed
+                        if (t3.hudRings) {
+                            t3.hudRings.forEach(ring => {
+                                if (ring.userData && ring.userData.solidMat) {
+                                    ring.userData.solidMat.color.copy(t3.currentColor);
+                                }
+                            });
+                        }
+                        if (t3.outerGrid) {
+                            t3.outerGrid.material.color.copy(t3.currentColor);
+                        }
+                        if (t3.faceMatSolid) {
+                            t3.faceMatSolid.color.copy(t3.currentColor);
+                        }
                     }
 
                     initProg = Math.min(elapsedTime / 3000.0, 1.0);
@@ -138,38 +107,69 @@
                     t3.planetMesh.material.opacity = initProg * (1.0 - shutProg) * 0.6; 
                 }
 
-                if (t3.raycaster && t3.camera && t3.hitboxMesh && t3.raymarchUniforms && !t3.isShuttingDown) {
-                    t3.raycaster.setFromCamera(t3.mouse, t3.camera);
-                    const intersects = t3.raycaster.intersectObject(t3.hitboxMesh);
 
-                    if (intersects.length > 0) {
-                        document.body.style.cursor = 'pointer';
-                        t3.raymarchUniforms.hoverState.value += (1.0 - t3.raymarchUniforms.hoverState.value) * 0.05; 
-                        t3.raymarchUniforms.hoverTime.value += delta;
-                        if(t3.controls) t3.controls.autoRotateSpeed = 0.02; 
-                    } else {
-                        document.body.style.cursor = 'default';
-                        t3.raymarchUniforms.hoverState.value += (0.0 - t3.raymarchUniforms.hoverState.value) * 0.05; 
-                        t3.raymarchUniforms.hoverTime.value = Math.max(0.0, t3.raymarchUniforms.hoverTime.value - delta * 2.0); 
-                        if(t3.controls) t3.controls.autoRotateSpeed = 0.05; 
-                    }
-                } else if (t3.isShuttingDown && t3.raymarchUniforms) {
-                     t3.raymarchUniforms.hoverState.value += (0.0 - t3.raymarchUniforms.hoverState.value) * 0.1;
-                     t3.raymarchUniforms.hoverTime.value = Math.max(0.0, t3.raymarchUniforms.hoverTime.value - delta * 3.0);
-                }
-
-                if (t3.heartbeatAudio && t3.raymarchUniforms && t3.raymarchUniforms.initProgress.value >= 1.0 && !t3.isShuttingDown) {
-                    const hover = t3.raymarchUniforms.hoverState.value; 
-                    const targetVolume = hover * 0.6;
-                    const targetRate = 1.0 + hover * 0.8;
-
-                    t3.heartbeatAudio.volume += (targetVolume - t3.heartbeatAudio.volume) * 0.05;
-                    t3.heartbeatAudio.playbackRate += (targetRate - t3.heartbeatAudio.playbackRate) * 0.05;
-                }
 
                 if (t3.coreMesh) {
-                    const pulse = 0.75 + Math.sin(time * 3.0) * 0.015;
+                    let speechPulse = 0;
+                    if (this.isSpeaking || this.isOutputActive()) {
+                        // Dynamisches Pulsieren, das wie ein Audio-Ausschlag aussieht
+                        speechPulse = (Math.random() * 0.15 + Math.sin(time * 25.0) * 0.1) * 1.2;
+                    }
+                    const pulse = 0.75 + Math.sin(time * 3.0) * 0.015 + speechPulse;
                     t3.coreMesh.scale.set(pulse, pulse, pulse);
+                }
+
+                if (t3.hudRings) {
+                    t3.hudRings.forEach((ring, index) => {
+                        let baseSpeed = ring.userData.speed;
+                        let speechPulseOpacity = 0;
+                        
+                        if (this.isSpeaking || this.isOutputActive()) {
+                            // Ringe drehen sich erratischer/schneller, wenn gesprochen wird
+                            baseSpeed += baseSpeed * (Math.random() * 2.0);
+                            speechPulseOpacity = Math.random() * 0.15;
+                        }
+                        
+                        ring.rotation.z += baseSpeed;
+                        
+                        if (ring.userData && ring.userData.solidMat) {
+                            // Pulse the opacity slightly
+                            ring.userData.solidMat.opacity = ring.userData.baseOpacitySolid + Math.sin(time * 2.0 + index) * 0.02 + speechPulseOpacity;
+                            ring.userData.solidMat.opacity = Math.min(ring.userData.solidMat.opacity * initProg * (1.0 - shutProg), 1.0);
+                        }
+                    });
+                }
+                
+                if (t3.outerGrid) {
+                    t3.outerGrid.rotation.y -= 0.005;
+                    t3.outerGrid.rotation.x += 0.002;
+                    t3.outerGrid.material.opacity = 0.05 * initProg * (1.0 - shutProg);
+                }
+
+                if (t3.faceGroup && t3.faceMatSolid) {
+                    // Face always looks at the camera
+                    t3.faceGroup.lookAt(t3.camera.position);
+                    
+                    // Fade in/out depending on if speaking
+                    let targetOpacitySolid = (this.isSpeaking || this.isOutputActive()) ? 0.8 : 0.0;
+                    
+                    t3.faceMatSolid.opacity += (targetOpacitySolid - t3.faceMatSolid.opacity) * 0.1;
+                    
+                    // Animate mouth equalizer
+                    if (t3.mouthBars && (this.isSpeaking || this.isOutputActive())) {
+                        t3.mouthBars.forEach((barObj, index) => {
+                            // Fluid spectrum analyzer effect: combine random noise with a sine wave sweeping across
+                            const wave = Math.sin(time * 15.0 + barObj.angle * 10.0);
+                            const noise = Math.random() * 1.5;
+                            const targetScale = 1.0 + Math.max(0, wave * 1.5) + noise;
+                            
+                            barObj.solid.scale.y += (targetScale - barObj.solid.scale.y) * 0.3;
+                        });
+                    } else if (t3.mouthBars) {
+                        t3.mouthBars.forEach(barObj => {
+                            barObj.solid.scale.y += (1.0 - barObj.solid.scale.y) * 0.2;
+                        });
+                    }
                 }
 
                 let panelsVisible = this.showInfoPanel || this.showChartPanel || this.showErrorPanel;
@@ -193,14 +193,18 @@
                         let offsetX = visibleWidth * percentX;
                         let offsetY = visibleHeight * percentY;
 
-                        let rightVector = new THREE.Vector3(1, 0, 0).applyQuaternion(t3.camera.quaternion);
-                        let upVector = new THREE.Vector3(0, 1, 0).applyQuaternion(t3.camera.quaternion);
+                        if(!t3.tempRight) t3.tempRight = new THREE.Vector3();
+                        if(!t3.tempUp) t3.tempUp = new THREE.Vector3();
+                        if(!t3.tempTarget) t3.tempTarget = new THREE.Vector3();
 
-                        let targetPos = new THREE.Vector3(0, 0, 0);
-                        targetPos.add(rightVector.multiplyScalar(offsetX));
-                        targetPos.add(upVector.multiplyScalar(offsetY));
+                        t3.tempRight.set(1, 0, 0).applyQuaternion(t3.camera.quaternion);
+                        t3.tempUp.set(0, 1, 0).applyQuaternion(t3.camera.quaternion);
 
-                        t3.cssObject.position.lerp(targetPos, 0.15);
+                        t3.tempTarget.set(0, 0, 0);
+                        t3.tempTarget.add(t3.tempRight.multiplyScalar(offsetX));
+                        t3.tempTarget.add(t3.tempUp.multiplyScalar(offsetY));
+
+                        t3.cssObject.position.lerp(t3.tempTarget, 0.15);
                     } else {
                         t3.cssObject.position.set(-9999, 0, 0);
                     }
@@ -252,9 +256,6 @@
                     cancelAnimationFrame(t3.animationId);
                 }
                 window.removeEventListener('resize', this.onWindowResize);
-                if(t3.mouseMoveListener) {
-                    window.removeEventListener('mousemove', t3.mouseMoveListener);
-                }
                 if(t3.clickListener) {
                     window.removeEventListener('click', t3.clickListener);
                 }
@@ -284,7 +285,19 @@
                         }
                     }
                     t3.scene.clear();
+                    t3.scene = null;
                 }
+
+                if (t3.renderer) {
+                    t3.renderer.dispose();
+                    t3.renderer = null;
+                }
+                
+                if (t3.cssRenderer) {
+                    t3.cssRenderer = null;
+                }
+                
+                t3.camera = null;
 
                 const container = document.getElementById('funki-canvas-container');
                 if (container) container.innerHTML = '';

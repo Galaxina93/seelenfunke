@@ -36,11 +36,29 @@
                  <option value="">(Neuer Chat)</option>
              @endif
          </select>
+
+         <select x-model="activeMapStyle" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-emerald-900/50 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[120px]">
+             <template x-for="style in mapStyles" :key="style.id">
+                 <option :value="style.id" x-text="style.name" class="bg-black text-white"></option>
+             </template>
+         </select>
          
          <button @click="toggleLiveMode(); if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
              :class="isLiveMode ? 'text-yellow-400 border-yellow-500/50 bg-yellow-900/30 hover:bg-yellow-800 shadow-[0_0_15px_rgba(250,204,21,0.5)] animate-pulse' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" /></svg>
              Live Mode
+         </button>
+         
+         <button x-show="isMapFocus" x-transition @click="isFlightDataActive = !isFlightDataActive; if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
+             :class="isFlightDataActive ? 'text-cyan-400 border-cyan-500/50 bg-cyan-900/30 hover:bg-cyan-800 shadow-[0_0_15px_rgba(0,240,255,0.5)] animate-pulse' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" /></svg>
+             Livedaten
+         </button>
+         
+         <button @click="isMapFocus = !isMapFocus; if(isMapFocus) isMapMode = true; if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
+             :class="isMapFocus ? 'text-emerald-400 border-emerald-500/50 bg-emerald-900/30 hover:bg-emerald-800 shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>
+             Map Kontrolle
          </button>
          
 

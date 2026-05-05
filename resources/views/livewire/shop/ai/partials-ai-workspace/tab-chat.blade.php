@@ -1,6 +1,6 @@
 
             <!-- AI Chat Console -->
-            <div wire:key="tab-chat" :class="{'hidden': activeTab !== 'chat', '!fixed !inset-0 !m-0 !p-0 !z-[99999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen}" class="flex-1 shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full">
+            <div wire:key="tab-chat" x-data="{ showMobileChatSidebar: false }" :class="{'hidden': activeTab !== 'chat', '!fixed !inset-0 !m-0 !p-0 !z-[99999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen}" class="flex-1 shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full">
 
                 
                 <!-- Burger Menu Sidebar (Desktop/Tablet) -->
@@ -10,6 +10,11 @@
                 
                 <div class="flex-1 flex flex-col min-h-0 relative">
                 
+                <!-- Mobile Sidebar Toggle -->
+                <button @click="showMobileChatSidebar = true" class="md:hidden absolute top-4 left-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chats anzeigen">
+                    <x-heroicon-o-bars-3-bottom-left class="w-4 h-4" />
+                </button>
+
                 <!-- Fullscreen Toggle Button (Mobile) -->
                 <button @click="isChatFullScreen = !isChatFullScreen" class="lg:hidden absolute top-4 right-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chat maximieren">
                     <svg x-show="!isChatFullScreen" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -21,7 +26,7 @@
                 </button>
                 
                 <!-- Chat Log Area -->
-                <div id="chat-scroll-container" class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 custom-scrollbar scroll-smooth"
+                <div id="chat-scroll-container" class="flex-1 overflow-y-auto p-4 lg:p-6 pt-16 lg:pt-6 space-y-6 custom-scrollbar scroll-smooth"
                      x-data="{
                          scrollToBottom() { this.$el.scrollTop = this.$el.scrollHeight; },
                          observeScroll() {
@@ -276,5 +281,18 @@
                         </form>
                     </div>
                 </div>
+
+                <!-- Mobile Chat Sidebar (Off-canvas) -->
+                <div x-show="showMobileChatSidebar" class="md:hidden absolute inset-0 z-[99999] flex" style="display: none;">
+                    <div x-show="showMobileChatSidebar" x-transition.opacity class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showMobileChatSidebar = false"></div>
+                    <div x-show="showMobileChatSidebar" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative w-[85%] max-w-sm h-full shadow-2xl flex flex-col pointer-events-auto z-10 border-r border-[var(--theme-color-50)]">
+                        <x-backend.ai-chat-sidebar class="h-full border-r-0 w-full" />
+                        <!-- Close Button Inside Sidebar -->
+                        <button @click="showMobileChatSidebar = false" class="absolute top-4 right-4 bg-gray-900 border border-[var(--theme-color-50)] text-gray-300 hover:text-white p-2 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)] z-50">
+                            <x-heroicon-s-x-mark class="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
             </div>
 </div>

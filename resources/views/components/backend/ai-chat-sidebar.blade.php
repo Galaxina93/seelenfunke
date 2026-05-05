@@ -1,4 +1,4 @@
-<div class="w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0" x-data="{
+<div {{ $attributes->merge(['class' => 'w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 h-full']) }} x-data="{
     selectedChats: [],
     toggleSelection(id) {
         if(this.selectedChats.includes(id)) {

@@ -3,8 +3,9 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use App\Models\System\SystemLog;
+use App\Models\System\SystemCronjob;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,61 +22,44 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Täglich um 08:00 Uhr prüfen und Newsletter senden
-Schedule::command('send-newsletters')->dailyAt('08:00');
+try {
+    if (Schema::hasTable('system_cronjobs')) {
+        $cronjobs = SystemCronjob::where('is_active', true)->get();
 
-// E-Mails via IMAP asynchron vom Server abrufen (Posteingang sync)
-Schedule::command('crm:fetch-mails')->everyFifteenSeconds();
+        foreach ($cronjobs as $job) {
+            $event = Schedule::command($job->command, $job->parameters ? explode(' ', $job->parameters) : []);
 
+            if (method_exists($event, $job->schedule)) {
+                $event->{$job->schedule}();
+            } else {
+                $event->cron($job->schedule);
+            }
 
-// Automatische Gutschein-Generierung für das neue Jahr (am 1. Januar)
-Schedule::call(function () {
-    Artisan::call('db:seed', ['--class' => 'MonthlyVoucherSeeder']);
-})->yearlyOn(1, 1, '00:05');
+            $event->onSuccess(function () use ($job) {
+                $job->update([
+                    'last_run_at' => now(),
+                    'status' => 'success'
+                ]);
+            })->onFailure(function () use ($job) {
+                $job->update([
+                    'last_run_at' => now(),
+                    'status' => 'error'
+                ]);
 
-// UStVA Autopilot - Läuft am 5. jeden Monats und generiert den Steuer-Export des Vormonats
-Schedule::command('funki:generate-tax-export')->monthlyOn(5, '02:00');
-
-// Automatische DHL Sendungsverfolgung – prüft Pakete "in Zustellung" und schließt Orders automatisch ab
-Schedule::command('dhl:check-delivery-status')->everyFourHours();
-
-// System-Herzschlag für das Health-Dashboard (jede Minute)
-Schedule::call(function () {
-    try {
-        Cache::put('scheduler_last_run', now());
-    } catch (\Exception $e) {
-        // Lokal per CLI können Berechtigungsfehler auf Cache-Dateien von www-data auftreten.
-        // Diese werden hier stumm geschaltet, um ein "FAIL" im Ausgabefenster zu verhindern.
-    }
-})->everyMinute();
-
-// Das echte Datenbank-Backup (z.B. über Spatie Laravel Backup)
-Schedule::command('backup:run --only-db')
-    ->dailyAt('03:00')
-    ->onSuccess(function () {
-        // Ampel auf dem Dashboard wird grün
-        Cache::put('backup_last_run', now());
-    })
-    ->onFailure(function () {
-        // Bei Absturz: Sofort einen Error-Log aufs Dashboard feuern
-        if (class_exists(SystemLog::class)) {
-            SystemLog::create([
-                'type' => 'system',
-                'action_id' => 'system:backup_failed',
-                'title' => 'Backup fehlgeschlagen',
-                'message' => 'Das nächtliche Datenbank-Backup konnte nicht erfolgreich erstellt werden. Bitte Server-Logs prüfen!',
-                'status' => 'error',
-                'started_at' => now(),
-                'finished_at' => now(),
-            ]);
+                if (class_exists(SystemLog::class)) {
+                    SystemLog::create([
+                        'type' => 'system',
+                        'action_id' => 'system:cronjob_failed',
+                        'title' => 'Cronjob fehlgeschlagen: ' . $job->name,
+                        'message' => 'Der Cronjob (' . $job->command . ') konnte nicht erfolgreich ausgeführt werden.',
+                        'status' => 'error',
+                        'started_at' => now(),
+                        'finished_at' => now(),
+                    ]);
+                }
+            });
         }
-    });
-
-// Dynamischer Kapazitäts-Berechner und Autopilot
-Schedule::command('shop:capacity-engine')->everyFiveMinutes();
-
-// Schließt inaktive KI Support-Chats nach 12 Stunden automatisch
-Schedule::command('support:auto-resolve-chats')->hourly();
-
-// Sendet automatische E-Mail Erinnerungen für stehengelassene Warenkörbe
-Schedule::command('shop:send-abandoned-cart-reminders')->everyFiveMinutes();
+    }
+} catch (\Throwable $e) {
+    // If DB is not available yet, do not crash artisan
+}

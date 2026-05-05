@@ -13,6 +13,9 @@
         $agentColor = $widgetAgent ? $widgetAgent->color : 'emerald-500';
     @endphp
 
+    <!-- HIDDEN STREAM TARGET FOR FRONTEND EVENTS (Outside wire:ignore) -->
+    <div wire:stream="thought_{{ $agentId ?? 'system' }}" style="display:none;"></div>
+
     @include('livewire.shop.ai.ai-widget-part1', ['widgetAgent' => $widgetAgent, 'agentName' => $agentName, 'agentIsActive' => $agentIsActive, 'agentWakeWord' => $agentWakeWord, 'agentColor' => $agentColor, 'availableAgents' => $availableAgents])
     @include('livewire.shop.ai.ai-widget-part2', ['widgetAgent' => $widgetAgent, 'agentName' => $agentName, 'agentIsActive' => $agentIsActive, 'agentWakeWord' => $agentWakeWord, 'agentColor' => $agentColor])
     @include('livewire.shop.ai.ai-widget-part3', ['widgetAgent' => $widgetAgent, 'agentName' => $agentName, 'agentIsActive' => $agentIsActive, 'agentWakeWord' => $agentWakeWord, 'agentColor' => $agentColor])

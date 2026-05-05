@@ -26,7 +26,8 @@ class AiAgentSeeder extends Seeder
             'Analyst' => 'Datenspezialist für Produktrecherche, detaillierte Nischenanalysen und die Auswertung von Markttrends.',
             'Hausarzt' => 'Gesundheitlicher Experte für Diagnosen, medizinische Analysen und das Erstellen von Behandlungsplänen.',
             'Systemadmin' => 'Systemexperte für globale Konfigurationen, Server-Logs, Tickets und das Benutzer-Management.',
-            'Agentenmanager' => 'Absoluter Experte für KI-Agenten, Steuerung der Rollen, Organigramm-Gestaltung und Prompt-Tuning im AI-Universe.'
+            'Agentenmanager' => 'Absoluter Experte für KI-Agenten, Steuerung der Rollen, Organigramm-Gestaltung und Prompt-Tuning im AI-Universe.',
+            'Leiter Globale Planung' => 'Nachrichten, Recherchen, globale Lagebilder, Geografie, Urlaubsplanung und Echtzeit-News-Analysen.'
         ];
 
         $rolesMap = [];
@@ -160,10 +161,30 @@ class AiAgentSeeder extends Seeder
                 'icon' => 'user-plus',
                 'tts_voice' => 'Charon',
                 'role' => 'Hausarzt'
+            ],
+            [
+                'name' => 'Mapi',
+                'sourceImage' => 'mapi_selfie.png',
+                'wake_word' => 'Mapi',
+                'role_description' => 'Leiter Globale Planung. News- und Urlaubsplanungs-Experte. Zuständig für globale Recherchen und Lagebilder.',
+                'system_prompt' => "Du bist Mapi, der Leiter für Globale Planung von Seelenfunke. Dein Modus ist 'Exploration & Current Events'.
+WICHTIGE SOP FÜR URLAUBSPLANUNG:
+Wenn der Nutzer nach einem Urlaub oder Ausflug fragt, gehe ZWINGEND genau so vor:
+1. Nutze `map_search_and_fly`, um die Karte dorthin zu bewegen.
+2. Nutze `search_global_news`, um dem Nutzer parallel News vom Zielort anzuzeigen.
+3. Erstelle eine detaillierte Reiseroute, Packliste und frage den Nutzer ggf. nach seinen Kalender-Präferenzen oder prüfe seinen Kalender mit deinen Tools.
+4. Nutze `holiday_generate_pdf_plan`, um das PDF zu erzeugen.
+5. Sende dem Nutzer am Ende das PDF-Dokument per Mail mit deinen Mail-Tools.",
+                'model' => 'gemini-3.1-pro-preview',
+                'temperature' => 0.4,
+                'color' => 'orange-500',
+                'icon' => 'globe-alt',
+                'tts_voice' => 'Puck',
+                'role' => 'Leiter Globale Planung'
             ]
         ];
 
-        $collaborationDirective = "\n\n--- WICHTIGE SYSTEMREGELN FÜR DICH ---\n1. WISSENSDATENBANK: Wenn du eine firmeninterne Information nicht weißt, suche ZWINGEND zuerst mit `brain_search` in der Datenbank.\n2. AGENTEN-DELEGATION: Wenn dir ein Werkzeug (z.B. für Lieferanten, Buchhaltung, Marketing) fehlt oder du eine Aufgabe nicht selbst lösen kannst, frage ZWINGEND einen anderen spezialisierten Agenten über das Tool `communication_ask_agent`! Du sagst dem Nutzer niemals 'Ich kann das nicht' oder 'Dafür habe ich keine Rechte', sondern delegierst die Aufgabe sofort an den passenden Agenten und gibst dessen finale Antwort direkt an den Nutzer weiter.";
+        $collaborationDirective = "\n\n--- WICHTIGE SYSTEMREGELN FÜR DICH ---\n1. WISSENSDATENBANK: Wenn du eine firmeninterne Information nicht weißt, suche ZWINGEND zuerst mit `brain_search` in der Datenbank.\n2. AGENTEN-DELEGATION: Wenn dir ein Werkzeug (z.B. für Lieferanten, Buchhaltung, Marketing) fehlt oder du eine Aufgabe nicht selbst lösen kannst, frage ZWINGEND einen anderen spezialisierten Agenten über das Tool `communication_ask_agent`! Du sagst dem Nutzer niemals 'Ich kann das nicht' oder 'Dafür habe ich keine Rechte', sondern delegierst die Aufgabe sofort an den passenden Agenten und gibst dessen finale Antwort direkt an den Nutzer weiter.\n3. AGENTENWECHSEL: Wenn der Nutzer ausdrücklich mit einem anderen Agenten sprechen möchte (z.B. 'Ich möchte mit Marketi sprechen'), gehe ZWINGEND so vor:\n   a) Prüfe die Existenz des Ziel-Agenten mittels System-Tools.\n   b) Bei Erfolg: Verabschiede dich und führe `system_switch_agent` aus.\n   c) Bei Misserfolg: Teile dies höflich mit und biete proaktiv alternative Hilfe an.";
 
         foreach ($agentsData as &$aData) {
             $aData['system_prompt'] .= $collaborationDirective;
@@ -250,6 +271,13 @@ class AiAgentSeeder extends Seeder
                     array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
                 ),
+                'Leiter Globale Planung' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiHolidayPlannerFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiNewsFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
                 'Systemadmin' => [],
                 'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
             ];
@@ -259,7 +287,11 @@ class AiAgentSeeder extends Seeder
                 'system_search_chat_history', 'system_close_ui', 'system_visualize_data',
                 'system_search_web', 'system_switch_agent',
                 'system_write_artifact', 'system_patch_artifact'
-            ], array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'));
+            ], 
+            array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+            array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+            array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name')
+            );
 
             $allToolsCollection = AiTool::all();
             foreach ($domainAssignments as $roleName => $specificTools) {
